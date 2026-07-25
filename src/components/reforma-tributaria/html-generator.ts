@@ -238,6 +238,20 @@ section{padding:100px 0;}
   .tl{flex-wrap:wrap;}.ti{border-right:1px solid var(--b);min-width:90px;}
   .bb-grid{grid-template-columns:1fr;}.ap-grid{grid-template-columns:1fr;}.bs-row{flex-wrap:wrap;}
 }
+
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  .topbar,.progress-line,.edit-bar-btm,.edit-toggle-btn,.tabs-header{display:none!important;}
+  .reveal{opacity:1!important;transform:none!important;transition:none!important;}
+  #hero{min-height:auto!important;padding:60px 0 40px!important;}
+  section{padding:40px 0!important;}
+  .divider{margin:0 48px;}
+  #premissas,#impacto,#evolucao,#composicao,#legal,#beneficios,#cta{page-break-before:always;}
+  .tab-panel{display:block!important;}
+  .chart-box canvas{max-height:260px;}
+  .bar-fill{transition:none!important;}
+  a{color:inherit!important;text-decoration:none!important;}
+}
 .edit-bar-btm{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:rgba(10,26,10,.97);backdrop-filter:blur(12px);border-top:1px solid #1e3a1e;padding:11px 48px;align-items:center;gap:14px;}
 body.edit-mode .edit-bar-btm{display:flex;}
 [data-e]{transition:outline .15s,background .15s;}
@@ -272,6 +286,7 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     ${d.observacoes ? '<a class="nav-link" href="#notas">Notas</a>' : ''}
   </div>
   <button class="edit-toggle-btn" id="editToggleBtn" onclick="toggleEditMode()" title="Editar textos da apresentação">✏ Editar</button>
+  <button class="edit-toggle-btn" onclick="window.print()" title="Baixar como PDF" style="gap:5px;">⬇ PDF</button>
   <span class="confid">Diagnóstico · Confidencial</span>
 </nav>
 
@@ -609,6 +624,28 @@ window.addEventListener('message',function(e){
   if(!e.data) return;
   if(e.data.type==='reforma-enable-edit') enableEdit();
   if(e.data.type==='reforma-exit-edit') exitEdit();
+});
+
+// Print / PDF preparation
+window.addEventListener('beforeprint',function(){
+  // Show all hidden tab panels so charts and tables are visible
+  var hidden=[];
+  document.querySelectorAll('.tab-panel:not(.active)').forEach(function(p){
+    p.style.display='block';
+    hidden.push(p);
+  });
+  window._printHidden=hidden;
+  // Force all reveal animations
+  document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('visible');});
+  // Animate bar fills
+  document.querySelectorAll('.bar-fill').forEach(function(b){if(b.dataset.w)b.style.width=b.dataset.w+'%';});
+  // Init charts that were lazy (now panels are visible so canvas has dimensions)
+  if(!window.cLine) initLine();
+  if(!window.cBar) initBar();
+});
+window.addEventListener('afterprint',function(){
+  (window._printHidden||[]).forEach(function(p){p.style.display='';});
+  window._printHidden=null;
 });
 <\/script>
 </body>
