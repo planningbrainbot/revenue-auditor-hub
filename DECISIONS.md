@@ -316,3 +316,28 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** migration aplicada em produção, script de sync editado e testado rodando de verdade (não é só leitura), UI validada por `tsc --noEmit`, `eslint` e `vite build` limpos. Não testado clicando na tela real (sem navegador disponível nesta sessão) — validar visualmente os 3 campos em `/clientes` antes de confiar 100% no layout.
 
 **Próximos passos:** nenhum obrigatório. Se quiser fechar a cobertura dos 25 contratos sem match, dá pra investigar caso a caso (provavelmente título editado depois da cópia pro pipeline 28, ou deal antigo sem cópia).
+
+## [2026-07-27] CAC vira tabela única multi-unidade, com regra de repasse diferente por praça
+
+**Contexto:** a tela de CAC era uma apuração por unidade (cards + navegação pra `/cac/$unidadeId`), com fechamento mensal como royalties. Usuário pediu pra simplificar: uma tabela só, com filtro por unidade, sem o conceito de mês fechado. Nessa mesma conversa, trouxe uma regra de repasse de CAC diferente por unidade, que não existia antes (até então era só "50% em 7 dias após assinatura + 50% após 1º pagamento do cliente" pra todo mundo).
+
+**Decisão — fechamento mensal removido:** perguntei se deveria manter o botão de fechar/reabrir mês (trava edição, mantém histórico). Usuário escolheu remover — CAC agora é sempre editável, sem "confirmado"/read-only. `fecharApuracaoCac`/`reabrirApuracaoCac` foram deletados do código.
+
+**Decisão — regra de repasse por unidade (`src/lib/cac.functions.ts`, função `regimeParaUnidade`):**
+- **Fortaleza, Maceió, São Luis:** regime "atribuição" — 50% vence no fim do mês em que o contrato foi ganho (não mais 7 dias corridos da assinatura), 50% no fluxo de caixa do 1º pagamento do cliente (mecanismo igual ao de antes).
+- **Campo Novo:** continua no regime antigo (7 dias) até acumular R$50 mil de MRR atribuído histórico (soma de todo o histórico de contratos ativos da unidade — hoje já em ~R$49,9 mil, então o próximo contrato deve cruzar). Ao cruzar, só contratos **novos** entram no regime "atribuição" — não retroage pros que já estavam pendentes. Calculado em `regimesCampoNovoPorContrato`.
+- **Patos de Minas:** regime "excedente mensal" — sem parcela 1; CAC incide só sobre a fatia do MRR atribuído da unidade **no mês** que ultrapassar R$10 mil (contratos do mês em ordem de fechamento; quem fecha depois de já bater o teto banca o excedente inteiro). Reconhecido no fluxo de caixa do 1º pagamento do cliente. Calculado em `excedentesMensais`.
+
+**Bug encontrado e corrigido na mesma sessão — corte histórico da Patos de Minas:** ao ativar `paga_cac=true` pra ela (unidade antiga, entrou em 08/24), o gerador de apuração rodou sobre TODO o histórico de contratos dela, criando CAC retroativo até dez/2024 — usuário notou no gráfico de projeção. Confirmado com o usuário: a regra da Patos de Minas só vale a partir de **agosto/2026** pra frente, nunca retroativo. Implementado como `PATOS_DE_MINAS_INICIO_CAC = "2026-08"` + função `mesMinimoCac`, aplicado tanto na descoberta de meses (`syncApuracoesEItensUnidade`) quanto como defesa extra dentro de `gerarItensParaApuracao` (mesmo que uma apuração de mês antigo já exista, nunca gera item pra ela). Os 12 registros de `cac_apuracao`/20 itens já gerados indevidamente (nenhum com parcela paga) foram apagados direto via Supabase REST (service_role) — não havia CLI/migration runner disponível pra rodar isso como migration de dados.
+
+**Migration:** `supabase/migrations/20260727170000_patos_de_minas_paga_cac.sql` (ativa `paga_cac=true` pra Patos de Minas — aplicada em produção via REST no mesmo momento, já que não há Supabase CLI local).
+
+**KPI "CAC a receber" — correção de fórmula:** primeira versão só contava parcela 2 como "a receber" quando o status já não era mais `aguardando_cliente` (i.e., só depois do cliente pagar a unidade) — resultava em `vendido ≠ recebido + a receber` (usuário percebeu a conta não fechando: R$352k vendido vs R$32k+R$156k = R$188k). Corrigido pra "a receber" = tudo que não está `pago`, incluindo `aguardando_cliente` — fecha a conta sempre, item a item, por construção. A diferença que antes ficava escondida (2ª parcela ainda sem o cliente ter pago) segue visível separadamente na timeline como "sem previsão".
+
+**Timeline de projeção:** gráfico por mês (Recebido vs A receber, empilhado), cada parcela no mês do pagamento se já paga ou no mês do prazo se em aberto; perdeu a série "Atrasado" a pedido do usuário (entra junto em "A receber"). Parcela 2 ainda `aguardando_cliente` não tem mês pra entrar — soma à parte, fora do gráfico.
+
+**Filtros adicionados:** unidade (select), status (Todos / CAC recebido / CAC a receber — usa a mesma `valorAReceber` pra decidir), mostrar excluídos (checkbox).
+
+**Status:** implementado e no ar (push direto pra `main`, deploy via Vercel). `tsc --noEmit` e `eslint` limpos nos arquivos tocados (o padrão de `any` em `.functions.ts` é pré-existente no repo inteiro, não é regressão desta mudança). Não testado clicando na tela real — validar os números de Campo Novo (quando cruzar os R$50 mil) e Patos de Minas (a partir de agosto/2026) contra a expectativa do usuário no primeiro mês real de dados.
+
+**Próximos passos:** nenhum obrigatório. Se surgir uma unidade nova em `paga_cac` sem regra definida, `regimeParaUnidade` cai no fallback "sete_dias" (regra antiga) — vale revisitar se isso for usado de verdade.

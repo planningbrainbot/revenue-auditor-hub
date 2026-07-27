@@ -127,18 +127,29 @@ function withLiveStatus(it: ApuracaoCacItem, hoje: string): ApuracaoCacItem {
 //   pros contratos anteriores.
 // - Patos de Minas: regra "excedente mensal" — só gera CAC sobre a parcela
 //   do MRR atribuído da unidade no mês que ultrapassar R$10 mil; sem
-//   parcela 1 (tudo reconhecido no fluxo de caixa do 1º pagamento).
+//   parcela 1 (tudo reconhecido no fluxo de caixa do 1º pagamento). Unidade
+//   antiga (entrou em 08/24) — a regra não é retroativa, vale só a partir de
+//   agosto/2026, nunca pros ~2 anos de contratos anteriores.
 type RegimeCac = "atribuicao" | "sete_dias" | "excedente_mensal";
 
 const UNIDADES_REGIME_ATRIBUICAO = new Set(["Fortaleza", "Maceió", "São Luis"]);
 const CAMPO_NOVO_LIMITE_MRR_ATRIBUIDO = 50_000;
 const PATOS_DE_MINAS_LIMITE_MENSAL = 10_000;
+const PATOS_DE_MINAS_INICIO_CAC = "2026-08"; // AAAA-MM: contratos ganhos antes disso não entram
 
 function regimeParaUnidade(unidadeNome: string): RegimeCac | "campo_novo" {
   if (unidadeNome === "Patos de Minas") return "excedente_mensal";
   if (UNIDADES_REGIME_ATRIBUICAO.has(unidadeNome)) return "atribuicao";
   if (unidadeNome === "Campo Novo") return "campo_novo";
   return "sete_dias";
+}
+
+// Mês (AAAA-MM) a partir do qual a unidade passou a ter CAC — contratos
+// ganhos antes disso não geram apuração nenhuma. null = sem corte (unidade
+// nova, todo o histórico dela já nasceu depois do CAC existir).
+function mesMinimoCac(unidadeNome: string): string | null {
+  if (unidadeNome === "Patos de Minas") return PATOS_DE_MINAS_INICIO_CAC;
+  return null;
 }
 
 // Decide o regime de cada contrato da Campo Novo pelo MRR atribuído
@@ -213,6 +224,12 @@ async function gerarItensParaApuracao(
   const mes = String(ap.mes_referencia).slice(0, 7);
   const { start, end } = monthRange(mes);
   const hoje = todayISO();
+
+  // Defesa extra: mesmo que uma apuração de mês anterior ao início do CAC da
+  // unidade já exista (ex: registro remanescente de antes desse corte), nunca
+  // gera item pra ela.
+  const minimo = mesMinimoCac(unidadeNome);
+  if (minimo && mes < minimo) return { created: 0, skipped: true };
 
   // Itens já existentes nesta apuração nunca ganham um irmão duplicado —
   // mesma lógica de idempotência de gerarItensApuracao (royalties).
@@ -390,9 +407,12 @@ async function syncApuracoesEItensUnidade(
     .not("ganho_em", "is", null);
   if (kErr) throw new Error(kErr.message);
 
+  const minimo = mesMinimoCac(unidade.nome_da_praca);
   const mesesNecessarios = new Set<string>([mesAtual]);
   for (const c of contratos ?? []) {
-    mesesNecessarios.add(String((c as any).ganho_em).slice(0, 7));
+    const mes = String((c as any).ganho_em).slice(0, 7);
+    if (minimo && mes < minimo) continue;
+    mesesNecessarios.add(mes);
   }
 
   const mesesFaltantes = [...mesesNecessarios].filter((m) => !mesesExistentes.has(m));

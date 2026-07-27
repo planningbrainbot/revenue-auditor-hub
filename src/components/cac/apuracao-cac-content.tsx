@@ -115,14 +115,13 @@ const PARCELA_BADGE: Record<string, { label: string; cls: string }> = {
   },
 };
 
-// Quanto ainda falta a unidade repassar pra matriz: parcela 1 até ser paga, e
-// parcela 2 a partir do momento em que o cliente já pagou (deixa de ser
-// "aguardando_cliente" e passa a ser uma dívida real da unidade).
+// Tudo que ainda não foi pago — inclusive a 2ª parcela "aguardando_cliente"
+// (contratada, mas o cliente ainda nem pagou a unidade). Por construção,
+// vendido = recebido + a receber sempre fecha, item a item.
 function valorAReceber(it: ItemCac): number {
   let v = 0;
   if (it.status_parcela_1 !== "pago") v += Number(it.valor_parcela_1 ?? 0);
-  if (["pendente", "cobrado", "atrasado"].includes(it.status_parcela_2))
-    v += Number(it.valor_parcela_2 ?? 0);
+  if (it.status_parcela_2 !== "pago") v += Number(it.valor_parcela_2 ?? 0);
   return v;
 }
 
@@ -171,6 +170,7 @@ export function ApuracaoCacContent() {
   const forcar = useForcarAtualizacaoCac();
 
   const [unidadeFiltro, setUnidadeFiltro] = useState<string>("todas");
+  const [statusFiltro, setStatusFiltro] = useState<string>("todos");
   const [mostrarExcluidos, setMostrarExcluidos] = useState(false);
 
   const unidades = data?.unidades ?? [];
@@ -180,9 +180,13 @@ export function ApuracaoCacContent() {
     return itens.filter((it) => {
       if (unidadeFiltro !== "todas" && String(it.unidade_id) !== unidadeFiltro) return false;
       if (!mostrarExcluidos && it.excluido_em) return false;
+      if (!it.excluido_em) {
+        if (statusFiltro === "recebido" && valorAReceber(it) > 0) return false;
+        if (statusFiltro === "a_receber" && valorAReceber(it) === 0) return false;
+      }
       return true;
     });
-  }, [data, unidadeFiltro, mostrarExcluidos]);
+  }, [data, unidadeFiltro, statusFiltro, mostrarExcluidos]);
 
   const kpis = useMemo(() => {
     let vendido = 0;
@@ -307,6 +311,16 @@ export function ApuracaoCacContent() {
                   {u.nome_da_praca}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os status</SelectItem>
+              <SelectItem value="recebido">CAC recebido</SelectItem>
+              <SelectItem value="a_receber">CAC a receber</SelectItem>
             </SelectContent>
           </Select>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
