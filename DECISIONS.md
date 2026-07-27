@@ -291,3 +291,28 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** implementado, build (`vite build`) validado sem erros novos. Não testado navegando na UI real ainda — validar dados na tela antes de divulgar para os sócios.
 
 **Próximos passos:** abrir `/saude-carteira` no navegador e conferir números de 2-3 clientes conhecidos contra a Auditoria/Contas a Receber antes de considerar o pilar financeiro pronto. Depois, plugar o pilar Relacionamento (dados já existem em `/nps`) como segunda coluna do score composto.
+
+## [2026-07-27] `/clientes` ganha Regime Tributário, Data do Ganho e Data de Contrato Assinado
+
+**Contexto:** usuário pediu para trazer do Pipedrive o regime tributário do cliente, a data do ganho (won) e a data em que o card entrou na fase "Contrato Assinado" — pediu essa última como se fosse de um pipe do Pipefy.
+
+**Conflito sinalizado e confirmado com o usuário:** minha memória tinha uma nota de 15/07/2026 dizendo que "Central de Contratos" (gatilho status Ganho + fase Contrato Assinado) é um pipe do **Pipedrive** (pipeline 28), não do Pipefy — nome parecido, sistema diferente. Perguntei antes de implementar; usuário confirmou que é o Pipedrive mesmo.
+
+**Fontes:**
+- Regime tributário: campo customizado do deal no Pipedrive, key `093e25bbb3aff5d379b996da8fcec39667c6ae4e` ("Qual é o regime tributário da sua empresa?"), enum Simples Nacional/Lucro Presumido/Lucro Real/MEI/Não tem CNPJ. Está no mesmo deal do pipeline 2 (Inside Sales) que `~/sync_pipedrive_contratos.py` já sincroniza — sem custo extra de API.
+- Data do ganho: já existia como `contratos.ganho_em` (won_time do deal), só faltava expor na UI.
+- Data de entrada em "Contrato Assinado": nova — stage 170 do pipeline 28. Os deals desse pipeline são cópias separadas (id diferente) dos deals do pipeline 2, sem campo de link explícito entre eles. Matching feito por `(unidade, título)` normalizado — mesma chave heurística que `run_merge_duplicates` já usa neste script para achar duplicatas em `empresas`. Data extraída via `GET /deals/{id}/flow` do Pipedrive (histórico de mudança de `stage_id`), timestamp da transição mais recente para 170.
+
+**Implementado:**
+- Migration `supabase/migrations/20260727150000_contratos_regime_tributario_datas.sql`: `contratos.regime_tributario` (text) e `contratos.entrada_contrato_assinado_em` (date), aplicada via Management API.
+- `~/sync_pipedrive_contratos.py`: `map_contrato` grava `regime_tributario` a cada sync normal (zero custo extra). Nova função `run_backfill_contrato_assinado()` (modo `backfill_contrato_assinado`, e também chamada automaticamente no fim do fluxo padrão, dentro de um try/except que nunca derruba o sync principal) — incremental, só processa contratos com `entrada_contrato_assinado_em` nulo, então o custo de API (`/flow` por deal) cai a quase zero depois do backfill inicial.
+- `src/routes/_authenticated/clientes.tsx`: novas colunas Regime Tributário, Data do Ganho, Contrato Assinado em (ordenáveis, exportáveis pro Excel), buscadas junto com o MRR (join por `pipedrive_deal_id`, já existente na tela).
+- `src/integrations/supabase/types.ts`: `contratos` Row/Insert/Update ganham os dois campos novos (tipos gerados manualmente — não há Supabase CLI local, ver `project_migracao_integracoes_supabase_cloud` nas memórias).
+
+**Rodado manualmente uma vez (backfill inicial, 27/07/2026):** sync completo populou regime_tributario em 309/532 contratos (só os que tinham won deal ativo retornado pela query do Pipedrive nesta run — comportamento normal do script, não é bug novo). Backfill de data de contrato assinado: 161 deals no stage 170 do Pipedrive, 140 casaram por (unidade,título) com um contrato existente e ganharam a data; 25 sem match (título/unidade divergente ou contrato sem par no stage 170); resultado final 133/532 contratos com a data.
+
+**Limitação conhecida:** o matching por `(unidade, título)` é heurístico, não uma chave garantida — se dois contratos da mesma unidade tiverem título idêntico, a data pode ser atribuída ao par errado. Baixo risco na prática (mesmo padrão já usado e aceito em `run_merge_duplicates`), mas vale saber se um número individual parecer estranho.
+
+**Status:** migration aplicada em produção, script de sync editado e testado rodando de verdade (não é só leitura), UI validada por `tsc --noEmit`, `eslint` e `vite build` limpos. Não testado clicando na tela real (sem navegador disponível nesta sessão) — validar visualmente os 3 campos em `/clientes` antes de confiar 100% no layout.
+
+**Próximos passos:** nenhum obrigatório. Se quiser fechar a cobertura dos 25 contratos sem match, dá pra investigar caso a caso (provavelmente título editado depois da cópia pro pipeline 28, ou deal antigo sem cópia).

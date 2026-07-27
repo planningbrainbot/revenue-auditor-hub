@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, ExternalLink, FileSpreadsheet, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building2,
+  ExternalLink,
+  FileSpreadsheet,
+  Search,
+  X,
+} from "lucide-react";
 import { exportRowsToXlsx } from "@/lib/xlsx-export";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -28,12 +37,7 @@ import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { PrePlanningTab } from "@/components/clientes/pre-planning-tab";
 
 type StatusFinanceiro =
-  | "ATIVO"
-  | "EM_ATRASO"
-  | "INADIMPLENTE"
-  | "SEM_ATIVIDADE"
-  | "NUNCA_PAGOU"
-  | "SEM_AR";
+  "ATIVO" | "EM_ATRASO" | "INADIMPLENTE" | "SEM_ATIVIDADE" | "NUNCA_PAGOU" | "SEM_AR";
 
 type Cliente = {
   id: number;
@@ -49,9 +53,30 @@ type Cliente = {
   segmento: string | null;
 };
 
+type ContratoInfo = {
+  ganho_em: string | null;
+  regime_tributario: string | null;
+  entrada_contrato_assinado_em: string | null;
+};
+
 // razao_social às vezes vem de um enriquecimento de CNPJ que grava placeholders
 // em vez de deixar nulo quando não encontra a razão social oficial.
-const GARBAGE_RAZAO_SOCIAL = new Set([".", "0", "-", "--", "---", "n/a", "N/A", "NA", "o", "a", "n", "c", "cc", "xx"]);
+const GARBAGE_RAZAO_SOCIAL = new Set([
+  ".",
+  "0",
+  "-",
+  "--",
+  "---",
+  "n/a",
+  "N/A",
+  "NA",
+  "o",
+  "a",
+  "n",
+  "c",
+  "cc",
+  "xx",
+]);
 function displayName(r: Pick<Cliente, "razao_social" | "titulo">): string {
   const rs = r.razao_social?.trim();
   if (rs && !GARBAGE_RAZAO_SOCIAL.has(rs)) return rs;
@@ -124,6 +149,9 @@ function ClientesPage() {
   const { status: statusParam, unidade: unidadeParam } = Route.useSearch();
   const [rows, setRows] = useState<Cliente[]>([]);
   const [mrrByPipedriveId, setMrrByPipedriveId] = useState<Map<string, number>>(new Map());
+  const [contratoInfoByPipedriveId, setContratoInfoByPipedriveId] = useState<
+    Map<string, ContratoInfo>
+  >(new Map());
   const [churnedIds, setChurnedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -144,7 +172,10 @@ function ClientesPage() {
     | "pipedrive_id"
     | "fonte_cadastro"
     | "erp"
-    | "segmento";
+    | "segmento"
+    | "ganho_em"
+    | "regime_tributario"
+    | "entrada_contrato_assinado_em";
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
   const toggleSort = (key: SortKey) => {
     setSort((prev) => {
@@ -169,7 +200,9 @@ function ClientesPage() {
           .limit(5000),
         supabase
           .from("contratos")
-          .select("mrr_mensal,pipedrive_deal_id,status_contrato,unidade")
+          .select(
+            "mrr_mensal,pipedrive_deal_id,status_contrato,unidade,ganho_em,regime_tributario,entrada_contrato_assinado_em",
+          )
           .eq("status_contrato", "Ativo")
           .limit(20000),
         supabase
@@ -188,14 +221,25 @@ function ClientesPage() {
         setRows((empRes.data as Cliente[]).filter((r) => regionais.has(r.unidade ?? "")));
       }
       const m = new Map<string, number>();
+      const info = new Map<string, ContratoInfo>();
       for (const c of contRes.data ?? []) {
         if (!regionais.has(c.unidade ?? "")) continue;
         const id = c.pipedrive_deal_id != null ? String(c.pipedrive_deal_id) : null;
         if (!id) continue;
         // contratos.mrr_mensal já é o valor mensal (coluna gerada = mrr/12)
         m.set(id, (m.get(id) ?? 0) + Number(c.mrr_mensal ?? 0));
+        // um pipedrive_deal_id não deveria ter mais de um contrato, mas por segurança
+        // mantém o primeiro valor não nulo encontrado para cada campo
+        const prev = info.get(id);
+        info.set(id, {
+          ganho_em: prev?.ganho_em ?? c.ganho_em ?? null,
+          regime_tributario: prev?.regime_tributario ?? c.regime_tributario ?? null,
+          entrada_contrato_assinado_em:
+            prev?.entrada_contrato_assinado_em ?? c.entrada_contrato_assinado_em ?? null,
+        });
       }
       setMrrByPipedriveId(m);
+      setContratoInfoByPipedriveId(info);
       const churned = new Set<string>(
         (tratRes.data ?? []).map((t) => String(t.pipedrive_deal_id)).filter(Boolean),
       );
@@ -210,10 +254,14 @@ function ClientesPage() {
   const fmtBRL = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
+  const fmtDate = (v: string | null | undefined) => {
+    if (!v) return null;
+    const [y, m, d] = v.split("-");
+    return y && m && d ? `${d}/${m}/${y}` : v;
+  };
 
   const unidades = useMemo(
-    () =>
-      Array.from(new Set(rows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
+    () => Array.from(new Set(rows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
     [rows],
   );
 
@@ -237,21 +285,25 @@ function ClientesPage() {
   // churn status derived from central_tratativas (estagio=Perdido)
   const isChurn = (r: Cliente) => !!r.pipedrive_id && churnedIds.has(r.pipedrive_id);
 
-  const churnCounts = useMemo(() => ({
-    churn: visiveis.filter(isChurn).length,
-    ativo: visiveis.filter((r) => !isChurn(r)).length,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [visiveis, churnedIds]);
+  const churnCounts = useMemo(
+    () => ({
+      churn: visiveis.filter(isChurn).length,
+      ativo: visiveis.filter((r) => !isChurn(r)).length,
+    }),
+    [visiveis, churnedIds],
+  );
 
   const counts = useMemo(() => {
     const c = {} as Record<StatusFinanceiro, number>;
     STATUS_ORDER.forEach((s) => (c[s] = 0));
     // payment status counts only for non-churned clients
-    visiveis.filter((r) => !isChurn(r)).forEach((r) => {
-      if (r.status_financeiro && c[r.status_financeiro] != null) c[r.status_financeiro]++;
-    });
+    visiveis
+      .filter((r) => !isChurn(r))
+      .forEach((r) => {
+        if (r.status_financeiro && c[r.status_financeiro] != null) c[r.status_financeiro]++;
+      });
     return c;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visiveis, churnedIds]);
 
   const filtered = useMemo(() => {
@@ -276,6 +328,7 @@ function ClientesPage() {
     const rank = new Map<string, number>();
     STATUS_ORDER.forEach((s, i) => rank.set(s, i));
     const mrrOf = (r: Cliente) => mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0;
+    const infoOf = (r: Cliente) => contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
     if (!sort) {
       return out.sort((a, b) => {
         const ra = rank.get(a.status_financeiro ?? "") ?? 99;
@@ -330,11 +383,34 @@ function ClientesPage() {
         case "segmento":
           c = cmpStr(a.segmento, b.segmento);
           break;
+        case "ganho_em":
+          c = cmpStr(infoOf(a)?.ganho_em, infoOf(b)?.ganho_em);
+          break;
+        case "regime_tributario":
+          c = cmpStr(infoOf(a)?.regime_tributario, infoOf(b)?.regime_tributario);
+          break;
+        case "entrada_contrato_assinado_em":
+          c = cmpStr(
+            infoOf(a)?.entrada_contrato_assinado_em,
+            infoOf(b)?.entrada_contrato_assinado_em,
+          );
+          break;
       }
       if (c !== 0) return c * dir;
       return (a.razao_social ?? "").localeCompare(b.razao_social ?? "", "pt-BR");
     });
-  }, [visiveis, q, unidade, statusFilter, erpFilter, segmentoFilter, perms.scopedToOwnUnit, sort, mrrByPipedriveId]);
+  }, [
+    visiveis,
+    q,
+    unidade,
+    statusFilter,
+    erpFilter,
+    segmentoFilter,
+    perms.scopedToOwnUnit,
+    sort,
+    mrrByPipedriveId,
+    contratoInfoByPipedriveId,
+  ]);
 
   const hasFilters =
     q !== "" ||
@@ -375,20 +451,28 @@ function ClientesPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => { setChurnFilter(churnFilter === false ? null : false); setStatusFilter(null); }}
+              onClick={() => {
+                setChurnFilter(churnFilter === false ? null : false);
+                setStatusFilter(null);
+              }}
               className={cn(
                 "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
                 "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-100",
                 churnFilter === false && "ring-2 ring-offset-2 ring-primary",
               )}
             >
-              <div className="text-xs font-medium uppercase tracking-wide opacity-80">Clientes Ativos</div>
+              <div className="text-xs font-medium uppercase tracking-wide opacity-80">
+                Clientes Ativos
+              </div>
               <div className="mt-1 text-3xl font-bold">{churnCounts.ativo}</div>
               <div className="mt-1 text-[11px] opacity-75">Sem card de churn em tratativas</div>
             </button>
             <button
               type="button"
-              onClick={() => { setChurnFilter(churnFilter === true ? null : true); setStatusFilter(null); }}
+              onClick={() => {
+                setChurnFilter(churnFilter === true ? null : true);
+                setStatusFilter(null);
+              }}
               className={cn(
                 "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
                 "bg-red-50 border-red-200 text-red-900 dark:bg-red-950 dark:border-red-900 dark:text-red-100",
@@ -402,7 +486,9 @@ function ClientesPage() {
           </div>
 
           {/* Status de Pagamento (somente clientes ativos) */}
-          <div className="text-xs text-muted-foreground -mb-1 px-0.5">Status de pagamento — clientes ativos</div>
+          <div className="text-xs text-muted-foreground -mb-1 px-0.5">
+            Status de pagamento — clientes ativos
+          </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
             {STATUS_ORDER.map((s) => {
               const meta = STATUS_META[s];
@@ -423,9 +509,7 @@ function ClientesPage() {
                     {meta.label}
                   </div>
                   <div className="mt-1 text-3xl font-bold">{counts[s]}</div>
-                  <div className="mt-1 text-[11px] opacity-75 line-clamp-2">
-                    {meta.description}
-                  </div>
+                  <div className="mt-1 text-[11px] opacity-75 line-clamp-2">{meta.description}</div>
                 </button>
               );
             })}
@@ -506,23 +590,32 @@ function ClientesPage() {
               className="ml-auto"
               disabled={loading || filtered.length === 0}
               onClick={() => {
-                const data = filtered.map((r) => ({
-                  "Razão Social": displayName(r),
-                  Unidade: r.unidade || "",
-                  MRR: mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0,
-                  CNPJ: r.cnpj || "",
-                  Estado: r.uf || "",
-                  "Status Financeiro": r.status_financeiro
-                    ? STATUS_META[r.status_financeiro].label
-                    : "",
-                  "Pipedrive ID": r.pipedrive_id || "",
-                  "Fonte Cadastro": r.fonte_cadastro || "",
-                  ERP: r.erp || "",
-                  Segmento: r.segmento || "",
-                }));
-                exportRowsToXlsx(data, "clientes-planning", "Planning", [
-                  40, 18, 14, 20, 10, 18, 14, 18, 18, 20,
-                ]);
+                const data = filtered.map((r) => {
+                  const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
+                  return {
+                    "Razão Social": displayName(r),
+                    Unidade: r.unidade || "",
+                    MRR: mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0,
+                    CNPJ: r.cnpj || "",
+                    Estado: r.uf || "",
+                    "Status Financeiro": r.status_financeiro
+                      ? STATUS_META[r.status_financeiro].label
+                      : "",
+                    "Pipedrive ID": r.pipedrive_id || "",
+                    "Fonte Cadastro": r.fonte_cadastro || "",
+                    ERP: r.erp || "",
+                    Segmento: r.segmento || "",
+                    "Regime Tributário": info?.regime_tributario || "",
+                    "Data do Ganho": fmtDate(info?.ganho_em) || "",
+                    "Contrato Assinado em": fmtDate(info?.entrada_contrato_assinado_em) || "",
+                  };
+                });
+                exportRowsToXlsx(
+                  data,
+                  "clientes-planning",
+                  "Planning",
+                  [40, 18, 14, 20, 10, 18, 14, 18, 18, 20, 20, 16, 18],
+                );
               }}
             >
               <FileSpreadsheet className="mr-1 h-4 w-4" /> Exportar Excel
@@ -536,7 +629,13 @@ function ClientesPage() {
               </span>
               {!loading && (
                 <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                  MRR total: {fmtBRL(filtered.reduce((s, r) => s + (mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0), 0))}
+                  MRR total:{" "}
+                  {fmtBRL(
+                    filtered.reduce(
+                      (s, r) => s + (mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0),
+                      0,
+                    ),
+                  )}
                 </span>
               )}
             </div>
@@ -544,18 +643,27 @@ function ClientesPage() {
               <Table>
                 <TableHeader className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm shadow-[inset_0_-1px_0_hsl(var(--border))]">
                   <TableRow>
-                    {([
-                      { key: "razao_social", label: "Razão Social", align: "left" },
-                      { key: "unidade", label: "Unidade", align: "left" },
-                      { key: "mrr", label: "MRR", align: "right" },
-                      { key: "cnpj", label: "CNPJ", align: "left" },
-                      { key: "uf", label: "Estado", align: "left" },
-                      { key: "status_financeiro", label: "Status Financeiro", align: "left" },
-                      { key: "pipedrive_id", label: "Pipedrive ID", align: "left" },
-                      { key: "fonte_cadastro", label: "Fonte Cadastro", align: "left" },
-                      { key: "erp", label: "ERP", align: "left" },
-                      { key: "segmento", label: "Segmento", align: "left" },
-                    ] as { key: SortKey; label: string; align: "left" | "right" }[]).map((col) => {
+                    {(
+                      [
+                        { key: "razao_social", label: "Razão Social", align: "left" },
+                        { key: "unidade", label: "Unidade", align: "left" },
+                        { key: "mrr", label: "MRR", align: "right" },
+                        { key: "cnpj", label: "CNPJ", align: "left" },
+                        { key: "uf", label: "Estado", align: "left" },
+                        { key: "status_financeiro", label: "Status Financeiro", align: "left" },
+                        { key: "pipedrive_id", label: "Pipedrive ID", align: "left" },
+                        { key: "fonte_cadastro", label: "Fonte Cadastro", align: "left" },
+                        { key: "erp", label: "ERP", align: "left" },
+                        { key: "segmento", label: "Segmento", align: "left" },
+                        { key: "regime_tributario", label: "Regime Tributário", align: "left" },
+                        { key: "ganho_em", label: "Data do Ganho", align: "left" },
+                        {
+                          key: "entrada_contrato_assinado_em",
+                          label: "Contrato Assinado em",
+                          align: "left",
+                        },
+                      ] as { key: SortKey; label: string; align: "left" | "right" }[]
+                    ).map((col) => {
                       const active = sort?.key === col.key;
                       const Icon = !active
                         ? ArrowUpDown
@@ -596,13 +704,16 @@ function ClientesPage() {
                   {filtered.map((r) => {
                     const meta = r.status_financeiro ? STATUS_META[r.status_financeiro] : null;
                     const churned = isChurn(r);
+                    const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
                     return (
                       <TableRow key={r.id} className={churned ? "opacity-60" : undefined}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             {displayName(r) || "—"}
                             {churned && (
-                              <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] px-1.5 py-0">churn</Badge>
+                              <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] px-1.5 py-0">
+                                churn
+                              </Badge>
                             )}
                           </div>
                         </TableCell>
@@ -612,18 +723,18 @@ function ClientesPage() {
                         <TableCell className="text-right font-medium tabular-nums">
                           {(() => {
                             const v = mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0;
-                            return v > 0 ? fmtBRL(v) : <span className="text-muted-foreground">—</span>;
+                            return v > 0 ? (
+                              fmtBRL(v)
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            );
                           })()}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{r.cnpj || "—"}</TableCell>
                         <TableCell>{r.uf || "—"}</TableCell>
 
                         <TableCell>
-                          {meta ? (
-                            <Badge className={meta.badge}>{meta.label}</Badge>
-                          ) : (
-                            "—"
-                          )}
+                          {meta ? <Badge className={meta.badge}>{meta.label}</Badge> : "—"}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
                           {r.pipedrive_id ? (
@@ -643,13 +754,16 @@ function ClientesPage() {
                         <TableCell>{r.fonte_cadastro || "—"}</TableCell>
                         <TableCell>{r.erp || "—"}</TableCell>
                         <TableCell>{r.segmento || "—"}</TableCell>
+                        <TableCell>{info?.regime_tributario || "—"}</TableCell>
+                        <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
+                        <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
                       </TableRow>
                     );
                   })}
                   {!loading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={10}
+                        colSpan={13}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Nenhum cliente encontrado.

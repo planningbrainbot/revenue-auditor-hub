@@ -507,6 +507,7 @@ export type Database = {
           cnpj: string | null
           created_at: string | null
           empresa_id: number | null
+          entrada_contrato_assinado_em: string | null
           ganho_em: string | null
           id: number
           mrr: number | null
@@ -517,6 +518,7 @@ export type Database = {
           preco_unitario: number | null
           produto: string | null
           quantidade: number | null
+          regime_tributario: string | null
           sdr: string | null
           segmento: string | null
           status_contrato: string | null
@@ -533,6 +535,7 @@ export type Database = {
           cnpj?: string | null
           created_at?: string | null
           empresa_id?: number | null
+          entrada_contrato_assinado_em?: string | null
           ganho_em?: string | null
           id?: number
           mrr?: number | null
@@ -543,6 +546,7 @@ export type Database = {
           preco_unitario?: number | null
           produto?: string | null
           quantidade?: number | null
+          regime_tributario?: string | null
           sdr?: string | null
           segmento?: string | null
           status_contrato?: string | null
@@ -559,6 +563,7 @@ export type Database = {
           cnpj?: string | null
           created_at?: string | null
           empresa_id?: number | null
+          entrada_contrato_assinado_em?: string | null
           ganho_em?: string | null
           id?: number
           mrr?: number | null
@@ -569,6 +574,7 @@ export type Database = {
           preco_unitario?: number | null
           produto?: string | null
           quantidade?: number | null
+          regime_tributario?: string | null
           sdr?: string | null
           segmento?: string | null
           status_contrato?: string | null
