@@ -118,6 +118,72 @@ function withLiveStatus(it: ApuracaoCacItem, hoje: string): ApuracaoCacItem {
   };
 }
 
+// ============ Regras de CAC por unidade (definidas com o usuário em 27/07/2026) ============
+// - Fortaleza, Maceió, São Luis: regra "atribuição" — 50% no mês em que o
+//   contrato foi ganho, 50% no fluxo de caixa do 1º pagamento do cliente.
+// - Campo Novo: fica na regra antiga (7 dias após assinatura) até acumular
+//   R$50 mil de MRR atribuído histórico; o contrato que cruzar esse total
+//   (e os seguintes) passam a entrar na regra "atribuição" — não retroage
+//   pros contratos anteriores.
+// - Patos de Minas: regra "excedente mensal" — só gera CAC sobre a parcela
+//   do MRR atribuído da unidade no mês que ultrapassar R$10 mil; sem
+//   parcela 1 (tudo reconhecido no fluxo de caixa do 1º pagamento).
+type RegimeCac = "atribuicao" | "sete_dias" | "excedente_mensal";
+
+const UNIDADES_REGIME_ATRIBUICAO = new Set(["Fortaleza", "Maceió", "São Luis"]);
+const CAMPO_NOVO_LIMITE_MRR_ATRIBUIDO = 50_000;
+const PATOS_DE_MINAS_LIMITE_MENSAL = 10_000;
+
+function regimeParaUnidade(unidadeNome: string): RegimeCac | "campo_novo" {
+  if (unidadeNome === "Patos de Minas") return "excedente_mensal";
+  if (UNIDADES_REGIME_ATRIBUICAO.has(unidadeNome)) return "atribuicao";
+  if (unidadeNome === "Campo Novo") return "campo_novo";
+  return "sete_dias";
+}
+
+// Decide o regime de cada contrato da Campo Novo pelo MRR atribuído
+// acumulado da unidade (histórico completo, em ordem de fechamento) — só
+// migra pra regra de atribuição quem cruzar os R$50 mil pra frente.
+async function regimesCampoNovoPorContrato(supabase: any): Promise<Map<number, RegimeCac>> {
+  const { data: contratos, error } = await supabase
+    .from("contratos")
+    .select("id,mrr_mensal,ganho_em")
+    .eq("unidade", "Campo Novo")
+    .eq("tipo_unidade", "franquia")
+    .eq("status_contrato", "Ativo")
+    .not("ganho_em", "is", null)
+    .order("ganho_em", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const regimes = new Map<number, RegimeCac>();
+  let acumulado = 0;
+  for (const c of (contratos ?? []) as any[]) {
+    acumulado += Number(c.mrr_mensal ?? 0);
+    regimes.set(c.id, acumulado >= CAMPO_NOVO_LIMITE_MRR_ATRIBUIDO ? "atribuicao" : "sete_dias");
+  }
+  return regimes;
+}
+
+// Excedente mensal de Patos de Minas: soma o MRR atribuído dos contratos do
+// mês em ordem de fechamento; só a parte que ultrapassa R$10 mil no
+// acumulado do mês vira base de CAC — cada contrato carrega só a fatia dele
+// que caiu acima da linha (contrato que sozinho já passa de R$10 mil banca
+// o excedente inteiro; contratos anteriores a ele no mês não geram nada).
+function excedentesMensais(
+  contratosDoMes: { id: number; mrr_mensal: number }[],
+  limite: number,
+): Map<number, number> {
+  let acumulado = 0;
+  const excedentes = new Map<number, number>();
+  for (const c of contratosDoMes) {
+    const antes = acumulado;
+    acumulado += Number(c.mrr_mensal ?? 0);
+    excedentes.set(c.id, Math.max(0, acumulado - limite) - Math.max(0, antes - limite));
+  }
+  return excedentes;
+}
+
 // ============ gerarItensParaApuracao (helper reaproveitado) ============
 // CAC é sempre editável (não existe mais fechamento mensal) — esta função só
 // cria/atualiza itens, nunca bloqueia por status da apuração.
@@ -125,6 +191,7 @@ async function gerarItensParaApuracao(
   supabase: any,
   apuracao_id: number,
   force: boolean,
+  regimesCampoNovo: Map<number, RegimeCac> | null,
 ): Promise<{ created: number; skipped: boolean }> {
   if (!force) {
     const { count, error: cErr } = await (supabase as any)
@@ -163,7 +230,8 @@ async function gerarItensParaApuracao(
   );
 
   // Contratos GANHOS neste mês (CAC nasce só no mês de aquisição do cliente —
-  // diferente de royalties, que é recorrente todo mês).
+  // diferente de royalties, que é recorrente todo mês). Ordenado por data de
+  // fechamento — necessário pro cálculo do excedente mensal de Patos de Minas.
   const { data: contratos, error: kErr } = await supabase
     .from("contratos")
     .select("id,cnpj,titulo,mrr_mensal,ganho_em")
@@ -171,8 +239,19 @@ async function gerarItensParaApuracao(
     .eq("tipo_unidade", "franquia")
     .eq("status_contrato", "Ativo")
     .gte("ganho_em", start)
-    .lte("ganho_em", end);
+    .lte("ganho_em", end)
+    .order("ganho_em", { ascending: true })
+    .order("id", { ascending: true });
   if (kErr) throw new Error(kErr.message);
+
+  const regimeUnidade = regimeParaUnidade(unidadeNome);
+  const excedentes =
+    regimeUnidade === "excedente_mensal"
+      ? excedentesMensais(
+          (contratos ?? []).map((c: any) => ({ id: c.id, mrr_mensal: c.mrr_mensal })),
+          PATOS_DE_MINAS_LIMITE_MENSAL,
+        )
+      : null;
 
   // Primeiro RECEBIDO histórico por CNPJ (sem limitar ao mês — é o gatilho
   // da parcela 2, que pode acontecer em qualquer mês futuro).
@@ -197,11 +276,7 @@ async function gerarItensParaApuracao(
   for (const c of contratos ?? []) {
     const existente = itemPorContrato.get(c.id);
     const cnpjDigits = digits(c.cnpj);
-    const valorTotal = Number(c.mrr_mensal ?? 0);
-    const valorParcela1 = valorTotal / 2;
-    const valorParcela2 = valorTotal / 2;
     const dataAssinatura = c.ganho_em ?? null;
-    const prazo1 = dataAssinatura ? addDaysISO(dataAssinatura, 7) : null;
     const dataRecebimento = cnpjDigits
       ? (primeiroRecebimentoPorCnpj.get(cnpjDigits) ?? null)
       : null;
@@ -225,6 +300,31 @@ async function gerarItensParaApuracao(
       continue;
     }
 
+    const regime: RegimeCac =
+      regimeUnidade === "campo_novo" ? (regimesCampoNovo?.get(c.id) ?? "sete_dias") : regimeUnidade;
+
+    let valorTotal: number;
+    let valorParcela1: number;
+    let prazo1: string | null;
+    let dataPagamentoParcela1: string | null = null;
+
+    if (regime === "excedente_mensal") {
+      valorTotal = excedentes?.get(c.id) ?? 0;
+      if (valorTotal <= 0) continue; // dentro da franquia mensal de R$10 mil, não gera CAC
+      valorParcela1 = 0;
+      prazo1 = null;
+      dataPagamentoParcela1 = dataAssinatura; // sem 1ª parcela nessa regra, nada a cobrar aqui
+    } else {
+      valorTotal = Number(c.mrr_mensal ?? 0);
+      valorParcela1 = valorTotal / 2;
+      prazo1 = dataAssinatura
+        ? regime === "atribuicao"
+          ? endOfMonthISO(dataAssinatura)
+          : addDaysISO(dataAssinatura, 7)
+        : null;
+    }
+    const valorParcela2 = valorTotal - valorParcela1;
+
     itens.push({
       apuracao_id: apuracao_id,
       cnpj: cnpjDigits || null,
@@ -235,7 +335,8 @@ async function gerarItensParaApuracao(
       valor_parcela_2: valorParcela2,
       data_assinatura_contrato: dataAssinatura,
       prazo_parcela_1: prazo1,
-      status_parcela_1: statusParcela1(prazo1, null, null, hoje),
+      data_pagamento_parcela_1: dataPagamentoParcela1,
+      status_parcela_1: statusParcela1(prazo1, null, dataPagamentoParcela1, hoje),
       data_recebimento_cliente: dataRecebimento,
       prazo_parcela_2: prazo2,
       status_parcela_2: statusParcela2(dataRecebimento, prazo2, null, null, hoje),
@@ -311,8 +412,10 @@ async function syncApuracoesEItensUnidade(
     .eq("unidade_id", unidade.id);
   if (a2Err) throw new Error(a2Err.message);
 
+  const regimesCampoNovo =
+    unidade.nome_da_praca === "Campo Novo" ? await regimesCampoNovoPorContrato(supabase) : null;
   for (const ap of apuracoes ?? []) {
-    await gerarItensParaApuracao(supabase, (ap as any).id, force);
+    await gerarItensParaApuracao(supabase, (ap as any).id, force, regimesCampoNovo);
   }
 
   const apuracaoIds = (apuracoes ?? []).map((a: any) => a.id);

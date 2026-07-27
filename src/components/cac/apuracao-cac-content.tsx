@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
 import { Ban, Pencil, Plus, RefreshCw, Trash2, Wallet, X } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +81,13 @@ function formatMesLabel(mes: string) {
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
+function formatMesCurto(mes: string) {
+  const [y, m] = mes.split("-").map(Number);
+  return new Date(y, m - 1, 1)
+    .toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })
+    .replace(".", "");
+}
+
 function fmtData(d: string | null): string {
   return d ? new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR") : "—";
 }
@@ -109,6 +126,39 @@ function valorAReceber(it: ItemCac): number {
   return v;
 }
 
+type TimelineMes = {
+  mes: string;
+  label: string;
+  recebido: number;
+  projetado: number;
+};
+
+// Joga cada parcela no mês em que ela foi (ou deveria ser) recebida: mês do
+// pagamento se já paga, mês do prazo se ainda em aberto (inclusive já
+// vencida). Parcela 2 que ainda espera o cliente pagar a unidade não tem
+// data nenhuma pra projetar — essas entram à parte, em "sem previsão".
+function bucketParcela(
+  mapa: Map<string, TimelineMes>,
+  status: string,
+  prazo: string | null,
+  dataPagamento: string | null,
+  valor: number,
+) {
+  const mesKey = status === "pago" ? dataPagamento : prazo;
+  if (!mesKey) return false;
+  const mes = mesKey.slice(0, 7);
+  const atual = mapa.get(mes) ?? {
+    mes,
+    label: formatMesCurto(mes),
+    recebido: 0,
+    projetado: 0,
+  };
+  if (status === "pago") atual.recebido += valor;
+  else atual.projetado += valor;
+  mapa.set(mes, atual);
+  return true;
+}
+
 export function ApuracaoCacContent() {
   const { isAdmin, loading } = usePermissions();
   const { data, isLoading } = useCacTodasUnidades();
@@ -134,10 +184,48 @@ export function ApuracaoCacContent() {
     });
   }, [data, unidadeFiltro, mostrarExcluidos]);
 
-  const totalAReceber = useMemo(
-    () => filtrados.filter((it) => !it.excluido_em).reduce((s, it) => s + valorAReceber(it), 0),
-    [filtrados],
-  );
+  const kpis = useMemo(() => {
+    let vendido = 0;
+    let recebido = 0;
+    let aReceber = 0;
+    for (const it of filtrados) {
+      if (it.excluido_em) continue;
+      vendido += Number(it.valor_cac_total ?? 0);
+      if (it.status_parcela_1 === "pago") recebido += Number(it.valor_parcela_1 ?? 0);
+      if (it.status_parcela_2 === "pago") recebido += Number(it.valor_parcela_2 ?? 0);
+      aReceber += valorAReceber(it);
+    }
+    return { vendido, recebido, aReceber };
+  }, [filtrados]);
+
+  const timeline = useMemo(() => {
+    const mapa = new Map<string, TimelineMes>();
+    let semPrevisaoValor = 0;
+    let semPrevisaoQtd = 0;
+    for (const it of filtrados) {
+      if (it.excluido_em) continue;
+      bucketParcela(
+        mapa,
+        it.status_parcela_1,
+        it.prazo_parcela_1,
+        it.data_pagamento_parcela_1,
+        it.valor_parcela_1,
+      );
+      const teveMes = bucketParcela(
+        mapa,
+        it.status_parcela_2,
+        it.prazo_parcela_2,
+        it.data_pagamento_parcela_2,
+        it.valor_parcela_2,
+      );
+      if (!teveMes) {
+        semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
+        semPrevisaoQtd += 1;
+      }
+    }
+    const meses = [...mapa.keys()].sort();
+    return { data: meses.map((m) => mapa.get(m)!), semPrevisaoValor, semPrevisaoQtd };
+  }, [filtrados]);
 
   const forcarAtualizacao = async () => {
     try {
@@ -187,8 +275,8 @@ export function ApuracaoCacContent() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">CAC por unidade</h1>
             <p className="text-sm text-muted-foreground">
-              Repasse de CAC por cliente novo: 50% até 7 dias após a assinatura, 50% depois que o
-              cliente faz o primeiro pagamento pra Planning. Lista contínua, sempre editável — o que
+              Repasse de CAC por cliente novo — a regra varia por unidade (mês de atribuição, 7 dias
+              após a assinatura, ou excedente mensal). Lista contínua, sempre editável — o que
               importa é se cada parcela já foi paga.
             </p>
           </div>
@@ -232,11 +320,63 @@ export function ApuracaoCacContent() {
         <AddItemDialog unidades={unidades} onAdd={(payload) => addItem.mutate(payload)} />
       </div>
 
-      <Card className="p-4 bg-primary/5 border-primary/20 max-w-xs">
-        <div className="text-xs text-muted-foreground">
-          CAC a receber {unidadeFiltro === "todas" ? "(rede)" : ""}
-        </div>
-        <div className="text-2xl font-bold">{brl(totalAReceber)}</div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">
+            CAC vendido {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold">{brl(kpis.vendido)}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">
+            CAC recebido {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+            {brl(kpis.recebido)}
+          </div>
+        </Card>
+        <Card className="p-4 bg-primary/5 border-primary/20">
+          <div className="text-xs text-muted-foreground">
+            CAC a receber {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold">{brl(kpis.aReceber)}</div>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <h3 className="mb-1 text-sm font-semibold">Projeção de recebimento por mês</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Cada parcela entra no mês em que já foi paga ou, se ainda em aberto, no mês do prazo.
+        </p>
+        {timeline.data.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            Sem dados para exibir.
+          </div>
+        ) : (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={timeline.data}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                />
+                <Tooltip formatter={(v: number) => brl(v)} />
+                <Legend />
+                <Bar dataKey="recebido" name="Recebido" stackId="cac" fill="#10b981" />
+                <Bar dataKey="projetado" name="A receber" stackId="cac" fill="#f59e0b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {timeline.semPrevisaoQtd > 0 && (
+          <div className="mt-3 text-xs text-muted-foreground">
+            + {brl(timeline.semPrevisaoValor)} em {timeline.semPrevisaoQtd} parcela
+            {timeline.semPrevisaoQtd > 1 ? "s" : ""} de 2ª parcela sem previsão (cliente ainda não
+            pagou a unidade).
+          </div>
+        )}
       </Card>
 
       <Card className="overflow-hidden">
