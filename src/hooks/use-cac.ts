@@ -5,10 +5,7 @@ import {
   addItemManualCac,
   deleteItemCac,
   excluirItemMesCac,
-  fecharApuracaoCac,
-  listApuracaoCacItensUnidade,
-  listCacUnidadesResumo,
-  reabrirApuracaoCac,
+  listCacItensTodasUnidades,
   reincluirItemMesCac,
   updateItemCac,
 } from "@/lib/cac.functions";
@@ -16,127 +13,90 @@ import {
 // não tem nada específico de royalties, não faz sentido duplicar.
 import { atualizarCnpjContrato } from "@/lib/royalties.functions";
 
+const CAC_QUERY_KEY = ["cac", "todas-unidades"];
+
 const defaultOnError = (e: unknown) => {
   const msg = e instanceof Error ? e.message : "Erro inesperado";
   toast.error(msg);
 };
 
-export function useCacUnidadesResumo() {
-  const fn = useServerFn(listCacUnidadesResumo);
-  return useQuery({
-    queryKey: ["cac", "unidades-resumo"],
-    queryFn: () => fn(),
-    staleTime: 30_000,
-  });
-}
+// ============ Tela única de CAC (todas as unidades, filtro no front) ============
 
-// ============ Tela única por unidade (todos os meses numa lista só) ============
-
-export function useApuracaoCacUnidade(unidadeId: number | null) {
-  const fn = useServerFn(listApuracaoCacItensUnidade);
+export function useCacTodasUnidades() {
+  const fn = useServerFn(listCacItensTodasUnidades);
   return useQuery({
-    queryKey: ["cac", "unidade", unidadeId],
-    queryFn: () => fn({ data: { unidade_id: unidadeId! } }),
-    enabled: !!unidadeId,
+    queryKey: CAC_QUERY_KEY,
+    queryFn: () => fn({ data: {} }),
     staleTime: 10_000,
   });
 }
 
-export function useForcarAtualizacaoCacUnidade(unidadeId: number) {
-  const fn = useServerFn(listApuracaoCacItensUnidade);
+export function useForcarAtualizacaoCac() {
+  const fn = useServerFn(listCacItensTodasUnidades);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => fn({ data: { unidade_id: unidadeId, force: true } }),
-    onSuccess: (res) => {
-      qc.setQueryData(["cac", "unidade", unidadeId], res);
-      qc.invalidateQueries({ queryKey: ["cac", "unidades"] });
-    },
+    mutationFn: () => fn({ data: { force: true } }),
+    onSuccess: (res) => qc.setQueryData(CAC_QUERY_KEY, res),
     onError: defaultOnError,
   });
 }
 
-export function useUpdateItemCac(unidadeId: number) {
+export function useUpdateItemCac() {
   const fn = useServerFn(updateItemCac);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: Parameters<typeof updateItemCac>[0]["data"]) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
 
-export function useAddItemCac(unidadeId: number) {
+export function useAddItemCac() {
   const fn = useServerFn(addItemManualCac);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: Parameters<typeof addItemManualCac>[0]["data"]) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
 
-export function useDeleteItemCac(unidadeId: number) {
+export function useDeleteItemCac() {
   const fn = useServerFn(deleteItemCac);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { id: number }) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
 
-export function useExcluirItemCac(unidadeId: number) {
+export function useExcluirItemCac() {
   const fn = useServerFn(excluirItemMesCac);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { item_id: number; motivo: string }) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
 
-export function useReincluirItemCac(unidadeId: number) {
+export function useReincluirItemCac() {
   const fn = useServerFn(reincluirItemMesCac);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { item_id: number }) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
 
-export function useFecharApuracaoCac(unidadeId: number) {
-  const fn = useServerFn(fecharApuracaoCac);
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { id: number }) => fn({ data: vars }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] });
-      qc.invalidateQueries({ queryKey: ["cac", "unidades"] });
-    },
-    onError: defaultOnError,
-  });
-}
-
-export function useAtualizarCnpjContratoCac(unidadeId: number) {
+export function useAtualizarCnpjContratoCac() {
   const fn = useServerFn(atualizarCnpjContrato);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: Parameters<typeof atualizarCnpjContrato>[0]["data"]) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] }),
-    onError: defaultOnError,
-  });
-}
-
-export function useReabrirApuracaoCac(unidadeId: number) {
-  const fn = useServerFn(reabrirApuracaoCac);
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { id: number }) => fn({ data: vars }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cac", "unidade", unidadeId] });
-      qc.invalidateQueries({ queryKey: ["cac", "unidades"] });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
     onError: defaultOnError,
   });
 }
