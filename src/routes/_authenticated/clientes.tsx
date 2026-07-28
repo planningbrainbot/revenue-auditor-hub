@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowDown,
   ArrowUp,
@@ -7,15 +8,28 @@ import {
   Building2,
   ExternalLink,
   FileSpreadsheet,
+  Pencil,
   Search,
+  UserX,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { exportRowsToXlsx } from "@/lib/xlsx-export";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -35,6 +49,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { PrePlanningTab } from "@/components/clientes/pre-planning-tab";
+import { atualizarCliente, marcarChurnCliente } from "@/lib/clientes.functions";
+import { MOTIVOS_CHURN, type MotivoChurn } from "@/lib/royalties.functions";
 
 type StatusFinanceiro =
   "ATIVO" | "EM_ATRASO" | "INADIMPLENTE" | "SEM_ATIVIDADE" | "NUNCA_PAGOU" | "SEM_AR";
@@ -183,6 +199,40 @@ function ClientesPage() {
       if (prev.dir === "asc") return { key, dir: "desc" };
       return null;
     });
+  };
+
+  const atualizarClienteFn = useServerFn(atualizarCliente);
+  const marcarChurnClienteFn = useServerFn(marcarChurnCliente);
+
+  const salvarEdicaoCliente = async (
+    r: Cliente,
+    patch: { razao_social?: string; cnpj?: string },
+  ) => {
+    const res = await atualizarClienteFn({ data: { id: r.id, ...patch } });
+    setRows((prev) => prev.map((row) => (row.id === r.id ? { ...row, ...patch } : row)));
+    toast.success("Cliente atualizado.");
+    return res;
+  };
+
+  const marcarChurnDoCliente = async (
+    r: Cliente,
+    motivo: string,
+    observacao: string,
+    dataChurn: string,
+  ) => {
+    await marcarChurnClienteFn({
+      data: {
+        pipedrive_id: r.pipedrive_id ?? "",
+        razao_social: displayName(r),
+        unidade: r.unidade ?? "",
+        mrr: mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0,
+        motivo,
+        observacao,
+        data_churn: dataChurn,
+      },
+    });
+    setChurnedIds((prev) => new Set(prev).add(r.pipedrive_id ?? ""));
+    toast.success("Churn registrado — pode levar até 15min pra refletir no Pipefy/Tratativas.");
   };
 
   useEffect(() => {
@@ -698,6 +748,11 @@ function ClientesPage() {
                         </TableHead>
                       );
                     })}
+                    {perms.isAdmin && (
+                      <TableHead className="sticky top-0 bg-card/95 backdrop-blur-sm text-right">
+                        Ações
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -757,13 +812,25 @@ function ClientesPage() {
                         <TableCell>{info?.regime_tributario || "—"}</TableCell>
                         <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
                         <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
+                        {perms.isAdmin && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
+                              <MarcarChurnClienteButton
+                                r={r}
+                                churned={churned}
+                                onConfirm={marcarChurnDoCliente}
+                              />
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
                   {!loading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={13}
+                        colSpan={perms.isAdmin ? 14 : 13}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Nenhum cliente encontrado.
@@ -781,5 +848,222 @@ function ClientesPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function EditarClienteButton({
+  r,
+  onSave,
+}: {
+  r: Cliente;
+  onSave: (r: Cliente, patch: { razao_social?: string; cnpj?: string }) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [nome, setNome] = useState(displayName(r));
+  const [cnpj, setCnpj] = useState(r.cnpj ?? "");
+
+  const cnpjDigits = cnpj.replace(/\D/g, "");
+  const nomeValido = nome.trim().length > 0;
+  const cnpjValido = cnpjDigits.length === 0 || cnpjDigits.length === 14;
+  const nomeMudou = nome.trim() !== (r.razao_social ?? "").trim();
+  const cnpjMudou = cnpjDigits !== (r.cnpj ?? "").replace(/\D/g, "") && cnpjDigits.length === 14;
+
+  const submit = async () => {
+    if (!nomeValido) {
+      toast.error("Razão social não pode ficar em branco.");
+      return;
+    }
+    if (!cnpjValido) {
+      toast.error("CNPJ precisa ter 14 dígitos.");
+      return;
+    }
+    if (!nomeMudou && !cnpjMudou) {
+      setOpen(false);
+      return;
+    }
+    setPending(true);
+    try {
+      const patch: { razao_social?: string; cnpj?: string } = {};
+      if (nomeMudou) patch.razao_social = nome.trim();
+      if (cnpjMudou) patch.cnpj = cnpjDigits;
+      await onSave(r, patch);
+      setOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar cliente");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) {
+          setNome(displayName(r));
+          setCnpj(r.cnpj ?? "");
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+          title="Editar cliente"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar cliente — {displayName(r)}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Razão social</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-1">
+            <Label>CNPJ</Label>
+            <Input
+              value={cnpj}
+              onChange={(e) => setCnpj(e.target.value)}
+              placeholder="00.000.000/0000-00"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Este registro vem do sync automático (Pipedrive/Omie) — se o mesmo cliente for
+            resincronizado, o valor pode ser sobrescrito novamente.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={pending || !nomeValido || !cnpjValido}>
+            {pending ? "Salvando…" : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MarcarChurnClienteButton({
+  r,
+  churned,
+  onConfirm,
+}: {
+  r: Cliente;
+  churned: boolean;
+  onConfirm: (
+    r: Cliente,
+    motivo: string,
+    observacao: string,
+    dataChurn: string,
+  ) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [motivo, setMotivo] = useState<MotivoChurn | "">("");
+  const [observacao, setObservacao] = useState("");
+  const [dataChurn, setDataChurn] = useState(() => new Date().toISOString().slice(0, 10));
+
+  if (churned) return null;
+  if (!r.pipedrive_id) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        disabled
+        className="h-7 w-7 text-muted-foreground"
+        title="Sem Pipedrive ID — não é possível vincular o churn"
+      >
+        <UserX className="h-3.5 w-3.5" />
+      </Button>
+    );
+  }
+
+  const submit = async () => {
+    if (!motivo) {
+      toast.error("Selecione o motivo do churn.");
+      return;
+    }
+    setPending(true);
+    try {
+      await onConfirm(r, motivo, observacao.trim(), dataChurn);
+      setOpen(false);
+      setMotivo("");
+      setObservacao("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao marcar churn");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-red-600 hover:text-red-700 dark:text-red-400"
+          title="Marcar churn"
+        >
+          <UserX className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Marcar churn — {displayName(r)}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Data do churn</Label>
+            <Input type="date" value={dataChurn} onChange={(e) => setDataChurn(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Motivo</Label>
+            <Select value={motivo} onValueChange={(v) => setMotivo(v as MotivoChurn)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o motivo" />
+              </SelectTrigger>
+              <SelectContent>
+                {MOTIVOS_CHURN.map((opcao) => (
+                  <SelectItem key={opcao} value={opcao}>
+                    {opcao}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Observação</Label>
+            <Textarea
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              placeholder="Detalhes adicionais (opcional)"
+              rows={3}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Isso cria um card no pipe Tratativas do Pipefy já na fase "Perdido". Pode levar até
+            15min pra refletir aqui depois do sync. Não é possível desfazer por aqui.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" onClick={submit} disabled={pending}>
+            {pending ? "Enviando…" : "Confirmar churn"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

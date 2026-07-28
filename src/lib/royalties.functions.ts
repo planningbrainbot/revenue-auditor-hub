@@ -1057,8 +1057,8 @@ export const atualizarCnpjContrato = createServerFn({ method: "POST" })
 // Cria um card no pipe Pipefy "Tratativas" (307196408) já na fase "Perdido"
 // (343394578), com motivo e data preenchidos. O card sincroniza de volta pra
 // central_tratativas via sync_pipefy_tratativas.py (roda a cada 15min).
-const PIPEFY_PIPE_TRATATIVAS = "307196408";
-const PIPEFY_FASE_PERDIDO = "343394578";
+export const PIPEFY_PIPE_TRATATIVAS = "307196408";
+export const PIPEFY_FASE_PERDIDO = "343394578";
 
 // Opções fechadas do campo select "Categoria do Churn" (field_id
 // categoria_do_churn) criado na fase Perdido do pipe Tratativas — precisa
