@@ -222,6 +222,29 @@ function estimarParcela2(
   return { data: addDiasISO(it.data_assinatura_contrato, Math.round(dias)), manual: false };
 }
 
+type ClassificacaoParcela = { mes: string; tipo: "recebido" | "projetado" | "estimado" };
+
+// Em que mês cada parcela conta — mesma regra usada no gráfico de projeção,
+// reaproveitada aqui pro filtro por mês: paga entra pelo mês do pagamento,
+// em aberto com prazo definido entra pelo mês do prazo, 2ª parcela sem prazo
+// nenhum entra pela estimativa (histórica ou manual).
+function classificarParcela1(it: ItemCac): ClassificacaoParcela | null {
+  if (it.status_parcela_1 === "pago" && it.data_pagamento_parcela_1) {
+    return { mes: it.data_pagamento_parcela_1.slice(0, 7), tipo: "recebido" };
+  }
+  if (it.prazo_parcela_1) return { mes: it.prazo_parcela_1.slice(0, 7), tipo: "projetado" };
+  return null;
+}
+
+function classificarParcela2(it: ItemCac, medianas: Medianas): ClassificacaoParcela | null {
+  if (it.status_parcela_2 === "pago" && it.data_pagamento_parcela_2) {
+    return { mes: it.data_pagamento_parcela_2.slice(0, 7), tipo: "recebido" };
+  }
+  if (it.prazo_parcela_2) return { mes: it.prazo_parcela_2.slice(0, 7), tipo: "projetado" };
+  const estimativa = estimarParcela2(it, medianas);
+  return estimativa.data ? { mes: estimativa.data.slice(0, 7), tipo: "estimado" } : null;
+}
+
 export function ApuracaoCacContent() {
   const { isAdmin, loading } = usePermissions();
   const { data, isLoading } = useCacTodasUnidades();
@@ -235,9 +258,30 @@ export function ApuracaoCacContent() {
 
   const [unidadeFiltro, setUnidadeFiltro] = useState<string>("todas");
   const [statusFiltro, setStatusFiltro] = useState<string>("todos");
+  const [mesFiltro, setMesFiltro] = useState<string>("todos");
   const [mostrarExcluidos, setMostrarExcluidos] = useState(false);
 
   const unidades = data?.unidades ?? [];
+
+  // Amostra vem sempre da base inteira (não da filtrada) — quanto mais
+  // dados, melhor a mediana; o filtro por unidade já busca a mediana certa
+  // dentro do mapa.
+  const medianas = useMemo(() => calcularMedianas((data?.itens ?? []) as ItemCac[]), [data]);
+
+  // Lista de meses do seletor vem da base inteira (não da já filtrada) —
+  // trocar unidade/status não deve fazer meses desaparecerem do filtro.
+  const mesesDisponiveis = useMemo(() => {
+    const itens = (data?.itens ?? []) as ItemCac[];
+    const set = new Set<string>();
+    for (const it of itens) {
+      if (it.excluido_em) continue;
+      const c1 = classificarParcela1(it);
+      if (c1) set.add(c1.mes);
+      const c2 = classificarParcela2(it, medianas);
+      if (c2) set.add(c2.mes);
+    }
+    return [...set].sort();
+  }, [data, medianas]);
 
   const filtrados = useMemo(() => {
     const itens = (data?.itens ?? []) as ItemCac[];
@@ -247,10 +291,15 @@ export function ApuracaoCacContent() {
       if (!it.excluido_em) {
         if (statusFiltro === "recebido" && valorAReceber(it) > 0) return false;
         if (statusFiltro === "a_receber" && valorAReceber(it) === 0) return false;
+        if (mesFiltro !== "todos") {
+          const c1 = classificarParcela1(it);
+          const c2 = classificarParcela2(it, medianas);
+          if (c1?.mes !== mesFiltro && c2?.mes !== mesFiltro) return false;
+        }
       }
       return true;
     });
-  }, [data, unidadeFiltro, statusFiltro, mostrarExcluidos]);
+  }, [data, unidadeFiltro, statusFiltro, mesFiltro, mostrarExcluidos, medianas]);
 
   const kpis = useMemo(() => {
     let vendido = 0;
@@ -268,11 +317,6 @@ export function ApuracaoCacContent() {
     return { vendido, recebido, aReceber };
   }, [filtrados]);
 
-  // Amostra vem sempre da base inteira (não da filtrada) — quanto mais
-  // dados, melhor a mediana; o filtro por unidade já busca a mediana certa
-  // dentro do mapa.
-  const medianas = useMemo(() => calcularMedianas((data?.itens ?? []) as ItemCac[]), [data]);
-
   const timeline = useMemo(() => {
     const mapa = new Map<string, TimelineMes>();
     let semPrevisaoValor = 0;
@@ -280,42 +324,34 @@ export function ApuracaoCacContent() {
     for (const it of filtrados) {
       if (it.excluido_em) continue;
 
-      // Parcela 1
-      if (it.status_parcela_1 === "pago" && it.data_pagamento_parcela_1) {
-        addAoMes(
-          mapa,
-          it.data_pagamento_parcela_1,
-          "recebido",
-          valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1),
-        );
-      } else if (it.prazo_parcela_1) {
-        addAoMes(mapa, it.prazo_parcela_1, "projetado", Number(it.valor_parcela_1 ?? 0));
+      const c1 = classificarParcela1(it);
+      if (c1) {
+        const valor1 =
+          c1.tipo === "recebido"
+            ? valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1)
+            : Number(it.valor_parcela_1 ?? 0);
+        addAoMes(mapa, c1.mes, c1.tipo, valor1);
       }
 
-      // Parcela 2 — paga (data real), com prazo definido (cliente já pagou a
-      // unidade, projeção real) ou sem prazo nenhum (estimativa histórica).
-      if (it.status_parcela_2 === "pago" && it.data_pagamento_parcela_2) {
-        addAoMes(
-          mapa,
-          it.data_pagamento_parcela_2,
-          "recebido",
-          valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2),
-        );
-      } else if (it.prazo_parcela_2) {
-        addAoMes(mapa, it.prazo_parcela_2, "projetado", Number(it.valor_parcela_2 ?? 0));
+      const c2 = classificarParcela2(it, medianas);
+      if (c2) {
+        const valor2 =
+          c2.tipo === "recebido"
+            ? valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2)
+            : Number(it.valor_parcela_2 ?? 0);
+        addAoMes(mapa, c2.mes, c2.tipo, valor2);
       } else {
-        const estimativa = estimarParcela2(it, medianas);
-        if (estimativa.data) {
-          addAoMes(mapa, estimativa.data, "estimado", Number(it.valor_parcela_2 ?? 0));
-        } else {
-          semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
-          semPrevisaoQtd += 1;
-        }
+        semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
+        semPrevisaoQtd += 1;
       }
     }
     const meses = [...mapa.keys()].sort();
     return { data: meses.map((m) => mapa.get(m)!), semPrevisaoValor, semPrevisaoQtd };
   }, [filtrados, medianas]);
+
+  // Total específico do mês selecionado — mesmos números da barra
+  // correspondente no gráfico, coerente com a lista de clientes abaixo.
+  const resumoMes = mesFiltro !== "todos" ? timeline.data.find((d) => d.mes === mesFiltro) : null;
 
   const forcarAtualizacao = async () => {
     try {
@@ -409,6 +445,19 @@ export function ApuracaoCacContent() {
               <SelectItem value="a_receber">CAC a receber</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={mesFiltro} onValueChange={setMesFiltro}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os meses</SelectItem>
+              {mesesDisponiveis.map((m) => (
+                <SelectItem key={m} value={m} className="capitalize">
+                  {formatMesLabel(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <Checkbox
               checked={mostrarExcluidos}
@@ -419,6 +468,27 @@ export function ApuracaoCacContent() {
         </div>
         <AddItemDialog unidades={unidades} onAdd={(payload) => addItem.mutate(payload)} />
       </div>
+
+      {resumoMes && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
+          <span className="font-medium capitalize">{formatMesLabel(mesFiltro)}</span>
+          {" — "}
+          Recebido:{" "}
+          <span className="font-medium text-emerald-700 dark:text-emerald-300">
+            {brl(resumoMes.recebido)}
+          </span>
+          {" · "}A receber:{" "}
+          <span className="font-medium">{brl(resumoMes.projetado + resumoMes.estimado)}</span>
+          {resumoMes.estimado > 0 && (
+            <span className="text-muted-foreground">
+              {" "}
+              (sendo {brl(resumoMes.estimado)} estimado)
+            </span>
+          )}
+          {" · "}
+          {filtrados.filter((it) => !it.excluido_em).length} cliente(s)
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="p-4">
