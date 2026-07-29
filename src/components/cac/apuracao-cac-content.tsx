@@ -61,11 +61,13 @@ type ItemCac = {
   prazo_parcela_1: string | null;
   data_envio_parcela_1: string | null;
   data_pagamento_parcela_1: string | null;
+  valor_pago_parcela_1: number | null;
   status_parcela_1: string;
   data_recebimento_cliente: string | null;
   prazo_parcela_2: string | null;
   data_envio_parcela_2: string | null;
   data_pagamento_parcela_2: string | null;
+  valor_pago_parcela_2: number | null;
   status_parcela_2: string;
   fonte: string;
   status_match: string | null;
@@ -114,6 +116,13 @@ const PARCELA_BADGE: Record<string, { label: string; cls: string }> = {
     cls: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
   },
 };
+
+// Valor real de uma parcela paga: o repasse às vezes não bate com o
+// pré-fixado (metade do MRR) — quando isso é corrigido manualmente, o
+// valor_pago_parcela_X prevalece sobre o previsto.
+function valorEfetivo(valorPrevisto: number, valorPago: number | null): number {
+  return valorPago ?? Number(valorPrevisto ?? 0);
+}
 
 // Tudo que ainda não foi pago — inclusive a 2ª parcela "aguardando_cliente"
 // (contratada, mas o cliente ainda nem pagou a unidade). Por construção,
@@ -195,8 +204,10 @@ export function ApuracaoCacContent() {
     for (const it of filtrados) {
       if (it.excluido_em) continue;
       vendido += Number(it.valor_cac_total ?? 0);
-      if (it.status_parcela_1 === "pago") recebido += Number(it.valor_parcela_1 ?? 0);
-      if (it.status_parcela_2 === "pago") recebido += Number(it.valor_parcela_2 ?? 0);
+      if (it.status_parcela_1 === "pago")
+        recebido += valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1);
+      if (it.status_parcela_2 === "pago")
+        recebido += valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2);
       aReceber += valorAReceber(it);
     }
     return { vendido, recebido, aReceber };
@@ -213,14 +224,14 @@ export function ApuracaoCacContent() {
         it.status_parcela_1,
         it.prazo_parcela_1,
         it.data_pagamento_parcela_1,
-        it.valor_parcela_1,
+        valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1),
       );
       const teveMes = bucketParcela(
         mapa,
         it.status_parcela_2,
         it.prazo_parcela_2,
         it.data_pagamento_parcela_2,
-        it.valor_parcela_2,
+        valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2),
       );
       if (!teveMes) {
         semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
@@ -454,6 +465,7 @@ export function ApuracaoCacContent() {
                       ) : (
                         <ParcelaCell
                           valor={it.valor_parcela_1}
+                          valorPago={it.valor_pago_parcela_1}
                           prazo={it.prazo_parcela_1}
                           status={it.status_parcela_1}
                           dataEnvio={it.data_envio_parcela_1}
@@ -464,11 +476,22 @@ export function ApuracaoCacContent() {
                           onDesmarcarEnviado={() =>
                             updateItem.mutate({ id: it.id, data_envio_parcela_1: null })
                           }
-                          onMarcarPago={(data) =>
-                            updateItem.mutate({ id: it.id, data_pagamento_parcela_1: data })
+                          onMarcarPago={(data, valorPago) =>
+                            updateItem.mutate({
+                              id: it.id,
+                              data_pagamento_parcela_1: data,
+                              valor_pago_parcela_1: valorPago,
+                            })
                           }
                           onDesmarcar={() =>
-                            updateItem.mutate({ id: it.id, data_pagamento_parcela_1: null })
+                            updateItem.mutate({
+                              id: it.id,
+                              data_pagamento_parcela_1: null,
+                              valor_pago_parcela_1: null,
+                            })
+                          }
+                          onEditarValor={(valorPago) =>
+                            updateItem.mutate({ id: it.id, valor_pago_parcela_1: valorPago })
                           }
                         />
                       )}
@@ -481,6 +504,7 @@ export function ApuracaoCacContent() {
                       ) : (
                         <ParcelaCell
                           valor={it.valor_parcela_2}
+                          valorPago={it.valor_pago_parcela_2}
                           prazo={it.prazo_parcela_2}
                           status={it.status_parcela_2}
                           dataEnvio={it.data_envio_parcela_2}
@@ -491,11 +515,22 @@ export function ApuracaoCacContent() {
                           onDesmarcarEnviado={() =>
                             updateItem.mutate({ id: it.id, data_envio_parcela_2: null })
                           }
-                          onMarcarPago={(data) =>
-                            updateItem.mutate({ id: it.id, data_pagamento_parcela_2: data })
+                          onMarcarPago={(data, valorPago) =>
+                            updateItem.mutate({
+                              id: it.id,
+                              data_pagamento_parcela_2: data,
+                              valor_pago_parcela_2: valorPago,
+                            })
                           }
                           onDesmarcar={() =>
-                            updateItem.mutate({ id: it.id, data_pagamento_parcela_2: null })
+                            updateItem.mutate({
+                              id: it.id,
+                              data_pagamento_parcela_2: null,
+                              valor_pago_parcela_2: null,
+                            })
+                          }
+                          onEditarValor={(valorPago) =>
+                            updateItem.mutate({ id: it.id, valor_pago_parcela_2: valorPago })
                           }
                         />
                       )}
@@ -541,6 +576,7 @@ export function ApuracaoCacContent() {
 
 function ParcelaCell({
   valor,
+  valorPago,
   prazo,
   status,
   dataEnvio,
@@ -549,24 +585,33 @@ function ParcelaCell({
   onDesmarcarEnviado,
   onMarcarPago,
   onDesmarcar,
+  onEditarValor,
 }: {
   valor: number;
+  valorPago: number | null;
   prazo: string | null;
   status: string;
   dataEnvio: string | null;
   dataPagamento: string | null;
   onMarcarEnviado: (data: string) => void;
   onDesmarcarEnviado: () => void;
-  onMarcarPago: (data: string) => void;
+  onMarcarPago: (data: string, valorPago: number) => void;
   onDesmarcar: () => void;
+  onEditarValor: (valorPago: number) => void;
 }) {
   const badge = PARCELA_BADGE[status] ?? { label: status, cls: "" };
+  const valorExibido = valorPago ?? valor;
+  const valorDivergente = valorPago != null && valorPago !== valor;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-end gap-1.5">
-        <span className="font-medium">{brl(valor)}</span>
+        <span className="font-medium">{brl(valorExibido)}</span>
         <Badge className={cn("text-[10px] px-1.5 py-0", badge.cls)}>{badge.label}</Badge>
+        {dataPagamento && <EditarValorButton valorAtual={valorExibido} onSalvar={onEditarValor} />}
       </div>
+      {valorDivergente && (
+        <div className="text-right text-[10px] text-muted-foreground">Previsto: {brl(valor)}</div>
+      )}
       <div className="text-right text-[10px] text-muted-foreground">
         {dataPagamento
           ? `Pago em ${fmtData(dataPagamento)}`
@@ -605,16 +650,139 @@ function ParcelaCell({
                 onConfirm={onMarcarEnviado}
               />
             )}
-            <MarcarDataButton
-              label="Marcar como pago"
-              dialogTitle="Marcar parcela como paga"
-              fieldLabel="Data do repasse"
-              onConfirm={onMarcarPago}
-            />
+            <MarcarPagoButton valorPrevisto={valor} onConfirm={onMarcarPago} />
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function MarcarPagoButton({
+  valorPrevisto,
+  onConfirm,
+}: {
+  valorPrevisto: number;
+  onConfirm: (data: string, valorPago: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [valor, setValor] = useState(() => String(valorPrevisto));
+  const valorNumerico = Number(valor.replace(",", "."));
+  const valido = valor.trim() !== "" && !Number.isNaN(valorNumerico);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) setValor(String(valorPrevisto));
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-6 px-1.5 text-xs">
+          Marcar como pago
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Marcar parcela como paga</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Data do repasse</Label>
+            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Valor pago</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Previsto: {brl(valorPrevisto)}</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!valido}
+            onClick={() => {
+              onConfirm(data, valorNumerico);
+              setOpen(false);
+            }}
+          >
+            Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditarValorButton({
+  valorAtual,
+  onSalvar,
+}: {
+  valorAtual: number;
+  onSalvar: (valorPago: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [valor, setValor] = useState(() => String(valorAtual));
+  const valorNumerico = Number(valor.replace(",", "."));
+  const valido = valor.trim() !== "" && !Number.isNaN(valorNumerico);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) setValor(String(valorAtual));
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          title="Corrigir valor pago"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Corrigir valor pago</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label>Valor pago</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!valido}
+            onClick={() => {
+              onSalvar(valorNumerico);
+              setOpen(false);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -144,6 +144,8 @@ export type Database = {
           valor_cac_total: number
           valor_parcela_1: number
           valor_parcela_2: number
+          valor_pago_parcela_1: number | null
+          valor_pago_parcela_2: number | null
         }
         Insert: {
           apuracao_id: number
@@ -172,6 +174,8 @@ export type Database = {
           valor_cac_total: number
           valor_parcela_1: number
           valor_parcela_2: number
+          valor_pago_parcela_1?: number | null
+          valor_pago_parcela_2?: number | null
         }
         Update: {
           apuracao_id?: number
@@ -200,6 +204,8 @@ export type Database = {
           valor_cac_total?: number
           valor_parcela_1?: number
           valor_parcela_2?: number
+          valor_pago_parcela_1?: number | null
+          valor_pago_parcela_2?: number | null
         }
         Relationships: [
           {

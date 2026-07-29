@@ -18,12 +18,14 @@ export interface ApuracaoCacItem {
   prazo_parcela_1: string | null;
   data_envio_parcela_1: string | null;
   data_pagamento_parcela_1: string | null;
+  valor_pago_parcela_1: number | null;
   status_parcela_1: string;
 
   data_recebimento_cliente: string | null;
   prazo_parcela_2: string | null;
   data_envio_parcela_2: string | null;
   data_pagamento_parcela_2: string | null;
+  valor_pago_parcela_2: number | null;
   status_parcela_2: string;
 
   fonte: string;
@@ -528,8 +530,10 @@ export const updateItemCac = createServerFn({ method: "POST" })
       id: number;
       data_envio_parcela_1?: string | null;
       data_pagamento_parcela_1?: string | null;
+      valor_pago_parcela_1?: number | null;
       data_envio_parcela_2?: string | null;
       data_pagamento_parcela_2?: string | null;
+      valor_pago_parcela_2?: number | null;
       observacao?: string | null;
     }) => d,
   )
@@ -541,9 +545,11 @@ export const updateItemCac = createServerFn({ method: "POST" })
     if ("data_envio_parcela_1" in data) patch.data_envio_parcela_1 = data.data_envio_parcela_1;
     if ("data_pagamento_parcela_1" in data)
       patch.data_pagamento_parcela_1 = data.data_pagamento_parcela_1;
+    if ("valor_pago_parcela_1" in data) patch.valor_pago_parcela_1 = data.valor_pago_parcela_1;
     if ("data_envio_parcela_2" in data) patch.data_envio_parcela_2 = data.data_envio_parcela_2;
     if ("data_pagamento_parcela_2" in data)
       patch.data_pagamento_parcela_2 = data.data_pagamento_parcela_2;
+    if ("valor_pago_parcela_2" in data) patch.valor_pago_parcela_2 = data.valor_pago_parcela_2;
     if ("observacao" in data) patch.observacao = data.observacao;
 
     const { error } = await (supabase as any)
