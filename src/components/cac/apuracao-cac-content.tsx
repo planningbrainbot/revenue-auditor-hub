@@ -591,6 +591,9 @@ export function ApuracaoCacContent() {
                           onEditarValor={(valorPago) =>
                             updateItem.mutate({ id: it.id, valor_pago_parcela_1: valorPago })
                           }
+                          onEditarPrazo={(data) =>
+                            updateItem.mutate({ id: it.id, prazo_parcela_1: data })
+                          }
                         />
                       )}
                     </td>
@@ -633,6 +636,9 @@ export function ApuracaoCacContent() {
                           }
                           onEditarEstimativa={(data) =>
                             updateItem.mutate({ id: it.id, estimativa_parcela_2: data })
+                          }
+                          onEditarPrazo={(data) =>
+                            updateItem.mutate({ id: it.id, prazo_parcela_2: data })
                           }
                         />
                       )}
@@ -690,6 +696,7 @@ function ParcelaCell({
   onDesmarcar,
   onEditarValor,
   onEditarEstimativa,
+  onEditarPrazo,
 }: {
   valor: number;
   valorPago: number | null;
@@ -704,11 +711,13 @@ function ParcelaCell({
   onDesmarcar: () => void;
   onEditarValor: (valorPago: number) => void;
   onEditarEstimativa?: (data: string | null) => void;
+  onEditarPrazo?: (data: string) => void;
 }) {
   const badge = PARCELA_BADGE[status] ?? { label: status, cls: "" };
   const valorExibido = valorPago ?? valor;
   const valorDivergente = valorPago != null && valorPago !== valor;
   const mostrarEstimativa = status === "aguardando_cliente" && estimativa;
+  const mostrarPrazoEditavel = !dataPagamento && !dataEnvio && !!prazo;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-end gap-1.5">
@@ -733,6 +742,9 @@ function ParcelaCell({
                     ? "Sem base pra estimar"
                     : "—"}
         </span>
+        {mostrarPrazoEditavel && onEditarPrazo && (
+          <EditarPrazoButton valorAtual={prazo!} onSalvar={onEditarPrazo} />
+        )}
         {mostrarEstimativa && onEditarEstimativa && (
           <EditarEstimativaButton valorAtual={estimativa!.data} onSalvar={onEditarEstimativa} />
         )}
@@ -891,6 +903,64 @@ function EditarValorButton({
             disabled={!valido}
             onClick={() => {
               onSalvar(valorNumerico);
+              setOpen(false);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditarPrazoButton({
+  valorAtual,
+  onSalvar,
+}: {
+  valorAtual: string;
+  onSalvar: (data: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(() => valorAtual);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) setData(valorAtual);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          title="Corrigir prazo"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Corrigir prazo da parcela</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label>Prazo</Label>
+          <Input type="date" value={data} onChange={(e) => setData(e.target.value)} autoFocus />
+          <p className="text-xs text-muted-foreground">
+            O prazo padrão é calculado pela regra da unidade (dias após a assinatura, ou fim do
+            mês). Ajuste aqui só se houve um acordo pontual diferente do padrão.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onSalvar(data);
               setOpen(false);
             }}
           >

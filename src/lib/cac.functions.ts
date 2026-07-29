@@ -529,9 +529,11 @@ export const updateItemCac = createServerFn({ method: "POST" })
   .inputValidator(
     (d: {
       id: number;
+      prazo_parcela_1?: string | null;
       data_envio_parcela_1?: string | null;
       data_pagamento_parcela_1?: string | null;
       valor_pago_parcela_1?: number | null;
+      prazo_parcela_2?: string | null;
       data_envio_parcela_2?: string | null;
       data_pagamento_parcela_2?: string | null;
       valor_pago_parcela_2?: number | null;
@@ -544,10 +546,12 @@ export const updateItemCac = createServerFn({ method: "POST" })
     await assertAdmin(supabase, userId);
 
     const patch: any = {};
+    if ("prazo_parcela_1" in data) patch.prazo_parcela_1 = data.prazo_parcela_1;
     if ("data_envio_parcela_1" in data) patch.data_envio_parcela_1 = data.data_envio_parcela_1;
     if ("data_pagamento_parcela_1" in data)
       patch.data_pagamento_parcela_1 = data.data_pagamento_parcela_1;
     if ("valor_pago_parcela_1" in data) patch.valor_pago_parcela_1 = data.valor_pago_parcela_1;
+    if ("prazo_parcela_2" in data) patch.prazo_parcela_2 = data.prazo_parcela_2;
     if ("data_envio_parcela_2" in data) patch.data_envio_parcela_2 = data.data_envio_parcela_2;
     if ("data_pagamento_parcela_2" in data)
       patch.data_pagamento_parcela_2 = data.data_pagamento_parcela_2;
