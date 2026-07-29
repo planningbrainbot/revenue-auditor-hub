@@ -146,6 +146,7 @@ export type Database = {
           valor_parcela_2: number
           valor_pago_parcela_1: number | null
           valor_pago_parcela_2: number | null
+          estimativa_parcela_2: string | null
         }
         Insert: {
           apuracao_id: number
@@ -176,6 +177,7 @@ export type Database = {
           valor_parcela_2: number
           valor_pago_parcela_1?: number | null
           valor_pago_parcela_2?: number | null
+          estimativa_parcela_2?: string | null
         }
         Update: {
           apuracao_id?: number
@@ -206,6 +208,7 @@ export type Database = {
           valor_parcela_2?: number
           valor_pago_parcela_1?: number | null
           valor_pago_parcela_2?: number | null
+          estimativa_parcela_2?: string | null
         }
         Relationships: [
           {

@@ -26,6 +26,7 @@ export interface ApuracaoCacItem {
   data_envio_parcela_2: string | null;
   data_pagamento_parcela_2: string | null;
   valor_pago_parcela_2: number | null;
+  estimativa_parcela_2: string | null;
   status_parcela_2: string;
 
   fonte: string;
@@ -534,6 +535,7 @@ export const updateItemCac = createServerFn({ method: "POST" })
       data_envio_parcela_2?: string | null;
       data_pagamento_parcela_2?: string | null;
       valor_pago_parcela_2?: number | null;
+      estimativa_parcela_2?: string | null;
       observacao?: string | null;
     }) => d,
   )
@@ -550,6 +552,7 @@ export const updateItemCac = createServerFn({ method: "POST" })
     if ("data_pagamento_parcela_2" in data)
       patch.data_pagamento_parcela_2 = data.data_pagamento_parcela_2;
     if ("valor_pago_parcela_2" in data) patch.valor_pago_parcela_2 = data.valor_pago_parcela_2;
+    if ("estimativa_parcela_2" in data) patch.estimativa_parcela_2 = data.estimativa_parcela_2;
     if ("observacao" in data) patch.observacao = data.observacao;
 
     const { error } = await (supabase as any)

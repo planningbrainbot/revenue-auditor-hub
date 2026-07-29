@@ -68,6 +68,7 @@ type ItemCac = {
   data_envio_parcela_2: string | null;
   data_pagamento_parcela_2: string | null;
   valor_pago_parcela_2: number | null;
+  estimativa_parcela_2: string | null;
   status_parcela_2: string;
   fonte: string;
   status_match: string | null;
@@ -139,32 +140,86 @@ type TimelineMes = {
   label: string;
   recebido: number;
   projetado: number;
+  estimado: number;
 };
 
-// Joga cada parcela no mês em que ela foi (ou deveria ser) recebida: mês do
-// pagamento se já paga, mês do prazo se ainda em aberto (inclusive já
-// vencida). Parcela 2 que ainda espera o cliente pagar a unidade não tem
-// data nenhuma pra projetar — essas entram à parte, em "sem previsão".
-function bucketParcela(
+function addAoMes(
   mapa: Map<string, TimelineMes>,
-  status: string,
-  prazo: string | null,
-  dataPagamento: string | null,
+  dataISO: string,
+  campo: "recebido" | "projetado" | "estimado",
   valor: number,
 ) {
-  const mesKey = status === "pago" ? dataPagamento : prazo;
-  if (!mesKey) return false;
-  const mes = mesKey.slice(0, 7);
+  const mes = dataISO.slice(0, 7);
   const atual = mapa.get(mes) ?? {
     mes,
     label: formatMesCurto(mes),
     recebido: 0,
     projetado: 0,
+    estimado: 0,
   };
-  if (status === "pago") atual.recebido += valor;
-  else atual.projetado += valor;
+  atual[campo] += valor;
   mapa.set(mes, atual);
-  return true;
+}
+
+function diasEntreISO(a: string, b: string): number {
+  return Math.round(
+    (new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86_400_000,
+  );
+}
+
+function addDiasISO(dateStr: string, dias: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null;
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const meio = Math.floor(ordenados.length / 2);
+  return ordenados.length % 2 === 0 ? (ordenados[meio - 1] + ordenados[meio]) / 2 : ordenados[meio];
+}
+
+type Medianas = { porUnidade: Map<string, number>; global: number | null };
+
+// Mediana de dias entre assinatura do contrato e 1º pagamento do cliente —
+// por unidade (com amostra mínima de 3, senão o outlier vira a "regra"), com
+// fallback pra mediana da rede inteira. Usada só pra estimar quando a 2ª
+// parcela provavelmente vira caixa pra quem ainda está "aguardando cliente".
+function calcularMedianas(itens: ItemCac[]): Medianas {
+  const porUnidadeAmostras = new Map<string, number[]>();
+  const todasAmostras: number[] = [];
+  for (const it of itens) {
+    if (!it.data_assinatura_contrato || !it.data_recebimento_cliente) continue;
+    const dias = diasEntreISO(it.data_assinatura_contrato, it.data_recebimento_cliente);
+    if (dias < 0) continue;
+    todasAmostras.push(dias);
+    const lista = porUnidadeAmostras.get(it.unidade_nome) ?? [];
+    lista.push(dias);
+    porUnidadeAmostras.set(it.unidade_nome, lista);
+  }
+  const porUnidade = new Map<string, number>();
+  for (const [unidade, amostras] of porUnidadeAmostras) {
+    if (amostras.length < 3) continue;
+    const m = mediana(amostras);
+    if (m != null) porUnidade.set(unidade, m);
+  }
+  return { porUnidade, global: mediana(todasAmostras) };
+}
+
+// Data provável da 2ª parcela pra quem ainda não tem prazo (cliente não
+// pagou a unidade ainda). Override manual sempre vence; sem override, usa a
+// mediana histórica da unidade (ou da rede, se a unidade não tem amostra
+// suficiente). Sem assinatura nem mediana nenhuma, não dá pra estimar.
+function estimarParcela2(
+  it: ItemCac,
+  medianas: Medianas,
+): { data: string | null; manual: boolean } {
+  if (it.estimativa_parcela_2) return { data: it.estimativa_parcela_2, manual: true };
+  if (!it.data_assinatura_contrato) return { data: null, manual: false };
+  const dias = medianas.porUnidade.get(it.unidade_nome) ?? medianas.global;
+  if (dias == null) return { data: null, manual: false };
+  return { data: addDiasISO(it.data_assinatura_contrato, Math.round(dias)), manual: false };
 }
 
 export function ApuracaoCacContent() {
@@ -213,34 +268,54 @@ export function ApuracaoCacContent() {
     return { vendido, recebido, aReceber };
   }, [filtrados]);
 
+  // Amostra vem sempre da base inteira (não da filtrada) — quanto mais
+  // dados, melhor a mediana; o filtro por unidade já busca a mediana certa
+  // dentro do mapa.
+  const medianas = useMemo(() => calcularMedianas((data?.itens ?? []) as ItemCac[]), [data]);
+
   const timeline = useMemo(() => {
     const mapa = new Map<string, TimelineMes>();
     let semPrevisaoValor = 0;
     let semPrevisaoQtd = 0;
     for (const it of filtrados) {
       if (it.excluido_em) continue;
-      bucketParcela(
-        mapa,
-        it.status_parcela_1,
-        it.prazo_parcela_1,
-        it.data_pagamento_parcela_1,
-        valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1),
-      );
-      const teveMes = bucketParcela(
-        mapa,
-        it.status_parcela_2,
-        it.prazo_parcela_2,
-        it.data_pagamento_parcela_2,
-        valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2),
-      );
-      if (!teveMes) {
-        semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
-        semPrevisaoQtd += 1;
+
+      // Parcela 1
+      if (it.status_parcela_1 === "pago" && it.data_pagamento_parcela_1) {
+        addAoMes(
+          mapa,
+          it.data_pagamento_parcela_1,
+          "recebido",
+          valorEfetivo(it.valor_parcela_1, it.valor_pago_parcela_1),
+        );
+      } else if (it.prazo_parcela_1) {
+        addAoMes(mapa, it.prazo_parcela_1, "projetado", Number(it.valor_parcela_1 ?? 0));
+      }
+
+      // Parcela 2 — paga (data real), com prazo definido (cliente já pagou a
+      // unidade, projeção real) ou sem prazo nenhum (estimativa histórica).
+      if (it.status_parcela_2 === "pago" && it.data_pagamento_parcela_2) {
+        addAoMes(
+          mapa,
+          it.data_pagamento_parcela_2,
+          "recebido",
+          valorEfetivo(it.valor_parcela_2, it.valor_pago_parcela_2),
+        );
+      } else if (it.prazo_parcela_2) {
+        addAoMes(mapa, it.prazo_parcela_2, "projetado", Number(it.valor_parcela_2 ?? 0));
+      } else {
+        const estimativa = estimarParcela2(it, medianas);
+        if (estimativa.data) {
+          addAoMes(mapa, estimativa.data, "estimado", Number(it.valor_parcela_2 ?? 0));
+        } else {
+          semPrevisaoValor += Number(it.valor_parcela_2 ?? 0);
+          semPrevisaoQtd += 1;
+        }
       }
     }
     const meses = [...mapa.keys()].sort();
     return { data: meses.map((m) => mapa.get(m)!), semPrevisaoValor, semPrevisaoQtd };
-  }, [filtrados]);
+  }, [filtrados, medianas]);
 
   const forcarAtualizacao = async () => {
     try {
@@ -371,7 +446,10 @@ export function ApuracaoCacContent() {
       <Card className="p-4">
         <h3 className="mb-1 text-sm font-semibold">Projeção de recebimento por mês</h3>
         <p className="mb-3 text-xs text-muted-foreground">
-          Cada parcela entra no mês em que já foi paga ou, se ainda em aberto, no mês do prazo.
+          Recebido é o mês em que a parcela foi paga. A receber é o mês do prazo já definido.
+          Estimado (tracejado) é a 2ª parcela de quem ainda não pagou a unidade — sem prazo real
+          ainda, projetada pela mediana histórica de dias até o 1º pagamento do cliente; ajustável
+          por cliente na tabela abaixo.
         </p>
         {timeline.data.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">
@@ -381,6 +459,18 @@ export function ApuracaoCacContent() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={timeline.data}>
+                <defs>
+                  <pattern
+                    id="cacEstimadoPattern"
+                    patternUnits="userSpaceOnUse"
+                    width="6"
+                    height="6"
+                    patternTransform="rotate(45)"
+                  >
+                    <rect width="6" height="6" fill="#f59e0b" fillOpacity={0.25} />
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="#f59e0b" strokeWidth={2} />
+                  </pattern>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                 <YAxis
@@ -391,6 +481,14 @@ export function ApuracaoCacContent() {
                 <Legend />
                 <Bar dataKey="recebido" name="Recebido" stackId="cac" fill="#10b981" />
                 <Bar dataKey="projetado" name="A receber" stackId="cac" fill="#f59e0b" />
+                <Bar
+                  dataKey="estimado"
+                  name="Estimado"
+                  stackId="cac"
+                  fill="url(#cacEstimadoPattern)"
+                  stroke="#f59e0b"
+                  strokeWidth={1}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -398,8 +496,8 @@ export function ApuracaoCacContent() {
         {timeline.semPrevisaoQtd > 0 && (
           <div className="mt-3 text-xs text-muted-foreground">
             + {brl(timeline.semPrevisaoValor)} em {timeline.semPrevisaoQtd} parcela
-            {timeline.semPrevisaoQtd > 1 ? "s" : ""} de 2ª parcela sem previsão (cliente ainda não
-            pagou a unidade).
+            {timeline.semPrevisaoQtd > 1 ? "s" : ""} de 2ª parcela sem nenhuma base histórica pra
+            estimar (unidade nova, sem cliente que já tenha pago ainda).
           </div>
         )}
       </Card>
@@ -509,6 +607,7 @@ export function ApuracaoCacContent() {
                           status={it.status_parcela_2}
                           dataEnvio={it.data_envio_parcela_2}
                           dataPagamento={it.data_pagamento_parcela_2}
+                          estimativa={estimarParcela2(it, medianas)}
                           onMarcarEnviado={(data) =>
                             updateItem.mutate({ id: it.id, data_envio_parcela_2: data })
                           }
@@ -531,6 +630,9 @@ export function ApuracaoCacContent() {
                           }
                           onEditarValor={(valorPago) =>
                             updateItem.mutate({ id: it.id, valor_pago_parcela_2: valorPago })
+                          }
+                          onEditarEstimativa={(data) =>
+                            updateItem.mutate({ id: it.id, estimativa_parcela_2: data })
                           }
                         />
                       )}
@@ -581,11 +683,13 @@ function ParcelaCell({
   status,
   dataEnvio,
   dataPagamento,
+  estimativa,
   onMarcarEnviado,
   onDesmarcarEnviado,
   onMarcarPago,
   onDesmarcar,
   onEditarValor,
+  onEditarEstimativa,
 }: {
   valor: number;
   valorPago: number | null;
@@ -593,15 +697,18 @@ function ParcelaCell({
   status: string;
   dataEnvio: string | null;
   dataPagamento: string | null;
+  estimativa?: { data: string | null; manual: boolean };
   onMarcarEnviado: (data: string) => void;
   onDesmarcarEnviado: () => void;
   onMarcarPago: (data: string, valorPago: number) => void;
   onDesmarcar: () => void;
   onEditarValor: (valorPago: number) => void;
+  onEditarEstimativa?: (data: string | null) => void;
 }) {
   const badge = PARCELA_BADGE[status] ?? { label: status, cls: "" };
   const valorExibido = valorPago ?? valor;
   const valorDivergente = valorPago != null && valorPago !== valor;
+  const mostrarEstimativa = status === "aguardando_cliente" && estimativa;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-end gap-1.5">
@@ -612,14 +719,23 @@ function ParcelaCell({
       {valorDivergente && (
         <div className="text-right text-[10px] text-muted-foreground">Previsto: {brl(valor)}</div>
       )}
-      <div className="text-right text-[10px] text-muted-foreground">
-        {dataPagamento
-          ? `Pago em ${fmtData(dataPagamento)}`
-          : dataEnvio
-            ? `Boleto enviado em ${fmtData(dataEnvio)}`
-            : prazo
-              ? `Prazo: ${fmtData(prazo)}`
-              : "—"}
+      <div className="flex items-center justify-end gap-1 text-right text-[10px] text-muted-foreground">
+        <span>
+          {dataPagamento
+            ? `Pago em ${fmtData(dataPagamento)}`
+            : dataEnvio
+              ? `Boleto enviado em ${fmtData(dataEnvio)}`
+              : prazo
+                ? `Prazo: ${fmtData(prazo)}`
+                : mostrarEstimativa && estimativa!.data
+                  ? `${estimativa!.manual ? "Estimativa (manual)" : "Estimativa"}: ${fmtData(estimativa!.data)}`
+                  : mostrarEstimativa
+                    ? "Sem base pra estimar"
+                    : "—"}
+        </span>
+        {mostrarEstimativa && onEditarEstimativa && (
+          <EditarEstimativaButton valorAtual={estimativa!.data} onSalvar={onEditarEstimativa} />
+        )}
       </div>
       <div className="flex flex-col items-end gap-1">
         {dataPagamento ? (
@@ -775,6 +891,73 @@ function EditarValorButton({
             disabled={!valido}
             onClick={() => {
               onSalvar(valorNumerico);
+              setOpen(false);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditarEstimativaButton({
+  valorAtual,
+  onSalvar,
+}: {
+  valorAtual: string | null;
+  onSalvar: (data: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(() => valorAtual ?? new Date().toISOString().slice(0, 10));
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) setData(valorAtual ?? new Date().toISOString().slice(0, 10));
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          title="Ajustar data estimada"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ajustar data estimada da 2ª parcela</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label>Data provável do 1º pagamento do cliente</Label>
+          <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          <p className="text-xs text-muted-foreground">
+            Sem override, o valor é calculado pela mediana histórica de dias até o 1º pagamento do
+            cliente na unidade. Ajuste se tiver uma previsão melhor pra este caso.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onSalvar(null);
+              setOpen(false);
+            }}
+          >
+            Usar estimativa automática
+          </Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onSalvar(data);
               setOpen(false);
             }}
           >
