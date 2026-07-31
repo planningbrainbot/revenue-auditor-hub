@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   Pencil,
   Search,
+  TriangleAlert,
   UserX,
   X,
 } from "lucide-react";
@@ -51,6 +52,7 @@ import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { PrePlanningTab } from "@/components/clientes/pre-planning-tab";
 import { atualizarCliente, marcarChurnCliente } from "@/lib/clientes.functions";
 import { MOTIVOS_CHURN, type MotivoChurn } from "@/lib/royalties.functions";
+import { digits } from "@/lib/server-utils";
 
 type StatusFinanceiro =
   "ATIVO" | "EM_ATRASO" | "INADIMPLENTE" | "SEM_ATIVIDADE" | "NUNCA_PAGOU" | "SEM_AR";
@@ -73,6 +75,14 @@ type ContratoInfo = {
   ganho_em: string | null;
   regime_tributario: string | null;
   entrada_contrato_assinado_em: string | null;
+};
+
+// Cliente que existe no ERP (Omie) mas ainda não foi reconciliado em `empresas`
+// (sem pipedrive_id/contrato vinculado) — não entra em cards, contagem ou MRR total.
+type OmieMatch = {
+  cnpj: string;
+  razao_social: string | null;
+  unidade: string | null;
 };
 
 // razao_social às vezes vem de um enriquecimento de CNPJ que grava placeholders
@@ -178,6 +188,8 @@ function ClientesPage() {
   const [churnFilter, setChurnFilter] = useState<boolean | null>(null);
   const [erpFilter, setErpFilter] = useState(ALL);
   const [segmentoFilter, setSegmentoFilter] = useState(ALL);
+  const [omieMatches, setOmieMatches] = useState<OmieMatch[]>([]);
+  const [omieLoading, setOmieLoading] = useState(false);
   type SortKey =
     | "razao_social"
     | "unidade"
@@ -300,6 +312,45 @@ function ClientesPage() {
       mounted = false;
     };
   }, []);
+
+  const cnpjsReconciliados = useMemo(
+    () => new Set(rows.map((r) => digits(r.cnpj)).filter(Boolean)),
+    [rows],
+  );
+
+  // Busca complementar na Omie (fonte: ERP, não Pipedrive) pra achar clientes que existem
+  // no faturamento mas nunca foram reconciliados em `empresas` — não conta em nenhum card
+  // nem no MRR total, é só um sinal pra reconciliação manual.
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 3) {
+      setOmieMatches([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setOmieLoading(true);
+      const termDigits = digits(term);
+      const orParts = [`razao_social.ilike.%${term}%`];
+      if (termDigits.length >= 3) orParts.push(`cnpj.ilike.%${termDigits}%`);
+      // omie_clientes_cadastro (não omie_clientes) porque só ela tem policy de SELECT
+      // pra role authenticated — omie_clientes é RLS-enabled sem nenhuma policy,
+      // então fica inacessível pro client-side supabase mesmo logado.
+      const { data } = await supabase
+        .from("omie_clientes_cadastro")
+        .select("cnpj,razao_social,unidade")
+        .or(orParts.join(","))
+        .limit(15);
+      if (cancelled) return;
+      const naoReconciliados = (data ?? []).filter((m) => !cnpjsReconciliados.has(digits(m.cnpj)));
+      setOmieMatches(naoReconciliados);
+      setOmieLoading(false);
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [q, cnpjsReconciliados]);
 
   const fmtBRL = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -841,6 +892,58 @@ function ClientesPage() {
               </Table>
             </div>
           </Card>
+
+          {q.trim().length >= 3 && (omieLoading || omieMatches.length > 0) && (
+            <Card className="border-amber-300 dark:border-amber-800">
+              <div className="flex items-center gap-2 border-b px-4 py-3">
+                <TriangleAlert className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium">
+                  {omieLoading
+                    ? "Buscando na Omie..."
+                    : `${omieMatches.length} resultado(s) na Omie, não reconciliado(s) na Base Nova`}
+                </span>
+              </div>
+              {!omieLoading && (
+                <div className="max-h-64 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Razão Social</TableHead>
+                        <TableHead>Unidade (Omie)</TableHead>
+                        <TableHead>CNPJ</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {omieMatches.map((m) => (
+                        <TableRow key={m.cnpj}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {m.razao_social || "—"}
+                              <Badge
+                                variant="outline"
+                                className="border-amber-400 text-amber-700 dark:text-amber-300 text-[10px] px-1.5 py-0"
+                              >
+                                não reconciliado
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {m.unidade ? <Badge variant="secondary">{m.unidade}</Badge> : "—"}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{m.cnpj}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <div className="border-t px-4 py-2 text-[11px] text-muted-foreground">
+                Encontrado no cadastro de clientes da Omie (ERP), mas sem vínculo com deal/contrato
+                em `empresas`. Não conta nos cards, na contagem ou no MRR total acima — reconciliar
+                manualmente se for um cliente ativo.
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="pre-planning">

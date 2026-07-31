@@ -1380,6 +1380,30 @@ export type Database = {
         }
         Relationships: []
       }
+      omie_clientes_cadastro: {
+        Row: {
+          cnpj: string
+          data_cadastro: string | null
+          razao_social: string | null
+          unidade: string | null
+          updated_at: string
+        }
+        Insert: {
+          cnpj: string
+          data_cadastro?: string | null
+          razao_social?: string | null
+          unidade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cnpj?: string
+          data_cadastro?: string | null
+          razao_social?: string | null
+          unidade?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       omie_credentials: {
         Row: {
           app_key: string
