@@ -341,3 +341,15 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** implementado e no ar (push direto pra `main`, deploy via Vercel). `tsc --noEmit` e `eslint` limpos nos arquivos tocados (o padrão de `any` em `.functions.ts` é pré-existente no repo inteiro, não é regressão desta mudança). Não testado clicando na tela real — validar os números de Campo Novo (quando cruzar os R$50 mil) e Patos de Minas (a partir de agosto/2026) contra a expectativa do usuário no primeiro mês real de dados.
 
 **Próximos passos:** nenhum obrigatório. Se surgir uma unidade nova em `paga_cac` sem regra definida, `regimeParaUnidade` cai no fallback "sete_dias" (regra antiga) — vale revisitar se isso for usado de verdade.
+
+## [2026-08-03] Item de royalties nasce pré-confirmado se o mesmo contrato/CNPJ já estava confirmado no mês anterior
+
+**Contexto:** usuário pediu uma "inteligência" na apuração de royalties — se um cliente já teve o item confirmado num mês, o mês seguinte já poderia nascer marcado, independente da fonte (Pipedrive ou Omie). Hoje `confirmado` não é só um checkbox de revisão: `fecharApuracao` só soma pro fechamento os itens com `confirmado=true` (itens não confirmados ficam de fora da fatura), então clientes recorrentes exigiam clicar em "confirmar" todo mês, mesmo sem nada ter mudado.
+
+**Pergunta feita ao usuário:** o que fazer se o valor do Omie deste mês vier diferente do valor confirmado no mês anterior — só marca se o valor bater exatamente, ou marca sempre? **Resposta: marca sempre, independente do valor** — reduzir cliques pesa mais do que forçar revisão automática de reajuste; quem quiser revisar sempre pode desmarcar manualmente antes de fechar.
+
+**Decisão:** em `gerarItensApuracaoCore` (`src/lib/royalties.functions.ts`), antes de gerar os itens do mês, busca a apuração anterior mais recente da mesma unidade e monta dois sets — contratos confirmados (`contrato_id`) e CNPJs confirmados (`cnpj`, pra itens só-Omie sem contrato) — a partir de `royalties_itens` com `confirmado=true` daquela apuração. Os 4 pontos onde um item **novo** é criado (contrato sem CNPJ, matched Pipedrive×Omie, só-Pipedrive, só-Omie) passam a nascer com `confirmado` = presença no set correspondente, em vez de sempre `false`. Só vale pra itens novos desta geração — itens que já existiam nesta apuração continuam com sua própria lógica de `confirmado` (preservado se já confirmado manualmente; resetado pra `false` quando o valor do Omie muda em relação ao que já estava salvo nesta mesma apuração — isso não foi tocado).
+
+**Status:** implementado. Sem Node/npm/bun disponível na sessão pra rodar `tsc --noEmit`/build — revisão feita manualmente lendo o diff completo. Não commitado/pushado ainda (aguardando o usuário revisar, já que a branch atual tem outras mudanças não relacionadas em progresso).
+
+**Próximos passos:** validar no primeiro mês real que roda com essa lógica — abrir uma apuração nova pra uma unidade que teve itens confirmados no mês anterior e conferir se eles já nascem marcados.
