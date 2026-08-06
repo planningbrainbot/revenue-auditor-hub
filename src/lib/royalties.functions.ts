@@ -264,6 +264,37 @@ export async function gerarItensApuracaoCore(
   const mes = String(ap.mes_referencia).slice(0, 7);
   const { start, end } = monthRange(mes);
 
+  // Auto-confirmação por recorrência: se o mesmo contrato (Pipedrive) ou CNPJ
+  // (Omie) já estava confirmado na apuração anterior mais recente desta
+  // unidade, o item nasce confirmado=true neste mês também — cliente
+  // recorrente não deveria exigir re-confirmação manual todo mês. Vale pra
+  // qualquer fonte e independe do valor ter mudado em relação ao mês
+  // anterior (decisão do usuário: reduzir cliques pesa mais que forçar
+  // revisão automática de reajuste — quem quiser revisar sempre pode
+  // desmarcar antes de fechar). Só se aplica a itens NOVOS desta geração;
+  // itens que já existiam nesta apuração mantêm seu próprio confirmado.
+  const { data: apuracaoAnterior } = await supabase
+    .from("royalties_apuracao")
+    .select("id")
+    .eq("unidade_id", ap.unidade_id)
+    .lt("mes_referencia", ap.mes_referencia)
+    .order("mes_referencia", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const contratosConfirmadosMesAnterior = new Set<number>();
+  const cnpjsConfirmadosMesAnterior = new Set<string>();
+  if (apuracaoAnterior) {
+    const { data: itensAnterioresConfirmados } = await supabase
+      .from("royalties_itens")
+      .select("contrato_id,cnpj")
+      .eq("apuracao_id", apuracaoAnterior.id)
+      .eq("confirmado", true);
+    for (const it of itensAnterioresConfirmados ?? []) {
+      if (it.contrato_id != null) contratosConfirmadosMesAnterior.add(it.contrato_id);
+      else if (it.cnpj) cnpjsConfirmadosMesAnterior.add(digits(it.cnpj));
+    }
+  }
+
   // Itens que já existem nesta apuração (ex: confirmados, que regerarMatchApuracao
   // preserva de propósito) nunca devem ganhar um item irmão duplicado — sem isso,
   // rodar com force:true depois de itens confirmados gera duas linhas por contrato.
@@ -496,7 +527,7 @@ export async function gerarItensApuracaoCore(
         fonte: "pipedrive",
         status_match: "so_pipedrive",
         observacao: "Contrato sem CNPJ cadastrado — não foi possível conciliar com o Omie.",
-        confirmado: false,
+        confirmado: contratosConfirmadosMesAnterior.has(c.id),
         data_ganho: c.ganho_em ?? null,
         ...(churnInfoSemCnpj ?? {}),
         ...camposExclusaoChurn(churnInfoSemCnpj, false),
@@ -666,7 +697,7 @@ export async function gerarItensApuracaoCore(
         valor_confirmado: omieValor,
         fonte: "pipedrive",
         status_match: "matched",
-        confirmado: false,
+        confirmado: contratosConfirmadosMesAnterior.has(c.id),
         data_ganho: c.ganhoEm,
         data_pagamento_omie: dataPagamentoOmie,
         data_competencia_omie: dataCompetenciaOmie,
@@ -686,7 +717,7 @@ export async function gerarItensApuracaoCore(
         status_match: "so_pipedrive",
         ...(churnInfo ?? {}),
         ...camposExclusaoChurn(churnInfo, false),
-        confirmado: false,
+        confirmado: contratosConfirmadosMesAnterior.has(c.id),
         data_ganho: c.ganhoEm,
       });
     }
@@ -733,7 +764,7 @@ export async function gerarItensApuracaoCore(
       valor_confirmado: o.valor,
       fonte: "omie",
       status_match: "so_omie",
-      confirmado: false,
+      confirmado: cnpjsConfirmadosMesAnterior.has(k),
       data_ganho: cadastroPorCnpj.get(k) ?? null,
       data_pagamento_omie: o.pagamentos.size ? Array.from(o.pagamentos).sort() : null,
       data_competencia_omie: o.competencias.size ? Array.from(o.competencias).sort() : null,
