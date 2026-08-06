@@ -23,6 +23,7 @@ export const KNOWN_PERMISSIONS: { key: string; label: string; description: strin
   { key: "view.rede_headcount", label: "Headcount", description: "Página de headcount por unidade.", group: "Acesso" },
   { key: "view.rede_realizado", label: "Realizado Unidades", description: "Página de realizado por unidade.", group: "Acesso" },
   { key: "view.reconciliacao", label: "Reconciliação", description: "Página de reconciliação de royalties.", group: "Acesso" },
+  { key: "view.royalties_historico", label: "Royalties (histórico)", description: "Histórico de royalties por cliente e evolução do valor apurado, rede toda.", group: "Acesso" },
   { key: "view.unidades_rede", label: "Unidades (Receita da Rede)", description: "Página de unidades no grupo Receita da Rede.", group: "Acesso" },
   { key: "view.reforma_tributaria", label: "Acessar Reforma Tributária", description: "Gerador de mapa da reforma tributária para clientes.", group: "Ferramentas" },
   { key: "view.auditoria_interna", label: "Acessar Auditoria Interna", description: "Tela executiva do pipe Pipefy 'Auditoria Interna' — auditorias fiscais (ICMS/PIS/COFINS) por cliente.", group: "Acesso" },
