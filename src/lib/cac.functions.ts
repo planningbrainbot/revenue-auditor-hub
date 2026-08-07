@@ -239,7 +239,7 @@ async function gerarItensParaApuracao(
   const { data: itensExistentes, error: ieErr } = await (supabase as any)
     .from("cac_apuracao_itens")
     .select(
-      "id,contrato_id,data_recebimento_cliente,data_pagamento_parcela_1,data_pagamento_parcela_2,excluido_em",
+      "id,contrato_id,data_recebimento_cliente,data_pagamento_parcela_1,data_pagamento_parcela_2,excluido_em,valor_cac_total,data_envio_parcela_1,valor_pago_parcela_1,data_envio_parcela_2,valor_pago_parcela_2",
     )
     .eq("apuracao_id", apuracao_id);
   if (ieErr) throw new Error(ieErr.message);
@@ -303,23 +303,6 @@ async function gerarItensParaApuracao(
     const prazo2 = dataRecebimento ? prazoParcela2(dataRecebimento) : null;
     const statusMatch = !cnpjDigits ? "sem_cnpj" : "matched";
 
-    if (existente) {
-      if (existente.excluido_em) continue; // excluído manualmente, nunca recalcula
-      // Só re-sincroniza o dado que pode ter mudado desde a última geração
-      // (chegada do 1º recebimento) — nunca sobrescreve pagamentos manuais.
-      if ((existente.data_recebimento_cliente ?? null) !== dataRecebimento) {
-        atualizacoes.push({
-          id: existente.id,
-          patch: {
-            data_recebimento_cliente: dataRecebimento,
-            prazo_parcela_2: prazo2,
-            status_match: statusMatch,
-          },
-        });
-      }
-      continue;
-    }
-
     const regime: RegimeCac =
       regimeUnidade === "campo_novo" ? (regimesCampoNovo?.get(c.id) ?? "sete_dias") : regimeUnidade;
 
@@ -330,7 +313,6 @@ async function gerarItensParaApuracao(
 
     if (regime === "excedente_mensal") {
       valorTotal = excedentes?.get(c.id) ?? 0;
-      if (valorTotal <= 0) continue; // dentro da franquia mensal de R$10 mil, não gera CAC
       valorParcela1 = 0;
       prazo1 = null;
       dataPagamentoParcela1 = dataAssinatura; // sem 1ª parcela nessa regra, nada a cobrar aqui
@@ -344,6 +326,48 @@ async function gerarItensParaApuracao(
         : null;
     }
     const valorParcela2 = valorTotal - valorParcela1;
+
+    if (existente) {
+      if (existente.excluido_em) continue; // excluído manualmente, nunca recalcula
+      const patch: Record<string, unknown> = {};
+
+      // Só re-sincroniza o dado que pode ter mudado desde a última geração
+      // (chegada do 1º recebimento) — nunca sobrescreve pagamentos manuais.
+      if ((existente.data_recebimento_cliente ?? null) !== dataRecebimento) {
+        patch.data_recebimento_cliente = dataRecebimento;
+        patch.prazo_parcela_2 = prazo2;
+        patch.status_match = statusMatch;
+      }
+
+      // Re-sincroniza o valor do CAC com o mrr_mensal atual do contrato — só
+      // quando nada foi cobrado/pago ainda em nenhuma das parcelas. Sem essa
+      // guarda o valor fica congelado pra sempre no que foi calculado na
+      // criação do item, mesmo que o contrato seja corrigido depois (achado
+      // real: "Alfa Peças" congelado em R$479,17 com mrr_mensal já em
+      // R$1.479,17 no contrato — nunca resincronizava).
+      const nadaMovimentadoAinda =
+        !existente.data_envio_parcela_1 &&
+        !existente.data_pagamento_parcela_1 &&
+        existente.valor_pago_parcela_1 == null &&
+        !existente.data_envio_parcela_2 &&
+        !existente.data_pagamento_parcela_2 &&
+        existente.valor_pago_parcela_2 == null;
+      if (
+        nadaMovimentadoAinda &&
+        Math.abs(Number(existente.valor_cac_total ?? 0) - valorTotal) > 0.01
+      ) {
+        patch.valor_cac_total = valorTotal;
+        patch.valor_parcela_1 = valorParcela1;
+        patch.valor_parcela_2 = valorParcela2;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        atualizacoes.push({ id: existente.id, patch });
+      }
+      continue;
+    }
+
+    if (regime === "excedente_mensal" && valorTotal <= 0) continue; // dentro da franquia mensal de R$10 mil, não gera CAC
 
     itens.push({
       apuracao_id: apuracao_id,

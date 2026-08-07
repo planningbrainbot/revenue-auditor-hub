@@ -40,6 +40,7 @@ import { Route as AuthenticatedBiVendasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
+import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAdminPermissoesRouteImport } from './routes/_authenticated/admin.permissoes'
@@ -217,6 +218,12 @@ const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRoyaltiesIndexRoute =
+  AuthenticatedRoyaltiesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedRoyaltiesRoute,
+  } as any)
 const AuthenticatedAdminValidacaoRoute =
   AuthenticatedAdminValidacaoRouteImport.update({
     id: '/admin/validacao',
@@ -290,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesByTo {
@@ -319,7 +327,6 @@ export interface FileRoutesByTo {
   '/rede-overview': typeof AuthenticatedRedeOverviewRoute
   '/rede-realizado': typeof AuthenticatedRedeRealizadoRoute
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
-  '/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/unidades': typeof AuthenticatedUnidadesRoute
   '/': typeof AuthenticatedIndexRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByTo {
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesById {
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRouteTypes {
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/admin/permissoes'
     | '/admin/usuarios'
     | '/admin/validacao'
+    | '/royalties/'
     | '/royalties/$unidadeId/$mes'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -437,7 +447,6 @@ export interface FileRouteTypes {
     | '/rede-overview'
     | '/rede-realizado'
     | '/reforma-tributaria'
-    | '/royalties'
     | '/simulador-caixa'
     | '/unidades'
     | '/'
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
     | '/admin/permissoes'
     | '/admin/usuarios'
     | '/admin/validacao'
+    | '/royalties'
     | '/royalties/$unidadeId/$mes'
   id:
     | '__root__'
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/permissoes'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/admin/validacao'
+    | '/_authenticated/royalties/'
     | '/_authenticated/royalties/$unidadeId/$mes'
   fileRoutesById: FileRoutesById
 }
@@ -713,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/royalties/': {
+      id: '/_authenticated/royalties/'
+      path: '/'
+      fullPath: '/royalties/'
+      preLoaderRoute: typeof AuthenticatedRoyaltiesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoyaltiesRoute
+    }
     '/_authenticated/admin/validacao': {
       id: '/_authenticated/admin/validacao'
       path: '/admin/validacao'
@@ -759,11 +777,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRoyaltiesRouteChildren {
+  AuthenticatedRoyaltiesIndexRoute: typeof AuthenticatedRoyaltiesIndexRoute
   AuthenticatedRoyaltiesUnidadeIdMesRoute: typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 
 const AuthenticatedRoyaltiesRouteChildren: AuthenticatedRoyaltiesRouteChildren =
   {
+    AuthenticatedRoyaltiesIndexRoute: AuthenticatedRoyaltiesIndexRoute,
     AuthenticatedRoyaltiesUnidadeIdMesRoute:
       AuthenticatedRoyaltiesUnidadeIdMesRoute,
   }

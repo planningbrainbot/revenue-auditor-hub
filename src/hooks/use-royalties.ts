@@ -22,6 +22,7 @@ import {
   updateItem,
   updateOutraReceitaItem,
 } from "@/lib/royalties.functions";
+import { listRoyaltiesHistoricoRede } from "@/lib/royalties-historico.functions";
 
 // Default error handler — garante que falhas silenciosas sempre virem toast.
 const defaultOnError = (e: unknown) => {
@@ -34,6 +35,17 @@ export function useRoyaltiesUnidades(mes: string) {
   return useQuery({
     queryKey: ["royalties", "unidades", mes],
     queryFn: () => fn({ data: { mes } }),
+    staleTime: 30_000,
+  });
+}
+
+// Histórico de royalties por cliente (cross-unidade, todos os meses já
+// apurados) + evolução mensal — alimenta a página `/royalties`.
+export function useRoyaltiesHistoricoRede() {
+  const fn = useServerFn(listRoyaltiesHistoricoRede);
+  return useQuery({
+    queryKey: ["royalties", "historico-rede"],
+    queryFn: () => fn(),
     staleTime: 30_000,
   });
 }

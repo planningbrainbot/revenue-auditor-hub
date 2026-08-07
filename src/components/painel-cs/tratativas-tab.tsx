@@ -12,9 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
   Legend,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +54,6 @@ type Tratativa = {
 };
 
 const NA = "—";
-const COLORS = ["hsl(var(--primary))", "#ef4444", "#f59e0b", "#10b981", "#6366f1", "#ec4899", "#8b5cf6"];
 
 function fmtMoney(v: number | null | undefined) {
   if (v == null) return NA;
@@ -69,6 +65,12 @@ function fmtDate(s: string | null) {
   const d = new Date(s);
   if (isNaN(d.getTime())) return NA;
   return d.toLocaleDateString("pt-BR");
+}
+
+function fmtMesLabel(mesKey: string): string {
+  const [ano, mes] = mesKey.split("-").map(Number);
+  const d = new Date(ano, mes - 1, 1);
+  return d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
 }
 
 function statusBadge(status: string | null) {
@@ -83,14 +85,16 @@ export function TratativasTab() {
   const perms = usePermissions();
   const [rows, setRows] = useState<Tratativa[]>([]);
   const [ganhoEmPorDealId, setGanhoEmPorDealId] = useState<Map<string, string>>(new Map());
+  const [empresasBaseNova, setEmpresasBaseNova] = useState<{ pipedrive_id: string | null; unidade: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [unidadeFilter, setUnidadeFilter] = useState<string>("__all__");
-  const [estagioFilter, setEstagioFilter] = useState<string>("__all__");
   const [statusFilter, setStatusFilter] = useState<string>("__all__");
   const [q, setQ] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   const carregar = useCallback(async () => {
-    const [tratativasRes, contratosRes] = await Promise.all([
+    const [tratativasRes, contratosRes, empresasRes] = await Promise.all([
       supabase
         .from("central_tratativas")
         .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id")
@@ -101,6 +105,11 @@ export function TratativasTab() {
         .not("pipedrive_deal_id", "is", null)
         .not("ganho_em", "is", null)
         .limit(10000),
+      supabase
+        .from("empresas")
+        .select("pipedrive_id,unidade")
+        .eq("tipo_unidade", "franquia")
+        .limit(5000),
     ]);
     if (tratativasRes.data) setRows(tratativasRes.data as Tratativa[]);
     if (contratosRes.data) {
@@ -109,6 +118,9 @@ export function TratativasTab() {
         if (c.pipedrive_deal_id && c.ganho_em) map.set(String(c.pipedrive_deal_id), c.ganho_em);
       }
       setGanhoEmPorDealId(map);
+    }
+    if (empresasRes.data) {
+      setEmpresasBaseNova(empresasRes.data as { pipedrive_id: string | null; unidade: string | null }[]);
     }
     setLoading(false);
   }, []);
@@ -172,10 +184,6 @@ export function TratativasTab() {
     () => Array.from(new Set(visiveis.map((r) => r.unidade ?? NA))).sort(),
     [visiveis],
   );
-  const estagios = useMemo(
-    () => Array.from(new Set(visiveis.map((r) => r.estagio ?? NA))).sort(),
-    [visiveis],
-  );
   const statuses = useMemo(
     () => Array.from(new Set(visiveis.map((r) => r.status ?? NA))).sort(),
     [visiveis],
@@ -185,12 +193,42 @@ export function TratativasTab() {
     const term = q.trim().toLowerCase();
     return visiveis.filter((r) => {
       if (unidadeFilter !== "__all__" && (r.unidade ?? NA) !== unidadeFilter) return false;
-      if (estagioFilter !== "__all__" && (r.estagio ?? NA) !== estagioFilter) return false;
       if (statusFilter !== "__all__" && (r.status ?? NA) !== statusFilter) return false;
       if (term && !(r.titulo ?? "").toLowerCase().includes(term)) return false;
+      // Filtro de período: aplica só sobre quem tem data de churn — abertos/recuperados
+      // sem essa data não são afetados pelo range selecionado.
+      if ((dateFrom || dateTo) && r.data_churn) {
+        const d = r.data_churn.slice(0, 10);
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+      }
       return true;
     });
-  }, [visiveis, unidadeFilter, estagioFilter, statusFilter, q]);
+  }, [visiveis, unidadeFilter, statusFilter, q, dateFrom, dateTo]);
+
+  // Escopo de churn independente dos filtros secundários (estágio/status/busca) —
+  // usado só pra taxa de churn blended, que precisa do total real de clientes perdidos
+  // por unidade/permissão, não do subconjunto momentâneo da tabela.
+  const churnedIdsEscopo = useMemo(() => {
+    const perdidosEscopo = visiveis.filter(
+      (r) =>
+        (unidadeFilter === "__all__" || (r.unidade ?? NA) === unidadeFilter) &&
+        (r.status ?? "").toLowerCase() === "lost",
+    );
+    return new Set(perdidosEscopo.map((r) => String(r.pipedrive_deal_id)).filter((id) => id !== "null"));
+  }, [visiveis, unidadeFilter]);
+
+  const baseNovaStats = useMemo(() => {
+    const escopo = empresasBaseNova.filter((e) => {
+      if (perms.scopedToOwnUnit && perms.unidade && !unitMatches(perms.unidade, e.unidade ?? "")) return false;
+      if (unidadeFilter !== "__all__" && (e.unidade ?? NA) !== unidadeFilter) return false;
+      return true;
+    });
+    const ativos = escopo.filter(
+      (e) => !e.pipedrive_id || !churnedIdsEscopo.has(String(e.pipedrive_id)),
+    ).length;
+    return { total: escopo.length, ativos };
+  }, [empresasBaseNova, perms.scopedToOwnUnit, perms.unidade, unidadeFilter, churnedIdsEscopo]);
 
   const kpis = useMemo(() => {
     let perdidos = 0;
@@ -223,10 +261,13 @@ export function TratativasTab() {
       mrrPerdido,
       mrrRecuperado,
       taxaRecuperacao: perdidos + recuperados > 0 ? (recuperados / (perdidos + recuperados)) * 100 : 0,
+      taxaChurnBlended: baseNovaStats.ativos > 0 ? (churnedIdsEscopo.size / baseNovaStats.ativos) * 100 : 0,
+      churnBlendedNum: churnedIdsEscopo.size,
+      churnBlendedDenom: baseNovaStats.ativos,
       tenureMedioDias,
       tenureAmostra: tenures.length,
     };
-  }, [filtered, ganhoEmPorDealId]);
+  }, [filtered, ganhoEmPorDealId, baseNovaStats, churnedIdsEscopo]);
 
   const motivosPerda = useMemo(() => {
     const map = new Map<string, { motivo: string; count: number; mrr: number }>();
@@ -265,15 +306,19 @@ export function TratativasTab() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [filtered]);
 
-  const porEstagio = useMemo(() => {
-    const map = new Map<string, number>();
+  const mrrPerdidoPorMes = useMemo(() => {
+    const map = new Map<string, { mes: string; mrr: number; qtd: number }>();
     for (const r of filtered) {
-      const e = r.estagio ?? NA;
-      map.set(e, (map.get(e) ?? 0) + 1);
+      if ((r.status ?? "").toLowerCase() !== "lost" || !r.data_churn) continue;
+      const d = new Date(r.data_churn);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const g = map.get(key) ?? { mes: key, mrr: 0, qtd: 0 };
+      g.mrr += r.mrr ?? 0;
+      g.qtd += 1;
+      map.set(key, g);
     }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    return Array.from(map.values()).sort((a, b) => a.mes.localeCompare(b.mes));
   }, [filtered]);
 
   const tabela = useMemo(
@@ -302,7 +347,7 @@ export function TratativasTab() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Total</div>
           <div className="text-2xl font-bold">{kpis.total}</div>
@@ -328,6 +373,13 @@ export function TratativasTab() {
           <div className="text-2xl font-bold">{kpis.taxaRecuperacao.toFixed(1)}%</div>
         </Card>
         <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Taxa de churn (blended)</div>
+          <div className="text-2xl font-bold text-destructive">{kpis.taxaChurnBlended.toFixed(1)}%</div>
+          <div className="text-[11px] text-muted-foreground">
+            {kpis.churnBlendedNum} churn / {kpis.churnBlendedDenom} ativos (base nova)
+          </div>
+        </Card>
+        <Card className="p-4">
           <div className="text-xs text-muted-foreground">Tempo médio até churn</div>
           <div className="text-xl font-bold">{fmtTenure(kpis.tenureMedioDias)}</div>
           <div className="text-[11px] text-muted-foreground">
@@ -338,7 +390,7 @@ export function TratativasTab() {
 
       {/* Filtros */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -355,13 +407,6 @@ export function TratativasTab() {
               {unidades.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
             </SelectContent>
           </Select>
-          <Select value={estagioFilter} onValueChange={setEstagioFilter}>
-            <SelectTrigger><SelectValue placeholder="Estágio" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Todos os estágios</SelectItem>
-              {estagios.map((e) => (<SelectItem key={e} value={e}>{e}</SelectItem>))}
-            </SelectContent>
-          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
@@ -369,6 +414,24 @@ export function TratativasTab() {
               {statuses.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground shrink-0">Churn de</span>
+            <Input
+              type="date"
+              className="text-sm"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground shrink-0">até</span>
+            <Input
+              type="date"
+              className="text-sm"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
         </div>
       </Card>
 
@@ -391,17 +454,29 @@ export function TratativasTab() {
           </div>
         </Card>
         <Card className="p-4">
-          <div className="mb-2 text-sm font-semibold">Distribuição por estágio</div>
+          <div className="mb-2 text-sm font-semibold">MRR perdido por mês</div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={porEstagio} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-                  {porEstagio.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {mrrPerdidoPorMes.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                Nenhum churn com data registrada para os filtros atuais.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mrrPerdidoPorMes}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="mes" tickFormatter={fmtMesLabel} tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtMoney(v)} width={90} />
+                  <Tooltip
+                    labelFormatter={(v) => fmtMesLabel(String(v))}
+                    formatter={(value: number, name, item) => [
+                      fmtMoney(value),
+                      `MRR perdido (${item?.payload?.qtd ?? 0} caso(s))`,
+                    ]}
+                  />
+                  <Bar dataKey="mrr" fill="#ef4444" name="MRR perdido" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
       </div>
@@ -493,7 +568,6 @@ export function TratativasTab() {
               <TableRow>
                 <TableHead className="bg-background">Título</TableHead>
                 <TableHead className="bg-background">Unidade</TableHead>
-                <TableHead className="bg-background">Estágio</TableHead>
                 <TableHead className="bg-background">Status</TableHead>
                 <TableHead className="bg-background text-right">MRR</TableHead>
                 <TableHead className="bg-background">Motivo da perda</TableHead>
@@ -508,7 +582,6 @@ export function TratativasTab() {
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.titulo ?? NA}</TableCell>
                   <TableCell>{r.unidade ?? NA}</TableCell>
-                  <TableCell>{r.estagio ?? NA}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-right">{fmtMoney(r.mrr)}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={r.motivo ?? undefined}>
@@ -524,7 +597,7 @@ export function TratativasTab() {
               ))}
               {!loading && tabela.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                     Nenhuma tratativa encontrada com os filtros atuais.
                   </TableCell>
                 </TableRow>
