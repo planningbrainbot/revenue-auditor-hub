@@ -254,7 +254,7 @@ async function gerarItensParaApuracao(
   // fechamento — necessário pro cálculo do excedente mensal de Patos de Minas.
   const { data: contratos, error: kErr } = await supabase
     .from("contratos")
-    .select("id,cnpj,titulo,mrr_mensal,ganho_em")
+    .select("id,cnpj,titulo,mrr_mensal,ganho_em,pipedrive_deal_id")
     .eq("unidade", unidadeNome)
     .eq("tipo_unidade", "franquia")
     .eq("status_contrato", "Ativo")
@@ -263,6 +263,29 @@ async function gerarItensParaApuracao(
     .order("ganho_em", { ascending: true })
     .order("id", { ascending: true });
   if (kErr) throw new Error(kErr.message);
+
+  // Churn — mesma fonte da apuração de royalties (central_tratativas,
+  // estagio=Perdido/status=lost). Regra confirmada com o usuário em
+  // 07/08/2026 (caso real: Bender Industrial, Fortaleza): se a Parcela 1 já
+  // foi de fato paga pela unidade (valor_pago_parcela_1 preenchido) antes do
+  // churn, não estorna — o valor já trocou de mãos. Se ainda não foi paga, o
+  // item inteiro (as duas parcelas) é excluído automaticamente: a Parcela 2
+  // nunca dispararia mesmo, já que depende do 1º pagamento do cliente — que
+  // não vai mais acontecer — e a unidade não deve uma Parcela 1 nunca cobrada
+  // por um cliente que não ficou.
+  const { data: tratativasChurn, error: tcErr } = await supabase
+    .from("central_tratativas")
+    .select("pipedrive_deal_id")
+    .eq("estagio", "Perdido")
+    .eq("status", "lost");
+  if (tcErr) throw new Error(tcErr.message);
+  const dealIdsComChurn = new Set(
+    (tratativasChurn ?? [])
+      .filter((t: any) => t.pipedrive_deal_id != null)
+      .map((t: any) => String(t.pipedrive_deal_id)),
+  );
+  const MOTIVO_EXCLUSAO_CHURN_CAC = "Churn registrado — Parcela 1 ainda não paga (exclusão automática)";
+  const EXCLUIDO_POR_CHURN_AUTOMATICO_CAC = "sistema (churn automático)";
 
   const regimeUnidade = regimeParaUnidade(unidadeNome);
   const excedentes =
@@ -295,6 +318,7 @@ async function gerarItensParaApuracao(
 
   for (const c of contratos ?? []) {
     const existente = itemPorContrato.get(c.id);
+    const houveChurn = c.pipedrive_deal_id != null && dealIdsComChurn.has(String(c.pipedrive_deal_id));
     const cnpjDigits = digits(c.cnpj);
     const dataAssinatura = c.ganho_em ?? null;
     const dataRecebimento = cnpjDigits
@@ -361,6 +385,12 @@ async function gerarItensParaApuracao(
         patch.valor_parcela_2 = valorParcela2;
       }
 
+      if (houveChurn && existente.valor_pago_parcela_1 == null) {
+        patch.excluido_em = new Date().toISOString();
+        patch.excluido_por = EXCLUIDO_POR_CHURN_AUTOMATICO_CAC;
+        patch.motivo_exclusao = MOTIVO_EXCLUSAO_CHURN_CAC;
+      }
+
       if (Object.keys(patch).length > 0) {
         atualizacoes.push({ id: existente.id, patch });
       }
@@ -386,6 +416,13 @@ async function gerarItensParaApuracao(
       status_parcela_2: statusParcela2(dataRecebimento, prazo2, null, null, hoje),
       fonte: "pipedrive",
       status_match: statusMatch,
+      ...(houveChurn
+        ? {
+            excluido_em: new Date().toISOString(),
+            excluido_por: EXCLUIDO_POR_CHURN_AUTOMATICO_CAC,
+            motivo_exclusao: MOTIVO_EXCLUSAO_CHURN_CAC,
+          }
+        : {}),
     });
   }
 
