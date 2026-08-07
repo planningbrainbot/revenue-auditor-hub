@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Coins,
   FileDown,
+  FileSpreadsheet,
   Info,
   Link2,
   Pencil,
@@ -76,7 +77,10 @@ import {
 import { useRegerarMatch } from "@/hooks/use-grupos-filiais";
 import { cn } from "@/lib/utils";
 import type { ApuracaoItem, OutraReceitaItem } from "@/lib/royalties.functions";
-import { gerarDemonstrativoRoyaltiesPdf } from "@/lib/royalties-demonstrativo";
+import {
+  gerarDemonstrativoRoyaltiesPdf,
+  gerarDemonstrativoRoyaltiesXlsx,
+} from "@/lib/royalties-demonstrativo";
 
 export const Route = createFileRoute("/_authenticated/royalties/$unidadeId/$mes")({
   component: ApuracaoPage,
@@ -418,7 +422,7 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
-  const handleGerarDemonstrativo = async () => {
+  const buildDemonstrativoData = () => {
     const confirmados = ativos.filter((i) => i.confirmado);
     const itens = confirmados.map((i) => {
       const valor = Number(i.valor_confirmado ?? 0);
@@ -439,7 +443,7 @@ function ApuracaoLoaded({
         categoria: i.categoria as "royalties" | "csc_base_antiga",
       };
     });
-    await gerarDemonstrativoRoyaltiesPdf({
+    return {
       unidadeNome: u.nome_da_praca,
       mes,
       confirmadoEm: apuracao.confirmado_em,
@@ -455,13 +459,15 @@ function ApuracaoLoaded({
       outrasReceitasItens: outrasReceitasItens.map((it) => ({ nome: it.nome, valor: Number(it.valor) })),
       totalFatura,
       itens,
-      excluidos: excluidos.map((i) => ({
-        razao_social: i.razao_social,
-        cnpj: i.cnpj,
-        motivo_exclusao: i.motivo_exclusao,
-        excluido_em: i.excluido_em,
-      })),
-    });
+    };
+  };
+
+  const handleGerarDemonstrativoPdf = async () => {
+    await gerarDemonstrativoRoyaltiesPdf(buildDemonstrativoData());
+  };
+
+  const handleGerarDemonstrativoXlsx = () => {
+    gerarDemonstrativoRoyaltiesXlsx(buildDemonstrativoData());
   };
 
   return (
@@ -770,10 +776,18 @@ function ApuracaoLoaded({
               <Button
                 variant="outline"
                 className="w-full gap-1.5"
-                onClick={handleGerarDemonstrativo}
+                onClick={handleGerarDemonstrativoPdf}
               >
                 <FileDown className="h-4 w-4" />
                 Gerar demonstrativo (PDF)
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-1.5"
+                onClick={handleGerarDemonstrativoXlsx}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Gerar demonstrativo (Excel)
               </Button>
               <Button
                 variant="outline"

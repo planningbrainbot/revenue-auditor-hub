@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 function formatCnpj(s: string | null | undefined): string {
   const d = (s ?? "").replace(/\D+/g, "");
@@ -55,13 +56,6 @@ export interface DemonstrativoOutraReceita {
   valor: number;
 }
 
-export interface DemonstrativoExcluido {
-  razao_social: string;
-  cnpj: string | null;
-  motivo_exclusao: string | null;
-  excluido_em: string | null;
-}
-
 export interface DemonstrativoData {
   unidadeNome: string;
   mes: string; // AAAA-MM
@@ -78,7 +72,6 @@ export interface DemonstrativoData {
   outrasReceitasItens: DemonstrativoOutraReceita[];
   totalFatura: number;
   itens: DemonstrativoItem[];
-  excluidos: DemonstrativoExcluido[];
 }
 
 export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
@@ -222,32 +215,6 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
   itemTable("Clientes — CAC", cac);
   itemTable("Base antiga — CSC variável", baseAntiga);
 
-  if (data.excluidos.length > 0) {
-    if (cursorY > 660) {
-      doc.addPage();
-      cursorY = 50;
-    }
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Excluídos deste mês (não entram no cálculo)", 40, cursorY);
-    autoTable(doc, {
-      startY: cursorY + 8,
-      head: [["Cliente", "CNPJ", "Motivo", "Excluído em"]],
-      body: data.excluidos.map((e) => [
-        e.razao_social,
-        formatCnpj(e.cnpj),
-        e.motivo_exclusao ?? "—",
-        e.excluido_em ? new Date(e.excluido_em).toLocaleDateString("pt-BR") : "—",
-      ]),
-      styles: { fontSize: 9, cellPadding: 4 },
-      headStyles: { fillColor: [156, 163, 175], textColor: 255 },
-      columnStyles: {
-        0: { cellWidth: 150 },
-      },
-      margin: { left: 40, right: 40 },
-    });
-  }
-
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageCount = doc.getNumberOfPages();
   for (let p = 1; p <= pageCount; p++) {
@@ -262,7 +229,80 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
     doc.text(`Página ${p} de ${pageCount}`, pageWidth - 40, pageHeight - 22, { align: "right" });
   }
 
-  doc.save(
-    `demonstrativo-royalties-${data.unidadeNome.replace(/\s+/g, "-").toLowerCase()}-${data.mes}.pdf`,
-  );
+  doc.save(demonstrativoFilenameBase(data) + ".pdf");
+}
+
+function demonstrativoFilenameBase(data: DemonstrativoData) {
+  return `demonstrativo-royalties-${data.unidadeNome.replace(/\s+/g, "-").toLowerCase()}-${data.mes}`;
+}
+
+export function gerarDemonstrativoRoyaltiesXlsx(data: DemonstrativoData) {
+  const royalties = data.itens.filter((i) => i.categoria === "royalties" && !i.is_cac);
+  const cac = data.itens.filter((i) => i.is_cac);
+  const baseAntiga = data.itens.filter((i) => i.categoria === "csc_base_antiga");
+
+  const itemRows = (rows: DemonstrativoItem[]) =>
+    rows.map((r) => ({
+      Cliente: r.razao_social,
+      CNPJ: formatCnpj(r.cnpj),
+      "Data do ganho": r.data_ganho ? new Date(r.data_ganho).toLocaleDateString("pt-BR") : "—",
+      "Valor (R$)": Number(r.valor_confirmado ?? 0),
+      "%": Number(r.royalties_percentual ?? 0),
+      "Royalties (R$)": Number(r.royalties_item ?? 0),
+    }));
+
+  const itemColWidths = [{ wch: 36 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }];
+
+  const resumo: { Item: string; "Valor (R$)": number | string }[] = [
+    { Item: "Base Planning", "Valor (R$)": data.receitaBase },
+    { Item: `Royalties (${data.royaltiesPct}%)`, "Valor (R$)": data.royaltiesValor },
+    { Item: data.cscLabel, "Valor (R$)": data.cscValor },
+  ];
+  if (data.cacValor > 0) resumo.push({ Item: "CAC", "Valor (R$)": data.cacValor });
+  if (data.trafegoPago) resumo.push({ Item: "Tráfego pago", "Valor (R$)": data.trafegoPago });
+  if (data.outrasReceitas) resumo.push({ Item: "Outras receitas", "Valor (R$)": data.outrasReceitas });
+  resumo.push({ Item: "Total fatura", "Valor (R$)": data.totalFatura });
+
+  const wb = XLSX.utils.book_new();
+
+  const wsResumo = XLSX.utils.json_to_sheet([
+    { Item: "Unidade", "Valor (R$)": data.unidadeNome },
+    { Item: "Referência", "Valor (R$)": formatMesLabel(data.mes) },
+    {
+      Item: "Confirmado em",
+      "Valor (R$)": data.confirmadoEm ? new Date(data.confirmadoEm).toLocaleString("pt-BR") : "—",
+    },
+    { Item: "Confirmado por", "Valor (R$)": data.confirmadoPor ?? "—" },
+    ...resumo,
+  ]);
+  wsResumo["!cols"] = [{ wch: 28 }, { wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
+
+  if (royalties.length > 0) {
+    const ws = XLSX.utils.json_to_sheet(itemRows(royalties));
+    ws["!cols"] = itemColWidths;
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes - royalties");
+  }
+
+  if (cac.length > 0) {
+    const ws = XLSX.utils.json_to_sheet(itemRows(cac));
+    ws["!cols"] = itemColWidths;
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes - CAC");
+  }
+
+  if (baseAntiga.length > 0) {
+    const ws = XLSX.utils.json_to_sheet(itemRows(baseAntiga));
+    ws["!cols"] = itemColWidths;
+    XLSX.utils.book_append_sheet(wb, ws, "Base antiga - CSC");
+  }
+
+  if (data.outrasReceitasItens.length > 0) {
+    const ws = XLSX.utils.json_to_sheet(
+      data.outrasReceitasItens.map((it) => ({ Item: it.nome, "Valor (R$)": Number(it.valor ?? 0) })),
+    );
+    ws["!cols"] = [{ wch: 36 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws, "Outras receitas");
+  }
+
+  XLSX.writeFile(wb, demonstrativoFilenameBase(data) + ".xlsx");
 }
