@@ -1,6 +1,9 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+// xlsx-js-style (não o pacote "xlsx" comum): fork da SheetJS Community Edition
+// com suporte a estilo de célula (cor, negrito, borda), que a "xlsx" não tem.
+import * as XLSX from "xlsx-js-style";
+import type { CellObject, WorkSheet } from "xlsx-js-style";
 
 function formatCnpj(s: string | null | undefined): string {
   const d = (s ?? "").replace(/\D+/g, "");
@@ -236,72 +239,223 @@ function demonstrativoFilenameBase(data: DemonstrativoData) {
   return `demonstrativo-royalties-${data.unidadeNome.replace(/\s+/g, "-").toLowerCase()}-${data.mes}`;
 }
 
+// ---- Estilo do Excel — mesma paleta do PDF (verde da marca + cinza-escuro) ----
+
+const GREEN = "10B981";
+const GREEN_LIGHT = "ECFDF5";
+const DARK = "1F2937";
+const GRAY = "6B7280";
+const BORDER = "E5E7EB";
+const ZEBRA = "F9FAFB";
+const MONEY_FMT = '"R$" #,##0.00';
+const PCT_FMT = '0.00"%"';
+
+const thinBorder = {
+  top: { style: "thin", color: { rgb: BORDER } },
+  bottom: { style: "thin", color: { rgb: BORDER } },
+  left: { style: "thin", color: { rgb: BORDER } },
+  right: { style: "thin", color: { rgb: BORDER } },
+} as const;
+
+const sTitle = { font: { bold: true, sz: 14, color: { rgb: DARK } } };
+const sSubtitle = { font: { italic: true, sz: 9, color: { rgb: GRAY } } };
+const sSectionHeader = {
+  font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+  fill: { fgColor: { rgb: GREEN } },
+  alignment: { vertical: "center" as const },
+  border: thinBorder,
+};
+const sSectionHeaderRight = {
+  ...sSectionHeader,
+  alignment: { vertical: "center" as const, horizontal: "right" as const },
+};
+const sLabel = { font: { sz: 10, color: { rgb: DARK } }, border: thinBorder };
+const sValueText = {
+  font: { sz: 10, color: { rgb: DARK } },
+  border: thinBorder,
+  alignment: { horizontal: "right" as const },
+};
+const sMoney = { ...sValueText, numFmt: MONEY_FMT };
+const sTotalLabel = {
+  font: { bold: true, sz: 10, color: { rgb: GREEN } },
+  fill: { fgColor: { rgb: GREEN_LIGHT } },
+  border: thinBorder,
+};
+const sTotalValue = { ...sTotalLabel, alignment: { horizontal: "right" as const }, numFmt: MONEY_FMT };
+
+const sCell = { font: { sz: 10, color: { rgb: DARK } }, border: thinBorder };
+const sCellZebra = { ...sCell, fill: { fgColor: { rgb: ZEBRA } } };
+const sCellMoney = { ...sCell, alignment: { horizontal: "right" as const }, numFmt: MONEY_FMT };
+const sCellMoneyZebra = { ...sCellMoney, fill: { fgColor: { rgb: ZEBRA } } };
+const sCellPct = { ...sCell, alignment: { horizontal: "right" as const }, numFmt: PCT_FMT };
+const sCellPctZebra = { ...sCellPct, fill: { fgColor: { rgb: ZEBRA } } };
+
+function setCell(ws: WorkSheet, r: number, c: number, style: object) {
+  const ref = XLSX.utils.encode_cell({ r, c });
+  const cell = ws[ref] as CellObject | undefined;
+  if (cell) cell.s = style;
+}
+
+function buildResumoSheet(data: DemonstrativoData): WorkSheet {
+  const mesLabel = formatMesLabel(data.mes);
+  const confirmadoStr = data.confirmadoEm
+    ? new Date(data.confirmadoEm).toLocaleString("pt-BR")
+    : "—";
+
+  const kpis: { label: string; value: number }[] = [
+    { label: "Base Planning", value: data.receitaBase },
+    { label: `Royalties (${data.royaltiesPct}%)`, value: data.royaltiesValor },
+    { label: data.cscLabel, value: data.cscValor },
+  ];
+  if (data.cacValor > 0) kpis.push({ label: "CAC", value: data.cacValor });
+  if (data.trafegoPago) kpis.push({ label: "Tráfego pago", value: data.trafegoPago });
+  if (data.outrasReceitas) kpis.push({ label: "Outras receitas", value: data.outrasReceitas });
+
+  type RowKind = "title" | "subtitle" | "blank" | "sectionHeader" | "info" | "kv" | "total";
+  const rows: { kind: RowKind; cells: [string, string | number] }[] = [
+    { kind: "title", cells: [`Demonstrativo de royalties — ${data.unidadeNome}`, ""] },
+    {
+      kind: "subtitle",
+      cells: [
+        `Referência: ${mesLabel} · Confirmado em ${confirmadoStr}${data.confirmadoPor ? ` por ${data.confirmadoPor}` : ""}`,
+        "",
+      ],
+    },
+    { kind: "blank", cells: ["", ""] },
+    { kind: "sectionHeader", cells: ["Item", "Valor"] },
+    { kind: "info", cells: ["Unidade", data.unidadeNome] },
+    { kind: "info", cells: ["Referência", mesLabel] },
+    { kind: "info", cells: ["Confirmado em", confirmadoStr] },
+    { kind: "info", cells: ["Confirmado por", data.confirmadoPor ?? "—"] },
+    ...kpis.map((k) => ({ kind: "kv" as const, cells: [k.label, k.value] as [string, number] })),
+    { kind: "total", cells: ["Total fatura", data.totalFatura] },
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows.map((r) => r.cells));
+  ws["!cols"] = [{ wch: 34 }, { wch: 26 }];
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },
+  ];
+
+  rows.forEach((row, i) => {
+    switch (row.kind) {
+      case "title":
+        setCell(ws, i, 0, sTitle);
+        break;
+      case "subtitle":
+        setCell(ws, i, 0, sSubtitle);
+        break;
+      case "blank":
+        break;
+      case "sectionHeader":
+        setCell(ws, i, 0, sSectionHeader);
+        setCell(ws, i, 1, sSectionHeaderRight);
+        break;
+      case "info":
+        setCell(ws, i, 0, sLabel);
+        setCell(ws, i, 1, sValueText);
+        break;
+      case "kv":
+        setCell(ws, i, 0, sLabel);
+        setCell(ws, i, 1, sMoney);
+        break;
+      case "total":
+        setCell(ws, i, 0, sTotalLabel);
+        setCell(ws, i, 1, sTotalValue);
+        break;
+    }
+  });
+
+  return ws;
+}
+
+const ITEM_HEADER = ["Cliente", "CNPJ", "Data do ganho", "Valor (R$)", "%", "Royalties (R$)"];
+const ITEM_MONEY_COLS = new Set([3, 5]);
+const ITEM_PCT_COLS = new Set([4]);
+
+function buildItemSheet(rows: DemonstrativoItem[]): WorkSheet {
+  const aoa: (string | number)[][] = [
+    ITEM_HEADER,
+    ...rows.map((r) => [
+      r.razao_social,
+      formatCnpj(r.cnpj),
+      r.data_ganho ? new Date(r.data_ganho).toLocaleDateString("pt-BR") : "—",
+      Number(r.valor_confirmado ?? 0),
+      Number(r.royalties_percentual ?? 0),
+      Number(r.royalties_item ?? 0),
+    ]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 38 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }];
+  ws["!autofilter"] = { ref: `A1:F${aoa.length}` };
+  ws["!views"] = [{ state: "frozen", ySplit: 1 }];
+
+  ITEM_HEADER.forEach((_, c) => {
+    setCell(ws, 0, c, ITEM_MONEY_COLS.has(c) || ITEM_PCT_COLS.has(c) ? sSectionHeaderRight : sSectionHeader);
+  });
+
+  rows.forEach((_, i) => {
+    const zebra = i % 2 === 1;
+    for (let c = 0; c < ITEM_HEADER.length; c++) {
+      const style = ITEM_MONEY_COLS.has(c)
+        ? zebra
+          ? sCellMoneyZebra
+          : sCellMoney
+        : ITEM_PCT_COLS.has(c)
+          ? zebra
+            ? sCellPctZebra
+            : sCellPct
+          : zebra
+            ? sCellZebra
+            : sCell;
+      setCell(ws, i + 1, c, style);
+    }
+  });
+
+  return ws;
+}
+
+function buildOutrasReceitasSheet(itens: DemonstrativoOutraReceita[]): WorkSheet {
+  const aoa: (string | number)[][] = [
+    ["Item", "Valor (R$)"],
+    ...itens.map((it) => [it.nome, Number(it.valor ?? 0)]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 38 }, { wch: 16 }];
+  ws["!autofilter"] = { ref: `A1:B${aoa.length}` };
+  ws["!views"] = [{ state: "frozen", ySplit: 1 }];
+
+  setCell(ws, 0, 0, sSectionHeader);
+  setCell(ws, 0, 1, sSectionHeaderRight);
+  itens.forEach((_, i) => {
+    const zebra = i % 2 === 1;
+    setCell(ws, i + 1, 0, zebra ? sCellZebra : sCell);
+    setCell(ws, i + 1, 1, zebra ? sCellMoneyZebra : sCellMoney);
+  });
+
+  return ws;
+}
+
 export function gerarDemonstrativoRoyaltiesXlsx(data: DemonstrativoData) {
   const royalties = data.itens.filter((i) => i.categoria === "royalties" && !i.is_cac);
   const cac = data.itens.filter((i) => i.is_cac);
   const baseAntiga = data.itens.filter((i) => i.categoria === "csc_base_antiga");
 
-  const itemRows = (rows: DemonstrativoItem[]) =>
-    rows.map((r) => ({
-      Cliente: r.razao_social,
-      CNPJ: formatCnpj(r.cnpj),
-      "Data do ganho": r.data_ganho ? new Date(r.data_ganho).toLocaleDateString("pt-BR") : "—",
-      "Valor (R$)": Number(r.valor_confirmado ?? 0),
-      "%": Number(r.royalties_percentual ?? 0),
-      "Royalties (R$)": Number(r.royalties_item ?? 0),
-    }));
-
-  const itemColWidths = [{ wch: 36 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }];
-
-  const resumo: { Item: string; "Valor (R$)": number | string }[] = [
-    { Item: "Base Planning", "Valor (R$)": data.receitaBase },
-    { Item: `Royalties (${data.royaltiesPct}%)`, "Valor (R$)": data.royaltiesValor },
-    { Item: data.cscLabel, "Valor (R$)": data.cscValor },
-  ];
-  if (data.cacValor > 0) resumo.push({ Item: "CAC", "Valor (R$)": data.cacValor });
-  if (data.trafegoPago) resumo.push({ Item: "Tráfego pago", "Valor (R$)": data.trafegoPago });
-  if (data.outrasReceitas) resumo.push({ Item: "Outras receitas", "Valor (R$)": data.outrasReceitas });
-  resumo.push({ Item: "Total fatura", "Valor (R$)": data.totalFatura });
-
   const wb = XLSX.utils.book_new();
-
-  const wsResumo = XLSX.utils.json_to_sheet([
-    { Item: "Unidade", "Valor (R$)": data.unidadeNome },
-    { Item: "Referência", "Valor (R$)": formatMesLabel(data.mes) },
-    {
-      Item: "Confirmado em",
-      "Valor (R$)": data.confirmadoEm ? new Date(data.confirmadoEm).toLocaleString("pt-BR") : "—",
-    },
-    { Item: "Confirmado por", "Valor (R$)": data.confirmadoPor ?? "—" },
-    ...resumo,
-  ]);
-  wsResumo["!cols"] = [{ wch: 28 }, { wch: 24 }];
-  XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo");
-
+  XLSX.utils.book_append_sheet(wb, buildResumoSheet(data), "Resumo");
   if (royalties.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(itemRows(royalties));
-    ws["!cols"] = itemColWidths;
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes - royalties");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(royalties), "Clientes - royalties");
   }
-
   if (cac.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(itemRows(cac));
-    ws["!cols"] = itemColWidths;
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes - CAC");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(cac), "Clientes - CAC");
   }
-
   if (baseAntiga.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(itemRows(baseAntiga));
-    ws["!cols"] = itemColWidths;
-    XLSX.utils.book_append_sheet(wb, ws, "Base antiga - CSC");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(baseAntiga), "Base antiga - CSC");
   }
-
   if (data.outrasReceitasItens.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(
-      data.outrasReceitasItens.map((it) => ({ Item: it.nome, "Valor (R$)": Number(it.valor ?? 0) })),
-    );
-    ws["!cols"] = [{ wch: 36 }, { wch: 16 }];
-    XLSX.utils.book_append_sheet(wb, ws, "Outras receitas");
+    XLSX.utils.book_append_sheet(wb, buildOutrasReceitasSheet(data.outrasReceitasItens), "Outras receitas");
   }
 
   XLSX.writeFile(wb, demonstrativoFilenameBase(data) + ".xlsx");
