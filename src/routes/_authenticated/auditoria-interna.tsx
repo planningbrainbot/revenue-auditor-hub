@@ -158,6 +158,16 @@ function AuditoriaInternaPage() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [rows]);
 
+  const rankingOportunidade = useMemo(
+    () => [...porUnidade].filter((u) => u.oportunidades > 0).sort((a, b) => b.oportunidades - a.oportunidades),
+    [porUnidade],
+  );
+
+  const rankingContingencia = useMemo(
+    () => [...porUnidade].filter((u) => u.contingencias > 0).sort((a, b) => b.contingencias - a.contingencias),
+    [porUnidade],
+  );
+
   const atencao = useMemo(
     () =>
       rows
@@ -275,6 +285,76 @@ function AuditoriaInternaPage() {
               </TableBody>
             </table>
           </div>
+        </Card>
+      </div>
+
+      {/* Rankings por unidade */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <div className="text-sm font-semibold">Ranking de unidades — maior volume de oportunidade</div>
+          </div>
+          {rankingOportunidade.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-6">
+              Nenhuma oportunidade identificada ainda.
+            </div>
+          ) : (
+            <div className="overflow-auto max-h-[320px]">
+              <table className="w-full text-sm">
+                <TableHeader className="sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead className="bg-background w-10">#</TableHead>
+                    <TableHead className="bg-background">Unidade</TableHead>
+                    <TableHead className="bg-background text-right">Oportunidades</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rankingOportunidade.map((u, i) => (
+                    <TableRow key={u.unidade}>
+                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="font-medium">{u.unidade}</TableCell>
+                      <TableCell className="text-right text-emerald-600 font-semibold">
+                        {fmtMoney(u.oportunidades)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </table>
+            </div>
+          )}
+        </Card>
+        <Card className="p-0 overflow-hidden">
+          <div className="px-4 py-3 border-b">
+            <div className="text-sm font-semibold">Ranking de unidades — maior volume de contingência</div>
+          </div>
+          {rankingContingencia.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-6">
+              Nenhuma contingência identificada ainda.
+            </div>
+          ) : (
+            <div className="overflow-auto max-h-[320px]">
+              <table className="w-full text-sm">
+                <TableHeader className="sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead className="bg-background w-10">#</TableHead>
+                    <TableHead className="bg-background">Unidade</TableHead>
+                    <TableHead className="bg-background text-right">Contingências</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rankingContingencia.map((u, i) => (
+                    <TableRow key={u.unidade}>
+                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="font-medium">{u.unidade}</TableCell>
+                      <TableCell className="text-right text-amber-600 font-semibold">
+                        {fmtMoney(u.contingencias)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
 
