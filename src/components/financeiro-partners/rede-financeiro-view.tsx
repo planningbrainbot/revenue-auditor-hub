@@ -25,8 +25,6 @@ type RoyaltiesRow = {
   unidade: string | null;
   csc_valor: number | null;
   csc_valor_fixo: number | null;
-  royalties_valor: number | null;
-  total_due_matriz: number | null;
   faturado: number | null;
   recebido: number | null;
 };
@@ -59,23 +57,45 @@ export function RedeFinanceiroView() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [unidadeFilter, setUnidadeFilter] = useState(ALL);
+  // Royalties real, por "Unidade|YYYY-MM" — somado direto de royalties_apuracao
+  // (mesma fonte que a seção "Validação Royalties" abaixo usa como "Cobrado").
+  // Não usar v_royalties_mensais.royalties_valor pra isso: aquela view estima
+  // royalties como recebido bruto do Omie × percentual fixo da unidade, o que
+  // ignora a apuração de verdade (valor líquido, por cliente, com overrides e
+  // confirmação manual) — ver DATA-RULES.md.
+  const [royaltiesApuradoMap, setRoyaltiesApuradoMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [r, u] = await Promise.all([
+      const [r, u, uIds, apuracoes] = await Promise.all([
         supabase
           .from("v_royalties_mensais")
-          .select("mes,unidade,csc_valor,csc_valor_fixo,royalties_valor,total_due_matriz,faturado,recebido")
+          .select("mes,unidade,csc_valor,csc_valor_fixo,faturado,recebido")
           .order("mes", { ascending: true }),
         supabase
           .from("unidades")
           .select("nome_da_praca,midia_mensal")
           .neq("tipo", "interna"),
+        supabase.from("unidades").select("id,nome_da_praca").eq("tipo", "regional"),
+        supabase.from("royalties_apuracao").select("unidade_id,mes_referencia,royalties_valor,status"),
       ]);
       if (!mounted) return;
       setRoyalties((r.data ?? []) as RoyaltiesRow[]);
       setUnidades((u.data ?? []) as Unidade[]);
+
+      const nomePorUnidadeId = new Map<number, string>();
+      (uIds.data ?? []).forEach((x: any) => nomePorUnidadeId.set(x.id, x.nome_da_praca));
+      const apMap = new Map<string, number>();
+      (apuracoes.data ?? []).forEach((a: any) => {
+        const nome = nomePorUnidadeId.get(a.unidade_id);
+        if (!nome) return;
+        const mes = String(a.mes_referencia).slice(0, 7);
+        const key = `${nome}|${mes}`;
+        apMap.set(key, (apMap.get(key) ?? 0) + Number(a.royalties_valor ?? 0));
+      });
+      setRoyaltiesApuradoMap(apMap);
+
       setLoading(false);
     })();
     return () => { mounted = false; };
@@ -104,8 +124,11 @@ export function RedeFinanceiroView() {
       ...r,
       midia: r.unidade ? (midiaByUnidade.get(r.unidade) ?? 0) : 0,
       csc: r.csc_valor ?? r.csc_valor_fixo ?? 0,
+      royaltiesReal: r.unidade && r.mes
+        ? (royaltiesApuradoMap.get(`${r.unidade}|${r.mes.slice(0, 7)}`) ?? 0)
+        : 0,
     })),
-    [filtered, midiaByUnidade],
+    [filtered, midiaByUnidade, royaltiesApuradoMap],
   );
 
   const byMes = useMemo(() => {
@@ -115,10 +138,10 @@ export function RedeFinanceiroView() {
       if (!m) continue;
       const cur = map.get(m) ?? { csc: 0, royalties: 0, midia: 0, total: 0, faturado: 0 };
       cur.csc += r.csc;
-      cur.royalties += r.royalties_valor ?? 0;
+      cur.royalties += r.royaltiesReal;
       cur.midia += r.midia;
       cur.faturado += r.faturado ?? 0;
-      cur.total += (r.csc) + (r.royalties_valor ?? 0) + r.midia;
+      cur.total += r.csc + r.royaltiesReal + r.midia;
       map.set(m, cur);
     }
     return Array.from(map.entries())
@@ -153,7 +176,7 @@ export function RedeFinanceiroView() {
       }
       const p = umap.get(u)!;
       const cscVal = r.csc;
-      const royVal = r.royalties_valor ?? 0;
+      const royVal = r.royaltiesReal;
       const midVal = r.midia;
       const rowTotal = cscVal + royVal + midVal;
 
