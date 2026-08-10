@@ -36,7 +36,15 @@ export function generatePresentationHTML(d: ReformaTributariaData): string {
   const tributosAtuais = isServico ? 'ISS e PIS/COFINS' : 'ICMS, PIS e COFINS';
   const transicaoFinal = isServico
     ? 'quando o ISS é substituído integralmente pelo IBS na alíquota cheia.'
-    : '${transicaoFinal}';
+    : 'quando o ICMS é substituído integralmente pelo IBS na alíquota cheia.';
+
+  // CBS/IBS breakdown for regime final (section 02)
+  const ibsRateTotal = d.aliquotas.ibsEstadual + d.aliquotas.ibsMunicipal;
+  const totalNewRate = d.aliquotas.cbs + ibsRateTotal;
+  const cbsValue  = totalNewRate > 0 ? last.desembolso * (d.aliquotas.cbs / totalNewRate) : 0;
+  const ibsValue  = totalNewRate > 0 ? last.desembolso * (ibsRateTotal / totalNewRate) : 0;
+  const cbsPct    = Math.round((d.aliquotas.cbs / (totalNewRate || 1)) * 100);
+  const ibsPct    = 100 - cbsPct;
 
   // Resultado operacional: use parsed values if available, else fallback
   const resAtual = d.resultadoAtual > 0 ? d.resultadoAtual : (d.faturamento - first.desembolso);
@@ -241,9 +249,13 @@ section{padding:100px 0;}
 
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-  .topbar,.progress-line,.edit-bar-btm,.edit-toggle-btn,.tabs-header{display:none!important;}
+  /* topbar: muda de fixed para relative — logo aparece só na 1ª página */
+  .topbar{position:relative!important;background:#080808!important;backdrop-filter:none!important;border-bottom-color:#1a1a1a!important;}
+  .nav-links,.edit-toggle-btn,.confid{display:none!important;}
+  .progress-line,.edit-bar-btm,.tabs-header{display:none!important;}
   .reveal{opacity:1!important;transform:none!important;transition:none!important;}
-  #hero{min-height:auto!important;padding:60px 0 40px!important;}
+  /* hero: sem min-height nem padding-top extra (topbar saiu do fluxo fixed) */
+  #hero{min-height:auto!important;padding:40px 0!important;}
   section{padding:40px 0!important;}
   .divider{margin:0 48px;}
   #premissas,#impacto,#evolucao,#composicao,#legal,#beneficios,#cta{page-break-before:always;}
@@ -384,6 +396,31 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     <div style="text-align:right;margin-top:14px;font-size:1.7rem;font-weight:900;color:var(--c);">+${deltaPp} p.p.</div>
   </div>
 
+  <!-- CBS / IBS breakdown no regime final -->
+  <div class="reveal" style="margin-top:28px;">
+    <div class="bar-title" style="margin-bottom:14px;">Composição do imposto no regime final · ${last.ano}</div>
+    <div class="bb-grid">
+      <div class="bb cg-border">
+        <div class="bb-tax">CBS</div>
+        <div class="bb-val" style="color:var(--g)">R$ ${fmtMi(cbsValue)}<span style="font-size:.9rem">mi</span></div>
+        <div class="bb-sub" style="color:var(--g)">${cbsPct}% do imposto total</div>
+        <div class="bb-desc">Substitui o PIS/COFINS a partir de 2027. Taxa federal: ${fmtPct(d.aliquotas.cbs)}.</div>
+      </div>
+      <div class="bb cc-border">
+        <div class="bb-tax">IBS</div>
+        <div class="bb-val" style="color:var(--c)">R$ ${fmtMi(ibsValue)}<span style="font-size:.9rem">mi</span></div>
+        <div class="bb-sub" style="color:var(--c)">${ibsPct}% — o grande peso da reforma</div>
+        <div class="bb-desc">${isServico ? 'Substitui o ISS em 2033.' : 'Substitui o ICMS a partir de 2029.'} Taxa total: ${fmtPct(ibsRateTotal)}.</div>
+      </div>
+      ${!isServico && d.aliquotas.ipi > 0 ? `<div class="bb red-bb">
+        <div class="bb-tax">IPI</div>
+        <div class="bb-val">Mantido</div>
+        <div class="bb-sub" style="color:var(--r)">Específico por produto</div>
+        <div class="bb-desc">Alíquota de ${fmtPct(d.aliquotas.ipi)}. Continua incidindo sobre produtos industrializados mesmo após a reforma.</div>
+      </div>` : ''}
+    </div>
+  </div>
+
 </div>
 </section>
 
@@ -480,8 +517,8 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     </div>
     <div class="card reveal d2">
       <div class="cl cl-c">Simplificação</div>
-      <div style="font-size:.88rem;font-weight:700;margin-bottom:8px;">5 tributos → 2</div>
-      <div class="cd">ICMS, ISS, PIS, COFINS e IPI se tornam CBS e IBS. Uma guia, um prazo e a alíquota exata visível em cada nota fiscal.</div>
+      <div style="font-size:.88rem;font-weight:700;margin-bottom:8px;">5 tributos → 3</div>
+      <div class="cd">ICMS, ISS, PIS e COFINS se tornam CBS e IBS. O IPI é mantido em casos específicos. Uma guia, um prazo e a alíquota exata visível em cada nota fiscal.</div>
     </div>
     <div class="card reveal d3">
       <div class="cl">Previsibilidade</div>
