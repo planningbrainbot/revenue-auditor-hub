@@ -92,7 +92,7 @@ export const listRoyaltiesProjecaoRede = createServerFn({ method: "GET" })
 
       const { data: apuracoesRows, error: aErr } = await supabase
         .from("royalties_apuracao")
-        .select("id,unidade_id,mes_referencia,status")
+        .select("id,unidade_id,mes_referencia,status,royalties_percentual")
         .in("unidade_id", unidadeIds);
       if (aErr) throw new Error(aErr.message);
       const apuracoes = apuracoesRows ?? [];
@@ -123,6 +123,7 @@ export const listRoyaltiesProjecaoRede = createServerFn({ method: "GET" })
         valor_confirmado: number | null;
         royalties_item: number | null;
         valor_omie: number | null;
+        royalties_percentual_override: number | null;
       }[] = [];
       if (apuracaoIds.length > 0) {
         const PAGE = 1000;
@@ -130,7 +131,7 @@ export const listRoyaltiesProjecaoRede = createServerFn({ method: "GET" })
           const { data: pagina, error: iErr } = await supabase
             .from("royalties_itens")
             .select(
-              "apuracao_id,contrato_id,cnpj,mrr_contratado,valor_confirmado,royalties_item,valor_omie",
+              "apuracao_id,contrato_id,cnpj,mrr_contratado,valor_confirmado,royalties_item,valor_omie,royalties_percentual_override",
             )
             .in("apuracao_id", apuracaoIds)
             .eq("is_cac", false)
@@ -188,15 +189,32 @@ export const listRoyaltiesProjecaoRede = createServerFn({ method: "GET" })
           };
           clientes.set(chave, c);
         }
-        const valor = Number(it.valor_confirmado ?? it.royalties_item ?? it.valor_omie ?? 0);
+        // `valor_confirmado`/`valor_omie` são a RECEITA BRUTA do cliente, não o
+        // royalty — precisa multiplicar pelo % (override do item, senão o da
+        // apuração). `royalties_item` já vem pronto (calculado no fechamento),
+        // preferir ele quando existir evita reprocessar à toa.
+        const pct =
+          it.royalties_percentual_override ??
+          ap.royalties_percentual ??
+          pctUnidade.get(ap.unidade_id) ??
+          pctMedia;
+        const base = it.valor_confirmado ?? it.valor_omie;
+        const valor =
+          it.royalties_item != null
+            ? Number(it.royalties_item)
+            : base != null
+              ? Number(base) * (Number(pct) / 100)
+              : 0;
         c.serie.set(mes, (c.serie.get(mes) ?? 0) + valor);
         if (it.mrr_contratado != null) c.mrrContratado = it.mrr_contratado;
       }
 
-      // eixo comum pra classificar status de forma consistente entre clientes
-      const mesesSerieGlobal = Array.from(
-        new Set(Array.from(clientes.values()).flatMap((c) => Array.from(c.serie.keys()))),
-      ).sort();
+      // Eixo comum pra classificar status de forma consistente entre unidades —
+      // só meses com apuração CONFIRMADA em algum lugar da rede. Usar meses de
+      // rascunho aqui é o que fazia unidade sem rascunho do mês corrente (ex.:
+      // Patos de Minas parada em jun/26 enquanto RJ já tem rascunho de ago/26)
+      // parecer "2+ meses sem pagar" (churned) mesmo estando em dia.
+      const mesesSerieGlobal = mesesConfirmados;
 
       // ---- projeta os 6 meses futuros, agregado por unidade ----
       const porUnidadeMes = new Map<string, number>(); // key `${uid}|${mes}`
