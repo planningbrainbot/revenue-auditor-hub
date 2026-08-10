@@ -254,18 +254,18 @@ section{padding:100px 0;}
 @media print{
   @page{size:A4 landscape;margin:0;}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-  html,body{width:100%;height:auto;background:#080808!important;}
-  /* topbar: muda de fixed para relative — logo aparece só na 1ª página */
-  .topbar{position:relative!important;background:#080808!important;backdrop-filter:none!important;border-bottom-color:#1a1a1a!important;}
-  .nav-links,.edit-toggle-btn,.confid{display:none!important;}
-  .progress-line,.edit-bar-btm,.tabs-header{display:none!important;}
+  /* fundo escuro preenche cada página até a borda */
+  body{background:#080808!important;}
+  /* oculta chrome de navegação — sem topbar, sem barra de progresso */
+  .topbar,.progress-line,.edit-bar-btm,.edit-toggle-btn,.tabs-header{display:none!important;}
+  /* força visibilidade de todos os elementos com animação de reveal */
   .reveal{opacity:1!important;transform:none!important;transition:none!important;}
-  /* hero: sem min-height, sem padding extra */
-  #hero{min-height:auto!important;padding:32px 0!important;background:#080808!important;}
-  section{padding:32px 0!important;}
+  /* hero sem viewport-height — ocupa só o espaço do conteúdo */
+  #hero{min-height:auto!important;padding:60px 0 40px!important;}
+  section{padding:40px 0!important;}
   .divider{display:none!important;}
-  #premissas,#impacto,#evolucao,#composicao,#legal,#beneficios,#cta{page-break-before:always;}
-  .tab-panel{display:block!important;}
+  /* mostra apenas a aba ativa por padrão (não duplica conteúdo) */
+  .tab-panel:not(.active){display:none!important;}
   .chart-box canvas{max-height:220px;}
   .bar-fill{transition:none!important;}
   a{color:inherit!important;text-decoration:none!important;}
