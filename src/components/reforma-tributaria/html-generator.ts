@@ -402,30 +402,6 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     <div style="text-align:right;margin-top:14px;font-size:1.7rem;font-weight:900;color:var(--c);">+${deltaPp} p.p.</div>
   </div>
 
-  <!-- Resumo: tributo antigo → CBS → IBS -->
-  <div class="reveal" style="margin-top:28px;">
-    <div class="bar-title" style="margin-bottom:14px;">Como o imposto muda — de hoje até ${last.ano}</div>
-    <div class="bb-grid">
-      <div class="bb red-bb">
-        <div class="bb-tax">${oldTributeLabel}</div>
-        <div class="bb-val">R$ ${fmtMi(oldTributeValue)}<span style="font-size:.9rem">mi</span> → <span style="color:var(--g)">0</span></div>
-        <div class="bb-sub" style="color:var(--r)">Encolhe e zera em 2033</div>
-        <div class="bb-desc">Reduz ~R$ ${reductionPerYearK}k/ano a partir de 2029, substituído integralmente pelo IBS.</div>
-      </div>
-      <div class="bb cg-border">
-        <div class="bb-tax">CBS</div>
-        <div class="bb-val" style="color:var(--g)">R$ ${fmtMi(cbsValue)}<span style="font-size:.9rem">mi</span></div>
-        <div class="bb-sub" style="color:var(--g)">Estável no regime final</div>
-        <div class="bb-desc">Substitui o PIS/COFINS já em 2027. Alíquota federal: ${fmtPct(d.aliquotas.cbs)}.</div>
-      </div>
-      <div class="bb cc-border">
-        <div class="bb-tax">IBS</div>
-        <div class="bb-val" style="color:var(--c)">R$ ${fmtMi(ibsValue)}<span style="font-size:.9rem">mi</span></div>
-        <div class="bb-sub" style="color:var(--c)">O grande peso de ${last.ano}</div>
-        <div class="bb-desc">${ibsPct}% do imposto no regime final. ${isServico ? 'Substitui o ISS em 2033.' : 'Substitui o ICMS progressivamente de 2029 a 2033.'}</div>
-      </div>
-    </div>
-  </div>
 
 </div>
 </section>
@@ -474,6 +450,31 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
       <tbody>
         ${d.years.map((y, i) => { const delta = y.desembolso - first.desembolso; const deltaStr = i === 0 ? '—' : (delta >= 0 ? '+' : '') + 'R$ ' + fmtBRL(Math.abs(delta)); return '<tr' + (i === d.years.length - 1 ? ' class="last-row"' : '') + '><td>' + y.ano + '</td><td style="color:#777;font-size:.78rem;">' + getPhase(i) + '</td><td style="text-align:right;color:#5FB77F;font-weight:700;">' + fmtPct(y.carga) + '</td><td style="text-align:right;">' + fmtBRL(y.desembolso) + '</td><td style="text-align:right;color:' + (delta > 0 ? '#ff5252' : '#777') + ';">' + deltaStr + '</td></tr>'; }).join('')}
       </tbody></table>
+    </div>
+  </div>
+
+  <!-- Resumo: tributo antigo → CBS → IBS -->
+  <div class="reveal" style="margin-top:36px;">
+    <div class="bar-title" style="margin-bottom:14px;">Como o imposto muda — de hoje até ${last.ano}</div>
+    <div class="bb-grid">
+      <div class="bb red-bb">
+        <div class="bb-tax">${oldTributeLabel}</div>
+        <div class="bb-val">R$ ${fmtMi(oldTributeValue)}<span style="font-size:.9rem">mi</span> → <span style="color:var(--g);font-weight:900">0</span></div>
+        <div class="bb-sub" style="color:var(--r)">Encolhe e zera em 2033</div>
+        <div class="bb-desc">Reduz ~R$ ${reductionPerYearK}k/ano a partir de 2029, substituído integralmente pelo IBS.</div>
+      </div>
+      <div class="bb cg-border">
+        <div class="bb-tax">CBS</div>
+        <div class="bb-val" style="color:var(--g)">R$ ${fmtMi(cbsValue)}<span style="font-size:.9rem">mi</span></div>
+        <div class="bb-sub" style="color:var(--g)">Estável no regime final</div>
+        <div class="bb-desc">Substitui o PIS/COFINS já em 2027. Alíquota federal: ${fmtPct(d.aliquotas.cbs)}.</div>
+      </div>
+      <div class="bb cc-border">
+        <div class="bb-tax">IBS</div>
+        <div class="bb-val" style="color:var(--c)">R$ ${fmtMi(ibsValue)}<span style="font-size:.9rem">mi</span></div>
+        <div class="bb-sub" style="color:var(--c)">O grande peso de ${last.ano}</div>
+        <div class="bb-desc">${ibsPct}% do imposto no regime final. ${isServico ? 'Substitui o ISS em 2033.' : 'Substitui o ICMS progressivamente de 2029 a 2033.'}</div>
+      </div>
     </div>
   </div>
 </div>
