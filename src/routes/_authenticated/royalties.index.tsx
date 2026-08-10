@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Fragment, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -70,15 +70,27 @@ function celulaStatus(mes: RoyaltiesHistoricoMes | undefined): CelulaStatus | nu
   return "recebido_pendente";
 }
 
+// Status de cada cliente na projeção — ver `royalties-projecao.functions.ts`.
+// V2: todo contrato elegível entra como "ativo" (sem churn registrado); só
+// existe um status hoje, mas mantém o map pronto pra abrir mais estados
+// (ex.: alerta de contrato sem contrato_id vinculado) sem mexer no JSX.
+const PROJECAO_STATUS_INFO: Record<string, { cls: string; label: string }> = {
+  ativo: {
+    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+    label: "Ativo (sem churn registrado)",
+  },
+};
+
 function RoyaltiesHistoricoPage() {
   const { data, isLoading, error } = useRoyaltiesHistoricoRede();
   const { data: projecao, isLoading: isLoadingProjecao } = useRoyaltiesProjecaoRede();
   const [busca, setBusca] = useState("");
   const [unidadeId, setUnidadeId] = useState(ALL);
+  const [unidadeProjecaoExpandida, setUnidadeProjecaoExpandida] = useState<number | null>(null);
   const tabelaClientesRef = useRef<HTMLDivElement>(null);
 
   const unidades = data?.unidades ?? [];
-  const meses = data?.meses ?? [];
+  const meses = useMemo(() => data?.meses ?? [], [data?.meses]);
   const unidadeDataInicioMap = useMemo(
     () => new Map((data?.unidades ?? []).map((u) => [u.id, u.dataInicio])),
     [data?.unidades],
@@ -149,6 +161,23 @@ function RoyaltiesHistoricoPage() {
   const totalResumoGeral = useMemo(
     () => resumoPorUnidade.reduce((acc, u) => acc + u.total, 0),
     [resumoPorUnidade],
+  );
+
+  // Total da rede por mês + variação % vs. o mês anterior (mesma lista de
+  // `meses` da tabela — só entra % quando o mês anterior também está na
+  // tabela e tem valor > 0; senão fica sem comparação, não "-100%"/infinito).
+  const totalPorMes = useMemo(
+    () => meses.map((m) => resumoPorUnidade.reduce((acc, u) => acc + (u.porMes.get(m) ?? 0), 0)),
+    [meses, resumoPorUnidade],
+  );
+  const crescimentoPorMes = useMemo(
+    () =>
+      totalPorMes.map((v, i) => {
+        const anterior = i > 0 ? totalPorMes[i - 1] : null;
+        if (!anterior || anterior <= 0 || v <= 0) return null;
+        return (v - anterior) / anterior;
+      }),
+    [totalPorMes],
   );
 
   function selecionarUnidade(id: number) {
@@ -260,18 +289,31 @@ function RoyaltiesHistoricoPage() {
                   <tr className="border-t bg-muted/30 font-semibold">
                     <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Total rede</td>
                     <td />
-                    {meses.map((m) => {
-                      const total = resumoPorUnidade.reduce(
-                        (acc, u) => acc + (u.porMes.get(m) ?? 0),
-                        0,
-                      );
-                      return (
-                        <td key={m} className="px-2 py-2 text-center tabular-nums">
-                          {total > 0 ? brl(total) : "—"}
-                        </td>
-                      );
-                    })}
+                    {totalPorMes.map((total, i) => (
+                      <td key={meses[i]} className="px-2 py-2 text-center tabular-nums">
+                        {total > 0 ? brl(total) : "—"}
+                      </td>
+                    ))}
                     <td className="px-3 py-2 text-right tabular-nums">{brl(totalResumoGeral)}</td>
+                  </tr>
+                  <tr className="border-t text-xs text-muted-foreground">
+                    <td className="sticky left-0 z-10 bg-card px-3 py-1.5">
+                      Crescimento vs. mês anterior
+                    </td>
+                    <td />
+                    {crescimentoPorMes.map((pct, i) => (
+                      <td
+                        key={meses[i]}
+                        className={cn(
+                          "px-2 py-1.5 text-center tabular-nums",
+                          pct != null && pct > 0 && "text-emerald-600 dark:text-emerald-400",
+                          pct != null && pct < 0 && "text-red-600 dark:text-red-400",
+                        )}
+                      >
+                        {pct != null ? `${pct > 0 ? "+" : ""}${(pct * 100).toFixed(0)}%` : "—"}
+                      </td>
+                    ))}
+                    <td />
                   </tr>
                 </tbody>
               </table>
@@ -294,11 +336,11 @@ function RoyaltiesHistoricoPage() {
             )}
           </div>
           <p className="px-3 pt-2 text-xs text-muted-foreground">
-            Cliente que já paga royalties mantém o último valor confirmado (sem decaimento de
-            churn). Cliente recém-fechado no Pipedrive que ainda não apurou nada entra pelo MRR
-            contratado × % da unidade, só enquanto estiver dentro da janela de maturação (~60 dias
-            do ganho). Cliente parado há 2+ meses ou fora da janela vira R$0 — não é apuração, é
-            estimativa.
+            Vem direto do MRR contratado no Pipedrive (não da apuração) × % de royalties da unidade
+            — todo contrato ganho, com deal do Pipedrive vinculado, entra pelo valor cheio em todos
+            os 6 meses. Só sai quem tem churn registrado. Cliente que paga royalties mas não tem
+            contrato_id vinculado ao Pipedrive fica de fora até o vínculo ser corrigido — não é
+            apuração, é estimativa do que já foi vendido.
           </p>
           {isLoadingProjecao ? (
             <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
@@ -328,24 +370,129 @@ function RoyaltiesHistoricoPage() {
                     }))
                     .filter((u) => u.total > 0)
                     .sort((a, b) => b.total - a.total)
-                    .map((u) => (
-                      <tr key={u.unidade_id} className="border-t">
-                        <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">
-                          {u.unidade_nome}
-                        </td>
-                        {projecao.meses.map((m) => {
-                          const v = u.porMes[m] ?? 0;
-                          return (
-                            <td key={m} className="px-2 py-2 text-center tabular-nums">
-                              {v > 0 ? brl(v) : <span className="text-muted-foreground/40">·</span>}
+                    .map((u) => {
+                      const expandida = unidadeProjecaoExpandida === u.unidade_id;
+                      const clientesUnidade = (projecao.clientes ?? [])
+                        .filter((c) => c.unidade_id === u.unidade_id)
+                        .map((c) => ({
+                          ...c,
+                          total: Object.values(c.porMes).reduce((acc, v) => acc + v, 0),
+                        }))
+                        .sort((a, b) => b.total - a.total);
+                      return (
+                        <Fragment key={u.unidade_id}>
+                          <tr
+                            onClick={() =>
+                              setUnidadeProjecaoExpandida((cur) =>
+                                cur === u.unidade_id ? null : u.unidade_id,
+                              )
+                            }
+                            className={cn(
+                              "cursor-pointer border-t hover:bg-muted/40",
+                              expandida && "bg-sky-50 dark:bg-sky-950/30",
+                            )}
+                          >
+                            <td
+                              className={cn(
+                                "sticky left-0 z-10 bg-card px-3 py-2 font-medium",
+                                expandida && "bg-sky-50 dark:bg-sky-950/30",
+                              )}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {expandida ? (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                                {u.unidade_nome}
+                              </span>
                             </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                          {brl(u.total)}
-                        </td>
-                      </tr>
-                    ))}
+                            {projecao.meses.map((m) => {
+                              const v = u.porMes[m] ?? 0;
+                              return (
+                                <td key={m} className="px-2 py-2 text-center tabular-nums">
+                                  {v > 0 ? (
+                                    brl(v)
+                                  ) : (
+                                    <span className="text-muted-foreground/40">·</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                              {brl(u.total)}
+                            </td>
+                          </tr>
+                          {expandida && (
+                            <tr className="border-t bg-muted/20">
+                              <td colSpan={2 + projecao.meses.length} className="p-0">
+                                <div className="max-h-72 overflow-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-muted/40 text-muted-foreground">
+                                      <tr>
+                                        <th className="px-3 py-1.5 text-left font-medium">
+                                          Cliente
+                                        </th>
+                                        <th className="px-2 py-1.5 text-left font-medium">CNPJ</th>
+                                        <th className="px-2 py-1.5 text-left font-medium">
+                                          Status
+                                        </th>
+                                        <th className="px-3 py-1.5 text-right font-medium">
+                                          Valor mensal projetado
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {clientesUnidade.map((c, i) => {
+                                        const info = PROJECAO_STATUS_INFO[c.status];
+                                        // active/irregular = valor plano; never_paid pode entrar só
+                                        // a partir do 2º mês — mostra o valor do último mês projetado.
+                                        const valorMensal =
+                                          c.porMes[projecao.meses[projecao.meses.length - 1]] ??
+                                          c.total;
+                                        return (
+                                          <tr key={i} className="border-t border-border/50">
+                                            <td className="px-3 py-1.5">{c.razao_social}</td>
+                                            <td className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
+                                              {c.cnpj ?? "—"}
+                                            </td>
+                                            <td className="px-2 py-1.5">
+                                              {info && (
+                                                <span
+                                                  className={cn(
+                                                    "inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium",
+                                                    info.cls,
+                                                  )}
+                                                >
+                                                  {info.label}
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right tabular-nums">
+                                              {brl(valorMensal)}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                      {clientesUnidade.length === 0 && (
+                                        <tr>
+                                          <td
+                                            colSpan={4}
+                                            className="px-3 py-4 text-center text-muted-foreground"
+                                          >
+                                            Sem detalhe de cliente pra essa unidade.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   <tr className="border-t bg-muted/30 font-semibold">
                     <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Total rede</td>
                     {projecao.meses.map((m) => {
