@@ -43,8 +43,12 @@ export function generatePresentationHTML(d: ReformaTributariaData): string {
   const totalNewRate = d.aliquotas.cbs + ibsRateTotal;
   const cbsValue  = totalNewRate > 0 ? last.desembolso * (d.aliquotas.cbs / totalNewRate) : 0;
   const ibsValue  = totalNewRate > 0 ? last.desembolso * (ibsRateTotal / totalNewRate) : 0;
-  const cbsPct    = Math.round((d.aliquotas.cbs / (totalNewRate || 1)) * 100);
-  const ibsPct    = 100 - cbsPct;
+  const ibsPct    = Math.round((ibsRateTotal / (totalNewRate || 1)) * 100);
+  // Old tribute (ISS or ICMS): CBS is designed to replace PIS/COFINS at similar revenue,
+  // so PIS/COFINS 2026 ≈ cbsValue, and old main tribute ≈ first.desembolso - cbsValue
+  const oldTributeValue    = Math.max(0, first.desembolso - cbsValue);
+  const oldTributeLabel    = isServico ? 'ISS' : 'ICMS';
+  const reductionPerYearK  = Math.round(oldTributeValue * 0.1 / 1000); // -10%/ano a partir de 2029
 
   // Resultado operacional: use parsed values if available, else fallback
   const resAtual = d.resultadoAtual > 0 ? d.resultadoAtual : (d.faturamento - first.desembolso);
@@ -248,19 +252,21 @@ section{padding:100px 0;}
 }
 
 @media print{
+  @page{size:A4 landscape;margin:0;}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  html,body{width:100%;height:auto;background:#080808!important;}
   /* topbar: muda de fixed para relative — logo aparece só na 1ª página */
   .topbar{position:relative!important;background:#080808!important;backdrop-filter:none!important;border-bottom-color:#1a1a1a!important;}
   .nav-links,.edit-toggle-btn,.confid{display:none!important;}
   .progress-line,.edit-bar-btm,.tabs-header{display:none!important;}
   .reveal{opacity:1!important;transform:none!important;transition:none!important;}
-  /* hero: sem min-height nem padding-top extra (topbar saiu do fluxo fixed) */
-  #hero{min-height:auto!important;padding:40px 0!important;}
-  section{padding:40px 0!important;}
-  .divider{margin:0 48px;}
+  /* hero: sem min-height, sem padding extra */
+  #hero{min-height:auto!important;padding:32px 0!important;background:#080808!important;}
+  section{padding:32px 0!important;}
+  .divider{display:none!important;}
   #premissas,#impacto,#evolucao,#composicao,#legal,#beneficios,#cta{page-break-before:always;}
   .tab-panel{display:block!important;}
-  .chart-box canvas{max-height:260px;}
+  .chart-box canvas{max-height:220px;}
   .bar-fill{transition:none!important;}
   a{color:inherit!important;text-decoration:none!important;}
 }
@@ -396,28 +402,28 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     <div style="text-align:right;margin-top:14px;font-size:1.7rem;font-weight:900;color:var(--c);">+${deltaPp} p.p.</div>
   </div>
 
-  <!-- CBS / IBS breakdown no regime final -->
+  <!-- Resumo: tributo antigo → CBS → IBS -->
   <div class="reveal" style="margin-top:28px;">
-    <div class="bar-title" style="margin-bottom:14px;">Composição do imposto no regime final · ${last.ano}</div>
+    <div class="bar-title" style="margin-bottom:14px;">Como o imposto muda — de hoje até ${last.ano}</div>
     <div class="bb-grid">
+      <div class="bb red-bb">
+        <div class="bb-tax">${oldTributeLabel}</div>
+        <div class="bb-val">R$ ${fmtMi(oldTributeValue)}<span style="font-size:.9rem">mi</span> → <span style="color:var(--g)">0</span></div>
+        <div class="bb-sub" style="color:var(--r)">Encolhe e zera em 2033</div>
+        <div class="bb-desc">Reduz ~R$ ${reductionPerYearK}k/ano a partir de 2029, substituído integralmente pelo IBS.</div>
+      </div>
       <div class="bb cg-border">
         <div class="bb-tax">CBS</div>
         <div class="bb-val" style="color:var(--g)">R$ ${fmtMi(cbsValue)}<span style="font-size:.9rem">mi</span></div>
-        <div class="bb-sub" style="color:var(--g)">${cbsPct}% do imposto total</div>
-        <div class="bb-desc">Substitui o PIS/COFINS a partir de 2027. Taxa federal: ${fmtPct(d.aliquotas.cbs)}.</div>
+        <div class="bb-sub" style="color:var(--g)">Estável no regime final</div>
+        <div class="bb-desc">Substitui o PIS/COFINS já em 2027. Alíquota federal: ${fmtPct(d.aliquotas.cbs)}.</div>
       </div>
       <div class="bb cc-border">
         <div class="bb-tax">IBS</div>
         <div class="bb-val" style="color:var(--c)">R$ ${fmtMi(ibsValue)}<span style="font-size:.9rem">mi</span></div>
-        <div class="bb-sub" style="color:var(--c)">${ibsPct}% — o grande peso da reforma</div>
-        <div class="bb-desc">${isServico ? 'Substitui o ISS em 2033.' : 'Substitui o ICMS a partir de 2029.'} Taxa total: ${fmtPct(ibsRateTotal)}.</div>
+        <div class="bb-sub" style="color:var(--c)">O grande peso de ${last.ano}</div>
+        <div class="bb-desc">${ibsPct}% do imposto no regime final. ${isServico ? 'Substitui o ISS em 2033.' : 'Substitui o ICMS progressivamente de 2029 a 2033.'}</div>
       </div>
-      ${!isServico && d.aliquotas.ipi > 0 ? `<div class="bb red-bb">
-        <div class="bb-tax">IPI</div>
-        <div class="bb-val">Mantido</div>
-        <div class="bb-sub" style="color:var(--r)">Específico por produto</div>
-        <div class="bb-desc">Alíquota de ${fmtPct(d.aliquotas.ipi)}. Continua incidindo sobre produtos industrializados mesmo após a reforma.</div>
-      </div>` : ''}
     </div>
   </div>
 
