@@ -2,9 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,6 +36,39 @@ export const Route = createFileRoute("/_authenticated/royalties/")({
 });
 
 const ALL = "__all__";
+
+// Backfill manual pra jan–mai/2026: nesses meses a apuração ainda não existia
+// no app pra estas 3 unidades (primeira apuração no banco é jun/2026 — ver
+// `royalties_apuracao`). Valores vêm da linha "ROYALTIES" do QUADRO RESUMO
+// das planilhas de fechamento mensal em ~/Desktop/Royalties (Planning Belém/
+// Curitiba/Sudeste – Maio – 2026.xlsx; "Sudeste" = Rio de Janeiro, confirmado
+// pela regra de royalties da Genial citada na própria planilha). Não é
+// itemizado por cliente — por isso só entra na evolução/resumo por unidade,
+// não na tabela "Histórico de royalties por cliente" abaixo.
+const MANUAL_BACKFILL_2026: {
+  unidade_id: number;
+  mes_referencia: string;
+  royalties_apurado: number;
+}[] = [
+  // Rio de Janeiro (id 4)
+  { unidade_id: 4, mes_referencia: "2026-01-01", royalties_apurado: 23452.34 },
+  { unidade_id: 4, mes_referencia: "2026-02-01", royalties_apurado: 36384.48 },
+  { unidade_id: 4, mes_referencia: "2026-03-01", royalties_apurado: 44103.38 },
+  { unidade_id: 4, mes_referencia: "2026-04-01", royalties_apurado: 42547.48 },
+  { unidade_id: 4, mes_referencia: "2026-05-01", royalties_apurado: 27711.16 },
+  // Belém (id 3)
+  { unidade_id: 3, mes_referencia: "2026-01-01", royalties_apurado: 8392.3 },
+  { unidade_id: 3, mes_referencia: "2026-02-01", royalties_apurado: 8143.95 },
+  { unidade_id: 3, mes_referencia: "2026-03-01", royalties_apurado: 15392.07 },
+  { unidade_id: 3, mes_referencia: "2026-04-01", royalties_apurado: 12289.36 },
+  { unidade_id: 3, mes_referencia: "2026-05-01", royalties_apurado: 16670.33 },
+  // Curitiba (id 1)
+  { unidade_id: 1, mes_referencia: "2026-01-01", royalties_apurado: 6679.15 },
+  { unidade_id: 1, mes_referencia: "2026-02-01", royalties_apurado: 9482.68 },
+  { unidade_id: 1, mes_referencia: "2026-03-01", royalties_apurado: 8779.04 },
+  { unidade_id: 1, mes_referencia: "2026-04-01", royalties_apurado: 9372.38 },
+  { unidade_id: 1, mes_referencia: "2026-05-01", royalties_apurado: 11968.93 },
+];
 
 function formatMesLabel(mesRef: string): string {
   const [y, m] = mesRef.slice(0, 7).split("-");
@@ -77,6 +114,28 @@ function RoyaltiesHistoricoPage() {
 
   const unidades = data?.unidades ?? [];
   const meses = data?.meses ?? [];
+  const unidadeNomeMap = useMemo(
+    () => new Map((data?.unidades ?? []).map((u) => [u.id, u.nome])),
+    [data?.unidades],
+  );
+
+  // Junta a evolução vinda do app com o backfill manual — só entra o mês
+  // manual se aquela unidade+mês ainda não tiver apuração real no app
+  // (evita duplicar quando alguém abrir a apuração retroativa desses meses).
+  const pontosCombinados = useMemo(() => {
+    const base = data?.evolucao ?? [];
+    const existentes = new Set(base.map((p) => `${p.unidade_id}|${p.mes_referencia}`));
+    const manual = MANUAL_BACKFILL_2026.filter(
+      (m) => !existentes.has(`${m.unidade_id}|${m.mes_referencia}`),
+    ).map((m) => ({
+      mes_referencia: m.mes_referencia,
+      unidade_id: m.unidade_id,
+      unidade_nome: unidadeNomeMap.get(m.unidade_id) ?? "—",
+      apuracao_status: "manual",
+      royalties_apurado: m.royalties_apurado,
+    }));
+    return [...base, ...manual];
+  }, [data?.evolucao, unidadeNomeMap]);
 
   const clientesFiltrados = useMemo(() => {
     let arr = data?.clientes ?? [];
@@ -94,8 +153,10 @@ function RoyaltiesHistoricoPage() {
   }, [data?.clientes, unidadeId, busca]);
 
   const evolucaoChart = useMemo(() => {
-    const pontos = data?.evolucao ?? [];
-    const filtrados = unidadeId === ALL ? pontos : pontos.filter((p) => String(p.unidade_id) === unidadeId);
+    const filtrados =
+      unidadeId === ALL
+        ? pontosCombinados
+        : pontosCombinados.filter((p) => String(p.unidade_id) === unidadeId);
     const porMes = new Map<string, number>();
     for (const p of filtrados) {
       porMes.set(p.mes_referencia, (porMes.get(p.mes_referencia) ?? 0) + p.royalties_apurado);
@@ -103,10 +164,45 @@ function RoyaltiesHistoricoPage() {
     return Array.from(porMes.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, valor]) => ({ mes: formatMesLabel(mes), valor }));
-  }, [data?.evolucao, unidadeId]);
+  }, [pontosCombinados, unidadeId]);
+
+  const ANO_RESUMO = "2026";
+  const resumoPorUnidade = useMemo(() => {
+    const pontos = pontosCombinados.filter((p) => p.mes_referencia.startsWith(ANO_RESUMO));
+    const porUnidade = new Map<
+      number,
+      { unidade_id: number; unidade_nome: string; total: number; temManual: boolean }
+    >();
+    for (const p of pontos) {
+      const cur = porUnidade.get(p.unidade_id);
+      if (cur) {
+        cur.total += p.royalties_apurado;
+        if (p.apuracao_status === "manual") cur.temManual = true;
+      } else {
+        porUnidade.set(p.unidade_id, {
+          unidade_id: p.unidade_id,
+          unidade_nome: p.unidade_nome,
+          total: p.royalties_apurado,
+          temManual: p.apuracao_status === "manual",
+        });
+      }
+    }
+    return Array.from(porUnidade.values())
+      .filter((u) => u.total > 0)
+      .map((u) => ({ ...u, label: u.temManual ? `${u.unidade_nome} *` : u.unidade_nome }))
+      .sort((a, b) => b.total - a.total);
+  }, [pontosCombinados]);
+
+  const totalResumoAno = useMemo(
+    () => resumoPorUnidade.reduce((acc, u) => acc + u.total, 0),
+    [resumoPorUnidade],
+  );
 
   return (
-    <AppShell title="Royalties" subtitle="Histórico de royalties por cliente e evolução do valor apurado, rede toda">
+    <AppShell
+      title="Royalties"
+      subtitle="Histórico de royalties por cliente e evolução do valor apurado, rede toda"
+    >
       <div className="space-y-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[240px] flex-1">
@@ -135,10 +231,100 @@ function RoyaltiesHistoricoPage() {
         </div>
 
         <Card className="p-4">
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <div className="text-sm font-medium">
+              Resumo por unidade — royalties recebidos em {ANO_RESUMO}
+            </div>
+            {totalResumoAno > 0 && (
+              <div className="text-sm font-semibold tabular-nums">{brl(totalResumoAno)}</div>
+            )}
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Soma de {formatMesLabel(`${ANO_RESUMO}-01-01`)} a{" "}
+            {formatMesLabel(`${ANO_RESUMO}-12-01`)}, mesma base de item confirmado × % de royalties
+            usada no gráfico de evolução abaixo. Independe do filtro de unidade acima.
+            {resumoPorUnidade.some((u) => u.temManual) && (
+              <>
+                {" "}
+                <strong className="font-medium text-foreground">*</strong> jan–mai/26 dessas
+                unidades vêm de planilha manual (fechamento mensal), a apuração no app só começa em
+                jun/26.
+              </>
+            )}
+          </p>
+          {isLoading ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
+          ) : resumoPorUnidade.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Sem royalties confirmados em {ANO_RESUMO} ainda.
+            </div>
+          ) : (
+            <div style={{ height: Math.max(140, resumoPorUnidade.length * 36) }} className="w-full">
+              <ResponsiveContainer>
+                <BarChart
+                  data={resumoPorUnidade}
+                  layout="vertical"
+                  margin={{ top: 4, right: 56, bottom: 4, left: 4 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                    stroke="hsl(var(--border))"
+                  />
+                  <XAxis
+                    type="number"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickFormatter={(v) => brl(v).replace("R$", "")}
+                  />
+                  <YAxis
+                    dataKey="label"
+                    type="category"
+                    width={110}
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 6,
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number) => brl(v)}
+                    labelFormatter={(label) => String(label)}
+                  />
+                  <Bar dataKey="total" name="Royalties recebidos" radius={[0, 4, 4, 0]}>
+                    {resumoPorUnidade.map((u) => (
+                      <Cell
+                        key={u.unidade_id}
+                        fill={
+                          unidadeId === ALL || String(u.unidade_id) === unidadeId
+                            ? "hsl(var(--chart-2, 142 71% 45%))"
+                            : "hsl(var(--muted-foreground) / 0.35)"
+                        }
+                      />
+                    ))}
+                    <LabelList
+                      dataKey="total"
+                      position="right"
+                      formatter={(v: number) => brl(v)}
+                      className="fill-foreground text-[11px]"
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-4">
           <div className="mb-1 text-sm font-medium">Evolução de royalties apurados</div>
           <p className="mb-3 text-xs text-muted-foreground">
-            Soma do valor confirmado × % de royalties de cada apuração (recalculado item a item, não usa o total
-            já salvo na apuração). Só entra item confirmado — meses em rascunho/revisão podem estar parciais.
+            Soma do valor confirmado × % de royalties de cada apuração (recalculado item a item, não
+            usa o total já salvo na apuração). Só entra item confirmado — meses em rascunho/revisão
+            podem estar parciais. Jan–mai/26 de Belém, Curitiba e Rio de Janeiro vêm de planilha
+            manual (ver resumo por unidade acima).
           </p>
           {isLoading ? (
             <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
@@ -183,7 +369,9 @@ function RoyaltiesHistoricoPage() {
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Carregando…</div>
           ) : error ? (
-            <div className="p-8 text-center text-sm text-destructive">{(error as Error).message}</div>
+            <div className="p-8 text-center text-sm text-destructive">
+              {(error as Error).message}
+            </div>
           ) : (
             <div className="max-h-[70vh] overflow-auto">
               <table className="w-full text-sm">
@@ -203,7 +391,9 @@ function RoyaltiesHistoricoPage() {
                 <tbody>
                   {clientesFiltrados.map((c) => (
                     <tr key={c.chave} className="border-t">
-                      <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">{c.razao_social}</td>
+                      <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">
+                        {c.razao_social}
+                      </td>
                       <td className="px-3 py-2 font-mono text-xs">{c.cnpj ?? "—"}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{c.unidade_nome}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{date(c.data_ganho)}</td>
@@ -233,7 +423,10 @@ function RoyaltiesHistoricoPage() {
                   ))}
                   {clientesFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={4 + meses.length} className="px-3 py-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={4 + meses.length}
+                        className="px-3 py-8 text-center text-muted-foreground"
+                      >
                         Sem resultados.
                       </td>
                     </tr>
@@ -245,8 +438,10 @@ function RoyaltiesHistoricoPage() {
         </Card>
 
         <p className="px-1 text-xs text-muted-foreground">
-          Só aparecem meses em que a apuração daquela unidade já foi aberta pelo menos uma vez — meses nunca
-          abertos ainda não geram itens automaticamente aqui. Pra apurar um mês novo, acesse{" "}
+          A tabela acima só traz meses em que a apuração daquela unidade já foi aberta pelo menos
+          uma vez — meses nunca abertos ainda não geram itens automaticamente aqui (os gráficos no
+          topo da página completam jan–mai/26 de 3 unidades com planilha manual, mas isso não é
+          itemizado por cliente). Pra apurar um mês novo, acesse{" "}
           <Link to="/unidades" className="underline">
             Unidades → Royalties
           </Link>
