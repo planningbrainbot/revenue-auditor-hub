@@ -38,17 +38,23 @@ export function generatePresentationHTML(d: ReformaTributariaData): string {
     ? 'quando o ISS é substituído integralmente pelo IBS na alíquota cheia.'
     : 'quando o ICMS é substituído integralmente pelo IBS na alíquota cheia.';
 
-  // CBS/IBS breakdown for regime final (section 02)
+  // Summary cards: per-tribute breakdown from xlsx (section 04)
+  // Use values extracted directly from the xlsx desembolso table when available,
+  // falling back to rate-proportional approximation if xlsx didn't have the rows.
   const ibsRateTotal = d.aliquotas.ibsEstadual + d.aliquotas.ibsMunicipal;
   const totalNewRate = d.aliquotas.cbs + ibsRateTotal;
-  const cbsValue  = totalNewRate > 0 ? last.desembolso * (d.aliquotas.cbs / totalNewRate) : 0;
-  const ibsValue  = totalNewRate > 0 ? last.desembolso * (ibsRateTotal / totalNewRate) : 0;
-  const ibsPct    = Math.round((ibsRateTotal / (totalNewRate || 1)) * 100);
-  // Old tribute (ISS or ICMS): CBS is designed to replace PIS/COFINS at similar revenue,
-  // so PIS/COFINS 2026 ≈ cbsValue, and old main tribute ≈ first.desembolso - cbsValue
-  const oldTributeValue    = Math.max(0, first.desembolso - cbsValue);
-  const oldTributeLabel    = isServico ? 'ISS' : 'ICMS';
-  const reductionPerYearK  = Math.round(oldTributeValue * 0.1 / 1000); // -10%/ano a partir de 2029
+  const cbsValue  = d.cbs2033 > 0
+    ? d.cbs2033
+    : (totalNewRate > 0 ? last.desembolso * (d.aliquotas.cbs / totalNewRate) : 0);
+  const ibsValue  = d.ibs2033 > 0
+    ? d.ibs2033
+    : (totalNewRate > 0 ? last.desembolso * (ibsRateTotal / totalNewRate) : 0);
+  const ibsPct    = Math.round((ibsValue / (last.desembolso || 1)) * 100);
+  const oldTributeValue   = d.icmsOuIss2026 > 0
+    ? d.icmsOuIss2026
+    : Math.max(0, first.desembolso - cbsValue);
+  const oldTributeLabel   = isServico ? 'ISS' : 'ICMS';
+  const reductionPerYearK = Math.round(oldTributeValue * 0.1 / 1000); // -10%/ano a partir de 2029
 
   // Resultado operacional: use parsed values if available, else fallback
   const resAtual = d.resultadoAtual > 0 ? d.resultadoAtual : (d.faturamento - first.desembolso);
