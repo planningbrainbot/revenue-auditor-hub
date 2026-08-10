@@ -15,17 +15,24 @@ export interface PermissionsState {
   isAdmin: boolean;
 }
 
-export function usePermissions(): PermissionsState {
+/**
+ * @param userIdOverride Pass the already-resolved user id (e.g. from a route's
+ * `beforeLoad` context) to start the permissions query on first render instead
+ * of waiting for this hook's own `useAuth()` effect to resolve.
+ */
+export function usePermissions(userIdOverride?: string): PermissionsState {
   const { user, loading: authLoading } = useAuth();
+  const userId = userIdOverride ?? user?.id;
+  const authPending = userIdOverride ? false : authLoading;
   const fn = useServerFn(getMyPermissions);
   const q = useQuery({
-    queryKey: ["my-perms", user?.id],
+    queryKey: ["my-perms", userId],
     queryFn: () => fn(),
-    enabled: !!user?.id,
+    enabled: !!userId,
     staleTime: 60_000,
   });
 
-  const permsLoading = authLoading || !user?.id || (q.fetchStatus !== "idle" && !q.data) || (!!user?.id && !q.data && !q.isError);
+  const permsLoading = authPending || !userId || (q.fetchStatus !== "idle" && !q.data) || (!!userId && !q.data && !q.isError);
 
   return useMemo<PermissionsState>(() => {
     const roles = (q.data?.roles ?? []) as AppRole[];

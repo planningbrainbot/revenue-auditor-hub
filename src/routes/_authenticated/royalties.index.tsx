@@ -78,6 +78,10 @@ function RoyaltiesHistoricoPage() {
 
   const unidades = data?.unidades ?? [];
   const meses = data?.meses ?? [];
+  const unidadeDataInicioMap = useMemo(
+    () => new Map((data?.unidades ?? []).map((u) => [u.id, u.dataInicio])),
+    [data?.unidades],
+  );
 
   const clientesFiltrados = useMemo(() => {
     let arr = data?.clientes ?? [];
@@ -112,12 +116,22 @@ function RoyaltiesHistoricoPage() {
   const resumoPorUnidade = useMemo(() => {
     const porUnidade = new Map<
       number,
-      { unidade_id: number; unidade_nome: string; porMes: Map<string, number> }
+      {
+        unidade_id: number;
+        unidade_nome: string;
+        dataInicio: string | null;
+        porMes: Map<string, number>;
+      }
     >();
     for (const p of data?.evolucao ?? []) {
       let u = porUnidade.get(p.unidade_id);
       if (!u) {
-        u = { unidade_id: p.unidade_id, unidade_nome: p.unidade_nome, porMes: new Map() };
+        u = {
+          unidade_id: p.unidade_id,
+          unidade_nome: p.unidade_nome,
+          dataInicio: unidadeDataInicioMap.get(p.unidade_id) ?? null,
+          porMes: new Map(),
+        };
         porUnidade.set(p.unidade_id, u);
       }
       u.porMes.set(p.mes_referencia, (u.porMes.get(p.mes_referencia) ?? 0) + p.royalties_apurado);
@@ -129,7 +143,7 @@ function RoyaltiesHistoricoPage() {
       }))
       .filter((u) => u.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [data?.evolucao]);
+  }, [data?.evolucao, unidadeDataInicioMap]);
 
   const totalResumoGeral = useMemo(
     () => resumoPorUnidade.reduce((acc, u) => acc + u.total, 0),
@@ -196,6 +210,7 @@ function RoyaltiesHistoricoPage() {
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left">Unidade</th>
+                    <th className="px-3 py-2 text-left whitespace-nowrap">Data de início</th>
                     {meses.map((m) => (
                       <th key={m} className="px-2 py-2 text-center whitespace-nowrap">
                         {formatMesLabel(m)}
@@ -224,6 +239,9 @@ function RoyaltiesHistoricoPage() {
                         >
                           {u.unidade_nome}
                         </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                          {date(u.dataInicio)}
+                        </td>
                         {meses.map((m) => {
                           const v = u.porMes.get(m) ?? 0;
                           return (
@@ -240,6 +258,7 @@ function RoyaltiesHistoricoPage() {
                   })}
                   <tr className="border-t bg-muted/30 font-semibold">
                     <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Total rede</td>
+                    <td />
                     {meses.map((m) => {
                       const total = resumoPorUnidade.reduce(
                         (acc, u) => acc + (u.porMes.get(m) ?? 0),

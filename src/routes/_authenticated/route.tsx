@@ -3,16 +3,18 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
-import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
-    return { user: data.user };
+    // getSession() reads the locally persisted session (no network round-trip).
+    // Real verification of the token still happens server-side on every data
+    // request via requireSupabaseAuth's getClaims() check.
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.user) throw redirect({ to: "/auth" });
+    return { user: data.session.user };
   },
   component: AuthenticatedLayout,
 });
@@ -28,8 +30,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 function AuthenticatedLayout() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { primaryRole, unidade, loading } = usePermissions();
+  const { user } = Route.useRouteContext();
+  const { primaryRole, unidade, loading } = usePermissions(user.id);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
