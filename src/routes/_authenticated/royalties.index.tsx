@@ -23,7 +23,11 @@ import {
 import { cn } from "@/lib/utils";
 import { brl, date } from "@/components/audit/format";
 import { digits } from "@/lib/server-utils";
-import { useRoyaltiesHistoricoRede, useRoyaltiesProjecaoRede } from "@/hooks/use-royalties";
+import {
+  useRoyaltiesHistoricoRede,
+  useRoyaltiesProjecaoRede,
+  useVendasPorUnidadeRede,
+} from "@/hooks/use-royalties";
 import type { RoyaltiesHistoricoMes } from "@/lib/royalties-historico.functions";
 
 export const Route = createFileRoute("/_authenticated/royalties/")({
@@ -37,6 +41,17 @@ function formatMesLabel(mesRef: string): string {
   const [y, m] = mesRef.slice(0, 7).split("-");
   const n = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   return `${n[Number(m) - 1]}/${y.slice(2)}`;
+}
+
+// % de variação mês a mês de uma série de totais — só compara quando os dois
+// meses (atual e anterior) têm valor > 0, senão fica sem comparação em vez
+// de "-100%"/infinito (mês sem apuração/venda ainda não é queda de verdade).
+function crescimentoDe(totais: number[]): (number | null)[] {
+  return totais.map((v, i) => {
+    const anterior = i > 0 ? totais[i - 1] : null;
+    if (!anterior || anterior <= 0 || v <= 0) return null;
+    return (v - anterior) / anterior;
+  });
 }
 
 // Estado de cada célula do histórico — deriva do item de `royalties_itens`
@@ -84,6 +99,7 @@ const PROJECAO_STATUS_INFO: Record<string, { cls: string; label: string }> = {
 function RoyaltiesHistoricoPage() {
   const { data, isLoading, error } = useRoyaltiesHistoricoRede();
   const { data: projecao, isLoading: isLoadingProjecao } = useRoyaltiesProjecaoRede();
+  const { data: vendas, isLoading: isLoadingVendas } = useVendasPorUnidadeRede();
   const [busca, setBusca] = useState("");
   const [unidadeId, setUnidadeId] = useState(ALL);
   const [unidadeProjecaoExpandida, setUnidadeProjecaoExpandida] = useState<number | null>(null);
@@ -170,14 +186,28 @@ function RoyaltiesHistoricoPage() {
     () => meses.map((m) => resumoPorUnidade.reduce((acc, u) => acc + (u.porMes.get(m) ?? 0), 0)),
     [meses, resumoPorUnidade],
   );
-  const crescimentoPorMes = useMemo(
-    () =>
-      totalPorMes.map((v, i) => {
-        const anterior = i > 0 ? totalPorMes[i - 1] : null;
-        if (!anterior || anterior <= 0 || v <= 0) return null;
-        return (v - anterior) / anterior;
-      }),
-    [totalPorMes],
+  const crescimentoPorMes = useMemo(() => crescimentoDe(totalPorMes), [totalPorMes]);
+
+  // Vendas (MRR ganho no Pipedrive) por unidade × mês — mesmas colunas de
+  // `meses` da tabela de royalties, pra comparar lado a lado se o
+  // crescimento de royalties acompanha o de vendas.
+  const vendasPorUnidade = useMemo(() => {
+    return (vendas?.unidades ?? [])
+      .map((u) => ({ ...u, total: meses.reduce((acc, m) => acc + (u.porMes[m] ?? 0), 0) }))
+      .filter((u) => u.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [vendas?.unidades, meses]);
+  const vendasTotalGeral = useMemo(
+    () => vendasPorUnidade.reduce((acc, u) => acc + u.total, 0),
+    [vendasPorUnidade],
+  );
+  const vendasTotalPorMes = useMemo(
+    () => meses.map((m) => vendasPorUnidade.reduce((acc, u) => acc + (u.porMes[m] ?? 0), 0)),
+    [meses, vendasPorUnidade],
+  );
+  const vendasCrescimentoPorMes = useMemo(
+    () => crescimentoDe(vendasTotalPorMes),
+    [vendasTotalPorMes],
   );
 
   function selecionarUnidade(id: number) {
@@ -302,6 +332,89 @@ function RoyaltiesHistoricoPage() {
                     </td>
                     <td />
                     {crescimentoPorMes.map((pct, i) => (
+                      <td
+                        key={meses[i]}
+                        className={cn(
+                          "px-2 py-1.5 text-center tabular-nums",
+                          pct != null && pct > 0 && "text-emerald-600 dark:text-emerald-400",
+                          pct != null && pct < 0 && "text-red-600 dark:text-red-400",
+                        )}
+                      >
+                        {pct != null ? `${pct > 0 ? "+" : ""}${(pct * 100).toFixed(0)}%` : "—"}
+                      </td>
+                    ))}
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-baseline justify-between gap-2 border-b p-3">
+            <div className="text-sm font-medium">Vendas por unidade</div>
+            {vendasTotalGeral > 0 && (
+              <div className="text-sm font-semibold tabular-nums">{brl(vendasTotalGeral)}</div>
+            )}
+          </div>
+          <p className="px-3 pt-2 text-xs text-muted-foreground">
+            MRR ganho no Pipedrive por mês (mesmas colunas do Resumo de royalties acima), pra
+            comparar se o crescimento de royalties acompanha o de vendas.
+          </p>
+          {isLoadingVendas ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
+          ) : vendasPorUnidade.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Sem vendas nesse período.
+            </div>
+          ) : (
+            <div className="mt-2 max-h-[60vh] overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left">Unidade</th>
+                    {meses.map((m) => (
+                      <th key={m} className="px-2 py-2 text-center whitespace-nowrap">
+                        {formatMesLabel(m)}
+                      </th>
+                    ))}
+                    <th className="px-3 py-2 text-right whitespace-nowrap">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendasPorUnidade.map((u) => (
+                    <tr key={u.unidade_id} className="border-t">
+                      <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">
+                        {u.unidade_nome}
+                      </td>
+                      {meses.map((m) => {
+                        const v = u.porMes[m] ?? 0;
+                        return (
+                          <td key={m} className="px-2 py-2 text-center tabular-nums">
+                            {v > 0 ? brl(v) : <span className="text-muted-foreground/40">·</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                        {brl(u.total)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Total rede</td>
+                    {vendasTotalPorMes.map((total, i) => (
+                      <td key={meses[i]} className="px-2 py-2 text-center tabular-nums">
+                        {total > 0 ? brl(total) : "—"}
+                      </td>
+                    ))}
+                    <td className="px-3 py-2 text-right tabular-nums">{brl(vendasTotalGeral)}</td>
+                  </tr>
+                  <tr className="border-t text-xs text-muted-foreground">
+                    <td className="sticky left-0 z-10 bg-card px-3 py-1.5">
+                      Crescimento vs. mês anterior
+                    </td>
+                    {vendasCrescimentoPorMes.map((pct, i) => (
                       <td
                         key={meses[i]}
                         className={cn(

@@ -24,6 +24,7 @@ import {
 } from "@/lib/royalties.functions";
 import { listRoyaltiesHistoricoRede } from "@/lib/royalties-historico.functions";
 import { listRoyaltiesProjecaoRede } from "@/lib/royalties-projecao.functions";
+import { listVendasPorUnidadeRede } from "@/lib/royalties-vendas.functions";
 
 // Default error handler — garante que falhas silenciosas sempre virem toast.
 const defaultOnError = (e: unknown) => {
@@ -55,6 +56,15 @@ export function useRoyaltiesProjecaoRede() {
   const fn = useServerFn(listRoyaltiesProjecaoRede);
   return useQuery({
     queryKey: ["royalties", "projecao-rede"],
+    queryFn: () => fn(),
+    staleTime: 60_000,
+  });
+}
+
+export function useVendasPorUnidadeRede() {
+  const fn = useServerFn(listVendasPorUnidadeRede);
+  return useQuery({
+    queryKey: ["royalties", "vendas-rede"],
     queryFn: () => fn(),
     staleTime: 60_000,
   });
