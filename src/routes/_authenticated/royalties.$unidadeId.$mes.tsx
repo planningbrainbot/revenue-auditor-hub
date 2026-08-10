@@ -1372,6 +1372,29 @@ function SituacaoBadge({ status }: { status: string | null | undefined }) {
   );
 }
 
+const ORIGEM_PIPELINE_INFO: Record<string, { label: string; cls: string }> = {
+  inside_sales: {
+    label: "Inside Sales",
+    cls: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  },
+  socios: {
+    label: "Sócios",
+    cls: "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300",
+  },
+};
+
+function OrigemPipelineBadge({ origem }: { origem: string | null | undefined }) {
+  const info = origem ? ORIGEM_PIPELINE_INFO[origem] : undefined;
+  if (!info) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <span
+      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium", info.cls)}
+    >
+      {info.label}
+    </span>
+  );
+}
+
 function SecaoGrupo({
   title,
   description,
@@ -1619,6 +1642,13 @@ function SecaoGrupo({
                       dir={sortDir}
                       onSort={onSort}
                     />
+                    <th className="px-3 py-2 text-left">Origem</th>
+                    <th
+                      className="px-3 py-2 text-left"
+                      title='Data de entrada no estágio "Contrato Assinado" (pipeline Central de Contratos) — não é gatilho de nada, é só informativo'
+                    >
+                      Assinatura
+                    </th>
                     {showMrr && (
                       <SortableTh
                         label="MRR"
@@ -1738,6 +1768,16 @@ function SecaoGrupo({
                         <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                           {it.data_ganho
                             ? new Date(`${it.data_ganho}T00:00:00`).toLocaleDateString("pt-BR")
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <OrigemPipelineBadge origem={it.origem_pipeline} />
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {it.entrada_contrato_assinado_em
+                            ? new Date(
+                                `${it.entrada_contrato_assinado_em}T00:00:00`,
+                              ).toLocaleDateString("pt-BR")
                             : "—"}
                         </td>
                         {showMrr && (

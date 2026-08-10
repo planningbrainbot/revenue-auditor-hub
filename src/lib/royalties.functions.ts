@@ -87,6 +87,8 @@ export interface ApuracaoItem {
   data_competencia_omie: string[] | null;
   venda_socios: boolean;
   pipedrive_deal_id_socios: string | null;
+  origem_pipeline: string | null; // 'inside_sales' | 'socios' — vem do contrato vinculado, null se não houver
+  entrada_contrato_assinado_em: string | null; // data de entrada no stage "Contrato Assinado" (pipeline 28), se houver
 }
 
 export interface OutraReceitaItem {
@@ -991,9 +993,35 @@ export const getApuracao = createServerFn({ method: "GET" })
           countByContrato.set(g.contrato_id, (countByContrato.get(g.contrato_id) ?? 0) + 1);
         }
       }
+
+      // origem_pipeline (inside_sales/socios) e data de entrada em "Contrato Assinado"
+      // (pipeline 28) vivem em 'contratos', não em 'royalties_itens' — buscar em lote
+      // e mesclar, mesmo padrão da contagem de filiais acima.
+      const contratoInfoById = new Map<
+        number,
+        { origem_pipeline: string | null; entrada_contrato_assinado_em: string | null }
+      >();
+      if (contratoIds.length > 0) {
+        const { data: contratosInfo } = await supabase
+          .from("contratos")
+          .select("id,origem_pipeline,entrada_contrato_assinado_em")
+          .in("id", contratoIds as number[]);
+        for (const c of contratosInfo ?? []) {
+          contratoInfoById.set(c.id, {
+            origem_pipeline: c.origem_pipeline,
+            entrada_contrato_assinado_em: c.entrada_contrato_assinado_em,
+          });
+        }
+      }
       const itensComFiliais = (itens ?? []).map((i: any) => ({
         ...i,
         filiais_count: i.contrato_id ? (countByContrato.get(i.contrato_id) ?? 0) : 0,
+        origem_pipeline: i.contrato_id
+          ? (contratoInfoById.get(i.contrato_id)?.origem_pipeline ?? null)
+          : null,
+        entrada_contrato_assinado_em: i.contrato_id
+          ? (contratoInfoById.get(i.contrato_id)?.entrada_contrato_assinado_em ?? null)
+          : null,
       }));
 
       const { data: outrasReceitasItens, error: orErr } = await supabase
