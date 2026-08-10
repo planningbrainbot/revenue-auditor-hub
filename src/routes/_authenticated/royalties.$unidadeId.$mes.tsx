@@ -422,6 +422,10 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
+  const toggleVendaSocios = (it: ApuracaoItem, checked: boolean) => {
+    updateItem.mutate({ id: it.id, venda_socios: checked });
+  };
+
   const buildDemonstrativoData = () => {
     const confirmados = ativos.filter((i) => i.confirmado);
     const itens = confirmados.map((i) => {
@@ -630,6 +634,7 @@ function ApuracaoLoaded({
             flushPct={flushPct}
             toggleConfirm={toggleConfirm}
             toggleCac={toggleCac}
+            toggleVendaSocios={toggleVendaSocios}
             onDelete={(it) => deleteItem.mutate({ id: it.id })}
             extraHeader={
               !readOnly && (
@@ -965,6 +970,7 @@ interface GrupoProps {
   flushPct: (it: ApuracaoItem) => void;
   toggleConfirm: (it: ApuracaoItem, c: boolean) => void;
   toggleCac?: (it: ApuracaoItem, c: boolean) => void;
+  toggleVendaSocios?: (it: ApuracaoItem, c: boolean) => void;
   onDelete: (it: ApuracaoItem) => void;
   extraHeader?: React.ReactNode;
   onMarcarChurn?: (it: ApuracaoItem, motivo: string, observacao: string, dataChurn: string) => void;
@@ -1388,6 +1394,7 @@ function SecaoGrupo({
   flushPct,
   toggleConfirm,
   toggleCac,
+  toggleVendaSocios,
   onDelete,
   extraHeader,
   onMarcarChurn,
@@ -1659,6 +1666,9 @@ function SecaoGrupo({
                       align="right"
                     />
                     {toggleCac && <th className="px-3 py-2 text-center">CAC?</th>}
+                    {toggleVendaSocios && (
+                      <th className="px-3 py-2 text-center">Venda Sócio?</th>
+                    )}
                     <SortableTh
                       label="Royalties"
                       sortKey="royalties"
@@ -1807,6 +1817,20 @@ function SecaoGrupo({
                               disabled={readOnly}
                               title="Marcar como CAC — o valor calculado entra na linha de CAC do resumo, não em Royalties"
                               onCheckedChange={(c) => toggleCac(it, Boolean(c))}
+                            />
+                          </td>
+                        )}
+                        {toggleVendaSocios && (
+                          <td className="px-3 py-2 text-center">
+                            <Checkbox
+                              checked={!!it.venda_socios}
+                              disabled={readOnly || !!it.pipedrive_deal_id_socios}
+                              title={
+                                it.pipedrive_deal_id_socios
+                                  ? `Deal já criado no Pipedrive (id ${it.pipedrive_deal_id_socios}) — sincronizado automaticamente`
+                                  : "Venda feita diretamente por um sócio — cria o deal correspondente no pipe Sócios do Pipedrive automaticamente"
+                              }
+                              onCheckedChange={(c) => toggleVendaSocios(it, Boolean(c))}
                             />
                           </td>
                         )}
@@ -2181,6 +2205,7 @@ function AddItemDialog({
     cnpj?: string;
     valor_confirmado?: number;
     observacao?: string;
+    venda_socios?: boolean;
   }) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -2188,6 +2213,7 @@ function AddItemDialog({
   const [cnpj, setCnpj] = useState("");
   const [valor, setValor] = useState("");
   const [obs, setObs] = useState("");
+  const [vendaSocios, setVendaSocios] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -2223,6 +2249,17 @@ function AddItemDialog({
             <Label>Observação</Label>
             <Textarea value={obs} onChange={(e) => setObs(e.target.value)} />
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="venda-socios"
+              checked={vendaSocios}
+              onCheckedChange={(c) => setVendaSocios(Boolean(c))}
+            />
+            <Label htmlFor="venda-socios" className="font-normal cursor-pointer">
+              Venda de sócio — cria o deal correspondente no pipe Sócios do Pipedrive
+              automaticamente
+            </Label>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
@@ -2236,11 +2273,13 @@ function AddItemDialog({
                 cnpj: cnpj.trim() || undefined,
                 valor_confirmado: valor ? Number(valor) : undefined,
                 observacao: obs.trim() || undefined,
+                venda_socios: vendaSocios || undefined,
               });
               setRazao("");
               setCnpj("");
               setValor("");
               setObs("");
+              setVendaSocios(false);
               setOpen(false);
             }}
           >

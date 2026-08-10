@@ -63,246 +63,6 @@ export type Database = {
         }
         Relationships: []
       }
-      cac_apuracao: {
-        Row: {
-          confirmado_em: string | null
-          confirmado_por: string | null
-          created_at: string
-          id: number
-          mes_referencia: string
-          observacao: string | null
-          status: string
-          total_cac: number | null
-          total_parcela_1: number | null
-          total_parcela_2: number | null
-          unidade_id: number
-          updated_at: string
-        }
-        Insert: {
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          created_at?: string
-          id?: never
-          mes_referencia: string
-          observacao?: string | null
-          status?: string
-          total_cac?: number | null
-          total_parcela_1?: number | null
-          total_parcela_2?: number | null
-          unidade_id: number
-          updated_at?: string
-        }
-        Update: {
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          created_at?: string
-          id?: never
-          mes_referencia?: string
-          observacao?: string | null
-          status?: string
-          total_cac?: number | null
-          total_parcela_1?: number | null
-          total_parcela_2?: number | null
-          unidade_id?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cac_apuracao_unidade_id_fkey"
-            columns: ["unidade_id"]
-            isOneToOne: false
-            referencedRelation: "unidades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cac_apuracao_itens: {
-        Row: {
-          apuracao_id: number
-          cnpj: string | null
-          contrato_id: number | null
-          created_at: string
-          data_assinatura_contrato: string | null
-          data_envio_parcela_1: string | null
-          data_envio_parcela_2: string | null
-          data_pagamento_parcela_1: string | null
-          data_pagamento_parcela_2: string | null
-          data_recebimento_cliente: string | null
-          excluido_em: string | null
-          excluido_por: string | null
-          fonte: string | null
-          id: number
-          motivo_exclusao: string | null
-          observacao: string | null
-          prazo_parcela_1: string | null
-          prazo_parcela_2: string | null
-          razao_social: string
-          status_match: string | null
-          status_parcela_1: string | null
-          status_parcela_2: string | null
-          updated_at: string
-          valor_cac_total: number
-          valor_parcela_1: number
-          valor_parcela_2: number
-          valor_pago_parcela_1: number | null
-          valor_pago_parcela_2: number | null
-          estimativa_parcela_2: string | null
-        }
-        Insert: {
-          apuracao_id: number
-          cnpj?: string | null
-          contrato_id?: number | null
-          created_at?: string
-          data_assinatura_contrato?: string | null
-          data_envio_parcela_1?: string | null
-          data_envio_parcela_2?: string | null
-          data_pagamento_parcela_1?: string | null
-          data_pagamento_parcela_2?: string | null
-          data_recebimento_cliente?: string | null
-          excluido_em?: string | null
-          excluido_por?: string | null
-          fonte?: string | null
-          id?: never
-          motivo_exclusao?: string | null
-          observacao?: string | null
-          prazo_parcela_1?: string | null
-          prazo_parcela_2?: string | null
-          razao_social: string
-          status_match?: string | null
-          status_parcela_1?: string | null
-          status_parcela_2?: string | null
-          updated_at?: string
-          valor_cac_total: number
-          valor_parcela_1: number
-          valor_parcela_2: number
-          valor_pago_parcela_1?: number | null
-          valor_pago_parcela_2?: number | null
-          estimativa_parcela_2?: string | null
-        }
-        Update: {
-          apuracao_id?: number
-          cnpj?: string | null
-          contrato_id?: number | null
-          created_at?: string
-          data_assinatura_contrato?: string | null
-          data_envio_parcela_1?: string | null
-          data_envio_parcela_2?: string | null
-          data_pagamento_parcela_1?: string | null
-          data_pagamento_parcela_2?: string | null
-          data_recebimento_cliente?: string | null
-          excluido_em?: string | null
-          excluido_por?: string | null
-          fonte?: string | null
-          id?: never
-          motivo_exclusao?: string | null
-          observacao?: string | null
-          prazo_parcela_1?: string | null
-          prazo_parcela_2?: string | null
-          razao_social?: string
-          status_match?: string | null
-          status_parcela_1?: string | null
-          status_parcela_2?: string | null
-          updated_at?: string
-          valor_cac_total?: number
-          valor_parcela_1?: number
-          valor_parcela_2?: number
-          valor_pago_parcela_1?: number | null
-          valor_pago_parcela_2?: number | null
-          estimativa_parcela_2?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cac_apuracao_itens_apuracao_id_fkey"
-            columns: ["apuracao_id"]
-            isOneToOne: false
-            referencedRelation: "cac_apuracao"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cac_apuracao_itens_contrato_id_fkey"
-            columns: ["contrato_id"]
-            isOneToOne: false
-            referencedRelation: "contratos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cac_apuracao_itens_contrato_id_fkey"
-            columns: ["contrato_id"]
-            isOneToOne: false
-            referencedRelation: "vw_grupos_completo"
-            referencedColumns: ["contrato_id"]
-          },
-        ]
-      }
-      categorias_omie: {
-        Row: {
-          codigo: string
-          descricao: string
-          tipo: string | null
-        }
-        Insert: {
-          codigo: string
-          descricao: string
-          tipo?: string | null
-        }
-        Update: {
-          codigo?: string
-          descricao?: string
-          tipo?: string | null
-        }
-        Relationships: []
-      }
-      central_tratativas: {
-        Row: {
-          created_at: string | null
-          data_churn: string | null
-          estagio: string | null
-          id: number
-          motivo: string | null
-          mrr: number | null
-          observacao: string | null
-          pipedrive_deal_id: number | null
-          pipefy_card_id: string | null
-          stage_change_time: string | null
-          status: string | null
-          titulo: string
-          unidade: string | null
-          update_time: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          data_churn?: string | null
-          estagio?: string | null
-          id?: number
-          motivo?: string | null
-          mrr?: number | null
-          observacao?: string | null
-          pipedrive_deal_id?: number | null
-          pipefy_card_id?: string | null
-          stage_change_time?: string | null
-          status?: string | null
-          titulo: string
-          unidade?: string | null
-          update_time?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          data_churn?: string | null
-          estagio?: string | null
-          id?: number
-          motivo?: string | null
-          mrr?: number | null
-          observacao?: string | null
-          pipedrive_deal_id?: number | null
-          pipefy_card_id?: string | null
-          stage_change_time?: string | null
-          status?: string | null
-          titulo?: string
-          unidade?: string | null
-          update_time?: string | null
-        }
-        Relationships: []
-      }
       auditorias_internas: {
         Row: {
           auditoria_finalizada: boolean | null
@@ -372,53 +132,269 @@ export type Database = {
         }
         Relationships: []
       }
-      cs_onboarding_cards: {
+      cac_apuracao: {
         Row: {
-          concluido: boolean
-          criado_em: string | null
-          entrou_fase_atual_em: string | null
-          fase_atual: string | null
-          fase_atual_ordem: number | null
-          fases_history: Json | null
-          pipefy_card_id: string
-          synced_at: string
-          titulo: string | null
+          confirmado_em: string | null
+          confirmado_por: string | null
+          created_at: string
+          id: number
+          mes_referencia: string
+          observacao: string | null
+          status: string
+          total_cac: number | null
+          total_parcela_1: number | null
+          total_parcela_2: number | null
+          unidade_id: number
+          updated_at: string
+        }
+        Insert: {
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          created_at?: string
+          id?: never
+          mes_referencia: string
+          observacao?: string | null
+          status?: string
+          total_cac?: number | null
+          total_parcela_1?: number | null
+          total_parcela_2?: number | null
+          unidade_id: number
+          updated_at?: string
+        }
+        Update: {
+          confirmado_em?: string | null
+          confirmado_por?: string | null
+          created_at?: string
+          id?: never
+          mes_referencia?: string
+          observacao?: string | null
+          status?: string
+          total_cac?: number | null
+          total_parcela_1?: number | null
+          total_parcela_2?: number | null
+          unidade_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cac_apuracao_unidade_id_fkey"
+            columns: ["unidade_id"]
+            isOneToOne: false
+            referencedRelation: "unidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cac_apuracao_itens: {
+        Row: {
+          apuracao_id: number
+          cnpj: string | null
+          contrato_id: number | null
+          created_at: string
+          data_assinatura_contrato: string | null
+          data_envio_parcela_1: string | null
+          data_envio_parcela_2: string | null
+          data_pagamento_parcela_1: string | null
+          data_pagamento_parcela_2: string | null
+          data_recebimento_cliente: string | null
+          estimativa_parcela_2: string | null
+          excluido_em: string | null
+          excluido_por: string | null
+          fonte: string | null
+          id: number
+          motivo_exclusao: string | null
+          observacao: string | null
+          prazo_parcela_1: string | null
+          prazo_parcela_2: string | null
+          razao_social: string
+          status_match: string | null
+          status_parcela_1: string | null
+          status_parcela_2: string | null
+          updated_at: string
+          valor_cac_total: number
+          valor_pago_parcela_1: number | null
+          valor_pago_parcela_2: number | null
+          valor_parcela_1: number
+          valor_parcela_2: number
+        }
+        Insert: {
+          apuracao_id: number
+          cnpj?: string | null
+          contrato_id?: number | null
+          created_at?: string
+          data_assinatura_contrato?: string | null
+          data_envio_parcela_1?: string | null
+          data_envio_parcela_2?: string | null
+          data_pagamento_parcela_1?: string | null
+          data_pagamento_parcela_2?: string | null
+          data_recebimento_cliente?: string | null
+          estimativa_parcela_2?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          fonte?: string | null
+          id?: never
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          prazo_parcela_1?: string | null
+          prazo_parcela_2?: string | null
+          razao_social: string
+          status_match?: string | null
+          status_parcela_1?: string | null
+          status_parcela_2?: string | null
+          updated_at?: string
+          valor_cac_total: number
+          valor_pago_parcela_1?: number | null
+          valor_pago_parcela_2?: number | null
+          valor_parcela_1: number
+          valor_parcela_2: number
+        }
+        Update: {
+          apuracao_id?: number
+          cnpj?: string | null
+          contrato_id?: number | null
+          created_at?: string
+          data_assinatura_contrato?: string | null
+          data_envio_parcela_1?: string | null
+          data_envio_parcela_2?: string | null
+          data_pagamento_parcela_1?: string | null
+          data_pagamento_parcela_2?: string | null
+          data_recebimento_cliente?: string | null
+          estimativa_parcela_2?: string | null
+          excluido_em?: string | null
+          excluido_por?: string | null
+          fonte?: string | null
+          id?: never
+          motivo_exclusao?: string | null
+          observacao?: string | null
+          prazo_parcela_1?: string | null
+          prazo_parcela_2?: string | null
+          razao_social?: string
+          status_match?: string | null
+          status_parcela_1?: string | null
+          status_parcela_2?: string | null
+          updated_at?: string
+          valor_cac_total?: number
+          valor_pago_parcela_1?: number | null
+          valor_pago_parcela_2?: number | null
+          valor_parcela_1?: number
+          valor_parcela_2?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cac_apuracao_itens_apuracao_id_fkey"
+            columns: ["apuracao_id"]
+            isOneToOne: false
+            referencedRelation: "cac_apuracao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cac_apuracao_itens_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cac_apuracao_itens_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "vw_grupos_completo"
+            referencedColumns: ["contrato_id"]
+          },
+        ]
+      }
+      categorias_omie: {
+        Row: {
+          codigo: string
+          descricao: string
+          tipo: string | null
+        }
+        Insert: {
+          codigo: string
+          descricao: string
+          tipo?: string | null
+        }
+        Update: {
+          codigo?: string
+          descricao?: string
+          tipo?: string | null
+        }
+        Relationships: []
+      }
+      central_tratativas: {
+        Row: {
+          created_at: string | null
+          data_churn: string | null
+          empresa_id: number | null
+          estagio: string | null
+          id: number
+          motivo: string | null
+          mrr: number | null
+          observacao: string | null
+          pipedrive_deal_id: number | null
+          pipefy_card_id: string | null
+          stage_change_time: string | null
+          status: string | null
+          titulo: string
           unidade: string | null
           update_time: string | null
         }
         Insert: {
-          concluido?: boolean
-          criado_em?: string | null
-          entrou_fase_atual_em?: string | null
-          fase_atual?: string | null
-          fase_atual_ordem?: number | null
-          fases_history?: Json | null
-          pipefy_card_id: string
-          synced_at?: string
-          titulo?: string | null
+          created_at?: string | null
+          data_churn?: string | null
+          empresa_id?: number | null
+          estagio?: string | null
+          id?: number
+          motivo?: string | null
+          mrr?: number | null
+          observacao?: string | null
+          pipedrive_deal_id?: number | null
+          pipefy_card_id?: string | null
+          stage_change_time?: string | null
+          status?: string | null
+          titulo: string
           unidade?: string | null
           update_time?: string | null
         }
         Update: {
-          concluido?: boolean
-          criado_em?: string | null
-          entrou_fase_atual_em?: string | null
-          fase_atual?: string | null
-          fase_atual_ordem?: number | null
-          fases_history?: Json | null
-          pipefy_card_id?: string
-          synced_at?: string
-          titulo?: string | null
+          created_at?: string | null
+          data_churn?: string | null
+          empresa_id?: number | null
+          estagio?: string | null
+          id?: number
+          motivo?: string | null
+          mrr?: number | null
+          observacao?: string | null
+          pipedrive_deal_id?: number | null
+          pipefy_card_id?: string | null
+          stage_change_time?: string | null
+          status?: string | null
+          titulo?: string
           unidade?: string | null
           update_time?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "central_tratativas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "central_tratativas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "vw_grupos_completo"
+            referencedColumns: ["empresa_id"]
+          },
+        ]
       }
       contas_receber: {
         Row: {
           cliente: string | null
-          codigo_omie: number | null
           codigo_categoria: string | null
+          codigo_omie: number | null
           cpf_cnpj: string | null
           created_at: string | null
           data_competencia: string | null
@@ -433,8 +409,8 @@ export type Database = {
         }
         Insert: {
           cliente?: string | null
-          codigo_omie?: number | null
           codigo_categoria?: string | null
+          codigo_omie?: number | null
           cpf_cnpj?: string | null
           created_at?: string | null
           data_competencia?: string | null
@@ -449,8 +425,8 @@ export type Database = {
         }
         Update: {
           cliente?: string | null
-          codigo_omie?: number | null
           codigo_categoria?: string | null
+          codigo_omie?: number | null
           cpf_cnpj?: string | null
           created_at?: string | null
           data_competencia?: string | null
@@ -523,6 +499,7 @@ export type Database = {
           mrr_mensal: number | null
           na_planilha_ana: boolean | null
           obs_reconciliacao: string | null
+          origem_pipeline: string
           pipedrive_deal_id: string | null
           preco_unitario: number | null
           produto: string | null
@@ -551,6 +528,7 @@ export type Database = {
           mrr_mensal?: number | null
           na_planilha_ana?: boolean | null
           obs_reconciliacao?: string | null
+          origem_pipeline?: string
           pipedrive_deal_id?: string | null
           preco_unitario?: number | null
           produto?: string | null
@@ -579,6 +557,7 @@ export type Database = {
           mrr_mensal?: number | null
           na_planilha_ana?: boolean | null
           obs_reconciliacao?: string | null
+          origem_pipeline?: string
           pipedrive_deal_id?: string | null
           preco_unitario?: number | null
           produto?: string | null
@@ -605,6 +584,101 @@ export type Database = {
           },
           {
             foreignKeyName: "contratos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "vw_grupos_completo"
+            referencedColumns: ["empresa_id"]
+          },
+        ]
+      }
+      contratos_documentos: {
+        Row: {
+          cliente: string | null
+          cnpj: string | null
+          contrato_pai_id: number | null
+          created_at: string | null
+          cs_onboarding_card_id: string | null
+          data_assinatura: string | null
+          empresa_id: number | null
+          fase_atual: string | null
+          ferramenta_assinatura: string | null
+          id: number
+          link_documento: string | null
+          org_id_pipedrive: string | null
+          pipefy_card_id: string
+          status: string | null
+          synced_at: string
+          tipo: string
+          unidade: string | null
+          update_time: string | null
+          valor: number | null
+        }
+        Insert: {
+          cliente?: string | null
+          cnpj?: string | null
+          contrato_pai_id?: number | null
+          created_at?: string | null
+          cs_onboarding_card_id?: string | null
+          data_assinatura?: string | null
+          empresa_id?: number | null
+          fase_atual?: string | null
+          ferramenta_assinatura?: string | null
+          id?: never
+          link_documento?: string | null
+          org_id_pipedrive?: string | null
+          pipefy_card_id: string
+          status?: string | null
+          synced_at?: string
+          tipo: string
+          unidade?: string | null
+          update_time?: string | null
+          valor?: number | null
+        }
+        Update: {
+          cliente?: string | null
+          cnpj?: string | null
+          contrato_pai_id?: number | null
+          created_at?: string | null
+          cs_onboarding_card_id?: string | null
+          data_assinatura?: string | null
+          empresa_id?: number | null
+          fase_atual?: string | null
+          ferramenta_assinatura?: string | null
+          id?: never
+          link_documento?: string | null
+          org_id_pipedrive?: string | null
+          pipefy_card_id?: string
+          status?: string | null
+          synced_at?: string
+          tipo?: string
+          unidade?: string | null
+          update_time?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_documentos_contrato_pai_id_fkey"
+            columns: ["contrato_pai_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_documentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_documentos_cs_onboarding_card_id_fkey"
+            columns: ["cs_onboarding_card_id"]
+            isOneToOne: false
+            referencedRelation: "cs_onboarding_cards"
+            referencedColumns: ["pipefy_card_id"]
+          },
+          {
+            foreignKeyName: "contratos_documentos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_documentos_empresa_id_fkey"
             columns: ["empresa_id"]
             isOneToOne: false
             referencedRelation: "vw_grupos_completo"
@@ -641,6 +715,72 @@ export type Database = {
           tipo_rateio?: string
         }
         Relationships: []
+      }
+      cs_onboarding_cards: {
+        Row: {
+          cnpj: string | null
+          concluido: boolean
+          criado_em: string | null
+          empresa_id: number | null
+          entrou_fase_atual_em: string | null
+          fase_atual: string | null
+          fase_atual_ordem: number | null
+          fases_history: Json | null
+          org_id_pipedrive: string | null
+          pipefy_card_id: string
+          synced_at: string
+          titulo: string | null
+          unidade: string | null
+          update_time: string | null
+        }
+        Insert: {
+          cnpj?: string | null
+          concluido?: boolean
+          criado_em?: string | null
+          empresa_id?: number | null
+          entrou_fase_atual_em?: string | null
+          fase_atual?: string | null
+          fase_atual_ordem?: number | null
+          fases_history?: Json | null
+          org_id_pipedrive?: string | null
+          pipefy_card_id: string
+          synced_at?: string
+          titulo?: string | null
+          unidade?: string | null
+          update_time?: string | null
+        }
+        Update: {
+          cnpj?: string | null
+          concluido?: boolean
+          criado_em?: string | null
+          empresa_id?: number | null
+          entrou_fase_atual_em?: string | null
+          fase_atual?: string | null
+          fase_atual_ordem?: number | null
+          fases_history?: Json | null
+          org_id_pipedrive?: string | null
+          pipefy_card_id?: string
+          synced_at?: string
+          titulo?: string | null
+          unidade?: string | null
+          update_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cs_onboarding_cards_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cs_onboarding_cards_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "vw_grupos_completo"
+            referencedColumns: ["empresa_id"]
+          },
+        ]
       }
       despesas_cm_avulsos: {
         Row: {
@@ -877,6 +1017,365 @@ export type Database = {
         }
         Relationships: []
       }
+      dfc_custom_custos: {
+        Row: {
+          campo: string
+          label: string
+          scenario_id: string
+        }
+        Insert: {
+          campo: string
+          label: string
+          scenario_id: string
+        }
+        Update: {
+          campo?: string
+          label?: string
+          scenario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_custom_custos_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_global_overrides_mensal: {
+        Row: {
+          campo: string
+          mes: string
+          scenario_id: string
+          valor: number
+        }
+        Insert: {
+          campo: string
+          mes: string
+          scenario_id: string
+          valor: number
+        }
+        Update: {
+          campo?: string
+          mes?: string
+          scenario_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_global_overrides_mensal_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_matriz_mensal: {
+        Row: {
+          campo: string
+          mes: string
+          scenario_id: string
+          valor: number
+        }
+        Insert: {
+          campo: string
+          mes: string
+          scenario_id: string
+          valor?: number
+        }
+        Update: {
+          campo?: string
+          mes?: string
+          scenario_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_matriz_mensal_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_meta_midia_mensal: {
+        Row: {
+          mes: string
+          scenario_id: string
+          valor: number
+        }
+        Insert: {
+          mes: string
+          scenario_id: string
+          valor: number
+        }
+        Update: {
+          mes?: string
+          scenario_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_meta_midia_mensal_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_scenario_premissas: {
+        Row: {
+          campo: string
+          scenario_id: string
+          valor: number
+        }
+        Insert: {
+          campo: string
+          scenario_id: string
+          valor?: number
+        }
+        Update: {
+          campo?: string
+          scenario_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_scenario_premissas_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_scenario_units: {
+        Row: {
+          ativo: boolean
+          cs_inicio_rampa: string | null
+          mes_abertura: string
+          royalty_degrau_mrr: number | null
+          royalty_degrau_rate: number | null
+          royalty_rate_override: number | null
+          saldo_inicial_mrr: number
+          scenario_id: string
+          unit_id: number
+        }
+        Insert: {
+          ativo?: boolean
+          cs_inicio_rampa?: string | null
+          mes_abertura: string
+          royalty_degrau_mrr?: number | null
+          royalty_degrau_rate?: number | null
+          royalty_rate_override?: number | null
+          saldo_inicial_mrr?: number
+          scenario_id: string
+          unit_id: number
+        }
+        Update: {
+          ativo?: boolean
+          cs_inicio_rampa?: string | null
+          mes_abertura?: string
+          royalty_degrau_mrr?: number | null
+          royalty_degrau_rate?: number | null
+          royalty_rate_override?: number | null
+          saldo_inicial_mrr?: number
+          scenario_id?: string
+          unit_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_scenario_units_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dfc_scenario_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_scenarios: {
+        Row: {
+          cloned_from: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          mes_inicio: string
+          meses_horizonte: number
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          cloned_from?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          mes_inicio: string
+          meses_horizonte?: number
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          cloned_from?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          mes_inicio?: string
+          meses_horizonte?: number
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_scenarios_cloned_from_fkey"
+            columns: ["cloned_from"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_tier_curves: {
+        Row: {
+          campo: string
+          mes_desde_abertura: number
+          scenario_id: string
+          tier: string
+          valor: number
+        }
+        Insert: {
+          campo: string
+          mes_desde_abertura: number
+          scenario_id: string
+          tier: string
+          valor?: number
+        }
+        Update: {
+          campo?: string
+          mes_desde_abertura?: number
+          scenario_id?: string
+          tier?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_tier_curves_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_unit_overrides_mensal: {
+        Row: {
+          campo: string
+          mes: string
+          scenario_id: string
+          unit_id: number
+          valor: number
+        }
+        Insert: {
+          campo: string
+          mes: string
+          scenario_id: string
+          unit_id: number
+          valor: number
+        }
+        Update: {
+          campo?: string
+          mes?: string
+          scenario_id?: string
+          unit_id?: number
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_unit_overrides_mensal_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dfc_unit_overrides_mensal_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_unit_valores: {
+        Row: {
+          campo: string
+          scenario_id: string
+          unit_id: number
+          valor: number
+        }
+        Insert: {
+          campo: string
+          scenario_id: string
+          unit_id: number
+          valor?: number
+        }
+        Update: {
+          campo?: string
+          scenario_id?: string
+          unit_id?: number
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dfc_unit_valores_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dfc_unit_valores_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "dfc_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dfc_units: {
+        Row: {
+          ativo: boolean
+          id: number
+          nome: string
+          ordem: number
+          tier: string
+        }
+        Insert: {
+          ativo?: boolean
+          id?: number
+          nome: string
+          ordem: number
+          tier: string
+        }
+        Update: {
+          ativo?: boolean
+          id?: number
+          nome?: string
+          ordem?: number
+          tier?: string
+        }
+        Relationships: []
+      }
       dre_sim_categorias: {
         Row: {
           created_at: string
@@ -986,6 +1485,7 @@ export type Database = {
           omie_inativo: string | null
           omie_unidade: string | null
           origem_da_base: string | null
+          origem_pipeline: string
           origem_venda: string | null
           pipedrive_id: string | null
           pipefy_record_id: string | null
@@ -1011,6 +1511,7 @@ export type Database = {
           omie_inativo?: string | null
           omie_unidade?: string | null
           origem_da_base?: string | null
+          origem_pipeline?: string
           origem_venda?: string | null
           pipedrive_id?: string | null
           pipefy_record_id?: string | null
@@ -1036,6 +1537,7 @@ export type Database = {
           omie_inativo?: string | null
           omie_unidade?: string | null
           origem_da_base?: string | null
+          origem_pipeline?: string
           origem_venda?: string | null
           pipedrive_id?: string | null
           pipefy_record_id?: string | null
@@ -1207,6 +1709,69 @@ export type Database = {
         }
         Relationships: []
       }
+      integracoes_alertas: {
+        Row: {
+          detalhes: Json | null
+          enviado_em: string
+          fonte: string
+        }
+        Insert: {
+          detalhes?: Json | null
+          enviado_em?: string
+          fonte: string
+        }
+        Update: {
+          detalhes?: Json | null
+          enviado_em?: string
+          fonte?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integracoes_alertas_fonte_fkey"
+            columns: ["fonte"]
+            isOneToOne: true
+            referencedRelation: "integracoes_config"
+            referencedColumns: ["fonte"]
+          },
+          {
+            foreignKeyName: "integracoes_alertas_fonte_fkey"
+            columns: ["fonte"]
+            isOneToOne: true
+            referencedRelation: "v_integracoes_status"
+            referencedColumns: ["fonte"]
+          },
+        ]
+      }
+      integracoes_config: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          fonte: string
+          intervalo_esperado_minutos: number | null
+          nome_exibicao: string
+          observacao: string | null
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          fonte: string
+          intervalo_esperado_minutos?: number | null
+          nome_exibicao: string
+          observacao?: string | null
+          tipo: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          fonte?: string
+          intervalo_esperado_minutos?: number | null
+          nome_exibicao?: string
+          observacao?: string | null
+          tipo?: string
+        }
+        Relationships: []
+      }
       investimento_bu: {
         Row: {
           bu: string
@@ -1346,36 +1911,66 @@ export type Database = {
       }
       omie_clientes: {
         Row: {
+          bairro: string | null
+          cep: string | null
           cidade: string | null
           cnpj_cpf: string | null
           codigo_omie: number
+          contrato_id: number | null
           email: string | null
           estado: string | null
+          honorario: number | null
+          inativo: boolean | null
+          is_planning: boolean | null
           nome_fantasia: string | null
+          pessoa_fisica: boolean | null
           razao_social: string | null
-          unidade: string | null
+          synced_at: string | null
+          telefone: string | null
+          ultimo_pagamento: string | null
+          unidade: string
           updated_at: string | null
         }
         Insert: {
+          bairro?: string | null
+          cep?: string | null
           cidade?: string | null
           cnpj_cpf?: string | null
           codigo_omie: number
+          contrato_id?: number | null
           email?: string | null
           estado?: string | null
+          honorario?: number | null
+          inativo?: boolean | null
+          is_planning?: boolean | null
           nome_fantasia?: string | null
+          pessoa_fisica?: boolean | null
           razao_social?: string | null
-          unidade?: string | null
+          synced_at?: string | null
+          telefone?: string | null
+          ultimo_pagamento?: string | null
+          unidade: string
           updated_at?: string | null
         }
         Update: {
+          bairro?: string | null
+          cep?: string | null
           cidade?: string | null
           cnpj_cpf?: string | null
           codigo_omie?: number
+          contrato_id?: number | null
           email?: string | null
           estado?: string | null
+          honorario?: number | null
+          inativo?: boolean | null
+          is_planning?: boolean | null
           nome_fantasia?: string | null
+          pessoa_fisica?: boolean | null
           razao_social?: string | null
-          unidade?: string | null
+          synced_at?: string | null
+          telefone?: string | null
+          ultimo_pagamento?: string | null
+          unidade?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -1635,6 +2230,39 @@ export type Database = {
           saldo_final?: number
           synced_at?: string
           unidade?: string
+        }
+        Relationships: []
+      }
+      pesquisa_satisfacao_comite_socios: {
+        Row: {
+          clareza_proximos_passos: number
+          clareza_resultados: number
+          comentario: string | null
+          created_at: string
+          frente_prioritaria: string
+          id: number
+          nps_recomendaria: number
+          utilidade_novidades: number
+        }
+        Insert: {
+          clareza_proximos_passos: number
+          clareza_resultados: number
+          comentario?: string | null
+          created_at?: string
+          frente_prioritaria: string
+          id?: never
+          nps_recomendaria: number
+          utilidade_novidades: number
+        }
+        Update: {
+          clareza_proximos_passos?: number
+          clareza_resultados?: number
+          comentario?: string | null
+          created_at?: string
+          frente_prioritaria?: string
+          id?: never
+          nps_recomendaria?: number
+          utilidade_novidades?: number
         }
         Relationships: []
       }
@@ -2222,7 +2850,9 @@ export type Database = {
           confirmado: boolean | null
           contrato_id: number | null
           created_at: string | null
+          data_competencia_omie: string[] | null
           data_ganho: string | null
+          data_pagamento_omie: string[] | null
           excluido_em: string | null
           excluido_por: string | null
           fonte: string
@@ -2232,12 +2862,15 @@ export type Database = {
           mrr_contratado: number | null
           mrr_override: number | null
           observacao: string | null
+          pipedrive_deal_id_socios: string | null
           razao_social: string
           royalties_item: number | null
           royalties_percentual_override: number | null
           status_match: string | null
           valor_confirmado: number | null
           valor_omie: number | null
+          venda_socios: boolean
+          venda_socios_criado_em: string | null
         }
         Insert: {
           apuracao_id: number
@@ -2248,7 +2881,9 @@ export type Database = {
           confirmado?: boolean | null
           contrato_id?: number | null
           created_at?: string | null
+          data_competencia_omie?: string[] | null
           data_ganho?: string | null
+          data_pagamento_omie?: string[] | null
           excluido_em?: string | null
           excluido_por?: string | null
           fonte?: string
@@ -2258,12 +2893,15 @@ export type Database = {
           mrr_contratado?: number | null
           mrr_override?: number | null
           observacao?: string | null
+          pipedrive_deal_id_socios?: string | null
           razao_social: string
           royalties_item?: number | null
           royalties_percentual_override?: number | null
           status_match?: string | null
           valor_confirmado?: number | null
           valor_omie?: number | null
+          venda_socios?: boolean
+          venda_socios_criado_em?: string | null
         }
         Update: {
           apuracao_id?: number
@@ -2274,7 +2912,9 @@ export type Database = {
           confirmado?: boolean | null
           contrato_id?: number | null
           created_at?: string | null
+          data_competencia_omie?: string[] | null
           data_ganho?: string | null
+          data_pagamento_omie?: string[] | null
           excluido_em?: string | null
           excluido_por?: string | null
           fonte?: string
@@ -2284,12 +2924,15 @@ export type Database = {
           mrr_contratado?: number | null
           mrr_override?: number | null
           observacao?: string | null
+          pipedrive_deal_id_socios?: string | null
           razao_social?: string
           royalties_item?: number | null
           royalties_percentual_override?: number | null
           status_match?: string | null
           valor_confirmado?: number | null
           valor_omie?: number | null
+          venda_socios?: boolean
+          venda_socios_criado_em?: string | null
         }
         Relationships: [
           {
@@ -2639,6 +3282,23 @@ export type Database = {
           mrr_contratado: number | null
           recebido: number | null
           unidade: string | null
+        }
+        Relationships: []
+      }
+      v_integracoes_status: {
+        Row: {
+          ativo: boolean | null
+          atrasada: boolean | null
+          fonte: string | null
+          intervalo_esperado_minutos: number | null
+          minutos_desde_ultima_execucao: number | null
+          nome_exibicao: string | null
+          observacao: string | null
+          tipo: string | null
+          ultima_execucao: string | null
+          ultimo_detalhes: Json | null
+          ultimo_status: string | null
+          ultimo_total_registros: number | null
         }
         Relationships: []
       }

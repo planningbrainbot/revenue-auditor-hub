@@ -85,6 +85,8 @@ export interface ApuracaoItem {
   motivo_exclusao: string | null;
   data_pagamento_omie: string[] | null;
   data_competencia_omie: string[] | null;
+  venda_socios: boolean;
+  pipedrive_deal_id_socios: string | null;
 }
 
 export interface OutraReceitaItem {
@@ -1024,6 +1026,7 @@ export const updateItem = createServerFn({ method: "POST" })
       royalties_percentual_override?: number | null;
       mrr_override?: number | null;
       is_cac?: boolean;
+      venda_socios?: boolean;
       categoria?: "royalties" | "csc_base_antiga";
     }) => d,
   )
@@ -1058,6 +1061,12 @@ export const updateItem = createServerFn({ method: "POST" })
       patch.royalties_percentual_override = data.royalties_percentual_override;
     if ("mrr_override" in data) patch.mrr_override = data.mrr_override;
     if ("is_cac" in data) patch.is_cac = data.is_cac;
+    // Marca a venda como feita por sócio direto (fora do funil comercial padrão).
+    // Um script separado (sync_socios_omie_to_pipedrive.py) lê itens com
+    // venda_socios=true e pipedrive_deal_id_socios ainda nulo e cria o deal
+    // correspondente no pipe Sócios (Pipedrive) automaticamente — desmarcar aqui
+    // só impede criações futuras, não apaga um deal já criado.
+    if ("venda_socios" in data) patch.venda_socios = data.venda_socios;
     if ("categoria" in data) patch.categoria = data.categoria;
 
     const { error } = await supabase.from("royalties_itens").update(patch).eq("id", data.id);
@@ -1225,6 +1234,7 @@ export const addItemManual = createServerFn({ method: "POST" })
       valor_confirmado?: number | null;
       observacao?: string | null;
       categoria?: "royalties" | "csc_base_antiga";
+      venda_socios?: boolean;
     }) => d,
   )
   .handler(async ({ data, context }) => {
@@ -1241,6 +1251,7 @@ export const addItemManual = createServerFn({ method: "POST" })
       fonte: "manual",
       status_match: "manual",
       confirmado: false,
+      venda_socios: data.venda_socios ?? false,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
