@@ -169,7 +169,9 @@ export async function parseReformaTributariaXlsx(
         // CBS/IBS/IPI: B5-B8 are consistent across templates.
         // ISS: only present in services templates (row labeled "ISS" in column A).
         //   Commerce templates (ICMS-based) have no ISS row — B9 holds PIS/COFINS cumulativo.
-        const issRow = findLabelRow(sheet2, 'iss', 4, 14);
+        // Search range extended to 20 to handle template variants where ISS sits below row 14.
+        // Also accept labels like "ISS Municipal" or "Aliq ISS" via the 'iss' keyword match.
+        const issRow = findLabelRow(sheet2, 'iss', 4, 20);
         const iss = issRow !== null ? rate(numCell(sheet2, `B${issRow}`)) : 0;
 
         // PIS/COFINS: pick the highest valid rate in the alíquotas block (rows 4-16).
