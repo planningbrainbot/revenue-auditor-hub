@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { brl, date } from "@/components/audit/format";
 import { digits } from "@/lib/server-utils";
-import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
+import { useRoyaltiesHistoricoRede, useRoyaltiesProjecaoRede } from "@/hooks/use-royalties";
 import type { RoyaltiesHistoricoMes } from "@/lib/royalties-historico.functions";
 
 export const Route = createFileRoute("/_authenticated/royalties/")({
@@ -72,6 +72,7 @@ function celulaStatus(mes: RoyaltiesHistoricoMes | undefined): CelulaStatus | nu
 
 function RoyaltiesHistoricoPage() {
   const { data, isLoading, error } = useRoyaltiesHistoricoRede();
+  const { data: projecao, isLoading: isLoadingProjecao } = useRoyaltiesProjecaoRede();
   const [busca, setBusca] = useState("");
   const [unidadeId, setUnidadeId] = useState(ALL);
   const tabelaClientesRef = useRef<HTMLDivElement>(null);
@@ -271,6 +272,101 @@ function RoyaltiesHistoricoPage() {
                       );
                     })}
                     <td className="px-3 py-2 text-right tabular-nums">{brl(totalResumoGeral)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-baseline justify-between gap-2 border-b p-3">
+            <div className="text-sm font-medium">Projeção de royalties — próximos 6 meses</div>
+            {projecao && (
+              <div className="text-sm font-semibold tabular-nums">
+                {brl(
+                  projecao.unidades.reduce(
+                    (acc, u) => acc + Object.values(u.porMes).reduce((a, v) => a + v, 0),
+                    0,
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+          <p className="px-3 pt-2 text-xs text-muted-foreground">
+            Cliente que já paga royalties mantém o último valor confirmado (sem decaimento de
+            churn). Cliente recém-fechado no Pipedrive que ainda não apurou nada entra pelo MRR
+            contratado × % da unidade, só enquanto estiver dentro da janela de maturação (~60 dias
+            do ganho). Cliente parado há 2+ meses ou fora da janela vira R$0 — não é apuração, é
+            estimativa.
+          </p>
+          {isLoadingProjecao ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">Carregando…</div>
+          ) : !projecao || projecao.meses.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Sem projeção disponível.
+            </div>
+          ) : (
+            <div className="mt-2 max-h-[60vh] overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left">Unidade</th>
+                    {projecao.meses.map((m) => (
+                      <th key={m} className="px-2 py-2 text-center whitespace-nowrap">
+                        {formatMesLabel(m)}
+                      </th>
+                    ))}
+                    <th className="px-3 py-2 text-right whitespace-nowrap">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projecao.unidades
+                    .map((u) => ({
+                      ...u,
+                      total: Object.values(u.porMes).reduce((acc, v) => acc + v, 0),
+                    }))
+                    .filter((u) => u.total > 0)
+                    .sort((a, b) => b.total - a.total)
+                    .map((u) => (
+                      <tr key={u.unidade_id} className="border-t">
+                        <td className="sticky left-0 z-10 bg-card px-3 py-2 font-medium">
+                          {u.unidade_nome}
+                        </td>
+                        {projecao.meses.map((m) => {
+                          const v = u.porMes[m] ?? 0;
+                          return (
+                            <td key={m} className="px-2 py-2 text-center tabular-nums">
+                              {v > 0 ? brl(v) : <span className="text-muted-foreground/40">·</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                          {brl(u.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2">Total rede</td>
+                    {projecao.meses.map((m) => {
+                      const total = projecao.unidades.reduce(
+                        (acc, u) => acc + (u.porMes[m] ?? 0),
+                        0,
+                      );
+                      return (
+                        <td key={m} className="px-2 py-2 text-center tabular-nums">
+                          {total > 0 ? brl(total) : "—"}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {brl(
+                        projecao.unidades.reduce(
+                          (acc, u) => acc + Object.values(u.porMes).reduce((a, v) => a + v, 0),
+                          0,
+                        ),
+                      )}
+                    </td>
                   </tr>
                 </tbody>
               </table>
