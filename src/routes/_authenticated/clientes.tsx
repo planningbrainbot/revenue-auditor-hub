@@ -398,19 +398,6 @@ function ClientesPage() {
     [visiveis, churnedIds],
   );
 
-  const counts = useMemo(() => {
-    const c = {} as Record<StatusFinanceiro, number>;
-    STATUS_ORDER.forEach((s) => (c[s] = 0));
-    // payment status counts only for non-churned clients
-    visiveis
-      .filter((r) => !isChurn(r))
-      .forEach((r) => {
-        if (r.status_financeiro && c[r.status_financeiro] != null) c[r.status_financeiro]++;
-      });
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visiveis, churnedIds]);
-
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     const out = visiveis.filter((r) => {
@@ -599,36 +586,6 @@ function ClientesPage() {
               <div className="mt-1 text-3xl font-bold">{churnCounts.churn}</div>
               <div className="mt-1 text-[11px] opacity-75">Card "Perdido" em tratativas</div>
             </button>
-          </div>
-
-          {/* Status de Pagamento (somente clientes ativos) */}
-          <div className="text-xs text-muted-foreground -mb-1 px-0.5">
-            Status de pagamento — clientes ativos
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-            {STATUS_ORDER.map((s) => {
-              const meta = STATUS_META[s];
-              const active = statusFilter === s;
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatusFilter(active ? null : s)}
-                  className={cn(
-                    "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
-                    meta.card,
-                    active && "ring-2 ring-offset-2 ring-primary",
-                  )}
-                  title={meta.description}
-                >
-                  <div className="text-xs font-medium uppercase tracking-wide opacity-80">
-                    {meta.label}
-                  </div>
-                  <div className="mt-1 text-3xl font-bold">{counts[s]}</div>
-                  <div className="mt-1 text-[11px] opacity-75 line-clamp-2">{meta.description}</div>
-                </button>
-              );
-            })}
           </div>
 
           {/* Filters */}
