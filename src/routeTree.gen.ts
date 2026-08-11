@@ -40,6 +40,7 @@ import { Route as AuthenticatedBiVendasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
+import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
@@ -218,6 +219,11 @@ const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAtividadeRoute = AuthenticatedAtividadeRouteImport.update({
+  id: '/atividade',
+  path: '/atividade',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedRoyaltiesIndexRoute =
   AuthenticatedRoyaltiesIndexRouteImport.update({
     id: '/',
@@ -265,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/trust': typeof TrustRoute
+  '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
@@ -303,6 +310,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/trust': typeof TrustRoute
+  '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
@@ -343,6 +351,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/trust': typeof TrustRoute
+  '/_authenticated/atividade': typeof AuthenticatedAtividadeRoute
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
   '/_authenticated/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/_authenticated/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
@@ -385,6 +394,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/trust'
+    | '/atividade'
     | '/auditoria'
     | '/auditoria-faturamento'
     | '/auditoria-interna'
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/trust'
+    | '/atividade'
     | '/auditoria'
     | '/auditoria-faturamento'
     | '/auditoria-interna'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/trust'
+    | '/_authenticated/atividade'
     | '/_authenticated/auditoria'
     | '/_authenticated/auditoria-faturamento'
     | '/_authenticated/auditoria-interna'
@@ -724,6 +736,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/atividade': {
+      id: '/_authenticated/atividade'
+      path: '/atividade'
+      fullPath: '/atividade'
+      preLoaderRoute: typeof AuthenticatedAtividadeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/royalties/': {
       id: '/_authenticated/royalties/'
       path: '/'
@@ -794,6 +813,7 @@ const AuthenticatedRoyaltiesRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAtividadeRoute: typeof AuthenticatedAtividadeRoute
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
   AuthenticatedAuditoriaFaturamentoRoute: typeof AuthenticatedAuditoriaFaturamentoRoute
   AuthenticatedAuditoriaInternaRoute: typeof AuthenticatedAuditoriaInternaRoute
@@ -830,6 +850,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAtividadeRoute: AuthenticatedAtividadeRoute,
   AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
   AuthenticatedAuditoriaFaturamentoRoute:
     AuthenticatedAuditoriaFaturamentoRoute,

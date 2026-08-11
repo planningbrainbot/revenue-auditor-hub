@@ -38,6 +38,7 @@ export const KNOWN_PERMISSIONS: { key: string; label: string; description: strin
   { key: "view.financeiro_partners", label: "Acessar Financeiro Partners", description: "DRE Projetada e FCx (fluxo de caixa realizado) da Planning Partners.", group: "Planning Partners" },
   { key: "view.receita_partners", label: "Acessar Receita Partners", description: "Financeiro — Gestão da Rede e Receitas da Planning Partners.", group: "Planning Partners" },
   { key: "view.despesas_partners", label: "Acessar Despesas Partners", description: "Despesas (Confronto Mensal) da Planning Partners.", group: "Planning Partners" },
+  { key: "view.atividade", label: "Acessar Atividade do Sistema", description: "Resumo diário de commits — o que mudou no Ops Board, dia a dia.", group: "Administração" },
 ];
 
 // (admin check usa helper compartilhado em @/lib/server-utils)
