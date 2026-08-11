@@ -75,6 +75,7 @@ type ContratoInfo = {
   ganho_em: string | null;
   regime_tributario: string | null;
   entrada_contrato_assinado_em: string | null;
+  closer: string | null;
 };
 
 // Cliente que existe no ERP (Omie) mas ainda não foi reconciliado em `empresas`
@@ -203,7 +204,8 @@ function ClientesPage() {
     | "segmento"
     | "ganho_em"
     | "regime_tributario"
-    | "entrada_contrato_assinado_em";
+    | "entrada_contrato_assinado_em"
+    | "closer";
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
   const toggleSort = (key: SortKey) => {
     setSort((prev) => {
@@ -263,7 +265,7 @@ function ClientesPage() {
         supabase
           .from("contratos")
           .select(
-            "mrr_mensal,pipedrive_deal_id,status_contrato,unidade,ganho_em,regime_tributario,entrada_contrato_assinado_em",
+            "mrr_mensal,pipedrive_deal_id,status_contrato,unidade,ganho_em,regime_tributario,entrada_contrato_assinado_em,closer",
           )
           .eq("status_contrato", "Ativo")
           .limit(20000),
@@ -298,6 +300,7 @@ function ClientesPage() {
           regime_tributario: prev?.regime_tributario ?? c.regime_tributario ?? null,
           entrada_contrato_assinado_em:
             prev?.entrada_contrato_assinado_em ?? c.entrada_contrato_assinado_em ?? null,
+          closer: prev?.closer ?? c.closer ?? null,
         });
       }
       setMrrByPipedriveId(m);
@@ -495,6 +498,9 @@ function ClientesPage() {
             infoOf(a)?.entrada_contrato_assinado_em,
             infoOf(b)?.entrada_contrato_assinado_em,
           );
+          break;
+        case "closer":
+          c = cmpStr(infoOf(a)?.closer, infoOf(b)?.closer);
           break;
       }
       if (c !== 0) return c * dir;
@@ -709,13 +715,14 @@ function ClientesPage() {
                     "Regime Tributário": info?.regime_tributario || "",
                     "Data do Ganho": fmtDate(info?.ganho_em) || "",
                     "Contrato Assinado em": fmtDate(info?.entrada_contrato_assinado_em) || "",
+                    Vendedor: info?.closer || "",
                   };
                 });
                 exportRowsToXlsx(
                   data,
                   "clientes-planning",
                   "Planning",
-                  [40, 18, 14, 20, 10, 18, 14, 18, 18, 20, 20, 16, 18],
+                  [40, 18, 14, 20, 10, 18, 14, 18, 18, 20, 20, 16, 18, 18],
                 );
               }}
             >
@@ -763,6 +770,7 @@ function ClientesPage() {
                           label: "Contrato Assinado em",
                           align: "left",
                         },
+                        { key: "closer", label: "Vendedor", align: "left" },
                       ] as { key: SortKey; label: string; align: "left" | "right" }[]
                     ).map((col) => {
                       const active = sort?.key === col.key;
@@ -863,6 +871,7 @@ function ClientesPage() {
                         <TableCell>{info?.regime_tributario || "—"}</TableCell>
                         <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
                         <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
+                        <TableCell>{info?.closer || "—"}</TableCell>
                         {perms.isAdmin && (
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -881,7 +890,7 @@ function ClientesPage() {
                   {!loading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={perms.isAdmin ? 14 : 13}
+                        colSpan={perms.isAdmin ? 15 : 14}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Nenhum cliente encontrado.
