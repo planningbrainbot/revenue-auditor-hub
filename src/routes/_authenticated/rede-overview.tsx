@@ -7,7 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -34,10 +34,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { digits } from "@/lib/server-utils";
 import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
-import { useNps } from "@/hooks/use-nps";
 import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-permissions";
 
@@ -77,8 +77,10 @@ type EmpresaRow = {
 
 // Cards de tratativa em estágio "Perdido" = churn confirmado (mesma fonte que
 // royalties/CAC usam para excluir cliente da apuração — ver DATA-RULES.md).
-// empresa_id + data_churn entraram pra dar o corte de LTV Finalizado (soma de
-// pagamento até a data de churn) — ver `ltvStats` abaixo.
+// empresa_id + data_churn dão o corte de churn por CNPJ usado em
+// `clientesAtivosSerieChart` (cliente ativo até a data de churn) — mrr entra
+// no "Perdido" de `churnReceitaWaterfallChart` e no churn logo mensal usado
+// pela fórmula de Lifetime (`ltvFormulaico`).
 type ChurnCardRow = {
   pipedrive_deal_id: number | null;
   unidade: string | null;
@@ -98,6 +100,7 @@ type ContratoNovoRow = {
   mrr_mensal: number | null;
   ganho_em: string | null;
   origem_pipeline: string | null;
+  status_contrato: string | null; // usado pra filtrar "Ativo" nas colunas Matriz/Hunter (MRR corrente, não só vendas do mês)
   cnpj: string | null; // usado só pra série temporal de Clientes Ativos (cruza com cnpjChurnMes)
 };
 
@@ -128,15 +131,20 @@ const fmtMes = (m: string | null | undefined) => {
   return `${mo}/${y?.slice(2)}`;
 };
 
-// Soma os últimos `months` valores da série, pulando `offsetFromEnd` a partir
-// do fim — usado pra comparar janela móvel de 12 meses vs. os 12 anteriores.
-const sumTrailing = (arr: number[], months: number, offsetFromEnd: number) => {
-  const end = arr.length - offsetFromEnd;
-  const start = Math.max(0, end - months);
-  return arr.slice(start, end).reduce((s, v) => s + v, 0);
-};
-
 const pctVsPrev = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+
+// Índice absoluto de mês (ano×12+mês) — usado só pra calcular o "período
+// anterior equivalente" ao range de data selecionado (mesma duração, logo
+// antes do início do range), sem lidar com aritmética de Date/dia do mês.
+const toMonthIndex = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return y * 12 + (m - 1);
+};
+const fromMonthIndex = (idx: number) => {
+  const y = Math.floor(idx / 12);
+  const m = (idx % 12) + 1;
+  return `${y}-${String(m).padStart(2, "0")}`;
+};
 
 function RedeOverviewPage() {
   const navigate = useNavigate();
@@ -149,10 +157,22 @@ function RedeOverviewPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [unidadeFilter, setUnidadeFilter] = useState(ALL);
 
+  // Filtro de período — padrão: ano corrente. Todo gráfico/KPI de período na
+  // aba Visão Geral respeita esse range (ver `inRange` abaixo); MRR/Clientes
+  // Ativos continuam sendo "estado atual" e não são afetados por ele.
+  const anoAtualNum = new Date().getFullYear();
+  const [dataInicio, setDataInicio] = useState(`${anoAtualNum}-01-01`);
+  const [dataFim, setDataFim] = useState(`${anoAtualNum}-12-31`);
+  const rangeStartYm = dataInicio.slice(0, 7);
+  const rangeEndYm = dataFim.slice(0, 7);
+  const inRange = (mes: string | null | undefined) => {
+    const ym = (mes ?? "").slice(0, 7);
+    return ym >= rangeStartYm && ym <= rangeEndYm;
+  };
+
   const perms = usePermissions();
 
   const { data: royaltiesData, error: royaltiesError } = useRoyaltiesHistoricoRede();
-  const { data: npsData } = useNps();
   const { data: saudeData } = useSaudeCarteira();
 
   // Sócio (data.scope.own_unit_only) vê só a própria unidade nesta página —
@@ -184,7 +204,7 @@ function RedeOverviewPage() {
           .limit(2000),
         supabase
           .from("contratos")
-          .select("unidade,mrr_mensal,ganho_em,origem_pipeline,cnpj")
+          .select("unidade,mrr_mensal,ganho_em,origem_pipeline,status_contrato,cnpj")
           .not("ganho_em", "is", null)
           .limit(5000),
         supabase
@@ -335,27 +355,6 @@ function RedeOverviewPage() {
     return { churnedCount, churnedMrr, churnLogoPct, churnReceitaPct };
   }, [totalClientes, clientesAtivos, churnFiltrado, kpis.mrr]);
 
-  // ---- NPS da rede (resumo — detalhe fica em /painel-cs) ----
-  // Mesma fórmula de painel-cs/nps-tab.tsx: (promotores − detratores) / respondidas × 100.
-  const npsStats = useMemo(() => {
-    const rows = (npsData?.rows ?? []).filter(
-      (r) => unidadeFilter === ALL || r.unidade === unidadeFilter,
-    );
-    let promotores = 0;
-    let detratores = 0;
-    let respondidas = 0;
-    for (const r of rows) {
-      const n = Number(r.nps_recomendacao);
-      if (r.nps_recomendacao == null || r.nps_recomendacao === "" || Number.isNaN(n)) continue;
-      respondidas++;
-      if (n >= 9) promotores++;
-      else if (n < 7) detratores++;
-    }
-    const nps =
-      respondidas > 0 ? Math.round(((promotores - detratores) / respondidas) * 100) : null;
-    return { nps, respondidas };
-  }, [npsData, unidadeFilter]);
-
   // ---- Saúde da carteira (resumo — detalhe fica em /painel-cs) ----
   const saudeStats = useMemo(() => {
     const rows = (saudeData?.rows ?? []).filter(
@@ -407,39 +406,54 @@ function RedeOverviewPage() {
     );
   }, [scopedAuditorias, unidadeFilter]);
 
-  // ---- Vendas no mês por unidade, separadas em Matriz vs. Hunter ----
+  // ---- MRR ativo por unidade, separado em Matriz vs. Hunter ----
   // Matriz = origem_pipeline='inside_sales' (pipeline 2, lead roteado pela
   // Matriz por "Unidade de Negócio"). Hunter = origem_pipeline='socios'
   // (pipeline 4, "Negociação - Sócios", venda fechada direto pela unidade) —
   // equivalência confirmada com o usuário em 11/08/2026, ver
   // outputs/2026-08-spec-painel-desempenho-unidade.md.
   //
-  // Cards do pipe Sócios sem "Unidade de Negócio" preenchida (52/93 no
-  // levantamento de 11/08/2026 — gap de preenchimento no Pipedrive, não bug
-  // de sync) são ignorados no ranking por unidade, por decisão explícita do
-  // usuário (não aparecem numa linha "sem unidade" nem são rateados) — só
-  // ficam contabilizados em `vendasSemUnidade` como nota de rodapé.
+  // Corrigido em 11/08/2026: a primeira versão somava só contratos ganhos no
+  // mês corrente ("vendas do mês"), dando valores minúsculos e enganosos numa
+  // tabela cujas outras colunas (MRR Atual, ARPA) são todas "estado atual" —
+  // usuário reportou Belém com Matriz quase zero quando na prática a maior
+  // parte do MRR Atual da unidade vem de conta roteada pela Matriz. Agora soma
+  // `mrr_mensal` de **todo contrato `status_contrato='Ativo'`**, não só os
+  // ganhos este mês — mesmo filtro que `v_reconciliacao_mensal.mrr_contratado`
+  // usa pro MRR Atual, então Matriz + Hunter passa a bater com o MRR Atual da
+  // linha (a menos do resíduo de contratos sem unidade, ver `vendasSemUnidade`).
+  //
+  // Cards do pipe Sócios sem "Unidade de Negócio" preenchida são ignorados no
+  // ranking por unidade, por decisão explícita do usuário (não aparecem numa
+  // linha "sem unidade" nem são rateados) — só ficam contabilizados em
+  // `vendasSemUnidade` como nota de rodapé. Gap de preenchimento no Pipedrive,
+  // não bug de sync — mas ao trocar pra "todo contrato Ativo" (não só os
+  // ganhos no mês), o resíduo cresceu bastante: 130 de ~180 contratos Ativos
+  // de origem Sócios (~92% do MRR Hunter) estão sem unidade atribuída (achado
+  // de 11/08/2026, ver `outputs/2026-08-spec-painel-desempenho-unidade.md`
+  // no wiki) — a coluna Hunter da tabela hoje mostra só a ponta visível do
+  // volume real vendido pelas próprias unidades.
   const mesAtual = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
   const vendasMatrizPorUnidade = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of scopedContratosNovos) {
-      if ((c.ganho_em ?? "").slice(0, 7) !== mesAtual || !c.unidade) continue;
+      if (c.status_contrato !== "Ativo" || !c.unidade) continue;
       if (c.origem_pipeline === "socios") continue;
       map.set(c.unidade, (map.get(c.unidade) ?? 0) + Number(c.mrr_mensal ?? 0));
     }
     return map;
-  }, [scopedContratosNovos, mesAtual]);
+  }, [scopedContratosNovos]);
 
   const vendasHunterPorUnidade = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of scopedContratosNovos) {
-      if ((c.ganho_em ?? "").slice(0, 7) !== mesAtual || !c.unidade) continue;
+      if (c.status_contrato !== "Ativo" || !c.unidade) continue;
       if (c.origem_pipeline !== "socios") continue;
       map.set(c.unidade, (map.get(c.unidade) ?? 0) + Number(c.mrr_mensal ?? 0));
     }
     return map;
-  }, [scopedContratosNovos, mesAtual]);
+  }, [scopedContratosNovos]);
 
   // % do mix que é Hunter — mix mais Hunter é lido como positivo (unidade
   // autossuficiente, menos dependente do funil da Matriz), não como alerta.
@@ -450,16 +464,29 @@ function RedeOverviewPage() {
     return total > 0 ? (hunter / total) * 100 : null;
   };
 
+  // Ranking de Unidades por MRR Hunter (não MRR total) — mostra quem vende
+  // mais por conta própria (pipe Sócios), não quem tem mais MRR de qualquer
+  // origem. Lembrete: ~92% do MRR Hunter está sem unidade atribuída no
+  // Pipedrive (ver `vendasSemUnidade`), então o ranking hoje só reflete a
+  // fração com "Unidade de Negócio" preenchida.
+  const rankingHunterData = useMemo(
+    () =>
+      unidades
+        .map((u) => ({ unidade: u, hunter: vendasHunterPorUnidade.get(u) ?? 0 }))
+        .sort((a, b) => b.hunter - a.hunter),
+    [unidades, vendasHunterPorUnidade],
+  );
+
   const vendasSemUnidade = useMemo(() => {
     let count = 0;
     let mrr = 0;
     for (const c of scopedContratosNovos) {
-      if ((c.ganho_em ?? "").slice(0, 7) !== mesAtual || c.unidade) continue;
+      if (c.status_contrato !== "Ativo" || c.unidade) continue;
       count++;
       mrr += Number(c.mrr_mensal ?? 0);
     }
     return { count, mrr };
-  }, [scopedContratosNovos, mesAtual]);
+  }, [scopedContratosNovos]);
 
   // ---- MRR novo por mês (contratos.ganho_em) vs Royalties recebido por mês ----
   const newMrrByMes = useMemo(() => {
@@ -499,17 +526,27 @@ function RedeOverviewPage() {
       }));
   }, [newMrrByMes, royaltiesByMes]);
 
-  // ---- Receita Total e Booking Total (últimos 12 meses vs. 12 meses anteriores) ----
-  // "Vs LM" nos outros cards compara mês contra mês anterior; aqui o pedido era
-  // um total de período, então usamos janela móvel de 12 meses (o mesmo padrão
-  // do mockup de referência) em vez de acumulado desde sempre, que cresceria
-  // indefinidamente e não seria comparável mês a mês.
+  // ---- Receita Total e Booking Total (período selecionado vs. período anterior equivalente) ----
+  // Antes era janela fixa de 12 meses; agora acompanha o filtro de data do
+  // topo da página (`dataInicio`/`dataFim`, padrão ano corrente) — "anterior"
+  // é a mesma duração, imediatamente antes do início do range selecionado.
+  const periodoAnteriorRange = useMemo(() => {
+    const rangeLen = toMonthIndex(rangeEndYm) - toMonthIndex(rangeStartYm) + 1;
+    const prevEndYm = fromMonthIndex(toMonthIndex(rangeStartYm) - 1);
+    const prevStartYm = fromMonthIndex(toMonthIndex(rangeStartYm) - rangeLen);
+    return { prevStartYm, prevEndYm };
+  }, [rangeStartYm, rangeEndYm]);
+
   const receitaTotalStats = useMemo(() => {
-    const serie = byMes.map((m) => m.recebido);
-    const atual = sumTrailing(serie, 12, 0);
-    const anterior = sumTrailing(serie, 12, 12);
+    const atual = byMes.filter((m) => inRange(m.mes)).reduce((s, m) => s + m.recebido, 0);
+    const anterior = byMes
+      .filter((m) => {
+        const ym = (m.mes ?? "").slice(0, 7);
+        return ym >= periodoAnteriorRange.prevStartYm && ym <= periodoAnteriorRange.prevEndYm;
+      })
+      .reduce((s, m) => s + m.recebido, 0);
     return { total: atual, pct: pctVsPrev(atual, anterior) };
-  }, [byMes]);
+  }, [byMes, rangeStartYm, rangeEndYm, periodoAnteriorRange]);
 
   const bookingByMesArr = useMemo(() => {
     // Booking = MRR novo do mês × 12 (contrato assumido em 12 meses — definição
@@ -524,29 +561,47 @@ function RedeOverviewPage() {
   }, [newMrrByMes]);
 
   const bookingTotalStats = useMemo(() => {
-    const serie = bookingByMesArr.map((m) => m.booking);
-    const atual = sumTrailing(serie, 12, 0);
-    const anterior = sumTrailing(serie, 12, 12);
+    const atual = bookingByMesArr.filter((m) => inRange(m.mes)).reduce((s, m) => s + m.booking, 0);
+    const anterior = bookingByMesArr
+      .filter((m) => m.mes >= periodoAnteriorRange.prevStartYm && m.mes <= periodoAnteriorRange.prevEndYm)
+      .reduce((s, m) => s + m.booking, 0);
     return { total: atual, pct: pctVsPrev(atual, anterior) };
-  }, [bookingByMesArr]);
+  }, [bookingByMesArr, rangeStartYm, rangeEndYm, periodoAnteriorRange]);
 
+  // Variação mês a mês calculada sobre o histórico completo (precisa do mês
+  // anterior mesmo fora do range pra comparar o 1º mês exibido) — o corte pro
+  // período selecionado acontece só na hora de montar o `data` do gráfico.
   const bookingVariacaoChart = useMemo(
     () =>
       bookingByMesArr.map((m, i) => {
         const prev = i > 0 ? bookingByMesArr[i - 1].booking : null;
         const variacao = prev != null ? pctVsPrev(m.booking, prev) : null;
-        return { label: m.label, variacao };
+        return { mes: m.mes, label: m.label, variacao, booking: m.booking };
       }),
     [bookingByMesArr],
   );
 
-  // ---- Lifetime (LTV): soma de royalties_itens.valor_confirmado por cliente ----
-  // Decisão do usuário (11/08/2026): LTV usa o valor já apurado/confirmado na
-  // tela de royalties, não `contas_receber` bruto — é o mesmo valor que já
-  // passou pelo fluxo de revisão manual da unidade.
-  //   LTV Finalizado = soma paga pelo cliente até a data de churn (central_tratativas.data_churn)
-  //   LTV Ativo       = soma paga pelo cliente até o mês atual, cliente sem churn
-  //   LTV Geral        = média simples entre os dois médios acima (não pool ponderado)
+  // ---- Receita (gráfico "Receita") — mesmo estilo do mockup: uma barra por
+  // mês (Recebido) com valor e variação % vs. mês anterior rotulados acima.
+  // Variação calculada sobre o histórico completo (precisa do mês anterior
+  // mesmo fora do range) — o corte pro período selecionado só na exibição.
+  const receitaChartData = useMemo(
+    () =>
+      byMes.map((m, i) => {
+        const prev = i > 0 ? byMes[i - 1].recebido : null;
+        return {
+          mes: m.mes,
+          label: m.label,
+          recebido: m.recebido,
+          pct: prev != null ? pctVsPrev(m.recebido, prev) : null,
+        };
+      }),
+    [byMes],
+  );
+
+  // Cruza CNPJ (via empresas.id) com a data de churn conhecida — usado só pra
+  // cortar `clientesAtivosSerieChart` (cliente sai da série ativa a partir do
+  // mês de churn). O LTV em si não usa mais isso — ver `ltvFormulaico` abaixo.
   const empresaCnpjById = useMemo(() => {
     const map = new Map<number, string>();
     for (const e of scopedEmpresas) {
@@ -569,37 +624,6 @@ function RedeOverviewPage() {
     return map;
   }, [scopedChurnCards, empresaCnpjById]);
 
-  const ltvStats = useMemo(() => {
-    if (!royaltiesData) return { ativo: null, finalizado: null, geral: null, nAtivo: 0, nFinalizado: 0 };
-    let somaAtivo = 0;
-    let nAtivo = 0;
-    let somaFinalizado = 0;
-    let nFinalizado = 0;
-    for (const c of royaltiesData.clientes) {
-      if (unidadeFilter !== ALL && c.unidade_nome !== unidadeFilter) continue;
-      const cnpjD = digits(c.cnpj);
-      const churnMes = cnpjD ? cnpjChurnMes.get(cnpjD) : undefined;
-      let total = 0;
-      for (const [mes, item] of Object.entries(c.meses)) {
-        if (item.categoria !== "royalties" || item.is_cac || item.excluido_em) continue;
-        if (churnMes && mes.slice(0, 7) > churnMes) continue; // ignora pagamento pós-churn (ajuste/erro)
-        total += item.valor_confirmado;
-      }
-      if (total <= 0) continue; // never_paid não entra na média de LTV
-      if (churnMes) {
-        somaFinalizado += total;
-        nFinalizado++;
-      } else {
-        somaAtivo += total;
-        nAtivo++;
-      }
-    }
-    const ativo = nAtivo > 0 ? somaAtivo / nAtivo : null;
-    const finalizado = nFinalizado > 0 ? somaFinalizado / nFinalizado : null;
-    const geral = ativo != null || finalizado != null ? ((ativo ?? finalizado)! + (finalizado ?? ativo)!) / 2 : null;
-    return { ativo, finalizado, geral, nAtivo, nFinalizado };
-  }, [royaltiesData, unidadeFilter, cnpjChurnMes]);
-
   // ---- Crescimento Mensal: clientes iniciaram (won) vs. churn logo (contagem) ----
   const crescimentoMensalChart = useMemo(() => {
     const iniciaramPorMes = new Map<string, number>();
@@ -620,6 +644,7 @@ function RedeOverviewPage() {
     return Array.from(meses)
       .sort()
       .map((mes) => ({
+        mes,
         label: fmtMes(mes),
         iniciaram: iniciaramPorMes.get(mes) ?? 0,
         churnLogo: churnPorMes.get(mes) ?? 0,
@@ -657,76 +682,198 @@ function RedeOverviewPage() {
       }
     }
     return meses.map((mes) => ({
+      mes,
       label: fmtMes(mes),
       ativos: base.filter((c) => c.ganhoMes <= mes && (!c.churnMes || c.churnMes > mes)).length,
     }));
   }, [scopedContratosNovos, unidadeFilter, cnpjChurnMes, mesAtual]);
 
-  // ---- Churn de Receita por mês: waterfall Novo / Expansão / Contração / Perdido ----
-  // Adaptação do "Perdido/Ganho/Variáveis/Exp. One Time" do mockup de
-  // referência — esses 4 nomes não têm definição no vocabulário da Planning
-  // (spec outputs/2026-08-spec-painel-gestao-unidades-indicadores.md), então
-  // uso o waterfall de MRR padrão (Novo/Expansão/Contração/Perdido), que é
-  // computável direto da mesma base de receita por cliente/mês já usada no
-  // LTV (`royalties_itens.valor_confirmado`, categoria royalties, sem CAC).
-  // Revenue Churn % = perdido ÷ receita total do mês anterior.
+  // ---- Lifetime (LTV) — fórmula padrão de SaaS: ARPA ÷ taxa de churn mensal ----
+  // Decisão do usuário (11/08/2026): trocado do empírico (soma de
+  // royalties_itens.valor_confirmado por cliente) pra essa fórmula, porque o
+  // empírico só cobria meses com apuração de royalties já gerada — em vários
+  // casos subestimava o LTV real (cliente antigo com pouco histórico apurado
+  // dava LTV artificialmente baixo, ex: R$13k). A fórmula não depende desse
+  // histórico: usa só o estado atual (ARPA) e a taxa de churn logo média
+  // mensal do período selecionado no filtro de data do topo.
+  //   Taxa de churn mensal = total de churn logo no período ÷ (clientes ativos
+  //     médios no período × nº de meses do período) — aproximação padrão
+  //     quando não se tem a taxa mês a mês exata.
+  //   Lifetime médio (meses) = 1 ÷ taxa de churn mensal
+  //   LTV = ARPA × lifetime médio
+  const ltvFormulaico = useMemo(() => {
+    const mesesPeriodo = crescimentoMensalChart.filter((d) => inRange(d.mes));
+    const ativosPorMes = new Map(clientesAtivosSerieChart.map((d) => [d.mes, d.ativos]));
+    if (mesesPeriodo.length === 0) return { churnMensalPct: null, lifetimeMeses: null, ltv: null };
+    const totalChurn = mesesPeriodo.reduce((s, m) => s + m.churnLogo, 0);
+    const ativosValues = mesesPeriodo
+      .map((m) => ativosPorMes.get(m.mes) ?? 0)
+      .filter((v) => v > 0);
+    const mediaAtivos =
+      ativosValues.length > 0 ? ativosValues.reduce((s, v) => s + v, 0) / ativosValues.length : 0;
+    const churnMensal =
+      mediaAtivos > 0 ? totalChurn / (mediaAtivos * mesesPeriodo.length) : null;
+    const lifetimeMeses = churnMensal != null && churnMensal > 0 ? 1 / churnMensal : null;
+    const arpaAtual = clientesAtivos > 0 ? kpis.mrr / clientesAtivos : null;
+    const ltv = lifetimeMeses != null && arpaAtual != null ? arpaAtual * lifetimeMeses : null;
+    return { churnMensalPct: churnMensal != null ? churnMensal * 100 : null, lifetimeMeses, ltv };
+  }, [crescimentoMensalChart, clientesAtivosSerieChart, rangeStartYm, rangeEndYm, clientesAtivos, kpis.mrr]);
+
+  // ---- Lifetime real dos concluídos (churn) — tempo de vida efetivo ----
+  // Complementar ao `ltvFormulaico` acima (que é uma projeção a partir da taxa
+  // de churn atual). Aqui é o dado real: pra cada cliente que já deu churn,
+  // quanto tempo ele durou de verdade — primeira compra (`contratos.ganho_em`,
+  // mínimo entre os contratos do CNPJ) até a data de churn
+  // (`central_tratativas.data_churn`). Não depende de `royalties_itens`, então
+  // não sofre do problema de cobertura que subestimava o LTV antigo.
+  const lifetimeConcluidos = useMemo(() => {
+    const primeiraCompraPorCnpj = new Map<string, string>();
+    for (const c of scopedContratosNovos) {
+      if (unidadeFilter !== ALL && c.unidade !== unidadeFilter) continue;
+      const d = digits(c.cnpj);
+      const ganhoMes = (c.ganho_em ?? "").slice(0, 7);
+      if (!d || !ganhoMes) continue;
+      const atual = primeiraCompraPorCnpj.get(d);
+      if (!atual || ganhoMes < atual) primeiraCompraPorCnpj.set(d, ganhoMes);
+    }
+    const duracoes: number[] = [];
+    for (const c of scopedChurnCards) {
+      if (unidadeFilter !== ALL && c.unidade !== unidadeFilter) continue;
+      if (!c.empresa_id || !c.data_churn) continue;
+      const d = empresaCnpjById.get(c.empresa_id);
+      if (!d) continue;
+      const ganhoMes = primeiraCompraPorCnpj.get(d);
+      if (!ganhoMes) continue;
+      const churnMes = c.data_churn.slice(0, 7);
+      const dur = toMonthIndex(churnMes) - toMonthIndex(ganhoMes);
+      if (dur >= 0) duracoes.push(dur);
+    }
+    if (duracoes.length === 0) return { mediaMeses: null, n: 0 };
+    return {
+      mediaMeses: duracoes.reduce((s, v) => s + v, 0) / duracoes.length,
+      n: duracoes.length,
+    };
+  }, [scopedContratosNovos, scopedChurnCards, empresaCnpjById, unidadeFilter]);
+
+  // ---- Novo vs. Perdido por Mês (MRR) ----
+  // Simplificado a pedido do usuário (11/08/2026) — a primeira versão tentava
+  // um waterfall completo (Novo/Expansão/Contração/Perdido) inferindo Perdido
+  // de "cliente sumiu da apuração de royalties de um mês pro outro". Dois
+  // problemas: (1) Expansão/Contração exigem receita confiável por contrato
+  // mês a mês, granularidade que não existe ainda — removido até essa medição
+  // existir. (2) Perdido inferido por ausência na apuração confundia "cliente
+  // realmente deu churn" com "unidade ainda não gerou a apuração do mês
+  // corrente" (itens são gerados sob demanda — ver comentário em
+  // `royalties-historico.functions.ts`), inflando Perdido em centenas de
+  // milhares sem nenhum churn real. Correção: **Perdido agora vem só de
+  // `central_tratativas` (estágio Perdido/status lost, `data_churn` + `mrr`)**
+  // — a mesma fonte única de churn que o resto da página já usa (`churnStats`,
+  // `crescimentoMensalChart`), agrupada por mês. **Novo** = MRR de contratos
+  // ganhos no mês (`contratos.ganho_em`/`mrr_mensal`), mesma fonte de
+  // `newMrrByMes`.
   const churnReceitaWaterfallChart = useMemo(() => {
-    if (!royaltiesData) return [];
-    const clientesFiltrados = royaltiesData.clientes.filter(
-      (c) => unidadeFilter === ALL || c.unidade_nome === unidadeFilter,
-    );
-    const valoresPorMes = new Map<string, Map<string, number>>();
-    const todosMeses = new Set<string>();
-    for (const c of clientesFiltrados) {
-      for (const [mes, item] of Object.entries(c.meses)) {
-        if (item.categoria !== "royalties" || item.is_cac || item.excluido_em) continue;
-        const mesCurto = mes.slice(0, 7);
-        todosMeses.add(mesCurto);
-        if (!valoresPorMes.has(mesCurto)) valoresPorMes.set(mesCurto, new Map());
-        const porCliente = valoresPorMes.get(mesCurto)!;
-        porCliente.set(c.chave, (porCliente.get(c.chave) ?? 0) + item.valor_confirmado);
-      }
+    const novoPorMes = new Map<string, number>();
+    for (const c of scopedContratosNovos) {
+      if (unidadeFilter !== ALL && c.unidade !== unidadeFilter) continue;
+      const mes = (c.ganho_em ?? "").slice(0, 7);
+      if (!mes) continue;
+      novoPorMes.set(mes, (novoPorMes.get(mes) ?? 0) + Number(c.mrr_mensal ?? 0));
     }
-    const mesesOrdenados = Array.from(todosMeses).sort();
-    const out: {
-      label: string;
-      novo: number;
-      expansao: number;
-      contracao: number;
-      perdido: number;
-      churnPct: number | null;
-    }[] = [];
-    for (let i = 1; i < mesesOrdenados.length; i++) {
-      const atual = valoresPorMes.get(mesesOrdenados[i])!;
-      const anterior = valoresPorMes.get(mesesOrdenados[i - 1]) ?? new Map<string, number>();
-      let novo = 0;
-      let expansao = 0;
-      let contracao = 0;
-      let perdido = 0;
-      for (const [chave, valorAtual] of atual) {
-        const valorAnterior = anterior.get(chave) ?? 0;
-        if (valorAnterior === 0 && valorAtual > 0) novo += valorAtual;
-        else if (valorAtual > valorAnterior) expansao += valorAtual - valorAnterior;
-        else if (valorAtual < valorAnterior) contracao += valorAnterior - valorAtual;
-      }
-      for (const [chave, valorAnterior] of anterior) {
-        if (!atual.has(chave) && valorAnterior > 0) perdido += valorAnterior;
-      }
-      const baseAnterior = Array.from(anterior.values()).reduce((s, v) => s + v, 0);
-      out.push({
-        label: fmtMes(mesesOrdenados[i]),
-        novo,
-        expansao,
-        contracao: -contracao,
-        perdido: -perdido,
-        churnPct: baseAnterior > 0 ? (perdido / baseAnterior) * 100 : null,
-      });
+    const perdidoPorMes = new Map<string, number>();
+    for (const c of scopedChurnCards) {
+      if (unidadeFilter !== ALL && c.unidade !== unidadeFilter) continue;
+      const mes = (c.data_churn ?? "").slice(0, 7);
+      if (!mes) continue;
+      perdidoPorMes.set(mes, (perdidoPorMes.get(mes) ?? 0) + Number(c.mrr ?? 0));
     }
-    return out;
-  }, [royaltiesData, unidadeFilter]);
+    const meses = new Set<string>([...novoPorMes.keys(), ...perdidoPorMes.keys()]);
+    return Array.from(meses)
+      .sort()
+      .map((mes) => ({
+        mes,
+        label: fmtMes(mes),
+        novo: novoPorMes.get(mes) ?? 0,
+        perdido: -(perdidoPorMes.get(mes) ?? 0),
+      }));
+  }, [scopedContratosNovos, scopedChurnCards, unidadeFilter]);
 
   // ---- ARPA (Receita Média Cliente) ----
   const arpa = clientesAtivos > 0 ? kpis.mrr / clientesAtivos : null;
+
+  // Recorte do gráfico "Receita" pro período selecionado — o índice aqui
+  // precisa bater com o array passado em `data`, por isso o rótulo custom
+  // (`ReceitaBarLabel`) indexa nesse mesmo array filtrado, não no completo.
+  const receitaChartDataRange = receitaChartData.filter((d) => inRange(d.mes));
+
+  // Rótulo por barra no mesmo estilo do mockup de referência: variação % (com
+  // seta, cor por sinal) numa linha e o valor formatado (Mi/k) embaixo.
+  const ReceitaBarLabel = (props: {
+    x?: number;
+    y?: number;
+    width?: number;
+    value?: number;
+    index?: number;
+  }) => {
+    const { x = 0, y = 0, width = 0, value, index } = props;
+    if (value == null || index == null) return null;
+    const pct = receitaChartDataRange[index]?.pct;
+    const arrow = pct == null ? "" : pct >= 0 ? "▲" : "▼";
+    const pctColor =
+      pct == null ? "hsl(0 0% 55%)" : pct >= 0 ? "hsl(142 71% 45%)" : "hsl(0 72% 51%)";
+    const valorFmt =
+      value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)} Mi` : `${(value / 1000).toFixed(0)}k`;
+    return (
+      <g>
+        {pct != null && (
+          <text
+            x={x + width / 2}
+            y={y - 20}
+            textAnchor="middle"
+            fontSize={11}
+            fontWeight={600}
+            fill={pctColor}
+          >
+            {arrow} {fmtPct(Math.abs(pct), 0)}
+          </text>
+        )}
+        <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fill="hsl(0 0% 75%)">
+          {valorFmt}
+        </text>
+      </g>
+    );
+  };
+
+  // Recorte do gráfico "Variação do Booking %" pro período selecionado —
+  // mesmo padrão de índice do `ReceitaBarLabel` acima.
+  const bookingVariacaoChartRange = bookingVariacaoChart.filter((d) => inRange(d.mes));
+
+  // Rótulo com o valor do Booking do mês (não só a %) — posicionado acima da
+  // barra quando a variação é positiva/nula, abaixo quando é negativa (senão
+  // fica em cima da própria barra vermelha, ilegível).
+  const BookingVariacaoLabel = (props: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    index?: number;
+  }) => {
+    const { x = 0, y = 0, width = 0, height = 0, index } = props;
+    if (index == null) return null;
+    const d = bookingVariacaoChartRange[index];
+    if (!d) return null;
+    const booking = d.booking;
+    const valorFmt =
+      booking >= 1_000_000
+        ? `${(booking / 1_000_000).toFixed(1)} Mi`
+        : `${(booking / 1000).toFixed(0)}k`;
+    const negativo = d.variacao != null && d.variacao < 0;
+    const textY = negativo ? y + height + 14 : y - 8;
+    return (
+      <text x={x + width / 2} y={textY} textAnchor="middle" fontSize={11} fill="hsl(0 0% 75%)">
+        {valorFmt}
+      </text>
+    );
+  };
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -757,164 +904,23 @@ function RedeOverviewPage() {
             </SelectContent>
           </Select>
         )}
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        <Card
-          className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-          onClick={() => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } })}
-          title="Ver contratos ativos"
-        >
-          <div className="text-xs text-muted-foreground">MRR</div>
-          <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.mrr)}</div>
-          {kpis.receita > 0 && (
-            <div className="text-xs text-muted-foreground mt-0.5">
-              {fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido
-            </div>
-          )}
-        </Card>
-        <Card
-          className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-          onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
-          title="Ver clientes ativos"
-        >
-          <div className="text-xs text-muted-foreground">Clientes Ativos</div>
-          <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Churn Receita</div>
-          <div className="mt-1 text-xl font-bold text-amber-600">
-            {churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {fmtBRL(churnStats.churnedMrr)} em MRR perdido
-          </div>
-          <VerDetalheLink to="/painel-cs" />
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Churn Logo</div>
-          <div className="mt-1 text-xl font-bold text-amber-600">
-            {churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {churnStats.churnedCount} cliente{churnStats.churnedCount === 1 ? "" : "s"} perdido
-            {churnStats.churnedCount === 1 ? "" : "s"}
-          </div>
-          <VerDetalheLink to="/painel-cs" />
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">KPI — NRR</div>
-          <div
-            className={`mt-1 text-xl font-bold ${kpis.nrr != null && kpis.nrr >= 100 ? "text-emerald-600" : "text-amber-600"}`}
-          >
-            {kpis.nrr != null ? `${kpis.nrr.toFixed(1)}%` : "—"}
-          </div>
-          {penultimo && (
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Retido: {fmtBRL(ultimo?.mrr)}
-            </div>
-          )}
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">NPS da Rede</div>
-          <div
-            className={`mt-1 text-xl font-bold ${npsStats.nps != null && npsStats.nps >= 50 ? "text-emerald-600" : "text-amber-600"}`}
-          >
-            {npsStats.nps != null ? npsStats.nps : "—"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {npsStats.respondidas > 0 ? `${npsStats.respondidas} respostas` : "sem respostas"}
-          </div>
-          <VerDetalheLink to="/painel-cs" />
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Carteira Saudável</div>
-          <div
-            className={`mt-1 text-xl font-bold ${saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "text-emerald-600" : "text-amber-600"}`}
-          >
-            {saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {saudeStats.risco} em risco de {saudeStats.total}
-          </div>
-          <VerDetalheLink to="/painel-cs" />
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Auditoria Interna (fiscal)</div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div>
-              <div className="text-[11px] text-muted-foreground">Oportunidade</div>
-              <div className="text-lg font-bold text-emerald-600">
-                {fmtBRL(auditoriaStats.oportunidade)}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-muted-foreground">Contingência</div>
-              <div className="text-lg font-bold text-amber-600">
-                {fmtBRL(auditoriaStats.contingencia)}
-              </div>
-            </div>
-          </div>
-          <VerDetalheLink to="/auditoria-interna" />
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Recebido (12 meses)</div>
-          <div className="mt-1 text-xl font-bold">{fmtBRL(receitaTotalStats.total)}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {receitaTotalStats.pct != null
-              ? `${receitaTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(receitaTotalStats.pct))} vs. 12m anteriores`
-              : "sem base de comparação"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Booking Total (12 meses)</div>
-          <div className="mt-1 text-xl font-bold">{fmtBRL(bookingTotalStats.total)}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {bookingTotalStats.pct != null
-              ? `${bookingTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(bookingTotalStats.pct))} vs. 12m anteriores`
-              : "sem base de comparação"}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">MRR novo × 12 meses</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Receita Média Cliente (ARPA)</div>
-          <div className="mt-1 text-xl font-bold">{arpa != null ? fmtBRL(arpa) : "—"}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">MRR ÷ clientes ativos</div>
-        </Card>
-        <Card className="p-4 md:col-span-2">
-          <div className="text-xs text-muted-foreground">Lifetime — receita acumulada por cliente</div>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <div>
-              <div className="text-[11px] text-muted-foreground">Geral</div>
-              <div className="text-lg font-bold">
-                {ltvStats.geral != null ? fmtBRL(ltvStats.geral) : "—"}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-muted-foreground">Ativo</div>
-              <div className="text-lg font-bold">
-                {ltvStats.ativo != null ? fmtBRL(ltvStats.ativo) : "—"}
-              </div>
-              <div className="text-[11px] text-muted-foreground">{ltvStats.nAtivo} clientes</div>
-            </div>
-            <div>
-              <div className="text-[11px] text-muted-foreground">Finalizado</div>
-              <div className="text-lg font-bold">
-                {ltvStats.finalizado != null ? fmtBRL(ltvStats.finalizado) : "—"}
-              </div>
-              <div className="text-[11px] text-muted-foreground">{ltvStats.nFinalizado} clientes</div>
-            </div>
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            Soma de receita confirmada na apuração de royalties por cliente — Ativo até o mês
-            atual, Finalizado até a data de churn.
-          </div>
-          <VerDetalheLink to="/royalties" />
-        </Card>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+            aria-label="Data inicial"
+          />
+          <span className="text-sm text-muted-foreground">até</span>
+          <input
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+            aria-label="Data final"
+          />
+        </div>
       </div>
 
       {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
@@ -925,351 +931,508 @@ function RedeOverviewPage() {
         </Card>
       )}
 
-      {!loading && byMes.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-4">
-            <div className="mb-2 text-sm font-medium">MRR por Mês</div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={byMes}>
-                  <defs>
-                    <linearGradient id="gradMrr" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => fmtBRL(v)}
-                    labelFormatter={(l) => `Mês: ${l}`}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="mrr"
-                    name="MRR"
-                    stroke="hsl(var(--primary))"
-                    fill="url(#gradMrr)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="recebido"
-                    name="Recebido"
-                    stroke="hsl(142 71% 45%)"
-                    fill="none"
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+      <Tabs defaultValue="geral" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="geral">Visão Geral</TabsTrigger>
+          <TabsTrigger value="vendas">Vendas &amp; Unidades</TabsTrigger>
+          <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
+          <TabsTrigger value="qualidade">Qualidade &amp; CS</TabsTrigger>
+        </TabsList>
 
-          <Card className="p-4">
-            <div className="mb-2 text-sm font-medium">
-              MRR Novo vs Royalties Recebido (mês a mês)
-            </div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mrrNovoRoyaltiesChart}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    yAxisId="left"
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => fmtBRL(v)}
-                    labelFormatter={(l) => `Mês: ${l}`}
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="mrrNovo"
-                    name="MRR Novo"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="royaltiesRecebido"
-                    name="Royalties Recebido"
-                    stroke="hsl(142 71% 45%)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {royaltiesError && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Royalties indisponível para este usuário (requer acesso admin).
-              </p>
-            )}
-            <VerDetalheLink to="/royalties" />
-          </Card>
-
-          <Card className="p-4">
-            <div className="mb-2 text-sm font-medium">
-              Crescimento Mensal — Clientes Iniciaram vs. Churn Logo
-            </div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={crescimentoMensalChart}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip labelFormatter={(l) => `Mês: ${l}`} />
-                  <Legend />
-                  <Bar dataKey="iniciaram" name="Clientes Iniciaram" fill="hsl(142 71% 45%)" />
-                  <Bar dataKey="churnLogo" name="Churn Logo" fill="hsl(var(--muted-foreground))" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="mb-2 text-sm font-medium">Variação do Booking % (mês a mês)</div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bookingVariacaoChart}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    formatter={(v: number) => (v == null ? "—" : `${v.toFixed(1)}%`)}
-                    labelFormatter={(l) => `Mês: ${l}`}
-                  />
-                  <Bar dataKey="variacao" name="Variação">
-                    {bookingVariacaoChart.map((d, i) => (
-                      <Cell
-                        key={i}
-                        fill={
-                          d.variacao == null
-                            ? "hsl(var(--muted-foreground))"
-                            : d.variacao >= 0
-                              ? "hsl(142 71% 45%)"
-                              : "hsl(0 72% 51%)"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              Booking = MRR novo do mês × 12 (contrato assumido em 12 meses).
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="mb-2 text-sm font-medium">Clientes Ativos (série temporal)</div>
-            <div className="h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={clientesAtivosSerieChart}>
-                  <defs>
-                    <linearGradient id="gradAtivos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip labelFormatter={(l) => `Mês: ${l}`} />
-                  <Area
-                    type="monotone"
-                    dataKey="ativos"
-                    name="Clientes Ativos"
-                    stroke="hsl(142 71% 45%)"
-                    fill="url(#gradAtivos)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              Reconstruído por evento (ganho − churn acumulado por mês) — não é snapshot salvo.
-            </div>
-          </Card>
-
-          <Card className="p-4 lg:col-span-2">
-            <div className="mb-2 text-sm font-medium">
-              Churn de Receita por Mês — Novo / Expansão / Contração / Perdido
-            </div>
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={churnReceitaWaterfallChart}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    yAxisId="left"
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip
-                    formatter={(v, name) =>
-                      name === "Revenue Churn %" ? `${Number(v).toFixed(1)}%` : fmtBRL(Number(v))
-                    }
-                    labelFormatter={(l) => `Mês: ${l}`}
-                  />
-                  <Legend />
-                  <Bar
-                    yAxisId="left"
-                    stackId="mov"
-                    dataKey="novo"
-                    name="Novo"
-                    fill="hsl(142 71% 45%)"
-                  />
-                  <Bar
-                    yAxisId="left"
-                    stackId="mov"
-                    dataKey="expansao"
-                    name="Expansão"
-                    fill="hsl(142 45% 65%)"
-                  />
-                  <Bar
-                    yAxisId="left"
-                    stackId="mov"
-                    dataKey="contracao"
-                    name="Contração"
-                    fill="hsl(38 92% 55%)"
-                  />
-                  <Bar
-                    yAxisId="left"
-                    stackId="mov"
-                    dataKey="perdido"
-                    name="Perdido"
-                    fill="hsl(0 72% 51%)"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="churnPct"
-                    name="Revenue Churn %"
-                    stroke="hsl(var(--foreground))"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              Baseado na receita confirmada na apuração de royalties por cliente/mês (mesma fonte
-              do LTV). "Novo/Expansão/Contração/Perdido" é a adaptação da Planning pro waterfall de
-              receita do mockup de referência — os rótulos originais (Variáveis/Exp. One Time) não
-              têm definição própria aqui ainda.
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Resumo por unidade — também é o ranking de melhores/piores unidades */}
-      {!loading && (
-        <Card className="overflow-x-auto">
-          <div className="border-b p-3">
-            <div className="text-sm font-semibold">Resumo por Unidade</div>
-            <div className="text-xs text-muted-foreground">
-              Matriz = leads roteados pelo Inside Sales. Hunter = vendas fechadas direto pela
-              unidade (pipe Sócios) — mix mais Hunter é lido como positivo (autossuficiência
-              comercial). Oportunidade/Contingência vêm da Auditoria Interna (fiscal), ver{" "}
-              <Link to="/auditoria-interna" className="underline">
-                detalhe
-              </Link>
-              .
-            </div>
+        {/* ---- Aba 1: Visão Geral — mesmo layout do mockup de referência ---- */}
+        <TabsContent value="geral" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Receita Total</div>
+              <div className="mt-1 text-xl font-bold">{fmtBRL(receitaTotalStats.total)}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {receitaTotalStats.pct != null
+                  ? `${receitaTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(receitaTotalStats.pct))} vs. período anterior`
+                  : "sem base de comparação"}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">Recebido no período</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Booking Total</div>
+              <div className="mt-1 text-xl font-bold">{fmtBRL(bookingTotalStats.total)}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {bookingTotalStats.pct != null
+                  ? `${bookingTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(bookingTotalStats.pct))} vs. período anterior`
+                  : "sem base de comparação"}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">MRR novo × 12 meses</div>
+            </Card>
+            <Card
+              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
+              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
+              title="Ver clientes ativos"
+            >
+              <div className="text-xs text-muted-foreground">Qtd Proj. Ativos</div>
+              <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">= Clientes Ativos</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Receita Média Cliente</div>
+              <div className="mt-1 text-xl font-bold">{arpa != null ? fmtBRL(arpa) : "—"}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">MRR ÷ clientes ativos</div>
+            </Card>
+            <Card
+              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
+              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
+              title="Ver clientes ativos"
+            >
+              <div className="text-xs text-muted-foreground">Qtd Clientes ativos</div>
+              <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Lifetime (LTV)</div>
+              <div className="mt-1 text-xl font-bold">
+                {ltvFormulaico.ltv != null ? fmtBRL(ltvFormulaico.ltv) : "—"}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                ARPA ÷ churn mensal
+                {ltvFormulaico.churnMensalPct != null
+                  ? ` (${fmtPct(ltvFormulaico.churnMensalPct)} a.m., período selecionado)`
+                  : ""}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Vida útil (projetada)</div>
+                  <div className="text-sm font-bold tabular-nums">
+                    {ltvFormulaico.lifetimeMeses != null
+                      ? `${ltvFormulaico.lifetimeMeses.toFixed(1)} meses`
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Vida útil (concluídos{lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
+                  </div>
+                  <div className="text-sm font-bold tabular-nums">
+                    {lifetimeConcluidos.mediaMeses != null
+                      ? `${lifetimeConcluidos.mediaMeses.toFixed(1)} meses`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                Projetada = 1 ÷ churn mensal (estimativa). Concluídos = tempo real de vida de quem
+                já deu churn (1ª compra até a data de churn).
+              </div>
+            </Card>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Unidade</TableHead>
-                <TableHead className="text-right">Clientes</TableHead>
-                <TableHead className="text-right">MRR Atual</TableHead>
-                <TableHead className="text-right">ARPA</TableHead>
-                <TableHead className="text-right">Matriz</TableHead>
-                <TableHead className="text-right">Hunter</TableHead>
-                <TableHead className="text-right">% Hunter</TableHead>
-                <TableHead className="text-right">Oportunidade</TableHead>
-                <TableHead className="text-right">Contingência</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {byUnidade.map((u) => {
-                const aud = auditoriaPorUnidade(u.unidade);
-                const mix = mixHunterPct(u.unidade);
-                return (
-                  <TableRow key={u.unidade}>
-                    <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right">{u.contratos || "—"}</TableCell>
-                    <TableCell className="text-right">{fmtBRL(u.mrr)}</TableCell>
-                    <TableCell className="text-right">
-                      {u.contratos > 0 ? fmtBRL(u.mrr / u.contratos) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {fmtBRL(vendasMatrizPorUnidade.get(u.unidade) ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {fmtBRL(vendasHunterPorUnidade.get(u.unidade) ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {mix != null ? (
-                        <span className="font-semibold text-emerald-600">
-                          {fmtPct(mix)}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-emerald-600">
-                      {aud.oportunidade > 0 ? fmtBRL(aud.oportunidade) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-amber-600">
-                      {aud.contingencia > 0 ? fmtBRL(aud.contingencia) : "—"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {byUnidade.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-6 text-center text-muted-foreground">
-                    Nenhum dado disponível.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          {vendasSemUnidade.count > 0 && (
-            <div className="border-t p-3 text-xs text-muted-foreground">
-              {vendasSemUnidade.count} venda{vendasSemUnidade.count === 1 ? "" : "s"} do pipe Sócios
-              este mês ({fmtBRL(vendasSemUnidade.mrr)}) sem "Unidade de Negócio" preenchida no
-              Pipedrive — ignoradas nas colunas Matriz/Hunter acima (decisão de 11/08/2026, não
-              rateadas nem mostradas numa linha "sem unidade"). Precisa corrigir direto no card do
-              Pipedrive.
+
+          {!loading && byMes.length > 0 && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="p-4">
+                <div className="mb-2 text-sm font-medium">Receita</div>
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={receitaChartDataRange} margin={{ top: 28 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                        tick={{ fontSize: 11 }}
+                      />
+                      <Tooltip
+                        formatter={(v: number) => fmtBRL(v)}
+                        labelFormatter={(l) => `Mês: ${l}`}
+                      />
+                      <Bar dataKey="recebido" name="Recebido" fill="hsl(142 71% 45%)">
+                        <LabelList dataKey="recebido" content={ReceitaBarLabel} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="mb-2 text-sm font-medium">Novo vs. Perdido por Mês (MRR)</div>
+                <div className="h-[240px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={churnReceitaWaterfallChart.filter((d) => inRange(d.mes))}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                        tick={{ fontSize: 11 }}
+                      />
+                      <Tooltip formatter={(v: number) => fmtBRL(v)} labelFormatter={(l) => `Mês: ${l}`} />
+                      <Legend />
+                      <Bar dataKey="novo" name="Novo (MRR ganho)" fill="hsl(142 71% 45%)" />
+                      <Bar dataKey="perdido" name="Perdido (MRR churn)" fill="hsl(0 72% 51%)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Perdido = MRR de contratos com churn registrado em `central_tratativas` (mesma
+                  fonte dos outros cards de churn da página). Novo = MRR de contratos ganhos no
+                  mês. Expansão/Contração por contrato ficam de fora até existir uma medição
+                  confiável de receita por contrato mês a mês.
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="mb-2 text-sm font-medium">
+                  Crescimento Mensal — Clientes Iniciaram vs. Churn Logo
+                </div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={crescimentoMensalChart.filter((d) => inRange(d.mes))}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip labelFormatter={(l) => `Mês: ${l}`} />
+                      <Legend />
+                      <Bar dataKey="iniciaram" name="Clientes Iniciaram" fill="hsl(142 71% 45%)" />
+                      <Bar dataKey="churnLogo" name="Churn Logo" fill="var(--muted-foreground)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="mb-2 text-sm font-medium">Clientes Ativos (série temporal)</div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={clientesAtivosSerieChart.filter((d) => inRange(d.mes))}>
+                      <defs>
+                        <linearGradient id="gradAtivos" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip labelFormatter={(l) => `Mês: ${l}`} />
+                      <Area
+                        type="monotone"
+                        dataKey="ativos"
+                        name="Clientes Ativos"
+                        stroke="hsl(142 71% 45%)"
+                        fill="url(#gradAtivos)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Reconstruído por evento (ganho − churn acumulado por mês) — não é snapshot salvo.
+                </div>
+              </Card>
+
+              <Card className="p-4 lg:col-span-2">
+                <div className="mb-2 text-sm font-medium">Variação do Booking % (mês a mês)</div>
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={bookingVariacaoChart.filter((d) => inRange(d.mes))}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(v: number) => (v == null ? "—" : `${v.toFixed(1)}%`)}
+                        labelFormatter={(l) => `Mês: ${l}`}
+                      />
+                      <Bar dataKey="variacao" name="Variação">
+                        {bookingVariacaoChart.map((d, i) => (
+                          <Cell
+                            key={i}
+                            fill={
+                              d.variacao == null
+                                ? "var(--muted-foreground)"
+                                : d.variacao >= 0
+                                  ? "hsl(142 71% 45%)"
+                                  : "hsl(0 72% 51%)"
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Booking = MRR novo do mês × 12 (contrato assumido em 12 meses).
+                </div>
+              </Card>
             </div>
           )}
-        </Card>
-      )}
+        </TabsContent>
+
+        {/* ---- Aba 2: Vendas & Unidades — Matriz/Hunter, MRR, ranking por unidade ---- */}
+        <TabsContent value="vendas" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Card
+              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
+              onClick={() => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } })}
+              title="Ver contratos ativos"
+            >
+              <div className="text-xs text-muted-foreground">MRR</div>
+              <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.mrr)}</div>
+              {kpis.receita > 0 && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {!loading && rankingHunterData.length > 0 && (
+            <Card className="p-4">
+              <div className="mb-2 text-sm font-medium">Ranking de Unidades (MRR Hunter)</div>
+              <div style={{ height: Math.max(180, rankingHunterData.length * 40) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={rankingHunterData}
+                    layout="vertical"
+                    margin={{ left: 8, right: 48 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" horizontal={false} />
+                    <XAxis type="number" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="unidade"
+                      width={110}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip formatter={(v: number) => fmtBRL(v)} labelFormatter={(l) => `${l}`} />
+                    <Bar dataKey="hunter" name="MRR Hunter" fill="hsl(142 71% 45%)" radius={[0, 4, 4, 0]}>
+                      <LabelList
+                        dataKey="hunter"
+                        position="right"
+                        formatter={(v: number) => fmtBRL(v)}
+                        style={{ fontSize: 11, fill: "hsl(0 0% 75%)" }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                Só a fração do MRR Hunter com "Unidade de Negócio" preenchida no Pipedrive — ver
+                nota na tabela abaixo.
+              </div>
+            </Card>
+          )}
+
+          {/* Resumo por unidade — também é o ranking de melhores/piores unidades */}
+          {!loading && (
+            <Card className="overflow-x-auto">
+              <div className="border-b p-3">
+                <div className="text-sm font-semibold">Resumo por Unidade</div>
+                <div className="text-xs text-muted-foreground">
+                  Matriz/Hunter = MRR de contratos ativos hoje, por origem (Matriz = leads roteados
+                  pelo Inside Sales; Hunter = vendas fechadas direto pela unidade, pipe Sócios) —
+                  juntos devem bater com o MRR Atual da linha. Mix mais Hunter é lido como positivo
+                  (autossuficiência comercial). Oportunidade/Contingência vêm da Auditoria Interna
+                  (fiscal), ver{" "}
+                  <Link to="/auditoria-interna" className="underline">
+                    detalhe
+                  </Link>
+                  .
+                </div>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead className="text-right">Clientes</TableHead>
+                    <TableHead className="text-right">MRR Atual</TableHead>
+                    <TableHead className="text-right">ARPA</TableHead>
+                    <TableHead className="text-right">Matriz</TableHead>
+                    <TableHead className="text-right">Hunter</TableHead>
+                    <TableHead className="text-right">% Hunter</TableHead>
+                    <TableHead className="text-right">Oportunidade</TableHead>
+                    <TableHead className="text-right">Contingência</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {byUnidade.map((u) => {
+                    const aud = auditoriaPorUnidade(u.unidade);
+                    const mix = mixHunterPct(u.unidade);
+                    return (
+                      <TableRow key={u.unidade}>
+                        <TableCell className="font-medium">{u.unidade}</TableCell>
+                        <TableCell className="text-right">{u.contratos || "—"}</TableCell>
+                        <TableCell className="text-right">{fmtBRL(u.mrr)}</TableCell>
+                        <TableCell className="text-right">
+                          {u.contratos > 0 ? fmtBRL(u.mrr / u.contratos) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {fmtBRL(vendasMatrizPorUnidade.get(u.unidade) ?? 0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {fmtBRL(vendasHunterPorUnidade.get(u.unidade) ?? 0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {mix != null ? (
+                            <span className="font-semibold text-emerald-600">{fmtPct(mix)}</span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-emerald-600">
+                          {aud.oportunidade > 0 ? fmtBRL(aud.oportunidade) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-amber-600">
+                          {aud.contingencia > 0 ? fmtBRL(aud.contingencia) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {byUnidade.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-6 text-center text-muted-foreground">
+                        Nenhum dado disponível.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              {vendasSemUnidade.count > 0 &&
+                (() => {
+                  const hunterTotal =
+                    Array.from(vendasHunterPorUnidade.values()).reduce((s, v) => s + v, 0) +
+                    vendasSemUnidade.mrr;
+                  const pctSemUnidade =
+                    hunterTotal > 0 ? (vendasSemUnidade.mrr / hunterTotal) * 100 : null;
+                  return (
+                    <div className="border-t p-3 text-xs text-muted-foreground">
+                      {vendasSemUnidade.count} contrato{vendasSemUnidade.count === 1 ? "" : "s"}{" "}
+                      ativo{vendasSemUnidade.count === 1 ? "" : "s"} do pipe Sócios (
+                      {fmtBRL(vendasSemUnidade.mrr)}
+                      {pctSemUnidade != null ? `, ${fmtPct(pctSemUnidade, 0)} do MRR Hunter` : ""})
+                      sem "Unidade de Negócio" preenchida no Pipedrive — ignorados nas colunas
+                      Matriz/Hunter acima (decisão de 11/08/2026, não rateados nem mostrados numa
+                      linha "sem unidade"). A coluna Hunter da tabela hoje só mostra a parte que
+                      tem unidade atribuída — o volume real de vendas por sócio é maior. Precisa
+                      corrigir direto no card do Pipedrive.
+                    </div>
+                  );
+                })()}
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ---- Aba 3: Financeiro — MRR Novo vs. Royalties Recebido ---- */}
+        <TabsContent value="financeiro" className="space-y-4">
+          {!loading && byMes.length > 0 && (
+            <Card className="p-4">
+              <div className="mb-2 text-sm font-medium">
+                MRR Novo vs Royalties Recebido (mês a mês)
+              </div>
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={mrrNovoRoyaltiesChart}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      yAxisId="left"
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => fmtBRL(v)}
+                      labelFormatter={(l) => `Mês: ${l}`}
+                    />
+                    <Legend />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="mrrNovo"
+                      name="MRR Novo"
+                      stroke="hsl(217 91% 60%)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="royaltiesRecebido"
+                      name="Royalties Recebido"
+                      stroke="hsl(142 71% 45%)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              {royaltiesError && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Royalties indisponível para este usuário (requer acesso admin).
+                </p>
+              )}
+              <VerDetalheLink to="/royalties" />
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ---- Aba 4: Qualidade & CS — NPS, Saúde da Carteira, Churn, Auditoria ---- */}
+        <TabsContent value="qualidade" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Churn Receita</div>
+              <div className="mt-1 text-xl font-bold text-amber-600">
+                {churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {fmtBRL(churnStats.churnedMrr)} em MRR perdido
+              </div>
+              <VerDetalheLink to="/painel-cs" />
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Churn Logo</div>
+              <div className="mt-1 text-xl font-bold text-amber-600">
+                {churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {churnStats.churnedCount} cliente{churnStats.churnedCount === 1 ? "" : "s"} perdido
+                {churnStats.churnedCount === 1 ? "" : "s"}
+              </div>
+              <VerDetalheLink to="/painel-cs" />
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Carteira Saudável</div>
+              <div
+                className={`mt-1 text-xl font-bold ${saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "text-emerald-600" : "text-amber-600"}`}
+              >
+                {saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {saudeStats.risco} em risco de {saudeStats.total}
+              </div>
+              <VerDetalheLink to="/painel-cs" />
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Auditoria Interna (fiscal)</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Oportunidade</div>
+                  <div className="text-lg font-bold text-emerald-600">
+                    {fmtBRL(auditoriaStats.oportunidade)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground">Contingência</div>
+                  <div className="text-lg font-bold text-amber-600">
+                    {fmtBRL(auditoriaStats.contingencia)}
+                  </div>
+                </div>
+              </div>
+              <VerDetalheLink to="/auditoria-interna" />
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
