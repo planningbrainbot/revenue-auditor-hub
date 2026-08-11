@@ -1,45 +1,60 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import React from "react";
 import { ChevronDown, ChevronRight, Receipt } from "lucide-react";
 import {
-  BarChart,
   Bar,
+  BarChart,
   CartesianGrid,
-  ComposedChart,
   Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 
-type RoyaltiesRow = {
-  mes: string | null;
-  unidade: string | null;
-  csc_valor: number | null;
-  csc_valor_fixo: number | null;
+// Fonte de dados: `royalties_apuracao` (por unidade/mês), a mesma usada em
+// Receitas Partners / DRE Projetada — ver hook `useRoyaltiesPorUnidade`.
+// Substituiu a antiga `v_royalties_mensais`, que calculava royalties como um
+// percentual fixo (`unidades.royalties_percentual`) sobre o recebido bruto,
+// ignorando overrides por cliente e as regras reais de apuração (base
+// antiga, vigência etc.) — por isso a coluna Royalties aparecia zerada.
+type ApuracaoRow = {
+  unidade_id: number;
+  mes_referencia: string;
   royalties_valor: number | null;
-  total_due_matriz: number | null;
-  faturado: number | null;
-  recebido: number | null;
-};
-
-type Unidade = {
-  nome_da_praca: string;
-  midia_mensal: number | null;
+  cac_valor: number | null;
+  csc_valor_fixo: number | null;
+  csc_base_antiga_valor: number | null;
+  csc_trafego_pago: number | null;
 };
 
 const ALL = "__all__";
 
 const fmtBRL = (v: number | null | undefined) =>
-  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  v == null
+    ? "—"
+    : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 const fmtMes = (m: string | null | undefined) => {
   if (!m) return "—";
@@ -47,120 +62,168 @@ const fmtMes = (m: string | null | undefined) => {
   return `${mo}/${y?.slice(2)}`;
 };
 
+// Mesma regra de reconhecimento usada em `useRoyaltiesPorUnidade`: a
+// apuração de um mês M vira receita em M+1 (fatura fechada num mês,
+// recebida no seguinte).
+function mesReconhecimento(mesReferencia: string): string {
+  const [y, m] = mesReferencia.slice(0, 7).split("-").map(Number);
+  const d = new Date(y, m - 1 + 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Ordem fixa de cores categóricas — nunca ciclada, mesma ordem em gráficos,
+// legendas e tabela.
 const COLORS = {
   csc: "hsl(221 83% 53%)",
   royalties: "hsl(142 71% 45%)",
   midia: "hsl(271 81% 56%)",
-  taxa: "hsl(38 92% 50%)",
+  cac: "hsl(38 92% 42%)",
 };
 
+const PERIODO_OPTS = [
+  { value: "3", label: "Últimos 3 meses" },
+  { value: "6", label: "Últimos 6 meses" },
+  { value: "12", label: "Últimos 12 meses" },
+  { value: "24", label: "Últimos 24 meses" },
+  { value: "ano", label: "Ano corrente" },
+  { value: "tudo", label: "Tudo" },
+] as const;
+type PeriodoOpt = (typeof PERIODO_OPTS)[number]["value"];
+
 export function RedeFinanceiroView() {
-  const [royalties, setRoyalties] = useState<RoyaltiesRow[]>([]);
-  const [unidades, setUnidades] = useState<Unidade[]>([]);
-  const [loading, setLoading] = useState(true);
   const [unidadeFilter, setUnidadeFilter] = useState(ALL);
+  const [periodo, setPeriodo] = useState<PeriodoOpt>("12");
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const [r, u] = await Promise.all([
+  const { data, isLoading } = useQuery({
+    queryKey: ["rede-financeiro", "apuracao"],
+    queryFn: async () => {
+      const [uRes, apRes] = await Promise.all([
+        supabase.from("unidades").select("id,nome_da_praca").eq("tipo", "regional"),
         supabase
-          .from("v_royalties_mensais")
-          .select("mes,unidade,csc_valor,csc_valor_fixo,royalties_valor,total_due_matriz,faturado,recebido")
-          .order("mes", { ascending: true }),
-        supabase
-          .from("unidades")
-          .select("nome_da_praca,midia_mensal")
-          .neq("tipo", "interna"),
+          .from("royalties_apuracao")
+          .select(
+            "unidade_id,mes_referencia,royalties_valor,cac_valor,csc_valor_fixo,csc_base_antiga_valor,csc_trafego_pago",
+          ),
       ]);
-      if (!mounted) return;
-      setRoyalties((r.data ?? []) as RoyaltiesRow[]);
-      setUnidades((u.data ?? []) as Unidade[]);
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
-  }, []);
+      const nomePorId = new Map<number, string>();
+      (uRes.data ?? []).forEach((u) => nomePorId.set(u.id, u.nome_da_praca));
 
-  const midiaByUnidade = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const u of unidades) {
-      map.set(u.nome_da_praca, u.midia_mensal ?? 0);
-    }
-    return map;
-  }, [unidades]);
+      return (apRes.data ?? []).flatMap((a: ApuracaoRow) => {
+        const unidade = nomePorId.get(a.unidade_id);
+        if (!unidade) return [];
+        const cscFixo = a.csc_valor_fixo != null ? Number(a.csc_valor_fixo) : null;
+        return [
+          {
+            unidade,
+            mes: mesReconhecimento(a.mes_referencia),
+            csc: cscFixo ?? Number(a.csc_base_antiga_valor ?? 0),
+            royalties: Number(a.royalties_valor ?? 0),
+            midia: Number(a.csc_trafego_pago ?? 0),
+            cac: Number(a.cac_valor ?? 0),
+          },
+        ];
+      });
+    },
+    staleTime: 30_000,
+  });
+
+  const rows = useMemo(() => data ?? [], [data]);
 
   const unidadesOpts = useMemo(
-    () => Array.from(new Set(royalties.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
-    [royalties],
+    () => Array.from(new Set(rows.map((r) => r.unidade))).sort(),
+    [rows],
   );
 
-  const filtered = useMemo(
-    () => royalties.filter((r) => unidadeFilter === ALL || r.unidade === unidadeFilter),
-    [royalties, unidadeFilter],
+  const porUnidade = useMemo(
+    () => rows.filter((r) => unidadeFilter === ALL || r.unidade === unidadeFilter),
+    [rows, unidadeFilter],
   );
+
+  const mesesDisponiveis = useMemo(
+    () => Array.from(new Set(porUnidade.map((r) => r.mes))).sort(),
+    [porUnidade],
+  );
+
+  const periodoMeses = useMemo(() => {
+    if (mesesDisponiveis.length === 0) return [];
+    if (periodo === "tudo") return mesesDisponiveis;
+    if (periodo === "ano") {
+      const anoRef = mesesDisponiveis[mesesDisponiveis.length - 1].slice(0, 4);
+      return mesesDisponiveis.filter((m) => m.startsWith(anoRef));
+    }
+    const n = Number(periodo);
+    return mesesDisponiveis.slice(-n);
+  }, [mesesDisponiveis, periodo]);
 
   const enriched = useMemo(
-    () => filtered.map((r) => ({
-      ...r,
-      midia: r.unidade ? (midiaByUnidade.get(r.unidade) ?? 0) : 0,
-      csc: r.csc_valor ?? r.csc_valor_fixo ?? 0,
-    })),
-    [filtered, midiaByUnidade],
+    () => porUnidade.filter((r) => periodoMeses.includes(r.mes)),
+    [porUnidade, periodoMeses],
   );
 
   const byMes = useMemo(() => {
-    const map = new Map<string, { csc: number; royalties: number; midia: number; total: number; faturado: number }>();
+    const map = new Map<
+      string,
+      { csc: number; royalties: number; midia: number; cac: number; total: number }
+    >();
     for (const r of enriched) {
-      const m = r.mes ?? "";
-      if (!m) continue;
-      const cur = map.get(m) ?? { csc: 0, royalties: 0, midia: 0, total: 0, faturado: 0 };
+      const cur = map.get(r.mes) ?? { csc: 0, royalties: 0, midia: 0, cac: 0, total: 0 };
       cur.csc += r.csc;
-      cur.royalties += r.royalties_valor ?? 0;
+      cur.royalties += r.royalties;
       cur.midia += r.midia;
-      cur.faturado += r.faturado ?? 0;
-      cur.total += (r.csc) + (r.royalties_valor ?? 0) + r.midia;
-      map.set(m, cur);
+      cur.cac += r.cac;
+      cur.total += r.csc + r.royalties + r.midia + r.cac;
+      map.set(r.mes, cur);
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({ mes, label: fmtMes(mes), ...v }));
   }, [enriched]);
 
-  const ultimoMes = byMes[byMes.length - 1];
+  const periodLabel = periodoMeses.length
+    ? periodoMeses.length === 1
+      ? fmtMes(periodoMeses[0])
+      : `${fmtMes(periodoMeses[0])} – ${fmtMes(periodoMeses[periodoMeses.length - 1])}`
+    : "—";
 
-  const kpis = useMemo(() => {
-    if (!ultimoMes) return { total: 0, csc: 0, royalties: 0, midia: 0 };
-    return {
-      total: ultimoMes.total,
-      csc: ultimoMes.csc,
-      royalties: ultimoMes.royalties,
-      midia: ultimoMes.midia,
-    };
-  }, [ultimoMes]);
+  const kpis = useMemo(
+    () =>
+      byMes.reduce(
+        (acc, m) => ({
+          total: acc.total + m.total,
+          csc: acc.csc + m.csc,
+          royalties: acc.royalties + m.royalties,
+          midia: acc.midia + m.midia,
+          cac: acc.cac + m.cac,
+        }),
+        { total: 0, csc: 0, royalties: 0, midia: 0, cac: 0 },
+      ),
+    [byMes],
+  );
 
   const { pivot, months } = useMemo(() => {
     const umap = new Map<string, PivotUnidade>();
     const monthsSet = new Set<string>();
 
     for (const r of enriched) {
-      const m = r.mes ?? "";
-      const u = r.unidade ?? "—";
-      if (!m) continue;
-      monthsSet.add(m);
-
-      if (!umap.has(u)) {
-        umap.set(u, { nome: u, monthly: {}, csc: {}, royalties: {}, midia: {}, total: 0 });
+      monthsSet.add(r.mes);
+      if (!umap.has(r.unidade)) {
+        umap.set(r.unidade, {
+          nome: r.unidade,
+          monthly: {},
+          csc: {},
+          royalties: {},
+          midia: {},
+          cac: {},
+          total: 0,
+        });
       }
-      const p = umap.get(u)!;
-      const cscVal = r.csc;
-      const royVal = r.royalties_valor ?? 0;
-      const midVal = r.midia;
-      const rowTotal = cscVal + royVal + midVal;
-
-      p.monthly[m] = (p.monthly[m] ?? 0) + rowTotal;
-      p.csc[m] = (p.csc[m] ?? 0) + cscVal;
-      p.royalties[m] = (p.royalties[m] ?? 0) + royVal;
-      p.midia[m] = (p.midia[m] ?? 0) + midVal;
+      const p = umap.get(r.unidade)!;
+      const rowTotal = r.csc + r.royalties + r.midia + r.cac;
+      p.monthly[r.mes] = (p.monthly[r.mes] ?? 0) + rowTotal;
+      p.csc[r.mes] = (p.csc[r.mes] ?? 0) + r.csc;
+      p.royalties[r.mes] = (p.royalties[r.mes] ?? 0) + r.royalties;
+      p.midia[r.mes] = (p.midia[r.mes] ?? 0) + r.midia;
+      p.cac[r.mes] = (p.cac[r.mes] ?? 0) + r.cac;
       p.total += rowTotal;
     }
 
@@ -176,49 +239,68 @@ export function RedeFinanceiroView() {
           <Receipt className="h-6 w-6 text-primary" />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Financeiro — Gestão da Rede</h1>
-            <p className="text-sm text-muted-foreground">CSC, Royalties e Mídia por unidade</p>
+            <p className="text-sm text-muted-foreground">
+              CSC, Royalties, Mídia e CAC por unidade — fonte: apuração de royalties
+            </p>
           </div>
         </div>
-        <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Unidade" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todos</SelectItem>
-            {unidadesOpts.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodoOpt)}>
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODO_OPTS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Unidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos</SelectItem>
+              {unidadesOpts.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
+      {/* KPIs — somados no período selecionado, não mais um único "último mês" */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Card className="p-4 lg:col-span-2">
           <div className="text-xs text-muted-foreground">Total</div>
           <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.total)}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">último mês</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{periodLabel}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">CSC</div>
           <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.csc)}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Mídia</div>
-          <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.midia)}</div>
-        </Card>
-        <Card className="p-4">
           <div className="text-xs text-muted-foreground">Royalties</div>
           <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.royalties)}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de Franquia</div>
-          <div className="mt-1 text-xl font-bold text-muted-foreground">—</div>
-          <div className="text-xs text-muted-foreground mt-0.5">via Omie</div>
+          <div className="text-xs text-muted-foreground">Mídia</div>
+          <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.midia)}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">CAC</div>
+          <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.cac)}</div>
         </Card>
       </div>
 
-      {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
+      {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
 
-      {!loading && byMes.length > 0 && (
+      {!isLoading && byMes.length > 0 && (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Stacked bar por tipo */}
@@ -229,33 +311,49 @@ export function RedeFinanceiroView() {
                   <BarChart data={byMes}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                    <YAxis
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
                     <Tooltip formatter={(v: number) => fmtBRL(v)} />
                     <Legend />
                     <Bar dataKey="csc" name="CSC" stackId="a" fill={COLORS.csc} />
                     <Bar dataKey="royalties" name="Royalties" stackId="a" fill={COLORS.royalties} />
                     <Bar dataKey="midia" name="Mídia" stackId="a" fill={COLORS.midia} />
+                    <Bar
+                      dataKey="cac"
+                      name="CAC"
+                      stackId="a"
+                      fill={COLORS.cac}
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            {/* Linha de tendência */}
+            {/* Tendência — só Royalties, acompanhamento mensal */}
             <Card className="p-4">
-              <div className="mb-2 text-sm font-medium">Tendência por Componente</div>
+              <div className="mb-2 text-sm font-medium">Royalties — Acompanhamento Mensal</div>
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={byMes}>
+                  <LineChart data={byMes}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                    <YAxis
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
                     <Tooltip formatter={(v: number) => fmtBRL(v)} />
-                    <Legend />
-                    <Line type="monotone" dataKey="csc" name="CSC" stroke={COLORS.csc} strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="royalties" name="Royalties" stroke={COLORS.royalties} strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="midia" name="Mídia" stroke={COLORS.midia} strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="total" name="Total" stroke="hsl(0 0% 40%)" strokeWidth={2} dot={false} strokeDasharray="4 4" />
-                  </ComposedChart>
+                    <Line
+                      type="monotone"
+                      dataKey="royalties"
+                      name="Royalties"
+                      stroke={COLORS.royalties}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </Card>
@@ -265,9 +363,6 @@ export function RedeFinanceiroView() {
           <PivotTable pivot={pivot} months={months} />
         </>
       )}
-
-      {/* Validação Royalties — Cobrado x Recebido */}
-      <ValidacaoRoyaltiesSection />
     </div>
   );
 }
@@ -278,6 +373,7 @@ type PivotUnidade = {
   csc: Record<string, number>;
   royalties: Record<string, number>;
   midia: Record<string, number>;
+  cac: Record<string, number>;
   total: number;
 };
 
@@ -308,6 +404,7 @@ function PivotTable({ pivot, months }: { pivot: PivotUnidade[]; months: string[]
     { key: "csc" as const, label: "CSC" },
     { key: "royalties" as const, label: "Royalties" },
     { key: "midia" as const, label: "Mídia" },
+    { key: "cac" as const, label: "CAC" },
   ];
 
   return (
@@ -316,7 +413,9 @@ function PivotTable({ pivot, months }: { pivot: PivotUnidade[]; months: string[]
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 w-[200px] font-semibold">Unidade</TableHead>
+            <TableHead className="sticky left-0 bg-muted/50 w-[200px] font-semibold">
+              Unidade
+            </TableHead>
             {months.map((m) => (
               <TableHead key={m} className="text-right min-w-[110px] font-semibold">
                 {fmtMes(m)}
@@ -336,9 +435,11 @@ function PivotTable({ pivot, months }: { pivot: PivotUnidade[]; months: string[]
                 >
                   <TableCell className="sticky left-0 bg-muted/20 py-2 font-semibold">
                     <div className="flex items-center gap-2">
-                      {isOpen
-                        ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                      {isOpen ? (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
                       {u.nome}
                     </div>
                   </TableCell>
@@ -351,21 +452,22 @@ function PivotTable({ pivot, months }: { pivot: PivotUnidade[]; months: string[]
                     {fmtBRL(u.total)}
                   </TableCell>
                 </TableRow>
-                {isOpen && SUB_ROWS.map(({ key, label }) => (
-                  <TableRow key={`${u.nome}|${key}`} className="hover:bg-muted/10">
-                    <TableCell className="sticky left-0 bg-background pl-10 py-1.5 text-sm text-muted-foreground">
-                      {label}
-                    </TableCell>
-                    {months.map((m) => (
-                      <TableCell key={m} className="text-right tabular-nums py-1.5 text-sm">
-                        {u[key][m] ? fmtBRL(u[key][m]) : "—"}
+                {isOpen &&
+                  SUB_ROWS.map(({ key, label }) => (
+                    <TableRow key={`${u.nome}|${key}`} className="hover:bg-muted/10">
+                      <TableCell className="sticky left-0 bg-background pl-10 py-1.5 text-sm text-muted-foreground">
+                        {label}
                       </TableCell>
-                    ))}
-                    <TableCell className="text-right tabular-nums py-1.5 text-sm font-medium">
-                      {fmtBRL(Object.values(u[key]).reduce((s, v) => s + v, 0) || null)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      {months.map((m) => (
+                        <TableCell key={m} className="text-right tabular-nums py-1.5 text-sm">
+                          {u[key][m] ? fmtBRL(u[key][m]) : "—"}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right tabular-nums py-1.5 text-sm font-medium">
+                        {fmtBRL(Object.values(u[key]).reduce((s, v) => s + v, 0) || null)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </React.Fragment>
             );
           })}
@@ -385,414 +487,5 @@ function PivotTable({ pivot, months }: { pivot: PivotUnidade[]; months: string[]
         </tfoot>
       </Table>
     </Card>
-  );
-}
-
-// ============================================================
-// Validação Royalties — Cobrado x Recebido por unidade
-// ============================================================
-type ApuracaoRow = {
-  id: number;
-  unidade_id: number;
-  mes_referencia: string;
-  royalties_valor: number | null;
-  status: string;
-};
-
-type RecebidoLanc = {
-  razao_social: string | null;
-  categoria_codigo: string | null;
-  status_titulo: string | null;
-  data_pagamento: string | null;
-  data_vencimento: string | null;
-  valor_documento: number | null;
-  numero_documento: string | null;
-};
-
-type RoyaltiesItem = {
-  id: number;
-  razao_social: string;
-  cnpj: string | null;
-  valor_confirmado: number | null;
-  royalties_item: number | null;
-  confirmado: boolean | null;
-};
-
-type ValidacaoCell = {
-  cobrado: number | null;
-  cobradoStatus?: string;
-  cobradoApuracaoId?: number;
-  recebido: number;
-  recebidoItems: RecebidoLanc[];
-};
-
-const STATUS_APURACAO_LABEL: Record<string, string> = {
-  rascunho: "Rascunho",
-  em_revisao: "Em revisão",
-  confirmado: "Confirmado",
-  faturado: "Faturado",
-};
-
-function ValidacaoRoyaltiesSection() {
-  const [loading, setLoading] = useState(true);
-  const [apuracoes, setApuracoes] = useState<ApuracaoRow[]>([]);
-  const [recebidos, setRecebidos] = useState<RecebidoLanc[]>([]);
-  const [mapaUnidade, setMapaUnidade] = useState<Map<string, string>>(new Map());
-  const [unidadesById, setUnidadesById] = useState<Map<number, string>>(new Map());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [drill, setDrill] = useState<
-    | { tipo: "cobrado"; unidade: string; mes: string; apuracaoId: number }
-    | { tipo: "recebido"; unidade: string; mes: string; items: RecebidoLanc[] }
-    | null
-  >(null);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const [uRes, apRes, mapRes, pfRes] = await Promise.all([
-        supabase.from("unidades").select("id,nome_da_praca").eq("tipo", "regional"),
-        supabase
-          .from("royalties_apuracao")
-          .select("id,unidade_id,mes_referencia,royalties_valor,status"),
-        (supabase as any).from("partners_financeiro_unidade_map").select("razao_social,unidade"),
-        supabase
-          .from("partners_financeiro")
-          .select("razao_social,categoria_codigo,status_titulo,data_pagamento,data_vencimento,valor_documento,numero_documento")
-          .in("categoria_codigo", ["1.01.95", "1.01.93"]),
-      ]);
-      if (!mounted) return;
-
-      const uMap = new Map<number, string>();
-      (uRes.data ?? []).forEach((u: any) => uMap.set(u.id, u.nome_da_praca));
-      setUnidadesById(uMap);
-      setApuracoes((apRes.data ?? []) as ApuracaoRow[]);
-
-      const mMap = new Map<string, string>();
-      (mapRes.data ?? []).forEach((m: any) => mMap.set(m.razao_social, m.unidade));
-      setMapaUnidade(mMap);
-      setRecebidos((pfRes.data ?? []) as RecebidoLanc[]);
-      setLoading(false);
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const { cells, months, unidadesList } = useMemo(() => {
-    const cellMap = new Map<string, ValidacaoCell>();
-    const monthsSet = new Set<string>();
-    const unidadesSet = new Set<string>();
-
-    const getCell = (unidade: string, mes: string) => {
-      const key = `${unidade}|${mes}`;
-      let c = cellMap.get(key);
-      if (!c) {
-        c = { cobrado: null, recebido: 0, recebidoItems: [] };
-        cellMap.set(key, c);
-      }
-      monthsSet.add(mes);
-      unidadesSet.add(unidade);
-      return c;
-    };
-
-    for (const a of apuracoes) {
-      const unidade = unidadesById.get(a.unidade_id);
-      if (!unidade) continue;
-      const mes = String(a.mes_referencia).slice(0, 7);
-      const c = getCell(unidade, mes);
-      c.cobrado = (c.cobrado ?? 0) + (a.royalties_valor ?? 0);
-      c.cobradoApuracaoId = a.id;
-      c.cobradoStatus = a.status;
-    }
-
-    for (const r of recebidos) {
-      if (r.status_titulo !== "RECEBIDO") continue;
-      const unidade = r.razao_social ? mapaUnidade.get(r.razao_social) : undefined;
-      if (!unidade) continue;
-      const dataRef = r.data_pagamento ?? r.data_vencimento;
-      if (!dataRef) continue;
-      const mes = dataRef.slice(0, 7);
-      const c = getCell(unidade, mes);
-      c.recebido += r.valor_documento ?? 0;
-      c.recebidoItems.push(r);
-    }
-
-    return {
-      cells: cellMap,
-      months: Array.from(monthsSet).sort(),
-      unidadesList: Array.from(unidadesSet).sort(),
-    };
-  }, [apuracoes, recebidos, mapaUnidade, unidadesById]);
-
-  const toggle = (unidade: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(unidade)) next.delete(unidade);
-      else next.add(unidade);
-      return next;
-    });
-
-  if (loading) {
-    return <Card className="p-6 text-sm text-muted-foreground">Carregando validação de royalties…</Card>;
-  }
-
-  if (unidadesList.length === 0) {
-    return null;
-  }
-
-  const ROW_DEFS = [
-    { key: "cobrado" as const, label: "Cobrado" },
-    { key: "recebido" as const, label: "Recebido" },
-  ];
-
-  return (
-    <Card className="overflow-x-auto">
-      <div className="border-b p-3">
-        <div className="text-sm font-semibold">Validação Royalties — Cobrado × Recebido</div>
-        <div className="text-xs text-muted-foreground">
-          Cobrado: apuração de royalties por unidade (também é a fonte da linha Royalties na aba Receitas/DRE).
-          Recebido: Omie da Partners, por razão social mapeada à unidade. Clique num valor pra ver o detalhe.
-        </div>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 w-[200px] font-semibold">Unidade</TableHead>
-            {months.map((m) => (
-              <TableHead key={m} className="text-right min-w-[110px] font-semibold">
-                {fmtMes(m)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {unidadesList.map((unidade) => {
-            const isOpen = expanded.has(unidade);
-            return (
-              <React.Fragment key={unidade}>
-                <TableRow className="cursor-pointer hover:bg-muted/40 bg-muted/20" onClick={() => toggle(unidade)}>
-                  <TableCell className="sticky left-0 bg-muted/20 py-2 font-semibold">
-                    <div className="flex items-center gap-2">
-                      {isOpen ? (
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      {unidade}
-                    </div>
-                  </TableCell>
-                  {months.map((m) => {
-                    const c = cells.get(`${unidade}|${m}`);
-                    if (!c || (c.cobrado == null && !c.recebido)) {
-                      return (
-                        <TableCell key={m} className="text-right tabular-nums py-2 text-sm text-muted-foreground/40">
-                          —
-                        </TableCell>
-                      );
-                    }
-                    // Diverge se os dois existem e a diferença passa de 1% do cobrado
-                    const diverge =
-                      c.cobrado != null && c.recebido > 0 && Math.abs(c.cobrado - c.recebido) > Math.abs(c.cobrado) * 0.01;
-                    return (
-                      <TableCell key={m} className="text-right tabular-nums py-2 text-sm">
-                        <span className={diverge ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-muted-foreground"}>
-                          {fmtBRL(c.cobrado ?? c.recebido)}
-                        </span>
-                        {diverge && <span title="Cobrado e Recebido divergem" className="ml-1">⚠️</span>}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-                {isOpen &&
-                  ROW_DEFS.map(({ key, label }) => (
-                    <TableRow key={`${unidade}|${key}`} className="hover:bg-muted/10">
-                      <TableCell className="sticky left-0 bg-background pl-10 py-1.5 text-sm text-muted-foreground">
-                        {label}
-                      </TableCell>
-                      {months.map((m) => {
-                        const c = cells.get(`${unidade}|${m}`);
-                        if (!c) {
-                          return (
-                            <TableCell key={m} className="text-right tabular-nums py-1.5 text-sm text-muted-foreground/40">
-                              —
-                            </TableCell>
-                          );
-                        }
-                        if (key === "cobrado") {
-                          return (
-                            <TableCell key={m} className="text-right tabular-nums py-1.5 text-sm">
-                              {c.cobrado != null ? (
-                                <button
-                                  type="button"
-                                  className="hover:underline hover:text-primary"
-                                  title={`Ver clientes (${STATUS_APURACAO_LABEL[c.cobradoStatus ?? ""] ?? c.cobradoStatus})`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (c.cobradoApuracaoId) {
-                                      setDrill({ tipo: "cobrado", unidade, mes: m, apuracaoId: c.cobradoApuracaoId });
-                                    }
-                                  }}
-                                >
-                                  {fmtBRL(c.cobrado)}
-                                </button>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                          );
-                        }
-                        return (
-                          <TableCell key={m} className="text-right tabular-nums py-1.5 text-sm">
-                            {c.recebido ? (
-                              <button
-                                type="button"
-                                className="hover:underline hover:text-primary"
-                                title="Ver lançamentos"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDrill({ tipo: "recebido", unidade, mes: m, items: c.recebidoItems });
-                                }}
-                              >
-                                {fmtBRL(c.recebido)}
-                              </button>
-                            ) : (
-                              "—"
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
-              </React.Fragment>
-            );
-          })}
-        </TableBody>
-      </Table>
-      <ValidacaoDrillDialog drill={drill} onClose={() => setDrill(null)} />
-    </Card>
-  );
-}
-
-function ValidacaoDrillDialog({
-  drill,
-  onClose,
-}: {
-  drill:
-    | { tipo: "cobrado"; unidade: string; mes: string; apuracaoId: number }
-    | { tipo: "recebido"; unidade: string; mes: string; items: RecebidoLanc[] }
-    | null;
-  onClose: () => void;
-}) {
-  const [itens, setItens] = useState<RoyaltiesItem[] | null>(null);
-
-  useEffect(() => {
-    if (!drill || drill.tipo !== "cobrado") {
-      setItens(null);
-      return;
-    }
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase
-        .from("royalties_itens")
-        .select("id,razao_social,cnpj,valor_confirmado,royalties_item,confirmado")
-        .eq("apuracao_id", drill.apuracaoId)
-        .eq("categoria", "royalties");
-      if (mounted) setItens((data ?? []) as RoyaltiesItem[]);
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [drill]);
-
-  if (!drill) return null;
-
-  const titulo = `${drill.unidade} — ${fmtMes(drill.mes)} — ${drill.tipo === "cobrado" ? "Cobrado (clientes)" : "Recebido (Omie Partners)"}`;
-
-  return (
-    <Dialog open={!!drill} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{titulo}</DialogTitle>
-          <DialogDescription>
-            {drill.tipo === "cobrado"
-              ? "Clientes que compõem o valor de royalties apurado para esta unidade/mês."
-              : "Lançamentos recebidos no Omie da Partners, atribuídos a esta unidade pelo mapeamento de razão social."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[60vh] overflow-auto">
-          {drill.tipo === "cobrado" ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>CNPJ</TableHead>
-                  <TableHead className="text-center">Confirmado</TableHead>
-                  <TableHead className="text-right">Royalties</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {itens === null ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                      Carregando…
-                    </TableCell>
-                  </TableRow>
-                ) : itens.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                      Sem itens.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  itens.map((it) => (
-                    <TableRow key={it.id}>
-                      <TableCell>{it.razao_social}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{it.cnpj ?? "—"}</TableCell>
-                      <TableCell className="text-center">{it.confirmado ? "✓" : "—"}</TableCell>
-                      <TableCell className="text-right">{fmtBRL(it.royalties_item ?? 0)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Razão Social</TableHead>
-                  <TableHead>Doc.</TableHead>
-                  <TableHead>Pagamento</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {drill.items.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                      Sem lançamentos.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  drill.items.map((r, i) => (
-                    <TableRow key={`${r.numero_documento ?? i}-${i}`}>
-                      <TableCell>{r.razao_social ?? "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.numero_documento ?? "—"}</TableCell>
-                      <TableCell className="text-xs">
-                        {r.data_pagamento
-                          ? new Date(r.data_pagamento).toLocaleDateString("pt-BR")
-                          : r.data_vencimento
-                            ? new Date(r.data_vencimento).toLocaleDateString("pt-BR")
-                            : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">{fmtBRL(r.valor_documento ?? 0)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
