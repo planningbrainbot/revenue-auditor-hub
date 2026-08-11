@@ -189,6 +189,7 @@ function ClientesPage() {
   const [churnFilter, setChurnFilter] = useState<boolean | null>(null);
   const [erpFilter, setErpFilter] = useState(ALL);
   const [segmentoFilter, setSegmentoFilter] = useState(ALL);
+  const [contratoAssinadoFilter, setContratoAssinadoFilter] = useState<boolean | null>(null);
   const [omieMatches, setOmieMatches] = useState<OmieMatch[]>([]);
   const [omieLoading, setOmieLoading] = useState(false);
   type SortKey =
@@ -420,6 +421,11 @@ function ClientesPage() {
       if (!perms.scopedToOwnUnit && unidade !== ALL && r.unidade !== unidade) return false;
       if (erpFilter !== ALL && r.erp !== erpFilter) return false;
       if (segmentoFilter !== ALL && r.segmento !== segmentoFilter) return false;
+      if (contratoAssinadoFilter !== null) {
+        const assinado = !!contratoInfoByPipedriveId.get(r.pipedrive_id ?? "")
+          ?.entrada_contrato_assinado_em;
+        if (contratoAssinadoFilter !== assinado) return false;
+      }
       if (term) {
         const hay = [r.razao_social, r.titulo, r.cnpj]
           .filter(Boolean)
@@ -513,6 +519,7 @@ function ClientesPage() {
     statusFilter,
     erpFilter,
     segmentoFilter,
+    contratoAssinadoFilter,
     perms.scopedToOwnUnit,
     sort,
     mrrByPipedriveId,
@@ -525,7 +532,8 @@ function ClientesPage() {
     statusFilter !== null ||
     churnFilter !== null ||
     erpFilter !== ALL ||
-    segmentoFilter !== ALL;
+    segmentoFilter !== ALL ||
+    contratoAssinadoFilter !== null;
   const clearFilters = () => {
     setQ("");
     setUnidade(ALL);
@@ -533,6 +541,7 @@ function ClientesPage() {
     setChurnFilter(null);
     setErpFilter(ALL);
     setSegmentoFilter(ALL);
+    setContratoAssinadoFilter(null);
   };
 
   return (
@@ -676,6 +685,23 @@ function ClientesPage() {
                     {s}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={
+                contratoAssinadoFilter === null ? ALL : contratoAssinadoFilter ? "com" : "sem"
+              }
+              onValueChange={(v) =>
+                setContratoAssinadoFilter(v === ALL ? null : v === "com")
+              }
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Contrato Assinado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Contrato assinado: todos</SelectItem>
+                <SelectItem value="com">Com data de assinatura</SelectItem>
+                <SelectItem value="sem">Sem data de assinatura</SelectItem>
               </SelectContent>
             </Select>
             {statusFilter && (
