@@ -387,3 +387,98 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** implementado e validado. Migration aplicada em produção via Management API. `~/sync_pipedrive_contratos.py` já rodou em produção real (93 contratos do pipe Sócios importados corretamente, 2 contratos lost removidos sem erro). `run_criar_deals_socios` testado ponta a ponta contra a API real do Pipedrive (deal de teste criado com pipeline/stage/status/campos corretos e apagado em seguida). Front-end: `tsc --noEmit` sem erros novos nos arquivos tocados (`royalties.functions.ts`, `royalties.$unidadeId.$mes.tsx`); `vite build` processa os módulos normalmente e para num erro pré-existente não relacionado (`xlsx-js-style` ausente de `node_modules`, import em `royalties-demonstrativo.ts` — não é desta mudança). `src/integrations/supabase/types.ts` regenerado via `supabase gen types` pra refletir as colunas novas.
 
 **Próximos passos:** nenhum item de venda de sócio existia em produção até este commit, então `run_criar_deals_socios` ainda não criou nenhum deal real — validar o primeiro caso real quando o usuário marcar o primeiro item. Considerar investigar separadamente o `xlsx-js-style` ausente (fora do escopo desta mudança).
+
+## [2026-08-11] Rede Overview v2: churn real + MRR novo vs royalties + plano de "Painel de Gestão à Vista"
+
+**Contexto:** `/rede-overview` tinha 3 gráficos mortos (Crescimento %, Clientes Ativos, % NRR — nenhum trazia informação além do que os cards de topo já mostravam) e dois KPIs de churn (`Churn Receita`, `Churn Logo`) hardcoded em "—", nunca ligados a dado real. Logo em seguida, pedido separado (áudio da Mônica Sumaya, CS) por um "painel de gestão à vista" com qualidade (NPS/ICS), ranking de melhores/piores unidades e ranking de quem vende mais.
+
+**Decisão (implementado):**
+1. Removidos os 3 gráficos mortos.
+2. Novo gráfico "MRR Novo vs Royalties Recebido (mês a mês)": MRR Novo = `contratos.mrr_mensal` agrupado por mês de `ganho_em` (mesma metodologia de New MRR já usada em BI de Vendas — não confundir com `v_reconciliacao_mensal.mrr_contratado`, que é o MRR ativo atual repetido em todos os meses via `CROSS JOIN`, não uma série histórica real). Royalties Recebido reaproveita `useRoyaltiesHistoricoRede()` (mesma fonte que `/royalties` já usa — `valor_confirmado × percentual`, regime caixa).
+3. `Churn Receita`/`Churn Logo` ligados a `central_tratativas` (`estagio='Perdido'`, `status='lost'`) — mesma fonte que royalties/CAC já usam pra excluir cliente da apuração. Logo % = perdidos/total; Receita % = MRR perdido/(MRR ativo + MRR perdido).
+4. Filtro de Unidade do topo passou a valer pros dois gráficos novos e pro churn (antes só valia pra tabela "Resumo por Unidade").
+
+**Achado, não corrigido ainda:** `rede-overview.tsx` nunca aplicou `data.scope.own_unit_only` (permissão que existe e é respeitada em `/clientes` via `scopedToOwnUnit`) — um usuário com role `socio` (que tem essa flag = true) vê a rede inteira na página, não só a própria unidade. Não é regressão desta mudança, já era assim. Fica crítico pro próximo passo abaixo.
+
+**Plano (não implementado, aguardando priorização do usuário):** ver spec completa em `[[outputs/2026-08-spec-painel-gestao-a-vista]]` no wiki (`AI Projects/wiki/outputs/2026-08-spec-painel-gestao-a-vista.md`). Resumo: consolidar NPS por unidade (já calculado em `painel-cs/nps-tab.tsx`), % carteira saudável por unidade (já calculado em `saude-carteira.functions.ts`) e churn por unidade (hoje só agregado) numa única tabela "Desempenho por Unidade", evoluindo a tabela "Resumo por Unidade" existente. Ranking de vendedores (`contratos.closer`/`sdr`) como leaderboard separado. **Bloqueado até resolver o achado de permissão acima** — subir ranking nomeado entre unidades em cima de uma página que já vaza dado de rede pra sócio de franquia piora o problema.
+
+**Status:** itens 1–4 implementados e validados (`tsc --noEmit` e `eslint` limpos, testado via `vite dev` local). Plano da Fase 2+ documentado, não codado.
+
+**Próximos passos:** decidir com o usuário (a) se "quem vende mais" é ranking de unidade, de vendedor, ou os dois; (b) se sócio deve ver só a própria linha no ranking ou nada; (c) corrigir `scopedToOwnUnit` em `rede-overview.tsx` antes de subir qualquer ranking entre unidades.
+
+## [2026-08-11] Resolução das 3 perguntas + Fase 1 do Painel de Gestão à Vista implementada
+
+**Respostas do usuário:**
+1. "Quem vende mais" começa a ser medido pelo painel de Sócios no Pipedrive (pipeline 4) — todo card desse pipe é venda de sócio e precisa estar identificado no Ops.
+2. Sócio de franquia pode ver o ranking completo — sem restrição por unidade. O achado de `scopedToOwnUnit` não aplicado em `rede-overview.tsx` (registrado na entrada anterior) continua real, mas o usuário decidiu explicitamente que, pro ranking, visibilidade total é o comportamento desejado — não é mais bloqueante pra essa feature específica.
+3. Todo card do Overview (não só NPS) segue o padrão "resumo aqui + link Ver detalhe pra página específica" — não só os novos, os que já existem também.
+
+**Implementado nesta sessão:**
+- Cards "NPS da Rede" (`useNps()`) e "Carteira Saudável" (`useSaudeCarteira()`) — resumo agregado, respeitando o filtro de Unidade, com link "Ver detalhe" pra `/painel-cs`.
+- Componente `VerDetalheLink` reutilizável — aplicado também nos cards de Churn (já existentes) e no card MRR Novo vs Royalties, todos agora linkando pra suas páginas de detalhe (`/painel-cs`, `/royalties`).
+- Grid de KPIs foi de 5 pra 7 cards (`lg:grid-cols-4` em vez de `lg:grid-cols-5`, pra quebrar em 4+3 em vez de 5+2).
+
+**Achado ao investigar a Fase 2 (ranking de vendas):** `contratos.closer` está `NULL` em 93/93 linhas com `origem_pipeline='socios'` — o campo customizado "Closer Responsável" do Pipedrive nunca é preenchido no pipe Sócios (confirmado direto na API: `82f35432010d0c95fceeaa0b5bce5f8e7542a795` vem `None` pros 93 deals). Isso significa que, hoje, **não dá pra saber qual sócio vendeu cada contrato** a partir do dado já sincronizado. Achado o substituto: o `user_id` do deal no Pipedrive (dono do card, sempre preenchido — testado ao vivo: 83 deals won em pipeline 4, 100% com `user_id`) já identifica a pessoa: Paulo (34), Jordana Vieira (24), Rogério (15), Eduardo Borsoi (5), Mateus Nunes (2), 1 usuário removido (3 deals). `~/sync_pipedrive_contratos.py` nunca leu esse campo — só lê os campos customizados `CLOSER_FIELD`/`SDR_FIELD`, que ficam vazios nesse pipe.
+
+**Achado paralelo, não bloqueante:** o campo customizado "Unidade de Negócio" também só é preenchido em 41/93 cards do pipe Sócios (52 ficam com `unidade=NULL` em `contratos`) — é gap de preenchimento no Pipedrive pelos próprios sócios, não bug de sync (o código já lê o campo igual pros dois pipelines).
+
+**Decisão pendente de confirmação do usuário antes de mexer em produção:** gravar `user_id.name` do Pipedrive em `contratos.closer` pra deals `origem_pipeline='socios'` (reaproveita a coluna, que hoje fica sempre vazia nesse pipe — dá um leaderboard único de "quem vendeu", misturando closers de Inside Sales com sócios) vs. criar uma coluna nova (`socio_vendedor` ou similar) pra manter os dois conceitos separados mesmo que exibidos juntos no ranking. Qualquer uma das duas exige alterar `~/sync_pipedrive_contratos.py`, que roda em produção via LaunchAgent diariamente — não deve ser tocado sem confirmação explícita.
+
+**Status:** Fase 1 implementada e validada (`tsc --noEmit`/`eslint` limpos, testado via `vite dev` local). Fase 2 (ranking) ainda não iniciada — aguardando decisão de schema acima.
+
+**Próximos passos:** usuário decide reaproveitar `closer` ou criar coluna nova; depois disso, alterar `~/sync_pipedrive_contratos.py` pra capturar `user_id.name` nos deals de `PIPELINE_SOCIOS`, rodar backfill nos 93 contratos já existentes, e então construir o leaderboard "Top Vendedores" no Overview.
+
+## [2026-08-11] Reversão — dados de rede ficam fechados por padrão em `/rede-overview` (não mais "sócio vê tudo")
+
+**Contexto:** ao planejar, numa sessão separada, um novo bloco pro Overview (Matriz vs. Sócios/"Hunter", Auditoria Interna, LTV — ver `[[outputs/2026-08-spec-painel-desempenho-unidade]]` no wiki), a permissão pedida pra esse bloco (sócio vê só a própria unidade) divergia da decisão registrada na entrada anterior deste arquivo ("Sócio vê o ranking completo, sem restrição"). Levada a divergência ao usuário pra confirmar se era proposital.
+
+**Decisão:** não era proposital. **Revertida a decisão anterior.** A partir de agora, por padrão, dados agregados de rede ficam fechados — cada unidade (`role='socio'`) vê só os próprios dados em `/rede-overview`, aplicando `data.scope.own_unit_only` (`scopedToOwnUnit`, mesmo padrão já usado em `/clientes`) em **toda a página**, não seção por seção.
+
+**Impacto no que já está implementado:**
+- Fase 1 (cards "NPS da Rede" e "Carteira Saudável", entrada anterior deste arquivo) **foi implementada antes desta reversão e não aplica `scopedToOwnUnit`** — hoje mostra rede inteira pra `socio`. Precisa de correção retroativa.
+- Fase 2 (ranking de vendedores/Top Vendedores, ainda não iniciada — ver "Decisão pendente" na entrada anterior) passa a exigir `scopedToOwnUnit` desde o início da implementação, não é mais opcional.
+- Qualquer seção nova no Overview (Matriz/Hunter/Auditoria/LTV, ainda não implementada) já nasce com o filtro aplicado.
+
+**Status:** decisão registrada, nenhuma implementação de código feita ainda. `rede-overview.tsx` tem mudanças locais não commitadas nesta working copy (de sessão anterior) — conferir se elas já tocam nesse ponto antes de aplicar a correção, pra não sobrescrever trabalho em andamento.
+
+**Próximos passos:** aplicar `scopedToOwnUnit` em `rede-overview.tsx` cobrindo a página inteira (cards de topo, tabela "Resumo por Unidade", NPS/Saúde/Churn, e qualquer seção nova) antes de subir a Fase 2 ou o novo bloco Matriz/Hunter/Auditoria/LTV em produção.
+
+## [2026-08-11] Implementado — blocos Matriz/Hunter/Auditoria + scopedToOwnUnit em rede-overview.tsx
+
+**Contexto:** implementação do bloco planejado em `outputs/2026-08-spec-painel-desempenho-unidade.md` (wiki), e da correção de permissão da entrada anterior. `rede-overview.tsx` estava sendo editado ativamente por outra sessão do usuário em paralelo (mesmo arquivo, diff local crescendo em tempo real) — confirmado com o usuário que não era conflito antes de prosseguir; a outra sessão implementou simultaneamente, sem conflito destrutivo, os blocos da spec irmã `outputs/2026-08-spec-painel-gestao-unidades-indicadores.md` (Lifetime, Booking, Receita Total, Clientes Ativos série temporal, Churn de Receita waterfall).
+
+**Implementado:**
+1. **Matriz vs. Hunter**: `vendasMatrizPorUnidade`/`vendasHunterPorUnidade` — split de `contratos` por `origem_pipeline` (`inside_sales` vs. `socios`). Hunter aplica `unidade IS NOT NULL` (decisão de 11/08: cards do pipe Sócios sem "Unidade de Negócio" preenchida — 52/93 — são ignorados, não rateados nem mostrados numa linha "sem unidade"; nota de rodapé na tabela mostra quantos ficaram de fora). Coluna `% Hunter` (`mixHunterPct`) com destaque verde — mix mais Hunter é sinal positivo (autossuficiência comercial), não alerta.
+2. **Auditoria Interna**: card de topo "Auditoria Interna (fiscal)" com Oportunidade/Contingência agregadas (`auditoriaStats`, fonte `auditorias_internas` — pipe Pipefy 307181077) + `VerDetalheLink` pra `/auditoria-interna`. Colunas Oportunidade/Contingência na tabela "Resumo por Unidade" (`auditoriaPorUnidade`, casado por `normalizeUnitName` porque o pipe de Auditoria é diferente do de vendas — nome de unidade pode não bater caractere-a-caractere).
+3. **`scopedToOwnUnit` em toda a página** (reverte a permissividade da entrada anterior, agora aplicada de fato): helper `scopeRows()` filtra as 5 fontes buscadas na página (`rows`, `empresas`, `churnCards`, `contratosNovos`, `auditorias`) via `unitMatches(perms.unidade, r.unidade)` — não igualdade estrita, porque `perms.unidade` já provou não bater caractere-a-caractere com `empresas.unidade` em `/clientes` (é por isso que `unitMatches` existe). Linhas que passam têm `unidade` normalizada pro valor de `perms.unidade`, então os memos existentes (que já comparam por igualdade estrita contra `unidadeFilter`) continuam funcionando sem precisar reescrever cada um. `unidadeFilter` é travado em `perms.unidade` via `useEffect` quando `scopedToOwnUnit`; o `Select` de unidade vira `Badge` fixo (mesmo padrão de `/clientes`), corrigindo retroativamente a Fase 1 (NPS/Saúde) que tinha subido sem esse filtro.
+
+**Ressalva conhecida, não corrigida:** o gate cobre as 5 fontes buscadas direto neste arquivo, mas não os dados de hooks externos (`useNps`, `useSaudeCarteira`, `useRoyaltiesHistoricoRede`) — esses continuam comparando `unidade` por igualdade estrita contra `unidadeFilter` (já travado em `perms.unidade`), sem a normalização `unitMatches`. Risco residual: nome de unidade não batendo faz o card mostrar "—" em vez de vazar dado (falha fechada, não é vazamento de segurança) — mas pode aparentar bug de "sem dado" pro sócio. Candidato a lint futuro se alguém reportar card vazio que deveria ter dado.
+
+**Status:** implementado. `tsc --noEmit` limpo em `rede-overview.tsx` — os 11 erros do build inteiro são todos em arquivos não tocados por esta mudança (`integracoes-status.functions.ts`, `reconciliacao.functions.ts`, `admin.integracoes.tsx`, `reconciliacao.tsx`, `reforma-tributaria.tsx`, pré-existentes ou de outro trabalho em andamento). Não commitado nem dado push — mudança só na working copy local, que já tinha (e continua tendo) alterações de outra sessão em paralelo no mesmo arquivo.
+
+**Próximos passos:** bloco LTV desta spec não foi tocado aqui — ver spec irmã / entradas relacionadas pro status (implementado em paralelo pela outra sessão). Investigar a ressalva de `unitMatches` nos hooks externos se algum sócio reportar dado ausente. Revisar e commitar o conjunto de mudanças de `rede-overview.tsx` (ambas as sessões) quando estabilizar.
+
+## [2026-08-11] Implementado — Booking/Receita/LTV/Clientes Ativos/Churn de Receita em rede-overview.tsx (spec irmã)
+
+**Contexto:** implementação de `outputs/2026-08-spec-painel-gestao-unidades-indicadores.md` (wiki) — usuário trouxe mockup de referência genérico de SaaS pedindo Receita Total, Booking Total, Qtd Proj. Ativos, ARPA, Clientes Ativos, Lifetime, split de receita por tipo, Churn de Receita, Crescimento Mensal. Rodou em paralelo, no mesmo arquivo, com a sessão da entrada anterior (Matriz/Hunter/Auditoria/`scopedToOwnUnit`) — sem conflito destrutivo, confirmado com o usuário.
+
+**Decisões de definição (usuário, 11/08):**
+- **Booking Total** = valor do novo MRR do mês × 12 (contrato assumido em 12 meses) — não existe conceito de "valor total contratado" na Planning, então essa é a aproximação.
+- **Qtd Proj. Ativos** = mesmo número de Clientes Ativos (redundante, não virou card separado).
+- **Lifetime (Ativo/Finalizado/Geral)**: soma de `royalties_itens.valor_confirmado` por cliente (não `contas_receber` bruto) — é o valor já confirmado/apurado na tela de royalties, categoria `royalties`, excluindo itens `is_cac` e excluídos. Finalizado = soma até a data de churn (`central_tratativas.data_churn`, cruzado por CNPJ); Ativo = soma até o mês atual, sem churn. Geral = média simples entre os dois médios (não pool ponderado).
+
+**Implementado:**
+1. Cards: Recebido (12 meses) e Booking Total (12 meses) — janela móvel de 12m vs. 12m anteriores, não acumulado desde sempre. ARPA (MRR ÷ clientes ativos). Lifetime (Geral/Ativo/Finalizado).
+2. Gráficos: Crescimento Mensal (Clientes Iniciaram vs. Churn Logo, por mês), Variação do Booking % (barras verde/vermelho), Clientes Ativos em série temporal (reconstruído por evento — ganho menos churn acumulado por mês, sem snapshot salvo), Churn de Receita por Mês (waterfall Novo/Expansão/Contração/Perdido + linha Revenue Churn %).
+3. `src/lib/royalties-historico.functions.ts`: campo `is_cac` passou a ser propagado no objeto por-mês do histórico por cliente (`RoyaltiesHistoricoMes`) — antes só era usado internamente pro cálculo de evolução da rede. Mudança aditiva, não quebra `/royalties`.
+4. `contratos` ganhou `cnpj` na query do Overview (pra série de Clientes Ativos cruzar com churn por CNPJ, mesmo padrão do LTV).
+
+**Adaptação de nomenclatura:** o waterfall de Churn de Receita usa rótulos **Novo/Expansão/Contração/Perdido**, não os do mockup original (**Perdido/Ganho/Variáveis/Exp. One Time**) — esses 4 nomes nunca tiveram definição no vocabulário da Planning; o waterfall de MRR padrão é o que dá pra computar direto da base de receita por cliente/mês já usada no LTV. Nota explicando isso ficou na própria UI do card.
+
+**Não implementado — Fase 2a (Receita Recorrente/Variável/One Time):** adiada. Sem acesso a banco de dados na sessão que fez essa parte pra checar quais `codigo_categoria` realmente aparecem em `contas_receber` por unidade — mapear isso às cegas violaria a regra de sempre validar contra dado real antes de subir tela.
+
+**Correção de passagem:** encontrada referência quebrada (`vendasMesPorUnidade`, variável removida pela sessão de Matriz/Hunter sem atualizar o único uso restante na tabela "Resumo por Unidade") — corrigida pra somar `vendasMatrizPorUnidade + vendasHunterPorUnidade` no mesmo lugar, sem alterar o resto daquela feature.
+
+**Status:** implementado. `tsc --noEmit`/`eslint`/`vite build` **não foram rodados** nesta sessão — ambiente sem `node`/`bun` disponível. Revisão foi manual (balanceamento de chaves/parênteses, leitura linha a linha, checagem de referências). Ambas as sessões (esta + a de Matriz/Hunter/Auditoria) commitadas e enviadas juntas via `git push origin main` a pedido do usuário ("pode subir") — sem rodar o build antes por falta de toolchain; a sessão irmã já tinha validado `tsc --noEmit` limpo antes das mudanças desta entrada serem adicionadas por cima.
+
+**Próximos passos:** rodar `bun run lint`/`bun run build` assim que possível (ambiente com toolchain) pra validar as mudanças desta entrada, que não foram checadas por ferramenta nenhuma antes do push. Fase 2a (Recorrente/Variável/One Time) segue pendente, precisa de acesso a dado real pra validar mapeamento de categorias.

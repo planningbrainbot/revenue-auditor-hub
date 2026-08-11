@@ -21,6 +21,7 @@ export interface RoyaltiesHistoricoMes {
   status_match: string | null;
   excluido_em: string | null;
   churn_pipefy_card_id: string | null;
+  is_cac: boolean;
 }
 
 export interface RoyaltiesHistoricoCliente {
@@ -112,6 +113,10 @@ export const listRoyaltiesHistoricoRede = createServerFn({ method: "GET" })
           .select(
             "apuracao_id,cnpj,razao_social,contrato_id,categoria,valor_confirmado,confirmado,is_cac,royalties_percentual_override,status_match,excluido_em,churn_pipefy_card_id,data_ganho",
           )
+          // ↑ is_cac já vinha selecionado (usado no cálculo de evolução), só
+          // faltava ser propagado pro objeto por mês — ver uso em LTV no
+          // rede-overview (soma de valor_confirmado precisa excluir CAC, senão
+          // conta cobrança de CAC como se fosse receita paga pelo cliente).
           .in("apuracao_id", apuracaoIds)
           .range(offset, offset + PAGE - 1);
         if (iErr) throw new Error(iErr.message);
@@ -168,6 +173,7 @@ export const listRoyaltiesHistoricoRede = createServerFn({ method: "GET" })
             status_match: it.status_match,
             excluido_em: it.excluido_em,
             churn_pipefy_card_id: it.churn_pipefy_card_id,
+            is_cac: !!it.is_cac,
           };
         } else {
           // Mais de um item no mesmo mês (raro — ex: royalties + csc_base_antiga
@@ -176,6 +182,7 @@ export const listRoyaltiesHistoricoRede = createServerFn({ method: "GET" })
           existente.confirmado = existente.confirmado && !!it.confirmado;
           if (it.excluido_em) existente.excluido_em = it.excluido_em;
           if (it.churn_pipefy_card_id) existente.churn_pipefy_card_id = it.churn_pipefy_card_id;
+          existente.is_cac = existente.is_cac && !!it.is_cac;
         }
 
         // ---- evolução do valor apurado (royalties, exclui CAC e itens excluídos) ----
