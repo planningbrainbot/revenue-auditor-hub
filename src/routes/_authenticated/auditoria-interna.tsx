@@ -19,7 +19,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -179,11 +178,13 @@ function AuditoriaInternaPage() {
 
   const maioresAchados = useMemo(
     () =>
-      [...rows]
+      rows
+        .filter((r) => {
+          const c = (r.classificacao_apontamentos ?? "").toLowerCase();
+          return c.includes("alta") || c.includes("média") || c.includes("media");
+        })
         .map((r) => ({ r, total: (r.oportunidades_valor ?? 0) + (r.contingencias_valor ?? 0) }))
-        .filter((x) => x.total > 0)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 8),
+        .sort((a, b) => b.total - a.total),
     [rows],
   );
 
@@ -401,11 +402,11 @@ function AuditoriaInternaPage() {
       {/* Maiores achados fiscais */}
       <Card className="p-0 overflow-hidden">
         <div className="px-4 py-3 border-b">
-          <div className="text-sm font-semibold">Maiores achados fiscais (oportunidade + contingência)</div>
+          <div className="text-sm font-semibold">Achados fiscais — classificação Alta ou Média</div>
         </div>
         {maioresAchados.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-6">
-            Nenhum valor identificado ainda nas auditorias concluídas.
+            Nenhum apontamento classificado como Alta ou Média ainda.
           </div>
         ) : (
           <div className="overflow-auto max-h-[360px]">
