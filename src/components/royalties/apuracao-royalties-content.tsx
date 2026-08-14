@@ -4,6 +4,14 @@ import { Coins, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
 import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -141,74 +149,68 @@ export function ApuracaoRoyaltiesContent() {
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Carregando unidades…</div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {rows.map((u) => {
-            const ap = u.apuracao;
-            const statusKey = ap?.status ?? "nao_iniciada";
-            const badge = STATUS_BADGE[statusKey];
-            const cscModel = u.csc_percentual_base_antiga != null ? `${u.csc_percentual_base_antiga}% base antiga` : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
-            return (
-              <Card key={u.id} className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold">{u.nome_da_praca}</div>
-                    <div className="text-xs text-muted-foreground">
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Unidade</TableHead>
+                <TableHead>Modelo</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Royalties</TableHead>
+                <TableHead className="text-right">CSC</TableHead>
+                <TableHead className="text-right">CAC</TableHead>
+                <TableHead className="text-right">Mídia</TableHead>
+                <TableHead className="text-right">Outras</TableHead>
+                <TableHead className="text-right">Total fatura</TableHead>
+                <TableHead className="text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((u) => {
+                const ap = u.apuracao;
+                const statusKey = ap?.status ?? "nao_iniciada";
+                const badge = STATUS_BADGE[statusKey];
+                const cscModel = u.csc_percentual_base_antiga != null ? `${u.csc_percentual_base_antiga}% base antiga` : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
                       Royalties {u.royalties_percentual ?? 0}% • {cscModel}
-                    </div>
-                  </div>
-                  {badge ? (
-                    <Badge className={badge.cls}>{badge.label}</Badge>
-                  ) : (
-                    <Badge variant="outline">Não iniciada</Badge>
-                  )}
-                </div>
-                {ap && (
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <div className="text-muted-foreground">Royalties</div>
-                      <div className="font-medium">{brl(ap.royalties_valor ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">CSC</div>
-                      <div className="font-medium">
-                        {brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">CAC</div>
-                      <div className="font-medium">{brl(ap.cac_valor ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Mídia</div>
-                      <div className="font-medium">{brl(ap.csc_trafego_pago ?? 0)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Outras</div>
-                      <div className="font-medium">{brl(ap.outras_receitas ?? 0)}</div>
-                    </div>
-                    <div className="col-span-3">
-                      <div className="text-muted-foreground">Total fatura</div>
-                      <div className="text-base font-semibold">{brl(ap.total_fatura ?? 0)}</div>
-                    </div>
-                  </div>
-                )}
-                <Link
-                  to="/royalties/$unidadeId/$mes"
-                  params={{ unidadeId: String(u.id), mes }}
-                  className="inline-block"
-                >
-                  <Button size="sm" variant={ap ? "outline" : "default"} className="w-full">
-                    {ap?.status === "confirmado" || ap?.status === "faturado"
-                      ? "Ver apuração"
-                      : ap
-                        ? "Continuar"
-                        : "Iniciar apuração"}
-                  </Button>
-                </Link>
-              </Card>
-            );
-          })}
-        </div>
+                    </TableCell>
+                    <TableCell>
+                      {badge ? (
+                        <Badge className={badge.cls}>{badge.label}</Badge>
+                      ) : (
+                        <Badge variant="outline">Não iniciada</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">{ap ? brl(ap.royalties_valor ?? 0) : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {ap ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">{ap ? brl(ap.cac_valor ?? 0) : "—"}</TableCell>
+                    <TableCell className="text-right">{ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}</TableCell>
+                    <TableCell className="text-right">{ap ? brl(ap.outras_receitas ?? 0) : "—"}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {ap ? brl(ap.total_fatura ?? 0) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link to="/royalties/$unidadeId/$mes" params={{ unidadeId: String(u.id), mes }}>
+                        <Button size="sm" variant={ap ? "outline" : "default"}>
+                          {ap?.status === "confirmado" || ap?.status === "faturado"
+                            ? "Ver apuração"
+                            : ap
+                              ? "Continuar"
+                              : "Iniciar apuração"}
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
