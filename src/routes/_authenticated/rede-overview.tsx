@@ -515,15 +515,25 @@ function RedeOverviewPage() {
     return map;
   }, [royaltiesData, unidadeFilter]);
 
+  // Acumulado calculado sobre a série completa (não sobre o range filtrado),
+  // senão o corte de data zeraria o acumulado no meio do histórico — o filtro
+  // de data só corta o array na hora de montar `data` do gráfico.
   const mrrNovoRoyaltiesChart = useMemo(() => {
     const meses = new Set<string>([...newMrrByMes.keys(), ...royaltiesByMes.keys()]);
+    let acumulado = 0;
     return Array.from(meses)
       .sort()
-      .map((mes) => ({
-        label: fmtMes(mes),
-        mrrNovo: newMrrByMes.get(mes) ?? 0,
-        royaltiesRecebido: royaltiesByMes.get(mes) ?? 0,
-      }));
+      .map((mes) => {
+        const mrrNovo = newMrrByMes.get(mes) ?? 0;
+        acumulado += mrrNovo;
+        return {
+          mes,
+          label: fmtMes(mes),
+          mrrNovo,
+          royaltiesRecebido: royaltiesByMes.get(mes) ?? 0,
+          mrrAcumulado: acumulado,
+        };
+      });
   }, [newMrrByMes, royaltiesByMes]);
 
   // ---- Receita Total e Booking Total (período selecionado vs. período anterior equivalente) ----
@@ -1165,21 +1175,19 @@ function RedeOverviewPage() {
 
         {/* ---- Aba 2: Vendas & Unidades — Matriz/Hunter, MRR, ranking por unidade ---- */}
         <TabsContent value="vendas" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Card
-              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-              onClick={() => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } })}
-              title="Ver contratos ativos"
-            >
-              <div className="text-xs text-muted-foreground">MRR</div>
-              <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.mrr)}</div>
-              {kpis.receita > 0 && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido
-                </div>
-              )}
-            </Card>
-          </div>
+          <Card
+            className="max-w-xs p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
+            onClick={() => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } })}
+            title="Ver contratos ativos"
+          >
+            <div className="text-xs text-muted-foreground">MRR</div>
+            <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.mrr)}</div>
+            {kpis.receita > 0 && (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido
+              </div>
+            )}
+          </Card>
 
           {!loading && rankingHunterData.length > 0 && (
             <Card className="p-4">
@@ -1215,6 +1223,79 @@ function RedeOverviewPage() {
                 Só a fração do MRR Hunter com "Unidade de Negócio" preenchida no Pipedrive — ver
                 nota na tabela abaixo.
               </div>
+            </Card>
+          )}
+
+        </TabsContent>
+
+        {/* ---- Aba 3: Financeiro — MRR Novo vs. Royalties Recebido + Resumo por Unidade ---- */}
+        <TabsContent value="financeiro" className="space-y-4">
+          {!loading && byMes.length > 0 && (
+            <Card className="p-4">
+              <div className="mb-2 text-sm font-medium">
+                MRR Novo vs Royalties Recebido (mês a mês)
+              </div>
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={mrrNovoRoyaltiesChart.filter((d) => inRange(d.mes))}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      yAxisId="left"
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
+                    {/* Eixo oculto — acumulado cresce em escala bem maior que as
+                        outras duas séries; um eixo visível esmagaria elas. */}
+                    <YAxis yAxisId="acumulado" hide domain={["auto", "auto"]} />
+                    <Tooltip
+                      formatter={(v: number) => fmtBRL(v)}
+                      labelFormatter={(l) => `Mês: ${l}`}
+                    />
+                    <Legend />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="mrrNovo"
+                      name="MRR Novo"
+                      stroke="hsl(217 91% 60%)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="royaltiesRecebido"
+                      name="Royalties Recebido"
+                      stroke="hsl(142 71% 45%)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId="acumulado"
+                      type="monotone"
+                      dataKey="mrrAcumulado"
+                      name="MRR Acumulado"
+                      stroke="hsl(38 92% 55%)"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              {royaltiesError && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Royalties indisponível para este usuário (requer acesso admin).
+                </p>
+              )}
+              <VerDetalheLink to="/royalties" />
             </Card>
           )}
 
@@ -1313,65 +1394,6 @@ function RedeOverviewPage() {
                     </div>
                   );
                 })()}
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* ---- Aba 3: Financeiro — MRR Novo vs. Royalties Recebido ---- */}
-        <TabsContent value="financeiro" className="space-y-4">
-          {!loading && byMes.length > 0 && (
-            <Card className="p-4">
-              <div className="mb-2 text-sm font-medium">
-                MRR Novo vs Royalties Recebido (mês a mês)
-              </div>
-              <div className="h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={mrrNovoRoyaltiesChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis
-                      yAxisId="left"
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip
-                      formatter={(v: number) => fmtBRL(v)}
-                      labelFormatter={(l) => `Mês: ${l}`}
-                    />
-                    <Legend />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="mrrNovo"
-                      name="MRR Novo"
-                      stroke="hsl(217 91% 60%)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="royaltiesRecebido"
-                      name="Royalties Recebido"
-                      stroke="hsl(142 71% 45%)"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              {royaltiesError && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Royalties indisponível para este usuário (requer acesso admin).
-                </p>
-              )}
-              <VerDetalheLink to="/royalties" />
             </Card>
           )}
         </TabsContent>
