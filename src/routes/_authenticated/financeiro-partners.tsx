@@ -2,10 +2,11 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { DreProjetadaView } from "@/components/financeiro-partners/dre-projetada";
 import { FxcView } from "@/components/financeiro-partners/fxc-view";
+import { DreRealizadaView } from "@/components/financeiro-partners/dre-realizada-view";
 import { ContasReceberView } from "@/components/financeiro-partners/contas-receber-view";
 import { PagamentosView } from "@/components/financeiro-partners/pagamentos-view";
 
-type TabId = "dre" | "fcx" | "contas-receber" | "pagamentos";
+type TabId = "dre" | "dre-realizada" | "fcx" | "contas-receber" | "pagamentos";
 
 export const Route = createFileRoute("/_authenticated/financeiro-partners")({
   head: () => ({
@@ -14,13 +15,13 @@ export const Route = createFileRoute("/_authenticated/financeiro-partners")({
       {
         name: "description",
         content:
-          "Visão consolidada: DRE projetada, FCx (fluxo de caixa realizado), contas a receber e recebimentos da Planning Partners.",
+          "Visão consolidada: DRE projetada, DRE realizada, FCx (fluxo de caixa realizado), contas a receber e recebimentos da Planning Partners.",
       },
     ],
   }),
   validateSearch: (search: Record<string, unknown>): { tab: TabId } => {
     const t = search.tab;
-    const valid: TabId[] = ["dre", "fcx", "contas-receber", "pagamentos"];
+    const valid: TabId[] = ["dre", "dre-realizada", "fcx", "contas-receber", "pagamentos"];
     return { tab: (valid.includes(t as TabId) ? (t as TabId) : "dre") };
   },
   component: FinanceiroPartnersPage,
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/_authenticated/financeiro-partners")({
 
 const TABS = [
   { id: "dre", label: "DRE Projetada" },
+  { id: "dre-realizada", label: "DRE Realizada" },
   { id: "fcx", label: "FCx" },
   { id: "contas-receber", label: "Contas a Receber" },
   { id: "pagamentos", label: "Recebimentos" },
@@ -63,6 +65,7 @@ function FinanceiroPartnersPage() {
 
       <div className="flex-1">
         {tab === "dre" && <DreProjetadaView />}
+        {tab === "dre-realizada" && <DreRealizadaView />}
         {tab === "fcx" && <FxcView />}
         {tab === "contas-receber" && <ContasReceberView />}
         {tab === "pagamentos" && <PagamentosView />}
