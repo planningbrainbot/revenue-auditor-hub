@@ -1,12 +1,11 @@
-import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin } from "@/lib/server-utils";
+// Sincroniza o pipe Pipefy "Auditoria Interna" (id 307181077) para a tabela
+// public.auditorias_internas — alimenta a tela executiva /auditoria-interna.
+// Mesmo padrão da pipefy-tratativas-sync: full-refresh periódico (pg_cron),
+// não webhook — o valor aqui é reconciliação completa (detectar cards que
+// saíram do pipe), não reagir rápido a um evento pontual.
+// Espelhado em src/lib/auditoria-interna.functions.ts (botão "forçar
+// atualização" da tela) — manter os dois em sincronia se os field_id mudarem.
 
-// ============ syncAuditoriaInterna ============
-// Versão server-side da Edge Function pipefy-auditoria-interna-sync (que roda
-// a cada 15min via pg_cron) — permite forçar uma atualização imediata pelo
-// botão da tela Auditoria Interna. Mesma lógica de mapeamento de campos;
-// manter as duas em sincronia se os field_id do pipe 307181077 mudarem.
 const PIPE_ID = "307181077";
 
 const F_UNIDADE = "nome_da_unidade_franqueada";
@@ -86,15 +85,15 @@ async function pipefyGraphql(token: string, query: string, variables: Record<str
   return body.data;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// deno-lint-ignore no-explicit-any
 async function fetchAllCards(token: string): Promise<any[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // deno-lint-ignore no-explicit-any
   const cards: any[] = [];
   let after: string | null = null;
   while (true) {
     const data = await pipefyGraphql(token, CARDS_QUERY, { pipeId: PIPE_ID, after });
     const conn = data.allCards;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // deno-lint-ignore no-explicit-any
     cards.push(...conn.edges.map((e: any) => e.node));
     if (!conn.pageInfo.hasNextPage) break;
     after = conn.pageInfo.endCursor;
@@ -102,9 +101,9 @@ async function fetchAllCards(token: string): Promise<any[]> {
   return cards;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// deno-lint-ignore no-explicit-any
 function mapCard(card: any) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // deno-lint-ignore no-explicit-any
   const fieldMap = new Map<string, string>(card.fields.map((f: any) => [f.field.id, f.value]));
   const oportunidadesTexto = fieldMap.get(F_OPORTUNIDADES) ?? null;
   const contingenciasTexto = fieldMap.get(F_CONTINGENCIAS) ?? null;
@@ -130,53 +129,86 @@ function mapCard(card: any) {
     oportunidades_valor: sumReais(oportunidadesTexto),
     contingencias_valor: sumReais(contingenciasTexto),
     update_time: card.updated_at ?? null,
+    synced_at: new Date().toISOString(),
   };
 }
 
-export const syncAuditoriaInterna = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ total: number; removidos: number }> => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+Deno.serve(async (req: Request) => {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (authHeader !== `Bearer ${serviceKey}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
-    const pipefyToken = process.env.PIPEFY_TOKEN;
-    if (!pipefyToken) throw new Error("PIPEFY_TOKEN não configurado no servidor.");
+  const pipefyToken = Deno.env.get("PIPEFY_TOKEN")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
-    const start = Date.now();
+  const start = Date.now();
+  let rows: ReturnType<typeof mapCard>[] = [];
+  let staleCount = 0;
+  let status = "sucesso";
+  let errorMsg: string | null = null;
+
+  try {
     const cards = await fetchAllCards(pipefyToken);
-    const rows = cards.map(mapCard);
+    rows = cards.map(mapCard);
 
-    const { error: upsertErr } = await supabase
-      .from("auditorias_internas")
-      .upsert(rows, { onConflict: "pipefy_card_id" });
-    if (upsertErr) throw new Error(upsertErr.message);
-
-    const currentIds = new Set(rows.map((r) => r.pipefy_card_id));
-    const { data: existing, error: exErr } = await supabase
-      .from("auditorias_internas")
-      .select("pipefy_card_id");
-    if (exErr) throw new Error(exErr.message);
-    const staleIds = (existing ?? [])
-      .map((e: { pipefy_card_id: string }) => String(e.pipefy_card_id))
-      .filter((id: string) => !currentIds.has(id));
-
-    if (staleIds.length > 0) {
-      const { error: delErr } = await supabase
-        .from("auditorias_internas")
-        .delete()
-        .in("pipefy_card_id", staleIds);
-      if (delErr) throw new Error(delErr.message);
+    const upsertResp = await fetch(`${supabaseUrl}/rest/v1/auditorias_internas`, {
+      method: "POST",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(rows),
+    });
+    if (!upsertResp.ok) {
+      throw new Error(`Upsert falhou: ${upsertResp.status} ${await upsertResp.text()}`);
     }
 
-    const duracao = Math.round((Date.now() - start) / 1000);
-    await supabase.from("sync_log").insert({
+    const existingResp = await fetch(
+      `${supabaseUrl}/rest/v1/auditorias_internas?select=pipefy_card_id`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    const existing: { pipefy_card_id: string }[] = await existingResp.json();
+    const currentIds = new Set(rows.map((r) => r.pipefy_card_id));
+    const staleIds = existing.map((e) => e.pipefy_card_id).filter((id) => !currentIds.has(id));
+    staleCount = staleIds.length;
+
+    if (staleIds.length > 0) {
+      const inList = staleIds.map((id) => `"${id}"`).join(",");
+      await fetch(
+        `${supabaseUrl}/rest/v1/auditorias_internas?pipefy_card_id=in.(${inList})`,
+        { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+    }
+  } catch (e) {
+    status = "erro";
+    errorMsg = e instanceof Error ? e.message : String(e);
+  }
+
+  const duracao = Math.round((Date.now() - start) / 1000);
+  await fetch(`${supabaseUrl}/rest/v1/sync_log`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
       fonte: "pipefy_auditoria_interna",
       executado_em: new Date().toISOString(),
       duracao_segundos: duracao,
       total_registros: rows.length,
-      detalhes: { pipe_id: PIPE_ID, cards: rows.length, removidos: staleIds.length, trigger: "manual" },
-      status: "sucesso",
-    });
-
-    return { total: rows.length, removidos: staleIds.length };
+      detalhes: { pipe_id: PIPE_ID, cards: rows.length, removidos: staleCount, trigger: "cron", erro: errorMsg },
+      status,
+    }),
   });
+
+  if (status === "erro") {
+    return new Response(JSON.stringify({ error: errorMsg }), { status: 500 });
+  }
+  return new Response(JSON.stringify({ total: rows.length, removidos: staleCount }), { status: 200 });
+});

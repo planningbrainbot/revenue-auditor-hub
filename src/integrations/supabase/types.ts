@@ -66,6 +66,7 @@ export type Database = {
       auditorias_internas: {
         Row: {
           auditoria_finalizada: boolean | null
+          avaliacao_sucesso: string | null
           classificacao_apontamentos: string | null
           complexidade_fiscal: string | null
           contingencias_texto: string | null
@@ -83,11 +84,13 @@ export type Database = {
           status_solicitacao: string | null
           synced_at: string
           tipo_empresa: string | null
+          tipo_projeto: string | null
           unidade: string | null
           update_time: string | null
         }
         Insert: {
           auditoria_finalizada?: boolean | null
+          avaliacao_sucesso?: string | null
           classificacao_apontamentos?: string | null
           complexidade_fiscal?: string | null
           contingencias_texto?: string | null
@@ -105,11 +108,13 @@ export type Database = {
           status_solicitacao?: string | null
           synced_at?: string
           tipo_empresa?: string | null
+          tipo_projeto?: string | null
           unidade?: string | null
           update_time?: string | null
         }
         Update: {
           auditoria_finalizada?: boolean | null
+          avaliacao_sucesso?: string | null
           classificacao_apontamentos?: string | null
           complexidade_fiscal?: string | null
           contingencias_texto?: string | null
@@ -127,6 +132,7 @@ export type Database = {
           status_solicitacao?: string | null
           synced_at?: string
           tipo_empresa?: string | null
+          tipo_projeto?: string | null
           unidade?: string | null
           update_time?: string | null
         }
