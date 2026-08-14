@@ -509,6 +509,11 @@ async function runSync() {
       const dbIdStr = lostIds.join(",");
       await supaPatchFilter(`royalties_itens?contrato_id=in.(${dbIdStr})`, { contrato_id: null });
       await supaPatchFilter(`contrato_omie_grupos?contrato_id=in.(${dbIdStr})`, { contrato_id: null });
+      // cac_apuracao_itens.contrato_id também é FK pra contratos.id (achado 10/08/2026 no
+      // script local ~/sync_pipedrive_contratos.py — faltava aqui, o DELETE abaixo dava
+      // 409/23503 sempre que um contrato lost/wrong_pipeline tinha parcela de CAC vinculada.
+      // Sync diário em produção ficou quebrado 11–14/08 por causa disso.
+      await supaPatchFilter(`cac_apuracao_itens?contrato_id=in.(${dbIdStr})`, { contrato_id: null });
       await supaDelete(`contratos?id=in.(${dbIdStr})`);
       lostCount = lostIds.length;
     }

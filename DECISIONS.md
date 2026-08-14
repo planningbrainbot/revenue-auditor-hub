@@ -520,3 +520,31 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** implementado. Segue **sem rodar `tsc`/`eslint`/`build`** nesta sessão inteira — ambiente sem `node`/`bun`. Revisão manual em cada edição (balanceamento de chaves/parênteses, grep de referências órfãs). Recomendado fortemente rodar o build antes do próximo deploy real, já que várias mudanças de sintaxe (JSX com IIFE no rodapé da tabela, `LabelList` com `content` custom) nunca foram checadas por ferramenta.
 
 **Próximos passos:** corrigir preenchimento de "Unidade de Negócio" no pipe Sócios do Pipedrive (fora do escopo de código — ação manual ou processo). Rodar lint/build. Fase 2a (split Recorrente/Variável/One Time) segue adiada, precisa de acesso a dado real pra validar categorias.
+
+## [2026-08-14] RLS de `contas_receber` reescrita — timeout em /rede-overview
+
+**Contexto:** usuário reportou "Erro ao carregar dados: Resumo por unidade: canceling statement due to statement timeout" em `/rede-overview`. Não era bug de código — a view `v_reconciliacao_mensal` (usada pelo card) roda em 65ms sem RLS, mas 1,2s como usuário autenticado (18x mais lento), numa tabela de só ~30k linhas.
+
+**Causa raiz:** as 3 policies de SELECT em `contas_receber` chamavam `has_role()`/`can()`/`current_user_unidade()` "soltos" no `USING`, sem `(select ...)` ao redor. O Postgres não consegue cachear isso como `InitPlan` quando o `OR` inclui uma cláusula correlacionada à linha (`unidade = current_user_unidade()`, da regra de sócio) — resultado: as funções são reavaliadas linha a linha em cada `Seq Scan`. Confirmado isolando o mesmo predicado: 332ms (sem `select`) vs. 9ms (com `select`), 36x.
+
+**Mesmo padrão existe em ~42 outras tabelas** do schema (`contratos`, `empresas`, `central_tratativas`, `unidades`, `auditorias_internas`, etc.) — não mexidas nesta sessão, escopo ficou só em `contas_receber` por decisão do usuário (a que realmente estava estourando timeout agora). Achado registrado aqui pra não se perder — vale revisitar se outra página começar a dar timeout parecido.
+
+**Fix:** `supabase/migrations/20260814170000_rls_perf_contas_receber.sql` — `ALTER POLICY ... USING (...)` reescrevendo as 3 policies com cada chamada de função envolvida em `(select ...)`. Mesma lógica booleana, mesmos papéis, mesmas regras de acesso — puramente performance. Aplicado direto em produção via Management API (não há CLI/migration runner local nesta sessão, mesma limitação já registrada nas decisões anteriores). Verificado depois via `EXPLAIN ANALYZE` emulando o usuário autenticado: 1,2s → ~130ms.
+
+**Próximos passos:** se quiser eliminar a causa raiz por completo, revisitar as ~42 tabelas restantes com o mesmo padrão — candidatas a estourar timeout conforme os dados crescerem, mesmo sem reclamação ainda.
+
+## [2026-08-14] Sync diário de contratos quebrado 11–14/08 (FK `cac_apuracao_itens`) + 4 LaunchAgents desligados
+
+**Contexto:** usuário perguntou se o "Ranking de Unidades (MRR Hunter)" estava atualizado com o pipe Sócios (Pipedrive pipeline 4). Investigando, achei dois problemas reais.
+
+**1. Automação de `contratos` na nuvem (pg_cron 10:10 UTC → Edge Function `pipedrive-contratos-sync`) só cobre o pipeline 2 (Matriz/Inside Sales)** — nunca teve lógica pro pipeline 4 (Sócios). Isso só existe no script local `~/sync_pipedrive_contratos.py`, que não tem LaunchAgent/crontab agendando — só roda quando disparado manualmente. Ou seja, `origem_pipeline='socios'` em `contratos` só atualiza sob demanda. Não mexido nesta sessão (mudaria o escopo da automação existente, fora do que foi pedido).
+
+**2. A automação diária (mesmo só cobrindo Matriz) estava falhando TODOS os dias desde pelo menos 11/08** — `DELETE contratos` batia em `23503 foreign key violation`: um contrato marcado como lost/wrong_pipeline ainda tinha parcela referenciada em `cac_apuracao_itens.contrato_id`, e essa FK não estava sendo limpa antes do delete (diferente de `royalties_itens`/`contrato_omie_grupos`, que já tinham esse tratamento). Resultado: sync silenciosamente quebrado 4+ dias, sem alertar ninguém (mesmo modo de falha de outras migrações anteriores, ver `[[project_migracao_integracoes_supabase_cloud]]` na memória).
+
+**Achado curioso:** esse exato bug já tinha sido encontrado e corrigido no script local em **10/08/2026** (comentário no próprio script referenciando a data), mas o fix nunca foi replicado na Edge Function que realmente roda em produção — os dois arquivos divergiram.
+
+**Fix:** replicado o mesmo `supaPatchFilter` pra `cac_apuracao_itens?contrato_id=in.(...)` antes do DELETE, em `supabase/functions/pipedrive-contratos-sync/index.ts`. Deploy feito via `npx supabase functions deploy` (CLI via npx funcionou desta vez — Docker não estava rodando mas não bloqueou o deploy). Invocação manual pós-fix: `ok:true, deals:368, lost_removidos:50` — sync completo, sem erro.
+
+**3. 4 LaunchAgents locais desligados** (a pedido do usuário, "automações que já tem na nuvem funcionando pode desativar local") depois de confirmar que os equivalentes cloud rodaram com sucesso hoje: `financeiro-fxc-sync`, `omie-clientes-sync`, `omie-sync`, `recebimentos-franquias-sync`. `.plist` movidos pra `~/Library/LaunchAgents/disabled-migrated-to-cloud/` (não deletados). `notion-sync` continua ativo — não tem equivalente na nuvem. Detalhe completo em `[[project_migracao_integracoes_supabase_cloud]]` na memória.
+
+**Próximos passos:** decidir se o pipe Sócios (pipeline 4) merece entrar na automação cloud também, ou se o fluxo manual sob demanda é aceitável por enquanto.
