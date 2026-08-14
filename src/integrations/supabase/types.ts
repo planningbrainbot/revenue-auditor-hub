@@ -311,16 +311,19 @@ export type Database = {
       }
       categorias_omie: {
         Row: {
+          categoria_superior: string | null
           codigo: string
           descricao: string
           tipo: string | null
         }
         Insert: {
+          categoria_superior?: string | null
           codigo: string
           descricao: string
           tipo?: string | null
         }
         Update: {
+          categoria_superior?: string | null
           codigo?: string
           descricao?: string
           tipo?: string | null
@@ -446,6 +449,66 @@ export type Database = {
           valor_liquido?: number | null
         }
         Relationships: []
+      }
+      contatos: {
+        Row: {
+          cargo: string | null
+          cpf: string | null
+          created_at: string | null
+          email: string | null
+          empresa_id: number | null
+          empresa_pipefy_record_id: string | null
+          id: number
+          nome_completo: string | null
+          pipefy_record_id: string
+          synced_at: string
+          updated_at: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          email?: string | null
+          empresa_id?: number | null
+          empresa_pipefy_record_id?: string | null
+          id?: never
+          nome_completo?: string | null
+          pipefy_record_id: string
+          synced_at?: string
+          updated_at?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          email?: string | null
+          empresa_id?: number | null
+          empresa_pipefy_record_id?: string | null
+          id?: never
+          nome_completo?: string | null
+          pipefy_record_id?: string
+          synced_at?: string
+          updated_at?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contatos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contatos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "vw_grupos_completo"
+            referencedColumns: ["empresa_id"]
+          },
+        ]
       }
       contrato_omie_grupos: {
         Row: {
@@ -787,6 +850,39 @@ export type Database = {
             referencedColumns: ["empresa_id"]
           },
         ]
+      }
+      custo_operacional_mensal: {
+        Row: {
+          categoria: string | null
+          cobranca: string | null
+          despesa: string
+          id: number
+          mes: string
+          synced_at: string
+          tipo: string | null
+          valor: number
+        }
+        Insert: {
+          categoria?: string | null
+          cobranca?: string | null
+          despesa: string
+          id?: never
+          mes: string
+          synced_at?: string
+          tipo?: string | null
+          valor?: number
+        }
+        Update: {
+          categoria?: string | null
+          cobranca?: string | null
+          despesa?: string
+          id?: never
+          mes?: string
+          synced_at?: string
+          tipo?: string | null
+          valor?: number
+        }
+        Relationships: []
       }
       despesas_cm_avulsos: {
         Row: {
@@ -2062,6 +2158,960 @@ export type Database = {
         }
         Relationships: []
       }
+      partners_dfc_caixa: {
+        Row: {
+          a_pagar_ou_receber: number | null
+          alterado_por: string | null
+          apelido: string | null
+          arquivo_referencia: string
+          baixa_alterada_por: string | null
+          baixa_incluida_por: string | null
+          categoria: string | null
+          categoria_de_para: string | null
+          cliente_ou_fornecedor_nome_fantasia: string | null
+          cliente_ou_fornecedor_razao_social: string | null
+          cnpj_cpf: string | null
+          conciliado: string | null
+          conta_corrente: string | null
+          data_de_alteracao_completa: string | null
+          data_de_alteracao_da_baixa_completa: string | null
+          data_de_credito_ou_pagto_completa: string | null
+          data_de_emissao_completa: string | null
+          data_de_inclusao_completa: string | null
+          data_de_inclusao_da_baixa_completa: string | null
+          data_de_pagto_ou_recbto_completa: string | null
+          data_de_previsao_completa: string | null
+          data_de_registro_completa: string | null
+          data_de_vencimento_completa: string | null
+          departamento: string | null
+          desconto: number | null
+          dias_em_atraso: number | null
+          estrutura_4: string | null
+          estrutura_dfc: string | null
+          estrutura_dre: string | null
+          grupo: string | null
+          grupo_apuracao: string | null
+          grupo_de_para: string | null
+          id: number
+          importado_em: string
+          impostos_retidos: number | null
+          incluido_por: string | null
+          juros: number | null
+          minha_empresa_cnpj: string | null
+          minha_empresa_nome_fantasia: string | null
+          minha_empresa_razao_social: string | null
+          multa: number | null
+          nf_cf: string | null
+          no_do_contrato_de_venda: string | null
+          nome_do_meu_aplicativo: string | null
+          numero_do_documento: string | null
+          observacao_da_conta: string | null
+          observacao_do_pagto_ou_recbto: string | null
+          ordem_de_servico: string | null
+          pago_ou_recebido: number | null
+          parcela: string | null
+          projeto: string | null
+          tipo: string | null
+          tipo_da_conta_corrente: string | null
+          tipo_do_documento: string | null
+          valor_da_conta: number | null
+          valor_liquido: number | null
+        }
+        Insert: {
+          a_pagar_ou_receber?: number | null
+          alterado_por?: string | null
+          apelido?: string | null
+          arquivo_referencia: string
+          baixa_alterada_por?: string | null
+          baixa_incluida_por?: string | null
+          categoria?: string | null
+          categoria_de_para?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_alteracao_da_baixa_completa?: string | null
+          data_de_credito_ou_pagto_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_inclusao_da_baixa_completa?: string | null
+          data_de_pagto_ou_recbto_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          no_do_contrato_de_venda?: string | null
+          nome_do_meu_aplicativo?: string | null
+          numero_do_documento?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          ordem_de_servico?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          tipo?: string | null
+          tipo_da_conta_corrente?: string | null
+          tipo_do_documento?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+        }
+        Update: {
+          a_pagar_ou_receber?: number | null
+          alterado_por?: string | null
+          apelido?: string | null
+          arquivo_referencia?: string
+          baixa_alterada_por?: string | null
+          baixa_incluida_por?: string | null
+          categoria?: string | null
+          categoria_de_para?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_alteracao_da_baixa_completa?: string | null
+          data_de_credito_ou_pagto_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_inclusao_da_baixa_completa?: string | null
+          data_de_pagto_ou_recbto_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          no_do_contrato_de_venda?: string | null
+          nome_do_meu_aplicativo?: string | null
+          numero_do_documento?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          ordem_de_servico?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          tipo?: string | null
+          tipo_da_conta_corrente?: string | null
+          tipo_do_documento?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+        }
+        Relationships: []
+      }
+      partners_dfc_caixa_competencia: {
+        Row: {
+          a_pagar_ou_receber: number | null
+          alterado_por: string | null
+          apelido: string | null
+          arquivo_referencia: string
+          baixa_alterada_por: string | null
+          baixa_incluida_por: string | null
+          categoria: string | null
+          categoria_de_para: string | null
+          classificacao: string | null
+          cliente_ou_fornecedor_nome_fantasia: string | null
+          cliente_ou_fornecedor_razao_social: string | null
+          cnpj_cpf: string | null
+          conciliado: string | null
+          conta_corrente: string | null
+          data_apuracao: string | null
+          data_de_alteracao_completa: string | null
+          data_de_alteracao_da_baixa_completa: string | null
+          data_de_credito_ou_pagto_completa: string | null
+          data_de_emissao_completa: string | null
+          data_de_inclusao_completa: string | null
+          data_de_inclusao_da_baixa_completa: string | null
+          data_de_pagto_ou_recbto_completa: string | null
+          data_de_previsao_completa: string | null
+          data_de_registro_completa: string | null
+          data_de_vencimento_completa: string | null
+          departamento: string | null
+          desconto: number | null
+          dias_em_atraso: number | null
+          estrutura_4: string | null
+          estrutura_dfc: string | null
+          estrutura_dre: string | null
+          grupo: string | null
+          grupo_apuracao: string | null
+          grupo_de_para: string | null
+          id: number
+          importado_em: string
+          impostos_retidos: number | null
+          incluido_por: string | null
+          juros: number | null
+          minha_empresa_cnpj: string | null
+          minha_empresa_nome_fantasia: string | null
+          minha_empresa_razao_social: string | null
+          multa: number | null
+          nf_cf: string | null
+          no_do_contrato_de_venda: string | null
+          nome_do_meu_aplicativo: string | null
+          numero_do_documento: string | null
+          observacao_da_conta: string | null
+          observacao_do_pagto_ou_recbto: string | null
+          ordem_de_servico: string | null
+          pago_ou_recebido: number | null
+          parcela: string | null
+          projeto: string | null
+          tipo: string | null
+          tipo_da_conta_corrente: string | null
+          tipo_do_documento: string | null
+          valor_da_conta: number | null
+          valor_liquido: number | null
+          valor_reais: number | null
+        }
+        Insert: {
+          a_pagar_ou_receber?: number | null
+          alterado_por?: string | null
+          apelido?: string | null
+          arquivo_referencia: string
+          baixa_alterada_por?: string | null
+          baixa_incluida_por?: string | null
+          categoria?: string | null
+          categoria_de_para?: string | null
+          classificacao?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_apuracao?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_alteracao_da_baixa_completa?: string | null
+          data_de_credito_ou_pagto_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_inclusao_da_baixa_completa?: string | null
+          data_de_pagto_ou_recbto_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          no_do_contrato_de_venda?: string | null
+          nome_do_meu_aplicativo?: string | null
+          numero_do_documento?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          ordem_de_servico?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          tipo?: string | null
+          tipo_da_conta_corrente?: string | null
+          tipo_do_documento?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          valor_reais?: number | null
+        }
+        Update: {
+          a_pagar_ou_receber?: number | null
+          alterado_por?: string | null
+          apelido?: string | null
+          arquivo_referencia?: string
+          baixa_alterada_por?: string | null
+          baixa_incluida_por?: string | null
+          categoria?: string | null
+          categoria_de_para?: string | null
+          classificacao?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_apuracao?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_alteracao_da_baixa_completa?: string | null
+          data_de_credito_ou_pagto_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_inclusao_da_baixa_completa?: string | null
+          data_de_pagto_ou_recbto_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          no_do_contrato_de_venda?: string | null
+          nome_do_meu_aplicativo?: string | null
+          numero_do_documento?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          ordem_de_servico?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          tipo?: string | null
+          tipo_da_conta_corrente?: string | null
+          tipo_do_documento?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          valor_reais?: number | null
+        }
+        Relationships: []
+      }
+      partners_dfc_categoria: {
+        Row: {
+          arquivo_referencia: string
+          bloco_dfc: string | null
+          bloco_dre: string | null
+          categoria_de_para: string | null
+          categoria_omie: string | null
+          departamento: string | null
+          estrutura_2: string | null
+          estrutura_4: string | null
+          estrutura_5: string | null
+          estrutura_6: string | null
+          estrutura_dfc: string | null
+          estrutura_dre: string | null
+          grupo_de_para: string | null
+          grupo_omie: string | null
+          id: number
+          importado_em: string
+          tipo: string | null
+          tipo_fluxo_caixa: string | null
+          validador: string | null
+        }
+        Insert: {
+          arquivo_referencia: string
+          bloco_dfc?: string | null
+          bloco_dre?: string | null
+          categoria_de_para?: string | null
+          categoria_omie?: string | null
+          departamento?: string | null
+          estrutura_2?: string | null
+          estrutura_4?: string | null
+          estrutura_5?: string | null
+          estrutura_6?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo_de_para?: string | null
+          grupo_omie?: string | null
+          id?: number
+          importado_em?: string
+          tipo?: string | null
+          tipo_fluxo_caixa?: string | null
+          validador?: string | null
+        }
+        Update: {
+          arquivo_referencia?: string
+          bloco_dfc?: string | null
+          bloco_dre?: string | null
+          categoria_de_para?: string | null
+          categoria_omie?: string | null
+          departamento?: string | null
+          estrutura_2?: string | null
+          estrutura_4?: string | null
+          estrutura_5?: string | null
+          estrutura_6?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo_de_para?: string | null
+          grupo_omie?: string | null
+          id?: number
+          importado_em?: string
+          tipo?: string | null
+          tipo_fluxo_caixa?: string | null
+          validador?: string | null
+        }
+        Relationships: []
+      }
+      partners_dfc_classificacao_departamento: {
+        Row: {
+          arquivo_referencia: string
+          classificacao: string | null
+          departamento: string | null
+          id: number
+          importado_em: string
+        }
+        Insert: {
+          arquivo_referencia: string
+          classificacao?: string | null
+          departamento?: string | null
+          id?: number
+          importado_em?: string
+        }
+        Update: {
+          arquivo_referencia?: string
+          classificacao?: string | null
+          departamento?: string | null
+          id?: number
+          importado_em?: string
+        }
+        Relationships: []
+      }
+      partners_dfc_cr_emissao: {
+        Row: {
+          a_pagar_ou_receber: number | null
+          apelido: string | null
+          arquivo_referencia: string
+          categoria: string | null
+          categoria_de_para: string | null
+          cliente_ou_fornecedor_nome_fantasia: string | null
+          cliente_ou_fornecedor_razao_social: string | null
+          cnpj_cpf: string | null
+          conciliado: string | null
+          conta_corrente: string | null
+          data_apuracao: string | null
+          data_de_alteracao_completa: string | null
+          data_de_emissao_completa: string | null
+          data_de_inclusao_completa: string | null
+          data_de_previsao_completa: string | null
+          data_de_registro_completa: string | null
+          data_de_vencimento_completa: string | null
+          departamento: string | null
+          desconto: number | null
+          dias_em_atraso: number | null
+          estrutura_4: string | null
+          estrutura_dfc: string | null
+          estrutura_dre: string | null
+          grupo: string | null
+          grupo_apuracao: string | null
+          grupo_de_para: string | null
+          id: number
+          importado_em: string
+          impostos_retidos: number | null
+          incluido_por: string | null
+          juros: number | null
+          minha_empresa_cnpj: string | null
+          minha_empresa_nome_fantasia: string | null
+          minha_empresa_razao_social: string | null
+          multa: number | null
+          nf_cf: string | null
+          nome_do_meu_aplicativo: string | null
+          observacao_da_conta: string | null
+          observacao_do_pagto_ou_recbto: string | null
+          pago_ou_recebido: number | null
+          parcela: string | null
+          projeto: string | null
+          situacao_do_vencimento: string | null
+          tipo: string | null
+          ultima_data_de_pagto_ou_recbto_completa: string | null
+          valor_da_conta: number | null
+          valor_liquido: number | null
+          valor_reais: number | null
+        }
+        Insert: {
+          a_pagar_ou_receber?: number | null
+          apelido?: string | null
+          arquivo_referencia: string
+          categoria?: string | null
+          categoria_de_para?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_apuracao?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          nome_do_meu_aplicativo?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          situacao_do_vencimento?: string | null
+          tipo?: string | null
+          ultima_data_de_pagto_ou_recbto_completa?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          valor_reais?: number | null
+        }
+        Update: {
+          a_pagar_ou_receber?: number | null
+          apelido?: string | null
+          arquivo_referencia?: string
+          categoria?: string | null
+          categoria_de_para?: string | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_apuracao?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_4?: string | null
+          estrutura_dfc?: string | null
+          estrutura_dre?: string | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo_de_para?: string | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          nome_do_meu_aplicativo?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          projeto?: string | null
+          situacao_do_vencimento?: string | null
+          tipo?: string | null
+          ultima_data_de_pagto_ou_recbto_completa?: string | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          valor_reais?: number | null
+        }
+        Relationships: []
+      }
+      partners_dfc_empresas: {
+        Row: {
+          apelido: string | null
+          arquivo_referencia: string
+          grupo_apuracao: string | null
+          id: number
+          importado_em: string
+          minha_empresa_cnpj: string | null
+          minha_empresa_nome_fantasia: string | null
+          minha_empresa_razao_social: string | null
+          nome_do_meu_aplicativo: string | null
+        }
+        Insert: {
+          apelido?: string | null
+          arquivo_referencia: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          nome_do_meu_aplicativo?: string | null
+        }
+        Update: {
+          apelido?: string | null
+          arquivo_referencia?: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          nome_do_meu_aplicativo?: string | null
+        }
+        Relationships: []
+      }
+      partners_dfc_saldo_mensal: {
+        Row: {
+          apelido: string | null
+          arquivo_referencia: string
+          grupo_apuracao: string | null
+          id: number
+          importado_em: string
+          minha_empresa_nome_fantasia: string | null
+          periodo: string | null
+          resultado_acumulado: number | null
+          saldo_inicial: number | null
+        }
+        Insert: {
+          apelido?: string | null
+          arquivo_referencia: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_nome_fantasia?: string | null
+          periodo?: string | null
+          resultado_acumulado?: number | null
+          saldo_inicial?: number | null
+        }
+        Update: {
+          apelido?: string | null
+          arquivo_referencia?: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_nome_fantasia?: string | null
+          periodo?: string | null
+          resultado_acumulado?: number | null
+          saldo_inicial?: number | null
+        }
+        Relationships: []
+      }
+      partners_fat_categoria: {
+        Row: {
+          arquivo_referencia: string
+          categoria: string | null
+          categoria2: string | null
+          estrutura_1: string | null
+          estrutura_2: string | null
+          estrutura_3: string | null
+          estrutura_4: string | null
+          estrutura_5: string | null
+          estrutura_dre_1: string | null
+          estrutura_dre_2: string | null
+          estrutura_dre_3: string | null
+          estrutura_dre_4: string | null
+          grupo: string | null
+          grupo2: string | null
+          id: number
+          importado_em: string
+          tipo: string | null
+          validador: string | null
+        }
+        Insert: {
+          arquivo_referencia: string
+          categoria?: string | null
+          categoria2?: string | null
+          estrutura_1?: string | null
+          estrutura_2?: string | null
+          estrutura_3?: string | null
+          estrutura_4?: string | null
+          estrutura_5?: string | null
+          estrutura_dre_1?: string | null
+          estrutura_dre_2?: string | null
+          estrutura_dre_3?: string | null
+          estrutura_dre_4?: string | null
+          grupo?: string | null
+          grupo2?: string | null
+          id?: number
+          importado_em?: string
+          tipo?: string | null
+          validador?: string | null
+        }
+        Update: {
+          arquivo_referencia?: string
+          categoria?: string | null
+          categoria2?: string | null
+          estrutura_1?: string | null
+          estrutura_2?: string | null
+          estrutura_3?: string | null
+          estrutura_4?: string | null
+          estrutura_5?: string | null
+          estrutura_dre_1?: string | null
+          estrutura_dre_2?: string | null
+          estrutura_dre_3?: string | null
+          estrutura_dre_4?: string | null
+          grupo?: string | null
+          grupo2?: string | null
+          id?: number
+          importado_em?: string
+          tipo?: string | null
+          validador?: string | null
+        }
+        Relationships: []
+      }
+      partners_fat_empresas: {
+        Row: {
+          apelido: string | null
+          arquivo_referencia: string
+          grupo_apuracao: string | null
+          id: number
+          importado_em: string
+          minha_empresa_cnpj: string | null
+          minha_empresa_nome_fantasia: string | null
+          minha_empresa_razao_social: string | null
+          nome_do_meu_aplicativo: string | null
+        }
+        Insert: {
+          apelido?: string | null
+          arquivo_referencia: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          nome_do_meu_aplicativo?: string | null
+        }
+        Update: {
+          apelido?: string | null
+          arquivo_referencia?: string
+          grupo_apuracao?: string | null
+          id?: number
+          importado_em?: string
+          minha_empresa_cnpj?: string | null
+          minha_empresa_nome_fantasia?: string | null
+          minha_empresa_razao_social?: string | null
+          nome_do_meu_aplicativo?: string | null
+        }
+        Relationships: []
+      }
+      partners_fat_faturamento: {
+        Row: {
+          a_pagar_ou_receber: number | null
+          apelido: string | null
+          arquivo_referencia: string
+          ativo: string | null
+          categoria: string | null
+          categoria2: number | null
+          cliente_ou_fornecedor_nome_fantasia: string | null
+          cliente_ou_fornecedor_razao_social: string | null
+          cnpj_cpf: string | null
+          conciliado: string | null
+          conta_corrente: string | null
+          data_de_alteracao_completa: string | null
+          data_de_emissao: number | null
+          data_de_emissao_1: string | null
+          data_de_emissao_completa: string | null
+          data_de_inclusao_completa: string | null
+          data_de_previsao_completa: string | null
+          data_de_registro_completa: string | null
+          data_de_vencimento_completa: string | null
+          departamento: string | null
+          desconto: number | null
+          dias_em_atraso: number | null
+          estrutura_1: number | null
+          estrutura_2: number | null
+          estrutura_3: number | null
+          estrutura_4: number | null
+          estrutura_dre_1: number | null
+          estrutura_dre_2: number | null
+          estrutura_dre_3: number | null
+          estrutura_dre_4: number | null
+          grupo: string | null
+          grupo_apuracao: string | null
+          grupo2: number | null
+          id: number
+          importado_em: string
+          impostos_retidos: number | null
+          incluido_por: string | null
+          juros: number | null
+          minha_empresa_nome_fantasia: string | null
+          multa: number | null
+          nf_cf: string | null
+          nome_do_meu_aplicativo: string | null
+          observacao_da_conta: string | null
+          observacao_do_pagto_ou_recbto: string | null
+          pago_ou_recebido: number | null
+          parcela: string | null
+          primeiro_faturamento: number | null
+          projeto: string | null
+          situacao: string | null
+          situacao_do_vencimento: string | null
+          tipo: string | null
+          ultima_data_de_pagto_ou_recbto_completa: string | null
+          ultimo_faturamento: number | null
+          valor_da_conta: number | null
+          valor_liquido: number | null
+          vendedor: string | null
+        }
+        Insert: {
+          a_pagar_ou_receber?: number | null
+          apelido?: string | null
+          arquivo_referencia: string
+          ativo?: string | null
+          categoria?: string | null
+          categoria2?: number | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_emissao?: number | null
+          data_de_emissao_1?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_1?: number | null
+          estrutura_2?: number | null
+          estrutura_3?: number | null
+          estrutura_4?: number | null
+          estrutura_dre_1?: number | null
+          estrutura_dre_2?: number | null
+          estrutura_dre_3?: number | null
+          estrutura_dre_4?: number | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo2?: number | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_nome_fantasia?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          nome_do_meu_aplicativo?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          primeiro_faturamento?: number | null
+          projeto?: string | null
+          situacao?: string | null
+          situacao_do_vencimento?: string | null
+          tipo?: string | null
+          ultima_data_de_pagto_ou_recbto_completa?: string | null
+          ultimo_faturamento?: number | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          vendedor?: string | null
+        }
+        Update: {
+          a_pagar_ou_receber?: number | null
+          apelido?: string | null
+          arquivo_referencia?: string
+          ativo?: string | null
+          categoria?: string | null
+          categoria2?: number | null
+          cliente_ou_fornecedor_nome_fantasia?: string | null
+          cliente_ou_fornecedor_razao_social?: string | null
+          cnpj_cpf?: string | null
+          conciliado?: string | null
+          conta_corrente?: string | null
+          data_de_alteracao_completa?: string | null
+          data_de_emissao?: number | null
+          data_de_emissao_1?: string | null
+          data_de_emissao_completa?: string | null
+          data_de_inclusao_completa?: string | null
+          data_de_previsao_completa?: string | null
+          data_de_registro_completa?: string | null
+          data_de_vencimento_completa?: string | null
+          departamento?: string | null
+          desconto?: number | null
+          dias_em_atraso?: number | null
+          estrutura_1?: number | null
+          estrutura_2?: number | null
+          estrutura_3?: number | null
+          estrutura_4?: number | null
+          estrutura_dre_1?: number | null
+          estrutura_dre_2?: number | null
+          estrutura_dre_3?: number | null
+          estrutura_dre_4?: number | null
+          grupo?: string | null
+          grupo_apuracao?: string | null
+          grupo2?: number | null
+          id?: number
+          importado_em?: string
+          impostos_retidos?: number | null
+          incluido_por?: string | null
+          juros?: number | null
+          minha_empresa_nome_fantasia?: string | null
+          multa?: number | null
+          nf_cf?: string | null
+          nome_do_meu_aplicativo?: string | null
+          observacao_da_conta?: string | null
+          observacao_do_pagto_ou_recbto?: string | null
+          pago_ou_recebido?: number | null
+          parcela?: string | null
+          primeiro_faturamento?: number | null
+          projeto?: string | null
+          situacao?: string | null
+          situacao_do_vencimento?: string | null
+          tipo?: string | null
+          ultima_data_de_pagto_ou_recbto_completa?: string | null
+          ultimo_faturamento?: number | null
+          valor_da_conta?: number | null
+          valor_liquido?: number | null
+          vendedor?: string | null
+        }
+        Relationships: []
+      }
       partners_financeiro: {
         Row: {
           categoria_codigo: string | null
@@ -3202,6 +4252,57 @@ export type Database = {
           },
         ]
       }
+      vendas_servicos_unidades: {
+        Row: {
+          criado_em: string | null
+          data_reuniao: string | null
+          fase_atual: string | null
+          gatilho_reajuste: string | null
+          negociacao: string | null
+          pipefy_card_id: string
+          reuniao_aconteceu: boolean | null
+          solucao: string | null
+          synced_at: string
+          titulo: string | null
+          unidade: string | null
+          valor_mensal_1_mes: number | null
+          valor_teto_rampa: number | null
+          venda_feita: boolean | null
+        }
+        Insert: {
+          criado_em?: string | null
+          data_reuniao?: string | null
+          fase_atual?: string | null
+          gatilho_reajuste?: string | null
+          negociacao?: string | null
+          pipefy_card_id: string
+          reuniao_aconteceu?: boolean | null
+          solucao?: string | null
+          synced_at?: string
+          titulo?: string | null
+          unidade?: string | null
+          valor_mensal_1_mes?: number | null
+          valor_teto_rampa?: number | null
+          venda_feita?: boolean | null
+        }
+        Update: {
+          criado_em?: string | null
+          data_reuniao?: string | null
+          fase_atual?: string | null
+          gatilho_reajuste?: string | null
+          negociacao?: string | null
+          pipefy_card_id?: string
+          reuniao_aconteceu?: boolean | null
+          solucao?: string | null
+          synced_at?: string
+          titulo?: string | null
+          unidade?: string | null
+          valor_mensal_1_mes?: number | null
+          valor_teto_rampa?: number | null
+          venda_feita?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       despesas_cm: {
@@ -3222,6 +4323,17 @@ export type Database = {
           tipo_despesa: string | null
           valor_pago: number | null
           valor_total: number | null
+        }
+        Relationships: []
+      }
+      partners_dre_realizada_mensal: {
+        Row: {
+          arquivo_referencia: string | null
+          bloco: string | null
+          linha: string | null
+          mes: string | null
+          qtd_lancamentos: number | null
+          valor: number | null
         }
         Relationships: []
       }
