@@ -29,6 +29,12 @@ export interface ReformaTributariaData {
   resultadoPosReforma: number;
   textoPrincipal: string; // hero sub — editable, auto-computed on file load
   textoFechamento: string; // CTA sub — editable, auto-computed on file load
+  // Per-tribute breakdown — extracted directly from xlsx desembolso table
+  // Used for the summary cards (ISS/ICMS→0, CBS, IBS) in section 04
+  icmsOuIss2026: number; // ICMS or ISS 2026 desembolso (goes to 0 in 2033)
+  pisCofins2026: number; // PIS/COFINS 2026 desembolso (replaced by CBS in 2027)
+  cbs2033: number;       // CBS desembolso in 2033 (final regime)
+  ibs2033: number;       // IBS desembolso in 2033 (final regime)
 }
 
 export const DEFAULT_DATA: ReformaTributariaData = {
@@ -54,6 +60,10 @@ export const DEFAULT_DATA: ReformaTributariaData = {
   resultadoPosReforma: 0,
   textoPrincipal: '',
   textoFechamento: '',
+  icmsOuIss2026: 0,
+  pisCofins2026: 0,
+  cbs2033: 0,
+  ibs2033: 0,
 };
 
 // Mapa de colunas por ano (Sheet2)
@@ -220,6 +230,28 @@ export async function parseReformaTributariaXlsx(
         const carga2033 = numCell(sheet2, 'AE31') || (sheet4 ? numCell(sheet4, 'O12') : 0);
         years.push({ ano: 2033, desembolso: desembolso2033, carga: carga2033 });
 
+        // Per-tribute breakdown — rows are above the total row in the desembolso table.
+        // Labels in column A: "ICMS", "ISS", "PIS/COFINS" (or "PIS"), "CBS", "IBS".
+        // 2026 uses column C (YEAR_COLS[2026]); 2033 uses column AE.
+        const brkStart = Math.max(20, desRow - 8);
+        const brkEnd   = desRow - 1;
+        const icmsRowB = findLabelRow(sheet2, 'icms', brkStart, brkEnd);
+        const issRowB  = findLabelRow(sheet2, 'iss',  brkStart, brkEnd);
+        const pisRowB  = findLabelRow(sheet2, 'pis',  brkStart, brkEnd);
+        const cbsRowB  = findLabelRow(sheet2, 'cbs',  brkStart, brkEnd);
+        const ibsRowB  = findLabelRow(sheet2, 'ibs',  brkStart, brkEnd);
+
+        const col2026 = YEAR_COLS[2026]; // 'C'
+        // ICMS or ISS value in 2026 (the tribute being replaced)
+        const icmsOuIss2026 = icmsRowB !== null
+          ? numCell(sheet2, `${col2026}${icmsRowB}`)
+          : issRowB !== null
+            ? numCell(sheet2, `${col2026}${issRowB}`)
+            : 0;
+        const pisCofins2026 = pisRowB !== null ? numCell(sheet2, `${col2026}${pisRowB}`) : 0;
+        const cbs2033parsed = cbsRowB !== null ? numCell(sheet2, `AE${cbsRowB}`) : 0;
+        const ibs2033parsed = ibsRowB !== null ? numCell(sheet2, `AE${ibsRowB}`) : 0;
+
         // Extract empresa name from filename — most reliable source.
         // Pattern: "Mapa da Reforma Tributaria_NOME DA EMPRESA 1.xlsx"
         // Sheet3 A3 is unreliable (template often reused without updating company name).
@@ -231,7 +263,13 @@ export async function parseReformaTributariaXlsx(
         }
 
         const referencia = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-        resolve({ empresa, faturamento, aquisicoes, aliquotas, years, resultadoAtual, resultadoPosReforma, referencia });
+        resolve({
+          empresa, faturamento, aquisicoes, aliquotas, years,
+          resultadoAtual, resultadoPosReforma, referencia,
+          icmsOuIss2026, pisCofins2026,
+          cbs2033: cbs2033parsed,
+          ibs2033: ibs2033parsed,
+        });
       } catch (err) {
         reject(
           new Error(
