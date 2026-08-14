@@ -31,6 +31,7 @@ import { Route as AuthenticatedOperacaoRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
+import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDespesasCmRouteImport } from './routes/_authenticated/despesas-cm'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
@@ -170,6 +171,12 @@ const AuthenticatedFinanceiroPartnersRoute =
     path: '/financeiro-partners',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEbitOperacionalRoute =
+  AuthenticatedEbitOperacionalRouteImport.update({
+    id: '/ebit-operacional',
+    path: '/ebit-operacional',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDrePartnersRoute =
   AuthenticatedDrePartnersRouteImport.update({
     id: '/dre-partners',
@@ -281,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
+  '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -320,6 +328,7 @@ export interface FileRoutesByTo {
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
+  '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -361,6 +370,7 @@ export interface FileRoutesById {
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
   '/_authenticated/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
+  '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -404,6 +414,7 @@ export interface FileRouteTypes {
     | '/contas-receber'
     | '/despesas-cm'
     | '/dre-partners'
+    | '/ebit-operacional'
     | '/financeiro-partners'
     | '/funil-receita'
     | '/meus-royalties'
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/contas-receber'
     | '/despesas-cm'
     | '/dre-partners'
+    | '/ebit-operacional'
     | '/financeiro-partners'
     | '/funil-receita'
     | '/meus-royalties'
@@ -483,6 +495,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contas-receber'
     | '/_authenticated/despesas-cm'
     | '/_authenticated/dre-partners'
+    | '/_authenticated/ebit-operacional'
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/funil-receita'
     | '/_authenticated/meus-royalties'
@@ -673,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinanceiroPartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ebit-operacional': {
+      id: '/_authenticated/ebit-operacional'
+      path: '/ebit-operacional'
+      fullPath: '/ebit-operacional'
+      preLoaderRoute: typeof AuthenticatedEbitOperacionalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dre-partners': {
       id: '/_authenticated/dre-partners'
       path: '/dre-partners'
@@ -823,6 +843,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
   AuthenticatedDespesasCmRoute: typeof AuthenticatedDespesasCmRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
+  AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
@@ -861,6 +882,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
   AuthenticatedDespesasCmRoute: AuthenticatedDespesasCmRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
+  AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,

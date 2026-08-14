@@ -35,10 +35,11 @@ export const KNOWN_PERMISSIONS: { key: string; label: string; description: strin
   { key: "view.admin.integracoes", label: "Gerenciar integrações", description: "Cadastrar credenciais de APIs externas (ex: Omie por unidade).", group: "Administração" },
   { key: "data.scope.own_unit_only", label: "Restringe à própria unidade", description: "Filtra todos os dados pela unidade do usuário.", group: "Dados" },
   { key: "manage.repasses", label: "Lançar repasses (Royalties/CAC)", description: "Importar planilha e lançar/excluir repasses recebidos das unidades.", group: "Auditoria" },
-  { key: "view.financeiro_partners", label: "Acessar Financeiro Partners", description: "DRE Projetada e FCx (fluxo de caixa realizado) da Planning Partners.", group: "Planning Partners" },
+  { key: "view.financeiro_partners", label: "Acessar Financeiro Partners", description: "DRE Projetada, DRE Realizada e FCx (fluxo de caixa realizado) da Planning Partners.", group: "Planning Partners" },
   { key: "view.receita_partners", label: "Acessar Receita Partners", description: "Financeiro — Gestão da Rede e Receitas da Planning Partners.", group: "Planning Partners" },
   { key: "view.despesas_partners", label: "Acessar Despesas Partners", description: "Despesas (Confronto Mensal) da Planning Partners.", group: "Planning Partners" },
   { key: "view.atividade", label: "Acessar Atividade do Sistema", description: "Resumo diário de commits — o que mudou no Ops Board, dia a dia.", group: "Administração" },
+  { key: "view.ebit_operacional", label: "Acessar EBIT Operacional", description: "Custo operacional do time (Google Sheets) x venda de serviços internos para unidades (Pipefy) — meta de EBIT zero.", group: "Acesso" },
 ];
 
 // (admin check usa helper compartilhado em @/lib/server-utils)

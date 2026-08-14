@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -82,6 +82,12 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
     label: "CS",
     items: [
       { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
+    ],
+  },
+  {
+    label: "EBIT Operacional",
+    items: [
+      { title: "EBIT Operacional", url: "/ebit-operacional", icon: Scale, permission: "view.ebit_operacional" },
     ],
   },
   {

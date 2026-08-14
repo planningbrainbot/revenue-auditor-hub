@@ -9,6 +9,7 @@ export const PAGE_DEFS: { key: string; label: string }[] = [
   { key: "/meus-royalties", label: "Meus Royalties (Sócio Franqueado)" },
   { key: "/financeiro-partners", label: "Financeiro Partners (FCx · DRE · Receitas · Despesas)" },
   { key: "/painel-cs", label: "CS (Onboarding, Saúde da Carteira, Tratativas, NPS)" },
+  { key: "/ebit-operacional", label: "EBIT Operacional (Custo x Venda de Serviços)" },
   { key: "/admin/usuarios", label: "Admin · Usuários" },
   { key: "/admin/permissoes", label: "Admin · Permissões" },
   { key: "/admin/validacao", label: "Admin · Validação de Páginas" },
