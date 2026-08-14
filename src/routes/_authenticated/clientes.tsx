@@ -504,6 +504,8 @@ function ClientesPage() {
     q,
     unidade,
     statusFilter,
+    churnFilter,
+    churnedIds,
     erpFilter,
     segmentoFilter,
     contratoAssinadoFilter,
