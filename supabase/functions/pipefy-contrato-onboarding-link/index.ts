@@ -52,7 +52,11 @@ const OF_SEGMENTO = "segmento_cnae_principal";
 const OF_CONTATO_NOME = "contato_principal_nome";
 const OF_CONTATO_EMAIL = "e_mail_do_contato";
 const OF_CONTATO_TELEFONE = "telefone_do_contato";
-const OF_CARD_DE_CONTRATO = "card_de_contrato"; // connector -> Contratos
+// connector -> Contratos. Campo original "card_de_contrato" foi arquivado e
+// recriado como "card_s_de_contrato" (canConnectMultiples: true) em
+// 17/08/2026 — achado real no backfill: um cliente pode ter mais de um
+// contrato (ver caso "Rocha Distribuidora", 3 deals Pipedrive distintos).
+const OF_CARD_DE_CONTRATO = "card_s_de_contrato";
 
 async function pipefyGraphql(token: string, query: string, variables?: Record<string, unknown>) {
   const resp = await fetch("https://api.pipefy.com/graphql", {
