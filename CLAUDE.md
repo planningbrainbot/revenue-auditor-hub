@@ -12,4 +12,4 @@ Sempre que uma decisão de produto, arquitetura ou regra de negócio for tomada 
 
 ## Deploy
 
-Ver `DECISIONS.md` (entrada 2026-07-03) para o histórico de qual domínio/projeto Vercel é o correto. Resumo: repo `victoreliezek/revenue-auditor-hub`, remote único `origin`, domínio de produção `planning.opsboard.com.br`. `git push origin main` já dispara o deploy.
+Ver `DECISIONS.md` (entradas 2026-07-03 e 2026-08-18) para o histórico de qual domínio/projeto Vercel é o correto. Resumo: repo `victoreliezek/revenue-auditor-hub`, remote único `origin`, domínio de produção `ops.planningbrain.com.br` (antigo `planning.opsboard.com.br`, descontinuado em 2026-08-18). `git push origin main` já dispara o deploy.

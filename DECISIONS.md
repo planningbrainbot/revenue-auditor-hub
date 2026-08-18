@@ -17,6 +17,13 @@ Formato de cada entrada:
 
 ---
 
+## [2026-08-18] Domínio de produção trocado para ops.planningbrain.com.br
+
+**Contexto:** `planning.opsboard.com.br` (consolidado em [2026-07-03](#2026-07-03-domínio-de-produção-consolidado-em-planningopsboardcombr)) deixou de ser o domínio desejado; nova marca/domínio é `planningbrain.com.br`.
+**Decisão:** domínio oficial passa a ser `ops.planningbrain.com.br`, mesmo projeto Vercel `revenue-auditor-hub` (team `victor-eliezek` — não `planning-ops`, que estava errado nas memórias/decisões antigas). `planning.opsboard.com.br` é removido do projeto assim que o novo domínio verificar.
+**Status:** parcialmente implementado — domínio adicionado ao projeto Vercel via CLI, aguardando registro DNS (`A ops.planningbrain.com.br → 76.76.21.21`, DNS only) ser criado manualmente na zona Cloudflare de `planningbrain.com.br`. URL do logo hardcoded em `src/components/reforma-tributaria/html-generator.ts` já atualizada.
+**Próximos passos:** após verificação da Vercel, marcar `ops.planningbrain.com.br` como Primary e rodar `vercel domains rm planning.opsboard.com.br --scope victor-eliezek`. Conferir se algum link antigo (Slack, favoritos, e-mails automáticos) ainda aponta pro domínio antigo.
+
 ## [2026-07-03] Churn não propagava pros outros meses da apuração (royalties_itens é por mês)
 
 **Contexto:** usuário marcou churn da "Academia de Líderes do Brasil" (data do churn: fev/26) enquanto olhava a apuração de julho/2026 de Belém. O card foi criado no Pipefy normalmente (`churn_pipefy_card_id` gravado no item de julho), mas ao navegar pra junho/2026 (mesmo contrato) o cliente continuava aparecendo em "Só no Pipedrive" pra apurar, sem o badge "churn" — pareceu que o churn não tinha funcionado. Causa raiz: `royalties_itens` é gerado **por apuração** (uma linha por contrato por mês) — `marcarChurn` só atualizava a linha do item clicado, então meses diferentes do mesmo contrato (passados ou futuros já criados) nunca ficavam sabendo do churn.

@@ -98,7 +98,7 @@ export function generatePresentationHTML(d: ReformaTributariaData): string {
   const chartCargas = JSON.stringify(d.years.map((y) => parseFloat((y.carga * 100).toFixed(4))));
   const chartDesembolso = JSON.stringify(d.years.map((y) => y.desembolso));
 
-  const logoSvg = `<img src="https://planning.opsboard.com.br/brand/planning-logo-dark.svg" style="height:22px;width:auto;display:block;" alt="Planning" />`;
+  const logoSvg = `<img src="https://ops.planningbrain.com.br/brand/planning-logo-dark.svg" style="height:22px;width:auto;display:block;" alt="Planning" />`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
