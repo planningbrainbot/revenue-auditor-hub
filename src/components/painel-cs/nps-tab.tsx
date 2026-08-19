@@ -37,7 +37,7 @@ import {
 } from "recharts";
 import { useNps } from "@/hooks/use-nps";
 import type { NpsRow } from "@/lib/nps.functions";
-import { isFranquiaUnidade } from "@/lib/franquias";
+import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 
 const ALL = "__all__";
 
@@ -78,10 +78,19 @@ function fmtDate(d: string | null) {
 
 export function NpsTab() {
   const { data, isLoading, error } = useNps();
-  const rows = useMemo(
-    () => (data?.rows ?? []).filter((r) => isFranquiaUnidade(r.unidade ?? r.empresa_unidade)),
-    [data],
-  );
+  const perms = usePermissions();
+  const rows = useMemo(() => {
+    const all = data?.rows ?? [];
+    // Mesmo padrão de tratativas-tab.tsx: só restringe por unidade quando o
+    // usuário é escopado a uma unidade própria (sócio franqueado). Papéis
+    // sem esse escopo (admin/diretor/auditor/CS) veem tudo, inclusive linhas
+    // sem unidade reconhecida — necessário pra campanha de WhatsApp, cujos
+    // cards nascem sem unidade (só descoberta depois, se descoberta).
+    // Antes disso usava isFranquiaUnidade, que descartava silenciosamente
+    // qualquer linha sem unidade pra TODO MUNDO, inclusive admin.
+    if (!perms.scopedToOwnUnit || !perms.unidade) return all;
+    return all.filter((r) => unitMatches(perms.unidade, r.unidade ?? r.empresa_unidade));
+  }, [data, perms.scopedToOwnUnit, perms.unidade]);
 
   const [q, setQ] = useState("");
   const [unidade, setUnidade] = useState(ALL);
@@ -133,6 +142,8 @@ export function NpsTab() {
     const detratores = respondidas.filter((r) => categorize(r.nps_recomendacao) === "detrator").length;
     const nps = resp > 0 ? Math.round(((promotores - detratores) / resp) * 100) : 0;
     const taxaResposta = total > 0 ? Math.round((resp / total) * 100) : 0;
+    const aguardando = filtered.filter((r) => r.fase === "Pesquisa Enviada").length;
+    const semResposta = filtered.filter((r) => r.fase === "Sem Resposta").length;
     const notasFiscais = filtered
       .map((r) => Number(r.avaliacao_fiscal))
       .filter((n) => Number.isFinite(n));
@@ -140,7 +151,7 @@ export function NpsTab() {
       notasFiscais.length > 0
         ? notasFiscais.reduce((a, b) => a + b, 0) / notasFiscais.length
         : null;
-    return { total, resp, promotores, neutros, detratores, nps, taxaResposta, mediaFiscal };
+    return { total, resp, promotores, neutros, detratores, nps, taxaResposta, mediaFiscal, aguardando, semResposta };
   }, [filtered, respondidas]);
 
   const distribuicaoCategoria = useMemo(
@@ -275,6 +286,14 @@ export function NpsTab() {
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Taxa de resposta</div>
           <div className="mt-1 text-2xl font-semibold">{kpis.taxaResposta}%</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Aguardando resposta</div>
+          <div className="mt-1 text-2xl font-semibold text-amber-600">{kpis.aguardando}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Sem resposta (prazo esgotado)</div>
+          <div className="mt-1 text-2xl font-semibold text-muted-foreground">{kpis.semResposta}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Promotores</div>
@@ -522,7 +541,11 @@ export function NpsTab() {
                     <TableHead className="bg-background text-center">NPS</TableHead>
                     <TableHead className="bg-background">Categoria</TableHead>
                     <TableHead className="bg-background text-center">Fiscal</TableHead>
+                    <TableHead className="bg-background text-center">Contábil</TableHead>
+                    <TableHead className="bg-background text-center">Folha</TableHead>
+                    <TableHead className="bg-background">Serviços</TableHead>
                     <TableHead className="bg-background">Fase</TableHead>
+                    <TableHead className="bg-background">Enviada em</TableHead>
                     <TableHead className="bg-background">Data</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -540,12 +563,16 @@ export function NpsTab() {
                       <TableCell className="text-center">{r.nps_recomendacao ?? "—"}</TableCell>
                       <TableCell>{npsBadge(categorize(r.nps_recomendacao))}</TableCell>
                       <TableCell className="text-center">{r.avaliacao_fiscal ?? "—"}</TableCell>
+                      <TableCell className="text-center">{r.avaliacao_contabil ?? "—"}</TableCell>
+                      <TableCell className="text-center">{r.avaliacao_folha_pagamento ?? "—"}</TableCell>
+                      <TableCell className="text-xs">{r.servicos_contratados?.join(", ") ?? "—"}</TableCell>
                       <TableCell>{r.fase ?? "—"}</TableCell>
+                      <TableCell>{fmtDate(r.data_envio)}</TableCell>
                       <TableCell>{fmtDate(r.created_at)}</TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && !isLoading && (
-                    <TableRow><TableCell colSpan={9} className="py-6 text-center text-muted-foreground">Nenhuma pesquisa encontrada.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={13} className="py-6 text-center text-muted-foreground">Nenhuma pesquisa encontrada.</TableCell></TableRow>
                   )}
                 </TableBody>
               </table>

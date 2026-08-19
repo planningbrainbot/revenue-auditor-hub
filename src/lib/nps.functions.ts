@@ -12,6 +12,10 @@ export interface NpsRow {
   telefone_pesquisa: string | null;
   nps_recomendacao: string | null;
   avaliacao_fiscal: string | null;
+  avaliacao_contabil: string | null;
+  avaliacao_folha_pagamento: string | null;
+  servicos_contratados: string[] | null;
+  data_envio: string | null;
   fase: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -33,6 +37,10 @@ type Joined = {
   telefone_pesquisa: string | null;
   nps_recomendacao: string | null;
   avaliacao_fiscal: string | null;
+  avaliacao_contabil: string | null;
+  avaliacao_folha_pagamento: string | null;
+  servicos_contratados: string[] | null;
+  data_envio: string | null;
   fase: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -51,7 +59,7 @@ export const listNps = createServerFn({ method: "GET" })
       const { data, error } = await supabase
         .from("nps_pesquisas")
         .select(
-          "id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
+          "id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,data_envio,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
         )
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
@@ -69,6 +77,10 @@ export const listNps = createServerFn({ method: "GET" })
           telefone_pesquisa: r.telefone_pesquisa,
           nps_recomendacao: r.nps_recomendacao,
           avaliacao_fiscal: r.avaliacao_fiscal,
+          avaliacao_contabil: r.avaliacao_contabil,
+          avaliacao_folha_pagamento: r.avaliacao_folha_pagamento,
+          servicos_contratados: r.servicos_contratados,
+          data_envio: r.data_envio,
           fase: r.fase,
           created_at: r.created_at,
           updated_at: r.updated_at,
