@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export interface NpsRow {
   id: number;
+  pipefy_card_id: string | null;
   empresa: string | null;
   empresa_id: number | null;
   unidade: string | null;
@@ -28,6 +29,7 @@ export interface NpsRow {
 
 type Joined = {
   id: number;
+  pipefy_card_id: string | null;
   empresa: string | null;
   empresa_id: number | null;
   unidade: string | null;
@@ -299,7 +301,7 @@ export const listNps = createServerFn({ method: "GET" })
       const { data, error } = await supabase
         .from("nps_pesquisas")
         .select(
-          "id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,data_envio,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
+          "id,pipefy_card_id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,data_envio,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
         )
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
@@ -308,6 +310,7 @@ export const listNps = createServerFn({ method: "GET" })
       for (const r of batch) {
         all.push({
           id: r.id,
+          pipefy_card_id: r.pipefy_card_id,
           empresa: r.empresa,
           empresa_id: r.empresa_id,
           unidade: r.unidade,

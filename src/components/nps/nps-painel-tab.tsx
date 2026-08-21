@@ -25,9 +25,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -162,6 +159,13 @@ export function NpsPainelTab() {
         : null;
     return { total, resp, promotores, neutros, detratores, nps, taxaResposta, mediaFiscal, aguardando, semResposta };
   }, [filtered, respondidas]);
+
+  function deltaVsMesAnterior(serie: { mes: string }[], key: "nps" | "csat"): number | null {
+    if (serie.length < 2) return null;
+    const atual = (serie[serie.length - 1] as unknown as Record<string, number>)[key];
+    const anterior = (serie[serie.length - 2] as unknown as Record<string, number>)[key];
+    return Math.round((atual - anterior) * 10) / 10;
+  }
 
   const csat = useMemo(() => {
     const ratings = filtered.flatMap(csatRatings);
@@ -417,9 +421,83 @@ export function NpsPainelTab() {
 
         <TabsContent value="resumo" className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
+            {(() => {
+              const npsDelta = deltaVsMesAnterior(evolucaoMensal, "nps");
+              return (
+                <Card className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground">NPS</div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-4xl font-bold tabular-nums">{kpis.resp > 0 ? kpis.nps : "—"}</span>
+                        {npsDelta != null && (
+                          <span className={`flex items-center gap-0.5 text-sm font-medium ${npsDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {npsDelta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                            {npsDelta >= 0 ? "+" : ""}{npsDelta} pts
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {kpis.resp} respostas</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={evolucaoMensal}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
+                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[-100, 100]} tick={{ fontSize: 11 }} width={36} />
+                        <Tooltip formatter={(v: number) => [v, "NPS"]} />
+                        <Bar dataKey="nps" name="NPS" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {evolucaoMensal.length === 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">Sem respostas registradas no filtro atual.</div>
+                  )}
+                </Card>
+              );
+            })()}
+
+            {(() => {
+              const csatDelta = deltaVsMesAnterior(evolucaoCsatMensal, "csat");
+              return (
+                <Card className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground">CSAT</div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-4xl font-bold tabular-nums">{csat.score != null ? `${csat.score}%` : "—"}</span>
+                        {csatDelta != null && (
+                          <span className={`flex items-center gap-0.5 text-sm font-medium ${csatDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {csatDelta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                            {csatDelta >= 0 ? "+" : ""}{csatDelta} pp
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {csat.totalNotas} notas (fiscal + contábil + folha)</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={evolucaoCsatMensal}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
+                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={36} />
+                        <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
+                        <Bar dataKey="csat" name="CSAT" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {evolucaoCsatMensal.length === 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">Sem notas de serviço registradas no filtro atual.</div>
+                  )}
+                </Card>
+              );
+            })()}
+
             <Card className="p-4">
               <div className="mb-2 text-sm font-medium">Distribuição por categoria</div>
-              <div className="h-[260px]">
+              <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -428,7 +506,7 @@ export function NpsPainelTab() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      outerRadius={90}
+                      outerRadius={80}
                       label={(e: { name?: string; value?: number }) => `${e.name}: ${e.value}`}
                     >
                       {distribuicaoCategoria.map((entry, i) => (
@@ -443,7 +521,7 @@ export function NpsPainelTab() {
 
             <Card className="p-4">
               <div className="mb-2 text-sm font-medium">Distribuição das notas (0-10)</div>
-              <div className="h-[260px]">
+              <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={distribuicaoNota}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
@@ -456,42 +534,6 @@ export function NpsPainelTab() {
                       ))}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card className="p-4 lg:col-span-2">
-              <div className="mb-2 text-sm font-medium">Evolução mensal do CSAT</div>
-              <div className="h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={evolucaoCsatMensal}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="mes" />
-                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                    <Tooltip formatter={(v: number, name: string) => [name === "csat" ? `${v}%` : v, name === "csat" ? "CSAT" : "Notas"]} />
-                    <Bar dataKey="csat" name="CSAT" fill="hsl(174 62% 40%)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {evolucaoCsatMensal.length === 0 && (
-                <div className="mt-2 text-xs text-muted-foreground">Sem notas de serviço registradas no filtro atual.</div>
-              )}
-            </Card>
-
-            <Card className="p-4 lg:col-span-2">
-              <div className="mb-2 text-sm font-medium">Evolução mensal do NPS</div>
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={evolucaoMensal}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="mes" />
-                    <YAxis yAxisId="left" domain={[-100, 100]} />
-                    <YAxis yAxisId="right" orientation="right" allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="nps" name="NPS" stroke="hsl(var(--primary))" strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" dataKey="respondentes" name="Respondentes" stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
-                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </Card>
@@ -690,6 +732,7 @@ export function NpsPainelTab() {
                     <TableHead className="bg-background">Fase</TableHead>
                     <TableHead className="bg-background">Enviada em</TableHead>
                     <TableHead className="bg-background">Data</TableHead>
+                    <TableHead className="bg-background">Card</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -712,10 +755,24 @@ export function NpsPainelTab() {
                       <TableCell>{r.fase ?? "—"}</TableCell>
                       <TableCell>{fmtDate(r.data_envio)}</TableCell>
                       <TableCell>{fmtDate(r.created_at)}</TableCell>
+                      <TableCell>
+                        {r.pipefy_card_id ? (
+                          <a
+                            href={`https://app.pipefy.com/open-cards/${r.pipefy_card_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-primary underline underline-offset-2"
+                          >
+                            ver card
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && !isLoading && (
-                    <TableRow><TableCell colSpan={13} className="py-6 text-center text-muted-foreground">Nenhuma pesquisa encontrada.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={14} className="py-6 text-center text-muted-foreground">Nenhuma pesquisa encontrada.</TableCell></TableRow>
                   )}
                 </TableBody>
               </table>
