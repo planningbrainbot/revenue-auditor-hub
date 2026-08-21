@@ -78,7 +78,7 @@ export function NpsExecucaoTab() {
                       <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(r.enviadoEm)}</TableCell>
                       <TableCell>
                         {r.respondido ? (
-                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Respondido</Badge>
+                          <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">Respondido</Badge>
                         ) : (
                           <Badge variant="outline">Aguardando</Badge>
                         )}

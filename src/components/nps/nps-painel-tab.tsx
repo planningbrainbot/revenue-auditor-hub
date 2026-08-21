@@ -20,6 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SlidersHorizontal } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -35,6 +37,7 @@ import {
 import { useNps, useNpsCoverage } from "@/hooks/use-nps";
 import type { NpsRow } from "@/lib/nps.functions";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
+import { useTheme } from "@/hooks/use-theme";
 
 const ALL = "__all__";
 
@@ -51,11 +54,11 @@ function categorize(score: string | null): Categoria {
 
 function npsBadge(cat: Categoria) {
   if (cat === "promotor")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Promotor</Badge>;
+    return <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">Promotor</Badge>;
   if (cat === "neutro")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">Neutro</Badge>;
+    return <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">Neutro</Badge>;
   if (cat === "detrator")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Detrator</Badge>;
+    return <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">Detrator</Badge>;
   return <Badge variant="outline">—</Badge>;
 }
 
@@ -76,15 +79,28 @@ function fmtDate(d: string | null) {
 // CSAT consolida as 3 notas por serviço (fiscal/contábil/folha) num único
 // score — convenção top-box: nota >= 8 (de 0-10) conta como "satisfeito".
 function csatRatings(r: NpsRow): number[] {
+  // Number(null) === 0 em JS — sem o filtro de nulo/vazio ANTES da
+  // conversão, todo campo não respondido virava uma "nota 0" (bug real:
+  // inflava o total de notas e derrubava o CSAT artificialmente).
   return [r.avaliacao_fiscal, r.avaliacao_contabil, r.avaliacao_folha_pagamento]
+    .filter((v): v is string => v != null && v !== "" && v !== "Sem Resposta")
     .map((v) => Number(v))
     .filter((n) => Number.isFinite(n) && n >= 0 && n <= 10);
 }
+
+// fill="hsl(var(--x))" como atributo SVG puro não resolve de forma confiável
+// em produção (bug observado: barras saindo pretas) — resolvemos a cor em
+// JS a partir do tema ativo em vez de depender do var() dentro do atributo.
+const NPS_FILL = { light: "#00c38b", dark: "#3ce7ad" };
+const CSAT_FILL = { light: "#0e5e8a", dark: "#2f91bd" };
 
 export function NpsPainelTab() {
   const { data, isLoading, error } = useNps();
   const { data: coverage, isLoading: coverageLoading, error: coverageError } = useNpsCoverage();
   const perms = usePermissions();
+  const { theme } = useTheme();
+  const npsFill = NPS_FILL[theme];
+  const csatFill = CSAT_FILL[theme];
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
     // Mesmo padrão de tratativas-tab.tsx: só restringe por unidade quando o
@@ -160,11 +176,23 @@ export function NpsPainelTab() {
     return { total, resp, promotores, neutros, detratores, nps, taxaResposta, mediaFiscal, aguardando, semResposta };
   }, [filtered, respondidas]);
 
-  function deltaVsMesAnterior(serie: { mes: string }[], key: "nps" | "csat"): number | null {
+  // Amostra pequena no mês corrente torna o delta ruído, não sinal — suprime
+  // a variação (mostra só "amostra pequena") abaixo de AMOSTRA_MINIMA.
+  const AMOSTRA_MINIMA = 10;
+
+  function deltaVsMesAnterior(
+    serie: { mes: string }[],
+    key: "nps" | "csat",
+    amostraKey: "respondentes" | "notas",
+  ): { delta: number; amostraPequena: boolean } | null {
     if (serie.length < 2) return null;
-    const atual = (serie[serie.length - 1] as unknown as Record<string, number>)[key];
-    const anterior = (serie[serie.length - 2] as unknown as Record<string, number>)[key];
-    return Math.round((atual - anterior) * 10) / 10;
+    const atualRow = serie[serie.length - 1] as unknown as Record<string, number>;
+    const anteriorRow = serie[serie.length - 2] as unknown as Record<string, number>;
+    const amostraAtual = atualRow[amostraKey] ?? 0;
+    return {
+      delta: Math.round((atualRow[key] - anteriorRow[key]) * 10) / 10,
+      amostraPequena: amostraAtual < AMOSTRA_MINIMA,
+    };
   }
 
   const csat = useMemo(() => {
@@ -301,112 +329,72 @@ export function NpsPainelTab() {
     setCategoria(ALL);
   };
 
-  const classification = classifyNps(kpis.nps);
-  const ClassIcon = classification.icon;
+  const filtrosAtivos = [q, unidade !== ALL, segmento !== ALL, categoria !== ALL, fase !== ALL].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">NPS</div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-semibold">{kpis.resp > 0 ? kpis.nps : "—"}</span>
-            {kpis.resp > 0 && (
-              <span className={`flex items-center gap-1 text-xs ${classification.color}`}>
-                <ClassIcon className="h-3 w-3" />
-                {classification.label}
-              </span>
-            )}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Respondentes</div>
-          <div className="mt-1 text-2xl font-semibold">{kpis.resp}</div>
-          <div className="text-xs text-muted-foreground">de {kpis.total} enviadas</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de resposta</div>
-          <div className="mt-1 text-2xl font-semibold">{kpis.taxaResposta}%</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">CSAT (fiscal + contábil + folha)</div>
-          <div className="mt-1 text-2xl font-semibold">{csat.score != null ? `${csat.score}%` : "—"}</div>
-          <div className="text-xs text-muted-foreground">{csat.totalNotas} nota(s), % com nota ≥ 8</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Aguardando resposta</div>
-          <div className="mt-1 text-2xl font-semibold text-amber-600">{kpis.aguardando}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Sem resposta (prazo esgotado)</div>
-          <div className="mt-1 text-2xl font-semibold text-muted-foreground">{kpis.semResposta}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Promotores</div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-600">{kpis.promotores}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Detratores</div>
-          <div className="mt-1 text-2xl font-semibold text-red-600">{kpis.detratores}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Média fiscal</div>
-          <div className="mt-1 text-2xl font-semibold">
-            {kpis.mediaFiscal != null ? kpis.mediaFiscal.toFixed(1) : "—"}
-          </div>
-        </Card>
-      </div>
-
-      {/* Filtros */}
-      <Card className="p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar empresa, contato ou e-mail..."
-              className="pl-8"
-            />
-          </div>
-          <Select value={unidade} onValueChange={setUnidade}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as unidades</SelectItem>
-              {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={segmento} onValueChange={setSegmento}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Segmento" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos os segmentos</SelectItem>
-              {segmentos.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={categoria} onValueChange={setCategoria}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas categorias</SelectItem>
-              <SelectItem value="promotor">Promotores</SelectItem>
-              <SelectItem value="neutro">Neutros</SelectItem>
-              <SelectItem value="detrator">Detratores</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={fase} onValueChange={setFase}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Fase" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as fases</SelectItem>
-              {fases.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="mr-1 h-4 w-4" /> Limpar
+      <div className="flex items-center justify-between">
+        <div />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtros
+              {filtrosAtivos > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs text-primary-foreground">
+                  {filtrosAtivos}
+                </span>
+              )}
             </Button>
-          )}
-        </div>
-      </Card>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 space-y-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar empresa, contato ou e-mail..."
+                className="pl-8"
+              />
+            </div>
+            <Select value={unidade} onValueChange={setUnidade}>
+              <SelectTrigger><SelectValue placeholder="Unidade" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as unidades</SelectItem>
+                {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={segmento} onValueChange={setSegmento}>
+              <SelectTrigger><SelectValue placeholder="Segmento" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todos os segmentos</SelectItem>
+                {segmentos.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={categoria} onValueChange={setCategoria}>
+              <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas categorias</SelectItem>
+                <SelectItem value="promotor">Promotores</SelectItem>
+                <SelectItem value="neutro">Neutros</SelectItem>
+                <SelectItem value="detrator">Detratores</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={fase} onValueChange={setFase}>
+              <SelectTrigger><SelectValue placeholder="Fase" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as fases</SelectItem>
+                {fases.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
+                <X className="mr-1 h-4 w-4" /> Limpar filtros
+              </Button>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando pesquisas…</Card>}
       {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar dados.</Card>}
@@ -422,19 +410,22 @@ export function NpsPainelTab() {
         <TabsContent value="resumo" className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             {(() => {
-              const npsDelta = deltaVsMesAnterior(evolucaoMensal, "nps");
+              const npsDelta = deltaVsMesAnterior(evolucaoMensal, "nps", "respondentes");
               return (
                 <Card className="p-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="text-sm font-medium text-muted-foreground">NPS</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">NPS</div>
                       <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-4xl font-bold tabular-nums">{kpis.resp > 0 ? kpis.nps : "—"}</span>
-                        {npsDelta != null && (
-                          <span className={`flex items-center gap-0.5 text-sm font-medium ${npsDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                            {npsDelta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                            {npsDelta >= 0 ? "+" : ""}{npsDelta} pts
+                        <span className="text-3xl font-semibold tabular-nums">{kpis.resp > 0 ? kpis.nps : "—"}</span>
+                        {npsDelta != null && !npsDelta.amostraPequena && (
+                          <span className={`flex items-center gap-0.5 text-xs font-medium ${npsDelta.delta >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                            {npsDelta.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {npsDelta.delta >= 0 ? "+" : ""}{npsDelta.delta} pts
                           </span>
+                        )}
+                        {npsDelta?.amostraPequena && (
+                          <span className="text-xs text-muted-foreground">amostra pequena</span>
                         )}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {kpis.resp} respostas</div>
@@ -447,7 +438,7 @@ export function NpsPainelTab() {
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis domain={[-100, 100]} tick={{ fontSize: 11 }} width={36} />
                         <Tooltip formatter={(v: number) => [v, "NPS"]} />
-                        <Bar dataKey="nps" name="NPS" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[2, 2, 0, 0]} maxBarSize={40} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -459,19 +450,22 @@ export function NpsPainelTab() {
             })()}
 
             {(() => {
-              const csatDelta = deltaVsMesAnterior(evolucaoCsatMensal, "csat");
+              const csatDelta = deltaVsMesAnterior(evolucaoCsatMensal, "csat", "notas");
               return (
                 <Card className="p-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="text-sm font-medium text-muted-foreground">CSAT</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CSAT</div>
                       <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-4xl font-bold tabular-nums">{csat.score != null ? `${csat.score}%` : "—"}</span>
-                        {csatDelta != null && (
-                          <span className={`flex items-center gap-0.5 text-sm font-medium ${csatDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                            {csatDelta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                            {csatDelta >= 0 ? "+" : ""}{csatDelta} pp
+                        <span className="text-3xl font-semibold tabular-nums">{csat.score != null ? `${csat.score}%` : "—"}</span>
+                        {csatDelta != null && !csatDelta.amostraPequena && (
+                          <span className={`flex items-center gap-0.5 text-xs font-medium ${csatDelta.delta >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                            {csatDelta.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            {csatDelta.delta >= 0 ? "+" : ""}{csatDelta.delta} pp
                           </span>
+                        )}
+                        {csatDelta?.amostraPequena && (
+                          <span className="text-xs text-muted-foreground">amostra pequena</span>
                         )}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {csat.totalNotas} notas (fiscal + contábil + folha)</div>
@@ -484,7 +478,7 @@ export function NpsPainelTab() {
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={36} />
                         <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
-                        <Bar dataKey="csat" name="CSAT" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[2, 2, 0, 0]} maxBarSize={40} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -494,8 +488,13 @@ export function NpsPainelTab() {
                 </Card>
               );
             })()}
+          </div>
 
-            <Card className="p-4">
+          <div className="pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Detalhamento
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card className="p-4 opacity-90">
               <div className="mb-2 text-sm font-medium">Distribuição por categoria</div>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -519,7 +518,7 @@ export function NpsPainelTab() {
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-4 opacity-90">
               <div className="mb-2 text-sm font-medium">Distribuição das notas (0-10)</div>
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -538,7 +537,7 @@ export function NpsPainelTab() {
               </div>
             </Card>
 
-            <Card className="p-4 lg:col-span-2">
+            <Card className="p-4 opacity-90 lg:col-span-2">
               <div className="mb-2 text-sm font-medium">Detratores recentes (ação prioritária)</div>
               {detratoresList.length === 0 ? (
                 <div className="text-sm text-muted-foreground">Nenhum detrator no filtro atual.</div>
@@ -552,7 +551,7 @@ export function NpsPainelTab() {
                           {r.unidade ?? "—"} · {r.nome_contato ?? "—"} · {r.email_pesquisa ?? "—"}
                         </div>
                       </div>
-                      <Badge className="bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                      <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">
                         Nota {r.nps_recomendacao}
                       </Badge>
                     </li>
@@ -655,7 +654,7 @@ export function NpsPainelTab() {
                     <XAxis type="number" domain={[-100, 100]} />
                     <YAxis type="category" dataKey="unidade" width={110} />
                     <Tooltip />
-                    <Bar dataKey="nps" name="NPS" fill="hsl(var(--primary))" />
+                    <Bar dataKey="nps" name="NPS" fill={npsFill} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -670,7 +669,7 @@ export function NpsPainelTab() {
                     <XAxis type="number" domain={[-100, 100]} />
                     <YAxis type="category" dataKey="segmento" width={110} />
                     <Tooltip />
-                    <Bar dataKey="nps" name="NPS" fill="hsl(var(--primary))" />
+                    <Bar dataKey="nps" name="NPS" fill={npsFill} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
