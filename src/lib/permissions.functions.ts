@@ -41,6 +41,7 @@ export const KNOWN_PERMISSIONS: { key: string; label: string; description: strin
   { key: "view.despesas_partners", label: "Acessar Despesas Partners", description: "Despesas (Confronto Mensal) da Planning Partners.", group: "Planning Partners" },
   { key: "view.atividade", label: "Acessar Atividade do Sistema", description: "Resumo diário de commits — o que mudou no Ops Board, dia a dia.", group: "Administração" },
   { key: "view.ebit_operacional", label: "Acessar EBIT Operacional", description: "Custo operacional do time (Google Sheets) x venda de serviços internos para unidades (Pipefy) — meta de EBIT zero.", group: "Acesso" },
+  { key: "view.contatos", label: "Ver contatos dos clientes", description: "Contatos (stakeholders) vinculados a cada cliente, na tela de Clientes — nome, cargo, e-mail e WhatsApp.", group: "Dados" },
 ];
 
 // (admin check usa helper compartilhado em @/lib/server-utils)

@@ -11,6 +11,7 @@ import {
   Pencil,
   Search,
   TriangleAlert,
+  Users,
   UserX,
   X,
 } from "lucide-react";
@@ -50,6 +51,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { PrePlanningTab } from "@/components/clientes/pre-planning-tab";
+import {
+  ContatosClienteDialog,
+  type ClienteSelecionado,
+} from "@/components/clientes/contatos-cliente-dialog";
 import { atualizarCliente, marcarChurnCliente } from "@/lib/clientes.functions";
 import { MOTIVOS_CHURN, type MotivoChurn } from "@/lib/royalties.functions";
 import { digits } from "@/lib/server-utils";
@@ -192,6 +197,10 @@ function ClientesPage() {
   const [contratoAssinadoFilter, setContratoAssinadoFilter] = useState<boolean | null>(null);
   const [omieMatches, setOmieMatches] = useState<OmieMatch[]>([]);
   const [omieLoading, setOmieLoading] = useState(false);
+  // Cliente cujo painel de contatos está aberto (null = fechado).
+  const [contatoCliente, setContatoCliente] = useState<ClienteSelecionado | null>(null);
+  // Quantos contatos cada empresa tem, pra sinalizar na linha antes do clique.
+  const [contatosCount, setContatosCount] = useState<Map<number, number>>(new Map());
   type SortKey =
     | "razao_social"
     | "unidade"
@@ -316,6 +325,35 @@ function ClientesPage() {
       mounted = false;
     };
   }, []);
+
+  // Contagem de contatos por empresa, carregada de uma vez só (a tabela toda é ~1k linhas).
+  // Sem `view.contatos` a RLS devolve vazio — nesse caso nem consulta, e a linha não vira
+  // clicável, pra não abrir um painel que sempre apareceria vazio.
+  const podeVerContatos = perms.can("view.contatos");
+  useEffect(() => {
+    if (!podeVerContatos) {
+      setContatosCount(new Map());
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("contatos")
+        .select("empresa_id")
+        .not("empresa_id", "is", null)
+        .limit(20000);
+      if (!mounted) return;
+      const counts = new Map<number, number>();
+      for (const c of data ?? []) {
+        const id = c.empresa_id as number;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      setContatosCount(counts);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [podeVerContatos]);
 
   const cnpjsReconciliados = useMemo(
     () => new Set(rows.map((r) => digits(r.cnpj)).filter(Boolean)),
@@ -805,13 +843,39 @@ function ClientesPage() {
                     const churned = isChurn(r);
                     const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
                     return (
-                      <TableRow key={r.id} className={churned ? "opacity-60" : undefined}>
+                      <TableRow
+                        key={r.id}
+                        className={cn(
+                          churned && "opacity-60",
+                          podeVerContatos && "cursor-pointer hover:bg-muted/50",
+                        )}
+                        onClick={
+                          podeVerContatos
+                            ? () =>
+                                setContatoCliente({
+                                  id: r.id,
+                                  nome: displayName(r) || "—",
+                                  unidade: r.unidade,
+                                })
+                            : undefined
+                        }
+                      >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             {displayName(r) || "—"}
                             {churned && (
                               <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] px-1.5 py-0">
                                 churn
+                              </Badge>
+                            )}
+                            {podeVerContatos && (contatosCount.get(r.id) ?? 0) > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="gap-1 px-1.5 py-0 text-[10px] font-normal"
+                                title="Contatos vinculados — clique na linha para ver"
+                              >
+                                <Users className="h-3 w-3" />
+                                {contatosCount.get(r.id)}
                               </Badge>
                             )}
                           </div>
@@ -841,6 +905,7 @@ function ClientesPage() {
                               href={`https://app.pipedrive.com/deal/${r.pipedrive_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
                               className="inline-flex items-center gap-1 text-primary hover:underline"
                             >
                               {r.pipedrive_id}
@@ -858,7 +923,10 @@ function ClientesPage() {
                         <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
                         <TableCell>{info?.closer || "—"}</TableCell>
                         {perms.isAdmin && (
-                          <TableCell className="text-right">
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex items-center justify-end gap-1">
                               <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
                               <MarcarChurnClienteButton
@@ -944,6 +1012,13 @@ function ClientesPage() {
           <PrePlanningTab />
         </TabsContent>
       </Tabs>
+
+      <ContatosClienteDialog
+        cliente={contatoCliente}
+        onOpenChange={(open) => {
+          if (!open) setContatoCliente(null);
+        }}
+      />
     </div>
   );
 }
