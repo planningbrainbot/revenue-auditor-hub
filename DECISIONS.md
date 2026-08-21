@@ -555,3 +555,22 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **3. 4 LaunchAgents locais desligados** (a pedido do usuário, "automações que já tem na nuvem funcionando pode desativar local") depois de confirmar que os equivalentes cloud rodaram com sucesso hoje: `financeiro-fxc-sync`, `omie-clientes-sync`, `omie-sync`, `recebimentos-franquias-sync`. `.plist` movidos pra `~/Library/LaunchAgents/disabled-migrated-to-cloud/` (não deletados). `notion-sync` continua ativo — não tem equivalente na nuvem. Detalhe completo em `[[project_migracao_integracoes_supabase_cloud]]` na memória.
 
 **Próximos passos:** decidir se o pipe Sócios (pipeline 4) merece entrar na automação cloud também, ou se o fluxo manual sob demanda é aceitável por enquanto.
+
+## [2026-08-21] CAC: separado "venda ganha" de "contrato assinado" — gate de disponibilidade pra cobrar
+
+**Contexto:** usuário pediu a mesma visão de uma planilha ad hoc ("vendas com contrato assinado e CAC ainda não cobrado ≥50%") dentro da página de CAC do ops (`/unidades`, aba CAC), reclamando que a tela atual "não está muito prática" e que precisa que só apareça como **disponível pra cobrar** quem já tem contrato assinado.
+
+**Achado (bug de nomenclatura, não de cálculo):** `cac_apuracao_itens.data_assinatura_contrato` é preenchido com `contratos.ganho_em` (data da venda GANHA no Pipedrive) — não é a data real de assinatura do contrato (`contratos.entrada_contrato_assinado_em`, vinda do Pipefy). O nome do campo sempre foi enganoso; o cálculo de prazo da parcela 1 (regime "7 dias" ou "atribuição") já usava e continua usando `ganho_em` de propósito (regra confirmada 27/07/2026, não mexida aqui). Rodando o corte hoje: dos 72 contratos com Parcela 1 pendente, só 36 (50%) têm `entrada_contrato_assinado_em` preenchida.
+
+**Decisão (confirmada com o usuário via pergunta direta):**
+1. A lista principal da página passa a **ocultar por padrão** clientes com algo pendente mas sem `entrada_contrato_assinado_em` — não há base contratual pra cobrar a unidade ainda. Não mexe no cálculo de prazo/atraso em si (isso continua usando `ganho_em`, regra de 27/07 preservada).
+2. Esses casos ficam visíveis via banner ("N clientes aguardando assinatura, R$X") com toggle "Mostrar aguardando assinatura" — não desaparecem, só saem do caminho por padrão.
+3. Itens manuais (`fonte='manual'`, sem `contrato_id`) não passam por esse gate — quem adicionou manualmente já vouches pela validade.
+
+**Implementação:** `contrato_assinado_em` (novo campo, não persistido — calculado em `listCacItensTodasUnidades` juntando `contratos.entrada_contrato_assinado_em` por `contrato_id`, sem migration) trafega em `ApuracaoCacItemComUnidade`. Frontend (`apuracao-cac-content.tsx`): helper `contratoAssinado()`, filtro `mostrarAguardandoAssinatura` (default `false`), banner de aviso, nova coluna "Assinatura do contrato" na tabela (badge amarelo quando pendente), coluna antiga renomeada de "Assinatura" pra "Venda ganha" (pra não mentir sobre o que o dado realmente é). KPIs (`vendido`/`recebido`/`aReceber`) agora refletem só o que está "disponível pra cobrar" por padrão, já que são calculados sobre `filtrados`.
+
+**Validado:** `npx tsc --noEmit` limpo pros arquivos tocados (erros restantes no projeto são todos pré-existentes, não relacionados). `npm run dev` local subiu sem erro de SSR (`/unidades` respondeu 200). **Não testado logado como admin** (sem sessão disponível nesta sessão) — recomenda-se conferir visualmente antes de considerar fechado.
+
+**Status:** implementado localmente, não commitado/enviado — aguardando o usuário revisar rodando `npm run dev` antes de decidir sobre commit/push (regra padrão: dev local antes de produção).
+
+**Próximos passos:** se o usuário confirmar que gostou da mudança, considerar propagar a mesma distinção pro `CacTab` mais simples (`src/components/audit/cac-tab.tsx`), que hoje não faz nenhuma diferenciação entre venda ganha e contrato assinado.

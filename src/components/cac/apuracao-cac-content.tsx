@@ -76,7 +76,20 @@ type ItemCac = {
   excluido_em: string | null;
   motivo_exclusao: string | null;
   mes_referencia: string;
+  // Data real de assinatura do contrato (Pipefy) — distinta de
+  // data_assinatura_contrato, que na verdade é a data da venda ganha
+  // (Pipedrive) e só serve pro cálculo do prazo da parcela 1.
+  contrato_assinado_em: string | null;
 };
+
+// "Disponível pra cobrar": tem algo pendente e o contrato já foi assinado de
+// fato (ou é item manual, sem contrato vinculado — não passa por esse gate).
+// Achado 21/08/2026: venda ganha (ganho_em) != contrato assinado; a apuração
+// gera o item já no mês da venda, mas cobrar a unidade antes da assinatura
+// real não tem base contratual.
+function contratoAssinado(it: ItemCac): boolean {
+  return it.contrato_id == null || !!it.contrato_assinado_em;
+}
 
 function formatMesLabel(mes: string) {
   if (!mes) return "—";
@@ -260,6 +273,10 @@ export function ApuracaoCacContent() {
   const [statusFiltro, setStatusFiltro] = useState<string>("todos");
   const [mesFiltro, setMesFiltro] = useState<string>("todos");
   const [mostrarExcluidos, setMostrarExcluidos] = useState(false);
+  // Por padrão, contratos sem assinatura confirmada ficam fora da lista
+  // principal (não há base pra cobrar a unidade ainda) — visíveis só ligando
+  // este toggle. Ver contratoAssinado().
+  const [mostrarAguardandoAssinatura, setMostrarAguardandoAssinatura] = useState(false);
 
   const unidades = data?.unidades ?? [];
 
@@ -283,12 +300,25 @@ export function ApuracaoCacContent() {
     return [...set].sort();
   }, [data, medianas]);
 
+  // Contratos com algo pendente mas ainda sem assinatura confirmada — ocultos
+  // da lista principal por padrão (banner abaixo mostra quantos/quanto, com
+  // toggle pra revelar). Respeita o filtro de unidade, não os demais.
+  const aguardandoAssinatura = useMemo(() => {
+    const itens = (data?.itens ?? []) as ItemCac[];
+    return itens.filter((it) => {
+      if (it.excluido_em) return false;
+      if (unidadeFiltro !== "todas" && String(it.unidade_id) !== unidadeFiltro) return false;
+      return !contratoAssinado(it) && valorAReceber(it) > 0;
+    });
+  }, [data, unidadeFiltro]);
+
   const filtrados = useMemo(() => {
     const itens = (data?.itens ?? []) as ItemCac[];
     return itens.filter((it) => {
       if (unidadeFiltro !== "todas" && String(it.unidade_id) !== unidadeFiltro) return false;
       if (!mostrarExcluidos && it.excluido_em) return false;
       if (!it.excluido_em) {
+        if (!mostrarAguardandoAssinatura && !contratoAssinado(it) && valorAReceber(it) > 0) return false;
         if (statusFiltro === "recebido" && valorAReceber(it) > 0) return false;
         if (statusFiltro === "a_receber" && valorAReceber(it) === 0) return false;
         if (mesFiltro !== "todos") {
@@ -299,7 +329,7 @@ export function ApuracaoCacContent() {
       }
       return true;
     });
-  }, [data, unidadeFiltro, statusFiltro, mesFiltro, mostrarExcluidos, medianas]);
+  }, [data, unidadeFiltro, statusFiltro, mesFiltro, mostrarExcluidos, mostrarAguardandoAssinatura, medianas]);
 
   const kpis = useMemo(() => {
     let vendido = 0;
@@ -403,7 +433,9 @@ export function ApuracaoCacContent() {
             <p className="text-sm text-muted-foreground">
               Repasse de CAC por cliente novo — a regra varia por unidade (mês de atribuição, 7 dias
               após a assinatura, ou excedente mensal). Lista contínua, sempre editável — o que
-              importa é se cada parcela já foi paga.
+              importa é se cada parcela já foi paga. Clientes com venda ganha mas contrato ainda não
+              assinado ficam fora da lista por padrão (sem base pra cobrar a unidade ainda) — use
+              "Mostrar aguardando assinatura" pra ver esses casos.
             </p>
           </div>
         </div>
@@ -460,6 +492,13 @@ export function ApuracaoCacContent() {
           </Select>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <Checkbox
+              checked={mostrarAguardandoAssinatura}
+              onCheckedChange={(v) => setMostrarAguardandoAssinatura(!!v)}
+            />
+            Mostrar aguardando assinatura
+          </label>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox
               checked={mostrarExcluidos}
               onCheckedChange={(v) => setMostrarExcluidos(!!v)}
             />
@@ -468,6 +507,24 @@ export function ApuracaoCacContent() {
         </div>
         <AddItemDialog unidades={unidades} onAdd={(payload) => addItem.mutate(payload)} />
       </div>
+
+      {aguardandoAssinatura.length > 0 && !mostrarAguardandoAssinatura && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <span className="font-medium text-amber-800 dark:text-amber-300">
+            {aguardandoAssinatura.length} cliente{aguardandoAssinatura.length > 1 ? "s" : ""}
+          </span>{" "}
+          com venda ganha mas contrato ainda não assinado (
+          {brl(aguardandoAssinatura.reduce((s, it) => s + valorAReceber(it), 0))} em CAC não
+          disponível pra cobrar ainda) — fora da lista abaixo.{" "}
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2"
+            onClick={() => setMostrarAguardandoAssinatura(true)}
+          >
+            Mostrar
+          </button>
+        </div>
+      )}
 
       {resumoMes && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
@@ -587,7 +644,8 @@ export function ApuracaoCacContent() {
                   <th className="px-3 py-2 text-left">Unidade</th>
                   <th className="px-3 py-2 text-left">Cliente</th>
                   <th className="px-3 py-2 text-left">CNPJ</th>
-                  <th className="px-3 py-2 text-left">Assinatura</th>
+                  <th className="px-3 py-2 text-left">Venda ganha</th>
+                  <th className="px-3 py-2 text-left">Assinatura do contrato</th>
                   <th className="px-3 py-2 text-left">Mês</th>
                   <th className="px-3 py-2 text-right">Valor total</th>
                   <th className="px-3 py-2 text-right">Parcela 1 (7d pós assinatura)</th>
@@ -599,7 +657,11 @@ export function ApuracaoCacContent() {
                 {filtrados.map((it) => (
                   <tr
                     key={it.id}
-                    className={cn("border-t align-top", it.excluido_em && "opacity-60")}
+                    className={cn(
+                      "border-t align-top",
+                      it.excluido_em && "opacity-60",
+                      !it.excluido_em && !contratoAssinado(it) && "bg-amber-50/60 dark:bg-amber-950/10",
+                    )}
                   >
                     <td className="px-3 py-2 whitespace-nowrap">{it.unidade_nome}</td>
                     <td className="px-3 py-2">{it.razao_social}</td>
@@ -618,6 +680,17 @@ export function ApuracaoCacContent() {
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       {fmtData(it.data_assinatura_contrato)}
+                    </td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      {it.contrato_assinado_em ? (
+                        <span className="text-muted-foreground">{fmtData(it.contrato_assinado_em)}</span>
+                      ) : it.contrato_id == null ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                          Aguardando assinatura
+                        </Badge>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground capitalize whitespace-nowrap">
                       {formatMesLabel(it.mes_referencia)}
