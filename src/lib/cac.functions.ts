@@ -41,6 +41,13 @@ export interface ApuracaoCacItemComUnidade extends ApuracaoCacItem {
   unidade_id: number;
   unidade_nome: string;
   mes_referencia: string;
+  // Data REAL de assinatura do contrato (contratos.entrada_contrato_assinado_em,
+  // origem Pipefy) — distinta de data_assinatura_contrato acima, que na verdade
+  // guarda contratos.ganho_em (venda ganha no Pipedrive) e só serve pro cálculo
+  // do prazo da parcela 1. Usada pra decidir se o CAC já está "disponível pra
+  // cobrar" (achado 21/08/2026: venda ganha != contrato assinado). Itens sem
+  // contrato_id (adicionados manualmente) não passam por esse gate.
+  contrato_assinado_em: string | null;
 }
 
 export interface CacUnidade {
@@ -408,11 +415,16 @@ async function gerarItensParaApuracao(
 // contrato ganho ainda não vistos) para uma unidade, sincroniza os itens e
 // devolve todos eles com a unidade já anexada. Reaproveitado pela listagem
 // única (todas as unidades numa tabela só).
+// contrato_assinado_em é anexado depois, numa passada única sobre todas as
+// unidades (listCacItensTodasUnidades) — mais barato que consultar contratos
+// unidade por unidade aqui.
+type ApuracaoCacItemSemAssinatura = Omit<ApuracaoCacItemComUnidade, "contrato_assinado_em">;
+
 async function syncApuracoesEItensUnidade(
   supabase: any,
   unidade: CacUnidade,
   force: boolean,
-): Promise<ApuracaoCacItemComUnidade[]> {
+): Promise<ApuracaoCacItemSemAssinatura[]> {
   const mesAtual = todayISO().slice(0, 7);
 
   const { data: existentes, error: aErr } = await (supabase as any)
@@ -531,11 +543,35 @@ export const listCacItensTodasUnidades = createServerFn({ method: "POST" })
       if (uErr) throw new Error(uErr.message);
       if (!unidades || unidades.length === 0) return { unidades: [], itens: [] };
 
-      const itens: ApuracaoCacItemComUnidade[] = [];
+      const itensSemAssinatura: ApuracaoCacItemSemAssinatura[] = [];
       for (const u of unidades as CacUnidade[]) {
         const its = await syncApuracoesEItensUnidade(supabase, u, !!data.force);
-        itens.push(...its);
+        itensSemAssinatura.push(...its);
       }
+
+      // Data real de assinatura do contrato (Pipefy) — separada do ganho_em
+      // usado internamente pro cálculo do prazo. Ver comentário no tipo
+      // ApuracaoCacItemComUnidade.
+      const contratoIds = [
+        ...new Set(itensSemAssinatura.map((i) => i.contrato_id).filter((x): x is number => x != null)),
+      ];
+      const assinaturaPorContrato = new Map<number, string | null>();
+      for (let i = 0; i < contratoIds.length; i += 200) {
+        const chunk = contratoIds.slice(i, i + 200);
+        const { data: contratosAssinatura, error: caErr } = await supabase
+          .from("contratos")
+          .select("id,entrada_contrato_assinado_em")
+          .in("id", chunk);
+        if (caErr) throw new Error(caErr.message);
+        for (const c of (contratosAssinatura ?? []) as any[]) {
+          assinaturaPorContrato.set(c.id, c.entrada_contrato_assinado_em ?? null);
+        }
+      }
+
+      const itens: ApuracaoCacItemComUnidade[] = itensSemAssinatura.map((it) => ({
+        ...it,
+        contrato_assinado_em: it.contrato_id != null ? (assinaturaPorContrato.get(it.contrato_id) ?? null) : null,
+      }));
       itens.sort((a, b) =>
         (b.data_assinatura_contrato ?? "").localeCompare(a.data_assinatura_contrato ?? ""),
       );
