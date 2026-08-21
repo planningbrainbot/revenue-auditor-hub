@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -82,6 +82,7 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
     label: "CS",
     items: [
       { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
+      { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
     ],
   },
   {
@@ -110,6 +111,7 @@ const SOCIO_FRANQUEADO_GROUPS: { label: string; items: Item[] }[] = [
       { title: "Painel", url: "/painel-unidade", icon: Gauge },
       { title: "Clientes", url: "/clientes", icon: Building2 },
       { title: "CS", url: "/painel-cs", icon: UserCheck },
+      { title: "NPS", url: "/nps", icon: MessageSquareHeart },
     ],
   },
   {

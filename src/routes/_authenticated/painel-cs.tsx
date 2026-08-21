@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTab } from "@/components/painel-cs/onboarding-tab";
 import { SaudeCarteiraTab } from "@/components/painel-cs/saude-carteira-tab";
 import { TratativasTab } from "@/components/painel-cs/tratativas-tab";
-import { NpsTab } from "@/components/painel-cs/nps-tab";
 
 export const Route = createFileRoute("/_authenticated/painel-cs")({
   component: PainelCsPage,
@@ -18,7 +17,7 @@ function PainelCsPage() {
         <div>
           <h1 className="text-2xl font-bold">CS</h1>
           <p className="text-sm text-muted-foreground">
-            Onboarding, saúde da carteira, tratativas e NPS — visão única do relacionamento com o cliente
+            Onboarding, saúde da carteira e tratativas — visão única do relacionamento com o cliente
           </p>
         </div>
       </div>
@@ -28,7 +27,6 @@ function PainelCsPage() {
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="saude-carteira">Saúde da Carteira</TabsTrigger>
           <TabsTrigger value="tratativas">Tratativas</TabsTrigger>
-          <TabsTrigger value="nps">NPS</TabsTrigger>
         </TabsList>
 
         <TabsContent value="onboarding">
@@ -39,9 +37,6 @@ function PainelCsPage() {
         </TabsContent>
         <TabsContent value="tratativas">
           <TratativasTab />
-        </TabsContent>
-        <TabsContent value="nps">
-          <NpsTab />
         </TabsContent>
       </Tabs>
     </div>

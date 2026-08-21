@@ -1942,6 +1942,30 @@ export type Database = {
           },
         ]
       }
+      nps_envio_map: {
+        Row: {
+          enviado_em: string
+          id: number
+          pipefy_card_id: string
+          respondido: boolean
+          telefone: string
+        }
+        Insert: {
+          enviado_em?: string
+          id?: number
+          pipefy_card_id: string
+          respondido?: boolean
+          telefone: string
+        }
+        Update: {
+          enviado_em?: string
+          id?: number
+          pipefy_card_id?: string
+          respondido?: boolean
+          telefone?: string
+        }
+        Relationships: []
+      }
       nps_pesquisas: {
         Row: {
           avaliacao_fiscal: string | null

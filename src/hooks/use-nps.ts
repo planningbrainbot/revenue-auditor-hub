@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listNps } from "@/lib/nps.functions";
+import { listNps, listNpsCoverage, listNpsExecucao } from "@/lib/nps.functions";
 
 export function useNps() {
   const fn = useServerFn(listNps);
@@ -8,5 +8,24 @@ export function useNps() {
     queryKey: ["nps"],
     queryFn: () => fn(),
     staleTime: 60_000,
+  });
+}
+
+export function useNpsCoverage() {
+  const fn = useServerFn(listNpsCoverage);
+  return useQuery({
+    queryKey: ["nps-coverage"],
+    queryFn: () => fn(),
+    staleTime: 60_000,
+  });
+}
+
+export function useNpsExecucao() {
+  const fn = useServerFn(listNpsExecucao);
+  return useQuery({
+    queryKey: ["nps-execucao"],
+    queryFn: () => fn(),
+    staleTime: 5_000,
+    refetchInterval: 15_000,
   });
 }
