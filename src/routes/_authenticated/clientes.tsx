@@ -428,20 +428,12 @@ function ClientesPage() {
   // churn status derived from central_tratativas (estagio=Perdido)
   const isChurn = (r: Cliente) => !!r.pipedrive_id && churnedIds.has(r.pipedrive_id);
 
-  const churnCounts = useMemo(
-    () => ({
-      churn: visiveis.filter(isChurn).length,
-      ativo: visiveis.filter((r) => !isChurn(r)).length,
-    }),
-    [visiveis, churnedIds],
-  );
-
-  const filtered = useMemo(() => {
+  // Todos os filtros da UI (busca, unidade, ERP, segmento, status, contrato assinado)
+  // exceto o próprio filtro de churn — serve de base tanto pros cards de resumo
+  // (que precisam contar ativo/churn dentro do recorte atual) quanto pra tabela.
+  const baseFiltered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const out = visiveis.filter((r) => {
-      // churn filter: null = all, true = only churn, false = only active
-      if (churnFilter === true && !isChurn(r)) return false;
-      if (churnFilter === false && isChurn(r)) return false;
+    return visiveis.filter((r) => {
       if (statusFilter && r.status_financeiro !== statusFilter) return false;
       if (!perms.scopedToOwnUnit && unidade !== ALL && r.unidade !== unidade) return false;
       if (erpFilter !== ALL && r.erp !== erpFilter) return false;
@@ -458,6 +450,33 @@ function ClientesPage() {
           .join(" ");
         if (!hay.includes(term)) return false;
       }
+      return true;
+    });
+  }, [
+    visiveis,
+    q,
+    unidade,
+    statusFilter,
+    erpFilter,
+    segmentoFilter,
+    contratoAssinadoFilter,
+    perms.scopedToOwnUnit,
+    contratoInfoByPipedriveId,
+  ]);
+
+  const churnCounts = useMemo(
+    () => ({
+      churn: baseFiltered.filter(isChurn).length,
+      ativo: baseFiltered.filter((r) => !isChurn(r)).length,
+    }),
+    [baseFiltered, churnedIds],
+  );
+
+  const filtered = useMemo(() => {
+    const out = baseFiltered.filter((r) => {
+      // churn filter: null = all, true = only churn, false = only active
+      if (churnFilter === true && !isChurn(r)) return false;
+      if (churnFilter === false && isChurn(r)) return false;
       return true;
     });
     const rank = new Map<string, number>();
@@ -537,21 +556,7 @@ function ClientesPage() {
       if (c !== 0) return c * dir;
       return (a.razao_social ?? "").localeCompare(b.razao_social ?? "", "pt-BR");
     });
-  }, [
-    visiveis,
-    q,
-    unidade,
-    statusFilter,
-    churnFilter,
-    churnedIds,
-    erpFilter,
-    segmentoFilter,
-    contratoAssinadoFilter,
-    perms.scopedToOwnUnit,
-    sort,
-    mrrByPipedriveId,
-    contratoInfoByPipedriveId,
-  ]);
+  }, [baseFiltered, churnFilter, churnedIds, sort, mrrByPipedriveId, contratoInfoByPipedriveId]);
 
   const hasFilters =
     q !== "" ||
