@@ -1,6 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { listNps, listNpsCoverage, listNpsExecucao } from "@/lib/nps.functions";
+import {
+  listNps,
+  listNpsCoverage,
+  listNpsExecucao,
+  listAudienciaPorUnidade,
+  dispararCampanhaNps,
+} from "@/lib/nps.functions";
 import { listPlanoAcaoContatos } from "@/lib/contatos-cs.functions";
 
 export function useNps() {
@@ -37,5 +43,26 @@ export function usePlanoAcaoContatos() {
     queryKey: ["nps-plano-acao-contatos"],
     queryFn: () => fn(),
     staleTime: 60_000,
+  });
+}
+
+export function useAudienciaPorUnidade() {
+  const fn = useServerFn(listAudienciaPorUnidade);
+  return useQuery({
+    queryKey: ["nps-audiencia-por-unidade"],
+    queryFn: () => fn(),
+    staleTime: 30_000,
+  });
+}
+
+export function useDispararCampanha() {
+  const fn = useServerFn(dispararCampanhaNps);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { unidade: string }) => fn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nps-execucao"] });
+      qc.invalidateQueries({ queryKey: ["nps-audiencia-por-unidade"] });
+    },
   });
 }

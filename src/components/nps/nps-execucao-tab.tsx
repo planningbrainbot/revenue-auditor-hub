@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MessageCircleMore, SlidersHorizontal } from "lucide-react";
+import { MessageCircleMore, Send, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { useNpsExecucao } from "@/hooks/use-nps";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { useNpsExecucao, useAudienciaPorUnidade, useDispararCampanha } from "@/hooks/use-nps";
 import type { NpsExecucaoRow } from "@/lib/nps.functions";
 
 type Categoria = "promotor" | "neutro" | "detrator" | null;
@@ -109,6 +121,75 @@ function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
   return "Falha no envio";
 }
 
+function DispararCampanhaCard() {
+  const { data: audiencia, isLoading } = useAudienciaPorUnidade();
+  const disparar = useDispararCampanha();
+  const [unidadeEscolhida, setUnidadeEscolhida] = useState<string>("");
+
+  const linhaEscolhida = audiencia?.rows.find((r) => r.unidade === unidadeEscolhida);
+
+  const handleConfirm = () => {
+    disparar.mutate(
+      { unidade: unidadeEscolhida },
+      {
+        onSuccess: () => {
+          toast.success(`Disparo iniciado pra ${unidadeEscolhida} — os envios aparecem na tabela abaixo em minutos.`);
+          setUnidadeEscolhida("");
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao disparar."),
+      },
+    );
+  };
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1.5">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Disparar campanha</div>
+          <Select value={unidadeEscolhida} onValueChange={setUnidadeEscolhida} disabled={isLoading}>
+            <SelectTrigger className="h-9 w-56">
+              <SelectValue placeholder="Escolher unidade…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(audiencia?.rows ?? []).map((r) => (
+                <SelectItem key={r.unidade} value={r.unidade}>
+                  {r.unidade} ({r.totalContatos} contatos{r.jaDisparados > 0 ? `, ${r.jaDisparados} já disparados` : ""})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button disabled={!unidadeEscolhida || disparar.isPending} className="gap-2">
+              <Send className="size-4" />
+              {disparar.isPending ? "Disparando…" : "Disparar"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Disparar pesquisa de NPS pra {unidadeEscolhida}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Isso envia uma mensagem real de WhatsApp (template de pesquisa) pra{" "}
+                <strong>{linhaEscolhida?.totalContatos ?? "—"} contatos</strong> de {unidadeEscolhida}
+                {linhaEscolhida && linhaEscolhida.jaDisparados > 0
+                  ? `, incluindo os ${linhaEscolhida.jaDisparados} que já receberam disparo antes (podem receber de novo)`
+                  : ""}
+                . Não tem como cancelar depois de enviado.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirm}>Disparar agora</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </Card>
+  );
+}
+
 export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
   const [rodada, setRodada] = useState<string>("todas");
@@ -138,6 +219,8 @@ export function NpsExecucaoTab() {
           </span>
         )}
       </div>
+
+      <DispararCampanhaCard />
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando execução…</Card>}
       {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar execução.</Card>}

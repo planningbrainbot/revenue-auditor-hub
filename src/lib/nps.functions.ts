@@ -2,6 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 
+// URL do webhook n8n que dispara a campanha (workflow "NPS - Criar Card e
+// Enviar WhatsApp") — o trigger era manual (só rodava clicando "Execute
+// Workflow" na UI do n8n); convertido pra webhook em 24/08/2026 pra virar
+// botão no Ops Board. Segurança: token no próprio path (mesmo padrão já
+// aceito no webhook de resposta, nps-resposta — sem HMAC, ver
+// [[project_n8n_nps_whatsapp]]). Não expor esse valor no client.
+const N8N_DISPARO_WEBHOOK_URL = "https://n8n.planningbrain.com.br/webhook/nps-disparar-a8f3c91d";
+
+async function assertCanDispararCampanha(supabase: any) {
+  const { data, error } = await supabase.rpc("can", { _key: "view.disparos_whatsapp" });
+  if (error) throw new Error("Erro de autorização.");
+  if (!data) throw new Error("Acesso negado: você não pode disparar campanhas.");
+}
+
 export interface NpsRow {
   id: number;
   pipefy_card_id: string | null;
@@ -448,4 +462,83 @@ export const listNps = createServerFn({ method: "GET" })
       from += pageSize;
     }
     return { rows: all };
+  });
+
+export interface AudienciaPorUnidadeRow {
+  unidade: string;
+  totalContatos: number;
+  jaDisparados: number;
+}
+
+// Lista as unidades com contato de WhatsApp válido pra disparo, cruzando com
+// quem já tem pesquisa enviada — alimenta o seletor do botão "Disparar".
+export const listAudienciaPorUnidade = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ rows: AudienciaPorUnidadeRow[] }> => {
+    const { supabase } = context;
+    const pageSize = 1000;
+
+    async function fetchAll<T>(table: string, columns: string): Promise<T[]> {
+      let from = 0;
+      const all: T[] = [];
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { data, error } = await supabase.from(table).select(columns).range(from, from + pageSize - 1);
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as unknown as T[];
+        all.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
+    }
+
+    const audiencia = await fetchAll<{ unidade: string | null }>("nps_audiencia", "unidade");
+    const pesquisas = await fetchAll<{ unidade: string | null }>("nps_pesquisas", "unidade");
+
+    const jaDisparadosPorUnidade = new Map<string, number>();
+    for (const p of pesquisas) {
+      if (!p.unidade) continue;
+      jaDisparadosPorUnidade.set(p.unidade, (jaDisparadosPorUnidade.get(p.unidade) ?? 0) + 1);
+    }
+
+    const map = new Map<string, number>();
+    for (const a of audiencia) {
+      if (!a.unidade) continue;
+      map.set(a.unidade, (map.get(a.unidade) ?? 0) + 1);
+    }
+
+    const rows = Array.from(map.entries())
+      .map(([unidade, totalContatos]) => ({
+        unidade,
+        totalContatos,
+        jaDisparados: jaDisparadosPorUnidade.get(unidade) ?? 0,
+      }))
+      .sort((a, b) => a.unidade.localeCompare(b.unidade, "pt-BR"));
+
+    return { rows };
+  });
+
+// Dispara a campanha real de WhatsApp pra uma unidade — chama o webhook do
+// n8n (workflow "NPS - Criar Card e Enviar WhatsApp"), que busca a
+// audiência, cria as pesquisas e envia o template via WhatsApp Cloud API.
+// Ação real e outward-facing: manda mensagem de verdade pra clientes reais.
+export const dispararCampanhaNps = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { unidade: string }) => d)
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase } = context;
+    await assertCanDispararCampanha(supabase);
+
+    const unidade = data.unidade?.trim();
+    if (!unidade) throw new Error("Selecione uma unidade.");
+
+    const res = await fetch(N8N_DISPARO_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ unidade }),
+    });
+    if (!res.ok) throw new Error(`Falha ao acionar o disparo (HTTP ${res.status}).`);
+
+    return { ok: true };
   });
