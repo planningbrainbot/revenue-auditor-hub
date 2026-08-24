@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart, Send, BookUser } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart, Send, BookUser, LayoutGrid, Rocket, ExternalLink } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/sidebar";
 import { PlanningLogo } from "@/components/planning-logo";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { meuAcessoGrowth } from "@/lib/produtos.functions";
+
+const GROWTH_URL = "https://growth.planningbrain.com.br";
 
 type Item = {
   title: string;
@@ -135,6 +140,17 @@ export function AppSidebar() {
 
   const groups = primaryRole === "socio_franqueado" ? SOCIO_FRANQUEADO_GROUPS : DEFAULT_GROUPS;
 
+  // Só oferece o Growth a quem realmente tem acesso lá — o link para quem não
+  // tem levaria a uma tela vazia (o Growth barra por public.membros).
+  const acessoGrowthFn = useServerFn(meuAcessoGrowth);
+  const growthQuery = useQuery({
+    queryKey: ["meu-acesso-growth"],
+    queryFn: () => acessoGrowthFn(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const mostrarGrowth = growthQuery.data?.temAcesso ?? false;
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b">
@@ -143,6 +159,37 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        {mostrarGrowth && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Planning Brain</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive tooltip="Ops Board (você está aqui)">
+                    <Link to="/" className="flex items-center gap-2">
+                      <LayoutGrid className="h-4 w-4 shrink-0" />
+                      <span>Ops Board</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Abrir o Growth em nova aba">
+                    <a
+                      href={GROWTH_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2"
+                    >
+                      <Rocket className="h-4 w-4 shrink-0" />
+                      <span>Growth</span>
+                      <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         {groups.map((group) => {
           const visible = group.items.filter((i) => !i.permission || (!loading && can(i.permission)));
           if (visible.length === 0) return null;
