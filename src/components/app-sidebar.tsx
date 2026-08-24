@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart, Send, BookUser } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -83,6 +83,8 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
     items: [
       { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
       { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
+      { title: "Disparos de WhatsApp", url: "/disparos-whatsapp", icon: Send, permission: "view.disparos_whatsapp" },
+      { title: "Base de Contatos", url: "/base-contatos", icon: BookUser, permission: "view.base_contatos" },
     ],
   },
   {

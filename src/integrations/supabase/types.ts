@@ -2007,8 +2007,11 @@ export type Database = {
       }
       nps_pesquisas: {
         Row: {
+          avaliacao_contabil: string | null
           avaliacao_fiscal: string | null
+          avaliacao_folha_pagamento: string | null
           created_at: string | null
+          data_envio: string | null
           email_pesquisa: string | null
           empresa: string | null
           empresa_id: number | null
@@ -2020,13 +2023,18 @@ export type Database = {
           pipefy_card_id: string | null
           rodada: string | null
           segmento: string | null
+          servicos_contratados: string[] | null
+          synced_at: string | null
           telefone_pesquisa: string | null
           unidade: string | null
           updated_at: string | null
         }
         Insert: {
+          avaliacao_contabil?: string | null
           avaliacao_fiscal?: string | null
+          avaliacao_folha_pagamento?: string | null
           created_at?: string | null
+          data_envio?: string | null
           email_pesquisa?: string | null
           empresa?: string | null
           empresa_id?: number | null
@@ -2038,13 +2046,18 @@ export type Database = {
           pipedrive_deal_id?: string | null
           pipefy_card_id?: string | null
           segmento?: string | null
+          servicos_contratados?: string[] | null
+          synced_at?: string | null
           telefone_pesquisa?: string | null
           unidade?: string | null
           updated_at?: string | null
         }
         Update: {
+          avaliacao_contabil?: string | null
           avaliacao_fiscal?: string | null
+          avaliacao_folha_pagamento?: string | null
           created_at?: string | null
+          data_envio?: string | null
           email_pesquisa?: string | null
           empresa?: string | null
           empresa_id?: number | null
@@ -2056,6 +2069,8 @@ export type Database = {
           pipefy_card_id?: string | null
           rodada?: string | null
           segmento?: string | null
+          servicos_contratados?: string[] | null
+          synced_at?: string | null
           telefone_pesquisa?: string | null
           unidade?: string | null
           updated_at?: string | null

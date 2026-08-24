@@ -34,11 +34,13 @@ import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authent
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
 import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
+import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
 import { Route as AuthenticatedDespesasCmRouteImport } from './routes/_authenticated/despesas-cm'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBiVendasRouteImport } from './routes/_authenticated/bi-vendas'
+import { Route as AuthenticatedBaseContatosRouteImport } from './routes/_authenticated/base-contatos'
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
@@ -189,6 +191,12 @@ const AuthenticatedDrePartnersRoute =
     path: '/dre-partners',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDisparosWhatsappRoute =
+  AuthenticatedDisparosWhatsappRouteImport.update({
+    id: '/disparos-whatsapp',
+    path: '/disparos-whatsapp',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDespesasCmRoute = AuthenticatedDespesasCmRouteImport.update({
   id: '/despesas-cm',
   path: '/despesas-cm',
@@ -215,6 +223,12 @@ const AuthenticatedBiVendasRoute = AuthenticatedBiVendasRouteImport.update({
   path: '/bi-vendas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedBaseContatosRoute =
+  AuthenticatedBaseContatosRouteImport.update({
+    id: '/base-contatos',
+    path: '/base-contatos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAuditoriaInternaRoute =
   AuthenticatedAuditoriaInternaRouteImport.update({
     id: '/auditoria-interna',
@@ -288,11 +302,13 @@ export interface FileRoutesByFullPath {
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
+  '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/despesas-cm': typeof AuthenticatedDespesasCmRoute
+  '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -329,11 +345,13 @@ export interface FileRoutesByTo {
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
+  '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/despesas-cm': typeof AuthenticatedDespesasCmRoute
+  '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -372,11 +390,13 @@ export interface FileRoutesById {
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
   '/_authenticated/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/_authenticated/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
+  '/_authenticated/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/_authenticated/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
   '/_authenticated/despesas-cm': typeof AuthenticatedDespesasCmRoute
+  '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
@@ -417,11 +437,13 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/auditoria-faturamento'
     | '/auditoria-interna'
+    | '/base-contatos'
     | '/bi-vendas'
     | '/clientes'
     | '/comissoes'
     | '/contas-receber'
     | '/despesas-cm'
+    | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
     | '/financeiro-partners'
@@ -458,11 +480,13 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/auditoria-faturamento'
     | '/auditoria-interna'
+    | '/base-contatos'
     | '/bi-vendas'
     | '/clientes'
     | '/comissoes'
     | '/contas-receber'
     | '/despesas-cm'
+    | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
     | '/financeiro-partners'
@@ -500,11 +524,13 @@ export interface FileRouteTypes {
     | '/_authenticated/auditoria'
     | '/_authenticated/auditoria-faturamento'
     | '/_authenticated/auditoria-interna'
+    | '/_authenticated/base-contatos'
     | '/_authenticated/bi-vendas'
     | '/_authenticated/clientes'
     | '/_authenticated/comissoes'
     | '/_authenticated/contas-receber'
     | '/_authenticated/despesas-cm'
+    | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-partners'
     | '/_authenticated/ebit-operacional'
     | '/_authenticated/financeiro-partners'
@@ -719,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDrePartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/disparos-whatsapp': {
+      id: '/_authenticated/disparos-whatsapp'
+      path: '/disparos-whatsapp'
+      fullPath: '/disparos-whatsapp'
+      preLoaderRoute: typeof AuthenticatedDisparosWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/despesas-cm': {
       id: '/_authenticated/despesas-cm'
       path: '/despesas-cm'
@@ -752,6 +785,13 @@ declare module '@tanstack/react-router' {
       path: '/bi-vendas'
       fullPath: '/bi-vendas'
       preLoaderRoute: typeof AuthenticatedBiVendasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/base-contatos': {
+      id: '/_authenticated/base-contatos'
+      path: '/base-contatos'
+      fullPath: '/base-contatos'
+      preLoaderRoute: typeof AuthenticatedBaseContatosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/auditoria-interna': {
@@ -856,11 +896,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
   AuthenticatedAuditoriaFaturamentoRoute: typeof AuthenticatedAuditoriaFaturamentoRoute
   AuthenticatedAuditoriaInternaRoute: typeof AuthenticatedAuditoriaInternaRoute
+  AuthenticatedBaseContatosRoute: typeof AuthenticatedBaseContatosRoute
   AuthenticatedBiVendasRoute: typeof AuthenticatedBiVendasRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
   AuthenticatedDespesasCmRoute: typeof AuthenticatedDespesasCmRoute
+  AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
   AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
@@ -896,11 +938,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAuditoriaFaturamentoRoute:
     AuthenticatedAuditoriaFaturamentoRoute,
   AuthenticatedAuditoriaInternaRoute: AuthenticatedAuditoriaInternaRoute,
+  AuthenticatedBaseContatosRoute: AuthenticatedBaseContatosRoute,
   AuthenticatedBiVendasRoute: AuthenticatedBiVendasRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
   AuthenticatedDespesasCmRoute: AuthenticatedDespesasCmRoute,
+  AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
   AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
