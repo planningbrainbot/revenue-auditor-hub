@@ -272,6 +272,12 @@ export interface NpsExecucaoRow {
   rodada: string | null;
   npsRecomendacao: string | null;
   fase: string | null;
+  nomeContato: string | null;
+  emailPesquisa: string | null;
+  avaliacaoFiscal: string | null;
+  avaliacaoContabil: string | null;
+  avaliacaoFolhaPagamento: string | null;
+  servicosContratados: string[] | null;
 }
 
 export interface NpsTextoLivreRow {
@@ -310,29 +316,37 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
     const pesquisaIds = (envios ?? []).map((e) => e.nps_pesquisa_id).filter((v): v is number => v != null);
     const cardIds = (envios ?? []).map((e) => e.pipefy_card_id).filter((v): v is string => v != null);
 
-    type PesquisaInfo = { empresa: string | null; unidade: string | null; rodada: string | null; nps_recomendacao: string | null; fase: string | null };
+    type PesquisaInfo = {
+      empresa: string | null;
+      unidade: string | null;
+      rodada: string | null;
+      nps_recomendacao: string | null;
+      fase: string | null;
+      nome_contato: string | null;
+      email_pesquisa: string | null;
+      avaliacao_fiscal: string | null;
+      avaliacao_contabil: string | null;
+      avaliacao_folha_pagamento: string | null;
+      servicos_contratados: string[] | null;
+    };
+    const pesquisaCols =
+      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados";
     const porPesquisaId = new Map<number, PesquisaInfo>();
     const porCard = new Map<string, PesquisaInfo>();
 
     if (pesquisaIds.length > 0) {
-      const { data: pesquisas, error } = await supabase
-        .from("nps_pesquisas")
-        .select("id,empresa,unidade,rodada,nps_recomendacao,fase")
-        .in("id", pesquisaIds);
+      const { data: pesquisas, error } = await supabase.from("nps_pesquisas").select(pesquisaCols).in("id", pesquisaIds);
       if (error) throw new Error(error.message);
       for (const p of pesquisas ?? []) {
-        porPesquisaId.set(p.id, { empresa: p.empresa, unidade: p.unidade, rodada: p.rodada, nps_recomendacao: p.nps_recomendacao, fase: p.fase });
+        porPesquisaId.set(p.id, p);
       }
     }
     if (cardIds.length > 0) {
-      const { data: pesquisas, error } = await supabase
-        .from("nps_pesquisas")
-        .select("pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase")
-        .in("pipefy_card_id", cardIds);
+      const { data: pesquisas, error } = await supabase.from("nps_pesquisas").select(pesquisaCols).in("pipefy_card_id", cardIds);
       if (error) throw new Error(error.message);
       for (const p of pesquisas ?? []) {
         if (!p.pipefy_card_id) continue;
-        porCard.set(p.pipefy_card_id, { empresa: p.empresa, unidade: p.unidade, rodada: p.rodada, nps_recomendacao: p.nps_recomendacao, fase: p.fase });
+        porCard.set(p.pipefy_card_id, p);
       }
     }
 
@@ -351,6 +365,12 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         rodada: info?.rodada ?? null,
         npsRecomendacao: info?.nps_recomendacao ?? null,
         fase: info?.fase ?? null,
+        nomeContato: info?.nome_contato ?? null,
+        emailPesquisa: info?.email_pesquisa ?? null,
+        avaliacaoFiscal: info?.avaliacao_fiscal ?? null,
+        avaliacaoContabil: info?.avaliacao_contabil ?? null,
+        avaliacaoFolhaPagamento: info?.avaliacao_folha_pagamento ?? null,
+        servicosContratados: info?.servicos_contratados ?? null,
       };
     });
 

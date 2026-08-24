@@ -19,8 +19,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useNpsExecucao } from "@/hooks/use-nps";
 import type { NpsExecucaoRow } from "@/lib/nps.functions";
+
+type Categoria = "promotor" | "neutro" | "detrator" | null;
+
+function categorize(score: string | null): Categoria {
+  if (score == null || score === "") return null;
+  const n = Number(score);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 9) return "promotor";
+  if (n >= 7) return "neutro";
+  return "detrator";
+}
+
+function npsBadge(cat: Categoria) {
+  if (cat === "promotor")
+    return <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">Promotor</Badge>;
+  if (cat === "neutro")
+    return <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">Neutro</Badge>;
+  if (cat === "detrator")
+    return <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">Detrator</Badge>;
+  return null;
+}
 
 function tempoDecorrido(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -91,6 +113,7 @@ export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
   const [rodada, setRodada] = useState<string>("todas");
   const [unidade, setUnidade] = useState<string>("todas");
+  const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
 
   const filteredRows = useMemo(() => {
     if (!data) return [];
@@ -208,7 +231,15 @@ export function NpsExecucaoTab() {
                   {filteredRows.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs">{r.telefone}</TableCell>
-                      <TableCell>{r.empresa ?? "—"}</TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(r)}
+                          className="text-left underline-offset-2 hover:underline"
+                        >
+                          {r.empresa ?? "—"}
+                        </button>
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.unidade ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.rodada ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(r.enviadoEm)}</TableCell>
@@ -279,6 +310,96 @@ export function NpsExecucaoTab() {
           </Card>
         </>
       )}
+
+      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle>{selected.empresa ?? "Empresa não identificada"}</SheetTitle>
+                <SheetDescription>
+                  {selected.telefone} · {selected.unidade ?? "unidade não identificada"}
+                  {selected.rodada && ` · rodada ${selected.rodada}`}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                <div>
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Status do disparo
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {statusBadge(selected)}
+                    <span className="text-xs text-muted-foreground">enviado {tempoDecorrido(selected.enviadoEm)}</span>
+                  </div>
+                  {selected.status === "failed" && erroResumo(selected.erro) && (
+                    <p className="mt-2 text-xs text-red-600">{erroResumo(selected.erro)}</p>
+                  )}
+                </div>
+
+                {!selected.respondido ? (
+                  <p className="text-sm text-muted-foreground">Ainda não respondeu à pesquisa.</p>
+                ) : (
+                  <>
+                    <div>
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Recomendação (NPS)
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-semibold tabular-nums">{selected.npsRecomendacao ?? "—"}</span>
+                        {npsBadge(categorize(selected.npsRecomendacao))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Contato que respondeu
+                      </div>
+                      <div className="text-sm">{selected.nomeContato ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">{selected.emailPesquisa ?? "—"}</div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Avaliação por serviço (CSAT)
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-md border p-2">
+                          <div className="text-[11px] text-muted-foreground">Fiscal</div>
+                          <div className="text-lg font-semibold">{selected.avaliacaoFiscal ?? "—"}</div>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <div className="text-[11px] text-muted-foreground">Contábil</div>
+                          <div className="text-lg font-semibold">{selected.avaliacaoContabil ?? "—"}</div>
+                        </div>
+                        <div className="rounded-md border p-2">
+                          <div className="text-[11px] text-muted-foreground">Folha</div>
+                          <div className="text-lg font-semibold">{selected.avaliacaoFolhaPagamento ?? "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selected.servicosContratados && selected.servicosContratados.length > 0 && (
+                      <div>
+                        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Serviços contratados
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selected.servicosContratados.map((s) => (
+                            <Badge key={s} variant="outline">
+                              {s}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
