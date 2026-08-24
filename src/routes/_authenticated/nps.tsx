@@ -3,6 +3,7 @@ import { MessageSquareHeart } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NpsPainelTab } from "@/components/nps/nps-painel-tab";
 import { NpsExecucaoTab } from "@/components/nps/nps-execucao-tab";
+import { NpsPlanoAcaoTab } from "@/components/nps/nps-plano-acao-tab";
 
 export const Route = createFileRoute("/_authenticated/nps")({
   component: NpsPage,
@@ -25,6 +26,7 @@ function NpsPage() {
         <TabsList>
           <TabsTrigger value="painel">Painel</TabsTrigger>
           <TabsTrigger value="execucao">Execução</TabsTrigger>
+          <TabsTrigger value="plano-acao">Plano de Ação</TabsTrigger>
         </TabsList>
 
         <TabsContent value="painel">
@@ -32,6 +34,9 @@ function NpsPage() {
         </TabsContent>
         <TabsContent value="execucao">
           <NpsExecucaoTab />
+        </TabsContent>
+        <TabsContent value="plano-acao">
+          <NpsPlanoAcaoTab />
         </TabsContent>
       </Tabs>
     </div>

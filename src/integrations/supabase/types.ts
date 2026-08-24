@@ -1945,24 +1945,63 @@ export type Database = {
       nps_envio_map: {
         Row: {
           enviado_em: string
+          erro: Json | null
           id: number
-          pipefy_card_id: string
+          nps_pesquisa_id: number | null
+          pipefy_card_id: string | null
           respondido: boolean
+          status: string | null
+          status_atualizado_em: string | null
           telefone: string
         }
         Insert: {
           enviado_em?: string
+          erro?: Json | null
           id?: number
-          pipefy_card_id: string
+          nps_pesquisa_id?: number | null
+          pipefy_card_id?: string | null
           respondido?: boolean
+          status?: string | null
+          status_atualizado_em?: string | null
           telefone: string
         }
         Update: {
           enviado_em?: string
+          erro?: Json | null
           id?: number
-          pipefy_card_id?: string
+          nps_pesquisa_id?: number | null
+          pipefy_card_id?: string | null
           respondido?: boolean
+          status?: string | null
+          status_atualizado_em?: string | null
           telefone?: string
+        }
+        Relationships: []
+      }
+      nps_mensagens_texto_livre: {
+        Row: {
+          id: number
+          pipefy_card_id: string | null
+          recebido_em: string
+          telefone: string
+          texto: string | null
+          tipo_mensagem: string | null
+        }
+        Insert: {
+          id?: number
+          pipefy_card_id?: string | null
+          recebido_em?: string
+          telefone: string
+          texto?: string | null
+          tipo_mensagem?: string | null
+        }
+        Update: {
+          id?: number
+          pipefy_card_id?: string | null
+          recebido_em?: string
+          telefone?: string
+          texto?: string | null
+          tipo_mensagem?: string | null
         }
         Relationships: []
       }
@@ -1979,6 +2018,7 @@ export type Database = {
           nps_recomendacao: string | null
           pipedrive_deal_id: string | null
           pipefy_card_id: string | null
+          rodada: string | null
           segmento: string | null
           telefone_pesquisa: string | null
           unidade: string | null
@@ -1992,6 +2032,7 @@ export type Database = {
           empresa_id?: number | null
           fase?: string | null
           id?: number
+          rodada?: string | null
           nome_contato?: string | null
           nps_recomendacao?: string | null
           pipedrive_deal_id?: string | null
@@ -2013,6 +2054,7 @@ export type Database = {
           nps_recomendacao?: string | null
           pipedrive_deal_id?: string | null
           pipefy_card_id?: string | null
+          rodada?: string | null
           segmento?: string | null
           telefone_pesquisa?: string | null
           unidade?: string | null

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface NpsRow {
   id: number;
@@ -17,6 +18,7 @@ export interface NpsRow {
   avaliacao_folha_pagamento: string | null;
   servicos_contratados: string[] | null;
   data_envio: string | null;
+  rodada: string | null;
   fase: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -43,6 +45,7 @@ type Joined = {
   avaliacao_folha_pagamento: string | null;
   servicos_contratados: string[] | null;
   data_envio: string | null;
+  rodada: string | null;
   fase: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -92,7 +95,13 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
     const { supabase } = context;
     const pageSize = 1000;
 
-    type EmpresaRow = { id: number; unidade: string | null; origem_da_base: string | null };
+    type EmpresaRow = {
+      id: number;
+      unidade: string | null;
+      origem_da_base: string | null;
+      tipo_unidade: string | null;
+      pipedrive_id: string | null;
+    };
     type ContatoRow = { empresa_id: number | null; whatsapp: string | null };
 
     async function fetchEmpresas(): Promise<EmpresaRow[]> {
@@ -102,7 +111,7 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
       while (true) {
         const { data, error } = await supabase
           .from("empresas")
-          .select("id,unidade,origem_da_base")
+          .select("id,unidade,origem_da_base,tipo_unidade,pipedrive_id")
           .range(from, from + pageSize - 1);
         if (error) throw new Error(error.message);
         const batch = data ?? [];
@@ -111,6 +120,28 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
         from += pageSize;
       }
       return all;
+    }
+
+    // Mesma régua de "cliente ativo" da página /clientes: franquia, unidade
+    // regional ativa (tabela `unidades`, tipo='regional') e sem card de churn
+    // em central_tratativas. Sem isso o denominador de cobertura de NPS não
+    // batia com o que o CS já usa como referência (ex.: Belém 101 "Base Nova"
+    // brutas vs. 51 "ativos" reais).
+    async function fetchRegionais(): Promise<Set<string>> {
+      const { data, error } = await supabase.from("unidades").select("nome_da_praca").eq("tipo", "regional");
+      if (error) throw new Error(error.message);
+      return new Set((data ?? []).map((u) => u.nome_da_praca).filter((v): v is string => !!v));
+    }
+
+    async function fetchChurned(): Promise<Set<string>> {
+      const { data, error } = await supabase
+        .from("central_tratativas")
+        .select("pipedrive_deal_id")
+        .eq("estagio", "Perdido")
+        .eq("status", "lost")
+        .limit(2000);
+      if (error) throw new Error(error.message);
+      return new Set((data ?? []).map((t) => String(t.pipedrive_deal_id)).filter(Boolean));
     }
 
     async function fetchContatos(): Promise<ContatoRow[]> {
@@ -149,9 +180,18 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
       return all;
     }
 
-    const empresas = await fetchEmpresas();
-    const contatos = await fetchContatos();
-    const pesquisasEmpresaIds = await fetchPesquisasEmpresaIds();
+    const [empresasRaw, contatos, pesquisasEmpresaIds, regionais, churned] = await Promise.all([
+      fetchEmpresas(),
+      fetchContatos(),
+      fetchPesquisasEmpresaIds(),
+      fetchRegionais(),
+      fetchChurned(),
+    ]);
+    const isAtivo = (e: EmpresaRow) =>
+      e.tipo_unidade === "franquia" &&
+      regionais.has(e.unidade ?? "") &&
+      !(e.pipedrive_id && churned.has(e.pipedrive_id));
+    const empresas = empresasRaw.filter(isAtivo);
 
     const empresasComWhatsapp = new Set<number>();
     let contatosSemEmpresa = 0;
@@ -222,19 +262,35 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
 export interface NpsExecucaoRow {
   id: number;
   telefone: string;
-  pipefyCardId: string;
   enviadoEm: string;
   respondido: boolean;
+  status: string | null;
+  erro: Json | null;
+  statusAtualizadoEm: string | null;
   empresa: string | null;
+  unidade: string | null;
+  rodada: string | null;
   npsRecomendacao: string | null;
   fase: string | null;
 }
 
+export interface NpsTextoLivreRow {
+  id: number;
+  telefone: string;
+  texto: string | null;
+  tipoMensagem: string | null;
+  recebidoEm: string;
+}
+
 export interface NpsExecucaoResult {
   rows: NpsExecucaoRow[];
+  textoLivre: NpsTextoLivreRow[];
   totalEnviados: number;
   totalRespondidos: number;
   totalAguardando: number;
+  totalFalhas: number;
+  rodadas: string[];
+  unidades: string[];
 }
 
 export const listNpsExecucao = createServerFn({ method: "GET" })
@@ -244,48 +300,82 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
 
     const { data: envios, error: erroEnvios } = await supabase
       .from("nps_envio_map")
-      .select("id,telefone,pipefy_card_id,enviado_em,respondido")
+      .select("id,telefone,pipefy_card_id,nps_pesquisa_id,enviado_em,respondido,status,erro,status_atualizado_em")
       .order("enviado_em", { ascending: false })
       .limit(500);
     if (erroEnvios) throw new Error(erroEnvios.message);
 
-    const cardIds = (envios ?? []).map((e) => e.pipefy_card_id);
-    const porCard = new Map<string, { empresa: string | null; nps_recomendacao: string | null; fase: string | null }>();
-    if (cardIds.length > 0) {
-      const { data: pesquisas, error: erroPesquisas } = await supabase
+    // Vínculo confiável hoje é nps_pesquisa_id (Supabase direto) — pipefy_card_id
+    // fica só como legado dos envios de antes da migração pra escrita direta.
+    const pesquisaIds = (envios ?? []).map((e) => e.nps_pesquisa_id).filter((v): v is number => v != null);
+    const cardIds = (envios ?? []).map((e) => e.pipefy_card_id).filter((v): v is string => v != null);
+
+    type PesquisaInfo = { empresa: string | null; unidade: string | null; rodada: string | null; nps_recomendacao: string | null; fase: string | null };
+    const porPesquisaId = new Map<number, PesquisaInfo>();
+    const porCard = new Map<string, PesquisaInfo>();
+
+    if (pesquisaIds.length > 0) {
+      const { data: pesquisas, error } = await supabase
         .from("nps_pesquisas")
-        .select("pipefy_card_id,empresa,nps_recomendacao,fase")
+        .select("id,empresa,unidade,rodada,nps_recomendacao,fase")
+        .in("id", pesquisaIds);
+      if (error) throw new Error(error.message);
+      for (const p of pesquisas ?? []) {
+        porPesquisaId.set(p.id, { empresa: p.empresa, unidade: p.unidade, rodada: p.rodada, nps_recomendacao: p.nps_recomendacao, fase: p.fase });
+      }
+    }
+    if (cardIds.length > 0) {
+      const { data: pesquisas, error } = await supabase
+        .from("nps_pesquisas")
+        .select("pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase")
         .in("pipefy_card_id", cardIds);
-      if (erroPesquisas) throw new Error(erroPesquisas.message);
+      if (error) throw new Error(error.message);
       for (const p of pesquisas ?? []) {
         if (!p.pipefy_card_id) continue;
-        porCard.set(p.pipefy_card_id, {
-          empresa: p.empresa,
-          nps_recomendacao: p.nps_recomendacao,
-          fase: p.fase,
-        });
+        porCard.set(p.pipefy_card_id, { empresa: p.empresa, unidade: p.unidade, rodada: p.rodada, nps_recomendacao: p.nps_recomendacao, fase: p.fase });
       }
     }
 
     const rows: NpsExecucaoRow[] = (envios ?? []).map((e) => {
-      const info = porCard.get(e.pipefy_card_id);
+      const info = (e.nps_pesquisa_id != null ? porPesquisaId.get(e.nps_pesquisa_id) : null) ?? (e.pipefy_card_id ? porCard.get(e.pipefy_card_id) : null);
       return {
         id: e.id,
         telefone: e.telefone,
-        pipefyCardId: e.pipefy_card_id,
         enviadoEm: e.enviado_em,
         respondido: e.respondido,
+        status: e.status,
+        erro: e.erro,
+        statusAtualizadoEm: e.status_atualizado_em,
         empresa: info?.empresa ?? null,
+        unidade: info?.unidade ?? null,
+        rodada: info?.rodada ?? null,
         npsRecomendacao: info?.nps_recomendacao ?? null,
         fase: info?.fase ?? null,
       };
     });
 
+    const { data: textos, error: erroTextos } = await supabase
+      .from("nps_mensagens_texto_livre")
+      .select("id,telefone,texto,tipo_mensagem,recebido_em")
+      .order("recebido_em", { ascending: false })
+      .limit(100);
+    if (erroTextos) throw new Error(erroTextos.message);
+
     return {
       rows,
+      textoLivre: (textos ?? []).map((t) => ({
+        id: t.id,
+        telefone: t.telefone,
+        texto: t.texto,
+        tipoMensagem: t.tipo_mensagem,
+        recebidoEm: t.recebido_em,
+      })),
       totalEnviados: rows.length,
       totalRespondidos: rows.filter((r) => r.respondido).length,
-      totalAguardando: rows.filter((r) => !r.respondido).length,
+      totalAguardando: rows.filter((r) => !r.respondido && r.status !== "failed").length,
+      totalFalhas: rows.filter((r) => r.status === "failed").length,
+      rodadas: Array.from(new Set(rows.map((r) => r.rodada).filter((v): v is string => !!v))).sort().reverse(),
+      unidades: Array.from(new Set(rows.map((r) => r.unidade).filter((v): v is string => !!v))).sort(),
     };
   });
 
@@ -301,7 +391,7 @@ export const listNps = createServerFn({ method: "GET" })
       const { data, error } = await supabase
         .from("nps_pesquisas")
         .select(
-          "id,pipefy_card_id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,data_envio,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
+          "id,pipefy_card_id,empresa,empresa_id,unidade,segmento,email_pesquisa,nome_contato,telefone_pesquisa,nps_recomendacao,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,data_envio,rodada,fase,created_at,updated_at,empresas:empresa_id(cnpj,segmento,unidade,grupo_id)",
         )
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
@@ -324,6 +414,7 @@ export const listNps = createServerFn({ method: "GET" })
           avaliacao_folha_pagamento: r.avaliacao_folha_pagamento,
           servicos_contratados: r.servicos_contratados,
           data_envio: r.data_envio,
+          rodada: r.rodada,
           fase: r.fase,
           created_at: r.created_at,
           updated_at: r.updated_at,

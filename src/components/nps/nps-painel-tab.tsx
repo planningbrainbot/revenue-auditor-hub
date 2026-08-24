@@ -27,6 +27,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -119,6 +120,9 @@ export function NpsPainelTab() {
   const [segmento, setSegmento] = useState(ALL);
   const [categoria, setCategoria] = useState(ALL);
   const [fase, setFase] = useState(ALL);
+  const [rodada, setRodada] = useState(ALL);
+  const [npsView, setNpsView] = useState<"geral" | "categoria">("geral");
+  const [csatView, setCsatView] = useState<"geral" | "categoria">("geral");
 
   const unidades = useMemo(
     () => Array.from(new Set(rows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
@@ -132,6 +136,10 @@ export function NpsPainelTab() {
     () => Array.from(new Set(rows.map((r) => r.fase).filter(Boolean) as string[])).sort(),
     [rows],
   );
+  const rodadas = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.rodada).filter(Boolean) as string[])).sort().reverse(),
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const qn = q.trim().toLowerCase();
@@ -139,6 +147,7 @@ export function NpsPainelTab() {
       if (unidade !== ALL && r.unidade !== unidade) return false;
       if (segmento !== ALL && r.segmento !== segmento) return false;
       if (fase !== ALL && r.fase !== fase) return false;
+      if (rodada !== ALL && r.rodada !== rodada) return false;
       if (categoria !== ALL) {
         const cat = categorize(r.nps_recomendacao);
         if (cat !== categoria) return false;
@@ -149,7 +158,7 @@ export function NpsPainelTab() {
       }
       return true;
     });
-  }, [rows, q, unidade, segmento, fase, categoria]);
+  }, [rows, q, unidade, segmento, fase, rodada, categoria]);
 
   const respondidas = useMemo(
     () => filtered.filter((r) => categorize(r.nps_recomendacao) !== null),
@@ -179,6 +188,43 @@ export function NpsPainelTab() {
   // Amostra pequena no mês corrente torna o delta ruído, não sinal — suprime
   // a variação (mostra só "amostra pequena") abaixo de AMOSTRA_MINIMA.
   const AMOSTRA_MINIMA = 10;
+
+  // Rótulo de variação % acima de cada barra (comparado à barra anterior),
+  // igual ao padrão do benchmark — não mostra nada na primeira barra da série.
+  // Mostra o valor da barra sempre, e a variação % vs. a barra anterior
+  // quando existir — mesmo padrão do benchmark (valor + tag de variação).
+  function renderDeltaLabel(serie: Array<{ [k: string]: string | number }>, key: string, suffix = "") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (props: any) => {
+      const { x, y, width, index } = props as { x?: number; y?: number; width?: number; index?: number };
+      if (index == null || x == null || y == null || width == null) return null;
+      const atual = Number(serie[index]?.[key]);
+      if (!Number.isFinite(atual)) return null;
+      const anterior = index > 0 ? Number(serie[index - 1]?.[key]) : null;
+      const temDelta = anterior != null && Number.isFinite(anterior) && anterior !== 0;
+      const delta = temDelta ? Math.round(((atual - (anterior as number)) / Math.abs(anterior as number)) * 100) : 0;
+      const positivo = delta >= 0;
+      return (
+        <g>
+          {temDelta && (
+            <text
+              x={x + width / 2}
+              y={y - 20}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={600}
+              fill={positivo ? "#0d7a4f" : "#b91c1c"}
+            >
+              {positivo ? "▲" : "▼"} {positivo ? "+" : ""}{delta}%
+            </text>
+          )}
+          <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight={600} className="fill-foreground">
+            {atual}{suffix}
+          </text>
+        </g>
+      );
+    };
+  }
 
   function deltaVsMesAnterior(
     serie: { mes: string }[],
@@ -252,6 +298,11 @@ export function NpsPainelTab() {
   const npsPorUnidade = useMemo(() => {
     const map = new Map<string, { promotor: number; neutro: number; detrator: number; total: number }>();
     for (const r of respondidas) {
+      // "Matriz" nesse pipe é resquício de um lote antigo de cards (pré-projeto
+      // de WhatsApp) sem vínculo de empresa confiável — não representa uma
+      // unidade real de cliente, então fica fora desse recorte por unidade
+      // (mas continua contando no NPS/CSAT geral).
+      if (r.unidade === "Matriz") continue;
       const u = r.unidade ?? "—";
       const cat = categorize(r.nps_recomendacao);
       if (!cat) continue;
@@ -289,6 +340,26 @@ export function NpsPainelTab() {
       .sort((a, b) => b.nps - a.nps);
   }, [respondidas]);
 
+  const csatPorSegmento = useMemo(() => {
+    const map = new Map<string, { satisfeitos: number; total: number }>();
+    for (const r of filtered) {
+      const s = r.segmento ?? "—";
+      const ratings = csatRatings(r);
+      if (ratings.length === 0) continue;
+      const cur = map.get(s) ?? { satisfeitos: 0, total: 0 };
+      cur.satisfeitos += ratings.filter((n) => n >= 8).length;
+      cur.total += ratings.length;
+      map.set(s, cur);
+    }
+    return Array.from(map.entries())
+      .map(([segmento, v]) => ({
+        segmento,
+        csat: v.total > 0 ? Math.round((v.satisfeitos / v.total) * 1000) / 10 : 0,
+        notas: v.total,
+      }))
+      .sort((a, b) => b.csat - a.csat);
+  }, [filtered]);
+
   const evolucaoMensal = useMemo(() => {
     const map = new Map<string, { promotor: number; neutro: number; detrator: number; total: number }>();
     for (const r of respondidas) {
@@ -320,16 +391,17 @@ export function NpsPainelTab() {
     [respondidas],
   );
 
-  const hasFilters = q || unidade !== ALL || segmento !== ALL || fase !== ALL || categoria !== ALL;
+  const hasFilters = q || unidade !== ALL || segmento !== ALL || fase !== ALL || categoria !== ALL || rodada !== ALL;
   const clearFilters = () => {
     setQ("");
     setUnidade(ALL);
     setSegmento(ALL);
     setFase(ALL);
     setCategoria(ALL);
+    setRodada(ALL);
   };
 
-  const filtrosAtivos = [q, unidade !== ALL, segmento !== ALL, categoria !== ALL, fase !== ALL].filter(Boolean).length;
+  const filtrosAtivos = [q, unidade !== ALL, segmento !== ALL, categoria !== ALL, fase !== ALL, rodada !== ALL].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -387,6 +459,13 @@ export function NpsPainelTab() {
                 {fases.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={rodada} onValueChange={setRodada}>
+              <SelectTrigger><SelectValue placeholder="Rodada" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as rodadas</SelectItem>
+                {rodadas.map((rd) => <SelectItem key={rd} value={rd}>{rd}</SelectItem>)}
+              </SelectContent>
+            </Select>
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
                 <X className="mr-1 h-4 w-4" /> Limpar filtros
@@ -408,13 +487,15 @@ export function NpsPainelTab() {
         </TabsList>
 
         <TabsContent value="resumo" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {(() => {
-              const npsDelta = deltaVsMesAnterior(evolucaoMensal, "nps", "respondentes");
-              return (
-                <Card className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
+          {(() => {
+            const npsDelta = deltaVsMesAnterior(evolucaoMensal, "nps", "respondentes");
+            const csatDelta = deltaVsMesAnterior(evolucaoCsatMensal, "csat", "notas");
+            return (
+              <>
+                {/* Container único com divisória interna — padrão de referência (statistics-card-7, 21st.dev) */}
+                <Card className="overflow-hidden p-0">
+                  <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                    <div className="p-4">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">NPS</div>
                       <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-3xl font-semibold tabular-nums">{kpis.resp > 0 ? kpis.nps : "—"}</span>
@@ -428,33 +509,9 @@ export function NpsPainelTab() {
                           <span className="text-xs text-muted-foreground">amostra pequena</span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {kpis.resp} respostas</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · Qtd respostas: {kpis.resp}</div>
                     </div>
-                  </div>
-                  <div className="mt-4 h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={evolucaoMensal}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
-                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[-100, 100]} tick={{ fontSize: 11 }} width={36} />
-                        <Tooltip formatter={(v: number) => [v, "NPS"]} />
-                        <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[2, 2, 0, 0]} maxBarSize={40} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  {evolucaoMensal.length === 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">Sem respostas registradas no filtro atual.</div>
-                  )}
-                </Card>
-              );
-            })()}
-
-            {(() => {
-              const csatDelta = deltaVsMesAnterior(evolucaoCsatMensal, "csat", "notas");
-              return (
-                <Card className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div>
+                    <div className="p-4">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CSAT</div>
                       <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-3xl font-semibold tabular-nums">{csat.score != null ? `${csat.score}%` : "—"}</span>
@@ -468,27 +525,115 @@ export function NpsPainelTab() {
                           <span className="text-xs text-muted-foreground">amostra pequena</span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · {csat.totalNotas} notas (fiscal + contábil + folha)</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">vs. mês anterior · Qtd notas: {csat.totalNotas} (fiscal + contábil + folha)</div>
                     </div>
                   </div>
-                  <div className="mt-4 h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={evolucaoCsatMensal}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
-                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={36} />
-                        <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
-                        <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[2, 2, 0, 0]} maxBarSize={40} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  {evolucaoCsatMensal.length === 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">Sem notas de serviço registradas no filtro atual.</div>
-                  )}
                 </Card>
-              );
-            })()}
-          </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card className="p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="text-sm font-medium">Evolução do NPS</div>
+                      <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
+                        <button
+                          onClick={() => setNpsView("geral")}
+                          className={`rounded-full px-3 py-1 font-medium transition-colors ${npsView === "geral" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          Geral
+                        </button>
+                        <button
+                          onClick={() => setNpsView("categoria")}
+                          className={`rounded-full px-3 py-1 font-medium transition-colors ${npsView === "categoria" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          Categoria
+                        </button>
+                      </div>
+                    </div>
+                    {npsView === "geral" ? (
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={evolucaoMensal} margin={{ top: 34 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
+                            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                            <YAxis domain={[-100, 100]} tick={{ fontSize: 11 }} width={36} />
+                            <Tooltip formatter={(v: number) => [v, "NPS"]} />
+                            <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[2, 2, 0, 0]} maxBarSize={44}>
+                              <LabelList content={renderDeltaLabel(evolucaoMensal, "nps")} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={npsPorSegmento} layout="vertical" margin={{ left: 70 }}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                            <XAxis type="number" domain={[-100, 100]} tick={{ fontSize: 11 }} />
+                            <YAxis type="category" dataKey="segmento" width={70} tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(v: number) => [v, "NPS"]} />
+                            <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[0, 2, 2, 0]} maxBarSize={18} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {((npsView === "geral" && evolucaoMensal.length === 0) || (npsView === "categoria" && npsPorSegmento.length === 0)) && (
+                      <div className="mt-2 text-xs text-muted-foreground">Sem respostas registradas no filtro atual.</div>
+                    )}
+                  </Card>
+
+                  <Card className="p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="text-sm font-medium">Evolução do CSAT</div>
+                      <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
+                        <button
+                          onClick={() => setCsatView("geral")}
+                          className={`rounded-full px-3 py-1 font-medium transition-colors ${csatView === "geral" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          Geral
+                        </button>
+                        <button
+                          onClick={() => setCsatView("categoria")}
+                          className={`rounded-full px-3 py-1 font-medium transition-colors ${csatView === "categoria" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          Categoria
+                        </button>
+                      </div>
+                    </div>
+                    {csatView === "geral" ? (
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={evolucaoCsatMensal} margin={{ top: 34 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
+                            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                            <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={36} />
+                            <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
+                            <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[2, 2, 0, 0]} maxBarSize={44}>
+                              <LabelList content={renderDeltaLabel(evolucaoCsatMensal, "csat", "%")} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[180px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={csatPorSegmento} layout="vertical" margin={{ left: 70 }}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                            <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+                            <YAxis type="category" dataKey="segmento" width={70} tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
+                            <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[0, 2, 2, 0]} maxBarSize={18} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {((csatView === "geral" && evolucaoCsatMensal.length === 0) || (csatView === "categoria" && csatPorSegmento.length === 0)) && (
+                      <div className="mt-2 text-xs text-muted-foreground">Sem notas de serviço registradas no filtro atual.</div>
+                    )}
+                  </Card>
+                </div>
+              </>
+            );
+          })()}
 
           <div className="pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Detalhamento
@@ -569,7 +714,7 @@ export function NpsPainelTab() {
             <>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Card className="p-4">
-                  <div className="text-xs text-muted-foreground">Empresas cadastradas</div>
+                  <div className="text-xs text-muted-foreground">Clientes ativos</div>
                   <div className="mt-1 text-2xl font-semibold">{coverage.totalEmpresas}</div>
                 </Card>
                 <Card className="p-4">
@@ -596,6 +741,10 @@ export function NpsPainelTab() {
                 vinculada — hoje {coverage.pesquisasComEmpresaResolvida} de {coverage.pesquisasTotal} pesquisas
                 enviadas têm esse vínculo resolvido ({coverage.pesquisasTotal > 0 ? Math.round((coverage.pesquisasComEmpresaResolvida / coverage.pesquisasTotal) * 100) : 0}%).
                 O número real de empresas já pesquisadas é maior do que o mostrado aqui.
+                <br />
+                O denominador ("clientes ativos") usa a mesma régua de <code>/clientes</code>: franquia, unidade
+                regional ativa e sem card de churn em Tratativas — por isso pode ser menor que a contagem bruta de
+                empresas cadastradas por unidade.
               </Card>
 
               <Card>
