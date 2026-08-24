@@ -46,7 +46,12 @@ export function useUpdateItemCac() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: Parameters<typeof updateItemCac>[0]["data"]) => fn({ data: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: CAC_QUERY_KEY }),
+    onSuccess: (res: { ok: boolean; avisos?: { mes: string; motivo: string }[] }) => {
+      qc.invalidateQueries({ queryKey: CAC_QUERY_KEY });
+      for (const aviso of res?.avisos ?? []) {
+        toast.warning(`CAC não vinculado à apuração de Royalties de ${aviso.mes}: ${aviso.motivo}`);
+      }
+    },
     onError: defaultOnError,
   });
 }

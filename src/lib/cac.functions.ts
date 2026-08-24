@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin, digits, monthRange } from "@/lib/server-utils";
+import { gerarItensApuracaoCore } from "@/lib/royalties.functions";
 
 // ============ Types ============
 export interface ApuracaoCacItem {
@@ -580,15 +581,234 @@ export const listCacItensTodasUnidades = createServerFn({ method: "POST" })
     },
   );
 
+// ============ Vínculo automático CAC → apuração de Royalties ============
+// Ao marcar uma parcela de CAC como "boleto enviado" ou "pago", o valor
+// efetivo passa a contar automaticamente na fatura mensal (apuração de
+// Royalties) da unidade, no mês do evento — reaproveitando o mecanismo já
+// existente de is_cac + royalties_percentual_override em royalties_itens
+// (não muda o cálculo de fecharApuracao, só popula o que ele já lê).
+// Definido com o usuário em 24/08/2026.
+type ParcelaCac = 1 | 2;
+type AvisoVinculoCac = { mes: string; motivo: string };
+
+// Desfaz o vínculo de um item de royalties com uma parcela de CAC: se o item
+// só existe por causa dessa automação (fonte "cac_auto"), remove de vez —
+// senão ele ficaria fantasma, contando como royalties normal. Se é um item
+// real (cliente com contrato casado), só desliga is_cac/override, devolvendo
+// pro cálculo normal de royalties. Não mexe se a apuração daquele mês já
+// estiver fechada (edição bloqueada, igual updateItem).
+async function desvincularRoyaltiesCac(supabase: any, royaltiesItemId: number): Promise<void> {
+  const { data: ri, error: riErr } = await supabase
+    .from("royalties_itens")
+    .select("id,fonte,apuracao:royalties_apuracao!inner(status)")
+    .eq("id", royaltiesItemId)
+    .maybeSingle();
+  if (riErr) throw new Error(riErr.message);
+  if (!ri) return;
+  const status = (ri as any).apuracao.status;
+  if (status === "confirmado" || status === "faturado") return;
+  if ((ri as any).fonte === "cac_auto") {
+    const { error } = await supabase.from("royalties_itens").delete().eq("id", royaltiesItemId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("royalties_itens")
+      .update({ is_cac: false, royalties_percentual_override: null })
+      .eq("id", royaltiesItemId);
+    if (error) throw new Error(error.message);
+  }
+}
+
+async function vincularRoyaltiesCac(
+  supabase: any,
+  cacItem: {
+    id: number;
+    apuracao_id: number;
+    contrato_id: number | null;
+    razao_social: string;
+    cnpj: string | null;
+    valor_parcela_1: number;
+    valor_parcela_2: number;
+    valor_pago_parcela_1: number | null;
+    valor_pago_parcela_2: number | null;
+    royalties_item_id_parcela_1: number | null;
+    royalties_mes_parcela_1: string | null;
+    royalties_item_id_parcela_2: number | null;
+    royalties_mes_parcela_2: string | null;
+  },
+  parcela: ParcelaCac,
+  dataEventoISO: string,
+): Promise<AvisoVinculoCac | null> {
+  if (!cacItem.contrato_id) return null; // item manual, sem contrato — nada a vincular
+
+  const valorParcela = parcela === 1 ? cacItem.valor_parcela_1 : cacItem.valor_parcela_2;
+  const valorPago = parcela === 1 ? cacItem.valor_pago_parcela_1 : cacItem.valor_pago_parcela_2;
+  const valorEfetivo = Number(valorPago ?? valorParcela ?? 0);
+  if (valorEfetivo <= 0) return null;
+
+  const mes = dataEventoISO.slice(0, 7);
+  const { firstDay } = monthRange(mes);
+
+  const royaltiesItemIdAntigo =
+    parcela === 1 ? cacItem.royalties_item_id_parcela_1 : cacItem.royalties_item_id_parcela_2;
+  const mesAntigo = parcela === 1 ? cacItem.royalties_mes_parcela_1 : cacItem.royalties_mes_parcela_2;
+
+  const { data: cacAp, error: cacApErr } = await supabase
+    .from("cac_apuracao")
+    .select("unidade_id")
+    .eq("id", cacItem.apuracao_id)
+    .single();
+  if (cacApErr) throw new Error(cacApErr.message);
+  const unidadeId: number = (cacAp as any).unidade_id;
+
+  // Evento anterior (ex: boleto enviado) já tinha vinculado outro mês (ex:
+  // pagamento caiu no mês seguinte) — desvincula de lá antes de vincular no
+  // mês novo, senão o mesmo valor conta em duas faturas.
+  if (royaltiesItemIdAntigo && mesAntigo && String(mesAntigo).slice(0, 7) !== mes) {
+    await desvincularRoyaltiesCac(supabase, royaltiesItemIdAntigo);
+  }
+
+  // Apuração de Royalties da unidade nesse mês — get or create (mesmo padrão
+  // de getOrCreateApuracao em royalties.functions.ts).
+  const { data: existenteAp, error: eApErr } = await supabase
+    .from("royalties_apuracao")
+    .select("id,status")
+    .eq("unidade_id", unidadeId)
+    .eq("mes_referencia", firstDay)
+    .maybeSingle();
+  if (eApErr) throw new Error(eApErr.message);
+
+  let royaltiesApuracaoId: number;
+  let statusAp: string;
+  if (existenteAp) {
+    royaltiesApuracaoId = (existenteAp as any).id;
+    statusAp = (existenteAp as any).status;
+  } else {
+    const { data: u, error: uErr } = await supabase
+      .from("unidades")
+      .select("royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga")
+      .eq("id", unidadeId)
+      .single();
+    if (uErr) throw new Error(uErr.message);
+    const { data: novaAp, error: novaApErr } = await supabase
+      .from("royalties_apuracao")
+      .insert({
+        unidade_id: unidadeId,
+        mes_referencia: firstDay,
+        status: "rascunho",
+        royalties_percentual: (u as any).royalties_percentual,
+        csc_valor_fixo: (u as any).csc_valor_fixo,
+        csc_percentual_base_antiga: (u as any).csc_percentual_base_antiga,
+      })
+      .select("id,status")
+      .single();
+    if (novaApErr) throw new Error(novaApErr.message);
+    royaltiesApuracaoId = (novaAp as any).id;
+    statusAp = (novaAp as any).status;
+  }
+
+  if (statusAp === "confirmado" || statusAp === "faturado") {
+    return { mes, motivo: "a apuração de Royalties desse mês já está fechada — vincule manualmente" };
+  }
+
+  // Gera os itens normais da apuração se ainda estiver vazia, pra ter onde
+  // procurar o item do cliente pelo contrato antes de criar um manual.
+  const { count: itensCount, error: cntErr } = await supabase
+    .from("royalties_itens")
+    .select("id", { count: "exact", head: true })
+    .eq("apuracao_id", royaltiesApuracaoId);
+  if (cntErr) throw new Error(cntErr.message);
+  if ((itensCount ?? 0) === 0) {
+    await gerarItensApuracaoCore(supabase, royaltiesApuracaoId);
+  }
+
+  const { data: itemRoyalties, error: itErr } = await supabase
+    .from("royalties_itens")
+    .select("id,valor_confirmado")
+    .eq("apuracao_id", royaltiesApuracaoId)
+    .eq("contrato_id", cacItem.contrato_id)
+    .is("excluido_em", null)
+    .maybeSingle();
+  if (itErr) throw new Error(itErr.message);
+
+  let royaltiesItemId: number;
+  let valorConfirmadoAtual: number;
+
+  if (itemRoyalties) {
+    royaltiesItemId = (itemRoyalties as any).id;
+    valorConfirmadoAtual = Number((itemRoyalties as any).valor_confirmado ?? 0);
+  } else {
+    // Sem item casado nessa apuração (ex: CNPJ não bate) — cria um item
+    // manual só pra carregar o valor de CAC dessa parcela na fatura do mês.
+    const { data: novoItem, error: novoItemErr } = await supabase
+      .from("royalties_itens")
+      .insert({
+        apuracao_id: royaltiesApuracaoId,
+        razao_social: cacItem.razao_social,
+        cnpj: cacItem.cnpj,
+        contrato_id: cacItem.contrato_id,
+        valor_confirmado: 0,
+        categoria: "royalties",
+        fonte: "cac_auto",
+        status_match: "manual",
+        confirmado: true,
+      })
+      .select("id,valor_confirmado")
+      .single();
+    if (novoItemErr) throw new Error(novoItemErr.message);
+    royaltiesItemId = (novoItem as any).id;
+    valorConfirmadoAtual = Number((novoItem as any).valor_confirmado ?? 0);
+  }
+
+  const patchRoyalties: Record<string, unknown> = { is_cac: true, confirmado: true };
+  if (valorEfetivo > valorConfirmadoAtual) {
+    // Parcela de CAC maior que a receita reconhecida do cliente nesse mês —
+    // sobe o valor_confirmado (fatura) e o mrr_mensal do contrato
+    // (permanente, vale pros meses seguintes também), pra 100% do item
+    // cobrir a parcela inteira.
+    patchRoyalties.valor_confirmado = valorEfetivo;
+    patchRoyalties.royalties_percentual_override = 100;
+    const { error: contErr } = await supabase
+      .from("contratos")
+      .update({ mrr_mensal: valorEfetivo })
+      .eq("id", cacItem.contrato_id);
+    if (contErr) throw new Error(contErr.message);
+  } else {
+    // Percentual = fatia da receita do mês que essa parcela representa.
+    patchRoyalties.royalties_percentual_override = (valorEfetivo / valorConfirmadoAtual) * 100;
+  }
+
+  const { error: updErr } = await supabase
+    .from("royalties_itens")
+    .update(patchRoyalties)
+    .eq("id", royaltiesItemId);
+  if (updErr) throw new Error(updErr.message);
+
+  const vinculoPatch =
+    parcela === 1
+      ? { royalties_item_id_parcela_1: royaltiesItemId, royalties_mes_parcela_1: firstDay }
+      : { royalties_item_id_parcela_2: royaltiesItemId, royalties_mes_parcela_2: firstDay };
+  const { error: vincErr } = await supabase
+    .from("cac_apuracao_itens")
+    .update(vinculoPatch)
+    .eq("id", cacItem.id);
+  if (vincErr) throw new Error(vincErr.message);
+
+  return null;
+}
+
 // ============ updateItemCac ============
-// Marcar parcela como paga é uma ação manual do admin — hoje não existe
-// integração automática que rastreie a unidade repassando o CAC pra matriz
-// (Omie por unidade só cobre recebíveis de clientes, não repasses internos).
+// Marcar parcela como paga é uma ação manual do admin — o repasse em si
+// (unidade → matriz) não tem integração automática de conferência (Omie por
+// unidade só cobre recebíveis de clientes, não repasses internos), mas o
+// valor é refletido automaticamente na apuração de Royalties da unidade via
+// vincularRoyaltiesCac acima.
 export const updateItemCac = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (d: {
       id: number;
+      valor_cac_total?: number;
       prazo_parcela_1?: string | null;
       data_envio_parcela_1?: string | null;
       data_pagamento_parcela_1?: string | null;
@@ -619,12 +839,77 @@ export const updateItemCac = createServerFn({ method: "POST" })
     if ("estimativa_parcela_2" in data) patch.estimativa_parcela_2 = data.estimativa_parcela_2;
     if ("observacao" in data) patch.observacao = data.observacao;
 
+    // Corrigir o valor total redistribui só a(s) parcela(s) ainda não paga(s)
+    // — parcela já paga é fato histórico, não muda retroativamente. Sem
+    // nenhuma parcela paga ainda, divide 50/50 como na geração automática
+    // (gerarItensParaApuracao); com uma paga, a outra absorve o restante.
+    if ("valor_cac_total" in data && data.valor_cac_total != null) {
+      const novoTotal = Number(data.valor_cac_total);
+      patch.valor_cac_total = novoTotal;
+
+      const { data: atual, error: atualErr } = await (supabase as any)
+        .from("cac_apuracao_itens")
+        .select("valor_parcela_1,valor_parcela_2,status_parcela_1,status_parcela_2")
+        .eq("id", data.id)
+        .single();
+      if (atualErr) throw new Error(atualErr.message);
+
+      const pago1 = atual.status_parcela_1 === "pago";
+      const pago2 = atual.status_parcela_2 === "pago";
+      if (pago1 && !pago2) {
+        patch.valor_parcela_2 = Math.max(0, novoTotal - Number(atual.valor_parcela_1 ?? 0));
+      } else if (!pago1 && pago2) {
+        patch.valor_parcela_1 = Math.max(0, novoTotal - Number(atual.valor_parcela_2 ?? 0));
+      } else if (!pago1 && !pago2) {
+        patch.valor_parcela_1 = novoTotal / 2;
+        patch.valor_parcela_2 = novoTotal - patch.valor_parcela_1;
+      }
+      // pago1 && pago2: as duas já viraram fato histórico — só o total muda.
+    }
+
     const { error } = await (supabase as any)
       .from("cac_apuracao_itens")
       .update(patch)
       .eq("id", data.id);
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Dispara o vínculo com Royalties só quando uma data de envio/pagamento
+    // acabou de ser MARCADA (valor não-nulo) — desmarcar (Desfazer) não
+    // desvincula automaticamente, fica pra ajuste manual na apuração de
+    // Royalties. Pagamento tem prioridade sobre envio quando os dois vêm no
+    // mesmo patch (não acontece hoje pela UI, mas evita rodar duas vezes com
+    // meses diferentes por engano).
+    const eventos: { parcela: ParcelaCac; dataISO: string }[] = [];
+    if (data.data_pagamento_parcela_1) eventos.push({ parcela: 1, dataISO: data.data_pagamento_parcela_1 });
+    else if (data.data_envio_parcela_1) eventos.push({ parcela: 1, dataISO: data.data_envio_parcela_1 });
+    if (data.data_pagamento_parcela_2) eventos.push({ parcela: 2, dataISO: data.data_pagamento_parcela_2 });
+    else if (data.data_envio_parcela_2) eventos.push({ parcela: 2, dataISO: data.data_envio_parcela_2 });
+
+    const avisos: AvisoVinculoCac[] = [];
+    if (eventos.length > 0) {
+      const { data: itemAtualizado, error: itemErr } = await (supabase as any)
+        .from("cac_apuracao_itens")
+        .select(
+          "id,apuracao_id,contrato_id,razao_social,cnpj,valor_parcela_1,valor_parcela_2,valor_pago_parcela_1,valor_pago_parcela_2,royalties_item_id_parcela_1,royalties_mes_parcela_1,royalties_item_id_parcela_2,royalties_mes_parcela_2",
+        )
+        .eq("id", data.id)
+        .single();
+      if (itemErr) throw new Error(itemErr.message);
+
+      for (const ev of eventos) {
+        try {
+          const aviso = await vincularRoyaltiesCac(supabase, itemAtualizado, ev.parcela, ev.dataISO);
+          if (aviso) avisos.push(aviso);
+        } catch (e) {
+          // A parcela já foi marcada com sucesso acima — uma falha no vínculo
+          // com Royalties não deve desfazer isso, só avisar pra ajuste manual.
+          const msg = e instanceof Error ? e.message : "erro desconhecido";
+          avisos.push({ mes: ev.dataISO.slice(0, 7), motivo: `falha ao vincular na apuração de Royalties: ${msg}` });
+        }
+      }
+    }
+
+    return { ok: true, avisos };
   });
 
 // ============ addItemManualCac ============

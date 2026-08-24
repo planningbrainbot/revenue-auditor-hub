@@ -696,7 +696,15 @@ export function ApuracaoCacContent() {
                       {formatMesLabel(it.mes_referencia)}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                      {brl(it.valor_cac_total)}
+                      <div className="flex items-center justify-end gap-1">
+                        {brl(it.valor_cac_total)}
+                        {!it.excluido_em && (
+                          <EditarValorTotalButton
+                            valorAtual={it.valor_cac_total}
+                            onSalvar={(valor) => updateItem.mutate({ id: it.id, valor_cac_total: valor })}
+                          />
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 min-w-[160px]">
                       {it.excluido_em ? (
@@ -1037,6 +1045,73 @@ function EditarValorButton({
             onChange={(e) => setValor(e.target.value)}
             autoFocus
           />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!valido}
+            onClick={() => {
+              onSalvar(valorNumerico);
+              setOpen(false);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditarValorTotalButton({
+  valorAtual,
+  onSalvar,
+}: {
+  valorAtual: number;
+  onSalvar: (valor: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [valor, setValor] = useState(() => String(valorAtual));
+  const valorNumerico = Number(valor.replace(",", "."));
+  const valido = valor.trim() !== "" && !Number.isNaN(valorNumerico) && valorNumerico >= 0;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) setValor(String(valorAtual));
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          title="Corrigir valor total"
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Corrigir valor total do CAC</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label>Valor total</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">
+            Parcela já paga não muda retroativamente — só a parcela ainda em aberto é
+            recalculada pra fechar com o novo total.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
