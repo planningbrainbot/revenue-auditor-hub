@@ -330,6 +330,9 @@ function ClientesPage() {
   // Sem `view.contatos` a RLS devolve vazio — nesse caso nem consulta, e a linha não vira
   // clicável, pra não abrir um painel que sempre apareceria vazio.
   const podeVerContatos = perms.can("view.contatos");
+  // Admin sempre pode; manage.clientes_churn libera "Marcar churn" pra outros papéis
+  // sem dar acesso a editar razão social/CNPJ (que continua admin-only).
+  const podeMarcarChurn = perms.isAdmin || perms.can("manage.clientes_churn");
   useEffect(() => {
     if (!podeVerContatos) {
       setContatosCount(new Map());
@@ -835,7 +838,7 @@ function ClientesPage() {
                         </TableHead>
                       );
                     })}
-                    {perms.isAdmin && (
+                    {podeMarcarChurn && (
                       <TableHead className="sticky top-0 bg-card/95 backdrop-blur-sm text-right">
                         Ações
                       </TableHead>
@@ -927,13 +930,15 @@ function ClientesPage() {
                         <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
                         <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
                         <TableCell>{info?.closer || "—"}</TableCell>
-                        {perms.isAdmin && (
+                        {podeMarcarChurn && (
                           <TableCell
                             className="text-right"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-end gap-1">
-                              <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
+                              {perms.isAdmin && (
+                                <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
+                              )}
                               <MarcarChurnClienteButton
                                 r={r}
                                 churned={churned}
@@ -948,7 +953,7 @@ function ClientesPage() {
                   {!loading && filtered.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={perms.isAdmin ? 15 : 14}
+                        colSpan={podeMarcarChurn ? 15 : 14}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Nenhum cliente encontrado.

@@ -17,6 +17,13 @@ Formato de cada entrada:
 
 ---
 
+## [2026-08-24] "Marcar churn" em /clientes vira permissão (`manage.clientes_churn`), separada de editar razão social/CNPJ
+
+**Contexto:** usuário pediu que outros usuários (não só admin) pudessem marcar churn pela tela de Clientes, "como admin", mas transformando isso numa permissão ativável por usuário/papel — não abrindo pra todo mundo.
+**Decisão:** nova chave `manage.clientes_churn` em `KNOWN_PERMISSIONS` (`permissions.functions.ts`), mesmo padrão de `manage.repasses` — checada via `can()` no servidor, não `has_role`. `marcarChurnCliente` (`clientes.functions.ts`) troca `assertAdmin` por essa checagem; `atualizarCliente` (editar razão social/CNPJ) **continua admin-only** — não fazia parte do pedido, e mexe em dado que sync automático pode sobrescrever (risco já documentado). Na UI (`clientes.tsx`), a coluna "Ações" e o botão "Marcar churn" aparecem pra quem é admin OU tem a permissão nova; o botão "Editar" (razão social/CNPJ) continua só pra admin dentro da mesma coluna. Concessão por usuário específico (não só por papel inteiro) usa o mecanismo de perfis customizados que já existe em `/admin/usuários` + `/admin/permissoes` (`view.admin.profiles`) — não foi criado nada novo pra granularidade por usuário.
+**Status:** implementado. Migration `20260824160000_permissao_marcar_churn_clientes.sql` semeia `admin=true` (aplicada direto via REST no Supabase, pra não quebrar o próprio admin — sem o seed, `can()` volta `false` e ninguém, nem admin, conseguia mais marcar churn). Código ainda não commitado/deployado — segue a regra de validar local antes de subir pra produção.
+**Próximos passos:** usuário decide quais papéis/usuários recebem `manage.clientes_churn` em `/admin/permissoes`; commit + deploy quando confirmado.
+
 ## [2026-08-18] Domínio de produção trocado para ops.planningbrain.com.br
 
 **Contexto:** `planning.opsboard.com.br` (consolidado em [2026-07-03](#2026-07-03-domínio-de-produção-consolidado-em-planningopsboardcombr)) deixou de ser o domínio desejado; nova marca/domínio é `planningbrain.com.br`.

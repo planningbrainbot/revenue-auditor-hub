@@ -8,6 +8,14 @@ import {
   type MotivoChurn,
 } from "@/lib/royalties.functions";
 
+// Marcar churn na tela de Clientes é liberado por permissão (não só admin) —
+// mesmo padrão de manage.repasses: checa direto via can(), sem has_role.
+async function assertCanMarcarChurn(supabase: any) {
+  const { data, error } = await supabase.rpc("can", { _key: "manage.clientes_churn" });
+  if (error) throw new Error("Erro de autorização.");
+  if (!data) throw new Error("Acesso negado: você não pode marcar churn.");
+}
+
 // ============ atualizarCliente ============
 // Corrige razão social e/ou CNPJ de um cliente direto na tela de Clientes.
 // empresas é alimentado pelo sync automático (pipedrive_sync / enriquecimento
@@ -59,8 +67,8 @@ export const marcarChurnCliente = createServerFn({ method: "POST" })
     }) => d,
   )
   .handler(async ({ data, context }): Promise<{ ok: true; pipefy_card_id: string }> => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    const { supabase } = context;
+    await assertCanMarcarChurn(supabase);
 
     if (!MOTIVOS_CHURN.includes(data.motivo as MotivoChurn)) {
       throw new Error("Selecione um motivo de churn válido.");

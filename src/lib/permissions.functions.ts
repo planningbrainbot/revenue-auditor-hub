@@ -44,6 +44,7 @@ export const KNOWN_PERMISSIONS: { key: string; label: string; description: strin
   { key: "view.atividade", label: "Acessar Atividade do Sistema", description: "Resumo diário de commits — o que mudou no Ops Board, dia a dia.", group: "Administração" },
   { key: "view.ebit_operacional", label: "Acessar EBIT Operacional", description: "Custo operacional do time (Google Sheets) x venda de serviços internos para unidades (Pipefy) — meta de EBIT zero.", group: "Acesso" },
   { key: "view.contatos", label: "Ver contatos dos clientes", description: "Contatos (stakeholders) vinculados a cada cliente, na tela de Clientes — nome, cargo, e-mail e WhatsApp.", group: "Dados" },
+  { key: "manage.clientes_churn", label: "Marcar churn de clientes", description: "Marcar um cliente como churn na tela de Clientes (cria card no pipe Pipefy 'Tratativas'). Admins sempre podem; esta permissão libera para outros papéis.", group: "Dados" },
 ];
 
 // (admin check usa helper compartilhado em @/lib/server-utils)
