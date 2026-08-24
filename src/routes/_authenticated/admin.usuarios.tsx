@@ -5,8 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   adminCreateUser,
   adminDeleteUser,
+  adminGrantGrowthAccess,
+  adminListGrowthAccess,
   adminListUsers,
   adminResetPassword,
+  adminRevokeGrowthAccess,
   adminUpdateUser,
 } from "@/lib/admin-users.functions";
 import { getSocioUnidadeByEmail } from "@/lib/permissions.functions";
@@ -46,6 +49,23 @@ const SYSTEM_ROLE_PILL: Record<string, string> = {
 };
 const CUSTOM_ROLE_PILL = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
 
+// Papéis e departamentos do Growth — espelham os CHECK de public.membros lá.
+const GROWTH_PAPEIS = ["admin", "gestao", "operacional"] as const;
+const GROWTH_DEPARTAMENTOS = ["comercial", "diretoria", "marketing", "backoffice", "parcerias"] as const;
+const GROWTH_PILL: Record<string, string> = {
+  admin: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  gestao: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  operacional: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+};
+
+type GrowthAlvo = {
+  email: string;
+  nome: string;
+  papel: string;
+  departamento: string;
+  jaTemAcesso: boolean;
+};
+
 function UsersPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -59,6 +79,9 @@ function UsersPage() {
   const updateFn = useServerFn(adminUpdateUser);
   const lookupFn = useServerFn(getSocioUnidadeByEmail);
   const rolesFn = useServerFn(listRoles);
+  const growthListFn = useServerFn(adminListGrowthAccess);
+  const growthGrantFn = useServerFn(adminGrantGrowthAccess);
+  const growthRevokeFn = useServerFn(adminRevokeGrowthAccess);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) navigate({ to: "/" });
@@ -91,6 +114,16 @@ function UsersPage() {
     enabled: isAdmin,
   });
   const unidades = unidadesQuery.data ?? [];
+  const growthQuery = useQuery({
+    queryKey: ["admin-growth-access"],
+    queryFn: () => growthListFn(),
+    enabled: isAdmin,
+  });
+  const growthConfigurado = growthQuery.data?.configured ?? false;
+  const growthPorEmail = new Map(
+    (growthQuery.data?.membros ?? []).map((m) => [String(m.email).toLowerCase(), m]),
+  );
+
   const roleLabel = (key: string) => roles.find((r) => r.key === key)?.label ?? key;
   const rolePill = (key: string) => SYSTEM_ROLE_PILL[key] ?? CUSTOM_ROLE_PILL;
 
@@ -125,6 +158,35 @@ function UsersPage() {
       clearTimeout(t);
     };
   }, [email, role, lookupFn]);
+
+  const [growthAlvo, setGrowthAlvo] = useState<GrowthAlvo | null>(null);
+  const [growthSenha, setGrowthSenha] = useState("");
+
+  const growthGrantMut = useMutation({
+    mutationFn: (input: { email: string; nome: string; papel: string; departamento: string; password?: string }) =>
+      growthGrantFn({ data: input }),
+    onSuccess: (res, variables) => {
+      if (res.loginCriado && variables.password) {
+        setCredential({ email: `${res.email} (Growth)`, password: variables.password });
+      }
+      setGrowthAlvo(null);
+      setGrowthSenha("");
+      setError(null);
+      qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao conceder acesso no Growth"),
+  });
+
+  const growthRevokeMut = useMutation({
+    mutationFn: (email: string) => growthRevokeFn({ data: { email } }),
+    onSuccess: () => {
+      setGrowthAlvo(null);
+      setGrowthSenha("");
+      setError(null);
+      qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao revogar acesso no Growth"),
+  });
 
   const createMut = useMutation({
     mutationFn: (input: { nome: string; email: string; role: Role; password: string; unidade?: string }) => createFn({ data: input }),
@@ -308,12 +370,13 @@ function UsersPage() {
                 <th className="px-4 py-2">Email</th>
                 <th className="px-4 py-2">Papel</th>
                 <th className="px-4 py-2">Unidade</th>
+                <th className="px-4 py-2">Growth</th>
                 <th className="px-4 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {usersQuery.isLoading && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
               )}
               {usersQuery.data?.map((u) => (
                 <tr key={u.user_id} className="border-t">
@@ -344,6 +407,23 @@ function UsersPage() {
                       ? (u.unidade ?? <span className="text-amber-600">não vinculada</span>)
                       : "—"}
                   </td>
+                  <td className="px-4 py-2">
+                    {(() => {
+                      if (!growthConfigurado) return <span className="text-xs text-muted-foreground">—</span>;
+                      const m = growthPorEmail.get(u.email.toLowerCase());
+                      if (!m) return <span className="text-xs text-muted-foreground">sem acesso</span>;
+                      return (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            GROWTH_PILL[String(m.papel)] ?? CUSTOM_ROLE_PILL
+                          }`}
+                          title={`Departamento: ${m.departamento ?? "—"}`}
+                        >
+                          {String(m.papel)}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="px-4 py-2 text-right space-x-2">
                     {editingId === u.user_id ? (
                       <>
@@ -369,6 +449,24 @@ function UsersPage() {
                         >
                           Editar
                         </button>
+                        {growthConfigurado && (
+                          <button
+                            onClick={() => {
+                              const m = growthPorEmail.get(u.email.toLowerCase());
+                              setGrowthSenha("");
+                              setGrowthAlvo({
+                                email: u.email,
+                                nome: u.nome || u.email,
+                                papel: String(m?.papel ?? "operacional"),
+                                departamento: String(m?.departamento ?? "comercial"),
+                                jaTemAcesso: Boolean(m),
+                              });
+                            }}
+                            className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
+                          >
+                            Growth
+                          </button>
+                        )}
                         <button
                           onClick={() => resetMut.mutate({ user_id: u.user_id, password: generatePassword(12) })}
                           disabled={resetMut.isPending}
@@ -391,11 +489,118 @@ function UsersPage() {
                 </tr>
               ))}
               {usersQuery.data && usersQuery.data.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Nenhum usuário.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Nenhum usuário.</td></tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {growthAlvo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
+              <h2 className="text-lg font-semibold text-foreground">Acesso ao Growth</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {growthAlvo.nome} · {growthAlvo.email}
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Papel no Growth</label>
+                  <select
+                    value={growthAlvo.papel}
+                    onChange={(e) => setGrowthAlvo({ ...growthAlvo, papel: e.target.value })}
+                    className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {GROWTH_PAPEIS.map((pp) => (
+                      <option key={pp} value={pp}>{pp}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">Departamento</label>
+                  <select
+                    value={growthAlvo.departamento}
+                    onChange={(e) => setGrowthAlvo({ ...growthAlvo, departamento: e.target.value })}
+                    className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {GROWTH_DEPARTAMENTOS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground">
+                    Senha do Growth {growthAlvo.jaTemAcesso && <span className="font-normal text-muted-foreground">(opcional)</span>}
+                  </label>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      value={growthSenha}
+                      onChange={(e) => setGrowthSenha(e.target.value)}
+                      placeholder={growthAlvo.jaTemAcesso ? "deixe vazio para não alterar" : "senha inicial"}
+                      className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setGrowthSenha(generatePassword(12))}
+                      className="shrink-0 rounded-lg border border-border px-3 text-xs text-foreground hover:bg-accent"
+                    >
+                      Gerar
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    O Growth é um login separado — a pessoa entra lá com este e-mail e senha.
+                  </p>
+                </div>
+              </div>
+
+              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+
+              <div className="mt-6 flex items-center justify-between">
+                {growthAlvo.jaTemAcesso ? (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Revogar o acesso de ${growthAlvo.email} ao Growth?`)) {
+                        growthRevokeMut.mutate(growthAlvo.email);
+                      }
+                    }}
+                    disabled={growthRevokeMut.isPending}
+                    className="rounded-full border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                  >
+                    Revogar acesso
+                  </button>
+                ) : (
+                  <span />
+                )}
+
+                <div className="space-x-2">
+                  <button
+                    onClick={() => { setGrowthAlvo(null); setGrowthSenha(""); setError(null); }}
+                    className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() =>
+                      growthGrantMut.mutate({
+                        email: growthAlvo.email,
+                        nome: growthAlvo.nome,
+                        papel: growthAlvo.papel,
+                        departamento: growthAlvo.departamento,
+                        password: growthSenha.trim() || undefined,
+                      })
+                    }
+                    disabled={growthGrantMut.isPending}
+                    className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                  >
+                    {growthGrantMut.isPending ? "Salvando..." : growthAlvo.jaTemAcesso ? "Salvar" : "Conceder acesso"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppShell>
   );

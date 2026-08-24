@@ -12,6 +12,10 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// Só aparece quando o provider Azure estiver habilitado no Supabase do Ops.
+// Enquanto VITE_MICROSOFT_LOGIN não for "true", a tela segue igual à de hoje.
+const microsoftLoginEnabled = import.meta.env.VITE_MICROSOFT_LOGIN === "true";
+
 function AuthPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -36,6 +40,24 @@ function AuthPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMicrosoft() {
+    setError(null);
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "openid profile email",
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    // Em caso de sucesso o navegador é redirecionado para a Microsoft e nada
+    // depois disto roda; só chegamos aqui se a chamada falhar.
+    if (error) {
+      setError(error.message);
       setLoading(false);
     }
   }
@@ -87,6 +109,31 @@ function AuthPage() {
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
+
+        {microsoftLoginEnabled && (
+          <>
+            <div className="mt-6 flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">ou</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleMicrosoft}
+              disabled={loading}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-accent disabled:opacity-50"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 23 23" aria-hidden="true">
+                <path fill="#f35325" d="M1 1h10v10H1z" />
+                <path fill="#81bc06" d="M12 1h10v10H12z" />
+                <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                <path fill="#ffba08" d="M12 12h10v10H12z" />
+              </svg>
+              Entrar com Microsoft
+            </button>
+          </>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Não tem acesso? Solicite ao administrador do painel.

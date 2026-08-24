@@ -233,3 +233,156 @@ export const adminUpdateUser = createServerFn({ method: "POST" })
     if (aErr) console.error("[adminUpdateUser] auth metadata update failed:", aErr);
     return { ok: true };
   });
+
+// ---------------------------------------------------------------------------
+// Acesso ao Growth (projeto Supabase separado)
+//
+// O Growth autoriza por e-mail via public.membros — quem não tem linha lá não
+// enxerga nada, independente de ter login. Então conceder acesso = garantir o
+// usuário em auth.users + upsert em membros; revogar = apagar a linha de
+// membros (o login continua existindo, mas deixa de dar acesso a qualquer dado).
+// ---------------------------------------------------------------------------
+
+/** E-mail do admin logado, pra registrar em admin_auditoria no Growth. */
+async function actorEmail(userId: string): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("email")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.email ?? "desconhecido";
+}
+
+/** Procura o usuário do Growth por e-mail. O projeto tem ~25 usuários. */
+async function findGrowthUser(growth: NonNullable<ReturnType<typeof import("@/integrations/supabase/client.growth.server").getGrowthAdmin>>, email: string) {
+  const { data, error } = await growth.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) {
+    console.error("[growth] listUsers failed:", error);
+    throw new Error("Falha ao consultar usuários do Growth.");
+  }
+  return data.users.find((u) => (u.email ?? "").toLowerCase() === email) ?? null;
+}
+
+export const adminListGrowthAccess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await ensureAdmin(context.userId);
+    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
+    const growth = getGrowthAdmin();
+    if (!growth) return { configured: false as const, membros: [] };
+
+    const { data, error } = await growth
+      .from("membros")
+      .select("email, papel, departamento, nome")
+      .order("email");
+    if (error) {
+      console.error("[adminListGrowthAccess] membros query failed:", error);
+      throw new Error("Erro ao listar acessos do Growth.");
+    }
+    return { configured: true as const, membros: data ?? [] };
+  });
+
+export const adminGrantGrowthAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string; nome: string; papel: string; departamento: string; password?: string }) => {
+    const email = (input?.email ?? "").trim().toLowerCase();
+    const nome = (input?.nome ?? "").trim();
+    const papel = (input?.papel ?? "").trim();
+    const departamento = (input?.departamento ?? "").trim();
+    const password = input?.password?.trim() || undefined;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Email inválido.");
+    if (!nome) throw new Error("Nome é obrigatório.");
+    if (!["admin", "gestao", "operacional"].includes(papel)) throw new Error("Papel do Growth inválido.");
+    if (!["comercial", "diretoria", "marketing", "backoffice", "parcerias"].includes(departamento)) {
+      throw new Error("Departamento do Growth inválido.");
+    }
+    if (password !== undefined && password.length < 8) {
+      throw new Error("Senha deve ter pelo menos 8 caracteres.");
+    }
+    return { email, nome, papel, departamento, password };
+  })
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId);
+    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
+    const growth = getGrowthAdmin();
+    if (!growth) throw new Error("Integração com o Growth não está configurada neste ambiente.");
+
+    const existente = await findGrowthUser(growth, data.email);
+    let loginCriado = false;
+
+    if (!existente) {
+      if (!data.password) {
+        throw new Error("Esta pessoa ainda não tem login no Growth — defina uma senha inicial.");
+      }
+      const { error } = await growth.auth.admin.createUser({
+        email: data.email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: { nome: data.nome },
+      });
+      if (error) {
+        console.error("[adminGrantGrowthAccess] createUser failed:", error);
+        throw new Error("Falha ao criar login no Growth.");
+      }
+      loginCriado = true;
+    } else if (data.password) {
+      const { error } = await growth.auth.admin.updateUserById(existente.id, { password: data.password });
+      if (error) {
+        console.error("[adminGrantGrowthAccess] updateUserById failed:", error);
+        throw new Error("Falha ao atualizar a senha no Growth.");
+      }
+    }
+
+    const { error: mErr } = await growth
+      .from("membros")
+      .upsert(
+        { email: data.email, nome: data.nome, papel: data.papel, departamento: data.departamento },
+        { onConflict: "email" },
+      );
+    if (mErr) {
+      console.error("[adminGrantGrowthAccess] membros upsert failed:", mErr);
+      throw new Error("Falha ao conceder acesso no Growth.");
+    }
+
+    // Mesmo padrão de auditoria que o próprio Growth já usa.
+    await growth.from("admin_auditoria").insert({
+      ator_email: await actorEmail(context.userId),
+      acao: loginCriado ? "acesso_concedido_com_login" : "acesso_concedido",
+      alvo_email: data.email,
+      detalhe: { papel: data.papel, departamento: data.departamento, origem: "ops/admin-usuarios" },
+    });
+
+    return { email: data.email, loginCriado };
+  });
+
+export const adminRevokeGrowthAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string }) => {
+    const email = (input?.email ?? "").trim().toLowerCase();
+    if (!email) throw new Error("Email é obrigatório.");
+    return { email };
+  })
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId);
+    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
+    const growth = getGrowthAdmin();
+    if (!growth) throw new Error("Integração com o Growth não está configurada neste ambiente.");
+
+    // Só remove a linha de membros: o login continua existindo, mas sem
+    // acesso a dado nenhum (e_membro() é o portão de tudo no Growth).
+    const { error } = await growth.from("membros").delete().eq("email", data.email);
+    if (error) {
+      console.error("[adminRevokeGrowthAccess] membros delete failed:", error);
+      throw new Error("Falha ao revogar acesso no Growth.");
+    }
+
+    await growth.from("admin_auditoria").insert({
+      ator_email: await actorEmail(context.userId),
+      acao: "acesso_revogado",
+      alvo_email: data.email,
+      detalhe: { origem: "ops/admin-usuarios" },
+    });
+
+    return { email: data.email };
+  });
