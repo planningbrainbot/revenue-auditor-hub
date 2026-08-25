@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -36,6 +37,19 @@ function AuthPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+
+      // Login integrado: autentica também no Growth para que a sessão dele já
+      // fique gravada no cookie do domínio raiz e a pessoa não precise logar
+      // de novo ao abrir growth.planningbrain.com.br.
+      //
+      // Best-effort de propósito: se falhar (senha diferente nos dois, ou sem
+      // conta no Growth), o acesso ao Ops não pode ser bloqueado por isso.
+      const growth = getGrowthBrowserClient();
+      if (growth) {
+        const { error: gErr } = await growth.auth.signInWithPassword({ email, password });
+        if (gErr) console.info("[login] Growth não autenticado:", gErr.message);
+      }
+
       navigate({ to: "/" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
