@@ -4634,6 +4634,37 @@ export type Database = {
           unidade: string
         }[]
       }
+      indicadores_trimestre: {
+        Args: { _fim: string; _ini: string }
+        Returns: {
+          unidade_id: number
+          unidade: string
+          data_inauguracao: string | null
+          meses_apurados: number
+          tem_omie: boolean
+          fat_base_nova: number | null
+          fat_total: number | null
+          clientes_base_nova: number
+          inad_a_cobrar: number | null
+          inad_aberto: number | null
+          inad_pct: number | null
+          roy_csc: number | null
+          take_rate_pct: number | null
+          midia: number | null
+          novos_contratos: number
+          mrr_vendido: number | null
+          ticket_medio: number | null
+          receita_anualizada: number | null
+          receita_bookada_ltv: number | null
+          roas: number | null
+          churn_pipefy_n: number
+          churn_pipefy_mrr: number | null
+          churn_faturamento_n: number
+          churn_faturamento_mrr: number | null
+          estoque_aberto: number | null
+          estoque_mais_1ano: number | null
+        }[]
+      }
       can: { Args: { _key: string }; Returns: boolean }
       clonar_despesas_cm: {
         Args: { mes_destino: string; mes_origem: string }

@@ -581,3 +581,28 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** implementado localmente, não commitado/enviado — aguardando o usuário revisar rodando `npm run dev` antes de decidir sobre commit/push (regra padrão: dev local antes de produção).
 
 **Próximos passos:** se o usuário confirmar que gostou da mudança, considerar propagar a mesma distinção pro `CacTab` mais simples (`src/components/audit/cac-tab.tsx`), que hoje não faz nenhuma diferenciação entre venda ganha e contrato assinado.
+
+---
+
+## [2026-08-25] Nova página `/indicadores-trimestre` — indicadores do deck de Expansão por unidade
+
+**Contexto:** os dois slides trimestrais do deck de Expansão ("Indicadores financeiros do trimestre" e "Performance comercial do trimestre") eram montados à mão a cada trimestre, a partir do Power BI "Mkt e Vendas – BUs" e de consultas avulsas. A página traz isso pro Ops Board para as 8 unidades regionais.
+
+**Definições adotadas (régua oficial é o Power BI, não fórmula deduzida):**
+- **Receita anualizada** = MRR das vendas do período × 12.
+- **Receita bookada (LTV)** = MRR das vendas do período × **60** (lifetime fixo de 5 anos). Corrige a definição anterior (`MRR ativo ÷ churn`), que não é a que o deck usa. Confirmado contra Curitiba Q2/2026: R$19.820 → R$237.840 → R$1.189.200.
+- **Inadimplência** cortada por `data_vencimento`, **nunca** por `data_competencia` — 233 títulos de Curitiba têm competência gravada mais de 60 dias depois do vencimento (dois deles com vencimento em 2021 e competência em fev/2026, sozinhos distorciam o mês inteiro). O indicador também só estabiliza ~60 dias após o vencimento; a página avisa quando o trimestre selecionado ainda não maturou.
+- **Royalties + CSC** soma `csc_valor_fixo` **e** `csc_base_antiga_valor`: Patos grava a mesma taxa de 4% em colunas diferentes conforme o mês.
+- **Base nova** = CNPJ com item não-excluído em **qualquer** apuração da unidade, menos os marcados como base antiga. Usar só a última apuração derruba cliente que simplesmente não pagou naquele mês (a apuração é por caixa) — em Curitiba isso descartava 6 clientes, incluindo uma das vendas novas do próprio trimestre.
+
+**Arquitetura:** RPC `public.indicadores_trimestre(_ini, _fim)` (migration `20260825120000`) em vez de cálculo no cliente — `contas_receber` tem 28 mil títulos só de Curitiba. `SECURITY DEFINER` com guarda interna em `public.can('view.indicadores_trimestre')`: devolve zero linhas para quem não tem a permissão, sem depender do RLS das tabelas base (que hoje não segue `role_permissions` em várias delas). Permissão semeada para `admin` e `diretor` — `public.can()` não tem bypass de admin, sem a semente a página abriria vazia para todo mundo.
+
+**Lacunas tratadas explicitamente na UI, nunca como zero:** São Luís e Fortaleza não têm nenhum título no Omie; Patos tem 124 títulos com `data_vencimento` nulo (modelo da unidade é planilha manual); Maceió só passa a ter Omie em jul/2026. Take rate de unidade em rampa sai marcado com asterisco — o CSC fixo domina uma base ainda pequena (Campo Novo dá 38%).
+
+**Churn:** a página mede pelo faturamento (cliente da base nova cuja última fatura caiu no período) e mostra alerta quando isso diverge do pipe de Tratativas. A divergência é sistêmica, não pontual — Q2/2026: Curitiba 5 cards × 14 clientes, Belém 2 × 10, Campo Novo 0 × 5, RJ 0 × 2. **Contorno, não correção:** os cards continuam faltando no Pipefy.
+
+**Fora de escopo:** card "Taxa de conversão do funil". Os negócios perdidos do Pipedrive não existem no Supabase e o Power BI já resolve com Leads/MQLs que não são atribuíveis por unidade no Pipedrive. Deixado de fora em vez de exibir um número por régua diferente da do deck.
+
+**Validado:** planilha `~/Desktop/indicadores-trimestre-validacao.xlsx` (4 abas) conferida antes de escrever a UI — foi ela que pegou os dois bugs de fórmula acima. `tsc` e `eslint` limpos nos arquivos novos; dev local respondeu 200 na rota. **Não testado logado** (sem sessão disponível na sessão de implementação).
+
+**Ajuste no mesmo dia (antes do deploy):** o comparativo da rede nasce **fechado**, atrás de um toggle, e só é renderizado para quem tem `view.network.benchmarks`. Motivo: a tela é usada para apresentar os números **para a unidade**, na reunião trimestral — ninguém deve abrir a página na frente de um franqueado e mostrar sem querer o resultado das outras praças. Mesma lógica da decisão de 11/08/2026 em `/rede-overview` (dados agregados de rede ficam fechados por padrão).

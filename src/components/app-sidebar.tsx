@@ -1,5 +1,38 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { TrendingUp, TrendingDown, Users, UserCog, ShieldCheck, Building2, Coins, BadgeCheck, Wallet, Filter, Gauge, LineChart, Receipt, Activity, BarChart3, GitMerge, FileBarChart2, KeyRound, Percent, Megaphone, ClipboardCheck, UserCheck, HandCoins, History, Scale, MessageSquareHeart, Send, BookUser, LayoutGrid, Rocket, ExternalLink } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  UserCog,
+  ShieldCheck,
+  Building2,
+  Coins,
+  BadgeCheck,
+  Wallet,
+  Filter,
+  Gauge,
+  LineChart,
+  Receipt,
+  Activity,
+  BarChart3,
+  GitMerge,
+  FileBarChart2,
+  KeyRound,
+  Percent,
+  Megaphone,
+  ClipboardCheck,
+  UserCheck,
+  HandCoins,
+  History,
+  Scale,
+  MessageSquareHeart,
+  Send,
+  BookUser,
+  LayoutGrid,
+  LayoutDashboard,
+  Rocket,
+  ExternalLink,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -34,16 +67,30 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
   },
   {
     label: "Operação",
-    items: [
-      { title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" },
-    ],
+    items: [{ title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" }],
   },
   {
     label: "Performance da Rede",
     items: [
+      {
+        title: "Indicadores do Trimestre",
+        url: "/indicadores-trimestre",
+        icon: LayoutDashboard,
+        permission: "view.indicadores_trimestre",
+      },
       { title: "LTV Estimado", url: "/rede-ltv", icon: TrendingUp, permission: "view.rede_ltv" },
-      { title: "Headcount", url: "/rede-headcount", icon: Users, permission: "view.rede_headcount" },
-      { title: "Realizado Unidades", url: "/rede-realizado", icon: BarChart3, permission: "view.rede_realizado" },
+      {
+        title: "Headcount",
+        url: "/rede-headcount",
+        icon: Users,
+        permission: "view.rede_headcount",
+      },
+      {
+        title: "Realizado Unidades",
+        url: "/rede-realizado",
+        icon: BarChart3,
+        permission: "view.rede_realizado",
+      },
     ],
   },
   {
@@ -55,32 +102,77 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
   {
     label: "Receita da Rede",
     items: [
-      { title: "Funil de Receita", url: "/funil-receita", icon: Filter, permission: "view.funil_receita" },
-      { title: "Reconciliação", url: "/reconciliacao", icon: GitMerge, permission: "view.reconciliacao" },
-      { title: "Royalties", url: "/royalties", icon: HandCoins, permission: "view.royalties_historico" },
-      { title: "Contas a Receber", url: "/contas-receber", icon: Wallet, permission: "view.contas_receber" },
+      {
+        title: "Funil de Receita",
+        url: "/funil-receita",
+        icon: Filter,
+        permission: "view.funil_receita",
+      },
+      {
+        title: "Reconciliação",
+        url: "/reconciliacao",
+        icon: GitMerge,
+        permission: "view.reconciliacao",
+      },
+      {
+        title: "Royalties",
+        url: "/royalties",
+        icon: HandCoins,
+        permission: "view.royalties_historico",
+      },
+      {
+        title: "Contas a Receber",
+        url: "/contas-receber",
+        icon: Wallet,
+        permission: "view.contas_receber",
+      },
       { title: "Unidades", url: "/unidades", icon: Coins, permission: "view.unidades_rede" },
     ],
   },
   {
     label: "Planning Partners",
     items: [
-      { title: "Financeiro Partners", url: "/financeiro-partners", icon: Receipt, permission: "view.financeiro_partners" },
-      { title: "Receita Partners", url: "/receita-partners", icon: LineChart, permission: "view.receita_partners" },
-      { title: "Despesas Partners", url: "/despesas-cm", icon: TrendingDown, permission: "view.despesas_partners" },
+      {
+        title: "Financeiro Partners",
+        url: "/financeiro-partners",
+        icon: Receipt,
+        permission: "view.financeiro_partners",
+      },
+      {
+        title: "Receita Partners",
+        url: "/receita-partners",
+        icon: LineChart,
+        permission: "view.receita_partners",
+      },
+      {
+        title: "Despesas Partners",
+        url: "/despesas-cm",
+        icon: TrendingDown,
+        permission: "view.despesas_partners",
+      },
       { title: "Comissões", url: "/comissoes", icon: Percent, permission: "view.comissoes" },
     ],
   },
   {
     label: "Ferramentas",
     items: [
-      { title: "Reforma Tributária", url: "/reforma-tributaria", icon: FileBarChart2, permission: "view.reforma_tributaria" },
+      {
+        title: "Reforma Tributária",
+        url: "/reforma-tributaria",
+        icon: FileBarChart2,
+        permission: "view.reforma_tributaria",
+      },
     ],
   },
   {
     label: "Auditoria Interna",
     items: [
-      { title: "Auditoria Interna", url: "/auditoria-interna", icon: ClipboardCheck, permission: "view.auditoria_interna" },
+      {
+        title: "Auditoria Interna",
+        url: "/auditoria-interna",
+        icon: ClipboardCheck,
+        permission: "view.auditoria_interna",
+      },
     ],
   },
   {
@@ -88,25 +180,60 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
     items: [
       { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
       { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
-      { title: "Disparos de WhatsApp", url: "/disparos-whatsapp", icon: Send, permission: "view.disparos_whatsapp" },
-      { title: "Base de Contatos", url: "/base-contatos", icon: BookUser, permission: "view.base_contatos" },
+      {
+        title: "Disparos de WhatsApp",
+        url: "/disparos-whatsapp",
+        icon: Send,
+        permission: "view.disparos_whatsapp",
+      },
+      {
+        title: "Base de Contatos",
+        url: "/base-contatos",
+        icon: BookUser,
+        permission: "view.base_contatos",
+      },
     ],
   },
   {
     label: "EBIT Operacional",
     items: [
-      { title: "EBIT Operacional", url: "/ebit-operacional", icon: Scale, permission: "view.ebit_operacional" },
+      {
+        title: "EBIT Operacional",
+        url: "/ebit-operacional",
+        icon: Scale,
+        permission: "view.ebit_operacional",
+      },
     ],
   },
   {
     label: "Administração",
     items: [
-      { title: "Atividade do Sistema", url: "/atividade", icon: History, permission: "view.atividade" },
+      {
+        title: "Atividade do Sistema",
+        url: "/atividade",
+        icon: History,
+        permission: "view.atividade",
+      },
       { title: "Usuários", url: "/admin/usuarios", icon: Users, permission: "view.admin.users" },
       { title: "Perfis", url: "/admin/perfis", icon: UserCog, permission: "view.admin.profiles" },
-      { title: "Permissões", url: "/admin/permissoes", icon: ShieldCheck, permission: "view.admin.permissions" },
-      { title: "Validação de páginas", url: "/admin/validacao", icon: BadgeCheck, permission: "view.admin.permissions" },
-      { title: "Integrações", url: "/admin/integracoes", icon: KeyRound, permission: "view.admin.integracoes" },
+      {
+        title: "Permissões",
+        url: "/admin/permissoes",
+        icon: ShieldCheck,
+        permission: "view.admin.permissions",
+      },
+      {
+        title: "Validação de páginas",
+        url: "/admin/validacao",
+        icon: BadgeCheck,
+        permission: "view.admin.permissions",
+      },
+      {
+        title: "Integrações",
+        url: "/admin/integracoes",
+        icon: KeyRound,
+        permission: "view.admin.integracoes",
+      },
     ],
   },
 ];
@@ -191,7 +318,9 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
         {groups.map((group) => {
-          const visible = group.items.filter((i) => !i.permission || (!loading && can(i.permission)));
+          const visible = group.items.filter(
+            (i) => !i.permission || (!loading && can(i.permission)),
+          );
           if (visible.length === 0) return null;
           return (
             <SidebarGroup key={group.label}>
