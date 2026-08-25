@@ -76,10 +76,13 @@ type ItemCac = {
   excluido_em: string | null;
   motivo_exclusao: string | null;
   mes_referencia: string;
-  // Data real de assinatura do contrato (Pipefy) — distinta de
-  // data_assinatura_contrato, que na verdade é a data da venda ganha
-  // (Pipedrive) e só serve pro cálculo do prazo da parcela 1.
+  // Contrato assinado = card do cliente no pipe Pipefy "[PTRS-CLI-03] Central
+  // de Contratos" está na fase "Contrato Assinado" ou posterior. Distinto de
+  // data_assinatura_contrato, que é a data da venda ganha (Pipedrive) e só
+  // serve pro cálculo do prazo da parcela 1.
+  contrato_assinado: boolean;
   contrato_assinado_em: string | null;
+  fase_contrato_pipefy: string | null;
 };
 
 // "Disponível pra cobrar": tem algo pendente e o contrato já foi assinado de
@@ -88,7 +91,7 @@ type ItemCac = {
 // gera o item já no mês da venda, mas cobrar a unidade antes da assinatura
 // real não tem base contratual.
 function contratoAssinado(it: ItemCac): boolean {
-  return it.contrato_id == null || !!it.contrato_assinado_em;
+  return it.contrato_id == null || it.contrato_assinado;
 }
 
 function formatMesLabel(mes: string) {
@@ -682,14 +685,23 @@ export function ApuracaoCacContent() {
                       {fmtData(it.data_assinatura_contrato)}
                     </td>
                     <td className="px-3 py-2 text-xs whitespace-nowrap">
-                      {it.contrato_assinado_em ? (
-                        <span className="text-muted-foreground">{fmtData(it.contrato_assinado_em)}</span>
-                      ) : it.contrato_id == null ? (
+                      {it.contrato_id == null ? (
                         <span className="text-muted-foreground">—</span>
+                      ) : it.contrato_assinado ? (
+                        <span className="text-muted-foreground">
+                          {it.contrato_assinado_em ? fmtData(it.contrato_assinado_em) : "Assinado"}
+                        </span>
                       ) : (
-                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                          Aguardando assinatura
-                        </Badge>
+                        <div className="space-y-0.5">
+                          <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                            Aguardando assinatura
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground">
+                            {it.fase_contrato_pipefy
+                              ? `Pipefy: ${it.fase_contrato_pipefy}`
+                              : "sem card no pipe de contratos"}
+                          </div>
+                        </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground capitalize whitespace-nowrap">

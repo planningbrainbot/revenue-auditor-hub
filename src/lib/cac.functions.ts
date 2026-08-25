@@ -42,14 +42,26 @@ export interface ApuracaoCacItemComUnidade extends ApuracaoCacItem {
   unidade_id: number;
   unidade_nome: string;
   mes_referencia: string;
-  // Data REAL de assinatura do contrato (contratos.entrada_contrato_assinado_em,
-  // origem Pipefy) — distinta de data_assinatura_contrato acima, que na verdade
-  // guarda contratos.ganho_em (venda ganha no Pipedrive) e só serve pro cálculo
-  // do prazo da parcela 1. Usada pra decidir se o CAC já está "disponível pra
-  // cobrar" (achado 21/08/2026: venda ganha != contrato assinado). Itens sem
-  // contrato_id (adicionados manualmente) não passam por esse gate.
+  // Gate de "disponível pra cobrar" (achado 21/08/2026: venda ganha !=
+  // contrato assinado; a apuração gera o item já no mês da venda). A fonte é o
+  // card do cliente no pipe Pipefy "[PTRS-CLI-03] Central de Contratos"
+  // (307285170): só conta como assinado quem está na fase "Contrato Assinado"
+  // ou posterior. Decisão do usuário em 24/08/2026 — antes o gate era
+  // contratos.entrada_contrato_assinado_em, a entrada do deal-cópia no stage
+  // 170 do Pipedrive (pipeline 28), que o pipe do Pipefy substituiu em
+  // 03/08/2026 e que por isso ia parar de chegar pras vendas novas.
+  // Itens sem contrato_id (adicionados manualmente) não passam por esse gate.
+  contrato_assinado: boolean;
+  // Data de assinatura registrada no card, quando preenchida — o gate não
+  // depende dela (card pode estar em "Contrato Assinado" com o campo vazio).
   contrato_assinado_em: string | null;
+  // Fase atual do card, pra mostrar onde o contrato está parado. null = o
+  // cliente não tem card no pipe.
+  fase_contrato_pipefy: string | null;
 }
+
+// Fases do pipe 307285170 que valem como "contrato assinado".
+const FASES_CONTRATO_ASSINADO = new Set(["Contrato Assinado", "Vigente", "Encerrado"]);
 
 export interface CacUnidade {
   id: number;
@@ -419,7 +431,10 @@ async function gerarItensParaApuracao(
 // contrato_assinado_em é anexado depois, numa passada única sobre todas as
 // unidades (listCacItensTodasUnidades) — mais barato que consultar contratos
 // unidade por unidade aqui.
-type ApuracaoCacItemSemAssinatura = Omit<ApuracaoCacItemComUnidade, "contrato_assinado_em">;
+type ApuracaoCacItemSemAssinatura = Omit<
+  ApuracaoCacItemComUnidade,
+  "contrato_assinado" | "contrato_assinado_em" | "fase_contrato_pipefy"
+>;
 
 async function syncApuracoesEItensUnidade(
   supabase: any,
@@ -550,29 +565,58 @@ export const listCacItensTodasUnidades = createServerFn({ method: "POST" })
         itensSemAssinatura.push(...its);
       }
 
-      // Data real de assinatura do contrato (Pipefy) — separada do ganho_em
-      // usado internamente pro cálculo do prazo. Ver comentário no tipo
-      // ApuracaoCacItemComUnidade.
+      // Gate de contrato assinado: card do cliente no pipe Pipefy de contratos,
+      // casado pelo deal do Pipedrive (contratos.pipedrive_deal_id ->
+      // contratos_documentos.pipedrive_deal_id). Ver ApuracaoCacItemComUnidade.
       const contratoIds = [
         ...new Set(itensSemAssinatura.map((i) => i.contrato_id).filter((x): x is number => x != null)),
       ];
-      const assinaturaPorContrato = new Map<number, string | null>();
+      const dealPorContrato = new Map<number, string | null>();
       for (let i = 0; i < contratoIds.length; i += 200) {
         const chunk = contratoIds.slice(i, i + 200);
-        const { data: contratosAssinatura, error: caErr } = await supabase
+        const { data: contratos, error: cErr } = await supabase
           .from("contratos")
-          .select("id,entrada_contrato_assinado_em")
+          .select("id,pipedrive_deal_id")
           .in("id", chunk);
-        if (caErr) throw new Error(caErr.message);
-        for (const c of (contratosAssinatura ?? []) as any[]) {
-          assinaturaPorContrato.set(c.id, c.entrada_contrato_assinado_em ?? null);
+        if (cErr) throw new Error(cErr.message);
+        for (const c of (contratos ?? []) as any[]) {
+          dealPorContrato.set(c.id, c.pipedrive_deal_id ?? null);
         }
       }
 
-      const itens: ApuracaoCacItemComUnidade[] = itensSemAssinatura.map((it) => ({
-        ...it,
-        contrato_assinado_em: it.contrato_id != null ? (assinaturaPorContrato.get(it.contrato_id) ?? null) : null,
-      }));
+      const deals = [...new Set([...dealPorContrato.values()].filter((d): d is string => !!d))];
+      const cardPorDeal = new Map<string, { fase: string | null; assinatura: string | null }>();
+      for (let i = 0; i < deals.length; i += 200) {
+        const chunk = deals.slice(i, i + 200);
+        const { data: docs, error: dErr } = await supabase
+          .from("contratos_documentos")
+          .select("pipedrive_deal_id,fase_atual,data_assinatura")
+          .in("pipedrive_deal_id", chunk);
+        if (dErr) throw new Error(dErr.message);
+        for (const d of (docs ?? []) as any[]) {
+          const atual = cardPorDeal.get(d.pipedrive_deal_id);
+          // Um deal pode ter mais de um card (aditivo, distrato). Vale o mais
+          // avançado: se qualquer card já está assinado, o contrato existe.
+          const assinado = FASES_CONTRATO_ASSINADO.has(d.fase_atual ?? "");
+          if (!atual || (assinado && !FASES_CONTRATO_ASSINADO.has(atual.fase ?? ""))) {
+            cardPorDeal.set(d.pipedrive_deal_id, {
+              fase: d.fase_atual ?? null,
+              assinatura: d.data_assinatura ?? null,
+            });
+          }
+        }
+      }
+
+      const itens: ApuracaoCacItemComUnidade[] = itensSemAssinatura.map((it) => {
+        const deal = it.contrato_id != null ? dealPorContrato.get(it.contrato_id) : null;
+        const card = deal ? cardPorDeal.get(deal) : undefined;
+        return {
+          ...it,
+          contrato_assinado: FASES_CONTRATO_ASSINADO.has(card?.fase ?? ""),
+          contrato_assinado_em: card?.assinatura ?? null,
+          fase_contrato_pipefy: card?.fase ?? null,
+        };
+      });
       itens.sort((a, b) =>
         (b.data_assinatura_contrato ?? "").localeCompare(a.data_assinatura_contrato ?? ""),
       );

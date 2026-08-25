@@ -674,6 +674,7 @@ export type Database = {
           id: number
           link_documento: string | null
           org_id_pipedrive: string | null
+          pipedrive_deal_id: string | null
           pipefy_card_id: string
           status: string | null
           synced_at: string
@@ -695,6 +696,7 @@ export type Database = {
           id?: never
           link_documento?: string | null
           org_id_pipedrive?: string | null
+          pipedrive_deal_id?: string | null
           pipefy_card_id: string
           status?: string | null
           synced_at?: string
@@ -716,6 +718,7 @@ export type Database = {
           id?: never
           link_documento?: string | null
           org_id_pipedrive?: string | null
+          pipedrive_deal_id?: string | null
           pipefy_card_id?: string
           status?: string | null
           synced_at?: string
