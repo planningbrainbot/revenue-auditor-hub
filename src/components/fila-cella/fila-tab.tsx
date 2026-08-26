@@ -32,7 +32,9 @@ export function FilaTab() {
   const [selecionada, setSelecionada] = useState<FilaContaRow | null>(null);
 
   const podeEscrever = can("manage.fila_cella");
-  const rows = fila.data?.rows ?? [];
+  // `?? []` cria um array novo a cada render e invalidaria os quatro useMemo
+  // abaixo em todo render (react-hooks/exhaustive-deps acusava).
+  const rows = useMemo(() => fila.data?.rows ?? [], [fila.data?.rows]);
   const estado = fila.data?.estado ?? "ok";
   const cobertura = useMemo(() => calcularCobertura(rows), [rows]);
   const segmentos = useMemo(

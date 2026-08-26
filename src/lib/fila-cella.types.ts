@@ -438,7 +438,6 @@ export interface RegistrarToqueInput {
   proximo_passo_em?: string | null;
   motivo?: string | null;
   corrige_toque_id?: number | null;
-  override_motivo?: string | null;
 }
 
 export interface EncerrarCicloInput {

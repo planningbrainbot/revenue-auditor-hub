@@ -3,6 +3,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   calcularScore,
   cnpjDvValido,
+  ESTAGIOS,
+  FORCAS,
+  FRENTES,
+  PAPEIS_DECISAO,
+  RELACIONAMENTOS,
   type CandidatoCnpj,
   type ConsumoRow,
   type EstadoFonte,
@@ -292,9 +297,43 @@ export const salvarCampoOperado = createServerFn({ method: "POST" })
     }) => {
       const conta_id = Number(input.conta_id);
       if (!Number.isInteger(conta_id) || conta_id <= 0) throw new Error("Conta inválida.");
+
+      // Domínio dos campos fechados. A tela só oferece estes valores, mas esta
+      // função é um endpoint: quem chamar direto passa o que quiser, e a escrita
+      // acontece com `supabaseAdmin` (service_role), onde RLS não filtra. Sem
+      // isto, `estagio` era o buraco maior — a coluna não tinha CHECK no banco
+      // até a correção de 25/08, e `kpisDaily` conta proposta comparando o
+      // estágio com string literal: valor fora da lista dava KPI errado, calado.
+      const emDominio = (campo: string, valor: unknown, permitidos: readonly string[]) => {
+        if (valor === undefined || valor === null) return;
+        if (typeof valor !== "string" || !permitidos.includes(valor)) {
+          throw new Error(`Valor inválido para ${campo}: ${String(valor)}.`);
+        }
+      };
+      emDominio("relacionamento", input.relacionamento, RELACIONAMENTOS);
+      emDominio("estágio", input.estagio, ESTAGIOS);
+      emDominio("papel na decisão", input.papel_decisao, PAPEIS_DECISAO);
+      emDominio("frente", input.frente_escolhida, FRENTES);
+      emDominio("força (override)", input.forca_override, FORCAS);
+
+      // A constraint fila_cella_operacao_override_exige_motivo é
+      // `forca_override is null or forca_motivo not blank` — e ela olha a LINHA
+      // INTEIRA depois do upsert, não o patch. Limpar só o motivo, deixando o
+      // override gravado, violava a constraint e devolvia erro de Postgres cru
+      // na tela. As duas regras abaixo fecham os dois lados.
       if (input.forca_override && !(input.forca_motivo ?? "").trim()) {
         throw new Error("Override de força exige motivo.");
       }
+      if (
+        input.forca_motivo !== undefined &&
+        !(input.forca_motivo ?? "").trim() &&
+        input.forca_override === undefined
+      ) {
+        throw new Error(
+          "Para apagar o motivo, apague o override de força junto — a linha não pode ficar com override sem motivo.",
+        );
+      }
+
       if (input.proximo_passo_em && !/^\d{4}-\d{2}-\d{2}$/.test(input.proximo_passo_em)) {
         throw new Error("Data do próximo passo inválida.");
       }
@@ -330,6 +369,11 @@ export const salvarCampoOperado = createServerFn({ method: "POST" })
     ] as const;
     for (const c of campos) {
       if (data[c] !== undefined) patch[c] = data[c];
+    }
+    // Tirar o override tem de tirar o motivo junto: motivo órfão descreve uma
+    // decisão que não existe mais.
+    if (data.forca_override === null && data.forca_motivo === undefined) {
+      patch.forca_motivo = null;
     }
     // A constraint fila_cella_operacao_relacionamento_exige_autor obriga
     // relacionamento_em sempre que o relacionamento sai de "Não verificado".
@@ -471,7 +515,21 @@ export const resolverCnpjConta = createServerFn({ method: "POST" })
     const { error } = await admin
       .from("empresa_cnpj_de_para")
       .upsert(linha, { onConflict: "pipedrive_deal_id,cnpj" });
-    if (error) throw new Error(error.message);
+    if (error) {
+      // `empresa_cnpj_de_para_principal_unico` é índice único PARCIAL em
+      // (pipedrive_deal_id) where papel = 'principal'. O `onConflict` acima é a
+      // constraint (deal, cnpj) — não a alcança. Então gravar um segundo CNPJ
+      // como principal para o mesmo deal estoura 23505 e o operador via
+      // "duplicate key value violates unique constraint …", que não diz nada.
+      // O caso não é raro: é exatamente o de corrigir um CNPJ errado.
+      if (error.code === "23505" && String(error.message).includes("principal_unico")) {
+        throw new Error(
+          "Esta conta já tem um CNPJ principal diferente. Um deal só pode ter um principal — " +
+            'grave este como "filial" ou "coligada", ou corrija o principal existente primeiro.',
+        );
+      }
+      throw new Error(error.message);
+    }
     return { ok: true };
   });
 

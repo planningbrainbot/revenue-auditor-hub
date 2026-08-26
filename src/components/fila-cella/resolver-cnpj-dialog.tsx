@@ -11,6 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCandidatosCnpj, useResolverCnpj } from "@/hooks/use-fila-cella";
 import {
   cnpjDvValido,
@@ -42,6 +49,11 @@ export function ResolverCnpjDialog({
   const [termo, setTermo] = useState("");
   const [manual, setManual] = useState("");
   const [candidatos, setCandidatos] = useState<CandidatoCnpj[]>([]);
+  // CORRECAO DA REVISAO ADVERSARIAL (25/08): o papel era fixo em 'principal', mas
+  // `empresa_cnpj_de_para_principal_unico` e unico parcial por deal — o segundo
+  // vinculo de uma conta estourava 23505, e a tabela existe justamente porque a
+  // ECD e declarada por entidade juridica (o gatilho pode estar na filial).
+  const [papel, setPapel] = useState<"principal" | "filial" | "coligada">("principal");
   const buscar = useCandidatosCnpj();
   const resolver = useResolverCnpj();
 
@@ -50,6 +62,7 @@ export function ResolverCnpjDialog({
     setTermo(conta.titulo);
     setManual("");
     setCandidatos([]);
+    setPapel("principal");
   }, [open, conta.titulo]);
 
   const procurar = async () => {
@@ -71,7 +84,7 @@ export function ResolverCnpjDialog({
       await resolver.mutateAsync({
         pipedrive_deal_id: conta.pipedrive_deal_id,
         cnpj,
-        papel: "principal",
+        papel,
         razao_social: razao,
       });
       toast.success("CNPJ vinculado. O sinal de ECD aparece no próximo sync.");
@@ -100,7 +113,20 @@ export function ResolverCnpjDialog({
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Papel</Label>
+              <Select value={papel} onValueChange={(v) => setPapel(v as typeof papel)}>
+                <SelectTrigger className="w-[132px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="principal">principal</SelectItem>
+                  <SelectItem value="filial">filial</SelectItem>
+                  <SelectItem value="coligada">coligada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Input
               value={termo}
               onChange={(e) => setTermo(e.target.value)}

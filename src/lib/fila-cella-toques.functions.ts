@@ -11,6 +11,13 @@ import type { CicloRow, ToqueRow } from "@/lib/fila-cella.types";
 // numerar o toque no servidor, que é a única maneira de o contador "3 de 4" não
 // ser negociável pelo cliente.
 
+// CORRECAO DA REVISAO ADVERSARIAL (25/08): `override_motivo` era aceito no
+// inputValidator e depois DESCARTADO no insert — campo que a API promete e não
+// grava. Ele só faria sentido no 5º toque, que `check (toque_num between 1 and 4)`
+// recusa (a contradição da spec §6.5, ainda aberta). Removido do contrato em vez
+// de mantido como promessa falsa. Quando a contradição fechar, ele volta junto
+// com `override_por` — a constraint fila_cella_toques_override_exige_motivo exige
+// os dois ou nenhum.
 const CANAIS = ["WhatsApp", "Ligação", "E-mail", "Reunião"];
 const RESULTADOS = ["Sem resposta", "Respondeu", "Reunião agendada", "Não explícito"];
 const FRENTES = ["Tese", "Contencioso", "Transação"];
@@ -157,7 +164,6 @@ export const registrarToque = createServerFn({ method: "POST" })
       proximo_passo_em?: string | null;
       motivo?: string | null;
       corrige_toque_id?: number | null;
-      override_motivo?: string | null;
     }) => {
       const ciclo_id = Number(input?.ciclo_id);
       if (!Number.isInteger(ciclo_id) || ciclo_id <= 0) throw new Error("Ciclo inválido.");
@@ -199,7 +205,6 @@ export const registrarToque = createServerFn({ method: "POST" })
         proximo_passo_em: proximoEm,
         motivo,
         corrige_toque_id: input.corrige_toque_id ?? null,
-        override_motivo: (input.override_motivo ?? "").trim() || null,
       };
     },
   )
