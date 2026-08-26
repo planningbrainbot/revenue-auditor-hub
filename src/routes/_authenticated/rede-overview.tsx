@@ -44,10 +44,11 @@ import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-perm
 // Todo card do Overview segue o mesmo padrão: número-resumo aqui, "ver
 // detalhe" leva pra página dona daquele dado. O Overview nunca duplica a
 // tela de detalhe — só orienta pra onde ir.
-function VerDetalheLink({ to }: { to: string }) {
+function VerDetalheLink({ to, search }: { to: string; search?: Record<string, string> }) {
   return (
     <Link
       to={to}
+      search={search}
       className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
     >
       Ver detalhe <ArrowRight className="h-3 w-3" />
@@ -199,7 +200,8 @@ function RedeOverviewPage() {
         supabase
           .from("central_tratativas")
           .select("pipedrive_deal_id,unidade,mrr,empresa_id,data_churn")
-          .eq("estagio", "Perdido")
+          // status="lost" vem do id da fase (PHASE_STATUS), não do nome — robusto
+          // a rename. Ver nota em clientes.tsx.
           .eq("status", "lost")
           .limit(2000),
         supabase
@@ -1295,7 +1297,7 @@ function RedeOverviewPage() {
                   Royalties indisponível para este usuário (requer acesso admin).
                 </p>
               )}
-              <VerDetalheLink to="/royalties" />
+              <VerDetalheLink to="/unidades" search={{ tab: "historico" }} />
             </Card>
           )}
 

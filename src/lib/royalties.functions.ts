@@ -379,7 +379,8 @@ export async function gerarItensApuracaoCore(
   const { data: tratativasChurn, error: tcErr } = await supabase
     .from("central_tratativas")
     .select("pipedrive_deal_id,pipefy_card_id,data_churn,stage_change_time")
-    .eq("estagio", "Perdido")
+    // status="lost" vem do id da fase (PHASE_STATUS), não do nome — robusto a
+    // rename. Ver nota em clientes.tsx.
     .eq("status", "lost");
   if (tcErr) throw new Error(tcErr.message);
   const churnPorDealId = new Map<string, any>(

@@ -151,7 +151,8 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
       const { data, error } = await supabase
         .from("central_tratativas")
         .select("pipedrive_deal_id")
-        .eq("estagio", "Perdido")
+        // status="lost" vem do id da fase (PHASE_STATUS), não do nome — robusto a
+        // rename. Ver nota em clientes.tsx.
         .eq("status", "lost")
         .limit(2000);
       if (error) throw new Error(error.message);

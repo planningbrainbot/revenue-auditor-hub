@@ -189,8 +189,11 @@ export const listSaudeCarteira = createServerFn({ method: "GET" })
 
       const dealId = e.pipedrive_id != null ? String(e.pipedrive_id) : null;
       const tratativas = (dealId ? tratativaPorDeal.get(dealId) : undefined) ?? [];
-      const churn = tratativas.some((t) => t.estagio === "Perdido");
-      const emAberto = tratativas.filter((t) => t.estagio !== "Perdido" && t.estagio !== "Recuperado");
+      // status vem do id da fase no Pipefy (PHASE_STATUS em tratativas.functions.ts),
+      // não do nome — robusto a rename (a fase "Perdido" virou "Churn Confirmado
+      // (Perdido)" em ago/2026; comparar por t.estagio quebrava tudo).
+      const churn = tratativas.some((t) => t.status === "lost");
+      const emAberto = tratativas.filter((t) => t.status === "open");
       const tratativaAtiva = emAberto.length > 0;
 
       rows.push({
