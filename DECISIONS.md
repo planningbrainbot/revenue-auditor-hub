@@ -17,6 +17,29 @@ Formato de cada entrada:
 
 ---
 
+## [2026-08-25] Fila Cella (Funil B): tela nova em `/fila-cella`, migrations commitadas e **não aplicadas**
+
+**Contexto:** o canal dedicado sobre a base instalada (Funil B) era operado numa planilha gerada por `build_planilha.py`, que é reconstruída a cada rodada — e a reconstrução apaga a camada operada (relacionamento, estágio, próximo passo, log de toques). A spec `spec-tela-fila-cella.md` v0.3 pediu a tela dentro do Ops. Esta entrada registra o que foi decidido no caminho, porque várias dessas escolhas contradizem documento existente e a próxima sessão precisa saber por quê.
+
+**Decisão:**
+
+1. **Migrations vão como PR e NÃO foram aplicadas.** As seis (`20260826080000` a `20260826094000`) estão commitadas em `supabase/migrations/`. Nenhuma rodou contra o banco. A regra da casa é mergear primeiro e aplicar depois; quem aplicar precisa rodar na ordem `090000 → 091000 → 092000 → 093000 → 094000`, e a de RLS (`080000`) é independente das outras cinco.
+2. **`types.ts` não foi regenerado, e por isso a tela usa `(supabase as any).from(...)`.** Sem as tabelas no banco não há o que gerar. Precedente do repo para o mesmo caso: `cac.functions.ts:410` e `rede-headcount.tsx:61`. Quando as migrations forem aplicadas, regenerar `types.ts` e trocar `FilaContaRow` (`src/lib/fila-cella.types.ts`, escrito à mão) por `Database["public"]["Views"]["v_fila_cella"]["Row"]` é troca mecânica.
+3. **A tela distingue "não migrado" de "vazio".** `listarFilaCella` classifica erro de relação ausente num estado nomeado (`nao_migrado`) em vez de lançar, e KPIs/cobertura/higiene renderizam `—`, nunca `0`. Zero é uma afirmação, e enquanto as migrations não rodarem a tela não tem o que afirmar. O matcher de erro (`relacaoAusente`) é defensivo de propósito: o código exato que o PostgREST devolve aqui **não foi verificado** contra o banco. Apertar na primeira execução real.
+4. **Ordenação padrão ≠ Score.** A `v_fila_cella` ordena pelas 5 chaves que o Matheus já opera (`build_planilha.py:107-109`), com o veto de "Alerta aberto" na frente. Isso **contradiz `README.md:11`** ("curva → segmento → MRR"), que descreve a v1 da planilha. Score existe como coluna e como ordenação clicável, mas não é a ordem de abertura — ordenar por score colocaria conta sem ECD ao lado de conta com sinal apurado, e as duas não são comparáveis (daí a coluna `score_comparavel`).
+5. **Força fica na regra (a) de `casa_ecd.py:88-94`, provisoriamente.** As três regras concorrentes de Força não foram conciliadas; a D1 continua aberta. A view implementa (a) e a aba Dicionário diz, na tela, que a decisão está pendente. Quando a D1 fechar, muda a CTE `sinal` da `20260826094000` e a função `calcularScore` de `fila-cella.functions.ts` — que é canônica: se as duas divergirem, vale o TypeScript.
+6. **ECD entra materializada, não federada.** `ecd_empresa`/`empresa_consumo`/`ecd_gatilho_conta` recebem agregado por CNPJ vindo do Postgres da ECD (AWS). Linha crua de ECD não atravessa. O job que carrega (`carrega-ecd-para-ops.mjs`) mora **fora** deste repo e não faz parte deste PR — a credencial de leitura da ECD é a D9 e não cruza a fronteira do repositório.
+7. **Cinco chaves novas de permissão**, semeadas na `20260826090000` e declaradas em `KNOWN_PERMISSIONS`: `view.fila_cella`, `manage.fila_cella`, `manage.de_para_cnpj`, `manage.fila_cella_sync`, `manage.fila_cella_override`. Sem o seed, `can()` volta `false` e nem admin abre a tela — mesma pegadinha registrada na entrada de 2026-08-24.
+8. **Duas correções contra a spec v0.3**, ambas marcadas no `.sql`: (a) `ecd_empresa_curva_exige_receita` usava `receita_operacional > 0`, que **passa** quando a receita é NULL (CHECK que devolve NULL não rejeita) — virou `coalesce(receita_operacional,0) > 0`; (b) o fallback de razão social na view só cobria string vazia e deixava passar `'.'`, `'0'`, `'-'`, que são o lixo que a própria spec nomeia — virou regex que exige duas letras.
+
+**Status:** parcialmente implementado. Tela, rota, server functions, hooks, componentes e navegação estão no código e passam no build. As migrations estão commitadas e **não aplicadas**, então a tela abre no estado `nao_migrado` até alguém rodá-las. O job de sync (`fila-cella-sync.functions.ts`), o handoff em PDF e o export do relatório semanal ficaram fora desta rodada.
+
+**Próximos passos:**
+- Revisar e aplicar as seis migrations (ordem acima). Depois: regenerar `types.ts` e trocar os `as any` da tela.
+- Fechar a D1 (regra de Força) e a decisão de schema do 5º toque: `check (toque_num between 1 and 4)` e "5º toque com `manage.fila_cella_override`" se contradizem — ou o override significa reabrir ciclo, ou o CHECK vira trigger.
+- Escrever o trigger de reentrada no banco. Hoje a trava dos 60/180 dias vive só no servidor (`abrirCiclo`), então escrita direta com `service_role` a contorna.
+- Decidir o corte fuzzy sub-piso do de-para: a spec diz que abaixo de 0,45 entra como sugestão pendente, mas a constraint `piso_fuzzy` rejeita a linha inteira. A sugestão não tem onde morar.
+
 ## [2026-08-24] "Marcar churn" em /clientes vira permissão (`manage.clientes_churn`), separada de editar razão social/CNPJ
 
 **Contexto:** usuário pediu que outros usuários (não só admin) pudessem marcar churn pela tela de Clientes, "como admin", mas transformando isso numa permissão ativável por usuário/papel — não abrindo pra todo mundo.
