@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Ban, Pencil, Plus, RefreshCw, Trash2, Wallet, X } from "lucide-react";
+import { Ban, Pencil, Plus, RefreshCw, Search, Trash2, Wallet, X } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -275,6 +275,7 @@ export function ApuracaoCacContent() {
   const [unidadeFiltro, setUnidadeFiltro] = useState<string>("todas");
   const [statusFiltro, setStatusFiltro] = useState<string>("todos");
   const [mesFiltro, setMesFiltro] = useState<string>("todos");
+  const [buscaCliente, setBuscaCliente] = useState("");
   const [mostrarExcluidos, setMostrarExcluidos] = useState(false);
   // Por padrão, contratos sem assinatura confirmada ficam fora da lista
   // principal (não há base pra cobrar a unidade ainda) — visíveis só ligando
@@ -317,9 +318,14 @@ export function ApuracaoCacContent() {
 
   const filtrados = useMemo(() => {
     const itens = (data?.itens ?? []) as ItemCac[];
+    const buscaNormalizada = buscaCliente.trim().toLowerCase();
     return itens.filter((it) => {
       if (unidadeFiltro !== "todas" && String(it.unidade_id) !== unidadeFiltro) return false;
       if (!mostrarExcluidos && it.excluido_em) return false;
+      if (buscaNormalizada) {
+        const alvo = `${it.razao_social} ${it.cnpj ?? ""}`.toLowerCase();
+        if (!alvo.includes(buscaNormalizada)) return false;
+      }
       if (!it.excluido_em) {
         if (!mostrarAguardandoAssinatura && !contratoAssinado(it) && valorAReceber(it) > 0) return false;
         if (statusFiltro === "recebido" && valorAReceber(it) > 0) return false;
@@ -332,7 +338,7 @@ export function ApuracaoCacContent() {
       }
       return true;
     });
-  }, [data, unidadeFiltro, statusFiltro, mesFiltro, mostrarExcluidos, mostrarAguardandoAssinatura, medianas]);
+  }, [data, unidadeFiltro, statusFiltro, mesFiltro, buscaCliente, mostrarExcluidos, mostrarAguardandoAssinatura, medianas]);
 
   const kpis = useMemo(() => {
     let vendido = 0;
@@ -457,6 +463,15 @@ export function ApuracaoCacContent() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+              placeholder="Buscar cliente / CNPJ..."
+              className="h-9 w-[220px] pl-8"
+            />
+          </div>
           <Select value={unidadeFiltro} onValueChange={setUnidadeFiltro}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Unidade" />
