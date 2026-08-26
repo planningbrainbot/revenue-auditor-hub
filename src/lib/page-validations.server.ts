@@ -5,7 +5,7 @@ export const PAGE_DEFS: { key: string; label: string }[] = [
   { key: "/operacao", label: "Operação" },
   { key: "/contas-receber", label: "Contas a Receber" },
   { key: "/funil-receita", label: "Funil de Receita (+ Auditorias)" },
-  { key: "/unidades", label: "Unidades (Regras + Royalties & CAC)" },
+  { key: "/unidades", label: "Receitas Partners (Regras + Royalties, Histórico & CAC)" },
   { key: "/meus-royalties", label: "Meus Royalties (Sócio Franqueado)" },
   { key: "/financeiro-partners", label: "Financeiro Partners (FCx · DRE · Receitas · Despesas)" },
   { key: "/painel-cs", label: "CS (Onboarding, Saúde da Carteira, Tratativas, NPS)" },

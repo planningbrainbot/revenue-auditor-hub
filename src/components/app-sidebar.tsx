@@ -11,7 +11,6 @@ import {
   Wallet,
   Filter,
   Gauge,
-  LineChart,
   Receipt,
   Activity,
   BarChart3,
@@ -22,7 +21,6 @@ import {
   Megaphone,
   ClipboardCheck,
   UserCheck,
-  HandCoins,
   History,
   Scale,
   MessageSquareHeart,
@@ -57,7 +55,9 @@ type Item = {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: string;
+  // Array = OR (item aparece se o usuário tiver qualquer uma das permissões) —
+  // usado quando o item cobre conteúdo que veio de mais de uma página antiga.
+  permission?: string | string[];
 };
 
 const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
@@ -115,18 +115,17 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         permission: "view.reconciliacao",
       },
       {
-        title: "Royalties",
-        url: "/royalties",
-        icon: HandCoins,
-        permission: "view.royalties_historico",
-      },
-      {
         title: "Contas a Receber",
         url: "/contas-receber",
         icon: Wallet,
         permission: "view.contas_receber",
       },
-      { title: "Unidades", url: "/unidades", icon: Coins, permission: "view.unidades_rede" },
+      {
+        title: "Receitas Partners",
+        url: "/unidades",
+        icon: Coins,
+        permission: ["view.unidades_rede", "view.royalties_historico"],
+      },
     ],
   },
   {
@@ -137,12 +136,6 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         url: "/financeiro-partners",
         icon: Receipt,
         permission: "view.financeiro_partners",
-      },
-      {
-        title: "Receita Partners",
-        url: "/receita-partners",
-        icon: LineChart,
-        permission: "view.receita_partners",
       },
       {
         title: "Despesas Partners",
@@ -319,7 +312,12 @@ export function AppSidebar() {
         )}
         {groups.map((group) => {
           const visible = group.items.filter(
-            (i) => !i.permission || (!loading && can(i.permission)),
+            (i) =>
+              !i.permission ||
+              (!loading &&
+                (Array.isArray(i.permission)
+                  ? i.permission.some((p) => can(p))
+                  : can(i.permission))),
           );
           if (visible.length === 0) return null;
           return (

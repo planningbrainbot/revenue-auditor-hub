@@ -114,14 +114,15 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.royalties_historico",
-    label: "Royalties (histórico)",
-    description: "Histórico de royalties por cliente e evolução do valor apurado, rede toda.",
+    label: "Receitas Partners — aba Histórico",
+    description:
+      "Aba Histórico da página Receitas Partners: histórico de royalties por cliente e evolução do valor apurado, rede toda.",
     group: "Acesso",
   },
   {
     key: "view.unidades_rede",
-    label: "Unidades (Receita da Rede)",
-    description: "Página de unidades no grupo Receita da Rede.",
+    label: "Receitas Partners — abas Regras/Royalties/CAC",
+    description: "Página Receitas Partners (ex-Unidades): regras da rede, apuração de royalties e CAC.",
     group: "Acesso",
   },
   {
@@ -212,12 +213,6 @@ export const KNOWN_PERMISSIONS: {
     label: "Acessar Financeiro Partners",
     description:
       "DRE Projetada, DRE Realizada e FCx (fluxo de caixa realizado) da Planning Partners.",
-    group: "Planning Partners",
-  },
-  {
-    key: "view.receita_partners",
-    label: "Acessar Receita Partners",
-    description: "Financeiro — Gestão da Rede e Receitas da Planning Partners.",
     group: "Planning Partners",
   },
   {

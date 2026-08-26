@@ -32,7 +32,7 @@ export function NotificationBell() {
 
   function handleClickNotificacao(n: Notificacao) {
     if (!n.lida) marcarLida.mutate(n.id);
-    navigate({ to: "/unidades" });
+    navigate({ to: "/unidades", search: { tab: "regras" } });
   }
 
   return (
