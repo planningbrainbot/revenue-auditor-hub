@@ -83,6 +83,11 @@ create unique index if not exists fila_cella_contas_deal_uk
 create unique index if not exists fila_cella_contas_cnpj_ecd_uk
   on public.fila_cella_contas (cnpj_principal) where procedencia = 'ecd_icp_404';
 create index if not exists fila_cella_contas_cnpj on public.fila_cella_contas (cnpj_principal);
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08): FK sem indice. A 20260826080000 roda
+-- ANTES desta migration, entao as FKs criadas aqui nao passam pela PARTE B dela e
+-- reabrem o aviso `unindexed_foreign_keys` que aquela migration acabou de zerar.
+create index if not exists idx_fila_cella_contas_gatilho_principal
+  on public.fila_cella_contas (gatilho_principal);
 
 comment on table public.fila_cella_contas is
   'CAMADA APURADA da Fila Cella — reconstruida inteira pelo job de sync sobre Growth.deals. Nunca editada a mao. O que o operador escreve vive em fila_cella_conta_operacao.';
@@ -111,7 +116,18 @@ create table if not exists public.fila_cella_conta_operacao (
   relacionamento_em       timestamptz,
   papel_decisao           text check (papel_decisao in ('Decide','Influencia','Encaminha')),
   urgencia                boolean not null default false,
-  estagio                 text not null default '1 Base elegível',  -- os 10 de build_planilha.py:27-28
+  -- CORRECAO DA REVISAO ADVERSARIAL (25/08): a coluna nascia sem CHECK enquanto
+  -- relacionamento, papel_decisao, frente_escolhida e forca_override todos tinham
+  -- o seu. `salvarCampoOperado` grava com service_role (RLS nao filtra) e o
+  -- validador nao conferia o dominio, entao qualquer string entrava — e
+  -- `kpisDaily` conta proposta comparando o estagio com string literal
+  -- ('6 Proposta enviada','7 Em negociacao','8 Fechado'). Estagio fora da lista
+  -- nao dava erro: dava KPI errado, calado.
+  estagio                 text not null default '1 Base elegível'
+                          check (estagio in (
+                            '1 Base elegível','2 Gatilho identificado','3 Abordagem em curso',
+                            '4 Reunião agendada','5 Reunião realizada','6 Proposta enviada',
+                            '7 Em negociação','8 Fechado','Perdido','Reciclado')),  -- os 10 de build_planilha.py:27-28
   forca_override          text check (forca_override in ('Forte','Moderado','Fraco')),
   forca_motivo            text,
   frente_escolhida        text check (frente_escolhida in ('Tese','Contencioso','Transação')),
@@ -168,6 +184,12 @@ create table if not exists public.fila_cella_ciclos (
 create unique index if not exists fila_cella_ciclo_aberto_unico
   on public.fila_cella_ciclos (conta_id) where status = 'aberto';
 
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08): o unico indice em conta_id era o
+-- parcial de cima (where status = 'aberto'), que nao serve ao ON DELETE CASCADE
+-- de fila_cella_contas nem a leitura de historico por conta.
+create index if not exists idx_fila_cella_ciclos_conta_id
+  on public.fila_cella_ciclos (conta_id);
+
 comment on column public.fila_cella_ciclos.bloqueado_ate is
   'encerrado_em + 60 dias, OU + 180 dias quando recusa_explicita. Os dois relogios do playbook §4.6. O trigger de reabertura le ESTA coluna, nunca encerrado_em + 60.';
 
@@ -223,6 +245,15 @@ create table if not exists public.fila_cella_toques (
 
 create index if not exists fila_cella_toques_ciclo
   on public.fila_cella_toques (ciclo_id, data desc);
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08): as tres FKs restantes de toques.
+-- (ciclo_id, frente) e FK composta e o indice de cima nao a cobre (a 2a coluna
+-- e `data`, nao `frente`).
+create index if not exists idx_fila_cella_toques_ciclo_id_frente
+  on public.fila_cella_toques (ciclo_id, frente);
+create index if not exists idx_fila_cella_toques_gatilho_ref
+  on public.fila_cella_toques (gatilho_ref);
+create index if not exists idx_fila_cella_toques_corrige_toque_id
+  on public.fila_cella_toques (corrige_toque_id) where corrige_toque_id is not null;
 
 comment on table public.fila_cella_toques is
   'APPEND-ONLY. Sem UPDATE e sem DELETE, em policy e em GRANT. Correcao e linha nova apontando corrige_toque_id. O campo literal e evidencia de compliance (playbook §2.5 e §4.7).';

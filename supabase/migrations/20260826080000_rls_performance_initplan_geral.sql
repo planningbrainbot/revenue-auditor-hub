@@ -133,7 +133,9 @@
 -- §0.6  CONVENÇÕES / COMO ENTRAR NO REPO
 -- -------------------------------------------------------------------------------------
 -- Destino: revenue-auditor-hub/supabase/migrations/
--- Nome:    20260826090000_rls_performance_initplan_geral.sql
+-- Nome:    20260826080000_rls_performance_initplan_geral.sql  (o 080000 e o real; a
+--          linha dizia 090000, que e o slot da migration de ECD — corrigido na
+--          revisao adversarial de 25/08)
 --   · > 20260825000000 (exigido; o mais recente hoje é 20260824160000);
 --   · 26/08 e não 25/08 de propósito: spec-unificacao-repos.md:351-352 reserva
 --     20260825HH0000_crm_fabrica_produto_e_consumo.sql e
@@ -654,7 +656,8 @@ $rel$;
 -- §8.0 — dentro da migration
 do $verif$
 declare
-  soltas         int;
+  soltas               int;
+  soltas_independente  int;
   fks_sem_indice int;
   duplicados     int;
   com_select     int;
@@ -705,9 +708,30 @@ begin
     into com_select, total_policies
   from pg_policies where schemaname = 'public';
 
+  -- (e) CONTAGEM INDEPENDENTE — acrescentada na revisao adversarial de 25/08.
+  --     O item (a) acima usa a PROPRIA transformacao como oraculo: ele so prova
+  --     que ela convergiu, nao que nao sobrou chamada solta. Se um `qual` tiver
+  --     uma chamada que a regex nao alcanca (ex.: argumento com parenteses
+  --     dentro, `can(('view.' || x))`, que `[^()]*` nao casa), (a) da ZERO e a
+  --     policy continua solta. Esta contagem nao passa pela transformacao: conta
+  --     as ocorrencias da funcao e as ocorrencias precedidas de SELECT, e compara.
+  --     E a mesma query do §8.1. Nao aborta — so ACUSA, porque um falso positivo
+  --     aqui nao justifica derrubar 112 correcoes.
+  select count(*) into soltas_independente
+  from (
+    select regexp_replace(coalesce(qual,'') || ' || ' || coalesce(with_check,''),
+             '(\m(public\.)?(has_role|is_custom_role)\()auth\.uid\(\)', '\1ZZ', 'g') as e
+    from pg_policies where schemaname = 'public'
+  ) p
+  where (select count(*) from regexp_matches(p.e,
+           '\m((public\.)?(can|has_role|is_custom_role|current_user_unidade)|auth\.uid)\(', 'g'))
+      > (select count(*) from regexp_matches(p.e,
+           '\mSELECT\s+((public\.)?(can|has_role|is_custom_role|current_user_unidade)|auth\.uid)\(', 'gi'));
+
   raise notice '========================================================';
   raise notice ' VERIFICACAO';
   raise notice '   policies com chamada solta (esperado 0) ....... %', soltas;
+  raise notice '   idem, por contagem independente (esperado 0) .. %', soltas_independente;
   raise notice '   FKs sem indice (esperado 0) .................. %', fks_sem_indice;
   raise notice '   grupos de indice duplicado (informativo) ..... %', duplicados;
   raise notice '   policies no formato ( select ... ) ........... % de %', com_select, total_policies;
@@ -715,6 +739,9 @@ begin
 
   if soltas <> 0 then
     raise exception 'Abortado: % policies ainda com chamada solta.', soltas;
+  end if;
+  if soltas_independente <> 0 then
+    raise notice 'ATENCAO: a contagem independente acusa % policy(ies) com chamada solta que a transformacao nao alcancou. Rode o §8.1 e trate a mao.', soltas_independente;
   end if;
   if fks_sem_indice <> 0 then
     raise exception 'Abortado: % FKs ainda sem indice.', fks_sem_indice;

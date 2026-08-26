@@ -215,6 +215,14 @@ create table if not exists public.ecd_gatilho_conta (
 -- o indice existe porque a tela pede sempre (cnpj, ano) e corta ruido de centavos
 create index if not exists ecd_gatilho_conta_cnpj_ano
   on public.ecd_gatilho_conta (cnpj, ano) where abs(valor) >= 1;
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08): o indice acima e PARCIAL e nao cobre a
+-- FK (cnpj, ano) -> ecd_empresa, que tem ON DELETE CASCADE: recarregar um CNPJ
+-- varreria as 14.321 linhas. A 20260826080000 roda ANTES desta migration, entao
+-- estas FKs nao passam pela PARTE B dela.
+create index if not exists idx_ecd_gatilho_conta_cnpj_ano
+  on public.ecd_gatilho_conta (cnpj, ano);
+create index if not exists idx_ecd_gatilho_conta_gatilho
+  on public.ecd_gatilho_conta (gatilho);
 
 comment on table public.ecd_gatilho_conta is
   'Evidencia nominal literal por conta contabil que casou com um gatilho T*. 14.321 linhas para as 404 empresas. Convencao devedora: conta redutora entra negativa.';

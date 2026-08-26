@@ -45,31 +45,101 @@
 -- ---------------------------------------------------------------------------
 -- ============================================================================
 
-alter policy "Permission-based read" on public.empresas
-  using ((select public.can('view.clientes')) or (select public.can('view.painel_cs'))
-      or (select public.can('view.base_contatos')) or (select public.can('view.fila_cella')));
+-- ############################################################################
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08)
+--
+-- A versao anterior deste arquivo eram seis `alter policy ... using (<lista
+-- transcrita a mao>)`. `alter policy ... using` SUBSTITUI a expressao inteira:
+-- se o `qual` VIVO de qualquer uma das seis tiver um termo que a transcricao nao
+-- tem, o alter REVOGA esse acesso — calado, sem erro, sem log. E a transcricao
+-- nao pode ser conferida: o conector do Supabase esta fora do ar (nao aparece em
+-- `claude mcp list`), nao ha `.env` com credencial do Ops no clone, nao ha psql.
+-- Cinco das seis estao corroboradas em migration do repo
+-- (20260722180000:20-33,64-66 e 20260824150000:11-15); `contratos_documentos`
+-- NAO tem migration nenhuma — a policy dela foi criada fora do versionamento.
+--
+-- O bloco abaixo faz a MESMA coisa sem essa aposta: le o `qual` vivo e soma o
+-- termo novo com OR. E aditivo por construcao — nao existe caminho em que ele
+-- remova um termo. Mesma tecnica que a 20260826080000 ja usa (ela tambem
+-- reescreve `alter policy` a partir do texto deparseado de pg_policies), entao
+-- nao e uma convencao nova neste PR.
+--
+-- Efeito colateral util: o `raise notice` grava no log do apply o ANTES e o
+-- DEPOIS de cada policy — que e exatamente a pre-checagem transcrita acima,
+-- so que medida em vez de suposta.
+--
+-- Quem preferir a forma explicita: os seis comandos originais estao no §APENDICE
+-- no fim deste arquivo, comentados.
+-- ############################################################################
+do $fila_leitura$
+declare
+  t          text;
+  n_pol      int;
+  atual      text;
+  n_somadas  int := 0;
+  n_criadas  int := 0;
+begin
+  foreach t in array array['empresas','contratos','contatos','contratos_documentos',
+                           'cs_onboarding_cards','central_tratativas'] loop
 
-alter policy "Permission-based read" on public.contratos
-  using ((select public.can('view.clientes'))      or (select public.can('view.painel_cs'))
-      or (select public.can('view.reconciliacao')) or (select public.can('view.rede_ltv'))
-      or (select public.can('view.fila_cella')));   -- NAO copiar o qual de empresas:
-                                                    -- revogaria reconciliacao e rede_ltv
+    select count(*), max(qual)
+      into n_pol, atual
+      from pg_policies
+     where schemaname = 'public' and tablename = t and policyname = 'Permission-based read';
 
-alter policy "Permission-based read" on public.contatos
-  using ((select public.can('view.contatos')) or (select public.can('view.base_contatos'))
-      or (select public.can('view.fila_cella')));
+    if n_pol = 0 then
+      -- A policy nao existe. CRIAR e estritamente aditivo: RLS e permissivo, uma
+      -- policy nova so pode ampliar. E o caso previsto para contratos_documentos.
+      execute format(
+        'create policy "Permission-based read" on public.%I for select to authenticated '
+        'using ((select public.can(''view.fila_cella'')))', t);
+      n_criadas := n_criadas + 1;
+      raise notice '[fila_cella] %: policy NAO existia -> criada so com view.fila_cella. CONFIRA se essa tabela deveria ter outras chaves.', t;
+      continue;
+    end if;
 
--- 374 linhas, 13 dos 57 casamentos (estrategia f2 da spec §5.2). E a UNICA policy
--- da tabela: sem esta linha, quem tem view.fila_cella e nao tem view.painel_cs le zero.
-alter policy "Permission-based read" on public.contratos_documentos
-  using ((select public.can('view.painel_cs')) or (select public.can('view.fila_cella')));
+    if atual is null then
+      raise exception
+        'Abortado: a policy "Permission-based read" de public.% existe mas nao tem USING (provavelmente e policy de INSERT com esse nome). Resolver a mao antes de rodar.', t;
+    end if;
 
-alter policy "Permission-based read" on public.cs_onboarding_cards
-  using ((select public.can('view.painel_cs')) or (select public.can('view.fila_cella')));
+    if position('view.fila_cella' in atual) > 0 then
+      raise notice '[fila_cella] %: ja continha view.fila_cella. Nada a fazer.', t;
+      continue;
+    end if;
 
-alter policy "Permission-based read" on public.central_tratativas
-  using ((select public.can('view.clientes')) or (select public.can('view.painel_cs'))
-      or (select public.can('view.fila_cella')));
+    execute format(
+      'alter policy "Permission-based read" on public.%I using (%s or (select public.can(''view.fila_cella'')))',
+      t, atual);
+    n_somadas := n_somadas + 1;
+    raise notice '[fila_cella] %: ANTES=[%]', t, atual;
+    raise notice '[fila_cella] %: DEPOIS=[% or (select public.can(''view.fila_cella''))]', t, atual;
+  end loop;
+
+  raise notice '[fila_cella] % policies somadas, % criadas. Esperado: 6 somadas, 0 criadas (ou 5 e 1, se contratos_documentos nao existir).',
+               n_somadas, n_criadas;
+end
+$fila_leitura$;
+
+-- CONFERENCIA IMEDIATA: nenhuma das seis pode ter ficado sem o termo novo.
+do $conf$
+declare faltando text[];
+begin
+  select array_agg(t)
+    into faltando
+  from unnest(array['empresas','contratos','contatos','contratos_documentos',
+                    'cs_onboarding_cards','central_tratativas']) t
+  where not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename=t and policyname='Permission-based read'
+      and qual like '%view.fila_cella%'
+  );
+  if faltando is not null then
+    raise exception 'Abortado: view.fila_cella nao entrou em %.', faltando;
+  end if;
+  raise notice '[fila_cella] as 6 policies leem view.fila_cella.';
+end
+$conf$;
 
 -- ---------------------------------------------------------------------------
 -- omie_clientes — CREATE, nao ALTER. RLS on e ZERO policies: hoje so service_role
@@ -144,4 +214,35 @@ create policy "Permission-based read" on public.omie_clientes
 -- concedidas a nenhum role hoje — a linha existe, `allowed` nunca e true.
 -- Aparecem no qual de contratos e nao dao acesso a ninguem; ficam no `alter` so
 -- para nao revogar nada, nao porque funcionem.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- §APENDICE — a forma explicita, como estava antes da revisao adversarial.
+-- Deixada aqui porque ela documenta o `qual` LIDO em pg_policies no Ops em
+-- 25/08 (spec §4.3). NAO rode estes comandos junto com o bloco de cima: cada um
+-- SUBSTITUI a expressao inteira, e e exatamente essa substituicao que o bloco
+-- dinamico existe para evitar.
+--
+-- alter policy "Permission-based read" on public.empresas
+--   using ((select public.can('view.clientes')) or (select public.can('view.painel_cs'))
+--       or (select public.can('view.base_contatos')) or (select public.can('view.fila_cella')));
+--
+-- alter policy "Permission-based read" on public.contratos
+--   using ((select public.can('view.clientes'))      or (select public.can('view.painel_cs'))
+--       or (select public.can('view.reconciliacao')) or (select public.can('view.rede_ltv'))
+--       or (select public.can('view.fila_cella')));
+--
+-- alter policy "Permission-based read" on public.contatos
+--   using ((select public.can('view.contatos')) or (select public.can('view.base_contatos'))
+--       or (select public.can('view.fila_cella')));
+--
+-- alter policy "Permission-based read" on public.contratos_documentos
+--   using ((select public.can('view.painel_cs')) or (select public.can('view.fila_cella')));
+--
+-- alter policy "Permission-based read" on public.cs_onboarding_cards
+--   using ((select public.can('view.painel_cs')) or (select public.can('view.fila_cella')));
+--
+-- alter policy "Permission-based read" on public.central_tratativas
+--   using ((select public.can('view.clientes')) or (select public.can('view.painel_cs'))
+--       or (select public.can('view.fila_cella')));
 -- ---------------------------------------------------------------------------

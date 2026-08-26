@@ -53,6 +53,11 @@ create table if not exists public.empresa_cnpj_de_para (
 create unique index if not exists empresa_cnpj_de_para_principal_unico
   on public.empresa_cnpj_de_para (pipedrive_deal_id) where papel = 'principal';
 create index if not exists empresa_cnpj_de_para_cnpj on public.empresa_cnpj_de_para (cnpj);
+-- CORRECAO DA REVISAO ADVERSARIAL (25/08): FK empresa_id -> empresas(id) sem
+-- indice. O precedente do repo cria os dois juntos
+-- (20260616134736_...sql:69,71). A 20260826080000 roda antes e nao pega esta.
+create index if not exists idx_empresa_cnpj_de_para_empresa_id
+  on public.empresa_cnpj_de_para (empresa_id) where empresa_id is not null;
 create index if not exists empresa_cnpj_de_para_raiz on public.empresa_cnpj_de_para (left(cnpj,8));
 
 comment on table public.empresa_cnpj_de_para is
