@@ -461,7 +461,89 @@ export function ApuracaoCacContent() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">
+            CAC vendido {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold">{brl(kpis.vendido)}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">
+            CAC recebido {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+            {brl(kpis.recebido)}
+          </div>
+        </Card>
+        <Card className="p-4 bg-primary/5 border-primary/20">
+          <div className="text-xs text-muted-foreground">
+            CAC a receber {unidadeFiltro === "todas" ? "(rede)" : ""}
+          </div>
+          <div className="text-2xl font-bold">{brl(kpis.aReceber)}</div>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <h3 className="mb-1 text-sm font-semibold">Projeção de recebimento por mês</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Recebido é o mês em que a parcela foi paga. A receber é o mês do prazo já definido.
+          Estimado (tracejado) é a 2ª parcela de quem ainda não pagou a unidade — sem prazo real
+          ainda, projetada pela mediana histórica de dias até o 1º pagamento do cliente; ajustável
+          por cliente na tabela abaixo.
+        </p>
+        {timeline.data.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            Sem dados para exibir.
+          </div>
+        ) : (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={timeline.data}>
+                <defs>
+                  <pattern
+                    id="cacEstimadoPattern"
+                    patternUnits="userSpaceOnUse"
+                    width="6"
+                    height="6"
+                    patternTransform="rotate(45)"
+                  >
+                    <rect width="6" height="6" fill="#f59e0b" fillOpacity={0.25} />
+                    <line x1="0" y1="0" x2="0" y2="6" stroke="#f59e0b" strokeWidth={2} />
+                  </pattern>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                />
+                <Tooltip formatter={(v: number) => brl(v)} />
+                <Legend />
+                <Bar dataKey="recebido" name="Recebido" stackId="cac" fill="#10b981" />
+                <Bar dataKey="projetado" name="A receber" stackId="cac" fill="#f59e0b" />
+                <Bar
+                  dataKey="estimado"
+                  name="Estimado"
+                  stackId="cac"
+                  fill="url(#cacEstimadoPattern)"
+                  stroke="#f59e0b"
+                  strokeWidth={1}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {timeline.semPrevisaoQtd > 0 && (
+          <div className="mt-3 text-xs text-muted-foreground">
+            + {brl(timeline.semPrevisaoValor)} em {timeline.semPrevisaoQtd} parcela
+            {timeline.semPrevisaoQtd > 1 ? "s" : ""} de 2ª parcela sem nenhuma base histórica pra
+            estimar (unidade nova, sem cliente que já tenha pago ainda).
+          </div>
+        )}
+      </Card>
+
+      <div className="sticky top-[57px] z-20 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b bg-card/95 px-6 py-3 backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -565,88 +647,6 @@ export function ApuracaoCacContent() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">
-            CAC vendido {unidadeFiltro === "todas" ? "(rede)" : ""}
-          </div>
-          <div className="text-2xl font-bold">{brl(kpis.vendido)}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">
-            CAC recebido {unidadeFiltro === "todas" ? "(rede)" : ""}
-          </div>
-          <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-            {brl(kpis.recebido)}
-          </div>
-        </Card>
-        <Card className="p-4 bg-primary/5 border-primary/20">
-          <div className="text-xs text-muted-foreground">
-            CAC a receber {unidadeFiltro === "todas" ? "(rede)" : ""}
-          </div>
-          <div className="text-2xl font-bold">{brl(kpis.aReceber)}</div>
-        </Card>
-      </div>
-
-      <Card className="p-4">
-        <h3 className="mb-1 text-sm font-semibold">Projeção de recebimento por mês</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Recebido é o mês em que a parcela foi paga. A receber é o mês do prazo já definido.
-          Estimado (tracejado) é a 2ª parcela de quem ainda não pagou a unidade — sem prazo real
-          ainda, projetada pela mediana histórica de dias até o 1º pagamento do cliente; ajustável
-          por cliente na tabela abaixo.
-        </p>
-        {timeline.data.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">
-            Sem dados para exibir.
-          </div>
-        ) : (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={timeline.data}>
-                <defs>
-                  <pattern
-                    id="cacEstimadoPattern"
-                    patternUnits="userSpaceOnUse"
-                    width="6"
-                    height="6"
-                    patternTransform="rotate(45)"
-                  >
-                    <rect width="6" height="6" fill="#f59e0b" fillOpacity={0.25} />
-                    <line x1="0" y1="0" x2="0" y2="6" stroke="#f59e0b" strokeWidth={2} />
-                  </pattern>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
-                />
-                <Tooltip formatter={(v: number) => brl(v)} />
-                <Legend />
-                <Bar dataKey="recebido" name="Recebido" stackId="cac" fill="#10b981" />
-                <Bar dataKey="projetado" name="A receber" stackId="cac" fill="#f59e0b" />
-                <Bar
-                  dataKey="estimado"
-                  name="Estimado"
-                  stackId="cac"
-                  fill="url(#cacEstimadoPattern)"
-                  stroke="#f59e0b"
-                  strokeWidth={1}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-        {timeline.semPrevisaoQtd > 0 && (
-          <div className="mt-3 text-xs text-muted-foreground">
-            + {brl(timeline.semPrevisaoValor)} em {timeline.semPrevisaoQtd} parcela
-            {timeline.semPrevisaoQtd > 1 ? "s" : ""} de 2ª parcela sem nenhuma base histórica pra
-            estimar (unidade nova, sem cliente que já tenha pago ainda).
-          </div>
-        )}
-      </Card>
-
       <Card className="overflow-hidden">
         {isLoading ? (
           <div className="p-6 text-sm text-muted-foreground">Carregando clientes…</div>
@@ -655,20 +655,24 @@ export function ApuracaoCacContent() {
             Nenhum cliente encontrado.
           </div>
         ) : (
-          <div className="overflow-auto">
+          <div className="max-h-[65vh] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+              <thead className="text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 text-left">Unidade</th>
-                  <th className="px-3 py-2 text-left">Cliente</th>
-                  <th className="px-3 py-2 text-left">CNPJ</th>
-                  <th className="px-3 py-2 text-left">Venda ganha</th>
-                  <th className="px-3 py-2 text-left">Assinatura do contrato</th>
-                  <th className="px-3 py-2 text-left">Mês</th>
-                  <th className="px-3 py-2 text-right">Valor total</th>
-                  <th className="px-3 py-2 text-right">Parcela 1 (7d pós assinatura)</th>
-                  <th className="px-3 py-2 text-right">Parcela 2 (pós recebimento)</th>
-                  <th className="px-3 py-2"></th>
+                  {/* sticky vai em cada <th>, não no <thead> — position:sticky não
+                      é respeitado em table-header-group nesse browser/versão do
+                      Chrome, ele simplesmente rola junto com a página. Em <th>
+                      (table-cell) funciona normalmente. */}
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">Unidade</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">Cliente</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">CNPJ</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">Venda ganha</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">Assinatura do contrato</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-left backdrop-blur-sm">Mês</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-right backdrop-blur-sm">Valor total</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-right backdrop-blur-sm">Parcela 1 (7d pós assinatura)</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2 text-right backdrop-blur-sm">Parcela 2 (pós recebimento)</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
