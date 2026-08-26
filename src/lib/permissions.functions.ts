@@ -260,6 +260,40 @@ export const KNOWN_PERMISSIONS: {
       "Marcar um cliente como churn na tela de Clientes (cria card no pipe Pipefy 'Tratativas'). Admins sempre podem; esta permissão libera para outros papéis.",
     group: "Dados",
   },
+  {
+    key: "view.fila_cella",
+    label: "Acessar Fila Cella",
+    description:
+      "Fila do canal dedicado sobre a base instalada (Funil B) — score, gatilho da ECD, cadência e log de toques.",
+    group: "Acesso",
+  },
+  {
+    key: "manage.fila_cella",
+    label: "Operar a Fila Cella",
+    description:
+      "Editar a camada operada (relacionamento, estágio, frente, urgência), abrir/encerrar ciclo e registrar toque. Sem esta chave a tela abre em leitura.",
+    group: "Dados",
+  },
+  {
+    key: "manage.de_para_cnpj",
+    label: "Resolver CNPJ de contas",
+    description:
+      "Confirmar o vínculo conta → CNPJ em empresa_cnpj_de_para. Grava o revisor, e linha revisada não é sobrescrita por rotina.",
+    group: "Dados",
+  },
+  {
+    key: "manage.fila_cella_sync",
+    label: "Sincronizar a Fila Cella",
+    description: "Disparar o rebuild da camada apurada da fila a partir do Growth.",
+    group: "Administração",
+  },
+  {
+    key: "manage.fila_cella_override",
+    label: "Furar a trava da Fila Cella",
+    description:
+      "Reabrir ciclo antes do bloqueio de 60/180 dias, com fato novo e justificativa. Escape hatch auditável — o desvio fica caro e visível, não impossível.",
+    group: "Administração",
+  },
 ];
 
 // (admin check usa helper compartilhado em @/lib/server-utils)

@@ -30,6 +30,7 @@ import {
   BookUser,
   LayoutGrid,
   LayoutDashboard,
+  ListChecks,
   Rocket,
   ExternalLink,
 } from "lucide-react";
@@ -192,6 +193,12 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         icon: BookUser,
         permission: "view.base_contatos",
       },
+    ],
+  },
+  {
+    label: "Comercial",
+    items: [
+      { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
     ],
   },
   {
