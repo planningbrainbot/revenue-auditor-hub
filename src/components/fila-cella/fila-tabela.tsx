@@ -10,12 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import {
-  BRL,
-  dataBR,
-  diasDesde,
-  type FilaContaRow,
-} from "@/lib/fila-cella.types";
+import { BRL, dataBR, diasDesde, type FilaContaRow } from "@/lib/fila-cella.types";
 import {
   BloqueiosChips,
   CadenciaChip,
@@ -173,15 +168,13 @@ export function FilaTabela({
             {ordenadas.map((r, i) => {
               const dias = diasDesde(r.ultimo_toque);
               const razaoDiverge =
-                r.razao_social && r.razao_social.trim().toLowerCase() !== r.titulo.trim().toLowerCase();
+                r.razao_social &&
+                r.razao_social.trim().toLowerCase() !== r.titulo.trim().toLowerCase();
               return (
                 <TableRow
                   key={r.id}
                   onClick={() => onAbrir(r)}
-                  className={cn(
-                    "cursor-pointer hover:bg-muted/50",
-                    r.vetado && "opacity-60",
-                  )}
+                  className={cn("cursor-pointer hover:bg-muted/50", r.vetado && "opacity-60")}
                 >
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>

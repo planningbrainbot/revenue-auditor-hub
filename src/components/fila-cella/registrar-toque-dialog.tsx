@@ -122,9 +122,7 @@ export function RegistrarToqueDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            Registrar toque — {conta.titulo}
-          </DialogTitle>
+          <DialogTitle>Registrar toque — {conta.titulo}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -317,9 +315,7 @@ export function RegistrarToqueDialog({
           </Button>
           <Button
             onClick={salvar}
-            disabled={
-              registrar.isPending || !canal || !gatilho || !literal.trim() || !resultado
-            }
+            disabled={registrar.isPending || !canal || !gatilho || !literal.trim() || !resultado}
           >
             {registrar.isPending ? "Registrando…" : `Registrar toque ${proximoNum}`}
           </Button>

@@ -285,7 +285,8 @@ const FORMULACOES_PROIBIDAS: { re: RegExp; rotulo: string; noLugar: string }[] =
   {
     re: /voc[êe]\s+tem\s+direito\s+a\s+receber/i,
     rotulo: '"você tem direito a receber R$ X"',
-    noLugar: "Identifiquei um indício que merece análise. O dimensionamento é feito pelo escritório.",
+    noLugar:
+      "Identifiquei um indício que merece análise. O dimensionamento é feito pelo escritório.",
   },
   {
     re: /(é|e)\s+praticamente\s+cert/i,
@@ -311,8 +312,7 @@ const FORMULACOES_PROIBIDAS: { re: RegExp; rotulo: string; noLugar: string }[] =
   {
     re: /n[ãa]o\s+vai\s+dar\s+problema\s+com\s+a\s+receita/i,
     rotulo: '"não vai dar problema com a Receita"',
-    noLugar:
-      "Risco é parte da análise. O escritório apresenta isso de forma explícita na reunião.",
+    noLugar: "Risco é parte da análise. O escritório apresenta isso de forma explícita na reunião.",
   },
 ];
 

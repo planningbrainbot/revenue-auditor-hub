@@ -61,7 +61,9 @@ export function EncerrarCicloDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Encerrar ciclo {conta.ciclo_num} — {conta.titulo}</DialogTitle>
+          <DialogTitle>
+            Encerrar ciclo {conta.ciclo_num} — {conta.titulo}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -101,8 +103,8 @@ export function EncerrarCicloDialog({
                 : "rounded-md border bg-muted px-3 py-2 text-sm"
             }
           >
-            Reentrada liberada a partir de{" "}
-            <strong>{previsao.toLocaleDateString("pt-BR")}</strong> ({recusa ? "180" : "60"} dias).
+            Reentrada liberada a partir de <strong>{previsao.toLocaleDateString("pt-BR")}</strong> (
+            {recusa ? "180" : "60"} dias).
             {recusa
               ? " Antes disso, só com fato novo e a permissão manage.fila_cella_override."
               : " Antes disso, só com fato novo e motivo diferente."}

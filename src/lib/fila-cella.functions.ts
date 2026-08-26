@@ -173,10 +173,7 @@ export const kpisDaily = createServerFn({ method: "GET" })
     const inicioMes = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
 
     const [{ data: toquesData }, { data: ciclosData }] = await Promise.all([
-      supabase
-        .from("fila_cella_toques")
-        .select("ciclo_id,resultado,data")
-        .gte("data", inicioMes),
+      supabase.from("fila_cella_toques").select("ciclo_id,resultado,data").gte("data", inicioMes),
       supabase.from("fila_cella_ciclos").select("id,conta_id"),
     ]);
     const contaPorCiclo = new Map<number, number>(
@@ -199,9 +196,7 @@ export const kpisDaily = createServerFn({ method: "GET" })
       (r) => r.ciclo_id != null && (r.toques ?? 0) > 0 && !r.proximo_passo,
     ).length;
     const parados15d = fila.filter((r) => r.esfriando).length;
-    const perdidoSemMotivo = fila.filter(
-      (r) => r.estagio === "Perdido" && !r.motivo_perda,
-    ).length;
+    const perdidoSemMotivo = fila.filter((r) => r.estagio === "Perdido" && !r.motivo_perda).length;
     const passoVencido = fila.filter((r) => r.passo_vencido).length;
 
     const tocadas = fila.filter((r) => contasTocadas.has(r.id));
@@ -387,11 +382,7 @@ export const buscarCandidatosCnpj = createServerFn({ method: "POST" })
     // na tela. O que a tela mostra é a busca literal + o DV, que é o que o
     // operador consegue conferir olhando as duas razões sociais lado a lado.
     const porCnpj = new Map<string, CandidatoCnpj>();
-    const registrar = (
-      cnpjBruto: string | null,
-      razao: string | null,
-      fantasia: string | null,
-    ) => {
+    const registrar = (cnpjBruto: string | null, razao: string | null, fantasia: string | null) => {
       const cnpj = (cnpjBruto ?? "").replace(/\D/g, "");
       if (cnpj.length !== 14) return;
       const atual = porCnpj.get(cnpj);
@@ -447,11 +438,7 @@ export const resolverCnpjConta = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    await assertCan(
-      context.supabase as any,
-      "manage.de_para_cnpj",
-      "você não pode resolver CNPJ.",
-    );
+    await assertCan(context.supabase as any, "manage.de_para_cnpj", "você não pode resolver CNPJ.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
 
@@ -462,7 +449,9 @@ export const resolverCnpjConta = createServerFn({ method: "POST" })
       .eq("cnpj", data.cnpj)
       .maybeSingle();
     if (existente?.revisado_por) {
-      throw new Error("Esse vínculo já foi revisado por alguém — linha revisada não se sobrescreve.");
+      throw new Error(
+        "Esse vínculo já foi revisado por alguém — linha revisada não se sobrescreve.",
+      );
     }
 
     const linha = {

@@ -117,9 +117,13 @@ export function ResolverCnpjDialog({
               {candidatos.map((c) => (
                 <div key={c.cnpj} className="flex items-center gap-3 p-3 text-sm">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{c.razao_social ?? "(sem razão social)"}</div>
+                    <div className="truncate font-medium">
+                      {c.razao_social ?? "(sem razão social)"}
+                    </div>
                     {c.nome_fantasia && (
-                      <div className="truncate text-xs text-muted-foreground">{c.nome_fantasia}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {c.nome_fantasia}
+                      </div>
                     )}
                     <div className="font-mono text-xs text-muted-foreground">
                       {formatCnpj(c.cnpj)}

@@ -415,9 +415,7 @@ export function ContaDetalheSheet({
                             <Button disabled>Registrar toque</Button>
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          {motivoToqueBloqueado}
-                        </TooltipContent>
+                        <TooltipContent className="max-w-xs">{motivoToqueBloqueado}</TooltipContent>
                       </Tooltip>
                     ) : (
                       <Button onClick={() => setToqueAberto(true)}>Registrar toque</Button>
@@ -511,7 +509,10 @@ export function ContaDetalheSheet({
                   { ok: !conta.conflito_interno, txt: "Sem conflito com a Auditoria Tributária" },
                   { ok: conta.elegivel !== "Não", txt: "Conta elegível" },
                 ].map((c) => (
-                  <li key={c.txt} className={cn("flex gap-2", !c.ok && "text-amber-700 dark:text-amber-400")}>
+                  <li
+                    key={c.txt}
+                    className={cn("flex gap-2", !c.ok && "text-amber-700 dark:text-amber-400")}
+                  >
                     <span>{c.ok ? "✓" : "○"}</span>
                     <span>{c.txt}</span>
                   </li>

@@ -35,28 +35,26 @@ export const listarToques = createServerFn({ method: "POST" })
     if (!Number.isInteger(conta_id) || conta_id <= 0) throw new Error("Conta inválida.");
     return { conta_id };
   })
-  .handler(
-    async ({ data, context }): Promise<{ ciclos: CicloRow[]; toques: ToqueRow[] }> => {
-      const supabase = context.supabase as any;
-      const { data: ciclos, error } = await supabase
-        .from("fila_cella_ciclos")
-        .select("*")
-        .eq("conta_id", data.conta_id)
-        .order("numero", { ascending: false });
-      if (error) return { ciclos: [], toques: [] };
+  .handler(async ({ data, context }): Promise<{ ciclos: CicloRow[]; toques: ToqueRow[] }> => {
+    const supabase = context.supabase as any;
+    const { data: ciclos, error } = await supabase
+      .from("fila_cella_ciclos")
+      .select("*")
+      .eq("conta_id", data.conta_id)
+      .order("numero", { ascending: false });
+    if (error) return { ciclos: [], toques: [] };
 
-      const ids = ((ciclos ?? []) as CicloRow[]).map((c) => c.id);
-      if (ids.length === 0) return { ciclos: [], toques: [] };
+    const ids = ((ciclos ?? []) as CicloRow[]).map((c) => c.id);
+    if (ids.length === 0) return { ciclos: [], toques: [] };
 
-      const { data: toques } = await supabase
-        .from("fila_cella_toques")
-        .select("*")
-        .in("ciclo_id", ids)
-        .order("data", { ascending: false })
-        .order("toque_num", { ascending: false });
-      return { ciclos: (ciclos ?? []) as CicloRow[], toques: (toques ?? []) as ToqueRow[] };
-    },
-  );
+    const { data: toques } = await supabase
+      .from("fila_cella_toques")
+      .select("*")
+      .in("ciclo_id", ids)
+      .order("data", { ascending: false })
+      .order("toque_num", { ascending: false });
+    return { ciclos: (ciclos ?? []) as CicloRow[], toques: (toques ?? []) as ToqueRow[] };
+  });
 
 /**
  * Abre um ciclo. A regra dos dois relógios do playbook §4.6 mora aqui:
@@ -111,7 +109,7 @@ export const abrirCiclo = createServerFn({ method: "POST" })
         throw new Error(
           `A reentrada só é permitida a partir de ${dataBr} (${prazo}). ` +
             (ultimo.recusa_explicita
-              ? "Este ciclo fechou com \"Não\" explícito: reabrir antes disso exige fato novo relevante — fiscalização ou mudança de decisor."
+              ? 'Este ciclo fechou com "Não" explícito: reabrir antes disso exige fato novo relevante — fiscalização ou mudança de decisor.'
               : "Reabrir antes disso exige fato novo e motivo diferente: repetir a mesma oferta com outra palavra é o que caracteriza insistência."),
         );
       }
@@ -173,14 +171,16 @@ export const registrarToque = createServerFn({ method: "POST" })
         );
       }
       const literal = (input.literal ?? "").trim();
-      if (!literal) throw new Error("O literal do que foi dito é obrigatório — é registro de compliance.");
+      if (!literal)
+        throw new Error("O literal do que foi dito é obrigatório — é registro de compliance.");
       if (!RESULTADOS.includes(input.resultado)) throw new Error("Resultado obrigatório.");
 
       const proximo = (input.proximo_passo ?? "").trim() || null;
       const proximoEm = input.proximo_passo_em || null;
       if (input.resultado !== "Não explícito") {
         if (!proximo || !proximoEm) throw new Error("Próximo passo e data são obrigatórios.");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(proximoEm)) throw new Error("Data do próximo passo inválida.");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(proximoEm))
+          throw new Error("Data do próximo passo inválida.");
       }
       const motivo = (input.motivo ?? "").trim() || null;
       if (input.resultado === "Não explícito" && !motivo) {
@@ -284,19 +284,17 @@ export const registrarToque = createServerFn({ method: "POST" })
  */
 export const encerrarCiclo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { ciclo_id: number; motivo_saida: string; recusa_explicita: boolean }) => {
-    const ciclo_id = Number(input?.ciclo_id);
-    if (!Number.isInteger(ciclo_id) || ciclo_id <= 0) throw new Error("Ciclo inválido.");
-    const motivo = (input.motivo_saida ?? "").trim();
-    if (!motivo) throw new Error("Motivo de saída obrigatório.");
-    return { ciclo_id, motivo_saida: motivo, recusa_explicita: !!input.recusa_explicita };
-  })
+  .inputValidator(
+    (input: { ciclo_id: number; motivo_saida: string; recusa_explicita: boolean }) => {
+      const ciclo_id = Number(input?.ciclo_id);
+      if (!Number.isInteger(ciclo_id) || ciclo_id <= 0) throw new Error("Ciclo inválido.");
+      const motivo = (input.motivo_saida ?? "").trim();
+      if (!motivo) throw new Error("Motivo de saída obrigatório.");
+      return { ciclo_id, motivo_saida: motivo, recusa_explicita: !!input.recusa_explicita };
+    },
+  )
   .handler(async ({ data, context }) => {
-    await assertCan(
-      context.supabase as any,
-      "manage.fila_cella",
-      "você não pode encerrar ciclos.",
-    );
+    await assertCan(context.supabase as any, "manage.fila_cella", "você não pode encerrar ciclos.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as any;
 

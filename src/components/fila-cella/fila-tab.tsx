@@ -5,12 +5,7 @@ import { Download } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useFilaCella, useKpisDaily } from "@/hooks/use-fila-cella";
 import { exportRowsToXlsx } from "@/lib/xlsx-export";
-import {
-  calcularCobertura,
-  dataBR,
-  formatCnpj,
-  type FilaContaRow,
-} from "@/lib/fila-cella.types";
+import { calcularCobertura, dataBR, formatCnpj, type FilaContaRow } from "@/lib/fila-cella.types";
 import { FilaCoberturaBar } from "@/components/fila-cella/fila-cobertura-bar";
 import { FilaKpisDaily } from "@/components/fila-cella/fila-kpis-daily";
 import { FilaHigieneBar, type FiltroHigiene } from "@/components/fila-cella/fila-higiene-bar";
@@ -65,7 +60,10 @@ export function FilaTab() {
       if (filtros.relacionamento !== TODOS && r.relacionamento !== filtros.relacionamento) {
         return false;
       }
-      if (higiene === "sem_proximo_passo" && !(r.ciclo_id != null && (r.toques ?? 0) > 0 && !r.proximo_passo)) {
+      if (
+        higiene === "sem_proximo_passo" &&
+        !(r.ciclo_id != null && (r.toques ?? 0) > 0 && !r.proximo_passo)
+      ) {
         return false;
       }
       if (higiene === "parados_15d" && !r.esfriando) return false;
@@ -121,8 +119,8 @@ export function FilaTab() {
         <p className="text-sm text-muted-foreground">
           {estado === "ok" ? (
             <>
-              <strong>{rows.length}</strong> contas da base instalada · vendedor exclusivo: Matheus ·
-              daily 13h30
+              <strong>{rows.length}</strong> contas da base instalada · vendedor exclusivo: Matheus
+              · daily 13h30
             </>
           ) : (
             "Contas da base instalada · vendedor exclusivo: Matheus · daily 13h30"
@@ -172,8 +170,8 @@ export function FilaTab() {
           <p className="text-muted-foreground">{fila.data?.aviso}</p>
           {can("manage.fila_cella_sync") && (
             <p className="text-muted-foreground">
-              Quem aplica migration neste projeto é o Victor (Eliezek). Depois de aplicadas, regenere{" "}
-              <code>src/integrations/supabase/types.ts</code>.
+              Quem aplica migration neste projeto é o Victor (Eliezek). Depois de aplicadas,
+              regenere <code>src/integrations/supabase/types.ts</code>.
             </p>
           )}
         </Card>

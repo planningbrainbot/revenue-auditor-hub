@@ -17,7 +17,8 @@ import {
 const ECD_CLASSE: Record<EcdEstado, string> = {
   ecd_com_sinal:
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 hover:bg-emerald-100",
-  ecd_sem_sinal: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 hover:bg-amber-100",
+  ecd_sem_sinal:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 hover:bg-amber-100",
   ecd_sem_nome_de_conta:
     "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 hover:bg-amber-100",
   sem_ecd: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-200",
@@ -107,7 +108,9 @@ export function CurvaChips({
           <TooltipTrigger asChild>
             <span className="text-muted-foreground">—</span>
           </TooltipTrigger>
-          <TooltipContent>Receita não apurada nesta ECD — não é o mesmo que curva C.</TooltipContent>
+          <TooltipContent>
+            Receita não apurada nesta ECD — não é o mesmo que curva C.
+          </TooltipContent>
         </Tooltip>
       )}
       {apurada &&
@@ -125,7 +128,8 @@ export function CurvaChips({
 }
 
 const FRENTE_CLASSE: Record<Frente, string> = {
-  Contencioso: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 hover:bg-purple-100",
+  Contencioso:
+    "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 hover:bg-purple-100",
   Transação: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200 hover:bg-sky-100",
   Tese: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 hover:bg-indigo-100",
 };
@@ -149,19 +153,35 @@ export interface Bloqueio {
 export function bloqueiosDaConta(r: FilaContaRow): Bloqueio[] {
   const b: Bloqueio[] = [];
   if (r.relacionamento === "Alerta aberto") {
-    b.push({ rotulo: "Alerta", motivo: "Relacionamento com alerta aberto — veto absoluto, não nota." });
+    b.push({
+      rotulo: "Alerta",
+      motivo: "Relacionamento com alerta aberto — veto absoluto, não nota.",
+    });
   }
   if (r.elegivel === "Não") {
-    b.push({ rotulo: "Simples", motivo: "Simples Nacional na Receita — não elegível. Degrada, não some." });
+    b.push({
+      rotulo: "Simples",
+      motivo: "Simples Nacional na Receita — não elegível. Degrada, não some.",
+    });
   }
   if (!r.regime_tributario || r.regime_tributario === "NAO CONFIRMADO") {
-    b.push({ rotulo: "regime?", motivo: "Regime tributário não confirmado — a curva declarada carrega ressalva que o score ignora." });
+    b.push({
+      rotulo: "regime?",
+      motivo:
+        "Regime tributário não confirmado — a curva declarada carrega ressalva que o score ignora.",
+    });
   }
   if (r.curva_a_sem_lucro_real) {
-    b.push({ rotulo: "A s/ Lucro Real", motivo: "Curva A declarada sem regime de Lucro Real confirmado." });
+    b.push({
+      rotulo: "A s/ Lucro Real",
+      motivo: "Curva A declarada sem regime de Lucro Real confirmado.",
+    });
   }
   if (r.conflito_interno) {
-    b.push({ rotulo: "conflito", motivo: "Conflito com a frente de Auditoria Tributária — alinhar antes de abordar." });
+    b.push({
+      rotulo: "conflito",
+      motivo: "Conflito com a frente de Auditoria Tributária — alinhar antes de abordar.",
+    });
   }
   if ((r.avisos ?? []).some((a) => a.toLowerCase().includes("duplicado"))) {
     b.push({ rotulo: "duplicata", motivo: "Registro duplicado no CRM." });

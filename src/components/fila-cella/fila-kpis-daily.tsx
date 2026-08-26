@@ -53,11 +53,16 @@ export function FilaKpisDaily({ kpis }: { kpis: KpisDaily | undefined }) {
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="text-2xl font-bold">
             {n(k?.kr1Abordadas)}
-            <span className="text-base font-normal text-muted-foreground"> / {k?.kr1Meta ?? 40}</span>
+            <span className="text-base font-normal text-muted-foreground">
+              {" "}
+              / {k?.kr1Meta ?? 40}
+            </span>
           </span>
           <span className="text-sm text-muted-foreground">contas abordadas no mês</span>
           <span className="text-muted-foreground">·</span>
-          <span className="text-xl font-semibold">{ok ? pct(k?.kr2TaxaResposta ?? null) : "—"}</span>
+          <span className="text-xl font-semibold">
+            {ok ? pct(k?.kr2TaxaResposta ?? null) : "—"}
+          </span>
           <span className="text-sm text-muted-foreground">
             resposta · {n(k?.kr2Reunioes)} reunião(ões)
           </span>

@@ -46,7 +46,13 @@ const GATILHOS: { g: string; nome: string; frente: string; forca: string; obs?: 
     obs: "só na extração por empresa; não roda no lote das 404",
   },
   { g: "T11", nome: "Prejuízo acumulado", frente: "Transação", forca: "—" },
-  { g: "T11b", nome: "Endividamento financeiro", frente: "—", forca: "—", obs: "sem frente no playbook" },
+  {
+    g: "T11b",
+    nome: "Endividamento financeiro",
+    frente: "—",
+    forca: "—",
+    obs: "sem frente no playbook",
+  },
   {
     g: "T12",
     nome: "Crédito tributário no ativo",
@@ -101,8 +107,8 @@ export function DicionarioTab() {
         <p className="text-muted-foreground">
           Relacionamento = &quot;Alerta aberto&quot; devolve <strong>FORA</strong>: veto absoluto,
           não penalidade. E o score <strong>não é comparável</strong> entre linhas com e sem ECD —
-          sem gatilho não há força, logo o teto cai para 5. A coluna{" "}
-          <code>score_comparavel</code> existe para não deixar essa ressalva só no tooltip.
+          sem gatilho não há força, logo o teto cai para 5. A coluna <code>score_comparavel</code>{" "}
+          existe para não deixar essa ressalva só no tooltip.
         </p>
         <p className="text-muted-foreground">
           Duas armadilhas herdadas de propósito do xlsx: <code>LEFT($C2,1)</code> faz &quot;A ·
@@ -119,7 +125,10 @@ export function DicionarioTab() {
         </p>
         <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
           <li>gatilho T8 ou T10 presente ⇒ Forte;</li>
-          <li>folha / receita operacional &gt; 10% ⇒ Forte (mas 202 dos 404 não têm receita apurada, e nunca chegam a Forte por essa via);</li>
+          <li>
+            folha / receita operacional &gt; 10% ⇒ Forte (mas 202 dos 404 não têm receita apurada, e
+            nunca chegam a Forte por essa via);
+          </li>
           <li>3 gatilhos ou mais ⇒ Moderado; abaixo disso, Fraco.</li>
         </ol>
         <p className="text-muted-foreground">

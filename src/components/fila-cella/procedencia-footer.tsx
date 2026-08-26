@@ -33,8 +33,8 @@ export function ProcedenciaFooter({
   return (
     <Card className="space-y-1 px-4 py-3 text-xs text-muted-foreground">
       <p>
-        Fontes: Growth <code>deals</code> (won, DISTINCT <code>org_id</code>) · ECD do exercício 2024
-        · base Receita 967 · Ops (<code>empresas</code>, <code>contratos</code>,{" "}
+        Fontes: Growth <code>deals</code> (won, DISTINCT <code>org_id</code>) · ECD do exercício
+        2024 · base Receita 967 · Ops (<code>empresas</code>, <code>contratos</code>,{" "}
         <code>omie_clientes</code>).
       </p>
       <p>
