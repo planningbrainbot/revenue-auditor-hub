@@ -23,7 +23,6 @@ import { Route as AuthenticatedRedeLtvRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedRedeHeadcountRouteImport } from './routes/_authenticated/rede-headcount'
 import { Route as AuthenticatedRedeRouteImport } from './routes/_authenticated/rede'
 import { Route as AuthenticatedReconciliacaoRouteImport } from './routes/_authenticated/reconciliacao'
-import { Route as AuthenticatedReceitaPartnersRouteImport } from './routes/_authenticated/receita-partners'
 import { Route as AuthenticatedPainelUnidadeRouteImport } from './routes/_authenticated/painel-unidade'
 import { Route as AuthenticatedPainelCsRouteImport } from './routes/_authenticated/painel-cs'
 import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_authenticated/pagamentos-unidades'
@@ -127,12 +126,6 @@ const AuthenticatedReconciliacaoRoute =
   AuthenticatedReconciliacaoRouteImport.update({
     id: '/reconciliacao',
     path: '/reconciliacao',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedReceitaPartnersRoute =
-  AuthenticatedReceitaPartnersRouteImport.update({
-    id: '/receita-partners',
-    path: '/receita-partners',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPainelUnidadeRoute =
@@ -327,7 +320,6 @@ export interface FileRoutesByFullPath {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/receita-partners': typeof AuthenticatedReceitaPartnersRoute
   '/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
@@ -371,7 +363,6 @@ export interface FileRoutesByTo {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/receita-partners': typeof AuthenticatedReceitaPartnersRoute
   '/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
@@ -417,7 +408,6 @@ export interface FileRoutesById {
   '/_authenticated/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/_authenticated/painel-cs': typeof AuthenticatedPainelCsRoute
   '/_authenticated/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/_authenticated/receita-partners': typeof AuthenticatedReceitaPartnersRoute
   '/_authenticated/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/_authenticated/rede': typeof AuthenticatedRedeRoute
   '/_authenticated/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
@@ -465,7 +455,6 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
-    | '/receita-partners'
     | '/reconciliacao'
     | '/rede'
     | '/rede-headcount'
@@ -509,7 +498,6 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
-    | '/receita-partners'
     | '/reconciliacao'
     | '/rede'
     | '/rede-headcount'
@@ -554,7 +542,6 @@ export interface FileRouteTypes {
     | '/_authenticated/pagamentos-unidades'
     | '/_authenticated/painel-cs'
     | '/_authenticated/painel-unidade'
-    | '/_authenticated/receita-partners'
     | '/_authenticated/reconciliacao'
     | '/_authenticated/rede'
     | '/_authenticated/rede-headcount'
@@ -679,13 +666,6 @@ declare module '@tanstack/react-router' {
       path: '/reconciliacao'
       fullPath: '/reconciliacao'
       preLoaderRoute: typeof AuthenticatedReconciliacaoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/receita-partners': {
-      id: '/_authenticated/receita-partners'
-      path: '/receita-partners'
-      fullPath: '/receita-partners'
-      preLoaderRoute: typeof AuthenticatedReceitaPartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/painel-unidade': {
@@ -934,7 +914,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPagamentosUnidadesRoute: typeof AuthenticatedPagamentosUnidadesRoute
   AuthenticatedPainelCsRoute: typeof AuthenticatedPainelCsRoute
   AuthenticatedPainelUnidadeRoute: typeof AuthenticatedPainelUnidadeRoute
-  AuthenticatedReceitaPartnersRoute: typeof AuthenticatedReceitaPartnersRoute
   AuthenticatedReconciliacaoRoute: typeof AuthenticatedReconciliacaoRoute
   AuthenticatedRedeRoute: typeof AuthenticatedRedeRoute
   AuthenticatedRedeHeadcountRoute: typeof AuthenticatedRedeHeadcountRoute
@@ -978,7 +957,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPagamentosUnidadesRoute: AuthenticatedPagamentosUnidadesRoute,
   AuthenticatedPainelCsRoute: AuthenticatedPainelCsRoute,
   AuthenticatedPainelUnidadeRoute: AuthenticatedPainelUnidadeRoute,
-  AuthenticatedReceitaPartnersRoute: AuthenticatedReceitaPartnersRoute,
   AuthenticatedReconciliacaoRoute: AuthenticatedReconciliacaoRoute,
   AuthenticatedRedeRoute: AuthenticatedRedeRoute,
   AuthenticatedRedeHeadcountRoute: AuthenticatedRedeHeadcountRoute,
