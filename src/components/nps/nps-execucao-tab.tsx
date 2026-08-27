@@ -69,42 +69,50 @@ function tempoDecorrido(iso: string): string {
 // Status vem do webhook de status da Cloud API (sent/delivered/read/failed).
 // Enquanto o webhook ainda não bateu pra aquele envio, status fica null — só
 // sabemos que foi disparado.
-function statusBadge(row: NpsExecucaoRow) {
-  if (row.respondido) {
-    return (
-      <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">
-        Respondido
-      </Badge>
-    );
-  }
+type StatusKey = "respondido" | "failed" | "read" | "delivered" | "sent" | "sem_status";
+
+const STATUS_LABELS: Record<StatusKey, string> = {
+  respondido: "Respondido",
+  failed: "Falhou",
+  read: "Lida",
+  delivered: "Entregue",
+  sent: "Enviado",
+  sem_status: "Aguardando status",
+};
+
+// Ordem de exibição no filtro — do desfecho mais relevante pro mais cru.
+const STATUS_ORDEM: StatusKey[] = ["respondido", "failed", "read", "delivered", "sent", "sem_status"];
+
+// Chave única usada tanto pelo badge quanto pelo filtro, pra os dois nunca
+// discordarem: respondido ganha do status do webhook.
+function statusKey(row: NpsExecucaoRow): StatusKey {
+  if (row.respondido) return "respondido";
   switch (row.status) {
     case "failed":
-      return (
-        <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">
-          Falhou
-        </Badge>
-      );
     case "read":
-      return (
-        <Badge variant="outline" className="border-sky-600/30 bg-sky-600/[0.07] text-sky-700 dark:text-sky-400">
-          Lida
-        </Badge>
-      );
     case "delivered":
-      return (
-        <Badge variant="outline" className="border-muted-foreground/30 bg-muted-foreground/[0.07]">
-          Entregue
-        </Badge>
-      );
     case "sent":
-      return (
-        <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">
-          Enviado
-        </Badge>
-      );
+      return row.status;
     default:
-      return <Badge variant="outline">Aguardando status</Badge>;
+      return "sem_status";
   }
+}
+
+function statusBadge(row: NpsExecucaoRow) {
+  const key = statusKey(row);
+  const classes: Record<StatusKey, string> = {
+    respondido: "border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400",
+    failed: "border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400",
+    read: "border-sky-600/30 bg-sky-600/[0.07] text-sky-700 dark:text-sky-400",
+    delivered: "border-muted-foreground/30 bg-muted-foreground/[0.07]",
+    sent: "border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400",
+    sem_status: "",
+  };
+  return (
+    <Badge variant="outline" className={classes[key] || undefined}>
+      {STATUS_LABELS[key]}
+    </Badge>
+  );
 }
 
 function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
@@ -194,6 +202,7 @@ export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
   const [rodada, setRodada] = useState<string>("todas");
   const [unidade, setUnidade] = useState<string>("todas");
+  const [status, setStatus] = useState<string>("todos");
   const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
 
   const filteredRows = useMemo(() => {
@@ -201,11 +210,20 @@ export function NpsExecucaoTab() {
     return data.rows.filter((r) => {
       if (rodada !== "todas" && r.rodada !== rodada) return false;
       if (unidade !== "todas" && r.unidade !== unidade) return false;
+      if (status !== "todos" && statusKey(r) !== status) return false;
       return true;
     });
-  }, [data, rodada, unidade]);
+  }, [data, rodada, unidade, status]);
 
-  const activeFilters = (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0);
+  // Só oferece no filtro os status que realmente existem nos disparos carregados.
+  const statusDisponiveis = useMemo(() => {
+    if (!data) return [];
+    const presentes = new Set(data.rows.map(statusKey));
+    return STATUS_ORDEM.filter((k) => presentes.has(k));
+  }, [data]);
+
+  const activeFilters =
+    (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0) + (status !== "todos" ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -289,6 +307,22 @@ export function NpsExecucaoTab() {
                         {data.unidades.map((u) => (
                           <SelectItem key={u} value={u}>
                             {u}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Status</span>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        {statusDisponiveis.map((k) => (
+                          <SelectItem key={k} value={k}>
+                            {STATUS_LABELS[k]}
                           </SelectItem>
                         ))}
                       </SelectContent>
