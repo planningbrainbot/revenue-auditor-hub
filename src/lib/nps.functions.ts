@@ -479,12 +479,15 @@ export const listAudienciaPorUnidade = createServerFn({ method: "GET" })
     const { supabase } = context;
     const pageSize = 1000;
 
-    async function fetchAll<T>(table: string, columns: string): Promise<T[]> {
+    async function fetchAll<T>(table: "nps_audiencia" | "nps_pesquisas", columns: string): Promise<T[]> {
       let from = 0;
       const all: T[] = [];
       // eslint-disable-next-line no-constant-condition
       while (true) {
-        const { data, error } = await supabase.from(table).select(columns).range(from, from + pageSize - 1);
+        // nps_audiencia é view, nps_pesquisas é tabela — os tipos gerados do
+        // Supabase separam os dois em overloads de .from() distintos, então
+        // uma união dos dois nomes não satisfaz nenhum dos dois sozinho.
+        const { data, error } = await supabase.from(table as any).select(columns).range(from, from + pageSize - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as unknown as T[];
         all.push(...batch);

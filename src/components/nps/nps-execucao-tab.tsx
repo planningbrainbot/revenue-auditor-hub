@@ -67,8 +67,10 @@ function tempoDecorrido(iso: string): string {
 }
 
 // Status vem do webhook de status da Cloud API (sent/delivered/read/failed).
-// Enquanto o webhook ainda não bateu pra aquele envio, status fica null — só
-// sabemos que foi disparado.
+// Sem status = a Meta nunca confirmou nem "enviado" pra esse número — não dá
+// pra assumir que a mensagem saiu (pode ser throttling/proteção antispam da
+// Meta represando silenciosamente, confirmado em 27/08/2026). "Aguardando
+// status" dava a entender que já sabíamos que tinha saído; isso é mais honesto.
 type StatusKey = "respondido" | "failed" | "read" | "delivered" | "sent" | "sem_status";
 
 const STATUS_LABELS: Record<StatusKey, string> = {
@@ -77,7 +79,7 @@ const STATUS_LABELS: Record<StatusKey, string> = {
   read: "Lida",
   delivered: "Entregue",
   sent: "Enviado",
-  sem_status: "Aguardando status",
+  sem_status: "Aguardando disparo",
 };
 
 // Ordem de exibição no filtro — do desfecho mais relevante pro mais cru.
