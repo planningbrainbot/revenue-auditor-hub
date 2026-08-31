@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { validarTelefone } from "@/lib/telefone";
 
 // Plano de ação de contatos pro time de CS: toda empresa (Base Nova ou
 // Antiga) precisa de pelo menos 1 contato com WhatsApp válido vinculado —
@@ -13,7 +14,7 @@ export interface EmpresaSemContatoRow {
   cnpj: string | null;
   unidade: string;
   origemDaBase: string | null;
-  status: "sem_contato" | "contato_sem_whatsapp";
+  status: "sem_contato" | "contato_sem_whatsapp" | "contato_formato_invalido";
   contatosNomes: string[];
 }
 
@@ -41,8 +42,7 @@ function normalizeUnidade(raw: string | null): string {
 }
 
 function hasValidWhatsapp(raw: string | null): boolean {
-  if (!raw) return false;
-  return raw.replace(/\D/g, "").length >= 10;
+  return validarTelefone(raw).valido;
 }
 
 export const listPlanoAcaoContatos = createServerFn({ method: "GET" })
@@ -151,13 +151,19 @@ export const listPlanoAcaoContatos = createServerFn({ method: "GET" })
         totalComContatoValido += 1;
         continue;
       }
+      const status: EmpresaSemContatoRow["status"] =
+        seusContatos.length === 0
+          ? "sem_contato"
+          : seusContatos.some((c) => c.whatsapp && !validarTelefone(c.whatsapp).valido)
+            ? "contato_formato_invalido" // tem número, mas com formato claramente errado (curto, sem DDD, dígitos colados)
+            : "contato_sem_whatsapp"; // tem contato, mas nenhum número cadastrado
       empresasSemContato.push({
         id: e.id,
         titulo: e.titulo,
         cnpj: e.cnpj,
         unidade,
         origemDaBase: e.origem_da_base,
-        status: seusContatos.length === 0 ? "sem_contato" : "contato_sem_whatsapp",
+        status,
         contatosNomes: seusContatos.map((c) => c.nome_completo).filter((n): n is string => !!n),
       });
     }

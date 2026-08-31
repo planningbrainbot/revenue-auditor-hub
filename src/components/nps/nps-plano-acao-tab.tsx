@@ -119,6 +119,7 @@ export function NpsPlanoAcaoTab() {
                     <SelectItem value={ALL}>Todos status</SelectItem>
                     <SelectItem value="sem_contato">Sem nenhum contato</SelectItem>
                     <SelectItem value="contato_sem_whatsapp">Tem contato, sem WhatsApp</SelectItem>
+                    <SelectItem value="contato_formato_invalido">WhatsApp com formato inválido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -146,6 +147,10 @@ export function NpsPlanoAcaoTab() {
                         {e.status === "sem_contato" ? (
                           <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">
                             Sem contato
+                          </Badge>
+                        ) : e.status === "contato_formato_invalido" ? (
+                          <Badge variant="outline" className="border-orange-600/30 bg-orange-600/[0.07] text-orange-700 dark:text-orange-400">
+                            Formato inválido
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">

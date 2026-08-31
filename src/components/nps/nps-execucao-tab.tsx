@@ -35,10 +35,11 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Phone, Upload } from "lucide-react";
+import { Phone, TriangleAlert, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNpsExecucao, useAudienciaPorUnidade, useDispararCampanha, useRegistrarRespostaPorLigacao } from "@/hooks/use-nps";
 import type { NpsExecucaoRow } from "@/lib/nps.functions";
+import { validarTelefone } from "@/lib/telefone";
 
 const SERVICOS_OPCOES = ["Serviço Fiscal", "Serviço Contábil", "Serviço de Folha de Pagamento"];
 
@@ -518,9 +519,23 @@ export function NpsExecucaoTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.map((r) => (
+                  {filteredRows.map((r) => {
+                    const validacao = validarTelefone(r.telefone);
+                    return (
                     <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">{r.telefone}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.telefone}
+                          {!validacao.valido && (
+                            <TriangleAlert
+                              className="size-3.5 shrink-0 text-amber-600"
+                              aria-label={validacao.motivo ?? "Formato suspeito"}
+                            >
+                              <title>{validacao.motivo ?? "Formato suspeito"}</title>
+                            </TriangleAlert>
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <button
                           type="button"
@@ -545,7 +560,8 @@ export function NpsExecucaoTab() {
                       </TableCell>
                       <TableCell className="text-center">{r.npsRecomendacao ?? "—"}</TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                   {filteredRows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
