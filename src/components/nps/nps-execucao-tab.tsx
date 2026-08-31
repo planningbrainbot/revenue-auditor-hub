@@ -32,8 +32,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { useNpsExecucao, useAudienciaPorUnidade, useDispararCampanha } from "@/hooks/use-nps";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Phone, Upload } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNpsExecucao, useAudienciaPorUnidade, useDispararCampanha, useRegistrarRespostaPorLigacao } from "@/hooks/use-nps";
 import type { NpsExecucaoRow } from "@/lib/nps.functions";
+
+const SERVICOS_OPCOES = ["Serviço Fiscal", "Serviço Contábil", "Serviço de Folha de Pagamento"];
 
 type Categoria = "promotor" | "neutro" | "detrator" | null;
 
@@ -131,6 +138,156 @@ function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
   return "Falha no envio";
 }
 
+function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; onDone: () => void }) {
+  const registrar = useRegistrarRespostaPorLigacao();
+  const [nota, setNota] = useState("");
+  const [fiscal, setFiscal] = useState("");
+  const [contabil, setContabil] = useState("");
+  const [folha, setFolha] = useState("");
+  const [servicos, setServicos] = useState<string[]>([]);
+  const [nomeAtendente, setNomeAtendente] = useState("");
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(false);
+
+  const toggleServico = (s: string) =>
+    setServicos((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+
+  const handleSubmit = async () => {
+    if (!row.pesquisaId) {
+      toast.error("Essa pesquisa não tem um vínculo válido — não dá pra registrar a resposta.");
+      return;
+    }
+    if (!nota) {
+      toast.error("Informe a nota de recomendação.");
+      return;
+    }
+
+    let gravacaoUrl: string | undefined;
+    if (arquivo) {
+      setEnviandoArquivo(true);
+      const ext = arquivo.name.split(".").pop() || "bin";
+      const path = `${row.pesquisaId}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("nps-gravacoes").upload(path, arquivo);
+      setEnviandoArquivo(false);
+      if (uploadError) {
+        toast.error(`Falha ao subir a gravação: ${uploadError.message}`);
+        return;
+      }
+      const { data: signed } = await supabase.storage.from("nps-gravacoes").createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      gravacaoUrl = signed?.signedUrl;
+    }
+
+    registrar.mutate(
+      {
+        pesquisaId: row.pesquisaId,
+        telefone: row.telefone,
+        npsRecomendacao: nota,
+        avaliacaoFiscal: fiscal || undefined,
+        avaliacaoContabil: contabil || undefined,
+        avaliacaoFolhaPagamento: folha || undefined,
+        servicosContratados: servicos.length > 0 ? servicos : undefined,
+        nomeContato: nomeAtendente || undefined,
+        gravacaoUrl,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Resposta registrada — a pesquisa aparece como respondida agora.");
+          onDone();
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao registrar a resposta."),
+      },
+    );
+  };
+
+  const notasValidas = Array.from({ length: 11 }, (_, i) => String(i));
+
+  return (
+    <div className="space-y-4 rounded-lg border p-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Phone className="size-4 text-muted-foreground" />
+        Registrar resposta colhida por telefone
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Nota de recomendação (0-10) *</Label>
+        <Select value={nota} onValueChange={setNota}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Escolher nota…" />
+          </SelectTrigger>
+          <SelectContent>
+            {notasValidas.map((n) => (
+              <SelectItem key={n} value={n}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ["Fiscal", fiscal, setFiscal],
+            ["Contábil", contabil, setContabil],
+            ["Folha", folha, setFolha],
+          ] as const
+        ).map(([label, value, setter]) => (
+          <div key={label} className="space-y-1.5">
+            <Label className="text-xs">{label}</Label>
+            <Select value={value} onValueChange={setter}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {notasValidas.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Serviços contratados</Label>
+        <div className="space-y-1.5">
+          {SERVICOS_OPCOES.map((s) => (
+            <label key={s} className="flex items-center gap-2 text-sm">
+              <Checkbox checked={servicos.includes(s)} onCheckedChange={() => toggleServico(s)} />
+              {s}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Quem atendeu a ligação</Label>
+        <Input value={nomeAtendente} onChange={(e) => setNomeAtendente(e.target.value)} placeholder="Nome de quem ligou" className="h-9" />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Gravação da ligação (opcional)</Label>
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2.5 text-xs text-muted-foreground hover:bg-muted/50">
+          <Upload className="size-3.5 shrink-0" />
+          {arquivo ? arquivo.name : "Escolher arquivo de áudio ou vídeo…"}
+          <input
+            type="file"
+            accept="audio/*,video/*"
+            className="hidden"
+            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+          />
+        </label>
+      </div>
+
+      <Button onClick={handleSubmit} disabled={registrar.isPending || enviandoArquivo} className="w-full">
+        {enviandoArquivo ? "Enviando gravação…" : registrar.isPending ? "Registrando…" : "Registrar resposta"}
+      </Button>
+    </div>
+  );
+}
+
 function DispararCampanhaCard() {
   const { data: audiencia, isLoading } = useAudienciaPorUnidade();
   const disparar = useDispararCampanha();
@@ -205,6 +362,7 @@ export function NpsExecucaoTab() {
   const [rodada, setRodada] = useState<string>("todas");
   const [unidade, setUnidade] = useState<string>("todas");
   const [status, setStatus] = useState<string>("todos");
+  const [soNaoRespondidos, setSoNaoRespondidos] = useState(false);
   const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
 
   const filteredRows = useMemo(() => {
@@ -213,9 +371,10 @@ export function NpsExecucaoTab() {
       if (rodada !== "todas" && r.rodada !== rodada) return false;
       if (unidade !== "todas" && r.unidade !== unidade) return false;
       if (status !== "todos" && statusKey(r) !== status) return false;
+      if (soNaoRespondidos && r.respondido) return false;
       return true;
     });
-  }, [data, rodada, unidade, status]);
+  }, [data, rodada, unidade, status, soNaoRespondidos]);
 
   // Só oferece no filtro os status que realmente existem nos disparos carregados.
   const statusDisponiveis = useMemo(() => {
@@ -225,7 +384,8 @@ export function NpsExecucaoTab() {
   }, [data]);
 
   const activeFilters =
-    (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0) + (status !== "todos" ? 1 : 0);
+    (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0) + (status !== "todos" ? 1 : 0) +
+    (soNaoRespondidos ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -267,8 +427,18 @@ export function NpsExecucaoTab() {
           </div>
 
           <Card>
-            <div className="flex items-center justify-between border-b p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
               <span className="text-sm font-medium">Disparos (mais recentes primeiro)</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={soNaoRespondidos ? "default" : "outline"}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setSoNaoRespondidos((v) => !v)}
+                >
+                  <Phone className="size-3.5" />
+                  Ligar pra quem não respondeu
+                </Button>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -332,6 +502,7 @@ export function NpsExecucaoTab() {
                   </div>
                 </PopoverContent>
               </Popover>
+              </div>
             </div>
             <div className="relative max-h-[600px] overflow-auto">
               <Table>
@@ -457,9 +628,15 @@ export function NpsExecucaoTab() {
                 </div>
 
                 {!selected.respondido ? (
-                  <p className="text-sm text-muted-foreground">Ainda não respondeu à pesquisa.</p>
+                  <RegistrarRespostaLigacaoForm row={selected} onDone={() => setSelected(null)} />
                 ) : (
                   <>
+                    {selected.canalResposta === "ligacao" && (
+                      <Badge variant="outline" className="gap-1.5">
+                        <Phone className="size-3" />
+                        Respondida por telefone
+                      </Badge>
+                    )}
                     <div>
                       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Recomendação (NPS)
@@ -510,6 +687,22 @@ export function NpsExecucaoTab() {
                             </Badge>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {selected.gravacaoUrl && (
+                      <div>
+                        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Gravação da ligação
+                        </div>
+                        <a
+                          href={selected.gravacaoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-primary underline underline-offset-2"
+                        >
+                          ouvir/baixar gravação
+                        </a>
                       </div>
                     )}
                   </>

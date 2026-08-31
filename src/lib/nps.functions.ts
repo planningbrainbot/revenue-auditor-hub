@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json, Database } from "@/integrations/supabase/types";
 
 // URL do webhook n8n que dispara a campanha (workflow "NPS - Criar Card e
 // Enviar WhatsApp") — o trigger era manual (só rodava clicando "Execute
@@ -276,6 +276,7 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
 
 export interface NpsExecucaoRow {
   id: number;
+  pesquisaId: number | null;
   telefone: string;
   enviadoEm: string;
   respondido: boolean;
@@ -293,6 +294,8 @@ export interface NpsExecucaoRow {
   avaliacaoContabil: string | null;
   avaliacaoFolhaPagamento: string | null;
   servicosContratados: string[] | null;
+  canalResposta: string | null;
+  gravacaoUrl: string | null;
 }
 
 export interface NpsTextoLivreRow {
@@ -332,6 +335,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
     const cardIds = (envios ?? []).map((e) => e.pipefy_card_id).filter((v): v is string => v != null);
 
     type PesquisaInfo = {
+      id: number;
       empresa: string | null;
       unidade: string | null;
       rodada: string | null;
@@ -343,9 +347,11 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       avaliacao_contabil: string | null;
       avaliacao_folha_pagamento: string | null;
       servicos_contratados: string[] | null;
+      canal_resposta: string | null;
+      gravacao_url: string | null;
     };
     const pesquisaCols =
-      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados";
+      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,canal_resposta,gravacao_url";
     const porPesquisaId = new Map<number, PesquisaInfo>();
     const porCard = new Map<string, PesquisaInfo>();
 
@@ -369,6 +375,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       const info = (e.nps_pesquisa_id != null ? porPesquisaId.get(e.nps_pesquisa_id) : null) ?? (e.pipefy_card_id ? porCard.get(e.pipefy_card_id) : null);
       return {
         id: e.id,
+        pesquisaId: info?.id ?? e.nps_pesquisa_id ?? null,
         telefone: e.telefone,
         enviadoEm: e.enviado_em,
         respondido: e.respondido,
@@ -386,6 +393,8 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         avaliacaoContabil: info?.avaliacao_contabil ?? null,
         avaliacaoFolhaPagamento: info?.avaliacao_folha_pagamento ?? null,
         servicosContratados: info?.servicos_contratados ?? null,
+        canalResposta: info?.canal_resposta ?? null,
+        gravacaoUrl: info?.gravacao_url ?? null,
       };
     });
 
@@ -543,6 +552,56 @@ export const dispararCampanhaNps = createServerFn({ method: "POST" })
       body: JSON.stringify({ unidade }),
     });
     if (!res.ok) throw new Error(`Falha ao acionar o disparo (HTTP ${res.status}).`);
+
+    return { ok: true };
+  });
+
+// Registra a resposta de uma pesquisa colhida por telefone — pro time de CS
+// ligar pra quem recebeu o WhatsApp e não respondeu. Marca canal_resposta
+// pra distinguir de quem respondeu pelo Flow, e sincroniza
+// nps_envio_map.respondido=true (mesmo campo que o webhook do WhatsApp seta),
+// senão a linha continua aparecendo como pendente na Execução.
+export const registrarRespostaPorLigacao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      pesquisaId: number;
+      telefone: string;
+      npsRecomendacao: string;
+      avaliacaoFiscal?: string;
+      avaliacaoContabil?: string;
+      avaliacaoFolhaPagamento?: string;
+      servicosContratados?: string[];
+      nomeContato?: string;
+      gravacaoUrl?: string;
+    }) => d,
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase } = context;
+    await assertCanDispararCampanha(supabase);
+
+    if (!data.npsRecomendacao) throw new Error("Informe a nota de recomendação (0-10).");
+
+    const patch: Database["public"]["Tables"]["nps_pesquisas"]["Update"] = {
+      nps_recomendacao: data.npsRecomendacao,
+      avaliacao_fiscal: data.avaliacaoFiscal || null,
+      avaliacao_contabil: data.avaliacaoContabil || null,
+      avaliacao_folha_pagamento: data.avaliacaoFolhaPagamento || null,
+      servicos_contratados: data.servicosContratados && data.servicosContratados.length > 0 ? data.servicosContratados : null,
+      fase: "Pesquisa Respondida",
+      canal_resposta: "ligacao",
+    };
+    if (data.nomeContato) patch.nome_contato = data.nomeContato;
+    if (data.gravacaoUrl) patch.gravacao_url = data.gravacaoUrl;
+
+    const { error: erroPesquisa } = await supabase.from("nps_pesquisas").update(patch).eq("id", data.pesquisaId);
+    if (erroPesquisa) throw new Error(erroPesquisa.message);
+
+    const { error: erroEnvio } = await supabase
+      .from("nps_envio_map")
+      .update({ respondido: true })
+      .eq("telefone", data.telefone);
+    if (erroEnvio) throw new Error(erroEnvio.message);
 
     return { ok: true };
   });

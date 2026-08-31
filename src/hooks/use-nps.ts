@@ -6,6 +6,7 @@ import {
   listNpsExecucao,
   listAudienciaPorUnidade,
   dispararCampanhaNps,
+  registrarRespostaPorLigacao,
 } from "@/lib/nps.functions";
 import { listPlanoAcaoContatos } from "@/lib/contatos-cs.functions";
 
@@ -63,6 +64,27 @@ export function useDispararCampanha() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["nps-execucao"] });
       qc.invalidateQueries({ queryKey: ["nps-audiencia-por-unidade"] });
+    },
+  });
+}
+
+export function useRegistrarRespostaPorLigacao() {
+  const fn = useServerFn(registrarRespostaPorLigacao);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      pesquisaId: number;
+      telefone: string;
+      npsRecomendacao: string;
+      avaliacaoFiscal?: string;
+      avaliacaoContabil?: string;
+      avaliacaoFolhaPagamento?: string;
+      servicosContratados?: string[];
+      nomeContato?: string;
+      gravacaoUrl?: string;
+    }) => fn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nps-execucao"] });
     },
   });
 }

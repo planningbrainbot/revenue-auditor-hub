@@ -2013,12 +2013,14 @@ export type Database = {
           avaliacao_contabil: string | null
           avaliacao_fiscal: string | null
           avaliacao_folha_pagamento: string | null
+          canal_resposta: string | null
           created_at: string | null
           data_envio: string | null
           email_pesquisa: string | null
           empresa: string | null
           empresa_id: number | null
           fase: string | null
+          gravacao_url: string | null
           id: number
           nome_contato: string | null
           nps_recomendacao: string | null
@@ -2036,12 +2038,14 @@ export type Database = {
           avaliacao_contabil?: string | null
           avaliacao_fiscal?: string | null
           avaliacao_folha_pagamento?: string | null
+          canal_resposta?: string | null
           created_at?: string | null
           data_envio?: string | null
           email_pesquisa?: string | null
           empresa?: string | null
           empresa_id?: number | null
           fase?: string | null
+          gravacao_url?: string | null
           id?: number
           rodada?: string | null
           nome_contato?: string | null
@@ -2059,12 +2063,14 @@ export type Database = {
           avaliacao_contabil?: string | null
           avaliacao_fiscal?: string | null
           avaliacao_folha_pagamento?: string | null
+          canal_resposta?: string | null
           created_at?: string | null
           data_envio?: string | null
           email_pesquisa?: string | null
           empresa?: string | null
           empresa_id?: number | null
           fase?: string | null
+          gravacao_url?: string | null
           id?: number
           nome_contato?: string | null
           nps_recomendacao?: string | null
