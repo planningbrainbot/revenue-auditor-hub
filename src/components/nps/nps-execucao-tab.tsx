@@ -289,12 +289,19 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
   );
 }
 
+// Custo real observado por mensagem de template Marketing enviada (extrato
+// de cobrança da Meta, pricing_analytics, 25-31/08/2026: US$0,3217/msg,
+// consistente nos 5 dias). É por mensagem ENVIADA, não por entregue — a
+// Meta cobra mesmo quando não confirma o status de volta pra gente.
+const CUSTO_POR_MENSAGEM_USD = 0.3217;
+
 function DispararCampanhaCard() {
   const { data: audiencia, isLoading } = useAudienciaPorUnidade();
   const disparar = useDispararCampanha();
   const [unidadeEscolhida, setUnidadeEscolhida] = useState<string>("");
 
   const linhaEscolhida = audiencia?.rows.find((r) => r.unidade === unidadeEscolhida);
+  const custoEstimado = linhaEscolhida ? linhaEscolhida.totalContatos * CUSTO_POR_MENSAGEM_USD : 0;
 
   const handleConfirm = () => {
     disparar.mutate(
@@ -338,13 +345,26 @@ function DispararCampanhaCard() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Disparar pesquisa de NPS pra {unidadeEscolhida}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Isso envia uma mensagem real de WhatsApp (template de pesquisa) pra{" "}
-                <strong>{linhaEscolhida?.totalContatos ?? "—"} contatos</strong> de {unidadeEscolhida}
-                {linhaEscolhida && linhaEscolhida.jaDisparados > 0
-                  ? `, incluindo os ${linhaEscolhida.jaDisparados} que já receberam disparo antes (podem receber de novo)`
-                  : ""}
-                . Não tem como cancelar depois de enviado.
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>
+                    Isso envia uma mensagem real de WhatsApp (template de pesquisa) pra{" "}
+                    <strong className="text-foreground">{linhaEscolhida?.totalContatos ?? "—"} contatos</strong> da lista{" "}
+                    <strong className="text-foreground">{unidadeEscolhida}</strong>
+                    {linhaEscolhida && linhaEscolhida.jaDisparados > 0
+                      ? `, incluindo os ${linhaEscolhida.jaDisparados} que já receberam disparo antes (podem receber de novo)`
+                      : ""}
+                    . Não tem como cancelar depois de enviado.
+                  </p>
+                  <p className="rounded-md border border-amber-600/30 bg-amber-600/[0.07] p-2.5 text-amber-800 dark:text-amber-300">
+                    Custo estimado:{" "}
+                    <strong>
+                      US$ {custoEstimado.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>{" "}
+                    (~US$ {CUSTO_POR_MENSAGEM_USD.toFixed(4)}/mensagem, cobrado pela Meta no envio — não pela entrega
+                    confirmada).
+                  </p>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -365,6 +385,15 @@ export function NpsExecucaoTab() {
   const [status, setStatus] = useState<string>("todos");
   const [soNaoRespondidos, setSoNaoRespondidos] = useState(false);
   const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
+
+  // Mensagens de texto livre desse contato — cruza por telefone canônico
+  // (ignora prefixo 55 e o 9º dígito opcional do celular) já que as duas
+  // tabelas guardam o número em formatos diferentes.
+  const mensagensDoSelecionado = useMemo(() => {
+    if (!selected || !data) return [];
+    const alvo = validarTelefone(selected.telefone).digitos;
+    return data.textoLivre.filter((t) => validarTelefone(t.telefone).digitos === alvo);
+  }, [selected, data]);
 
   const filteredRows = useMemo(() => {
     if (!data) return [];
@@ -575,45 +604,6 @@ export function NpsExecucaoTab() {
               </Table>
             </div>
           </Card>
-
-          <Card>
-            <div className="flex items-center gap-2 border-b p-3 text-sm font-medium">
-              <MessageCircleMore className="size-4 text-muted-foreground" />
-              Mensagens de texto livre
-              <span className="font-normal text-muted-foreground">
-                — respostas fora do fluxo estruturado da pesquisa
-              </span>
-            </div>
-            <div className="relative max-h-[360px] overflow-auto">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background">
-                  <TableRow>
-                    <TableHead className="bg-background">Telefone</TableHead>
-                    <TableHead className="bg-background">Mensagem</TableHead>
-                    <TableHead className="bg-background">Recebida há</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.textoLivre.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-mono text-xs">{t.telefone}</TableCell>
-                      <TableCell className="max-w-md truncate" title={t.texto ?? undefined}>
-                        {t.texto ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(t.recebidoEm)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {data.textoLivre.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="py-10 text-center text-muted-foreground">
-                        Nenhuma mensagem de texto livre recebida ainda.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
         </>
       )}
 
@@ -642,6 +632,23 @@ export function NpsExecucaoTab() {
                     <p className="mt-2 text-xs text-red-600">{erroResumo(selected.erro)}</p>
                   )}
                 </div>
+
+                {mensagensDoSelecionado.length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <MessageCircleMore className="size-3.5" />
+                      Mensagens de texto livre
+                    </div>
+                    <div className="space-y-2">
+                      {mensagensDoSelecionado.map((m) => (
+                        <div key={m.id} className="rounded-md border p-2.5 text-sm">
+                          <p>{m.texto ?? "—"}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">recebida {tempoDecorrido(m.recebidoEm)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {!selected.respondido ? (
                   <RegistrarRespostaLigacaoForm row={selected} onDone={() => setSelected(null)} />
