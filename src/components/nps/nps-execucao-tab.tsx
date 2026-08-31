@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MessageCircleMore, Send, SlidersHorizontal } from "lucide-react";
+import { Clock, MessageCircleMore, Send, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -373,6 +373,15 @@ function DispararCampanhaCard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+
+      <div className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
+        <Clock className="mt-0.5 size-3.5 shrink-0" />
+        <span>
+          Os envios só saem entre <strong className="font-medium text-foreground">8h e 19h</strong> (horário de
+          Brasília) — é uma regra automática do workflow, não manual. Se o lote for grande e não terminar até às
+          19h, ele pausa sozinho e retoma às 8h do dia seguinte, sem precisar disparar de novo.
+        </span>
       </div>
     </Card>
   );
