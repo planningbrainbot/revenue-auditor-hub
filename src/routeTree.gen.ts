@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrustRouteImport } from './routes/trust'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -57,6 +58,11 @@ import { Route as AuthenticatedRoyaltiesUnidadeIdMesRouteImport } from './routes
 const TrustRoute = TrustRouteImport.update({
   id: '/trust',
   path: '/trust',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -303,6 +309,7 @@ const AuthenticatedRoyaltiesUnidadeIdMesRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -347,6 +354,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -393,6 +401,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/_authenticated/atividade': typeof AuthenticatedAtividadeRoute
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/redefinir-senha'
     | '/trust'
     | '/atividade'
     | '/auditoria'
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/redefinir-senha'
     | '/trust'
     | '/atividade'
     | '/auditoria'
@@ -530,6 +541,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/redefinir-senha'
     | '/trust'
     | '/_authenticated/atividade'
     | '/_authenticated/auditoria'
@@ -577,6 +589,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrustRoute: typeof TrustRoute
 }
 
@@ -587,6 +600,13 @@ declare module '@tanstack/react-router' {
       path: '/trust'
       fullPath: '/trust'
       preLoaderRoute: typeof TrustRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -1002,6 +1022,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrustRoute: TrustRoute,
 }
 export const routeTree = rootRouteImport

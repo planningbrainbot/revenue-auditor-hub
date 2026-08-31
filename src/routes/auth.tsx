@@ -19,16 +19,41 @@ const microsoftLoginEnabled = import.meta.env.VITE_MICROSOFT_LOGIN === "true";
 
 function AuthPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"login" | "recover">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recoverSent, setRecoverSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/" });
     });
   }, [navigate]);
+
+  async function handleRecoverSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      });
+      if (error) throw error;
+      setRecoverSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function backToLogin() {
+    setMode("login");
+    setError(null);
+    setRecoverSent(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,45 +111,108 @@ function AuthPage() {
           <PlanningLogo className="h-10 w-auto" />
           <div className="text-center">
             <h1 className="text-xl font-semibold text-foreground">Ops Board Planning Expansão</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Entre com suas credenciais</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {mode === "login" ? "Entre com suas credenciais" : "Recuperar senha"}
+            </p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+        {mode === "login" ? (
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground">Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-foreground">Senha</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setMode("recover");
+                  }}
+                  className="text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Esqueceu a senha?
+                </button>
+              </div>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Entrando..." : "Entrar"}
+            </button>
+          </form>
+        ) : recoverSent ? (
+          <div className="mt-6 space-y-4 text-center">
+            <p className="text-sm text-foreground">
+              Se houver uma conta com o email <span className="font-medium">{email}</span>,
+              enviamos um link para redefinir a senha.
+            </p>
+            <button
+              type="button"
+              onClick={backToLogin}
+              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Voltar para o login
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground">Senha</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+        ) : (
+          <form onSubmit={handleRecoverSubmit} className="mt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Informe seu email de acesso. Vamos enviar um link para você criar uma nova senha.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-foreground">Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Enviando..." : "Enviar link de recuperação"}
+            </button>
+            <button
+              type="button"
+              onClick={backToLogin}
+              className="w-full text-center text-sm font-medium text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Voltar para o login
+            </button>
+          </form>
+        )}
 
-        {microsoftLoginEnabled && (
+        {mode === "login" && microsoftLoginEnabled && (
           <>
             <div className="mt-6 flex items-center gap-3">
               <span className="h-px flex-1 bg-border" />
@@ -149,9 +237,11 @@ function AuthPage() {
           </>
         )}
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Não tem acesso? Solicite ao administrador do painel.
-        </p>
+        {mode === "login" && (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            Não tem acesso? Solicite ao administrador do painel.
+          </p>
+        )}
       </div>
     </div>
   );
