@@ -141,6 +141,7 @@ function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
 
 function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; onDone: () => void }) {
   const registrar = useRegistrarRespostaPorLigacao();
+  const [recebeuMensagem, setRecebeuMensagem] = useState("");
   const [nota, setNota] = useState("");
   const [fiscal, setFiscal] = useState("");
   const [contabil, setContabil] = useState("");
@@ -156,6 +157,10 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
   const handleSubmit = async () => {
     if (!row.pesquisaId) {
       toast.error("Essa pesquisa não tem um vínculo válido — não dá pra registrar a resposta.");
+      return;
+    }
+    if (!recebeuMensagem) {
+      toast.error("Informe se o cliente confirma ter recebido a mensagem da pesquisa.");
       return;
     }
     if (!nota) {
@@ -183,6 +188,7 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
         pesquisaId: row.pesquisaId,
         telefone: row.telefone,
         npsRecomendacao: nota,
+        recebeuMensagem: recebeuMensagem as "sim" | "nao" | "nao_lembra",
         avaliacaoFiscal: fiscal || undefined,
         avaliacaoContabil: contabil || undefined,
         avaliacaoFolhaPagamento: folha || undefined,
@@ -207,6 +213,20 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
       <div className="flex items-center gap-2 text-sm font-medium">
         <Phone className="size-4 text-muted-foreground" />
         Registrar resposta colhida por telefone
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Você chegou a receber a mensagem da pesquisa de satisfação? *</Label>
+        <Select value={recebeuMensagem} onValueChange={setRecebeuMensagem}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Escolher…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sim">Sim, recebeu</SelectItem>
+            <SelectItem value="nao">Não recebeu</SelectItem>
+            <SelectItem value="nao_lembra">Não sabe / não lembra</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">
@@ -664,10 +684,30 @@ export function NpsExecucaoTab() {
                 ) : (
                   <>
                     {selected.canalResposta === "ligacao" && (
-                      <Badge variant="outline" className="gap-1.5">
-                        <Phone className="size-3" />
-                        Respondida por telefone
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="gap-1.5">
+                          <Phone className="size-3" />
+                          Respondida por telefone
+                        </Badge>
+                        {selected.recebeuMensagem && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              selected.recebeuMensagem === "sim"
+                                ? "border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400"
+                                : selected.recebeuMensagem === "nao"
+                                  ? "border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400"
+                                  : "border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400"
+                            }
+                          >
+                            {selected.recebeuMensagem === "sim"
+                              ? "Confirma que recebeu a mensagem"
+                              : selected.recebeuMensagem === "nao"
+                                ? "Diz que NÃO recebeu a mensagem"
+                                : "Não lembra se recebeu"}
+                          </Badge>
+                        )}
+                      </div>
                     )}
                     <div>
                       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">

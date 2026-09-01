@@ -76,6 +76,7 @@ export function useRegistrarRespostaPorLigacao() {
       pesquisaId: number;
       telefone: string;
       npsRecomendacao: string;
+      recebeuMensagem: "sim" | "nao" | "nao_lembra";
       avaliacaoFiscal?: string;
       avaliacaoContabil?: string;
       avaliacaoFolhaPagamento?: string;

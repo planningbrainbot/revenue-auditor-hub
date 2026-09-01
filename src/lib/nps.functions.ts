@@ -296,6 +296,7 @@ export interface NpsExecucaoRow {
   servicosContratados: string[] | null;
   canalResposta: string | null;
   gravacaoUrl: string | null;
+  recebeuMensagem: "sim" | "nao" | "nao_lembra" | null;
 }
 
 export interface NpsTextoLivreRow {
@@ -349,9 +350,10 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       servicos_contratados: string[] | null;
       canal_resposta: string | null;
       gravacao_url: string | null;
+      recebeu_mensagem: string | null;
     };
     const pesquisaCols =
-      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,canal_resposta,gravacao_url";
+      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,canal_resposta,gravacao_url,recebeu_mensagem";
     const porPesquisaId = new Map<number, PesquisaInfo>();
     const porCard = new Map<string, PesquisaInfo>();
 
@@ -395,6 +397,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         servicosContratados: info?.servicos_contratados ?? null,
         canalResposta: info?.canal_resposta ?? null,
         gravacaoUrl: info?.gravacao_url ?? null,
+        recebeuMensagem: (info?.recebeu_mensagem as "sim" | "nao" | "nao_lembra" | null) ?? null,
       };
     });
 
@@ -568,6 +571,7 @@ export const registrarRespostaPorLigacao = createServerFn({ method: "POST" })
       pesquisaId: number;
       telefone: string;
       npsRecomendacao: string;
+      recebeuMensagem: "sim" | "nao" | "nao_lembra";
       avaliacaoFiscal?: string;
       avaliacaoContabil?: string;
       avaliacaoFolhaPagamento?: string;
@@ -581,9 +585,11 @@ export const registrarRespostaPorLigacao = createServerFn({ method: "POST" })
     await assertCanDispararCampanha(supabase);
 
     if (!data.npsRecomendacao) throw new Error("Informe a nota de recomendação (0-10).");
+    if (!data.recebeuMensagem) throw new Error("Informe se o cliente confirma ter recebido a mensagem da pesquisa.");
 
     const patch: Database["public"]["Tables"]["nps_pesquisas"]["Update"] = {
       nps_recomendacao: data.npsRecomendacao,
+      recebeu_mensagem: data.recebeuMensagem,
       avaliacao_fiscal: data.avaliacaoFiscal || null,
       avaliacao_contabil: data.avaliacaoContabil || null,
       avaliacao_folha_pagamento: data.avaliacaoFolhaPagamento || null,
