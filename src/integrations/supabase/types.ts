@@ -1981,6 +1981,47 @@ export type Database = {
         }
         Relationships: []
       }
+      nps_ligacoes: {
+        Row: {
+          atendeu: boolean
+          created_at: string
+          criado_por: string | null
+          id: number
+          nps_pesquisa_id: number | null
+          observacao: string | null
+          retornar_em: string | null
+          telefone: string
+        }
+        Insert: {
+          atendeu: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: number
+          nps_pesquisa_id?: number | null
+          observacao?: string | null
+          retornar_em?: string | null
+          telefone: string
+        }
+        Update: {
+          atendeu?: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: number
+          nps_pesquisa_id?: number | null
+          observacao?: string | null
+          retornar_em?: string | null
+          telefone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nps_ligacoes_nps_pesquisa_id_fkey"
+            columns: ["nps_pesquisa_id"]
+            isOneToOne: false
+            referencedRelation: "nps_pesquisas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nps_mensagens_texto_livre: {
         Row: {
           id: number
