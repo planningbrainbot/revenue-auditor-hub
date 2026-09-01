@@ -25,6 +25,30 @@ async function assertCanDispararCampanha(supabase: any) {
   if (!data) throw new Error("Acesso negado: você não pode disparar campanhas.");
 }
 
+// Mesma régua de churn de listPlanoAcaoContatos/listNpsCoverage/
+// clientes.functions.ts: card em central_tratativas com status="lost" (vem
+// do id da fase, não do nome — robusto a rename). O disparo em massa já é
+// protegido na origem pela view nps_audiencia (não lista quem tem churn);
+// o reenvio individual não passa por ela, então precisa checar aqui.
+async function assertEmpresaNaoChurn(supabase: any, empresaId: number | null | undefined) {
+  if (empresaId == null) return; // sem empresa vinculada — não dá pra saber, não bloqueia
+  const { data: empresa, error: erroEmpresa } = await supabase
+    .from("empresas")
+    .select("pipedrive_id")
+    .eq("id", empresaId)
+    .maybeSingle();
+  if (erroEmpresa) throw new Error(erroEmpresa.message);
+  if (!empresa?.pipedrive_id) return;
+  const { data: churn, error: erroChurn } = await supabase
+    .from("central_tratativas")
+    .select("id")
+    .eq("status", "lost")
+    .eq("pipedrive_deal_id", empresa.pipedrive_id)
+    .maybeSingle();
+  if (erroChurn) throw new Error(erroChurn.message);
+  if (churn) throw new Error("Esse cliente já tem churn registrado em Tratativas — disparo bloqueado.");
+}
+
 export interface NpsRow {
   id: number;
   pipefy_card_id: string | null;
@@ -293,6 +317,7 @@ export interface NpsExecucaoRow {
   erro: Json | null;
   statusAtualizadoEm: string | null;
   empresa: string | null;
+  empresaId: number | null;
   unidade: string | null;
   rodada: string | null;
   npsRecomendacao: string | null;
@@ -359,6 +384,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
     type PesquisaInfo = {
       id: number;
       empresa: string | null;
+      empresa_id: number | null;
       unidade: string | null;
       rodada: string | null;
       nps_recomendacao: string | null;
@@ -374,7 +400,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       recebeu_mensagem: string | null;
     };
     const pesquisaCols =
-      "id,pipefy_card_id,empresa,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,canal_resposta,gravacao_url,recebeu_mensagem";
+      "id,pipefy_card_id,empresa,empresa_id,unidade,rodada,nps_recomendacao,fase,nome_contato,email_pesquisa,avaliacao_fiscal,avaliacao_contabil,avaliacao_folha_pagamento,servicos_contratados,canal_resposta,gravacao_url,recebeu_mensagem";
     const porPesquisaId = new Map<number, PesquisaInfo>();
     const porCard = new Map<string, PesquisaInfo>();
 
@@ -406,6 +432,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         erro: e.erro,
         statusAtualizadoEm: e.status_atualizado_em,
         empresa: info?.empresa ?? null,
+        empresaId: info?.empresa_id ?? null,
         unidade: info?.unidade ?? null,
         rodada: info?.rodada ?? null,
         npsRecomendacao: info?.nps_recomendacao ?? null,
@@ -422,6 +449,38 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       };
     });
 
+    // Cliente com churn registrado em Tratativas não deve seguir na lista de
+    // trabalho do CS — nem pra ligar, nem pra receber pesquisa de novo
+    // (disparo em massa já é barrado na origem pela view nps_audiencia).
+    const empresaIdsEnvolvidos = Array.from(new Set(rows.map((r) => r.empresaId).filter((v): v is number => v != null)));
+    let rowsFiltradas = rows;
+    if (empresaIdsEnvolvidos.length > 0) {
+      const { data: empresasEnvolvidas, error: erroEmpresas } = await supabase
+        .from("empresas")
+        .select("id,pipedrive_id")
+        .in("id", empresaIdsEnvolvidos);
+      if (erroEmpresas) throw new Error(erroEmpresas.message);
+      const pipedriveIdsEnvolvidos = (empresasEnvolvidas ?? [])
+        .map((e) => (e.pipedrive_id ? Number(e.pipedrive_id) : null))
+        .filter((v): v is number => v != null && Number.isFinite(v));
+      let empresaIdsChurn = new Set<number>();
+      if (pipedriveIdsEnvolvidos.length > 0) {
+        const { data: churnData, error: erroChurn } = await supabase
+          .from("central_tratativas")
+          .select("pipedrive_deal_id")
+          .eq("status", "lost")
+          .in("pipedrive_deal_id", pipedriveIdsEnvolvidos);
+        if (erroChurn) throw new Error(erroChurn.message);
+        const pipedriveIdsChurn = new Set((churnData ?? []).map((c) => String(c.pipedrive_deal_id)));
+        empresaIdsChurn = new Set(
+          (empresasEnvolvidas ?? [])
+            .filter((e) => e.pipedrive_id && pipedriveIdsChurn.has(e.pipedrive_id))
+            .map((e) => e.id),
+        );
+      }
+      rowsFiltradas = rows.filter((r) => r.empresaId == null || !empresaIdsChurn.has(r.empresaId));
+    }
+
     const { data: textos, error: erroTextos } = await supabase
       .from("nps_mensagens_texto_livre")
       .select("id,telefone,texto,tipo_mensagem,recebido_em")
@@ -437,7 +496,7 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
     if (erroLigacoes) throw new Error(erroLigacoes.message);
 
     return {
-      rows,
+      rows: rowsFiltradas,
       textoLivre: (textos ?? []).map((t) => ({
         id: t.id,
         telefone: t.telefone,
@@ -455,12 +514,12 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         criadoPor: l.criado_por,
         criadoEm: l.created_at,
       })),
-      totalEnviados: rows.length,
-      totalRespondidos: rows.filter((r) => r.respondido).length,
-      totalAguardando: rows.filter((r) => !r.respondido && r.status !== "failed").length,
-      totalFalhas: rows.filter((r) => r.status === "failed").length,
-      rodadas: Array.from(new Set(rows.map((r) => r.rodada).filter((v): v is string => !!v))).sort().reverse(),
-      unidades: Array.from(new Set(rows.map((r) => r.unidade).filter((v): v is string => !!v))).sort(),
+      totalEnviados: rowsFiltradas.length,
+      totalRespondidos: rowsFiltradas.filter((r) => r.respondido).length,
+      totalAguardando: rowsFiltradas.filter((r) => !r.respondido && r.status !== "failed").length,
+      totalFalhas: rowsFiltradas.filter((r) => r.status === "failed").length,
+      rodadas: Array.from(new Set(rowsFiltradas.map((r) => r.rodada).filter((v): v is string => !!v))).sort().reverse(),
+      unidades: Array.from(new Set(rowsFiltradas.map((r) => r.unidade).filter((v): v is string => !!v))).sort(),
     };
   });
 
@@ -603,7 +662,14 @@ export const dispararCampanhaNps = createServerFn({ method: "POST" })
 export const dispararPesquisaIndividual = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: { telefone: string; empresa?: string | null; unidade?: string | null; nome?: string | null; email?: string | null }) => d,
+    (d: {
+      telefone: string;
+      empresa?: string | null;
+      unidade?: string | null;
+      nome?: string | null;
+      email?: string | null;
+      empresaId?: number | null;
+    }) => d,
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase } = context;
@@ -611,6 +677,7 @@ export const dispararPesquisaIndividual = createServerFn({ method: "POST" })
 
     const telefone = data.telefone?.trim();
     if (!telefone) throw new Error("Telefone obrigatório.");
+    await assertEmpresaNaoChurn(supabase, data.empresaId);
 
     const res = await fetch(N8N_DISPARO_INDIVIDUAL_WEBHOOK_URL, {
       method: "POST",

@@ -74,8 +74,14 @@ export function useDispararPesquisaIndividual() {
   const fn = useServerFn(dispararPesquisaIndividual);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { telefone: string; empresa?: string | null; unidade?: string | null; nome?: string | null; email?: string | null }) =>
-      fn({ data }),
+    mutationFn: (data: {
+      telefone: string;
+      empresa?: string | null;
+      unidade?: string | null;
+      nome?: string | null;
+      email?: string | null;
+      empresaId?: number | null;
+    }) => fn({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["nps-execucao"] });
     },

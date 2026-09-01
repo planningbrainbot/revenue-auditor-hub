@@ -542,6 +542,7 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
         unidade: row.unidade,
         nome: row.nomeContato,
         email: row.emailPesquisa,
+        empresaId: row.empresaId,
       },
       {
         onSuccess: () => toast.success(`Reenvio pra ${row.empresa ?? row.telefone} iniciado.`),
