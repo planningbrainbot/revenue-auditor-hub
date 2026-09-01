@@ -4437,6 +4437,51 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_custos: {
+        Row: {
+          categoria: string
+          created_at: string
+          custo: number
+          dia: string
+          id: number
+          moeda: string
+          phone_number: string
+          tipo: string
+          updated_at: string
+          volume: number
+          waba_id: string
+          waba_nome: string | null
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          custo?: number
+          dia: string
+          id?: number
+          moeda?: string
+          phone_number: string
+          tipo: string
+          updated_at?: string
+          volume?: number
+          waba_id: string
+          waba_nome?: string | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          custo?: number
+          dia?: string
+          id?: number
+          moeda?: string
+          phone_number?: string
+          tipo?: string
+          updated_at?: string
+          volume?: number
+          waba_id?: string
+          waba_nome?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       despesas_cm: {

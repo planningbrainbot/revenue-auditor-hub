@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Send } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NpsExecucaoTab } from "@/components/nps/nps-execucao-tab";
+import { CustosTab } from "@/components/whatsapp/custos-tab";
 
 export const Route = createFileRoute("/_authenticated/disparos-whatsapp")({
   component: DisparosWhatsappPage,
@@ -20,7 +22,18 @@ function DisparosWhatsappPage() {
         </div>
       </div>
 
-      <NpsExecucaoTab />
+      <Tabs defaultValue="execucao">
+        <TabsList>
+          <TabsTrigger value="execucao">Execução</TabsTrigger>
+          <TabsTrigger value="custos">Custos</TabsTrigger>
+        </TabsList>
+        <TabsContent value="execucao" className="mt-4">
+          <NpsExecucaoTab />
+        </TabsContent>
+        <TabsContent value="custos" className="mt-4">
+          <CustosTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
