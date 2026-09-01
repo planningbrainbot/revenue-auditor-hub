@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Clock, MessageCircleMore, Send, SlidersHorizontal } from "lucide-react";
+import { Clock, MessageCircleMore, RotateCw, Send, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Phone, TriangleAlert, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNpsExecucao, useAudienciaPorUnidade, useDispararCampanha, useRegistrarRespostaPorLigacao } from "@/hooks/use-nps";
+import {
+  useNpsExecucao,
+  useAudienciaPorUnidade,
+  useDispararCampanha,
+  useDispararPesquisaIndividual,
+  useRegistrarRespostaPorLigacao,
+} from "@/hooks/use-nps";
 import type { NpsExecucaoRow } from "@/lib/nps.functions";
 import { validarTelefone } from "@/lib/telefone";
 
@@ -407,6 +413,61 @@ function DispararCampanhaCard() {
   );
 }
 
+// Reenvio pontual — cliente pede na ligação, não é disparo de unidade
+// inteira. Reaproveita o mesmo webhook/pipeline (validação de formato, janela
+// 8h-19h, alternância de número), só que pra 1 contato.
+function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
+  const reenviar = useDispararPesquisaIndividual();
+
+  const handleConfirm = () => {
+    reenviar.mutate(
+      {
+        telefone: row.telefone,
+        empresa: row.empresa,
+        unidade: row.unidade,
+        nome: row.nomeContato,
+        email: row.emailPesquisa,
+      },
+      {
+        onSuccess: () => toast.success(`Reenvio pra ${row.empresa ?? row.telefone} iniciado.`),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao reenviar."),
+      },
+    );
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2" disabled={reenviar.isPending}>
+          <RotateCw className="size-3.5" />
+          {reenviar.isPending ? "Reenviando…" : "Reenviar pesquisa"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Reenviar pesquisa pra {row.empresa ?? row.telefone}?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                Envia uma nova mensagem real de WhatsApp (template de pesquisa) só pro telefone{" "}
+                <strong className="text-foreground">{row.telefone}</strong>. Não afeta os outros contatos da unidade.
+                Não tem como cancelar depois de enviado.
+              </p>
+              <p className="rounded-md border border-amber-600/30 bg-amber-600/[0.07] p-2.5 text-amber-800 dark:text-amber-300">
+                Custo estimado: <strong>US$ {CUSTO_POR_MENSAGEM_USD.toFixed(2)}</strong> (cobrado pela Meta no envio).
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirm}>Reenviar agora</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
   const [rodada, setRodada] = useState<string>("todas");
@@ -660,6 +721,9 @@ export function NpsExecucaoTab() {
                   {selected.status === "failed" && erroResumo(selected.erro) && (
                     <p className="mt-2 text-xs text-red-600">{erroResumo(selected.erro)}</p>
                   )}
+                  <div className="mt-3">
+                    <ReenviarPesquisaButton row={selected} />
+                  </div>
                 </div>
 
                 {mensagensDoSelecionado.length > 0 && (

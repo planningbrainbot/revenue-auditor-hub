@@ -6,6 +6,7 @@ import {
   listNpsExecucao,
   listAudienciaPorUnidade,
   dispararCampanhaNps,
+  dispararPesquisaIndividual,
   registrarRespostaPorLigacao,
 } from "@/lib/nps.functions";
 import { listPlanoAcaoContatos } from "@/lib/contatos-cs.functions";
@@ -64,6 +65,18 @@ export function useDispararCampanha() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["nps-execucao"] });
       qc.invalidateQueries({ queryKey: ["nps-audiencia-por-unidade"] });
+    },
+  });
+}
+
+export function useDispararPesquisaIndividual() {
+  const fn = useServerFn(dispararPesquisaIndividual);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { telefone: string; empresa?: string | null; unidade?: string | null; nome?: string | null; email?: string | null }) =>
+      fn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nps-execucao"] });
     },
   });
 }

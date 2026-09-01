@@ -10,6 +10,15 @@ import type { Json, Database } from "@/integrations/supabase/types";
 // [[project_n8n_nps_whatsapp]]). Não expor esse valor no client.
 const N8N_DISPARO_WEBHOOK_URL = "https://n8n.planningbrain.com.br/webhook/nps-disparar-a8f3c91d";
 
+// Segundo gatilho no MESMO workflow, pra reenvio pontual (1 contato por vez) —
+// pedido do CS: cliente pede reenvio na ligação, sem precisar disparar a
+// unidade inteira de novo. Entra direto em "Validar Telefone", reaproveitando
+// o mesmo filtro de formato, janela de horário (8h-19h) e alternância de
+// número já validados no disparo em massa — só pula a etapa de buscar
+// audiência por unidade, porque o contato já é conhecido.
+const N8N_DISPARO_INDIVIDUAL_WEBHOOK_URL =
+  "https://n8n.planningbrain.com.br/webhook/nps-disparar-individual-758cf0af";
+
 async function assertCanDispararCampanha(supabase: any) {
   const { data, error } = await supabase.rpc("can", { _key: "view.disparos_whatsapp" });
   if (error) throw new Error("Erro de autorização.");
@@ -555,6 +564,37 @@ export const dispararCampanhaNps = createServerFn({ method: "POST" })
       body: JSON.stringify({ unidade }),
     });
     if (!res.ok) throw new Error(`Falha ao acionar o disparo (HTTP ${res.status}).`);
+
+    return { ok: true };
+  });
+
+// Reenvio pontual pra 1 contato — cliente que o CS está ligando pede pra
+// reenviar a pesquisa. Não é ação em massa: dispara só esse telefone, sem
+// mexer no resto da unidade.
+export const dispararPesquisaIndividual = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: { telefone: string; empresa?: string | null; unidade?: string | null; nome?: string | null; email?: string | null }) => d,
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase } = context;
+    await assertCanDispararCampanha(supabase);
+
+    const telefone = data.telefone?.trim();
+    if (!telefone) throw new Error("Telefone obrigatório.");
+
+    const res = await fetch(N8N_DISPARO_INDIVIDUAL_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telefone,
+        empresa: data.empresa ?? undefined,
+        unidade: data.unidade ?? undefined,
+        nome: data.nome ?? undefined,
+        email: data.email ?? undefined,
+      }),
+    });
+    if (!res.ok) throw new Error(`Falha ao acionar o reenvio (HTTP ${res.status}).`);
 
     return { ok: true };
   });
