@@ -594,14 +594,33 @@ export const registrarRespostaPorLigacao = createServerFn({ method: "POST" })
     if (data.nomeContato) patch.nome_contato = data.nomeContato;
     if (data.gravacaoUrl) patch.gravacao_url = data.gravacaoUrl;
 
-    const { error: erroPesquisa } = await supabase.from("nps_pesquisas").update(patch).eq("id", data.pesquisaId);
+    // .update() sem .select() não erra quando o RLS bloqueia a escrita — só
+    // não afeta nenhuma linha, em silêncio (foi exatamente o bug de
+    // 01/09/2026: toast de sucesso, nada salvo). Forçar o retorno da linha e
+    // checar que ela veio é a única forma de pegar isso aqui.
+    const { data: pesquisaAtualizada, error: erroPesquisa } = await supabase
+      .from("nps_pesquisas")
+      .update(patch)
+      .eq("id", data.pesquisaId)
+      .select("id");
     if (erroPesquisa) throw new Error(erroPesquisa.message);
+    if (!pesquisaAtualizada || pesquisaAtualizada.length === 0) {
+      throw new Error(
+        `Nenhuma pesquisa foi atualizada (id ${data.pesquisaId}) — provável bloqueio de permissão (RLS). A resposta NÃO foi salva.`,
+      );
+    }
 
-    const { error: erroEnvio } = await supabase
+    const { data: envioAtualizado, error: erroEnvio } = await supabase
       .from("nps_envio_map")
       .update({ respondido: true })
-      .eq("telefone", data.telefone);
+      .eq("telefone", data.telefone)
+      .select("id");
     if (erroEnvio) throw new Error(erroEnvio.message);
+    if (!envioAtualizado || envioAtualizado.length === 0) {
+      throw new Error(
+        `A pesquisa foi salva, mas o envio (telefone ${data.telefone}) não foi marcado como respondido — provável bloqueio de permissão (RLS). Avise o suporte.`,
+      );
+    }
 
     return { ok: true };
   });
