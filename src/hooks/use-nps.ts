@@ -8,6 +8,7 @@ import {
   dispararCampanhaNps,
   dispararPesquisaIndividual,
   registrarRespostaPorLigacao,
+  registrarLigacao,
 } from "@/lib/nps.functions";
 import { listPlanoAcaoContatos } from "@/lib/contatos-cs.functions";
 
@@ -75,6 +76,23 @@ export function useDispararPesquisaIndividual() {
   return useMutation({
     mutationFn: (data: { telefone: string; empresa?: string | null; unidade?: string | null; nome?: string | null; email?: string | null }) =>
       fn({ data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["nps-execucao"] });
+    },
+  });
+}
+
+export function useRegistrarLigacao() {
+  const fn = useServerFn(registrarLigacao);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      pesquisaId: number | null;
+      telefone: string;
+      atendeu: boolean;
+      retornarEm?: string | null;
+      observacao?: string | null;
+    }) => fn({ data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["nps-execucao"] });
     },

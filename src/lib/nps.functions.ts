@@ -316,9 +316,21 @@ export interface NpsTextoLivreRow {
   recebidoEm: string;
 }
 
+export interface NpsLigacaoRow {
+  id: number;
+  pesquisaId: number | null;
+  telefone: string;
+  atendeu: boolean;
+  retornarEm: string | null;
+  observacao: string | null;
+  criadoPor: string | null;
+  criadoEm: string;
+}
+
 export interface NpsExecucaoResult {
   rows: NpsExecucaoRow[];
   textoLivre: NpsTextoLivreRow[];
+  ligacoes: NpsLigacaoRow[];
   totalEnviados: number;
   totalRespondidos: number;
   totalAguardando: number;
@@ -417,6 +429,13 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
       .limit(100);
     if (erroTextos) throw new Error(erroTextos.message);
 
+    const { data: ligacoes, error: erroLigacoes } = await supabase
+      .from("nps_ligacoes")
+      .select("id,nps_pesquisa_id,telefone,atendeu,retornar_em,observacao,criado_por,created_at")
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    if (erroLigacoes) throw new Error(erroLigacoes.message);
+
     return {
       rows,
       textoLivre: (textos ?? []).map((t) => ({
@@ -425,6 +444,16 @@ export const listNpsExecucao = createServerFn({ method: "GET" })
         texto: t.texto,
         tipoMensagem: t.tipo_mensagem,
         recebidoEm: t.recebido_em,
+      })),
+      ligacoes: (ligacoes ?? []).map((l) => ({
+        id: l.id,
+        pesquisaId: l.nps_pesquisa_id,
+        telefone: l.telefone,
+        atendeu: l.atendeu,
+        retornarEm: l.retornar_em,
+        observacao: l.observacao,
+        criadoPor: l.criado_por,
+        criadoEm: l.created_at,
       })),
       totalEnviados: rows.length,
       totalRespondidos: rows.filter((r) => r.respondido).length,
@@ -666,6 +695,48 @@ export const registrarRespostaPorLigacao = createServerFn({ method: "POST" })
       throw new Error(
         `A pesquisa foi salva, mas o envio (telefone ${data.telefone}) não foi marcado como respondido — provável bloqueio de permissão (RLS). Avise o suporte.`,
       );
+    }
+
+    return { ok: true };
+  });
+
+// Log de tentativa de ligação — separado de registrarRespostaPorLigacao
+// porque o CS precisa marcar "liguei e não atendeu" ou "atendeu, vai
+// retornar" sem necessariamente fechar a pesquisa. Append-only: cada clique
+// cria uma linha nova, o histórico completo fica visível no contato.
+export const registrarLigacao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      pesquisaId: number | null;
+      telefone: string;
+      atendeu: boolean;
+      retornarEm?: string | null;
+      observacao?: string | null;
+    }) => d,
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase, userId, claims } = context;
+    await assertCanDispararCampanha(supabase);
+
+    const telefone = data.telefone?.trim();
+    if (!telefone) throw new Error("Telefone obrigatório.");
+
+    const email = (claims as any)?.email ?? null;
+    const result = await supabase
+      .from("nps_ligacoes")
+      .insert({
+        nps_pesquisa_id: data.pesquisaId,
+        telefone,
+        atendeu: data.atendeu,
+        retornar_em: data.retornarEm || null,
+        observacao: data.observacao || null,
+        criado_por: email ?? userId,
+      })
+      .select("id");
+    if (result.error) throw new Error(result.error.message);
+    if (!result.data || result.data.length === 0) {
+      throw new Error("Ligação não foi registrada — possível bloqueio de permissão (RLS).");
     }
 
     return { ok: true };

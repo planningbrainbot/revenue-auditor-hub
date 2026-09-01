@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Clock, MessageCircleMore, RotateCw, Send, SlidersHorizontal } from "lucide-react";
+import { Clock, MessageCircleMore, PhoneCall, RotateCw, Send, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,9 @@ import {
   useDispararCampanha,
   useDispararPesquisaIndividual,
   useRegistrarRespostaPorLigacao,
+  useRegistrarLigacao,
 } from "@/hooks/use-nps";
-import type { NpsExecucaoRow } from "@/lib/nps.functions";
+import type { NpsExecucaoRow, NpsLigacaoRow } from "@/lib/nps.functions";
 import { validarTelefone } from "@/lib/telefone";
 
 const SERVICOS_OPCOES = ["Serviço Fiscal", "Serviço Contábil", "Serviço de Folha de Pagamento"];
@@ -143,6 +144,120 @@ function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
     return String((erro as { title?: unknown }).title ?? "Falha no envio");
   }
   return "Falha no envio";
+}
+
+type ResultadoLigacao = "" | "nao_atendeu" | "atendeu_retornar" | "atendeu_outro";
+
+// Log de tentativa de ligação — separado da resposta final da pesquisa.
+// CS liga, às vezes não atende, às vezes atende e pede pra ligar depois; cada
+// tentativa vira uma linha no histórico, sem precisar fechar a pesquisa.
+function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; historico: NpsLigacaoRow[] }) {
+  const registrar = useRegistrarLigacao();
+  const [resultado, setResultado] = useState<ResultadoLigacao>("");
+  const [retornarEm, setRetornarEm] = useState("");
+  const [observacao, setObservacao] = useState("");
+
+  const handleSubmit = () => {
+    if (!resultado) {
+      toast.error("Escolha o resultado da ligação.");
+      return;
+    }
+    if (resultado === "atendeu_retornar" && !retornarEm) {
+      toast.error("Informe a data de retorno.");
+      return;
+    }
+    registrar.mutate(
+      {
+        pesquisaId: row.pesquisaId,
+        telefone: row.telefone,
+        atendeu: resultado !== "nao_atendeu",
+        retornarEm: resultado === "atendeu_retornar" ? retornarEm : null,
+        observacao: observacao.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Ligação registrada.");
+          setResultado("");
+          setRetornarEm("");
+          setObservacao("");
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao registrar ligação."),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <PhoneCall className="size-4 text-muted-foreground" />
+        Registrar tentativa de ligação
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Resultado</Label>
+        <Select value={resultado} onValueChange={(v) => setResultado(v as ResultadoLigacao)}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Escolher…" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="nao_atendeu">Não atendeu</SelectItem>
+            <SelectItem value="atendeu_retornar">Atendeu — pediu pra ligar depois</SelectItem>
+            <SelectItem value="atendeu_outro">Atendeu — outro motivo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {resultado === "atendeu_retornar" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Retornar em</Label>
+          <Input type="date" value={retornarEm} onChange={(e) => setRetornarEm(e.target.value)} className="h-9" />
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Observação (opcional)</Label>
+        <Input
+          value={observacao}
+          onChange={(e) => setObservacao(e.target.value)}
+          placeholder="Ex: pediu pra ligar de manhã"
+          className="h-9"
+        />
+      </div>
+
+      <Button onClick={handleSubmit} disabled={registrar.isPending} variant="outline" className="w-full">
+        {registrar.isPending ? "Registrando…" : "Registrar ligação"}
+      </Button>
+
+      {historico.length > 0 && (
+        <div className="space-y-1.5 border-t pt-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Histórico de ligações ({historico.length})
+          </span>
+          <div className="space-y-1.5">
+            {historico.map((l) => (
+              <div key={l.id} className="rounded-md border p-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={l.atendeu ? "font-medium text-emerald-700 dark:text-emerald-400" : "font-medium text-muted-foreground"}
+                  >
+                    {l.atendeu ? "Atendeu" : "Não atendeu"}
+                  </span>
+                  <span className="text-muted-foreground">{tempoDecorrido(l.criadoEm)}</span>
+                </div>
+                {l.retornarEm && (
+                  <div className="mt-1 text-amber-700 dark:text-amber-400">
+                    Retornar em {new Date(`${l.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
+                  </div>
+                )}
+                {l.observacao && <div className="mt-1 text-muted-foreground">{l.observacao}</div>}
+                {l.criadoPor && <div className="mt-1 text-[11px] text-muted-foreground">por {l.criadoPor}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; onDone: () => void }) {
@@ -468,11 +583,14 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
   );
 }
 
+type SituacaoLigacao = "todas" | "ja_ligamos" | "agendado" | "nunca_ligamos";
+
 export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
   const [rodada, setRodada] = useState<string>("todas");
   const [unidade, setUnidade] = useState<string>("todas");
   const [status, setStatus] = useState<string>("todos");
+  const [situacaoLigacao, setSituacaoLigacao] = useState<SituacaoLigacao>("todas");
   const [soNaoRespondidos, setSoNaoRespondidos] = useState(false);
   const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
 
@@ -485,6 +603,36 @@ export function NpsExecucaoTab() {
     return data.textoLivre.filter((t) => validarTelefone(t.telefone).digitos === alvo);
   }, [selected, data]);
 
+  // Ligações por telefone canônico, mais recente primeiro (já vem ordenado
+  // desc do servidor) — usado pro badge na tabela, pro histórico no painel e
+  // pros contadores "já ligamos" / "agendado pra retornar".
+  const ligacoesPorTelefone = useMemo(() => {
+    const map = new Map<string, NpsLigacaoRow[]>();
+    if (!data) return map;
+    for (const l of data.ligacoes) {
+      const key = validarTelefone(l.telefone).digitos;
+      const list = map.get(key) ?? [];
+      list.push(l);
+      map.set(key, list);
+    }
+    return map;
+  }, [data]);
+
+  const ligacoesDoSelecionado = useMemo(() => {
+    if (!selected) return [];
+    return ligacoesPorTelefone.get(validarTelefone(selected.telefone).digitos) ?? [];
+  }, [selected, ligacoesPorTelefone]);
+
+  // "Agendado pra retornar" olha só a tentativa MAIS RECENTE de cada
+  // telefone — uma ligação nova sem retornar_em fecha o agendamento anterior.
+  const totalAgendados = useMemo(() => {
+    let count = 0;
+    for (const list of ligacoesPorTelefone.values()) {
+      if (list[0]?.retornarEm) count += 1;
+    }
+    return count;
+  }, [ligacoesPorTelefone]);
+
   const filteredRows = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((r) => {
@@ -492,9 +640,15 @@ export function NpsExecucaoTab() {
       if (unidade !== "todas" && r.unidade !== unidade) return false;
       if (status !== "todos" && statusKey(r) !== status) return false;
       if (soNaoRespondidos && r.respondido) return false;
+      if (situacaoLigacao !== "todas") {
+        const list = ligacoesPorTelefone.get(validarTelefone(r.telefone).digitos) ?? [];
+        if (situacaoLigacao === "nunca_ligamos" && list.length > 0) return false;
+        if (situacaoLigacao === "ja_ligamos" && list.length === 0) return false;
+        if (situacaoLigacao === "agendado" && !list[0]?.retornarEm) return false;
+      }
       return true;
     });
-  }, [data, rodada, unidade, status, soNaoRespondidos]);
+  }, [data, rodada, unidade, status, soNaoRespondidos, situacaoLigacao, ligacoesPorTelefone]);
 
   // Só oferece no filtro os status que realmente existem nos disparos carregados.
   const statusDisponiveis = useMemo(() => {
@@ -505,7 +659,7 @@ export function NpsExecucaoTab() {
 
   const activeFilters =
     (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0) + (status !== "todos" ? 1 : 0) +
-    (soNaoRespondidos ? 1 : 0);
+    (situacaoLigacao !== "todas" ? 1 : 0) + (soNaoRespondidos ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -527,7 +681,7 @@ export function NpsExecucaoTab() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Enviados</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{data.totalEnviados}</div>
@@ -543,6 +697,15 @@ export function NpsExecucaoTab() {
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Falhas</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums text-red-600">{data.totalFalhas}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Ligações feitas</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums">{data.ligacoes.length}</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{ligacoesPorTelefone.size} contatos ligados</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-muted-foreground">Agendados p/ retornar</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-sky-600">{totalAgendados}</div>
             </Card>
           </div>
 
@@ -620,6 +783,20 @@ export function NpsExecucaoTab() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Situação da ligação</span>
+                    <Select value={situacaoLigacao} onValueChange={(v) => setSituacaoLigacao(v as SituacaoLigacao)}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas</SelectItem>
+                        <SelectItem value="nunca_ligamos">Nunca ligamos</SelectItem>
+                        <SelectItem value="ja_ligamos">Já ligamos</SelectItem>
+                        <SelectItem value="agendado">Agendado pra retornar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </PopoverContent>
               </Popover>
               </div>
@@ -634,12 +811,15 @@ export function NpsExecucaoTab() {
                     <TableHead className="bg-background">Rodada</TableHead>
                     <TableHead className="bg-background">Enviado há</TableHead>
                     <TableHead className="bg-background">Status</TableHead>
+                    <TableHead className="bg-background">Ligação</TableHead>
                     <TableHead className="bg-background text-center">NPS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredRows.map((r) => {
                     const validacao = validarTelefone(r.telefone);
+                    const ligacoesDoContato = ligacoesPorTelefone.get(validacao.digitos) ?? [];
+                    const ultimaLigacao = ligacoesDoContato[0];
                     return (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs">
@@ -677,13 +857,32 @@ export function NpsExecucaoTab() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>
+                        {ligacoesDoContato.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              {ligacoesDoContato.length}x · {ultimaLigacao.atendeu ? "atendeu" : "não atendeu"}
+                            </span>
+                            {ultimaLigacao.retornarEm && (
+                              <Badge
+                                variant="outline"
+                                className="w-fit border-sky-600/30 bg-sky-600/[0.07] text-sky-700 dark:text-sky-400"
+                              >
+                                Retornar {new Date(`${ultimaLigacao.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center">{r.npsRecomendacao ?? "—"}</TableCell>
                     </TableRow>
                     );
                   })}
                   {filteredRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                         {data.rows.length === 0
                           ? 'Nenhum disparo ainda. Assim que o workflow "NPS - Criar Card e Enviar WhatsApp" rodar, os envios aparecem aqui em tempo real.'
                           : "Nenhum disparo com esses filtros."}
@@ -744,7 +943,10 @@ export function NpsExecucaoTab() {
                 )}
 
                 {!selected.respondido ? (
-                  <RegistrarRespostaLigacaoForm row={selected} onDone={() => setSelected(null)} />
+                  <>
+                    <RegistrarLigacaoForm row={selected} historico={ligacoesDoSelecionado} />
+                    <RegistrarRespostaLigacaoForm row={selected} onDone={() => setSelected(null)} />
+                  </>
                 ) : (
                   <>
                     {selected.canalResposta === "ligacao" && (
