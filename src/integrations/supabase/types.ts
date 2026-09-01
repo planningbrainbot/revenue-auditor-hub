@@ -2026,6 +2026,7 @@ export type Database = {
           nps_recomendacao: string | null
           pipedrive_deal_id: string | null
           pipefy_card_id: string | null
+          recebeu_mensagem: string | null
           rodada: string | null
           segmento: string | null
           servicos_contratados: string[] | null
@@ -2052,6 +2053,7 @@ export type Database = {
           nps_recomendacao?: string | null
           pipedrive_deal_id?: string | null
           pipefy_card_id?: string | null
+          recebeu_mensagem?: string | null
           segmento?: string | null
           servicos_contratados?: string[] | null
           synced_at?: string | null
@@ -2076,6 +2078,7 @@ export type Database = {
           nps_recomendacao?: string | null
           pipedrive_deal_id?: string | null
           pipefy_card_id?: string | null
+          recebeu_mensagem?: string | null
           rodada?: string | null
           segmento?: string | null
           servicos_contratados?: string[] | null
