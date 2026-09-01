@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 
 const KEY_RE = /^[a-z][a-z0-9_]{1,49}$/;
 
@@ -72,11 +73,12 @@ export const updateRole = createServerFn({ method: "POST" })
       .single();
     if (fetchErr || !role) throw new Error("Perfil não encontrado.");
     if (role.is_system) throw new Error("Perfis de sistema não podem ser editados por aqui.");
-    const { error } = await context.supabase
+    const result = await context.supabase
       .from("roles")
       .update({ label: data.label, description: data.description })
-      .eq("id", data.id);
-    if (error) throw new Error("Erro ao atualizar perfil.");
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(result, "Perfil não foi atualizado — possível bloqueio de permissão (RLS).");
     return { ok: true };
   });
 

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertAffected } from "@/lib/supabase-assert";
 
 type Role = string;
 
@@ -143,10 +144,12 @@ export const adminCreateUser = createServerFn({ method: "POST" })
           .ilike("email", data.email)
           .maybeSingle();
         if (existing) {
-          await supabaseAdmin
+          const result = await supabaseAdmin
             .from("socios")
             .update({ unidade: data.unidade, user_id: userId, nome_completo: data.nome })
-            .eq("id", existing.id);
+            .eq("id", existing.id)
+            .select("id");
+          assertAffected(result, `Sócio ${existing.id} não foi atualizado.`);
         } else {
           await supabaseAdmin
             .from("socios")
@@ -219,14 +222,12 @@ export const adminUpdateUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: pErr } = await supabaseAdmin
-      .from("profiles")
-      .update({ nome: data.nome })
-      .eq("user_id", data.user_id);
-    if (pErr) {
-      console.error("[adminUpdateUser] profile update failed:", pErr);
+    const pResult = await supabaseAdmin.from("profiles").update({ nome: data.nome }).eq("user_id", data.user_id).select("user_id");
+    if (pResult.error) {
+      console.error("[adminUpdateUser] profile update failed:", pResult.error);
       throw new Error("Falha ao atualizar nome.");
     }
+    assertAffected(pResult, `Perfil do usuário ${data.user_id} não foi atualizado.`);
     const { error: aErr } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
       user_metadata: { nome: data.nome },
     });

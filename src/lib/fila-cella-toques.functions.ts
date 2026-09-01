@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { CicloRow, ToqueRow } from "@/lib/fila-cella.types";
+import { assertAffected } from "@/lib/supabase-assert";
 
 // Escrita da cadência da Fila Cella — spec-tela-fila-cella.md v0.3 §6.5.
 //
@@ -307,7 +308,7 @@ export const encerrarCiclo = createServerFn({ method: "POST" })
     const bloqueio = new Date(encerrado);
     bloqueio.setDate(bloqueio.getDate() + (data.recusa_explicita ? 180 : 60));
 
-    const { error } = await admin
+    const result = await admin
       .from("fila_cella_ciclos")
       .update({
         status: "encerrado",
@@ -317,7 +318,12 @@ export const encerrarCiclo = createServerFn({ method: "POST" })
         bloqueado_ate: bloqueio.toISOString().slice(0, 10),
       })
       .eq("id", data.ciclo_id)
-      .eq("status", "aberto");
-    if (error) throw new Error(error.message);
+      .eq("status", "aberto")
+      .select("id");
+    if (result.error) throw new Error(result.error.message);
+    assertAffected(
+      result,
+      `Ciclo ${data.ciclo_id} não foi encerrado — já não está mais "aberto" (outra ação já mexeu nele) ou não existe.`,
+    );
     return { ok: true, bloqueado_ate: bloqueio.toISOString().slice(0, 10) };
   });

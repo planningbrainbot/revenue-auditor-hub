@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin, digits, monthRange } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 
 // ============ Types ============
 export interface UnidadeRoyalties {
@@ -826,8 +827,8 @@ export async function gerarItensApuracaoCore(
     if (upd.motivo_exclusao !== undefined) patch.motivo_exclusao = upd.motivo_exclusao;
     if (upd.data_pagamento_omie !== undefined) patch.data_pagamento_omie = upd.data_pagamento_omie;
     if (upd.data_competencia_omie !== undefined) patch.data_competencia_omie = upd.data_competencia_omie;
-    const { error: uErr } = await supabase.from("royalties_itens").update(patch).eq("id", upd.id);
-    if (uErr) throw new Error(uErr.message);
+    const result = await supabase.from("royalties_itens").update(patch).eq("id", upd.id).select("id");
+    assertAffected(result, `Item de royalties ${upd.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
   }
 
   // Backfill de data_pagamento_omie/data_competencia_omie sem tocar em
@@ -835,14 +836,15 @@ export async function gerarItensApuracaoCore(
   // geração (senão essas datas nunca apareceriam pra apurações já confirmadas
   // ou com itens estáveis).
   for (const upd of atualizacoesMetadadosOmie) {
-    const { error: uErr } = await supabase
+    const result = await supabase
       .from("royalties_itens")
       .update({
         data_pagamento_omie: upd.data_pagamento_omie,
         data_competencia_omie: upd.data_competencia_omie,
       })
-      .eq("id", upd.id);
-    if (uErr) throw new Error(uErr.message);
+      .eq("id", upd.id)
+      .select("id");
+    assertAffected(result, `Item de royalties ${upd.id} não foi atualizado (backfill Omie) — possível bloqueio de permissão (RLS).`);
   }
 
   if (itens.length === 0) return { created: 0 };
@@ -1098,8 +1100,8 @@ export const updateItem = createServerFn({ method: "POST" })
     if ("venda_socios" in data) patch.venda_socios = data.venda_socios;
     if ("categoria" in data) patch.categoria = data.categoria;
 
-    const { error } = await supabase.from("royalties_itens").update(patch).eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const result = await supabase.from("royalties_itens").update(patch).eq("id", data.id).select("id");
+    assertAffected(result, `Item de royalties ${data.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
@@ -1117,8 +1119,8 @@ export const atualizarCnpjContrato = createServerFn({ method: "POST" })
     const cnpj = digits(data.cnpj);
     if (cnpj.length !== 14) throw new Error("CNPJ inválido — precisa ter 14 dígitos.");
 
-    const { error } = await supabase.from("contratos").update({ cnpj }).eq("id", data.contrato_id);
-    if (error) throw new Error(error.message);
+    const result = await supabase.from("contratos").update({ cnpj }).eq("id", data.contrato_id).select("id");
+    assertAffected(result, `Contrato ${data.contrato_id} não foi atualizado — possível bloqueio de permissão (RLS).`);
     return { ok: true, cnpj };
   });
 
@@ -1215,11 +1217,18 @@ export const marcarChurn = createServerFn({ method: "POST" })
     const cardId: string = body.data.createCard.card.id;
 
     const churnReportadoEm = new Date().toISOString();
-    const { error: uErr } = await supabase
+    const churnResult = await supabase
       .from("royalties_itens")
       .update({ churn_pipefy_card_id: cardId, churn_reportado_em: churnReportadoEm })
-      .eq("id", data.item_id);
-    if (uErr) throw new Error(uErr.message);
+      .eq("id", data.item_id)
+      .select("id");
+    // O card no Pipefy já foi criado (efeito colateral externo, irreversível
+    // por aqui) — se essa gravação falhar em silêncio, o card fica órfão
+    // (existe no Pipefy, mas o item local nunca aparece como "com churn").
+    assertAffected(
+      churnResult,
+      `Card ${cardId} foi criado no Pipefy, mas o item ${data.item_id} NÃO foi marcado com churn localmente — possível bloqueio de permissão (RLS). Card ficou órfão, precisa de correção manual.`,
+    );
 
     // Propaga o churn pros itens do mesmo contrato em OUTRAS apurações (meses).
     // royalties_itens é gerado por apuração (uma linha por mês) — sem isso, marcar
@@ -1242,11 +1251,17 @@ export const marcarChurn = createServerFn({ method: "POST" })
       })
       .map((s: any) => s.id);
     if (idsParaPropagar.length > 0) {
-      const { error: propErr } = await supabase
+      const propResult = await supabase
         .from("royalties_itens")
         .update({ churn_pipefy_card_id: cardId, churn_reportado_em: churnReportadoEm })
-        .in("id", idsParaPropagar);
-      if (propErr) throw new Error(propErr.message);
+        .in("id", idsParaPropagar)
+        .select("id");
+      if (propResult.error) throw new Error(propResult.error.message);
+      if ((propResult.data?.length ?? 0) < idsParaPropagar.length) {
+        throw new Error(
+          `Churn propagado só pra ${propResult.data?.length ?? 0} de ${idsParaPropagar.length} itens dos outros meses — possível bloqueio de permissão (RLS) numa parte.`,
+        );
+      }
     }
 
     return { ok: true, pipefy_card_id: cardId };
@@ -1306,8 +1321,8 @@ export const updateApuracao = createServerFn({ method: "POST" })
     if ("outras_receitas" in data) patch.outras_receitas = data.outras_receitas;
     if ("observacao" in data) patch.observacao = data.observacao;
     if ("status" in data) patch.status = data.status;
-    const { error } = await supabase.from("royalties_apuracao").update(patch).eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const result = await supabase.from("royalties_apuracao").update(patch).eq("id", data.id).select("id");
+    assertAffected(result, `Apuração ${data.id} não foi atualizada — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
@@ -1324,11 +1339,12 @@ async function recomputeOutrasReceitas(supabase: any, apuracao_id: number) {
     .eq("apuracao_id", apuracao_id);
   if (error) throw new Error(error.message);
   const total = (itens ?? []).reduce((soma: number, it: any) => soma + Number(it.valor ?? 0), 0);
-  const { error: uErr } = await supabase
+  const result = await supabase
     .from("royalties_apuracao")
     .update({ outras_receitas: total })
-    .eq("id", apuracao_id);
-  if (uErr) throw new Error(uErr.message);
+    .eq("id", apuracao_id)
+    .select("id");
+  assertAffected(result, `Apuração ${apuracao_id} não teve outras_receitas recalculado — possível bloqueio de permissão (RLS).`);
   return total;
 }
 
@@ -1382,11 +1398,12 @@ export const updateOutraReceitaItem = createServerFn({ method: "POST" })
     if ("nome" in data) patch.nome = data.nome?.trim();
     if ("valor" in data) patch.valor = data.valor;
     if ("observacao" in data) patch.observacao = data.observacao;
-    const { error } = await supabase
+    const result = await supabase
       .from("royalties_outras_receitas_itens")
       .update(patch)
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(result, `Item de outras receitas ${data.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
     await recomputeOutrasReceitas(supabase, item.apuracao_id);
     return { ok: true };
   });
@@ -1488,14 +1505,20 @@ export const fecharApuracao = createServerFn({ method: "POST" })
             ? Number(it.royalties_percentual_override)
             : pctPadrao;
         const rv = it.confirmado ? (v * pct) / 100 : 0;
-        return supabase.from("royalties_itens").update({ royalties_item: rv }).eq("id", it.id);
+        return supabase.from("royalties_itens").update({ royalties_item: rv }).eq("id", it.id).select("id");
       });
     const results = await Promise.all(updates);
     const failed = results.find((r: any) => r?.error);
     if (failed?.error) throw new Error(`Falha ao atualizar itens: ${failed.error.message}`);
+    const semLinhaAfetada = results.filter((r: any) => !r?.data || r.data.length === 0).length;
+    if (semLinhaAfetada > 0) {
+      throw new Error(
+        `${semLinhaAfetada} de ${results.length} itens não foram atualizados ao fechar a apuração — possível bloqueio de permissão (RLS). Apuração NÃO confirmada.`,
+      );
+    }
 
     const email = (claims as any)?.email ?? null;
-    const { error: uErr } = await supabase
+    const confirmResult = await supabase
       .from("royalties_apuracao")
       .update({
         status: "confirmado",
@@ -1508,8 +1531,12 @@ export const fecharApuracao = createServerFn({ method: "POST" })
         confirmado_em: new Date().toISOString(),
         confirmado_por: email ?? userId,
       })
-      .eq("id", data.id);
-    if (uErr) throw new Error(uErr.message);
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(
+      confirmResult,
+      `Apuração ${data.id} não foi confirmada — possível bloqueio de permissão (RLS). Os itens já foram recalculados, mas o fechamento do mês não foi salvo.`,
+    );
     return { ok: true };
   });
 
@@ -1520,11 +1547,12 @@ export const reabrirApuracao = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { error } = await supabase
+    const result = await supabase
       .from("royalties_apuracao")
       .update({ status: "em_revisao", confirmado_em: null, confirmado_por: null })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(result, `Apuração ${data.id} não foi reaberta — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
@@ -1586,7 +1614,7 @@ export const excluirItemMes = createServerFn({ method: "POST" })
     }
 
     const email = (claims as any)?.email ?? null;
-    const { error } = await supabase
+    const result = await supabase
       .from("royalties_itens")
       .update({
         excluido_em: new Date().toISOString(),
@@ -1594,8 +1622,9 @@ export const excluirItemMes = createServerFn({ method: "POST" })
         motivo_exclusao: data.motivo.trim(),
         confirmado: false,
       })
-      .eq("id", data.item_id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.item_id)
+      .select("id");
+    assertAffected(result, `Item ${data.item_id} não foi excluído — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
@@ -1618,10 +1647,11 @@ export const reincluirItemMes = createServerFn({ method: "POST" })
       throw new Error("Apuração fechada — reabra antes de reincluir.");
     }
 
-    const { error } = await supabase
+    const result = await supabase
       .from("royalties_itens")
       .update({ excluido_em: null, excluido_por: null, motivo_exclusao: null })
-      .eq("id", data.item_id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.item_id)
+      .select("id");
+    assertAffected(result, `Item ${data.item_id} não foi reincluído — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });

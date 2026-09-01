@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 
 export interface Notificacao {
   id: number;
@@ -44,14 +45,17 @@ export const marcarNotificacaoLida = createServerFn({ method: "POST" })
     const { supabase, userId, claims } = context;
     await assertAdmin(supabase, userId);
     const email = (claims as any)?.email ?? null;
-    const { error } = await (supabase as any)
+    const result = await (supabase as any)
       .from("notificacoes")
       .update({ lida: true, lida_em: new Date().toISOString(), lida_por: email ?? userId })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(result, `Notificação ${data.id} não foi marcada como lida — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
+// Nota: aqui 0 linhas afetadas é um resultado normal (nada estava não-lido),
+// não um sinal de bloqueio — por isso não usa assertAffected.
 export const marcarTodasNotificacoesLidas = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

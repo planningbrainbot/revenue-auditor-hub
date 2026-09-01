@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin, digits, monthRange } from "@/lib/server-utils";
 import { gerarItensApuracaoCore } from "@/lib/royalties.functions";
+import { assertAffected } from "@/lib/supabase-assert";
 
 // ============ Types ============
 export interface ApuracaoCacItem {
@@ -410,11 +411,12 @@ async function gerarItensParaApuracao(
   }
 
   for (const upd of atualizacoes) {
-    const { error } = await (supabase as any)
+    const result = await (supabase as any)
       .from("cac_apuracao_itens")
       .update(upd.patch)
-      .eq("id", upd.id);
-    if (error) throw new Error(error.message);
+      .eq("id", upd.id)
+      .select("id");
+    assertAffected(result, `Item de CAC ${upd.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
   }
 
   if (itens.length === 0) return { created: 0, skipped: false };
@@ -655,11 +657,12 @@ async function desvincularRoyaltiesCac(supabase: any, royaltiesItemId: number): 
     const { error } = await supabase.from("royalties_itens").delete().eq("id", royaltiesItemId);
     if (error) throw new Error(error.message);
   } else {
-    const { error } = await supabase
+    const result = await supabase
       .from("royalties_itens")
       .update({ is_cac: false, royalties_percentual_override: null })
-      .eq("id", royaltiesItemId);
-    if (error) throw new Error(error.message);
+      .eq("id", royaltiesItemId)
+      .select("id");
+    assertAffected(result, `Item de royalties ${royaltiesItemId} não foi desvinculado do CAC — possível bloqueio de permissão (RLS).`);
   }
 }
 
@@ -812,31 +815,26 @@ async function vincularRoyaltiesCac(
     // cobrir a parcela inteira.
     patchRoyalties.valor_confirmado = valorEfetivo;
     patchRoyalties.royalties_percentual_override = 100;
-    const { error: contErr } = await supabase
+    const contResult = await supabase
       .from("contratos")
       .update({ mrr_mensal: valorEfetivo })
-      .eq("id", cacItem.contrato_id);
-    if (contErr) throw new Error(contErr.message);
+      .eq("id", cacItem.contrato_id)
+      .select("id");
+    assertAffected(contResult, `Contrato ${cacItem.contrato_id} não teve mrr_mensal atualizado — possível bloqueio de permissão (RLS).`);
   } else {
     // Percentual = fatia da receita do mês que essa parcela representa.
     patchRoyalties.royalties_percentual_override = (valorEfetivo / valorConfirmadoAtual) * 100;
   }
 
-  const { error: updErr } = await supabase
-    .from("royalties_itens")
-    .update(patchRoyalties)
-    .eq("id", royaltiesItemId);
-  if (updErr) throw new Error(updErr.message);
+  const updResult = await supabase.from("royalties_itens").update(patchRoyalties).eq("id", royaltiesItemId).select("id");
+  assertAffected(updResult, `Item de royalties ${royaltiesItemId} não foi vinculado ao CAC — possível bloqueio de permissão (RLS).`);
 
   const vinculoPatch =
     parcela === 1
       ? { royalties_item_id_parcela_1: royaltiesItemId, royalties_mes_parcela_1: firstDay }
       : { royalties_item_id_parcela_2: royaltiesItemId, royalties_mes_parcela_2: firstDay };
-  const { error: vincErr } = await supabase
-    .from("cac_apuracao_itens")
-    .update(vinculoPatch)
-    .eq("id", cacItem.id);
-  if (vincErr) throw new Error(vincErr.message);
+  const vincResult = await supabase.from("cac_apuracao_itens").update(vinculoPatch).eq("id", cacItem.id).select("id");
+  assertAffected(vincResult, `Item de CAC ${cacItem.id} não foi vinculado — possível bloqueio de permissão (RLS).`);
 
   return null;
 }
@@ -911,11 +909,8 @@ export const updateItemCac = createServerFn({ method: "POST" })
       // pago1 && pago2: as duas já viraram fato histórico — só o total muda.
     }
 
-    const { error } = await (supabase as any)
-      .from("cac_apuracao_itens")
-      .update(patch)
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const patchResult = await (supabase as any).from("cac_apuracao_itens").update(patch).eq("id", data.id).select("id");
+    assertAffected(patchResult, `Item de CAC ${data.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
 
     // Dispara o vínculo com Royalties só quando uma data de envio/pagamento
     // acabou de ser MARCADA (valor não-nulo) — desmarcar (Desfazer) não
@@ -1013,15 +1008,16 @@ export const excluirItemMesCac = createServerFn({ method: "POST" })
     if (!data.motivo?.trim()) throw new Error("Motivo da exclusão é obrigatório.");
 
     const email = (claims as any)?.email ?? null;
-    const { error } = await (supabase as any)
+    const result = await (supabase as any)
       .from("cac_apuracao_itens")
       .update({
         excluido_em: new Date().toISOString(),
         excluido_por: email ?? userId,
         motivo_exclusao: data.motivo.trim(),
       })
-      .eq("id", data.item_id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.item_id)
+      .select("id");
+    assertAffected(result, `Item de CAC ${data.item_id} não foi excluído — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
@@ -1032,10 +1028,11 @@ export const reincluirItemMesCac = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
-    const { error } = await (supabase as any)
+    const result = await (supabase as any)
       .from("cac_apuracao_itens")
       .update({ excluido_em: null, excluido_por: null, motivo_exclusao: null })
-      .eq("id", data.item_id);
-    if (error) throw new Error(error.message);
+      .eq("id", data.item_id)
+      .select("id");
+    assertAffected(result, `Item de CAC ${data.item_id} não foi reincluído — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 
 function maskSecret(secret: string): string {
   return `••••••••${secret.slice(-4)}`;
@@ -65,14 +66,12 @@ export const setOmieCredentialAtivo = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
-      .from("omie_credentials")
-      .update({ ativo: data.ativo })
-      .eq("id", data.id);
-    if (error) {
-      console.error("[setOmieCredentialAtivo] update failed:", error);
+    const result = await supabaseAdmin.from("omie_credentials").update({ ativo: data.ativo }).eq("id", data.id).select("id");
+    if (result.error) {
+      console.error("[setOmieCredentialAtivo] update failed:", result.error);
       throw new Error("Erro ao atualizar status.");
     }
+    assertAffected(result, `Credencial ${data.id} não encontrada — nada foi atualizado.`);
     return { ok: true };
   });
 

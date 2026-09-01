@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin, digits } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 import {
   MOTIVOS_CHURN,
   PIPEFY_FASE_PERDIDO,
@@ -41,8 +42,8 @@ export const atualizarCliente = createServerFn({ method: "POST" })
     }
     if (Object.keys(patch).length === 0) throw new Error("Nada para atualizar.");
 
-    const { error } = await supabase.from("empresas").update(patch).eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const result = await supabase.from("empresas").update(patch).eq("id", data.id).select("id");
+    assertAffected(result, `Nenhuma empresa foi atualizada (id ${data.id}) — possível bloqueio de permissão (RLS).`);
     return { ok: true, ...patch };
   });
 

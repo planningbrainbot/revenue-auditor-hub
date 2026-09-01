@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { digits } from "@/lib/server-utils";
+import { assertAffected } from "@/lib/supabase-assert";
 
 export interface ReconciliacaoRow {
   // Identidade
@@ -215,11 +216,8 @@ export const updateReconciliacao = createServerFn({ method: "POST" })
   .handler(async ({ data, context }: { data: { contrato_id: number; status_reconciliacao?: string | null; na_planilha_ana?: boolean | null; obs_reconciliacao?: string | null }; context: any }) => {
     const { supabase } = context;
     const { contrato_id, ...updates } = data;
-    const { error } = await supabase
-      .from("contratos")
-      .update(updates)
-      .eq("id", contrato_id);
-    if (error) throw new Error(error.message);
+    const result = await supabase.from("contratos").update(updates).eq("id", contrato_id).select("id");
+    assertAffected(result, `Contrato ${contrato_id} não foi atualizado — possível bloqueio de permissão (RLS).`);
     return { ok: true };
   });
 
