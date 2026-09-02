@@ -2,8 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/growth",
+      "destination": "https://brain-web-planning17.vercel.app/growth"
+    },
+    {
       "source": "/growth/:path*",
       "destination": "https://brain-web-planning17.vercel.app/growth/:path*"
+    },
+    {
+      "source": "/financeiro",
+      "destination": "https://brain-financeiro-planning17.vercel.app/financeiro"
     },
     {
       "source": "/financeiro/:path*",
