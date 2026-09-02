@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/growth/:path*",
+      "destination": "https://brain-web-planning17.vercel.app/growth/:path*"
+    },
+    {
+      "source": "/financeiro/:path*",
+      "destination": "https://brain-financeiro-planning17.vercel.app/financeiro/:path*"
+    }
+  ]
+}
