@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
+import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.financeiro";
+import { emitirSessaoFinanceiro } from "@/lib/sessoes-irmas.functions";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -73,6 +75,29 @@ function AuthPage() {
       if (growth) {
         const { error: gErr } = await growth.auth.signInWithPassword({ email, password });
         if (gErr) console.info("[login] Growth não autenticado:", gErr.message);
+      }
+
+      // Financial: caminho diferente do Growth de propósito. Lá a senha é a
+      // mesma nos dois bancos; aqui ninguém tem senha (o cockpit nasceu sem
+      // login), então o servidor emite um token de acesso único a partir da
+      // identidade que ele acabou de verificar, e nós o trocamos por sessão.
+      // Também best-effort: o acesso ao Ops não depende disto dar certo.
+      const financeiro = getFinanceiroBrowserClient();
+      if (financeiro) {
+        try {
+          const r = await emitirSessaoFinanceiro();
+          if (r.ok) {
+            const { error: fErr } = await financeiro.auth.verifyOtp({
+              type: "email",
+              token_hash: r.tokenHash,
+            });
+            if (fErr) console.info("[login] Financial não autenticado:", fErr.message);
+          } else {
+            console.info("[login] Financial sem sessão:", r.motivo);
+          }
+        } catch (e) {
+          console.info("[login] Financial indisponível:", e);
+        }
       }
 
       navigate({ to: "/" });
