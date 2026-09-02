@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
 import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.financeiro";
-import { emitirSessaoFinanceiro } from "@/lib/sessoes-irmas.functions";
+import { emitirSessaoFinanceiro, emitirSessaoGrowth } from "@/lib/sessoes-irmas.functions";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -71,10 +71,27 @@ function AuthPage() {
       //
       // Best-effort de propósito: se falhar (senha diferente nos dois, ou sem
       // conta no Growth), o acesso ao Ops não pode ser bloqueado por isso.
+      // Growth: a sessão é EMITIDA pelo servidor, não obtida com a senha.
+      // O caminho antigo (signInWithPassword) exigia senha idêntica nos dois
+      // bancos — e não é: em 02/09/2026 confirmou-se que o login do Growth
+      // vinha falhando em silêncio por isso, com o último sign-in 12 dias
+      // atrás enquanto a pessoa entrava no Ops normalmente.
       const growth = getGrowthBrowserClient();
       if (growth) {
-        const { error: gErr } = await growth.auth.signInWithPassword({ email, password });
-        if (gErr) console.info("[login] Growth não autenticado:", gErr.message);
+        try {
+          const g = await emitirSessaoGrowth();
+          if (g.ok) {
+            const { error: gErr } = await growth.auth.verifyOtp({
+              type: "email",
+              token_hash: g.tokenHash,
+            });
+            if (gErr) console.info("[login] Growth não autenticado:", gErr.message);
+          } else {
+            console.info("[login] Growth sem sessão:", g.motivo);
+          }
+        } catch (e) {
+          console.info("[login] Growth indisponível:", e);
+        }
       }
 
       // Financial: caminho diferente do Growth de propósito. Lá a senha é a

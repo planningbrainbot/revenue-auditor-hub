@@ -18,6 +18,52 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  *   2. O usuário no Financial é criado com o e-mail já confirmado, porque a
  *      confirmação de identidade aconteceu no Ops. Nenhum e-mail é disparado.
  */
+/**
+ * Emite a sessão do GROWTH para quem acabou de autenticar no Ops.
+ *
+ * Por que não usa `signInWithPassword` como antes: aquilo exigia a senha ser
+ * idêntica nos dois bancos, e não é — verificado em 02/09/2026, o login do
+ * Growth vinha falhando em silêncio desde sempre por isso. Emitir a sessão a
+ * partir da identidade já verificada no Ops elimina a exigência de paridade
+ * de senha, que era a fragilidade do desenho anterior.
+ *
+ * Diferença deliberada em relação ao Financial: aqui NÃO criamos usuário. O
+ * Growth tem base própria (28 pessoas) e autoriza por e-mail em `membros` —
+ * quem não existe lá não deve passar a existir só por ter logado no Ops.
+ */
+export const emitirSessaoGrowth = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const email = (context.claims as { email?: string } | undefined)?.email;
+    if (!email) return { ok: false as const, motivo: "sem-email" };
+
+    const { getGrowthAdmin } = await import(
+      "@/integrations/supabase/client.growth.server"
+    );
+    const admin = getGrowthAdmin();
+    if (!admin) return { ok: false as const, motivo: "nao-configurado" };
+
+    try {
+      const { data: lista } = await admin.auth.admin.listUsers();
+      const existe = lista?.users?.some(
+        (u) => u.email?.toLowerCase() === email.toLowerCase(),
+      );
+      // Sem conta no Growth não há sessão a emitir — e isso não é erro.
+      if (!existe) return { ok: false as const, motivo: "sem-conta-no-growth" };
+
+      const r = await admin.auth.admin.generateLink({ type: "magiclink", email });
+      const tokenHash = r.data?.properties?.hashed_token;
+      if (r.error || !tokenHash) {
+        console.warn("[growth] generateLink falhou:", r.error?.message);
+        return { ok: false as const, motivo: "gerar-token" };
+      }
+      return { ok: true as const, tokenHash };
+    } catch (err) {
+      console.warn("[growth] emissão de sessão falhou:", err);
+      return { ok: false as const, motivo: "excecao" };
+    }
+  });
+
 export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
