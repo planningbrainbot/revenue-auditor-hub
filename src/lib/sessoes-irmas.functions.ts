@@ -34,24 +34,33 @@ export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
     if (!admin) return { ok: false as const, motivo: "nao-configurado" };
 
     try {
-      // generateLink com type 'magiclink' exige usuário existente; 'invite'
-      // cria. Tentamos o caminho de usuário existente e, se não existir,
-      // criamos com e-mail já confirmado e repetimos.
-      let r = await admin.auth.admin.generateLink({ type: "magiclink", email });
+      // Garante o usuário ANTES de gerar o token. `generateLink` cria sozinho
+      // quando não existe, mas cria com e-mail NÃO confirmado — e depender do
+      // verifyOtp para confirmar depois é frágil. Aqui a confirmação é
+      // explícita: a identidade já foi verificada no Ops, então o e-mail é
+      // confiável por construção.
+      const criado = await admin.auth.admin.createUser({ email, email_confirm: true });
+      const jaExistia =
+        criado.error && /already|exists|registered/i.test(criado.error.message);
 
-      if (r.error) {
-        const criado = await admin.auth.admin.createUser({
-          email,
-          email_confirm: true,
-        });
-        // Corrida com outra aba/sessão criando o mesmo usuário não é erro.
-        if (criado.error && !/already|exists|registered/i.test(criado.error.message)) {
-          console.warn("[financeiro] criar usuário falhou:", criado.error.message);
-          return { ok: false as const, motivo: "criar-usuario" };
-        }
-        r = await admin.auth.admin.generateLink({ type: "magiclink", email });
+      if (criado.error && !jaExistia) {
+        console.warn("[financeiro] criar usuário falhou:", criado.error.message);
+        return { ok: false as const, motivo: "criar-usuario" };
       }
 
+      // Usuário anterior pode ter sido criado sem confirmação (por um
+      // generateLink de antes desta correção) — normaliza.
+      if (jaExistia) {
+        const { data: lista } = await admin.auth.admin.listUsers();
+        const existente = lista?.users?.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase(),
+        );
+        if (existente && !existente.email_confirmed_at) {
+          await admin.auth.admin.updateUserById(existente.id, { email_confirm: true });
+        }
+      }
+
+      const r = await admin.auth.admin.generateLink({ type: "magiclink", email });
       const tokenHash = r.data?.properties?.hashed_token;
       if (r.error || !tokenHash) {
         console.warn("[financeiro] generateLink falhou:", r.error?.message);
