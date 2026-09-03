@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Rocket,
+  Landmark,
   ExternalLink,
 } from "lucide-react";
 import {
@@ -51,6 +52,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { meuAcessoGrowth } from "@/lib/produtos.functions";
 
 const GROWTH_URL = "https://growth.planningbrain.com.br";
+const FINANCEIRO_URL = "https://planningbrain.com.br/financeiro";
 
 type Item = {
   title: string;
@@ -278,6 +280,11 @@ export function AppSidebar() {
   });
   const mostrarGrowth = growthQuery.data?.temAcesso ?? false;
 
+  // O cockpit financeiro é liberado pelo Ops (view.brain_financeiro) — a mesma
+  // chave que autoriza a emissão da sessão irmã. Sem ela o Financial devolve
+  // 403, então não faz sentido mostrar o link.
+  const mostrarFinanceiro = !loading && can("view.brain_financeiro");
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b">
@@ -286,7 +293,7 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {mostrarGrowth && (
+        {(mostrarGrowth || mostrarFinanceiro) && (
           <SidebarGroup>
             <SidebarGroupLabel>Planning Brain</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -299,20 +306,38 @@ export function AppSidebar() {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Abrir o Growth em nova aba">
-                    <a
-                      href={GROWTH_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2"
-                    >
-                      <Rocket className="h-4 w-4 shrink-0" />
-                      <span>Growth</span>
-                      <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {mostrarGrowth && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Abrir o Growth em nova aba">
+                      <a
+                        href={GROWTH_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2"
+                      >
+                        <Rocket className="h-4 w-4 shrink-0" />
+                        <span>Growth</span>
+                        <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {mostrarFinanceiro && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Abrir o Brain Financeiro em nova aba">
+                      <a
+                        href={FINANCEIRO_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2"
+                      >
+                        <Landmark className="h-4 w-4 shrink-0" />
+                        <span>Financeiro</span>
+                        <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
