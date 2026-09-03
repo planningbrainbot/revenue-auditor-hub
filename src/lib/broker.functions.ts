@@ -28,6 +28,8 @@ export type OportunidadeRow = {
 
 export type SaldoRow = {
   unidade_id: number;
+  credito_recebido?: number;
+  credito_comprado?: number;
   // `nome` é apelido de unidades.nome_da_praca, coluna herdada. "Praça" não é
   // termo do negócio; no broker só existe unidade.
   nome: string | null;
@@ -67,6 +69,7 @@ export type BrokerAdminData = {
   movimentos: MovimentoRow[];
   multiplicadores: MultiplicadorRow[];
   unidades: { id: number; nome: string }[];
+  faturas: FaturaRow[];
   podeOperar: boolean;
   bloqueioPorSaldo: boolean;
 };
@@ -94,7 +97,7 @@ export const carregarBrokerAdmin = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker_admin", "você não tem acesso ao Broker da matriz.");
 
-    const [opor, saldos, movs, mults, unids, cfg] = await Promise.all([
+    const [opor, saldos, movs, mults, unids, cfg, fats] = await Promise.all([
       sb
         .from("broker_oportunidades")
         .select(
@@ -119,6 +122,7 @@ export const carregarBrokerAdmin = createServerFn({ method: "GET" })
         .order("mes", { ascending: false }),
       sb.from("unidades").select("id,nome:nome_da_praca").order("nome_da_praca"),
       sb.rpc("broker_config_ativo", { _chave: "bloqueio_por_saldo", _unidade_id: null }),
+      sb.from("broker_faturas").select("*").order("pedida_em", { ascending: false }).limit(200),
     ]);
 
     for (const r of [opor, saldos, movs, mults, unids]) {
@@ -131,6 +135,7 @@ export const carregarBrokerAdmin = createServerFn({ method: "GET" })
       movimentos: movs.data ?? [],
       multiplicadores: mults.data ?? [],
       unidades: unids.data ?? [],
+      faturas: fats.data ?? [],
       podeOperar: await can(sb, "manage.broker"),
       bloqueioPorSaldo: cfg?.data === true,
     };
@@ -264,12 +269,25 @@ export const definirMultiplicadorAplicado = createServerFn({ method: "POST" })
 export type FilaUnidadeRow = {
   id: number;
   empresa: string | null;
+  cliente_nome: string | null;
   segmento: string | null;
+  estado: string | null;
+  faturamento_anual: string | null;
+  regime_tributario: string | null;
+  canal: string | null;
+  condutor_reuniao: string | null;
+  usa_erp: string | null;
+  qualificacao_ia: string | null;
+  qualificacao_ia_em: string | null;
+  fup_ia: string | null;
+  fup_ia_em: string | null;
   preco_cb: number | null;
   status: string;
   entrou_em: string;
   reservado_em: string | null;
   minha_reserva: boolean;
+  /** Só existe em reserva ainda sem preço: quando o prazo de precificar vence. */
+  precificar_ate: string | null;
 };
 
 export type ExtratoUnidadeRow = {
@@ -283,10 +301,25 @@ export type ExtratoUnidadeRow = {
   criado_em: string;
 };
 
+export type FaturaRow = {
+  id: number;
+  unidade_id: number;
+  valor_cb: number;
+  valor_brl: number;
+  status: string;
+  pedida_em: string;
+  vence_em: string | null;
+  paga_em: string | null;
+  meio_pagamento: string | null;
+  observacao: string | null;
+};
+
 export type BrokerUnidadeData = {
   fila: FilaUnidadeRow[];
   extrato: ExtratoUnidadeRow[];
   saldo: SaldoRow | null;
+  faturas: FaturaRow[];
+  instrucoesPagamento: string | null;
   semVinculo: boolean;
 };
 
@@ -296,14 +329,19 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
 
-    const [fila, extrato, saldo] = await Promise.all([
+    const [fila, extrato, saldo, faturas, instr] = await Promise.all([
       sb.from("v_broker_fila").select("*").order("entrou_em", { ascending: false }),
       sb.from("v_broker_extrato").select("*").order("criado_em", { ascending: false }).limit(100),
       sb
         .from("v_broker_meu_saldo")
-        .select("unidade_id,nome:nome_da_praca,creditado,bloqueado,investido,disponivel"),
+        .select(
+          "unidade_id,nome:nome_da_praca,credito_recebido,credito_comprado," +
+            "creditado,bloqueado,investido,disponivel",
+        ),
+      sb.from("v_broker_minhas_faturas").select("*").order("pedida_em", { ascending: false }),
+      sb.rpc("broker_instrucoes_pagamento"),
     ]);
-    for (const r of [fila, extrato, saldo]) if (r.error) throw new Error(r.error.message);
+    for (const r of [fila, extrato, saldo, faturas]) if (r.error) throw new Error(r.error.message);
 
     // Sem linha de saldo = usuário sem unidade vinculada em socios.user_id.
     // A tela precisa dizer isso em vez de mostrar zero, que seria uma afirmação.
@@ -312,6 +350,8 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
       fila: fila.data ?? [],
       extrato: extrato.data ?? [],
       saldo: linhas[0] ?? null,
+      faturas: faturas.data ?? [],
+      instrucoesPagamento: (instr?.data as string | null) ?? null,
       semVinculo: linhas.length === 0,
     };
   });
@@ -350,6 +390,64 @@ export const liberarMinhaReserva = createServerFn({ method: "POST" })
       _oportunidade_id: data.oportunidade_id,
       _por: await autor(sb, context.userId),
       _motivo: "liberado pela unidade",
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** A unidade pede crédito; o saldo só se move quando a matriz baixa a fatura. */
+export const pedirFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { valor_cb: number }) => {
+    const valor_cb = Number(input.valor_cb);
+    if (!Number.isFinite(valor_cb) || valor_cb <= 0)
+      throw new Error("Informe um valor maior que zero.");
+    return { valor_cb };
+  })
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
+    const { error } = await sb.rpc("broker_fatura_pedir", { _valor_cb: data.valor_cb });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const cancelarFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { fatura_id: number }) => {
+    const fatura_id = Number(input.fatura_id);
+    if (!Number.isInteger(fatura_id) || fatura_id <= 0) throw new Error("Fatura inválida.");
+    return { fatura_id };
+  })
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
+    const { error } = await sb.rpc("broker_fatura_cancelar", { _fatura_id: data.fatura_id });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Baixa da fatura: só a matriz. É o que credita o extrato. */
+export const pagarFatura = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { fatura_id: number; meio?: string | null; referencia?: string | null }) => {
+      const fatura_id = Number(input.fatura_id);
+      if (!Number.isInteger(fatura_id) || fatura_id <= 0) throw new Error("Fatura inválida.");
+      return {
+        fatura_id,
+        meio: input.meio?.trim() || null,
+        referencia: input.referencia?.trim() || null,
+      };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "manage.broker", "você não pode operar o Broker.");
+    const { error } = await sb.rpc("broker_fatura_pagar", {
+      _fatura_id: data.fatura_id,
+      _meio: data.meio,
+      _referencia: data.referencia,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

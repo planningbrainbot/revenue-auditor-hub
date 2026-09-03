@@ -17,6 +17,25 @@ Formato de cada entrada:
 
 ---
 
+## [2026-09-03] Broker: ficha do cliente, prazo de precificação e fatura de CashBrain
+
+**Contexto:** com as duas telas no ar, o sócio da unidade não tinha como decidir a compra — a vitrine mostrava só empresa, segmento e preço. Faltava também o caminho do dinheiro: como a unidade obtém CashBrain.
+
+**Decisão:**
+
+1. **A vitrine passa a mostrar a ficha do cliente**, sincronizada do Pipedrive: faturamento anual, regime tributário, canal (campo fechado), condutor da reunião comercial, se usa ERP, segmento, estado e nome do contato. Nenhum desses revela composição de custo — qualificam o cliente sem abrir o motor. Preenchimento real de 37 a 42 de 42 registros.
+2. **As duas análises de IA do Planning Brain são notas do deal, não campos.** Não existem em `dealFields` (520 campos, nenhum bate); a IA escreve como nota. O sync busca por marcador de texto ("Qualificação por IA", "Direcionamento de FUP"), com teto de 25 deals por rodada — varrer tudo já estourou o limite do Edge Function antes. Aparecem em "Minhas reservas", recolhidas, com o aviso "gerado por IA, confira antes de usar" que o próprio Planning Brain assina.
+3. **Prazo de precificação de 7 dias, configurável em `broker_config`.** Só corre para reserva que ainda não tem preço — com preço não há o que precificar. **Nada expira sozinho:** a tela avisa que a matriz *pode* devolver o cliente para a fila, e a devolução é ato humano. Automatizar isso é decisão em aberto.
+4. **A aba "Extrato" da unidade virou "Movimentações".** "Extrato" fica reservado para o financeiro, na aba de faturas.
+5. **O saldo diz de onde veio o crédito:** `broker_saldo` ganhou `credito_recebido` (tipo `credito`, atribuído pela matriz) e `credito_comprado` (tipo `aporte`, comprado pela unidade). O card de "Crédito recebido" saiu do topo e virou duas linhas dentro do card de Disponível.
+6. **Fatura de CashBrain = compra de crédito, e o crédito nasce do pagamento.** A unidade pede X CashBrain e a fatura nasce `aberta`; o movimento de `aporte` só é lançado quando a matriz dá baixa. Assim o saldo nunca mostra crédito não pago. **1 CashBrain = R$ 1,00** — o preço já é MRR × multiplicador em reais, então a paridade é por construção. Vencimento em 5 dias.
+7. **Emissão fica preparada e desintegrada de propósito.** Decisão do usuário: não será Asaas, para não misturar os recebimentos; provavelmente outro gateway, com registro no Omie depois. `broker_faturas` já tem `gateway`, `referencia_externa` e `omie_id`, nenhum preenchido nesta versão. Enquanto isso a unidade lê instruções de pagamento de `broker_config.instrucoes_pagamento` — **texto placeholder, precisa ser revisto antes de ir para a rede**.
+8. **`v_broker_meu_saldo` calcula direto de `broker_movimentos`, não pela view `broker_saldo`.** Uma view definer que lê uma view invoker volta a rodar como o usuário final, e o franqueado não tem SELECT na tabela — o saldo saía zerado. Bug encontrado só porque havia movimento real para conferir.
+
+**Achado não resolvido:** `estorno` entra somando em `creditado`, junto de `credito` e `aporte`. Serve para reverter débito, mas **não reverte um aporte** — e `valor_cb > 0` impede lançamento negativo. Hoje não há caminho de correção para crédito lançado a mais. Precisa de um tipo de movimento redutor ou de permitir sinal.
+
+**Status:** implementado e validado em dev local com login de franqueado real (migrations 31 a 35, já aplicadas). Não commitado nem publicado.
+
 ## [2026-09-02] Broker da Expansão: tela da matriz antes da tela da unidade
 
 **Contexto:** o backend do broker está pronto (tabelas, extrato imutável, apuração do multiplicador, sync da fila do Pipedrive, gatilho de fechamento). O plano previa `/broker` para a unidade antes de `/broker/admin`. Ao levantar o mapeamento usuário→unidade descobriu-se que **os franqueados não têm login**: `socios` tem 35 linhas mas só 2 com `user_id`, e 12 dos 14 usuários do ops board são contas `@planning.com.br` da matriz. A tela da unidade não teria para quem servir.
@@ -759,3 +778,27 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Status:** validado no dev server local (`http://localhost:8080`, módulos compilando, `tsc --noEmit` limpo nos arquivos tocados, lint do arquivo saiu de 41 para 38 erros pré-existentes de prettier). **Não commitado nem deployado** — segue a regra de subir só local até o usuário pedir. As env vars da Vercel só passam a valer no próximo deploy.
 
 **Pendente:** teste ponta a ponta com envio real (criar um usuário de teste e conferir a chegada do e-mail) — não feito por ser ação externa que dispara e-mail de verdade.
+
+## [2026-09-03] Escopo por unidade do sócio franqueado — vazamento no Contas a Receber e painel com fonte errada
+
+**Contexto:** revisão da experiência do papel `socio_franqueado` (conta de teste com `socios.unidade = 'Rio de Janeiro'`) mostrou três defeitos independentes.
+
+1. **Contas a Receber entregava a rede inteira.** A tela não tem nenhum recorte por unidade — o franqueado do RJ via R$ 41M recebidos, 30.875 faturas e o resumo linha a linha de Curitiba, Belém, Partners etc. A policy de SELECT de `contas_receber` (`Permission-based read`) também não tinha predicado de unidade: só checava `can('view.contas_receber')`. Filtrar na tela não resolveria, porque o dado seguiria acessível via PostgREST com o token do próprio usuário.
+2. **Painel da Unidade com números errados.** MRR R$ 183.326 contra R$ 216.151 reais, "Clientes Ativos = 2" com 24 contratos ativos, e "NPS 1.3" com 4 notas em 20 pesquisas.
+3. **Funil de Receita no menu, mas negado.** O item está fixo em `SOCIO_FRANQUEADO_GROUPS` sem gate de permissão, enquanto `view.funil_receita` estava `allowed = false` para o papel. Link morto.
+
+**Decisão — Contas a Receber recorta na tela e na RLS.** UI filtra por `unitMatches` quando o usuário tem `data.scope.own_unit_only`, e o seletor de unidade vira um badge fixo. No banco, `contas_receber."Permission-based read"` ganhou `AND (NOT can('data.scope.own_unit_only') OR public.unidade_do_usuario(unidade))`. Duas funções novas: `public.norm_unidade(text)` (caixa/acento/espaço) e `public.unidade_do_usuario(text)` (compara com `current_user_unidade()`, aceitando os apelidos legados "Sudeste (RJ)"/"RJ"). Validado por simulação de JWT: o franqueado do RJ enxerga 1.295 linhas de uma unidade; admin segue com 30.875 de sete.
+
+**Decisão — Painel da Unidade passa a ler a unidade do próprio contrato.** Três causas, três correções:
+- O filtro `tipo_unidade = 'franquia'` em `empresas` e `contratos` escondia a maior parte da base: a coluna está vazia em 79 das 104 empresas do RJ (as que vêm da Omie não a preenchem). Filtro removido.
+- O MRR era somado cruzando `contratos.pipedrive_deal_id` com `empresas.pipedrive_id`, e só 27 das 104 empresas do RJ têm esse id. Agora o recorte é por `contratos.unidade`, que está preenchida.
+- "Clientes Ativos" contava `empresas.status_financeiro = 'ATIVO'`; esse campo é `SEM_AR` ou nulo em 22 das 25 linhas visíveis. Passa a contar contratos ativos (24).
+- **`Number(null)` é `0`**: a média de NPS mapeava todas as pesquisas sem resposta como zero e passava no `Number.isFinite`. Com 4 notas em 20 pesquisas a média caía de 7,25 para 1,3. O card virou "Nota média (90d)" com denominador explícito ("4 de 20 pesquisas com nota") — é média de nota 0–10, não NPS calculado, e o rótulo antigo mentia.
+
+**Decisão — Funil de Receita liberado ao franqueado, mas só da própria unidade.** `view.funil_receita` passou a `allowed = true` para `socio_franqueado` (aplicado direto em `role_permissions`); `FunilContent` recorta as linhas de `v_funil_mensal` antes de montar a lista de unidades, e o seletor de unidades some para quem tem escopo. A aba "Esperado × Recebido" sai do menu de abas para quem não tem `view.roas`/`view.auditoria`, em vez de abrir numa tela de "sem permissão".
+
+**Status:** implementado no dev server local (`tsc --noEmit` limpo nos arquivos tocados). **Não commitado nem deployado.** As mudanças de banco (policy, funções, permissão do funil) **já estão valendo em produção** no `ulgiochewwpmmssksqlw` — migration em `supabase/migrations/20260903120000_contas_receber_escopo_unidade.sql`.
+
+**Pendente — o mesmo vazamento continua em `contratos`, `empresas`, `nps_pesquisas` e `central_tratativas`.** As quatro têm policy só por permissão de página, sem predicado de unidade, e o franqueado tem `view.clientes`/`view.painel_cs`. As telas recortam no cliente (`/clientes`, `/painel-cs`, `/nps` usam `scopedToOwnUnit`), então não vaza na interface — mas vaza na API. Efeito visível: `v_funil_mensal` é `security_invoker`, então o franqueado ainda lê o MRR contratado das outras unidades por ela, mesmo com faturado/recebido já zerados pelo recorte de `contas_receber`.
+
+**Pendente — `italo.amaral@grupoplanning.com.br` tem o papel `socio_franqueado` e nenhuma linha em `socios`,** logo `current_user_unidade()` devolve nulo e ele passa a ver zero linha em Contas a Receber (antes via a rede toda). Precisa ser vinculado a uma unidade.

@@ -9,6 +9,7 @@ import {
   liberarOportunidade,
   lancarMovimento,
   definirMultiplicadorAplicado,
+  pagarFatura,
   type BrokerAdminData,
   type OportunidadeRow,
   type MultiplicadorRow,
@@ -104,6 +105,7 @@ export function BrokerAdminView() {
   const fnLiberar = useServerFn(liberarOportunidade);
   const fnLancar = useServerFn(lancarMovimento);
   const fnAplicado = useServerFn(definirMultiplicadorAplicado);
+  const fnPagar = useServerFn(pagarFatura);
 
   const mReservar = useMutation({
     mutationFn: (d: { oportunidade_id: number; unidade_id: number }) => fnReservar({ data: d }),
@@ -143,6 +145,15 @@ export function BrokerAdminView() {
     onSuccess: () => {
       toast.success("Multiplicador aplicado atualizado.");
       setEditandoMult(null);
+      recarregar();
+    },
+    onError: aoFalhar,
+  });
+
+  const mPagar = useMutation({
+    mutationFn: (d: { fatura_id: number; meio: string }) => fnPagar({ data: d }),
+    onSuccess: () => {
+      toast.success("Fatura baixada. O crédito entrou no extrato da unidade.");
       recarregar();
     },
     onError: aoFalhar,
@@ -239,6 +250,7 @@ export function BrokerAdminView() {
           <TabsTrigger value="saldos">Saldos</TabsTrigger>
           <TabsTrigger value="extrato">Extrato</TabsTrigger>
           <TabsTrigger value="multiplicador">Multiplicador</TabsTrigger>
+          <TabsTrigger value="faturas">Faturas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fila" className="mt-3">
@@ -434,6 +446,74 @@ export function BrokerAdminView() {
                     </TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+        <TabsContent value="faturas" className="mt-3">
+          <p className="mb-2 text-xs text-muted-foreground">
+            Dar baixa é o que credita a unidade — o movimento de aporte nasce do pagamento, não do
+            pedido.
+          </p>
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fatura</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Pedida</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.faturas.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className="font-medium">#{f.id}</TableCell>
+                    <TableCell>{unidadePorId.get(f.unidade_id) ?? f.unidade_id}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {dataCurta(f.pedida_em)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{cb(f.valor_cb)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          f.status === "paga" &&
+                            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                          f.status === "aberta" &&
+                            "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                        )}
+                      >
+                        {f.status}
+                      </Badge>
+                      {f.meio_pagamento ? (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {f.meio_pagamento}
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!somenteLeitura && f.status === "aberta" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => mPagar.mutate({ fatura_id: f.id, meio: "transferência" })}
+                        >
+                          Dar baixa
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {data.faturas.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      Nenhuma fatura pedida ainda.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
               </TableBody>
             </Table>
           </Card>

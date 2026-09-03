@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, ShoppingCart, Clock, CheckCircle2 } from "lucide-react";
+import { RefreshCw, ShoppingCart, Timer, CheckCircle2, Wallet, Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   carregarBrokerUnidade,
   reservarParaMinhaUnidade,
   liberarMinhaReserva,
+  pedirFatura,
+  cancelarFatura,
   type BrokerUnidadeData,
   type FilaUnidadeRow,
 } from "@/lib/broker.functions";
@@ -14,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -23,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -34,6 +38,11 @@ import {
 
 const NA = "—";
 
+const brl = (v: number | null | undefined) =>
+  v === null || v === undefined
+    ? NA
+    : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
 const cb = (v: number | null | undefined) =>
   v === null || v === undefined
     ? NA
@@ -41,6 +50,68 @@ const cb = (v: number | null | undefined) =>
 
 const dataCurta = (v: string | null) =>
   v ? new Date(v).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : NA;
+
+/** Quanto falta para o prazo de precificar vencer. */
+function prazo(ate: string | null) {
+  if (!ate) return null;
+  const ms = new Date(ate).getTime() - Date.now();
+  const dias = Math.floor(ms / 86400000);
+  const horas = Math.floor(ms / 3600000);
+  if (ms <= 0) return { txt: "prazo vencido", venceu: true, urgente: true };
+  if (horas < 24) return { txt: `${horas}h restantes`, venceu: false, urgente: true };
+  return {
+    txt: `${dias} dia${dias === 1 ? "" : "s"} restantes`,
+    venceu: false,
+    urgente: dias <= 2,
+  };
+}
+
+function Campo({ rotulo, valor }: { rotulo: string; valor: string | null }) {
+  if (!valor) return null;
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{rotulo}</p>
+      <p className="truncate text-sm" title={valor}>
+        {valor}
+      </p>
+    </div>
+  );
+}
+
+/** Texto da IA. O aviso de conferir vem do próprio Planning Brain e fica visível. */
+function NotaIa({
+  titulo,
+  texto,
+  quando,
+}: {
+  titulo: string;
+  texto: string | null;
+  quando: string | null;
+}) {
+  const [aberto, setAberto] = useState(false);
+  if (!texto) return null;
+  const corpo = texto.replace(/^.*confira antes de usar\s*/i, "").trim();
+  return (
+    <div className="rounded-md border bg-muted/40 p-3">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-sm font-medium"
+      >
+        <span>{titulo}</span>
+        <span className="ml-auto text-xs font-normal text-muted-foreground">
+          {quando ? dataCurta(quando) : ""} · {aberto ? "esconder" : "ler"}
+        </span>
+      </button>
+      <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-500">
+        Gerado por IA — confira antes de usar.
+      </p>
+      {aberto ? (
+        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{corpo}</p>
+      ) : null}
+    </div>
+  );
+}
 
 function Kpi({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
   return (
@@ -64,6 +135,8 @@ export function BrokerUnidadeView() {
   });
 
   const [busca, setBusca] = useState("");
+  const [comprando, setComprando] = useState(false);
+  const [valorCompra, setValorCompra] = useState("");
   const [confirmando, setConfirmando] = useState<FilaUnidadeRow | null>(null);
 
   const recarregar = () => qc.invalidateQueries({ queryKey: ["broker-unidade"] });
@@ -78,6 +151,28 @@ export function BrokerUnidadeView() {
     },
     onError: aoFalhar,
   });
+  const fnPedir = useServerFn(pedirFatura);
+  const fnCancelar = useServerFn(cancelarFatura);
+
+  const mPedir = useMutation({
+    mutationFn: (d: { valor_cb: number }) => fnPedir({ data: d }),
+    onSuccess: () => {
+      toast.success("Fatura gerada. O crédito entra quando o pagamento for confirmado.");
+      setComprando(false);
+      setValorCompra("");
+      recarregar();
+    },
+    onError: aoFalhar,
+  });
+  const mCancelar = useMutation({
+    mutationFn: (d: { fatura_id: number }) => fnCancelar({ data: d }),
+    onSuccess: () => {
+      toast.success("Fatura cancelada.");
+      recarregar();
+    },
+    onError: aoFalhar,
+  });
+
   const mLiberar = useMutation({
     mutationFn: (d: { oportunidade_id: number }) => fnLiberar({ data: d }),
     onSuccess: () => {
@@ -134,18 +229,31 @@ export function BrokerUnidadeView() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi rotulo="Disponível" valor={cb(s?.disponivel)} nota="para reservar clientes agora" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Disponível</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">{cb(s?.disponivel)}</p>
+          <div className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
+            <p className="flex justify-between gap-2">
+              <span>Crédito recebido</span>
+              <span className="tabular-nums">{cb(s?.credito_recebido)}</span>
+            </p>
+            <p className="flex justify-between gap-2">
+              <span>Crédito comprado</span>
+              <span className="tabular-nums">{cb(s?.credito_comprado)}</span>
+            </p>
+          </div>
+        </Card>
         <Kpi rotulo="Reservado" valor={cb(s?.bloqueado)} nota={`${minhas.length} cliente(s)`} />
         <Kpi rotulo="Investido" valor={cb(s?.investido)} nota={`${compradas.length} fechado(s)`} />
-        <Kpi rotulo="Crédito recebido" valor={cb(s?.creditado)} />
       </div>
 
       <Tabs defaultValue="vitrine">
         <TabsList>
           <TabsTrigger value="vitrine">Disponíveis ({disponiveis.length})</TabsTrigger>
           <TabsTrigger value="minhas">Minhas reservas ({minhas.length})</TabsTrigger>
-          <TabsTrigger value="extrato">Extrato</TabsTrigger>
+          <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
+          <TabsTrigger value="financeiro">Faturas e pagamentos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vitrine" className="mt-3 space-y-3">
@@ -159,11 +267,24 @@ export function BrokerUnidadeView() {
             {disponiveis.map((o) => (
               <Card key={o.id} className="flex flex-col gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{o.empresa ?? NA}</p>
+                  <p className="truncate font-medium" title={o.empresa ?? ""}>
+                    {o.empresa ?? NA}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    {o.segmento ?? "Segmento não informado"} · entrou {dataCurta(o.entrou_em)}
+                    {[o.segmento, o.estado].filter(Boolean).join(" · ") || "sem segmento"} · entrou{" "}
+                    {dataCurta(o.entrou_em)}
                   </p>
                 </div>
+
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-y py-2">
+                  <Campo rotulo="Contato" valor={o.cliente_nome} />
+                  <Campo rotulo="Faturamento anual" valor={o.faturamento_anual} />
+                  <Campo rotulo="Regime tributário" valor={o.regime_tributario} />
+                  <Campo rotulo="Usa ERP" valor={o.usa_erp} />
+                  <Campo rotulo="Canal" valor={o.canal} />
+                  <Campo rotulo="Conduziu a reunião" valor={o.condutor_reuniao} />
+                </div>
+
                 <div className="mt-auto flex items-end justify-between gap-2">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Preço</p>
@@ -192,48 +313,85 @@ export function BrokerUnidadeView() {
         </TabsContent>
 
         <TabsContent value="minhas" className="mt-3 space-y-4">
-          <Card className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Segmento</TableHead>
-                  <TableHead className="text-right">Preço</TableHead>
-                  <TableHead>Reservado em</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {minhas.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-medium">{o.empresa ?? NA}</TableCell>
-                    <TableCell className="text-muted-foreground">{o.segmento ?? NA}</TableCell>
-                    <TableCell className="text-right tabular-nums">{cb(o.preco_cb)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <Clock className="mr-1 inline h-3.5 w-3.5" />
-                      {dataCurta(o.reservado_em)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
-                      >
-                        Liberar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {minhas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Você não tem cliente reservado.
-                    </TableCell>
-                  </TableRow>
+          {minhas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Você não tem cliente reservado.</p>
+          ) : null}
+
+          {minhas.map((o) => {
+            const p = prazo(o.precificar_ate);
+            return (
+              <Card key={o.id} className="space-y-3 p-4">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{o.empresa ?? NA}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[o.cliente_nome, o.segmento, o.estado].filter(Boolean).join(" · ")}
+                      {o.reservado_em ? ` · reservado ${dataCurta(o.reservado_em)}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Preço</p>
+                    <p className="font-bold tabular-nums">
+                      {o.preco_cb === null ? (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          a precificar
+                        </span>
+                      ) : (
+                        cb(o.preco_cb)
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
+                  >
+                    Liberar
+                  </Button>
+                </div>
+
+                {p ? (
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-2 text-sm",
+                      p.urgente
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Timer className="h-4 w-4 shrink-0" />
+                    <span>
+                      <b>{p.txt}</b> para precificar
+                      {p.venceu
+                        ? " — a matriz pode devolver este cliente para a fila."
+                        : ". Enquanto não houver preço, nada é bloqueado no seu saldo."}
+                    </span>
+                  </div>
                 ) : null}
-              </TableBody>
-            </Table>
-          </Card>
+
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
+                  <Campo rotulo="Faturamento anual" valor={o.faturamento_anual} />
+                  <Campo rotulo="Regime tributário" valor={o.regime_tributario} />
+                  <Campo rotulo="Usa ERP" valor={o.usa_erp} />
+                  <Campo rotulo="Canal" valor={o.canal} />
+                  <Campo rotulo="Conduziu a reunião" valor={o.condutor_reuniao} />
+                </div>
+
+                <div className="space-y-2">
+                  <NotaIa
+                    titulo="🤖 Qualificação por IA (Planning Brain)"
+                    texto={o.qualificacao_ia}
+                    quando={o.qualificacao_ia_em}
+                  />
+                  <NotaIa
+                    titulo="🎯 Direcionamento de FUP por IA (Planning Brain)"
+                    texto={o.fup_ia}
+                    quando={o.fup_ia_em}
+                  />
+                </div>
+              </Card>
+            );
+          })}
 
           {compradas.length > 0 ? (
             <div className="space-y-2">
@@ -257,7 +415,7 @@ export function BrokerUnidadeView() {
           ) : null}
         </TabsContent>
 
-        <TabsContent value="extrato" className="mt-3">
+        <TabsContent value="movimentacoes" className="mt-3">
           <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -292,7 +450,177 @@ export function BrokerUnidadeView() {
             </Table>
           </Card>
         </TabsContent>
+        <TabsContent value="financeiro" className="mt-3 space-y-4">
+          <Card className="flex flex-wrap items-center gap-3 p-4">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">Comprar CashBrain</p>
+              <p className="text-sm text-muted-foreground">
+                1 CashBrain = R$ 1,00. O crédito entra no saldo quando o pagamento é confirmado —
+                pedir a fatura ainda não muda o seu disponível.
+              </p>
+            </div>
+            <Button onClick={() => setComprando(true)}>
+              <Wallet className="mr-1.5 h-4 w-4" /> Comprar crédito
+            </Button>
+          </Card>
+
+          {data.instrucoesPagamento ? (
+            <Card className="flex gap-3 p-4">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Como pagar</p>
+                <p className="text-sm text-muted-foreground">{data.instrucoesPagamento}</p>
+              </div>
+            </Card>
+          ) : null}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Faturas</p>
+            <Card className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fatura</TableHead>
+                    <TableHead>Pedida em</TableHead>
+                    <TableHead>Vence</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Situação</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.faturas.map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className="font-medium">#{f.id}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {dataCurta(f.pedida_em)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {f.vence_em ? dataCurta(f.vence_em) : NA}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {brl(f.valor_brl)}{" "}
+                        <span className="text-muted-foreground">· {cb(f.valor_cb)}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            f.status === "paga" &&
+                              "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                            f.status === "aberta" &&
+                              "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                          )}
+                        >
+                          {f.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {f.status === "aberta" ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => mCancelar.mutate({ fatura_id: f.id })}
+                          >
+                            Cancelar
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {data.faturas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        Nenhuma fatura ainda.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Extrato de pagamentos</p>
+            <Card className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pago em</TableHead>
+                    <TableHead>Fatura</TableHead>
+                    <TableHead>Meio</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.faturas
+                    .filter((f) => f.status === "paga")
+                    .map((f) => (
+                      <TableRow key={f.id}>
+                        <TableCell className="text-muted-foreground">
+                          {dataCurta(f.paga_em)}
+                        </TableCell>
+                        <TableCell>#{f.id}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {f.meio_pagamento ?? NA}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {brl(f.valor_brl)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  {data.faturas.filter((f) => f.status === "paga").length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        Nenhum pagamento registrado.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={comprando} onOpenChange={(o) => !o && setComprando(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Comprar CashBrain</DialogTitle>
+            <DialogDescription>
+              Gera uma fatura no valor pedido. O crédito só entra no saldo depois que a matriz
+              confirmar o pagamento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Quanto quer comprar</Label>
+            <Input
+              type="number"
+              min={1}
+              step={100}
+              value={valorCompra}
+              onChange={(e) => setValorCompra(e.target.value)}
+              placeholder="10000"
+            />
+            <p className="text-xs text-muted-foreground">
+              {valorCompra && Number(valorCompra) > 0
+                ? `${cb(Number(valorCompra))} · ${brl(Number(valorCompra))}`
+                : "1 CashBrain = R$ 1,00"}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComprando(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={!valorCompra || Number(valorCompra) <= 0 || mPedir.isPending}
+              onClick={() => mPedir.mutate({ valor_cb: Number(valorCompra) })}
+            >
+              Gerar fatura
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!confirmando} onOpenChange={(o) => !o && setConfirmando(null)}>
         <DialogContent>
