@@ -32,6 +32,7 @@ import {
   Rocket,
   Landmark,
   ExternalLink,
+  Store,
 } from "lucide-react";
 import {
   Sidebar,
@@ -197,6 +198,18 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
     ],
   },
   {
+    label: "Broker",
+    items: [
+      { title: "Broker", url: "/broker", icon: Coins, permission: "view.broker" },
+      {
+        title: "Broker · Matriz",
+        url: "/broker/admin",
+        icon: Coins,
+        permission: "view.broker_admin",
+      },
+    ],
+  },
+  {
     label: "EBIT Operacional",
     items: [
       {
@@ -248,6 +261,7 @@ const SOCIO_FRANQUEADO_GROUPS: { label: string; items: Item[] }[] = [
       { title: "Clientes", url: "/clientes", icon: Building2 },
       { title: "CS", url: "/painel-cs", icon: UserCheck },
       { title: "NPS", url: "/nps", icon: MessageSquareHeart },
+      { title: "Broker", url: "/broker", icon: Store, permission: "view.broker" },
     ],
   },
   {

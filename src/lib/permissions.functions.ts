@@ -284,6 +284,27 @@ export const KNOWN_PERMISSIONS: {
     group: "Dados",
   },
   {
+    key: "view.broker",
+    label: "Acessar o Broker (unidade)",
+    description:
+      "Fila de clientes disponíveis e carteira da própria unidade. Mostra o preço por cliente, nunca a composição do custo.",
+    group: "Acesso",
+  },
+  {
+    key: "view.broker_admin",
+    label: "Acessar o Broker (matriz)",
+    description:
+      "Operação do broker pela matriz: fila completa, extrato e saldo de todas as unidades, multiplicador e custo apurado.",
+    group: "Acesso",
+  },
+  {
+    key: "manage.broker",
+    label: "Operar o Broker",
+    description:
+      "Reservar e liberar oportunidades em nome de uma unidade, lançar crédito e aporte e definir o multiplicador aplicado. Sem esta chave a tela da matriz abre em leitura.",
+    group: "Dados",
+  },
+  {
     key: "manage.de_para_cnpj",
     label: "Resolver CNPJ de contas",
     description:

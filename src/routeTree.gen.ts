@@ -48,6 +48,8 @@ import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
+import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
+import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAdminPermissoesRouteImport } from './routes/_authenticated/admin.permissoes'
@@ -269,6 +271,18 @@ const AuthenticatedRoyaltiesIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
   } as any)
+const AuthenticatedBrokerIndexRoute =
+  AuthenticatedBrokerIndexRouteImport.update({
+    id: '/broker/',
+    path: '/broker/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBrokerAdminRoute =
+  AuthenticatedBrokerAdminRouteImport.update({
+    id: '/broker/admin',
+    path: '/broker/admin',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminValidacaoRoute =
   AuthenticatedAdminValidacaoRouteImport.update({
     id: '/admin/validacao',
@@ -349,6 +363,8 @@ export interface FileRoutesByFullPath {
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
@@ -394,6 +410,8 @@ export interface FileRoutesByTo {
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
@@ -442,6 +460,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
+  '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
@@ -490,6 +510,8 @@ export interface FileRouteTypes {
     | '/admin/permissoes'
     | '/admin/usuarios'
     | '/admin/validacao'
+    | '/broker/admin'
+    | '/broker/'
     | '/royalties/'
     | '/royalties/$unidadeId/$mes'
   fileRoutesByTo: FileRoutesByTo
@@ -535,6 +557,8 @@ export interface FileRouteTypes {
     | '/admin/permissoes'
     | '/admin/usuarios'
     | '/admin/validacao'
+    | '/broker/admin'
+    | '/broker'
     | '/royalties'
     | '/royalties/$unidadeId/$mes'
   id:
@@ -582,6 +606,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/permissoes'
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/admin/validacao'
+    | '/_authenticated/broker/admin'
+    | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
     | '/_authenticated/royalties/$unidadeId/$mes'
   fileRoutesById: FileRoutesById
@@ -868,6 +894,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoyaltiesIndexRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
     }
+    '/_authenticated/broker/': {
+      id: '/_authenticated/broker/'
+      path: '/broker'
+      fullPath: '/broker/'
+      preLoaderRoute: typeof AuthenticatedBrokerIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/broker/admin': {
+      id: '/_authenticated/broker/admin'
+      path: '/broker/admin'
+      fullPath: '/broker/admin'
+      preLoaderRoute: typeof AuthenticatedBrokerAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/validacao': {
       id: '/_authenticated/admin/validacao'
       path: '/admin/validacao'
@@ -970,6 +1010,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminPermissoesRoute: typeof AuthenticatedAdminPermissoesRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedAdminValidacaoRoute: typeof AuthenticatedAdminValidacaoRoute
+  AuthenticatedBrokerAdminRoute: typeof AuthenticatedBrokerAdminRoute
+  AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1014,6 +1056,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminPermissoesRoute: AuthenticatedAdminPermissoesRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedAdminValidacaoRoute: AuthenticatedAdminValidacaoRoute,
+  AuthenticatedBrokerAdminRoute: AuthenticatedBrokerAdminRoute,
+  AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

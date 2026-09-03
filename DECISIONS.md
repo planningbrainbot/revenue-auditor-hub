@@ -17,6 +17,31 @@ Formato de cada entrada:
 
 ---
 
+## [2026-09-02] Broker da Expansão: tela da matriz antes da tela da unidade
+
+**Contexto:** o backend do broker está pronto (tabelas, extrato imutável, apuração do multiplicador, sync da fila do Pipedrive, gatilho de fechamento). O plano previa `/broker` para a unidade antes de `/broker/admin`. Ao levantar o mapeamento usuário→unidade descobriu-se que **os franqueados não têm login**: `socios` tem 35 linhas mas só 2 com `user_id`, e 12 dos 14 usuários do ops board são contas `@planning.com.br` da matriz. A tela da unidade não teria para quem servir.
+
+**Decisão:**
+
+1. **Inverter a ordem do F3: a tela da matriz (`/broker/admin`) vem primeiro.** Ela não depende de mapeamento por unidade, só de `view.broker_admin`, e deixa a matriz operar o broker à mão — reservar em nome de uma unidade, lançar crédito e aporte, acompanhar extrato e saldo, definir o multiplicador aplicado. O backend fica utilizável de imediato em vez de esperar um processo de RH.
+2. **Mapeamento usuário→unidade usa `socios.user_id` + `socios.unidade`, não tabela nova.** A ponte já existe no schema; o que falta é preenchimento. Fica registrado que `socios.unidade` é texto livre e `unidades` usa `nome_da_praca` — os nomes precisam casar antes de qualquer RLS por unidade.
+3. **Três chaves de permissão:** `view.broker` (unidade), `view.broker_admin` (matriz) e `manage.broker` (operar). Sem `manage.broker` a tela da matriz abre em leitura. Concedidas a admin e diretor; `view.broker` já vai para `socio_franqueado` para quando os logins existirem.
+4. **`broker_reservar`, `broker_liberar` e `broker_fechar` viraram `SECURITY DEFINER` com checagem própria de permissão.** Como `INVOKER` a escrita era barrada pelo RLS de `broker_movimentos` (que só tem policy de SELECT) e o erro só apareceria no clique. Como as três são chamáveis direto pelo PostgREST, confiar na checagem da camada de aplicação deixaria a porta aberta por baixo — daí `broker_exige_operar()` dentro de cada uma. `broker_fechar` perdeu o grant de `authenticated` porque quem a chama é o gatilho em `contratos`, onde não há usuário logado.
+5. **`broker_saldo` ganhou `security_invoker = true`.** Como view comum ela rodava com os direitos do dono, então o RLS de `broker_movimentos` não valia para quem lesse por ela: qualquer usuário logado veria o saldo de toda a rede.
+6. **O `aplicado` do multiplicador só muda por ato humano e exige justificativa.** O job mensal grava `apurado` e nunca move `aplicado` — ele herda o do mês anterior. A tela é a única porta que move o preço que a rede vê, e o formulário recusa salvar sem observação. Piso de 1,0 validado no servidor.
+7. **A tela da matriz mostra custo; a da unidade nunca vai mostrar.** Mídia, time C&M, New MRR, apurado e composição de preço ficam atrás de `view.broker_admin`. A unidade vê preço por cliente e mais nada — decisão de negócio já registrada no modelo, aqui virando fronteira técnica.
+
+**Status:** implementado, validado só em dev local (`src/lib/broker.functions.ts`, `src/components/broker/broker-admin-view.tsx`, `src/routes/_authenticated/broker.admin.tsx`, sidebar e `KNOWN_PERMISSIONS`). Migrations 27 e 28 **já aplicadas** no banco (ficam em `AI Projects/migrations/`, que é onde as do broker moram). Não commitado nem deployado.
+
+**Adendo do mesmo dia — tela da unidade (`/broker`) construída:**
+
+8. **A unidade lê só views, nunca as tabelas.** `broker_oportunidades` e `broker_movimentos` tiveram a policy de SELECT restringida a `view.broker_admin`. A unidade lê `v_broker_fila`, `v_broker_extrato` e `v_broker_meu_saldo`, que expõem preço e mais nada e já filtram por `minhas_unidades()`. Verificado logando como o franqueado do RJ: tabelas cruas devolvem 0 linhas, a view devolve a fila com 8 colunas (sem `mrr_precificado`, sem `multiplicador`). Sem isso, conceder `view.broker` teria aberto a tabela inteira pela API mesmo sem tela.
+9. **Autoatendimento por `broker_reservar_minha(oportunidade)`.** A unidade nunca informa o próprio id — ele vem de `socios.user_id` via `minhas_unidades()`. `broker_reservar` passou a aceitar dono da unidade além de `manage.broker`, e `broker_liberar` só deixa liberar o que é seu. Testado: franqueado do RJ não reserva para outra unidade nem forjando o id no parâmetro.
+10. **O franqueado tem um menu próprio (`SOCIO_FRANQUEADO_GROUPS`), separado do time interno.** Item novo precisa ser adicionado nos dois lugares — adicionar só em `DEFAULT_GROUPS` faz a página existir e ficar invisível para a rede, que foi o que aconteceu na primeira tentativa.
+11. **Vaza multiplicador por aritmética, e a tela não resolve.** Quem precifica o cliente é a unidade (F0-02), então ela sabe o MRR; vendo o preço em CB, dividir dá o multiplicador. Fechar isso exige o preço deixar de ser múltiplo limpo do MRR — faixa por porte ou arredondamento em degraus. **Decisão de modelo ainda em aberto**, e vale resolver antes de a tela ir para a rede.
+
+**Próximos passos:** criar login dos franqueados e preencher `socios.user_id` (F3-06); depois RLS por unidade (F3-04) e a tela `/broker` (F3-01). Alinhar `tools/broker_sync_fila.py` ao `/stages/{id}/deals`, que hoje diverge da Edge Function em produção.
+
 ## [2026-08-25] Fila Cella (Funil B): tela nova em `/fila-cella`, migrations commitadas e **não aplicadas**
 
 **Contexto:** o canal dedicado sobre a base instalada (Funil B) era operado numa planilha gerada por `build_planilha.py`, que é reconstruída a cada rodada — e a reconstrução apaga a camada operada (relacionamento, estágio, próximo passo, log de toques). A spec `spec-tela-fila-cella.md` v0.3 pediu a tela dentro do Ops. Esta entrada registra o que foi decidido no caminho, porque várias dessas escolhas contradizem documento existente e a próxima sessão precisa saber por quê.
