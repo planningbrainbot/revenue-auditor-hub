@@ -32,6 +32,14 @@ Formato de cada entrada:
 7. **Emissão fica preparada e desintegrada de propósito.** Decisão do usuário: não será Asaas, para não misturar os recebimentos; provavelmente outro gateway, com registro no Omie depois. `broker_faturas` já tem `gateway`, `referencia_externa` e `omie_id`, nenhum preenchido nesta versão. Enquanto isso a unidade lê instruções de pagamento de `broker_config.instrucoes_pagamento` — **texto placeholder, precisa ser revisto antes de ir para a rede**.
 8. **`v_broker_meu_saldo` calcula direto de `broker_movimentos`, não pela view `broker_saldo`.** Uma view definer que lê uma view invoker volta a rodar como o usuário final, e o franqueado não tem SELECT na tabela — o saldo saía zerado. Bug encontrado só porque havia movimento real para conferir.
 
+**Adendo — a unidade passa a precificar pelo broker (03/09):**
+
+9. **Botão "Precificar" em Minhas reservas, e a escrita vai ao Pipedrive primeiro.** O Pipedrive é a fonte de verdade do MRR (DATA-RULES), então a ordem é: checar permissão → gravar `value = mrr × 12` lá → gravar aqui. O inverso quebraria: se a escrita no Pipedrive falhasse depois da local, o `broker-sync-fila` devolveria o preço antigo em 15 minutos e o bloqueio de saldo criado pelo gatilho ficaria pendurado sem preço que o justifique.
+10. **O caminho passa por uma Edge Function nova (`broker-precificar`)**, não por server function do Ops. O Ops board não fala com o Pipedrive em lugar nenhum e não tem o token; quem tem é o Supabase. A permissão não é checada na Edge Function: ela chama `broker_pode_precificar` e `broker_precificar` com o JWT de quem pediu, então a regra vive só no banco.
+11. **`broker_preco_definido` passou a carimbar o autor.** O gatilho gravava o bloqueio de saldo sem `criado_por` — o extrato mostrava a reserva sem dizer quem a causou.
+
+**Consequência que fecha o assunto do vazamento:** com a unidade digitando o MRR e vendo o preço em CashBrain na mesma tela, o multiplicador passa a ser obtido por uma divisão. Não é mais um risco teórico. Enquanto o preço for múltiplo limpo do MRR, a camada interna é derivável — resolver exige faixa por porte ou arredondamento em degraus.
+
 **Achado não resolvido:** `estorno` entra somando em `creditado`, junto de `credito` e `aporte`. Serve para reverter débito, mas **não reverte um aporte** — e `valor_cb > 0` impede lançamento negativo. Hoje não há caminho de correção para crédito lançado a mais. Precisa de um tipo de movimento redutor ou de permitir sinal.
 
 **Status:** implementado e validado em dev local com login de franqueado real (migrations 31 a 35, já aplicadas). Não commitado nem publicado.

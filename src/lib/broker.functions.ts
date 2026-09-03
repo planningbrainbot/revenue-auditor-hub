@@ -452,3 +452,39 @@ export const pagarFatura = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Precificar é o único caminho da unidade para definir o MRR do cliente.
+ * Vai pela Edge Function porque o Pipedrive é a fonte de verdade do MRR e o
+ * token dele mora no Supabase, não aqui. A permissão é checada lá, pelas RPCs
+ * que rodam com o JWT de quem chamou.
+ */
+export const precificarOportunidade = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { oportunidade_id: number; mrr_mensal: number }) => {
+    const oportunidade_id = Number(input.oportunidade_id);
+    const mrr_mensal = Number(input.mrr_mensal);
+    if (!Number.isInteger(oportunidade_id) || oportunidade_id <= 0)
+      throw new Error("Oportunidade inválida.");
+    if (!Number.isFinite(mrr_mensal) || mrr_mensal <= 0)
+      throw new Error("Informe um MRR maior que zero.");
+    return { oportunidade_id, mrr_mensal };
+  })
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
+    const { data: r, error } = await sb.functions.invoke("broker-precificar", { body: data });
+    if (error) {
+      // O corpo do erro carrega a mensagem que interessa (ex.: reserva de outro).
+      let msg = error.message ?? "Falha ao precificar.";
+      try {
+        const corpo = await error.context?.json?.();
+        if (corpo?.erro) msg = corpo.erro;
+      } catch {
+        /* sem corpo legível: fica a mensagem genérica */
+      }
+      throw new Error(msg);
+    }
+    if (r && r.ok === false) throw new Error(r.erro ?? "Falha ao precificar.");
+    return { ok: true, preco_cb: r?.preco_cb ?? null };
+  });

@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, ShoppingCart, Timer, CheckCircle2, Wallet, Info } from "lucide-react";
+import { RefreshCw, ShoppingCart, Timer, CheckCircle2, Wallet, Info, Tag } from "lucide-react";
 import { toast } from "sonner";
 import {
   carregarBrokerUnidade,
   reservarParaMinhaUnidade,
   liberarMinhaReserva,
   pedirFatura,
+  precificarOportunidade,
   cancelarFatura,
   type BrokerUnidadeData,
   type FilaUnidadeRow,
@@ -136,6 +137,8 @@ export function BrokerUnidadeView() {
 
   const [busca, setBusca] = useState("");
   const [comprando, setComprando] = useState(false);
+  const [precificando, setPrecificando] = useState<FilaUnidadeRow | null>(null);
+  const [mrr, setMrr] = useState("");
   const [valorCompra, setValorCompra] = useState("");
   const [confirmando, setConfirmando] = useState<FilaUnidadeRow | null>(null);
 
@@ -168,6 +171,18 @@ export function BrokerUnidadeView() {
     mutationFn: (d: { fatura_id: number }) => fnCancelar({ data: d }),
     onSuccess: () => {
       toast.success("Fatura cancelada.");
+      recarregar();
+    },
+    onError: aoFalhar,
+  });
+
+  const fnPrecificar = useServerFn(precificarOportunidade);
+  const mPrecificar = useMutation({
+    mutationFn: (d: { oportunidade_id: number; mrr_mensal: number }) => fnPrecificar({ data: d }),
+    onSuccess: () => {
+      toast.success("Cliente precificado. O valor foi bloqueado no seu saldo.");
+      setPrecificando(null);
+      setMrr("");
       recarregar();
     },
     onError: aoFalhar,
@@ -341,13 +356,20 @@ export function BrokerUnidadeView() {
                       )}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
-                  >
-                    Liberar
-                  </Button>
+                  <div className="flex gap-1">
+                    {o.preco_cb === null ? (
+                      <Button size="sm" onClick={() => setPrecificando(o)}>
+                        <Tag className="mr-1.5 h-3.5 w-3.5" /> Precificar
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
+                    >
+                      Liberar
+                    </Button>
+                  </div>
                 </div>
 
                 {p ? (
@@ -582,6 +604,59 @@ export function BrokerUnidadeView() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={!!precificando}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPrecificando(null);
+            setMrr("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Precificar {precificando?.empresa}</DialogTitle>
+            <DialogDescription>
+              Informe o MRR mensal contratado. Ele vai para o Pipedrive e define o preço deste
+              cliente, que passa a ficar bloqueado no seu saldo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>MRR mensal</Label>
+            <Input
+              type="number"
+              min={1}
+              step={100}
+              value={mrr}
+              onChange={(e) => setMrr(e.target.value)}
+              placeholder="3500"
+            />
+            <p className="text-xs text-muted-foreground">
+              {mrr && Number(mrr) > 0
+                ? `${brl(Number(mrr))} por mês · ${brl(Number(mrr) * 12)} no ano`
+                : "Valor mensal, não anual."}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrecificando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={!mrr || Number(mrr) <= 0 || mPrecificar.isPending}
+              onClick={() =>
+                precificando &&
+                mPrecificar.mutate({
+                  oportunidade_id: precificando.id,
+                  mrr_mensal: Number(mrr),
+                })
+              }
+            >
+              Precificar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={comprando} onOpenChange={(o) => !o && setComprando(false)}>
         <DialogContent>
