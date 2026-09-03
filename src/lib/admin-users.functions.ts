@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAffected } from "@/lib/supabase-assert";
+import { enviarEmail } from "@/lib/email.server";
+import { emailBoasVindas, emailRedefinicaoSenha } from "@/lib/email-templates";
 
 type Role = string;
 
@@ -20,6 +22,29 @@ async function ensureAdmin(userId: string) {
     throw new Error("Erro de autorização. Tente novamente.");
   }
   if (!data) throw new Error("Acesso negado: somente administradores.");
+}
+
+function appUrl() {
+  return (process.env.APP_URL || "https://ops.planningbrain.com.br").replace(/\/+$/, "");
+}
+
+/**
+ * Gera o link de uso único que leva a pessoa direto pra tela de definir senha.
+ * É o mesmo tipo de link do "esqueci minha senha", só que emitido pelo admin —
+ * assim a senha nunca trafega por e-mail.
+ */
+async function gerarLinkDefinirSenha(email: string): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: { redirectTo: `${appUrl()}/redefinir-senha` },
+  });
+  if (error || !data?.properties?.action_link) {
+    console.error("[gerarLinkDefinirSenha] generateLink failed:", error);
+    throw new Error("Falha ao gerar o link de definição de senha.");
+  }
+  return data.properties.action_link;
 }
 
 function pickPrimaryRole(roles: Role[]): Role {
@@ -103,7 +128,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
     await ensureAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: roleRow } = await supabaseAdmin.from("roles").select("key").eq("key", data.role).maybeSingle();
+    const { data: roleRow } = await supabaseAdmin.from("roles").select("key, label").eq("key", data.role).maybeSingle();
     if (!roleRow) throw new Error("Papel inválido.");
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
@@ -167,29 +192,69 @@ export const adminCreateUser = createServerFn({ method: "POST" })
     }
 
 
-    return { user_id: userId, email: data.email, unidade };
+    // E-mail de boas-vindas com link de definição de senha. Se o envio falhar,
+    // o usuário já existe e o admin recebe o link em tela pra repassar na mão.
+    let link: string | null = null;
+    let emailEnviado = false;
+    let emailErro: string | null = null;
+    try {
+      link = await gerarLinkDefinirSenha(data.email);
+      const msg = emailBoasVindas({
+        nome: data.nome,
+        email: data.email,
+        link,
+        papel: roleRow.label ?? data.role,
+      });
+      const envio = await enviarEmail({ to: data.email, ...msg });
+      emailEnviado = envio.enviado;
+      emailErro = envio.erro ?? null;
+    } catch (err) {
+      console.error("[adminCreateUser] envio do convite falhou:", err);
+      emailErro = err instanceof Error ? err.message : "Falha ao gerar o link de acesso.";
+    }
+
+    return { user_id: userId, email: data.email, unidade, emailEnviado, emailErro, link };
   });
 
-export const adminResetPassword = createServerFn({ method: "POST" })
+/**
+ * Dispara pro usuário um e-mail com link de redefinição de senha. Substitui o
+ * antigo reset que sobrescrevia a senha e a mostrava em tela: a senha atual
+ * segue valendo até a pessoa cadastrar a nova pelo link.
+ */
+export const adminEnviarRedefinicaoSenha = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { user_id: string; password: string }) => {
+  .inputValidator((input: { user_id: string }) => {
     if (!input?.user_id) throw new Error("user_id obrigatório.");
     if (!UUID_RE.test(input.user_id)) throw new Error("user_id inválido.");
-    const password = input?.password ?? "";
-    if (password.length < 8) throw new Error("Senha deve ter pelo menos 8 caracteres.");
-    return { user_id: input.user_id, password };
+    return { user_id: input.user_id };
   })
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
-      password: data.password,
-    });
-    if (error || !updated.user) {
-      console.error("[adminResetPassword] updateUserById failed:", error);
-      throw new Error("Falha ao redefinir senha. Tente novamente.");
+    const { data: alvo, error } = await supabaseAdmin.auth.admin.getUserById(data.user_id);
+    const email = alvo?.user?.email ?? "";
+    if (error || !email) {
+      console.error("[adminEnviarRedefinicaoSenha] getUserById failed:", error);
+      throw new Error("Usuário não encontrado.");
     }
-    return { user_id: data.user_id, email: updated.user.email ?? "" };
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("nome")
+      .eq("user_id", data.user_id)
+      .maybeSingle();
+
+    const link = await gerarLinkDefinirSenha(email);
+    const msg = emailRedefinicaoSenha({ nome: profile?.nome ?? "", email, link });
+    const envio = await enviarEmail({ to: email, ...msg });
+
+    return {
+      user_id: data.user_id,
+      email,
+      link,
+      emailEnviado: envio.enviado,
+      emailErro: envio.erro ?? null,
+    };
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })

@@ -645,3 +645,92 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Validado:** planilha `~/Desktop/indicadores-trimestre-validacao.xlsx` (4 abas) conferida antes de escrever a UI — foi ela que pegou os dois bugs de fórmula acima. `tsc` e `eslint` limpos nos arquivos novos; dev local respondeu 200 na rota. **Não testado logado** (sem sessão disponível na sessão de implementação).
 
 **Ajuste no mesmo dia (antes do deploy):** o comparativo da rede nasce **fechado**, atrás de um toggle, e só é renderizado para quem tem `view.network.benchmarks`. Motivo: a tela é usada para apresentar os números **para a unidade**, na reunião trimestral — ninguém deve abrir a página na frente de um franqueado e mostrar sem querer o resultado das outras praças. Mesma lógica da decisão de 11/08/2026 em `/rede-overview` (dados agregados de rede ficam fechados por padrão).
+
+---
+
+## [2026-08-26] CAC "boleto enviado" → "pago" automático via confirmação de recebimento
+
+**Contexto:** fecha o ciclo inverso do vínculo CAC → Royalties de 24/08/2026 (`vincularRoyaltiesCac`, [cac.functions.ts](src/lib/cac.functions.ts#L666)). Hoje, marcar uma parcela de CAC como "boleto enviado" já joga o valor automaticamente na apuração de Royalties da unidade (`royalties_itens.is_cac=true`, somado em `royalties_apuracao.cac_valor`). Faltava a volta: quando o analista confirma manualmente na tela de Recebimentos ([financeiro-partners?tab=pagamentos](src/components/financeiro-partners/pagamentos-view.tsx)) que a categoria "CAC + Tráfego pago" (`cac_trafego`, em `royalties_apuracao_pagamentos`) foi paga integralmente, a parcela de CAC ficava presa em "boleto enviado" até alguém repetir a marcação manualmente na tela de CAC.
+
+**Limitação de dado assumida:** a categoria `cac_trafego` é conferida no agregado unidade/mês contra o Omie (título único, sem abertura por cliente), somando CAC + Tráfego pago. Não existe forma de saber qual cliente especificamente pagou — só que o total bateu. A automação portanto marca **todas** as parcelas de CAC vinculadas àquela apuração de uma vez, não cliente a cliente.
+
+**Decisão (confirmada com o usuário via pergunta direta):**
+1. O gatilho é a confirmação **manual** do analista na tela de Recebimentos (marcar `status_validado = 'confirmado_pago'`) — não existe sync direto do status do Omie disparando isso; a conferência com o Omie continua manual, só a propagação pro CAC que passa a ser automática.
+2. Se a confirmação for desfeita depois (correção de conferência), a(s) parcela(s) de CAC revertem sozinhas pra "boleto enviado" — mas **só as que a própria automação marcou**. Se alguém já tinha marcado a parcela como paga manualmente (antes ou depois do trigger), a automação não mexe nela.
+
+**Implementação:**
+- Migration [20260826120000_cac_auto_pago_via_recebimento.sql](supabase/migrations/20260826120000_cac_auto_pago_via_recebimento.sql): colunas `cac_apuracao_itens.pago_auto_parcela_1/2` (boolean, marca o que foi preenchido pela automação) + trigger `trg_sync_cac_pago_via_recebimento` em `AFTER INSERT OR UPDATE OF status_validado ON royalties_apuracao_pagamentos`. Ida: para cada `cac_apuracao_itens` linkada via `royalties_item_id_parcela_1/2` a um item `is_cac=true` daquela apuração, se a parcela ainda não tem `data_pagamento_parcela_X`, seta `data_pagamento_parcela_X = validado_em::date`, `valor_pago_parcela_X = valor_parcela_X` (não tem breakdown real por cliente vindo do Omie, usa o valor previsto) e `pago_auto_parcela_X = true`. Volta: reverte só onde `pago_auto_parcela_X = true`.
+- [cac.functions.ts](src/lib/cac.functions.ts#L874) (`updateItemCac`): marcar/desmarcar pago manualmente na tela de CAC agora também zera `pago_auto_parcela_X` — tira a parcela da automação, pra uma reversão futura da confirmação de recebimento nunca apagar um pagamento confirmado à mão.
+
+**Validado:** `tsc --noEmit` limpo no arquivo tocado. **Migration aplicada manualmente pelo usuário no SQL Editor do Supabase em 26/08/2026** (a chamada automática via Management API foi bloqueada pelo classificador de permissões da sessão — ação de escrita direta em produção — então o usuário colou e rodou o SQL). Confirmado depois via query de verificação: `pago_auto_parcela_1/2` existem em `cac_apuracao_itens` e `trg_sync_cac_pago_via_recebimento` está criado e ativo.
+
+**Status:** migration aplicada e verificada em produção (26/08/2026). O ajuste em `cac.functions.ts` (`updateItemCac` zera `pago_auto_parcela_X` ao marcar/desmarcar pago manualmente) ainda está só no working tree local, **não commitado/enviado** — o trigger já funciona sem ele, mas sem esse ajuste um pagamento marcado manualmente depois do trigger agir pode ser apagado por uma reversão futura da confirmação em Recebimentos.
+
+**Próximos passos:** testar o ciclo completo num caso real (marcar "boleto enviado" no CAC → conferir que caiu na apuração de Royalties → confirmar "pago" nos Recebimentos → conferir que a parcela de CAC virou "pago" sozinha) e, validado, commitar/enviar o ajuste de `cac.functions.ts`.
+
+## [2026-08-26] `/indicadores-trimestre`: faturamento e take rate passam a sair da apuração de royalties
+
+**Contexto:** o usuário conferiu o Rio no Q2/2026 e o card "Faturamento base nova" (R$ 1.924.338) não bateu com o que a unidade lê na apuração (abr 668.095 + mai 346.390 + jun 514.540 = R$ 1.529.024). Gap de 25,9%, acima do limite de conflito do `DATA-RULES.md`.
+
+**Diagnóstico (não era bug de cálculo — eram duas réguas):** o card somava `contas_receber` por `data_competencia`, valor bruto; a apuração usa recebido líquido, por caixa, com ajustes manuais. Ponte do RJ: base apurada 1.529.024 → +356.651 de títulos que a apuração não contou ou cortou → 1.885.676 (recebido líquido) → +50.140 de retenção de imposto → 1.935.815 (bruto) → −11.478 de regime → 1.924.338. **90% do gap é a própria apuração, não regime nem imposto:**
+- Junho: o sistema puxou R$ 809.763 do Omie, o apurador editou 26 itens para baixo e excluiu 13, fechando em 514.540 — clientes com 2 títulos compensados no mês (backlog de emissão de maio) ficaram com 1. Ex.: Concessionária Rodovia da Integração recebeu 253.395 e virou item de 126.697,50, exatamente metade.
+- Abril (apuração 33): **100% manual**, 18 linhas sem vínculo com o Omie, incluindo uma linha literal `GENIAL (grupo, sem detalhe por CNPJ em jan–mai/26)` — retroativo de meses anteriores lançado dentro de abril.
+- 10 clientes com R$ 215.965 recebidos no trimestre não têm item na apuração ou têm item zerado.
+
+**Defeito real que isso expôs:** o take rate dividia numerador da apuração (royalties + CSC — caixa, líquido, ajustado) por denominador de competência/bruto. Duas réguas no mesmo percentual.
+
+**Decisão:** `fat_base_nova` e `take_rate_pct` passam a vir de `royalties_apuracao` (meses `confirmado` dentro do período), a mesma fonte do numerador. `fat_total` = `receita_base` + `receita_base_antiga`. Escolhido pelo usuário entre 4 opções (as outras: recebido líquido por caixa via Omie, faturamento por vencimento, mostrar os dois lado a lado). O número passa a ser o que a unidade vê e assina na apuração — **inclui os ajustes manuais, e isso é intencional**: é a régua da conversa com a unidade.
+
+**Efeitos (Q2/2026):** RJ 1.924.338 → 1.529.024 (take 9,52% → 11,98%); Curitiba 617.928 → 548.976 (12,85% → 14,46%); Belém 586.194 → 541.123 (17,62% → 19,09%); Campo Novo 69.842 → 64.837 (38,00% → 40,93%). **Patos, São Luís, Fortaleza e Maceió deixam de aparecer sem faturamento** — hoje ficam vazias por falha de join com o Omie ou por item de apuração sem CNPJ; agora exibem 377.300 / 26.707 / 19.192 / 50.914.
+
+**Lacunas continuam explícitas, nunca como zero:** mês sem apuração confirmada não entra e o card fica em `—` com alerta; `meses_apurados` < 3 gera aviso de trimestre subrepresentado (São Luís, Fortaleza e Maceió têm 1 de 3). `data_competencia` sai de vez do cálculo de faturamento — `DATA-RULES.md` (25/08) já marcava o campo como inconfiável, e o RJ é caso extremo: abr 719.705 / mai 94.651 / jun 1.109.982.
+
+**Não muda:** `clientes_base_nova`, churn, inadimplência e estoque continuam vindo do Omie — não são faturamento, e a apuração não tem CNPJ confiável em todas as unidades (Patos, Fortaleza e Maceió gravam item sem CNPJ, por isso o hint de clientes só aparece quando > 0). Efeito colateral pequeno e aceito: a contagem de clientes agora ignora título cancelado (Curitiba 94 → 92).
+
+**Arquitetura:** migration `20260826140000_indicadores_trimestre_fat_base_apurada.sql` (`create or replace` da RPC, assinatura idêntica) + ajustes de gate/hint em `indicadores-trimestre-view.tsx`. `tsc` sem erro novo no arquivo alterado (15 erros pré-existentes em outros arquivos, idênticos antes e depois), rota respondendo 200 no dev local.
+
+## [2026-08-28] Método IDU — painel de apuração trimestral por unidade
+
+**Contexto:** a atribuição às unidades é hoje decidida por relacionamento, a reunião de acompanhamento não tem âncora numérica, não existe ranking que posicione as praças, e meta não batida vira cobrança à franqueadora. A metodologia foi desenhada fora do repo (ver `wiki/outputs/2026-08-metodologia-metas-trimestrais-unidades.md` em `~/Desktop/AI Projects`) e batizada de **Método IDU** — Índice de Desempenho da Unidade.
+
+**Decisão — a régua:** nota de 0 a 100 por unidade e por trimestre, em quatro pilares com dois conjuntos de peso (madura a partir do 5º trimestre / ramp-up): Crescimento 30/50 (venda de novos clientes 20/40 + venda para a base 10/10), Retenção 35/15 (churn de MRR), Qualidade 25/25 (satisfação do cliente 15 + exposição de carteira 10), Gestão 10/10 (e-NPS). Atingimento é `realizado/meta` quando maior é melhor e `meta/realizado` quando menor é melhor; piso de 50% **zera** o indicador, teto de 120%, nota final limitada a 100. A nota converte em percentual do forecast: abaixo de 50 libera 0%, de 50 a 74 libera a própria nota, **75 é a linha de corte que libera 100%**, de 90 a 100 libera até 120%.
+
+**Decisão — churn:** é **apenas o que está lançado no pipe de Tratativas** (`central_tratativas`). Unidade com carteira e sem card no período tem churn zero, não "sem dado". Inadimplência no Omie é sinal para o time de CS investigar e lançar — explicitamente **não** vira automação. Meta de churn da rede: **5%**, aplicada como default quando não há meta por unidade.
+
+**Decisão — indicador sem meta sai do denominador.** Deliberado: força a meta a ser pactuada e registrada antes do trimestre, em vez de a régua inventar um número. Mesma regra vale para indicador sem dado.
+
+**Decisão — ranking aberto. ⚠️ Isto reverte decisão anterior.** O usuário decidiu que todo franqueado vê a nota de todas as unidades, com nome. Isso contradiz a entrada de 2026-08-11 (`/rede-overview`) e o ajuste registrado para `/indicadores-trimestre`, onde o comparativo da rede nasce fechado atrás de `view.network.benchmarks` justamente para não expor as outras praças numa reunião. A decisão nova é mais recente e explícita, e foi implementada — mas as duas telas antigas continuam com o comportamento fechado. **Se a intenção for abrir a rede em todo lugar, essas duas telas precisam ser revisitadas.**
+
+**Status:** implementado e validado no dev server local (`http://localhost:8080/idu`, HTTP 200, `tsc --noEmit` limpo nos arquivos tocados). **Não commitado nem deployado** — segue a regra de subir só local até o usuário pedir.
+- Migration `supabase/migrations/20260828120000_idu_metas_e_apuracao.sql`, **já aplicada no Supabase de produção** (só criação: tabela `idu_metas`, funções `idu_slug`, `idu_indicadores_catalogo`, `idu_apuracao`, `idu_ranking`, `idu_pode_ver`; nada existente foi alterado).
+- Permissões `view.idu` (admin, diretor, head, cs, socio_franqueado) e `edit.idu_metas` (admin, diretor) inseridas em `role_permissions` e registradas em `KNOWN_PERMISSIONS`.
+- Arquivos: `src/components/idu/idu-view.tsx`, `src/routes/_authenticated/idu.tsx`, `src/lib/permissions.functions.ts`, `src/components/app-sidebar.tsx`, `src/integrations/supabase/types.ts` (tipos do `idu_metas` e das RPCs adicionados à mão, sem regerar o arquivo inteiro).
+
+**Próximos passos:**
+1. **Metas do Q4 por unidade.** Sem elas, só o churn pontua e o resto sai do denominador — a tela mostra o aviso de quantos indicadores estão sem meta. Editáveis inline na própria página por quem tem `edit.idu_metas`.
+2. **Exposição de carteira está errada como está.** `auditorias_internas.oportunidades_valor + contingencias_valor` são valores de **estoque** (passivo fiscal acumulado do cliente), não fluxo do trimestre: o Rio de Janeiro dá 564% de exposição sobre faturamento e Patos de Minas acumula R$ 4,7M contra carteira de R$ 175k/mês. Além disso 55 das 86 auditorias estão sem `data_conclusao`. O indicador precisa de definição antes de valer 10 pontos.
+3. **Satisfação do cliente não produz nota.** A rodada `2026-08` teve 257 envios e 3 respostas com `nps_recomendacao` preenchido. A função exige amostra mínima de 5 respostas por unidade; hoje nenhuma unidade atinge isso.
+4. **e-NPS não tem fonte** — o indicador devolve sempre nulo e os 10 pontos ficam fora do denominador.
+5. Ver também: `contratos.mrr` é o valor de **12 meses**; o MRR mensal é `contratos.mrr_mensal`. A função usa `mrr_mensal`. Qualquer relatório que use `contratos.mrr` como MRR está 12x inflado.
+
+## [2026-09-03] E-mail transacional de acesso — link de senha, não senha em texto
+
+**Contexto:** criar usuário em `/admin/usuarios` gerava uma senha aleatória, mostrava em tela e o admin repassava por WhatsApp/e-mail na mão. O "esqueci minha senha" da tela de login já existia no código desde sempre, mas o Supabase Auth estava **sem SMTP configurado** (`smtp_host: null`) e com `rate_limit_email_sent: 2` — ou seja, usava o mailer interno do Supabase, com 2 e-mails/hora e entrega não confiável para quem não é membro do projeto. Na prática a recuperação de senha estava quebrada.
+
+**Decisão — a senha nunca trafega por e-mail.** O usuário escolheu explicitamente link de definição de senha em vez de mandar a senha em texto. O e-mail de boas-vindas traz o e-mail de login e um botão que leva a `/redefinir-senha` com token de uso único (`auth.admin.generateLink({ type: "recovery" })`). Motivo: senha em texto fica gravada na caixa postal para sempre e vaza junto com qualquer comprometimento do e-mail.
+
+**Decisão — "Resetar senha" do admin virou "Enviar redefinição".** O botão não sobrescreve mais a senha da pessoa: dispara o mesmo link por e-mail e a senha atual continua valendo até ela cadastrar a nova. **Isto remove a capacidade de forçar uma senha** — o fallback para quem não recebe o e-mail é o link exibido em tela, com botão de copiar.
+
+**Decisão — escopo é só o Ops.** O login do Growth criado na mesma tela continua com senha em tela (card "Credenciais geradas" intacto), porque é outro projeto Supabase.
+
+**Arquitetura:**
+- `src/lib/email.server.ts` — envio pela API HTTPS do SendGrid (`POST /v3/mail/send`), nunca SMTP (porta bloqueada em droplet DO, e aqui roda na Vercel de qualquer forma). Nunca lança: e-mail que não sai não derruba a criação do usuário.
+- `src/lib/email-templates.ts` — HTML em tabela com estilo inline (o que sobrevive a Gmail/Outlook), logo em PNG servido pelo próprio domínio.
+- `src/lib/admin-users.functions.ts` — `adminCreateUser` passa a enviar o convite; `adminResetPassword` foi substituída por `adminEnviarRedefinicaoSenha`.
+- Env novas (já criadas na Vercel `ops-brain`, escopo production/preview/development, e no `.env` local): `SENDGRID_API_KEY`, `EMAIL_FROM=noreply@planningbrain.com.br`, `EMAIL_FROM_NAME=Planning Brain`, `APP_URL`.
+
+**Config aplicada em produção no Supabase `ulgiochewwpmmssksqlw` (não é código, já está valendo):** SMTP do SendGrid (`smtp.sendgrid.net:587`, usuário literal `apikey`), remetente `noreply@planningbrain.com.br` pelo domínio autenticado, `rate_limit_email_sent` de 2 → 30/hora, `mailer_otp_exp` de 3600 → 86400 (o link do convite precisa durar mais que 1 hora), e os templates de recovery/magic link/confirmation reescritos em português com a identidade Planning.
+
+**Status:** validado no dev server local (`http://localhost:8080`, módulos compilando, `tsc --noEmit` limpo nos arquivos tocados, lint do arquivo saiu de 41 para 38 erros pré-existentes de prettier). **Não commitado nem deployado** — segue a regra de subir só local até o usuário pedir. As env vars da Vercel só passam a valer no próximo deploy.
+
+**Pendente:** teste ponta a ponta com envio real (criar um usuário de teste e conferir a chegada do e-mail) — não feito por ser ação externa que dispara e-mail de verdade.

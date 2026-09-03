@@ -5,10 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   adminCreateUser,
   adminDeleteUser,
+  adminEnviarRedefinicaoSenha,
   adminGrantGrowthAccess,
   adminListGrowthAccess,
   adminListUsers,
-  adminResetPassword,
   adminRevokeGrowthAccess,
   adminUpdateUser,
 } from "@/lib/admin-users.functions";
@@ -74,7 +74,7 @@ function UsersPage() {
 
   const listFn = useServerFn(adminListUsers);
   const createFn = useServerFn(adminCreateUser);
-  const resetFn = useServerFn(adminResetPassword);
+  const resetFn = useServerFn(adminEnviarRedefinicaoSenha);
   const deleteFn = useServerFn(adminDeleteUser);
   const updateFn = useServerFn(adminUpdateUser);
   const lookupFn = useServerFn(getSocioUnidadeByEmail);
@@ -132,6 +132,14 @@ function UsersPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("diretor");
   const [credential, setCredential] = useState<{ email: string; password: string; unidade?: string | null } | null>(null);
+  const [acesso, setAcesso] = useState<{
+    modo: "convite" | "reset";
+    email: string;
+    link: string | null;
+    enviado: boolean;
+    erro: string | null;
+    unidade?: string | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [socioUnidade, setSocioUnidade] = useState<string | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
@@ -190,8 +198,15 @@ function UsersPage() {
 
   const createMut = useMutation({
     mutationFn: (input: { nome: string; email: string; role: Role; password: string; unidade?: string }) => createFn({ data: input }),
-    onSuccess: (res, variables) => {
-      setCredential({ email: res.email, password: variables.password, unidade: res.unidade });
+    onSuccess: (res) => {
+      setAcesso({
+        modo: "convite",
+        email: res.email,
+        link: res.link,
+        enviado: res.emailEnviado,
+        erro: res.emailErro,
+        unidade: res.unidade,
+      });
       setNome("");
       setEmail("");
       setRole("diretor");
@@ -205,9 +220,16 @@ function UsersPage() {
   });
 
   const resetMut = useMutation({
-    mutationFn: ({ user_id, password }: { user_id: string; password: string }) => resetFn({ data: { user_id, password } }),
-    onSuccess: (res, variables) => setCredential({ email: res.email, password: variables.password }),
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao resetar senha"),
+    mutationFn: ({ user_id }: { user_id: string }) => resetFn({ data: { user_id } }),
+    onSuccess: (res) =>
+      setAcesso({
+        modo: "reset",
+        email: res.email,
+        link: res.link,
+        enviado: res.emailEnviado,
+        erro: res.emailErro,
+      }),
+    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao enviar a redefinição de senha"),
   });
 
   const deleteMut = useMutation({
@@ -229,6 +251,10 @@ function UsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNome, setEditingNome] = useState("");
 
+  function copyLink() {
+    if (acesso?.link) navigator.clipboard?.writeText(acesso.link);
+  }
+
   function copyCred() {
     if (!credential) return;
     const text = `Email: ${credential.email}\nSenha: ${credential.password}`;
@@ -241,6 +267,67 @@ function UsersPage() {
   return (
     <AppShell title="Gerenciar usuários" subtitle="Cadastre admins, diretores e sócios">
       <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
+        {acesso && (
+          <div
+            className={`rounded-xl border p-4 ${
+              acesso.enviado
+                ? "border-emerald-500/40 bg-emerald-500/5"
+                : "border-amber-500/50 bg-amber-500/5"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {acesso.enviado
+                    ? acesso.modo === "convite"
+                      ? "Convite enviado"
+                      : "Redefinição enviada"
+                    : "Usuário pronto, mas o e-mail não saiu"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {acesso.enviado ? (
+                    <>
+                      {acesso.email} recebeu um link para cadastrar a própria senha. O link vale por
+                      24 horas e é de uso único.
+                    </>
+                  ) : (
+                    <>
+                      Não foi possível enviar o e-mail para {acesso.email}
+                      {acesso.erro ? ` (${acesso.erro})` : ""}. Copie o link abaixo e mande por um
+                      canal seguro.
+                    </>
+                  )}
+                </p>
+                {acesso.unidade !== undefined && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Unidade: <span className="text-foreground">{acesso.unidade ?? "—"}</span>
+                  </p>
+                )}
+                {acesso.link && (
+                  <div className="mt-3 break-all rounded-lg bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                    {acesso.link}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                {acesso.link && (
+                  <button
+                    onClick={copyLink}
+                    className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                  >
+                    Copiar link
+                  </button>
+                )}
+                <button
+                  onClick={() => setAcesso(null)}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {credential && (
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
@@ -356,7 +443,7 @@ function UsersPage() {
             )}
             <div className="sm:col-span-4 flex justify-end">
               <button type="submit" disabled={createMut.isPending} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                {createMut.isPending ? "Criando..." : "Criar e gerar senha"}
+                {createMut.isPending ? "Criando..." : "Criar e enviar acesso"}
               </button>
             </div>
           </form>
@@ -468,11 +555,12 @@ function UsersPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => resetMut.mutate({ user_id: u.user_id, password: generatePassword(12) })}
+                          onClick={() => resetMut.mutate({ user_id: u.user_id })}
                           disabled={resetMut.isPending}
                           className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent disabled:opacity-50"
+                          title="Envia um e-mail com link para a pessoa cadastrar uma nova senha"
                         >
-                          Resetar senha
+                          {resetMut.isPending ? "Enviando..." : "Enviar redefinição"}
                         </button>
                         {u.user_id !== user?.id && (
                           <button
