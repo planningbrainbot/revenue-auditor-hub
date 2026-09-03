@@ -18,6 +18,53 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  *   2. O usuário no Financial é criado com o e-mail já confirmado, porque a
  *      confirmação de identidade aconteceu no Ops. Nenhum e-mail é disparado.
  */
+
+/** Prefixo das chaves de escopo do cockpit em KNOWN_PERMISSIONS. */
+const PREFIXO_ESCOPO = "view.brain_financeiro_";
+
+/** Mapa chave-de-permissão -> id do escopo em `unidades_navegacao` do Financial. */
+const ESCOPOS: Record<string, string> = {
+  bpo: "BPO",
+  doc: "DOC",
+  expansao: "EXPANSÃO",
+  marox: "MAROX",
+  pat: "PAT",
+  pis: "PIS",
+  negocios_estruturados: "negocios-estruturados",
+  finance: "finance",
+};
+
+/**
+ * Resolve o que a pessoa pode no cockpit, a partir dos papéis dela no Ops.
+ * Devolve `null` quando ela não tem acesso nenhum — nesse caso não emitimos
+ * sessão, para não dar token a quem não deveria entrar.
+ */
+async function permissoesDoCockpit(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const { data: papeis } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  const roles = (papeis ?? []).map((r) => r.role as string);
+  if (roles.length === 0) return null;
+
+  const { data: perms } = await supabaseAdmin
+    .from("role_permissions")
+    .select("permission_key")
+    .in("role", roles)
+    .eq("allowed", true);
+
+  const chaves = new Set((perms ?? []).map((p) => p.permission_key as string));
+  if (!chaves.has("view.brain_financeiro")) return null;
+
+  const escopos = Object.entries(ESCOPOS)
+    .filter(([sufixo]) => chaves.has(PREFIXO_ESCOPO + sufixo))
+    .map(([, id]) => id);
+
+  return { acesso: true as const, escopos };
+}
+
 /**
  * Emite a sessão do GROWTH para quem acabou de autenticar no Ops.
  *
@@ -73,6 +120,12 @@ export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
       return { ok: false as const, motivo: "sem-email" };
     }
 
+    // A concessão é decidida AQUI, no Ops, e viaja no token. Sem acesso, não
+    // emitimos sessão nenhuma — dar token a quem não pode entrar seria só
+    // empurrar a checagem para depois.
+    const permissao = await permissoesDoCockpit(context.userId);
+    if (!permissao) return { ok: false as const, motivo: "sem-permissao" };
+
     const { getFinanceiroAdmin } = await import(
       "@/integrations/supabase/client.financeiro.server"
     );
@@ -104,6 +157,21 @@ export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
         if (existente && !existente.email_confirmed_at) {
           await admin.auth.admin.updateUserById(existente.id, { email_confirm: true });
         }
+      }
+
+      // Grava a concessão no app_metadata ANTES de gerar o token, para que ela
+      // já vá dentro do JWT. app_metadata (e não user_metadata) porque só o
+      // service role escreve nele — o usuário não consegue alterar a própria
+      // permissão pelo cliente.
+      const alvo = (await admin.auth.admin.listUsers()).data?.users?.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase(),
+      );
+      if (alvo) {
+        await admin.auth.admin.updateUserById(alvo.id, {
+          app_metadata: {
+            brain: { financeiro: true, escopos: permissao.escopos },
+          },
+        });
       }
 
       const r = await admin.auth.admin.generateLink({ type: "magiclink", email });

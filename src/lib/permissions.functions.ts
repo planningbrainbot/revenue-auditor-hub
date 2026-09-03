@@ -242,6 +242,20 @@ export const KNOWN_PERMISSIONS: {
     group: "Dados",
   },
   {
+    key: "view.idu",
+    label: "Acessar IDU",
+    description:
+      "Índice de Desempenho da Unidade: ranking aberto da rede, decomposição por pilar e percentual do forecast liberado no trimestre seguinte.",
+    group: "Acesso",
+  },
+  {
+    key: "edit.idu_metas",
+    label: "Definir metas do IDU",
+    description:
+      "Registrar a meta de cada indicador por unidade e por trimestre. Sem meta pactuada o indicador sai do denominador da nota.",
+    group: "Dados",
+  },
+  {
     key: "view.indicadores_trimestre",
     label: "Acessar Indicadores do Trimestre",
     description:
@@ -288,6 +302,70 @@ export const KNOWN_PERMISSIONS: {
     description:
       "Reabrir ciclo antes do bloqueio de 60/180 dias, com fato novo e justificativa. Escape hatch auditável — o desvio fica caro e visível, não impossível.",
     group: "Administração",
+  },
+  // --- Financial Brain (planningbrain.com.br/financeiro) ---
+  // Produto separado, em outro projeto Supabase. A concessão acontece aqui e
+  // viaja no token: quando o Ops emite a sessão do Financial, grava estas
+  // chaves no app_metadata do usuário de lá, e o cockpit lê a claim sem
+  // consultar o banco do Ops a cada requisição.
+  //
+  // As chaves de escopo espelham `unidades_navegacao` do Financial. Se um
+  // escopo novo for criado lá, precisa de uma chave nova aqui — senão ninguém
+  // consegue concedê-lo. Mesmo contrato de GROWTH_PAPEIS em client.growth.server.ts.
+  {
+    key: "view.brain_financeiro",
+    label: "Acessar Brain Financeiro",
+    description:
+      "Abre o cockpit financeiro. Sem esta chave a pessoa não entra, mesmo tendo escopo liberado abaixo.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_bpo",
+    label: "Brain Financeiro · BPO",
+    description: "Escopo BPO (grupo) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_doc",
+    label: "Brain Financeiro · DOC",
+    description: "Escopo DOC (grupo) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_expansao",
+    label: "Brain Financeiro · Expansão",
+    description: "Escopo EXPANSÃO (empresa) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_marox",
+    label: "Brain Financeiro · MAROX",
+    description: "Escopo MAROX (grupo) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_pat",
+    label: "Brain Financeiro · PAT",
+    description: "Escopo PAT (grupo) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_pis",
+    label: "Brain Financeiro · PIS",
+    description: "Escopo PIS (grupo) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_negocios_estruturados",
+    label: "Brain Financeiro · Negócios Estruturados",
+    description: "Escopo Negócios Estruturados (departamento) no cockpit financeiro.",
+    group: "Brain Financeiro",
+  },
+  {
+    key: "view.brain_financeiro_finance",
+    label: "Brain Financeiro · Finance",
+    description: "Escopo Finance (departamento) no cockpit financeiro.",
+    group: "Brain Financeiro",
   },
 ];
 

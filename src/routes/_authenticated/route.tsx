@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -5,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
+import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -32,6 +34,13 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const { user } = Route.useRouteContext();
   const { primaryRole, unidade, loading } = usePermissions(user.id);
+
+  // Garante as sessões do Growth e do Financial para QUALQUER caminho de
+  // entrada — senha, Microsoft, redefinição, ou sessão já aberta de antes.
+  // Idempotente: não faz nada quando a sessão irmã já existe.
+  useEffect(() => {
+    void garantirSessoesIrmas();
+  }, []);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
