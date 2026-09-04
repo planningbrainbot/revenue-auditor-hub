@@ -505,3 +505,39 @@ export const precificarOportunidade = createServerFn({ method: "POST" })
     if (r && r.ok === false) throw new Error(r.erro ?? "Falha ao precificar.");
     return { ok: true, preco_cb: r?.preco_cb ?? null };
   });
+
+/**
+ * Lançamento manual do multiplicador aplicado — mês futuro ou override por
+ * unidade (o múltiplo maior das praças novas, que a apuração geral nunca cria).
+ * O apurado não entra aqui: ele é do job, e digitá-lo destruiria a série.
+ */
+export const definirMultiplicadorManual = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { mes: string; unidade_id: number | null; aplicado: number; observacao: string }) => {
+      const mes = String(input.mes ?? "").trim();
+      if (!/^\d{4}-\d{2}(-\d{2})?$/.test(mes)) throw new Error("Informe o mês.");
+      const aplicado = Number(input.aplicado);
+      if (!Number.isFinite(aplicado) || aplicado < 1)
+        throw new Error("O multiplicador aplicado não pode ser menor que 1,0.");
+      const observacao = String(input.observacao ?? "").trim();
+      if (!observacao) throw new Error("Explique por que o multiplicador está sendo definido.");
+      const unidade_id =
+        input.unidade_id === null || input.unidade_id === undefined
+          ? null
+          : Number(input.unidade_id);
+      return { mes: mes.length === 7 ? `${mes}-01` : mes, unidade_id, aplicado, observacao };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "manage.broker", "você não pode operar o Broker.");
+    const { error } = await sb.rpc("broker_multiplicador_definir", {
+      _mes: data.mes,
+      _unidade_id: data.unidade_id,
+      _aplicado: data.aplicado,
+      _observacao: data.observacao,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

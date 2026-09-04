@@ -10,6 +10,7 @@ import {
   lancarMovimento,
   definirMultiplicadorAplicado,
   pagarFatura,
+  definirMultiplicadorManual,
   type BrokerAdminData,
   type OportunidadeRow,
   type MultiplicadorRow,
@@ -97,6 +98,7 @@ export function BrokerAdminView() {
   const [unidadeAlvo, setUnidadeAlvo] = useState<string>("");
   const [lancando, setLancando] = useState(false);
   const [editandoMult, setEditandoMult] = useState<MultiplicadorRow | null>(null);
+  const [lancandoMult, setLancandoMult] = useState(false);
 
   const recarregar = () => qc.invalidateQueries({ queryKey: ["broker-admin"] });
   const aoFalhar = (e: unknown) => toast.error(e instanceof Error ? e.message : "Falhou.");
@@ -106,6 +108,7 @@ export function BrokerAdminView() {
   const fnLancar = useServerFn(lancarMovimento);
   const fnAplicado = useServerFn(definirMultiplicadorAplicado);
   const fnPagar = useServerFn(pagarFatura);
+  const fnMultManual = useServerFn(definirMultiplicadorManual);
 
   const mReservar = useMutation({
     mutationFn: (d: { oportunidade_id: number; unidade_id: number }) => fnReservar({ data: d }),
@@ -145,6 +148,21 @@ export function BrokerAdminView() {
     onSuccess: () => {
       toast.success("Multiplicador aplicado atualizado.");
       setEditandoMult(null);
+      recarregar();
+    },
+    onError: aoFalhar,
+  });
+
+  const mMultManual = useMutation({
+    mutationFn: (d: {
+      mes: string;
+      unidade_id: number | null;
+      aplicado: number;
+      observacao: string;
+    }) => fnMultManual({ data: d }),
+    onSuccess: () => {
+      toast.success("Multiplicador lançado.");
+      setLancandoMult(false);
       recarregar();
     },
     onError: aoFalhar,
@@ -402,9 +420,16 @@ export function BrokerAdminView() {
         </TabsContent>
 
         <TabsContent value="multiplicador" className="mt-3">
-          <p className="mb-2 text-xs text-muted-foreground">
-            O apurado vem do job mensal. O aplicado é ato humano e é o que a rede sente no preço.
-          </p>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              O apurado vem do job mensal. O aplicado é ato humano e é o que a rede sente no preço.
+            </p>
+            {somenteLeitura ? null : (
+              <Button size="sm" className="ml-auto" onClick={() => setLancandoMult(true)}>
+                Lançar manualmente
+              </Button>
+            )}
+          </div>
           <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -572,6 +597,14 @@ export function BrokerAdminView() {
         pendente={mLancar.isPending}
         onFechar={() => setLancando(false)}
         onEnviar={(d) => mLancar.mutate(d)}
+      />
+
+      <FormMultManual
+        aberto={lancandoMult}
+        unidades={data.unidades}
+        pendente={mMultManual.isPending}
+        onFechar={() => setLancandoMult(false)}
+        onEnviar={(d) => mMultManual.mutate(d)}
       />
 
       <FormAplicado
@@ -754,6 +787,117 @@ function FormAplicado({
             }
           >
             Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Lançamento manual: mês futuro ou override de uma unidade. Só o aplicado —
+ * o apurado continua sendo do job.
+ */
+function FormMultManual({
+  aberto,
+  unidades,
+  pendente,
+  onFechar,
+  onEnviar,
+}: {
+  aberto: boolean;
+  unidades: { id: number; nome: string }[];
+  pendente: boolean;
+  onFechar: () => void;
+  onEnviar: (d: {
+    mes: string;
+    unidade_id: number | null;
+    aplicado: number;
+    observacao: string;
+  }) => void;
+}) {
+  const proximoMes = () => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const [mes, setMes] = useState(proximoMes());
+  const [escopo, setEscopo] = useState("geral");
+  const [aplicado, setAplicado] = useState("");
+  const [obs, setObs] = useState("");
+
+  return (
+    <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Lançar multiplicador à mão</DialogTitle>
+          <DialogDescription>
+            Para abrir um mês que o job ainda não apurou, ou dar a uma unidade um múltiplo diferente
+            do geral. Existindo lançamento para o mesmo mês e escopo, ele é substituído.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Vigência</Label>
+            <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Escopo</Label>
+            <Select value={escopo} onValueChange={setEscopo}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="geral">Toda a rede</SelectItem>
+                {unidades.map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O override de uma unidade vence o geral no mesmo mês.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Aplicado</Label>
+            <Input
+              type="number"
+              step="0.001"
+              min={1}
+              value={aplicado}
+              onChange={(e) => setAplicado(e.target.value)}
+              placeholder="1,000"
+            />
+            <p className="text-xs text-muted-foreground">Piso do modelo: 1,000.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Por quê</Label>
+            <Textarea
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              placeholder="A razão fica no registro, junto com quem decidiu"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onFechar}>
+            Cancelar
+          </Button>
+          <Button
+            disabled={!mes || !aplicado || Number(aplicado) < 1 || !obs.trim() || pendente}
+            onClick={() =>
+              onEnviar({
+                mes,
+                unidade_id: escopo === "geral" ? null : Number(escopo),
+                aplicado: Number(aplicado),
+                observacao: obs.trim(),
+              })
+            }
+          >
+            Lançar
           </Button>
         </DialogFooter>
       </DialogContent>
