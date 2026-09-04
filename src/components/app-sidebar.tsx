@@ -229,6 +229,12 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         icon: History,
         permission: "view.atividade",
       },
+      {
+        title: "Chaves de Integração",
+        url: "/admin/credenciais",
+        icon: KeyRound,
+        permission: "view.admin.credenciais",
+      },
       { title: "Usuários", url: "/admin/usuarios", icon: Users, permission: "view.admin.users" },
       { title: "Perfis", url: "/admin/perfis", icon: UserCog, permission: "view.admin.profiles" },
       {

@@ -303,6 +303,9 @@ export type ExtratoUnidadeRow = {
 
 export type FaturaRow = {
   id: number;
+  link_pagamento?: string | null;
+  pix_copia_cola?: string | null;
+  linha_digitavel?: string | null;
   unidade_id: number;
   valor_cb: number;
   valor_brl: number;
@@ -407,9 +410,23 @@ export const pedirFatura = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
-    const { error } = await sb.rpc("broker_fatura_pedir", { _valor_cb: data.valor_cb });
+    const { data: f, error } = await sb.rpc("broker_fatura_pedir", { _valor_cb: data.valor_cb });
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Cobrança no gateway logo em seguida. Se falhar, a fatura fica em pé sem
+    // link — a matriz ainda pode dar baixa à mão, então não desfazemos o pedido.
+    let cobranca: { erro?: string } = {};
+    try {
+      const { data: r, error: e2 } = await sb.functions.invoke("broker-asaas-cobranca", {
+        body: { fatura_id: f?.id },
+      });
+      if (e2) throw e2;
+      if (r && r.ok === false) throw new Error(r.erro);
+      cobranca = {};
+    } catch (e) {
+      cobranca = { erro: e instanceof Error ? e.message : "cobrança não gerada" };
+    }
+    return { ok: true, fatura_id: f?.id ?? null, ...cobranca };
   });
 
 export const cancelarFatura = createServerFn({ method: "POST" })

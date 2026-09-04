@@ -159,8 +159,12 @@ export function BrokerUnidadeView() {
 
   const mPedir = useMutation({
     mutationFn: (d: { valor_cb: number }) => fnPedir({ data: d }),
-    onSuccess: () => {
-      toast.success("Fatura gerada. O crédito entra quando o pagamento for confirmado.");
+    onSuccess: (r: { erro?: string }) => {
+      if (r?.erro) {
+        toast.warning(`Fatura criada, mas a cobrança não foi gerada: ${r.erro}`);
+      } else {
+        toast.success("Fatura gerada. O crédito entra quando o pagamento for confirmado.");
+      }
       setComprando(false);
       setValorCompra("");
       recarregar();
@@ -539,13 +543,38 @@ export function BrokerUnidadeView() {
                       </TableCell>
                       <TableCell className="text-right">
                         {f.status === "aberta" ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => mCancelar.mutate({ fatura_id: f.id })}
-                          >
-                            Cancelar
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            {f.link_pagamento ? (
+                              <Button size="sm" asChild>
+                                <a
+                                  href={f.link_pagamento}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Pagar
+                                </a>
+                              </Button>
+                            ) : null}
+                            {f.pix_copia_cola ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(f.pix_copia_cola ?? "");
+                                  toast.success("Pix copiado.");
+                                }}
+                              >
+                                Pix
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => mCancelar.mutate({ fatura_id: f.id })}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
                         ) : null}
                       </TableCell>
                     </TableRow>

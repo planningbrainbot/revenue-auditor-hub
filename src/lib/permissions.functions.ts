@@ -122,7 +122,8 @@ export const KNOWN_PERMISSIONS: {
   {
     key: "view.unidades_rede",
     label: "Receitas Partners — abas Regras/Royalties/CAC",
-    description: "Página Receitas Partners (ex-Unidades): regras da rede, apuração de royalties e CAC.",
+    description:
+      "Página Receitas Partners (ex-Unidades): regras da rede, apuração de royalties e CAC.",
     group: "Acesso",
   },
   {
@@ -282,6 +283,13 @@ export const KNOWN_PERMISSIONS: {
     description:
       "Editar a camada operada (relacionamento, estágio, frente, urgência), abrir/encerrar ciclo e registrar toque. Sem esta chave a tela abre em leitura.",
     group: "Dados",
+  },
+  {
+    key: "view.admin.credenciais",
+    label: "Chaves de Integração",
+    description:
+      "Cadastrar as credenciais dos serviços externos (Asaas e afins). Quem tem esta chave define como o dinheiro entra — o valor nunca volta para a tela, mas quem escreve por cima redireciona a cobrança.",
+    group: "Acesso",
   },
   {
     key: "view.broker",

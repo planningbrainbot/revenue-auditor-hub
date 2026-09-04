@@ -17,6 +17,24 @@ Formato de cada entrada:
 
 ---
 
+## [2026-09-03] Broker: fatura de CashBrain passa a ser cobrada pelo Asaas (reverte decisão do mesmo dia)
+
+**Contexto:** a entrada anterior de hoje registrou a decisão de **não** usar Asaas, para não misturar os recebimentos de royalties com os do broker, deixando a emissão preparada e desintegrada. O usuário reverteu no mesmo dia: "decidi que irei conectar com asaas mesmo".
+
+**Decisão:**
+
+1. **Asaas vira o gateway das faturas de CashBrain.** A separação de recebimentos, se ainda importar, terá de vir de carteira ou conta distinta dentro do próprio Asaas — não da escolha de gateway. Fica registrado porque foi a razão original de excluí-lo.
+2. **Quem credita é o webhook, nunca a criação da cobrança.** `broker-asaas-cobranca` gera a cobrança e grava link, linha digitável e pix na fatura; `broker-asaas-webhook` recebe `PAYMENT_RECEIVED`/`PAYMENT_CONFIRMED` e chama `broker_fatura_pagar_por_gateway`, que lança o aporte. Fatura gerada não move saldo.
+3. **O webhook é a única porta que credita sem uma pessoa**, então valida o header `asaas-access-token` contra `ASAAS_WEBHOOK_TOKEN` e **recusa tudo com 503 quando o segredo não está configurado** — mudo é melhor que aberto. Deploy com `verify_jwt = false`, porque quem chama é o Asaas.
+4. **Idempotente de propósito:** `broker_fatura_pagar_por_gateway` devolve a fatura sem lançar nada se já estiver paga, e índice único em `referencia_externa`. O Asaas reenvia o webhook em caso de falha, e reenvio não pode creditar duas vezes. Cobrança que não corresponde a fatura nenhuma (outra carteira na mesma conta) responde 200 e é ignorada, para não gerar reenvio infinito.
+5. **Cliente do Asaas é criado sob demanda** a partir de `unidades.cnpj`/`razao_social` e guardado em `unidades.id_asaas` (hoje vazio nas 11). Antes de criar, procura por CNPJ — cadastro pode já existir. **Construção Civil e Consultoria não têm CNPJ** e vão falhar com mensagem explícita; nenhuma das duas é franquia.
+6. **Falha de cobrança não desfaz a fatura.** Se o gateway recusar, a fatura fica aberta sem link e a matriz ainda pode dar baixa à mão. A tela avisa em vez de fingir que deu certo.
+7. **`ASAAS_BASE_URL` decide sandbox × produção**, e `ASAAS_BILLING_TYPE` o meio (padrão `UNDEFINED`, deixando o pagador escolher entre boleto, pix e cartão).
+
+**Status:** implementado e deployado (migration 37, `broker-asaas-cobranca` v1, `broker-asaas-webhook` v1), **inativo até os segredos existirem**. Verificado que sem `ASAAS_API_KEY` a cobrança falha com mensagem clara e a fatura sobrevive, e que sem `ASAAS_WEBHOOK_TOKEN` o webhook responde 503. Front não commitado.
+
+**Próximos passos:** definir `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e `ASAAS_BASE_URL` nos secrets do Supabase; cadastrar a URL do webhook no painel do Asaas com o mesmo token; rodar uma cobrança de ponta a ponta no sandbox antes de apontar para produção.
+
 ## [2026-09-03] Broker: ficha do cliente, prazo de precificação e fatura de CashBrain
 
 **Contexto:** com as duas telas no ar, o sócio da unidade não tinha como decidir a compra — a vitrine mostrava só empresa, segmento e preço. Faltava também o caminho do dinheiro: como a unidade obtém CashBrain.
