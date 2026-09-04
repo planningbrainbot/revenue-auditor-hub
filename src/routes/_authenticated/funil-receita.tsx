@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { cn } from "@/lib/utils";
 import { FunilContent } from "@/components/page-content/funil-content";
 import { AuditoriaFaturamentoContent } from "@/components/page-content/auditoria-faturamento-content";
@@ -15,14 +16,19 @@ export const Route = createFileRoute("/_authenticated/funil-receita")({
 
 type Tab = "funil" | "esperado-recebido";
 
-const TABS: { key: Tab; label: string }[] = [
+const ALL_TABS: { key: Tab; label: string }[] = [
   { key: "funil", label: "Funil" },
   { key: "esperado-recebido", label: "Esperado × Recebido" },
 ];
 
 function FunilReceitaPage() {
   useAuth();
+  const { can } = usePermissions();
   const [tab, setTab] = useState<Tab>("funil");
+  // Esperado × Recebido é auditoria de rede: sem essa permissão a aba só
+  // levaria a uma tela de "sem permissão".
+  const podeAuditoria = can("view.roas") || can("view.auditoria");
+  const TABS = ALL_TABS.filter((t) => t.key !== "esperado-recebido" || podeAuditoria);
 
   return (
     <AppShell title="Funil de Receita" subtitle="MRR contratado → Faturado → Recebido">
@@ -48,7 +54,7 @@ function FunilReceitaPage() {
         </div>
       </div>
       {tab === "funil" && <FunilContent />}
-      {tab === "esperado-recebido" && <AuditoriaFaturamentoContent />}
+      {tab === "esperado-recebido" && podeAuditoria && <AuditoriaFaturamentoContent />}
     </AppShell>
   );
 }

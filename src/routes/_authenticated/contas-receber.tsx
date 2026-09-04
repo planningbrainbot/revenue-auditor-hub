@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useContasReceber } from "@/hooks/use-contas-receber";
+import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { brl, date, num } from "@/components/audit/format";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataProvider, BaseFilterSelect, RefreshButton } from "@/components/audit/data-context";
@@ -113,7 +114,18 @@ function parseSearchDate(s: string): Date | undefined {
 function ContasReceberPage() {
   const search = Route.useSearch();
   const { data, isLoading } = useContasReceber();
-  const rows = data?.rows ?? [];
+  const perms = usePermissions();
+  const allRows = data?.rows ?? [];
+  // Sócio franqueado só enxerga a própria unidade. Recorta na origem para que
+  // KPIs, resumo, faturas e gráficos herdem o escopo.
+  const rows = useMemo(
+    () =>
+      perms.scopedToOwnUnit && perms.unidade
+        ? allRows.filter((r) => unitMatches(perms.unidade, r.unidade))
+        : allRows,
+    [allRows, perms.scopedToOwnUnit, perms.unidade],
+  );
+  const escopoUnidade = perms.scopedToOwnUnit && !!perms.unidade;
 
   const [q, setQ] = useState("");
   const [unidade, setUnidade] = useState(search.unidade || ALL);
@@ -318,13 +330,17 @@ function ContasReceberPage() {
             className="pl-9"
           />
         </div>
-        <Select value={unidade} onValueChange={setUnidade}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas as unidades</SelectItem>
-            {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {escopoUnidade ? (
+          <Badge variant="secondary" className="h-9 px-3">{perms.unidade}</Badge>
+        ) : (
+          <Select value={unidade} onValueChange={setUnidade}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as unidades</SelectItem>
+              {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>

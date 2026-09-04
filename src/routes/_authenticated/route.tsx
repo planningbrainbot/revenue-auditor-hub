@@ -49,10 +49,12 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
+      {/* --app-header-h: altura do cabeçalho fixo, para quem precisa grudar
+          algo logo abaixo dele (ex.: cabeçalho de tabela em /admin/permissoes). */}
+      <div className="flex min-h-screen w-full bg-background [--app-header-h:60px]">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex items-center gap-3 border-b bg-card px-4 py-3">
+          <header className="sticky top-0 z-20 flex h-[var(--app-header-h)] items-center gap-3 border-b bg-card px-4">
             <SidebarTrigger />
             <div className="min-w-0 flex-1" />
             <div className="flex items-center gap-2">

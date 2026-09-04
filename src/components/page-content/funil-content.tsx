@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { usePermissions } from "@/hooks/use-permissions";
+import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { FunilGapClientesDialog } from "@/components/funil-gap-clientes-dialog";
 
 type FunilRow = {
@@ -138,7 +138,7 @@ function CellLink({ to, search, className, children }: {
 }
 
 export function FunilContent() {
-  const { can, loading: permLoading } = usePermissions();
+  const { can, loading: permLoading, scopedToOwnUnit, unidade: userUnidade } = usePermissions();
   const [mes, setMes] = useState<string>(defaultMes());
   const [unidadesSel, setUnidadesSel] = useState<string[] | null>(null);
   const [gapDialog, setGapDialog] = useState<{ unidade: string; mes: string; gap: number } | null>(null);
@@ -171,13 +171,24 @@ export function FunilContent() {
     enabled: !permLoading && (can("view.funil_receita") || can("view.auditoria")),
   });
 
+  // Sócio franqueado enxerga só a própria unidade — o recorte vem antes da
+  // lista de unidades, para que o seletor também não revele a rede.
+  const escopoUnidade = scopedToOwnUnit && !!userUnidade;
+  const baseRows = useMemo(
+    () =>
+      escopoUnidade
+        ? (q.data ?? []).filter((r) => unitMatches(userUnidade, r.unidade))
+        : (q.data ?? []),
+    [q.data, escopoUnidade, userUnidade],
+  );
+
   const allUnidades = useMemo(
-    () => Array.from(new Set((q.data ?? []).map((r) => r.unidade ?? "").filter(Boolean))).sort(),
-    [q.data],
+    () => Array.from(new Set(baseRows.map((r) => r.unidade ?? "").filter(Boolean))).sort(),
+    [baseRows],
   );
 
   const selected = unidadesSel ?? allUnidades;
-  const rows = (q.data ?? []).filter((r) => selected.includes(r.unidade ?? ""));
+  const rows = baseRows.filter((r) => selected.includes(r.unidade ?? ""));
 
   const totals = rows.reduce(
     (a, r) => {
@@ -243,7 +254,7 @@ export function FunilContent() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={cn("flex items-center gap-2", escopoUnidade && "hidden")}>
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unidades:</span>
           <Popover>
             <PopoverTrigger asChild>

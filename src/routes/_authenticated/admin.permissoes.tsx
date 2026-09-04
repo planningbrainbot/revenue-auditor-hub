@@ -109,16 +109,23 @@ function PermissionsPage() {
         {q.isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
 
         {groups.map((group) => (
-          <div key={group} className="overflow-hidden rounded-xl border bg-card">
+          // overflow-clip (e não overflow-hidden) porque hidden cria um contexto
+          // de rolagem e o cabeçalho sticky passaria a grudar na caixa, não na tela.
+          <div key={group} className="overflow-clip rounded-xl border bg-card">
             <div className="border-b bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {group}
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-muted/20 text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-2 text-left">Permissão</th>
+                  <th className="sticky top-[var(--app-header-h)] z-10 border-b bg-card px-4 py-2 text-left">
+                    Permissão
+                  </th>
                   {roles.map((r) => (
-                    <th key={r.key} className="px-3 py-2 text-center w-24">
+                    <th
+                      key={r.key}
+                      className="sticky top-[var(--app-header-h)] z-10 w-24 border-b bg-card px-3 py-2 text-center"
+                    >
                       {r.label}
                     </th>
                   ))}

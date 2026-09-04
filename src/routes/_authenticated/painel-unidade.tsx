@@ -19,7 +19,7 @@ const fmtData = (d: string | null) => (d ? new Date(d).toLocaleDateString("pt-BR
 const onlyDigits = (s: string | null | undefined) => (s ?? "").replace(/\D+/g, "");
 
 type Empresa = { id: number; razao_social: string | null; cnpj: string | null; unidade: string | null; pipedrive_id: string | null; status_financeiro: string | null };
-type Contrato = { pipedrive_deal_id: string | null; mrr_mensal: number | null; status_contrato: string | null; ganho_em: string | null };
+type Contrato = { pipedrive_deal_id: string | null; mrr_mensal: number | null; status_contrato: string | null; ganho_em: string | null; unidade: string | null };
 type CR = { valor: number | null; status_pagamento: string | null; data_pagamento: string | null; data_vencimento: string | null; cpf_cnpj: string | null; unidade: string | null };
 type Tratativa = { status: string | null; unidade: string | null; update_time: string | null; stage_change_time: string | null };
 type Nps = { nps_recomendacao: string | null; created_at: string | null; unidade: string | null };
@@ -39,8 +39,11 @@ function PainelUnidadePage() {
     setLoading(true);
     (async () => {
       const [e, c, t, n] = await Promise.all([
-        supabase.from("empresas").select("id,razao_social,cnpj,unidade,pipedrive_id,status_financeiro").eq("tipo_unidade", "franquia").limit(10000),
-        supabase.from("contratos").select("pipedrive_deal_id,mrr_mensal,status_contrato,ganho_em").eq("tipo_unidade", "franquia").limit(20000),
+        // Sem filtro por tipo_unidade: a coluna está vazia em boa parte da base
+        // (as empresas vindas da Omie não a preenchem) e filtrar por ela
+        // escondia a maioria dos clientes da unidade.
+        supabase.from("empresas").select("id,razao_social,cnpj,unidade,pipedrive_id,status_financeiro").limit(10000),
+        supabase.from("contratos").select("pipedrive_deal_id,mrr_mensal,status_contrato,ganho_em,unidade").limit(20000),
         supabase.from("central_tratativas").select("status,unidade,update_time,stage_change_time").limit(10000),
         supabase.from("nps_pesquisas").select("nps_recomendacao,created_at,unidade").limit(10000),
       ]);
@@ -73,15 +76,19 @@ function PainelUnidadePage() {
     () => empresas.filter((e) => unitMatches(userUnidade, e.unidade)),
     [empresas, userUnidade],
   );
-  const pipeIdsUnidade = useMemo(() => new Set(empresasUnidade.map((e) => String(e.pipedrive_id ?? ""))), [empresasUnidade]);
   const cnpjsUnidade = useMemo(() => new Set(empresasUnidade.map((e) => onlyDigits(e.cnpj))), [empresasUnidade]);
 
+  // A unidade vem do próprio contrato. Antes o filtro passava por
+  // empresas.pipedrive_id, mas só ~1/4 das empresas tem esse id preenchido,
+  // então boa parte do MRR sumia do painel.
   const ativosUnidade = useMemo(
-    () => contratos.filter((c) => c.status_contrato === "Ativo" && pipeIdsUnidade.has(String(c.pipedrive_deal_id ?? ""))),
-    [contratos, pipeIdsUnidade],
+    () => contratos.filter((c) => c.status_contrato === "Ativo" && unitMatches(userUnidade, c.unidade)),
+    [contratos, userUnidade],
   );
   const mrr = ativosUnidade.reduce((s, c) => s + Number(c.mrr_mensal ?? 0), 0);
-  const clientesAtivos = empresasUnidade.filter((e) => e.status_financeiro === "ATIVO").length;
+  // Contratos ativos, e não empresas.status_financeiro: esse campo só é
+  // preenchido para parte da base e subestimava muito a carteira.
+  const clientesAtivos = new Set(ativosUnidade.map((c) => String(c.pipedrive_deal_id ?? c.ganho_em))).size;
 
   const now = new Date();
   const mesIni = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -94,8 +101,13 @@ function PainelUnidadePage() {
   ).length;
 
   const since90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const npsScores = nps
-    .filter((n) => unitMatches(userUnidade, n.unidade) && n.created_at && new Date(n.created_at) >= since90)
+  const npsRespostas = nps.filter(
+    (n) => unitMatches(userUnidade, n.unidade) && n.created_at && new Date(n.created_at) >= since90,
+  );
+  // Number(null) é 0 — sem descartar as respostas sem nota, cada pesquisa não
+  // respondida entrava como zero e derrubava a média.
+  const npsScores = npsRespostas
+    .filter((n) => n.nps_recomendacao !== null && String(n.nps_recomendacao).trim() !== "")
     .map((n) => Number(n.nps_recomendacao))
     .filter((v) => Number.isFinite(v));
   const npsMedio = npsScores.length ? npsScores.reduce((a, b) => a + b, 0) / npsScores.length : 0;
@@ -172,11 +184,15 @@ function PainelUnidadePage() {
           <Kpi label="MRR Atual" value={loading ? "—" : fmtBRL(mrr)} />
           <Kpi label="Clientes Ativos" value={loading ? "—" : String(clientesAtivos)} />
           <Kpi label="Churn no Mês" value={loading ? "—" : String(churnMes)} />
-          <Kpi label="NPS (90d)" value={loading ? "—" : npsScores.length ? npsMedio.toFixed(1) : "—"} sub={`${npsScores.length} respostas`} />
+          <Kpi
+            label="Nota média (90d)"
+            value={loading ? "—" : npsScores.length ? npsMedio.toFixed(1) : "—"}
+            sub={`${npsScores.length} de ${npsRespostas.length} pesquisas com nota`}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Alert tone="red" label="Inadimplência" value={fmtBRL(inadValor)} sub={`${inadClientes} cliente(s) em atraso`} loading={loading} />
+          <Alert tone="red" label="Inadimplência" value={fmtBRL(inadValor)} sub={`${inadClientes} cliente(s) com fatura em atraso`} loading={loading} />
           <Alert tone="amber" label="Clientes em Risco" value={String(emRisco)} sub="status EM_ATRASO ou INADIMPLENTE" loading={loading} />
         </div>
 
