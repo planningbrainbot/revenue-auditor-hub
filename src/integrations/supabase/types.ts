@@ -4421,6 +4421,43 @@ export type Database = {
         }
         Relationships: []
       }
+      v_clientes_diretorio: {
+        Row: {
+          atualizado_em: string | null
+          base: string | null
+          chave: string | null
+          cidade: string | null
+          codigo_omie: number | null
+          contrato_id: number | null
+          documento: string | null
+          empresa_id: number | null
+          erp: string | null
+          fonte_cadastro: string | null
+          grupo_chave: string | null
+          grupo_id: number | null
+          grupo_nome: string | null
+          grupo_origem: string | null
+          grupo_qtd: number | null
+          nome_fantasia: string | null
+          omie_data_cadastro: string | null
+          omie_inativo: boolean | null
+          origem: string | null
+          pessoa_fisica: boolean | null
+          pipedrive_id: string | null
+          razao_social: string | null
+          segmento: string | null
+          status_financeiro: string | null
+          tem_contrato_ativo: boolean | null
+          tipo_documento: string | null
+          tipo_unidade: string | null
+          titulo: string | null
+          uf: string | null
+          ultimo_recebimento: string | null
+          unidade: string | null
+          unidades_omie: string[] | null
+        }
+        Relationships: []
+      }
       v_confronto_cm: {
         Row: {
           apuracao_status: string | null

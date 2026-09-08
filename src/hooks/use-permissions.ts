@@ -32,7 +32,11 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
     staleTime: 60_000,
   });
 
-  const permsLoading = authPending || !userId || (q.fetchStatus !== "idle" && !q.data) || (!!userId && !q.data && !q.isError);
+  const permsLoading =
+    authPending ||
+    !userId ||
+    (q.fetchStatus !== "idle" && !q.data) ||
+    (!!userId && !q.data && !q.isError);
 
   return useMemo<PermissionsState>(() => {
     const roles = (q.data?.roles ?? []) as AppRole[];
@@ -63,32 +67,7 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
   }, [q.data, q.isError, permsLoading]);
 }
 
-/** Normaliza nome de unidade para comparação tolerante (case, acentos, espaços). */
-export function normalizeUnitName(s: string | null | undefined): string {
-  if (!s) return "";
-  return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Mapeia nomes equivalentes entre socios.unidade e roas/auditoria. */
-const UNIT_ALIASES: Record<string, string[]> = {
-  "rio de janeiro": ["sudeste (rj)", "rj"],
-  "goiania / matriz": ["matriz", "goiania"],
-  "sao luis": ["sao luís"],
-};
-
-export function unitMatches(target: string | null, candidate: string | null | undefined): boolean {
-  const t = normalizeUnitName(target);
-  const c = normalizeUnitName(candidate);
-  if (!t || !c) return false;
-  if (t === c) return true;
-  const aliases = UNIT_ALIASES[t] ?? [];
-  if (aliases.includes(c)) return true;
-  const revAliases = UNIT_ALIASES[c] ?? [];
-  if (revAliases.includes(t)) return true;
-  return false;
-}
+// `normalizeUnitName`/`unitMatches` moraram aqui, mas o escopo por unidade
+// também roda no servidor — o código puro foi para `@/lib/unit-names` e é
+// re-exportado para manter os imports existentes funcionando.
+export { normalizeUnitName, unitMatches } from "@/lib/unit-names";

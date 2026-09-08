@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,12 +31,20 @@ const ROLE_LABEL: Record<string, string> = {
 
 function AuthenticatedLayout() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = Route.useRouteContext();
   const { primaryRole, unidade, loading } = usePermissions(user.id);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
+    // Navega ANTES de limpar: o `user` vem do contexto da rota e não reage ao
+    // signOut, então com o layout ainda montado o clear() faria o observer de
+    // ["my-perms", userId] refazer o fetch na hora, já sem token.
+    await navigate({ to: "/auth", replace: true });
+    // Limpa o cache do react-query: várias queries trazem dados já escopados
+    // por unidade/permissão do usuário que acabou de sair, e o próximo login na
+    // mesma aba os reaproveitaria antes do refetch.
+    queryClient.clear();
   }
 
   return (
@@ -53,7 +62,9 @@ function AuthenticatedLayout() {
                   <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
                     {ROLE_LABEL[primaryRole] ?? primaryRole}
                     {(primaryRole === "socio" || primaryRole === "socio_franqueado") && unidade && (
-                      <span className="rounded bg-primary/15 px-1 py-px text-primary">{unidade}</span>
+                      <span className="rounded bg-primary/15 px-1 py-px text-primary">
+                        {unidade}
+                      </span>
                     )}
                   </span>
                 )}
