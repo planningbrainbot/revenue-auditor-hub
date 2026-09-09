@@ -296,7 +296,6 @@ export function BrokerUnidadeView() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-y py-2">
-                  <Campo rotulo="Contato" valor={o.cliente_nome} />
                   <Campo rotulo="Faturamento anual" valor={o.faturamento_anual} />
                   <Campo rotulo="Regime tributário" valor={o.regime_tributario} />
                   <Campo rotulo="Usa ERP" valor={o.usa_erp} />
@@ -344,7 +343,7 @@ export function BrokerUnidadeView() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{o.empresa ?? NA}</p>
                     <p className="text-xs text-muted-foreground">
-                      {[o.cliente_nome, o.segmento, o.estado].filter(Boolean).join(" · ")}
+                      {[o.segmento, o.estado].filter(Boolean).join(" · ")}
                       {o.reservado_em ? ` · reservado ${dataCurta(o.reservado_em)}` : ""}
                     </p>
                   </div>
@@ -647,8 +646,8 @@ export function BrokerUnidadeView() {
           <DialogHeader>
             <DialogTitle>Precificar {precificando?.empresa}</DialogTitle>
             <DialogDescription>
-              Informe o MRR mensal contratado. Ele vai para o Pipedrive e define o preço deste
-              cliente, que passa a ficar bloqueado no seu saldo.
+              Informe o MRR mensal contratado. Ele define o preço deste cliente, que passa a ficar
+              bloqueado no seu saldo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -662,9 +661,7 @@ export function BrokerUnidadeView() {
               placeholder="3500"
             />
             <p className="text-xs text-muted-foreground">
-              {mrr && Number(mrr) > 0
-                ? `${brl(Number(mrr))} por mês · ${brl(Number(mrr) * 12)} no ano`
-                : "Valor mensal, não anual."}
+              {mrr && Number(mrr) > 0 ? `${brl(Number(mrr))} por mês` : "Valor mensal."}
             </p>
           </div>
           <DialogFooter>

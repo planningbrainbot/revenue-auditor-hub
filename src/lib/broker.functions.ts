@@ -269,7 +269,6 @@ export const definirMultiplicadorAplicado = createServerFn({ method: "POST" })
 export type FilaUnidadeRow = {
   id: number;
   empresa: string | null;
-  cliente_nome: string | null;
   segmento: string | null;
   estado: string | null;
   faturamento_anual: string | null;
