@@ -2,7 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardCheck, RefreshCw, AlertTriangle, Gauge, Undo2, Handshake, Landmark } from "lucide-react";
+import {
+  ClipboardCheck,
+  RefreshCw,
+  AlertTriangle,
+  Gauge,
+  Undo2,
+  Handshake,
+  Landmark,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { syncAuditoriaInterna } from "@/lib/auditoria-interna.functions";
 import {
@@ -576,6 +586,9 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
 }
 
 function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
+  // A lista tem uma unidade por linha e não cabe em 320px — expandir tira o teto
+  // de altura e mostra a carteira inteira de uma vez.
+  const [expandido, setExpandido] = useState(false);
   const carteira = useMemo(() => {
     const map = new Map<
       string,
@@ -641,20 +654,31 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
   );
 
   return (
-    <Card className="p-0 overflow-hidden">
-      <div className="px-4 py-3 border-b">
-        <div className="text-sm font-semibold">Saúde da carteira</div>
-        <div className="text-[11px] text-muted-foreground">
-          Achado total (oportunidade + contingência) e quanto ele representa do faturamento auditado
+    <Card className={cn("p-0 overflow-hidden", expandido && "lg:col-span-2")}>
+      <div className="px-4 py-3 border-b flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">Saúde da carteira</div>
+          <div className="text-[11px] text-muted-foreground">
+            Achado total (oportunidade + contingência) e quanto ele representa do faturamento auditado
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Só projetos do tipo Auditoria — Reforma Tributária e apoio comercial ficam de fora.
+          </div>
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          Só projetos do tipo Auditoria — Reforma Tributária e apoio comercial ficam de fora.
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-muted-foreground"
+          onClick={() => setExpandido((v) => !v)}
+          title={expandido ? "Recolher" : "Expandir para ver a carteira inteira"}
+        >
+          {expandido ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </Button>
       </div>
       {carteira.length === 0 ? (
         <div className="text-center text-sm text-muted-foreground py-6">Nenhuma unidade na carteira ainda.</div>
       ) : (
-        <div className="overflow-auto max-h-[320px] divide-y">
+        <div className={cn("divide-y", !expandido && "overflow-auto max-h-[320px]")}>
           {carteira.map((c) => {
             const largura = maxEncontrado > 0 ? (c.encontrado / maxEncontrado) * 100 : 0;
             const fatiaOport = c.encontrado > 0 ? (c.oportunidades / c.encontrado) * 100 : 0;
