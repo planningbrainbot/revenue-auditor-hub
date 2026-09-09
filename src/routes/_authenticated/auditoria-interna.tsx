@@ -26,6 +26,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  FiltroTexto,
+  FiltroNumero,
+  type DirOrdem,
+  type FaixaNumerica,
+  type Ordem,
+} from "@/components/auditoria-interna/column-filter";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/auditoria-interna")({
@@ -357,50 +364,201 @@ function AtencaoPrazos({ rows }: { rows: Auditoria[] }) {
   );
 }
 
+type ColunaAchado = "empresa" | "unidade" | "classificacao" | "oportunidade" | "contingencia" | "total";
+
 function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
-  const maioresAchados = useMemo(
+  const [filtrosTexto, setFiltrosTexto] = useState<Record<string, string[]>>({});
+  const [filtrosNumero, setFiltrosNumero] = useState<Record<string, FaixaNumerica>>({});
+  const [ordem, setOrdem] = useState<Ordem<ColunaAchado>>({ coluna: "total", dir: "desc" });
+
+  // Universo do bloco: só apontamentos classificados como Alta ou Média.
+  const base = useMemo(
     () =>
       rows
         .filter((r) => {
           const c = (r.classificacao_apontamentos ?? "").toLowerCase();
           return c.includes("alta") || c.includes("média") || c.includes("media");
         })
-        .map((r) => ({ r, total: (r.oportunidades_valor ?? 0) + (r.contingencias_valor ?? 0) }))
-        .sort((a, b) => b.total - a.total),
+        .map((r) => ({
+          r,
+          empresa: r.empresa_auditada ?? NA,
+          unidade: r.unidade ?? NA,
+          classificacao: r.classificacao_apontamentos ?? NA,
+          oportunidade: r.oportunidades_valor ?? 0,
+          contingencia: r.contingencias_valor ?? 0,
+          total: (r.oportunidades_valor ?? 0) + (r.contingencias_valor ?? 0),
+        })),
     [rows],
   );
 
+  // As opções de cada filtro saem sempre da base inteira, para que desmarcar um
+  // valor não faça as demais opções sumirem da lista.
+  const opcoes = useMemo(() => {
+    const coletar = (get: (b: (typeof base)[number]) => string) =>
+      Array.from(new Set(base.map(get))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    return {
+      empresa: coletar((b) => b.empresa),
+      unidade: coletar((b) => b.unidade),
+      classificacao: coletar((b) => b.classificacao),
+    };
+  }, [base]);
+
+  const filtroTextoAtivo = (col: string) => (filtrosTexto[col] ?? []).length > 0;
+  const faixaDe = (col: string): FaixaNumerica => filtrosNumero[col] ?? { min: null, max: null };
+  const dirDe = (col: ColunaAchado) => (ordem?.coluna === col ? ordem.dir : null);
+  const ordenarPor = (col: ColunaAchado) => (dir: DirOrdem) => setOrdem({ coluna: col, dir });
+  const setTexto = (col: string) => (valores: string[]) =>
+    setFiltrosTexto((f) => ({ ...f, [col]: valores }));
+  const setNumero = (col: string) => (faixa: FaixaNumerica) =>
+    setFiltrosNumero((f) => ({ ...f, [col]: faixa }));
+
+  const algumFiltroAtivo =
+    Object.values(filtrosTexto).some((v) => v.length > 0) ||
+    Object.values(filtrosNumero).some((f) => f.min != null || f.max != null);
+
+  const maioresAchados = useMemo(() => {
+    const passaTexto = (col: "empresa" | "unidade" | "classificacao", valor: string) => {
+      const sel = filtrosTexto[col] ?? [];
+      return sel.length === 0 || sel.includes(valor);
+    };
+    const passaNumero = (col: "oportunidade" | "contingencia" | "total", valor: number) => {
+      const { min, max } = filtrosNumero[col] ?? { min: null, max: null };
+      if (min != null && valor < min) return false;
+      if (max != null && valor > max) return false;
+      return true;
+    };
+
+    const filtrados = base.filter(
+      (b) =>
+        passaTexto("empresa", b.empresa) &&
+        passaTexto("unidade", b.unidade) &&
+        passaTexto("classificacao", b.classificacao) &&
+        passaNumero("oportunidade", b.oportunidade) &&
+        passaNumero("contingencia", b.contingencia) &&
+        passaNumero("total", b.total),
+    );
+
+    if (!ordem) return filtrados;
+    const { coluna, dir } = ordem;
+    const sinal = dir === "asc" ? 1 : -1;
+    return [...filtrados].sort((a, b) => {
+      const va = a[coluna];
+      const vb = b[coluna];
+      if (typeof va === "number" && typeof vb === "number") return (va - vb) * sinal;
+      return String(va).localeCompare(String(vb), "pt-BR") * sinal;
+    });
+  }, [base, filtrosTexto, filtrosNumero, ordem]);
+
   return (
     <Card className="p-0 overflow-hidden">
-      <div className="px-4 py-3 border-b">
-        <div className="text-sm font-semibold">Achados fiscais — classificação Alta ou Média</div>
+      <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">Achados fiscais — classificação Alta ou Média</div>
+          <div className="text-[11px] text-muted-foreground">
+            {algumFiltroAtivo
+              ? `${maioresAchados.length} de ${base.length} achados`
+              : `${base.length} achados`}
+          </div>
+        </div>
+        {algumFiltroAtivo && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              setFiltrosTexto({});
+              setFiltrosNumero({});
+            }}
+          >
+            Limpar filtros
+          </Button>
+        )}
       </div>
-      {maioresAchados.length === 0 ? (
+      {base.length === 0 ? (
         <div className="text-center text-sm text-muted-foreground py-6">Nenhum apontamento classificado como Alta ou Média ainda.</div>
       ) : (
         <div className="overflow-auto max-h-[360px]">
           <table className="w-full text-sm">
             <TableHeader className="sticky top-0 z-10">
               <TableRow>
-                <TableHead className="bg-background">Empresa</TableHead>
-                <TableHead className="bg-background">Unidade</TableHead>
-                <TableHead className="bg-background">Classificação</TableHead>
-                <TableHead className="bg-background text-right">Oportunidade</TableHead>
-                <TableHead className="bg-background text-right">Contingência</TableHead>
-                <TableHead className="bg-background text-right">Total</TableHead>
+                <TableHead className="bg-background">
+                  <FiltroTexto
+                    titulo="Empresa"
+                    opcoes={opcoes.empresa}
+                    selecionados={filtrosTexto.empresa ?? []}
+                    onChange={setTexto("empresa")}
+                    dirOrdem={dirDe("empresa")}
+                    onOrdenar={ordenarPor("empresa")}
+                  />
+                </TableHead>
+                <TableHead className="bg-background">
+                  <FiltroTexto
+                    titulo="Unidade"
+                    opcoes={opcoes.unidade}
+                    selecionados={filtrosTexto.unidade ?? []}
+                    onChange={setTexto("unidade")}
+                    dirOrdem={dirDe("unidade")}
+                    onOrdenar={ordenarPor("unidade")}
+                  />
+                </TableHead>
+                <TableHead className="bg-background">
+                  <FiltroTexto
+                    titulo="Classificação"
+                    opcoes={opcoes.classificacao}
+                    selecionados={filtrosTexto.classificacao ?? []}
+                    onChange={setTexto("classificacao")}
+                    dirOrdem={dirDe("classificacao")}
+                    onOrdenar={ordenarPor("classificacao")}
+                  />
+                </TableHead>
+                <TableHead className="bg-background text-right">
+                  <FiltroNumero
+                    titulo="Oportunidade"
+                    faixa={faixaDe("oportunidade")}
+                    onChange={setNumero("oportunidade")}
+                    dirOrdem={dirDe("oportunidade")}
+                    onOrdenar={ordenarPor("oportunidade")}
+                  />
+                </TableHead>
+                <TableHead className="bg-background text-right">
+                  <FiltroNumero
+                    titulo="Contingência"
+                    faixa={faixaDe("contingencia")}
+                    onChange={setNumero("contingencia")}
+                    dirOrdem={dirDe("contingencia")}
+                    onOrdenar={ordenarPor("contingencia")}
+                  />
+                </TableHead>
+                <TableHead className="bg-background text-right">
+                  <FiltroNumero
+                    titulo="Total"
+                    faixa={faixaDe("total")}
+                    onChange={setNumero("total")}
+                    dirOrdem={dirDe("total")}
+                    onOrdenar={ordenarPor("total")}
+                  />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {maioresAchados.map(({ r, total }) => (
-                <TableRow key={r.pipefy_card_id}>
-                  <TableCell className="font-medium">{r.empresa_auditada ?? NA}</TableCell>
-                  <TableCell>{r.unidade ?? NA}</TableCell>
-                  <TableCell>{r.classificacao_apontamentos ?? NA}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{fmtMoney(r.oportunidades_valor)}</TableCell>
-                  <TableCell className="text-right text-amber-600">{fmtMoney(r.contingencias_valor)}</TableCell>
-                  <TableCell className="text-right font-semibold">{fmtMoney(total)}</TableCell>
+              {maioresAchados.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                    Nenhum achado corresponde aos filtros aplicados.
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                maioresAchados.map((a) => (
+                  <TableRow key={a.r.pipefy_card_id}>
+                    <TableCell className="font-medium">{a.empresa}</TableCell>
+                    <TableCell>{a.unidade}</TableCell>
+                    <TableCell>{a.classificacao}</TableCell>
+                    <TableCell className="text-right text-emerald-600">{fmtMoney(a.r.oportunidades_valor)}</TableCell>
+                    <TableCell className="text-right text-amber-600">{fmtMoney(a.r.contingencias_valor)}</TableCell>
+                    <TableCell className="text-right font-semibold">{fmtMoney(a.total)}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </table>
         </div>
@@ -409,50 +567,109 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
   );
 }
 
-function CargaPorAuditor({ rows }: { rows: Auditoria[] }) {
-  const porAuditor = useMemo(() => {
-    const map = new Map<string, { nome: string; total: number; concluidos: number }>();
+function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
+  const carteira = useMemo(() => {
+    const map = new Map<
+      string,
+      { unidade: string; realizadas: number; comAchado: number; oportunidades: number; contingencias: number }
+    >();
     for (const r of rows) {
-      if (!r.equipe_designada) continue;
-      for (const nome of r.equipe_designada.split(",").map((n) => n.trim()).filter(Boolean)) {
-        const g = map.get(nome) ?? { nome, total: 0, concluidos: 0 };
-        g.total += 1;
-        if (isConcluida(r)) g.concluidos += 1;
-        map.set(nome, g);
+      const u = r.unidade ?? NA;
+      const g = map.get(u) ?? { unidade: u, realizadas: 0, comAchado: 0, oportunidades: 0, contingencias: 0 };
+      if (r.fase_atual === FASE_AUDITORIA_REALIZADA) {
+        g.realizadas += 1;
+        if ((r.oportunidades_valor ?? 0) > 0 || (r.contingencias_valor ?? 0) > 0) g.comAchado += 1;
       }
+      g.oportunidades += r.oportunidades_valor ?? 0;
+      g.contingencias += r.contingencias_valor ?? 0;
+      map.set(u, g);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    const lista = Array.from(map.values()).map((g) => {
+      const encontrado = g.oportunidades + g.contingencias;
+      return {
+        ...g,
+        encontrado,
+        // O cruzamento: quanto cada auditoria entregue devolveu em achado.
+        porAuditoria: g.realizadas > 0 ? encontrado / g.realizadas : null,
+        taxaAchado: g.realizadas > 0 ? g.comAchado / g.realizadas : null,
+      };
+    });
+    // Sem entrega ainda vai para o fim — é backlog, não desempenho ruim.
+    return lista.sort((a, b) => {
+      if (a.realizadas === 0 && b.realizadas === 0) return a.unidade.localeCompare(b.unidade, "pt-BR");
+      if (a.realizadas === 0) return 1;
+      if (b.realizadas === 0) return -1;
+      return (b.porAuditoria ?? 0) - (a.porAuditoria ?? 0);
+    });
   }, [rows]);
+
+  const maxPorAuditoria = useMemo(
+    () => Math.max(0, ...carteira.map((c) => c.porAuditoria ?? 0)),
+    [carteira],
+  );
 
   return (
     <Card className="p-0 overflow-hidden">
       <div className="px-4 py-3 border-b">
-        <div className="text-sm font-semibold">Carga por auditor(a)</div>
+        <div className="text-sm font-semibold">Saúde da carteira</div>
+        <div className="text-[11px] text-muted-foreground">
+          Oportunidade e contingência encontradas vs. volume de auditorias realizadas
+        </div>
       </div>
-      {porAuditor.length === 0 ? (
-        <div className="text-center text-sm text-muted-foreground py-6">Nenhum card com equipe designada ainda.</div>
+      {carteira.length === 0 ? (
+        <div className="text-center text-sm text-muted-foreground py-6">Nenhuma unidade na carteira ainda.</div>
       ) : (
-        <div className="overflow-auto max-h-[320px]">
-          <table className="w-full text-sm">
-            <TableHeader className="sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="bg-background">Auditor(a)</TableHead>
-                <TableHead className="bg-background text-right">Casos designados</TableHead>
-                <TableHead className="bg-background text-right">Concluídos</TableHead>
-                <TableHead className="bg-background text-right">Em andamento</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {porAuditor.map((a) => (
-                <TableRow key={a.nome}>
-                  <TableCell className="font-medium">{a.nome}</TableCell>
-                  <TableCell className="text-right">{a.total}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{a.concluidos}</TableCell>
-                  <TableCell className="text-right">{a.total - a.concluidos}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </table>
+        <div className="overflow-auto max-h-[320px] divide-y">
+          {carteira.map((c) => {
+            const largura = maxPorAuditoria > 0 ? ((c.porAuditoria ?? 0) / maxPorAuditoria) * 100 : 0;
+            const fatiaOport = c.encontrado > 0 ? (c.oportunidades / c.encontrado) * 100 : 0;
+            return (
+              <div key={c.unidade} className="px-4 py-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-1.5 min-w-0">
+                    <span className="text-sm font-medium truncate">{c.unidade}</span>
+                    {c.realizadas > 0 && c.realizadas < 3 && (
+                      <span
+                        className="text-[10px] text-muted-foreground shrink-0"
+                        title="Poucas auditorias concluídas — média por auditoria pouco confiável."
+                      >
+                        base curta
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm font-semibold shrink-0">
+                    {c.porAuditoria == null ? (
+                      <span className="text-muted-foreground font-normal">sem entrega</span>
+                    ) : (
+                      <>
+                        {fmtMoney(c.porAuditoria)}
+                        <span className="text-[11px] font-normal text-muted-foreground"> /auditoria</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Barra: comprimento = valor por auditoria; divisão = oportunidade x contingência. */}
+                <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="flex h-full" style={{ width: `${largura}%` }}>
+                    <div className="h-full bg-emerald-500" style={{ width: `${fatiaOport}%` }} />
+                    <div className="h-full bg-amber-500" style={{ width: `${100 - fatiaOport}%` }} />
+                  </div>
+                </div>
+
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span>
+                    <span className="font-medium text-foreground">{c.realizadas}</span> realizadas
+                  </span>
+                  <span>
+                    {c.taxaAchado == null ? "—" : `${Math.round(c.taxaAchado * 100)}% com achado`}
+                  </span>
+                  <span className="text-emerald-600">{fmtMoney(c.oportunidades)} oport.</span>
+                  <span className="text-amber-600">{fmtMoney(c.contingencias)} conting.</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>
@@ -654,7 +871,7 @@ function VisaoGeral({ rows }: { rows: Auditoria[] }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ResumoPorUnidade rows={rows} />
-        <CargaPorAuditor rows={rows} />
+        <SaudeDaCarteira rows={rows} />
       </div>
 
       <Rankings rows={rows} />
