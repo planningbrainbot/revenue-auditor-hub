@@ -52,6 +52,8 @@ type Auditoria = {
 
 const NA = "—";
 const FASES_CONCLUIDAS = new Set(["Projeto Concluído", "Reforma Tributária Concluida", "Solicitações Comerciais"]);
+// Fase que caracteriza uma auditoria efetivamente realizada (pipe 307181077).
+const FASE_AUDITORIA_REALIZADA = "Projeto Concluído";
 const FASE_COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444"];
 
 // Valor do campo "Tipo de Projeto" no Pipefy -> como apresentamos na tela e
@@ -175,29 +177,32 @@ function KpiCards({ rows, labelTotal }: { rows: Auditoria[]; labelTotal: string 
 
 function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
   const porUnidade = useMemo(() => {
-    const map = new Map<string, { unidade: string; total: number; oportunidades: number; contingencias: number }>();
+    const map = new Map<string, { unidade: string; realizadas: number; oportunidades: number; contingencias: number }>();
     for (const r of rows) {
       const u = r.unidade ?? NA;
-      const g = map.get(u) ?? { unidade: u, total: 0, oportunidades: 0, contingencias: 0 };
-      g.total += 1;
+      const g = map.get(u) ?? { unidade: u, realizadas: 0, oportunidades: 0, contingencias: 0 };
+      if (r.fase_atual === FASE_AUDITORIA_REALIZADA) g.realizadas += 1;
       g.oportunidades += r.oportunidades_valor ?? 0;
       g.contingencias += r.contingencias_valor ?? 0;
       map.set(u, g);
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return Array.from(map.values()).sort((a, b) => b.realizadas - a.realizadas);
   }, [rows]);
 
   return (
     <Card className="p-0 overflow-hidden">
       <div className="px-4 py-3 border-b">
         <div className="text-sm font-semibold">Resumo por unidade</div>
+        <div className="text-[11px] text-muted-foreground">
+          Auditorias realizadas = cards na fase &ldquo;{FASE_AUDITORIA_REALIZADA}&rdquo; do Pipefy
+        </div>
       </div>
       <div className="overflow-auto max-h-[320px]">
         <table className="w-full text-sm">
           <TableHeader className="sticky top-0 z-10">
             <TableRow>
               <TableHead className="bg-background">Unidade</TableHead>
-              <TableHead className="bg-background text-right">Casos</TableHead>
+              <TableHead className="bg-background text-right">Auditorias realizadas</TableHead>
               <TableHead className="bg-background text-right">Oportunidades</TableHead>
               <TableHead className="bg-background text-right">Contingências</TableHead>
             </TableRow>
@@ -206,7 +211,7 @@ function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
             {porUnidade.map((u) => (
               <TableRow key={u.unidade}>
                 <TableCell className="font-medium">{u.unidade}</TableCell>
-                <TableCell className="text-right">{u.total}</TableCell>
+                <TableCell className="text-right">{u.realizadas}</TableCell>
                 <TableCell className="text-right text-emerald-600">{fmtMoney(u.oportunidades)}</TableCell>
                 <TableCell className="text-right text-amber-600">{fmtMoney(u.contingencias)}</TableCell>
               </TableRow>
