@@ -55,6 +55,7 @@ type Auditoria = {
   classificacao_apontamentos: string | null;
   oportunidades_valor: number | null;
   contingencias_valor: number | null;
+  faturamento_periodo: number | null;
 };
 
 const NA = "—";
@@ -105,6 +106,13 @@ function fmtMoney(v: number | null | undefined) {
 
 function fmtMoneyExato(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+// Exposição costuma ser um percentual pequeno; abaixo de 10% ganha uma casa
+// decimal para não achatar tudo em "0%".
+function fmtPct(v: number) {
+  const p = v * 100;
+  return `${p.toLocaleString("pt-BR", { maximumFractionDigits: p < 10 ? 1 : 0 })}%`;
 }
 
 function fmtDate(s: string | null) {
@@ -571,40 +579,64 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
   const carteira = useMemo(() => {
     const map = new Map<
       string,
-      { unidade: string; realizadas: number; comAchado: number; oportunidades: number; contingencias: number }
+      {
+        unidade: string;
+        realizadas: number;
+        comAchado: number;
+        oportunidades: number;
+        contingencias: number;
+        faturamento: number;
+        achadoComFat: number;
+      }
     >();
     for (const r of rows) {
+      // Só auditoria fiscal entra aqui. Reforma Tributária, Apoio a Grandes Contas
+      // e Recuperação de Contas são outros produtos e não entram no achado da carteira.
+      if (r.tipo_projeto !== "Auditoria") continue;
       const u = r.unidade ?? NA;
-      const g = map.get(u) ?? { unidade: u, realizadas: 0, comAchado: 0, oportunidades: 0, contingencias: 0 };
+      const g = map.get(u) ?? {
+        unidade: u,
+        realizadas: 0,
+        comAchado: 0,
+        oportunidades: 0,
+        contingencias: 0,
+        faturamento: 0,
+        achadoComFat: 0,
+      };
       if (r.fase_atual === FASE_AUDITORIA_REALIZADA) {
         g.realizadas += 1;
         if ((r.oportunidades_valor ?? 0) > 0 || (r.contingencias_valor ?? 0) > 0) g.comAchado += 1;
       }
       g.oportunidades += r.oportunidades_valor ?? 0;
       g.contingencias += r.contingencias_valor ?? 0;
+      // Exposição só fecha se numerador e denominador vierem da mesma auditoria:
+      // card sem "Faturamento do Período Analisado" fica de fora dos dois lados.
+      if (r.faturamento_periodo != null) {
+        g.faturamento += r.faturamento_periodo;
+        g.achadoComFat += (r.oportunidades_valor ?? 0) + (r.contingencias_valor ?? 0);
+      }
       map.set(u, g);
     }
     const lista = Array.from(map.values()).map((g) => {
       const encontrado = g.oportunidades + g.contingencias;
       return {
         ...g,
+        // O número da unidade é o achado total: oportunidade + contingência.
         encontrado,
-        // O cruzamento: quanto cada auditoria entregue devolveu em achado.
-        porAuditoria: g.realizadas > 0 ? encontrado / g.realizadas : null,
+        // Exposição: quanto do faturamento auditado virou achado fiscal.
+        exposicao: g.faturamento > 0 ? g.achadoComFat / g.faturamento : null,
         taxaAchado: g.realizadas > 0 ? g.comAchado / g.realizadas : null,
       };
     });
-    // Sem entrega ainda vai para o fim — é backlog, não desempenho ruim.
+    // Sem achado ainda vai para o fim — é backlog, não desempenho ruim.
     return lista.sort((a, b) => {
-      if (a.realizadas === 0 && b.realizadas === 0) return a.unidade.localeCompare(b.unidade, "pt-BR");
-      if (a.realizadas === 0) return 1;
-      if (b.realizadas === 0) return -1;
-      return (b.porAuditoria ?? 0) - (a.porAuditoria ?? 0);
+      if (a.encontrado === 0 && b.encontrado === 0) return a.unidade.localeCompare(b.unidade, "pt-BR");
+      return b.encontrado - a.encontrado;
     });
   }, [rows]);
 
-  const maxPorAuditoria = useMemo(
-    () => Math.max(0, ...carteira.map((c) => c.porAuditoria ?? 0)),
+  const maxEncontrado = useMemo(
+    () => Math.max(0, ...carteira.map((c) => c.encontrado)),
     [carteira],
   );
 
@@ -613,7 +645,10 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
       <div className="px-4 py-3 border-b">
         <div className="text-sm font-semibold">Saúde da carteira</div>
         <div className="text-[11px] text-muted-foreground">
-          Oportunidade e contingência encontradas vs. volume de auditorias realizadas
+          Achado total (oportunidade + contingência) e quanto ele representa do faturamento auditado
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          Só projetos do tipo Auditoria — Reforma Tributária e apoio comercial ficam de fora.
         </div>
       </div>
       {carteira.length === 0 ? (
@@ -621,35 +656,39 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
       ) : (
         <div className="overflow-auto max-h-[320px] divide-y">
           {carteira.map((c) => {
-            const largura = maxPorAuditoria > 0 ? ((c.porAuditoria ?? 0) / maxPorAuditoria) * 100 : 0;
+            const largura = maxEncontrado > 0 ? (c.encontrado / maxEncontrado) * 100 : 0;
             const fatiaOport = c.encontrado > 0 ? (c.oportunidades / c.encontrado) * 100 : 0;
             return (
               <div key={c.unidade} className="px-4 py-2.5">
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-1.5 min-w-0">
                     <span className="text-sm font-medium truncate">{c.unidade}</span>
-                    {c.realizadas > 0 && c.realizadas < 3 && (
-                      <span
-                        className="text-[10px] text-muted-foreground shrink-0"
-                        title="Poucas auditorias concluídas — média por auditoria pouco confiável."
-                      >
-                        base curta
-                      </span>
-                    )}
                   </div>
-                  <div className="text-sm font-semibold shrink-0">
-                    {c.porAuditoria == null ? (
-                      <span className="text-muted-foreground font-normal">sem entrega</span>
-                    ) : (
-                      <>
-                        {fmtMoney(c.porAuditoria)}
-                        <span className="text-[11px] font-normal text-muted-foreground"> /auditoria</span>
-                      </>
-                    )}
+                  <div className="flex items-baseline gap-2 shrink-0">
+                    <div className="text-sm font-semibold">
+                      {c.encontrado === 0 ? (
+                        <span className="text-muted-foreground font-normal">sem achado</span>
+                      ) : (
+                        fmtMoney(c.encontrado)
+                      )}
+                    </div>
+                    <div
+                      className="text-sm font-semibold text-sky-600 tabular-nums"
+                      title="Exposição: achado fiscal dividido pelo faturamento do período analisado, contando só as auditorias com esse campo preenchido."
+                    >
+                      {c.exposicao == null ? (
+                        <span className="text-[11px] font-normal text-muted-foreground">sem faturamento</span>
+                      ) : (
+                        <>
+                          {fmtPct(c.exposicao)}
+                          <span className="text-[11px] font-normal text-muted-foreground"> exposição</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Barra: comprimento = valor por auditoria; divisão = oportunidade x contingência. */}
+                {/* Barra: comprimento = achado total; divisão = oportunidade x contingência. */}
                 <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
                   <div className="flex h-full" style={{ width: `${largura}%` }}>
                     <div className="h-full bg-emerald-500" style={{ width: `${fatiaOport}%` }} />
@@ -666,6 +705,7 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
                   </span>
                   <span className="text-emerald-600">{fmtMoney(c.oportunidades)} oport.</span>
                   <span className="text-amber-600">{fmtMoney(c.contingencias)} conting.</span>
+                  {c.faturamento > 0 && <span>{fmtMoney(c.faturamento)} faturamento auditado</span>}
                 </div>
               </div>
             );
@@ -914,7 +954,7 @@ function AuditoriaInternaPage() {
     const { data } = await supabase
       .from("auditorias_internas")
       .select(
-        "pipefy_card_id,empresa_auditada,unidade,fase_atual,tipo_projeto,complexidade_fiscal,tipo_empresa,setor_atuacao,equipe_designada,prazo_atual,data_conclusao,auditoria_finalizada,classificacao_apontamentos,oportunidades_valor,contingencias_valor",
+        "pipefy_card_id,empresa_auditada,unidade,fase_atual,tipo_projeto,complexidade_fiscal,tipo_empresa,setor_atuacao,equipe_designada,prazo_atual,data_conclusao,auditoria_finalizada,classificacao_apontamentos,oportunidades_valor,contingencias_valor,faturamento_periodo",
       )
       .limit(5000);
     if (data) setRows(data as Auditoria[]);

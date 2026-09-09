@@ -23,6 +23,7 @@ const F_OPORTUNIDADES = "oportunidades_identificadas";
 const F_CONTINGENCIAS = "conting_ncias_indetificadas";
 const F_EQUIPE = "equipe_designada";
 const F_AVALIACAO_SUCESSO = "avalia_o_de_sucesso";
+const F_FATURAMENTO = "faturamento_do_periodo_analisado";
 
 const CARDS_QUERY = `
   query($pipeId: ID!, $after: String) {
@@ -58,6 +59,15 @@ function parseBrDate(raw: string | null | undefined): string | null {
   if (!m) return null;
   const [, mm, dd, yyyy] = m;
   return `${yyyy}-${mm}-${dd}`;
+}
+
+// Campo de texto livre no Pipefy: chega como "R$ 2.691.472,74", " 1.261.824,20 " ou "0,00".
+function parseValorBr(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const limpo = String(raw).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(",", ".");
+  if (!limpo) return null;
+  const n = Number(limpo);
+  return Number.isNaN(n) ? null : n;
 }
 
 // Extrai todos os valores "R$ 1.234,56" de um texto livre e soma.
@@ -128,6 +138,7 @@ function mapCard(card: any) {
     contingencias_texto: contingenciasTexto,
     oportunidades_valor: sumReais(oportunidadesTexto),
     contingencias_valor: sumReais(contingenciasTexto),
+    faturamento_periodo: parseValorBr(fieldMap.get(F_FATURAMENTO)),
     update_time: card.updated_at ?? null,
     synced_at: new Date().toISOString(),
   };

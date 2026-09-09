@@ -76,6 +76,7 @@ export type Database = {
           empresa_auditada: string | null
           equipe_designada: string | null
           fase_atual: string | null
+          faturamento_periodo: number | null
           oportunidades_texto: string | null
           oportunidades_valor: number | null
           pipefy_card_id: string
@@ -100,6 +101,7 @@ export type Database = {
           empresa_auditada?: string | null
           equipe_designada?: string | null
           fase_atual?: string | null
+          faturamento_periodo?: number | null
           oportunidades_texto?: string | null
           oportunidades_valor?: number | null
           pipefy_card_id: string
@@ -124,6 +126,7 @@ export type Database = {
           empresa_auditada?: string | null
           equipe_designada?: string | null
           fase_atual?: string | null
+          faturamento_periodo?: number | null
           oportunidades_texto?: string | null
           oportunidades_valor?: number | null
           pipefy_card_id?: string
