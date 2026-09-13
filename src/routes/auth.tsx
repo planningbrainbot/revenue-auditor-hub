@@ -67,7 +67,7 @@ function AuthPage() {
 
       // Login integrado: autentica também no Growth para que a sessão dele já
       // fique gravada no cookie do domínio raiz e a pessoa não precise logar
-      // de novo ao abrir growth.planningbrain.com.br.
+      // de novo ao abrir o Growth em /growth.
       //
       // Best-effort de propósito: se falhar (senha diferente nos dois, ou sem
       // conta no Growth), o acesso ao Ops não pode ser bloqueado por isso.

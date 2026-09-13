@@ -2,7 +2,7 @@
  * Storage de sessão do Supabase em cookie no domínio raiz.
  *
  * Motivo: `localStorage` é isolado por origem, então a sessão criada em
- * ops.planningbrain.com.br nunca é visível em growth.planningbrain.com.br —
+ * ops.planningbrain.com.br nunca seria visível em outro subdomínio —
  * é o que obriga a logar duas vezes hoje. Cookie com Domain=.planningbrain.com.br
  * é legível pelos dois subdomínios. As chaves do Supabase já incluem o ref do
  * projeto (`sb-<ref>-auth-token`), então as sessões dos dois projetos convivem
