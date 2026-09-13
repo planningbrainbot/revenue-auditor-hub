@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type DataFreshnessInfo = {
   omie: string | null;        // MAX(data_competencia) from contas_receber — período mais recente
-  tratativas: string | null;  // MAX(update_time) from central_tratativas — atualização MANUAL pelo time (Lovable)
+  tratativas: string | null;  // MAX(update_time) from central_tratativas — atualização MANUAL pelo time
   contratos: string | null;   // MAX(created_at) from contratos — último contrato sincronizado (sync_pipedrive_contratos.py, diário 07:00)
 };
 

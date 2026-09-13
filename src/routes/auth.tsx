@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({
-    meta: [{ title: "Acesso – Ops Board Planning Expansão" }],
+    meta: [{ title: "Acesso – Planning Brain" }],
   }),
   component: AuthPage,
 });
@@ -152,7 +152,7 @@ function AuthPage() {
         <div className="flex flex-col items-center gap-3">
           <PlanningLogo className="h-10 w-auto" />
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-foreground">Ops Board Planning Expansão</h1>
+            <h1 className="text-xl font-semibold text-foreground">Planning Brain</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {mode === "login" ? "Entre com suas credenciais" : "Recuperar senha"}
             </p>

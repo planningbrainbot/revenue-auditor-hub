@@ -3,8 +3,9 @@
 // ⚠️ EDITADO À MÃO (24/08/2026): a sessão foi movida de localStorage para
 // cookie no domínio raiz (.planningbrain.com.br), para que ops e growth
 // compartilhem o login. Ver cookie-storage.ts e PLANO-SSO-OPS-GROWTH.md.
-// Se o Lovable regenerar este arquivo, a linha `storage: cookieStorage`
-// abaixo se perde e o login volta a ser isolado por subdomínio — reaplicar.
+// Este arquivo nasceu gerado automaticamente: se algum gerador o reescrever,
+// a linha `storage: cookieStorage` abaixo se perde e o login volta a ser
+// isolado por subdomínio — reaplicar.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { cookieStorage } from './cookie-storage';
@@ -21,7 +22,7 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Set them in the Vercel project settings.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

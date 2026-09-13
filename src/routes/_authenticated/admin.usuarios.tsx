@@ -22,7 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Usuários – Ops Board Planning Expansão" }] }),
+  head: () => ({ meta: [{ title: "Usuários – Planning Brain" }] }),
   beforeLoad: async ({ context }) => {
     const user = (context as { user?: { id: string } }).user;
     if (!user) throw redirect({ to: "/auth" });

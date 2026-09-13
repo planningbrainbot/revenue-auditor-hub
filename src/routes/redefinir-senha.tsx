@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
   head: () => ({
-    meta: [{ title: "Redefinir senha – Ops Board Planning Expansão" }],
+    meta: [{ title: "Redefinir senha – Planning Brain" }],
   }),
   component: ResetPasswordPage,
 });

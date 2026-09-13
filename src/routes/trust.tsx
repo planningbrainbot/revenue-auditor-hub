@@ -59,10 +59,9 @@ function TrustPage() {
 
         <Section title="Platform & hosting">
           <p>
-            The application runs on the Lovable platform with a managed Postgres database. Row
-            Level Security is enabled on user-data tables and scoped to the signed-in user or
-            their assigned role. Platform features are provided by Lovable; this page is not a
-            Lovable-issued certification.
+            The application is hosted on Vercel and backed by a managed Postgres database on
+            Supabase. Row Level Security is enabled on user-data tables and scoped to the
+            signed-in user or their assigned role.
           </p>
         </Section>
 
@@ -80,9 +79,10 @@ function TrustPage() {
 
         <Section title="Subprocessors & integrations">
           <p>
-            We rely on Lovable (application hosting, database, authentication) and may integrate
-            with third-party systems you connect (for example, Pipedrive, Pipefy, Omie). Data sent
-            to a connected system is governed by that provider's terms.
+            We rely on Vercel (application hosting) and Supabase (database, authentication, file
+            storage), and may integrate with third-party systems you connect (for example,
+            Pipedrive, Pipefy, Omie). Data sent to a connected system is governed by that
+            provider's terms.
           </p>
         </Section>
 
