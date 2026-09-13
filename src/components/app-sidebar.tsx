@@ -31,7 +31,6 @@ import {
   ListChecks,
   Rocket,
   Landmark,
-  ExternalLink,
   Store,
 } from "lucide-react";
 import {
@@ -52,8 +51,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { meuAcessoGrowth } from "@/lib/produtos.functions";
 
-const GROWTH_URL = "https://growth.planningbrain.com.br";
-const FINANCEIRO_URL = "https://planningbrain.com.br/financeiro";
+// Mesmo domínio, de propósito. O apex serve `/growth` e `/financeiro` por
+// rewrite dentro deste mesmo projeto da Vercel, então trocar de produto não
+// abre aba nem troca de endereço: a sessão (cookie no domínio raiz) segue junto
+// e o botão "voltar" do navegador funciona como a pessoa espera.
+const GROWTH_URL = "/growth";
+const FINANCEIRO_URL = "/financeiro";
 
 type Item = {
   title: string;
@@ -64,23 +67,30 @@ type Item = {
   permission?: string | string[];
 };
 
+// Os grupos do menu.
+//
+// Eram 13, sete deles com um item só — a lista virava uma coluna de títulos com
+// mais rótulo do que link. Aqui são 8, agrupados por ASSUNTO de quem usa, não
+// pela ordem em que as telas foram nascendo.
 const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
   {
     label: "Início",
     items: [{ title: "Overview", url: "/rede-overview", icon: Activity, permission: "view.hub" }],
   },
   {
-    label: "Operação",
-    items: [{ title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" }],
-  },
-  {
-    label: "Performance da Rede",
+    label: "Rede",
     items: [
       {
         title: "Indicadores do Trimestre",
         url: "/indicadores-trimestre",
         icon: LayoutDashboard,
         permission: "view.indicadores_trimestre",
+      },
+      {
+        title: "Realizado Unidades",
+        url: "/rede-realizado",
+        icon: BarChart3,
+        permission: "view.rede_realizado",
       },
       { title: "LTV Estimado", url: "/rede-ltv", icon: TrendingUp, permission: "view.rede_ltv" },
       {
@@ -89,18 +99,46 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         icon: Users,
         permission: "view.rede_headcount",
       },
+    ],
+  },
+  {
+    label: "Clientes e CS",
+    items: [
+      { title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" },
+      { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
+      { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
       {
-        title: "Realizado Unidades",
-        url: "/rede-realizado",
-        icon: BarChart3,
-        permission: "view.rede_realizado",
+        title: "Disparos de WhatsApp",
+        url: "/disparos-whatsapp",
+        icon: Send,
+        permission: "view.disparos_whatsapp",
+      },
+      {
+        title: "Base de Contatos",
+        url: "/base-contatos",
+        icon: BookUser,
+        permission: "view.base_contatos",
+      },
+      {
+        title: "Auditoria Interna",
+        url: "/auditoria-interna",
+        icon: ClipboardCheck,
+        permission: "view.auditoria_interna",
       },
     ],
   },
   {
-    label: "BI de Vendas",
+    label: "Comercial",
     items: [
-      { title: "Visão por BU", url: "/bi-vendas", icon: Megaphone, permission: "view.bi_vendas" },
+      { title: "BI de Vendas", url: "/bi-vendas", icon: Megaphone, permission: "view.bi_vendas" },
+      { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
+      { title: "Broker", url: "/broker", icon: Store, permission: "view.broker" },
+      {
+        title: "Broker · Matriz",
+        url: "/broker/admin",
+        icon: Coins,
+        permission: "view.broker_admin",
+      },
     ],
   },
   {
@@ -148,6 +186,12 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         permission: "view.despesas_partners",
       },
       { title: "Comissões", url: "/comissoes", icon: Percent, permission: "view.comissoes" },
+      {
+        title: "EBIT Operacional",
+        url: "/ebit-operacional",
+        icon: Scale,
+        permission: "view.ebit_operacional",
+      },
     ],
   },
   {
@@ -158,65 +202,6 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         url: "/reforma-tributaria",
         icon: FileBarChart2,
         permission: "view.reforma_tributaria",
-      },
-    ],
-  },
-  {
-    label: "Auditoria Interna",
-    items: [
-      {
-        title: "Auditoria Interna",
-        url: "/auditoria-interna",
-        icon: ClipboardCheck,
-        permission: "view.auditoria_interna",
-      },
-    ],
-  },
-  {
-    label: "CS",
-    items: [
-      { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
-      { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
-      {
-        title: "Disparos de WhatsApp",
-        url: "/disparos-whatsapp",
-        icon: Send,
-        permission: "view.disparos_whatsapp",
-      },
-      {
-        title: "Base de Contatos",
-        url: "/base-contatos",
-        icon: BookUser,
-        permission: "view.base_contatos",
-      },
-    ],
-  },
-  {
-    label: "Comercial",
-    items: [
-      { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
-    ],
-  },
-  {
-    label: "Broker",
-    items: [
-      { title: "Broker", url: "/broker", icon: Coins, permission: "view.broker" },
-      {
-        title: "Broker · Matriz",
-        url: "/broker/admin",
-        icon: Coins,
-        permission: "view.broker_admin",
-      },
-    ],
-  },
-  {
-    label: "EBIT Operacional",
-    items: [
-      {
-        title: "EBIT Operacional",
-        url: "/ebit-operacional",
-        icon: Scale,
-        permission: "view.ebit_operacional",
       },
     ],
   },
@@ -319,41 +304,34 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive tooltip="Ops Board (você está aqui)">
+                  <SidebarMenuButton asChild isActive tooltip="Ops · você está aqui">
                     <Link to="/" className="flex items-center gap-2">
                       <LayoutGrid className="h-4 w-4 shrink-0" />
-                      <span>Ops Board</span>
+                      <span>Ops</span>
+                      <span className="ml-auto text-[10px] uppercase tracking-wide opacity-60">
+                        aqui
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 {mostrarGrowth && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Abrir o Growth em nova aba">
-                      <a
-                        href={GROWTH_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2"
-                      >
+                    <SidebarMenuButton asChild tooltip="Ir para o Growth">
+                      {/* <a> e não <Link>: é outra aplicação, servida por rewrite
+                          no mesmo domínio. O router daqui não conhece essa rota. */}
+                      <a href={GROWTH_URL} className="flex items-center gap-2">
                         <Rocket className="h-4 w-4 shrink-0" />
                         <span>Growth</span>
-                        <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
                 {mostrarFinanceiro && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Abrir o Brain Financeiro em nova aba">
-                      <a
-                        href={FINANCEIRO_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2"
-                      >
+                    <SidebarMenuButton asChild tooltip="Ir para o Financeiro">
+                      <a href={FINANCEIRO_URL} className="flex items-center gap-2">
                         <Landmark className="h-4 w-4 shrink-0" />
                         <span>Financeiro</span>
-                        <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-60" />
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -394,7 +372,7 @@ export function AppSidebar() {
         })}
       </SidebarContent>
       <SidebarFooter className="border-t px-2 py-2 text-[10px] text-muted-foreground">
-        Ops Board
+        Planning Brain · Ops
       </SidebarFooter>
     </Sidebar>
   );
