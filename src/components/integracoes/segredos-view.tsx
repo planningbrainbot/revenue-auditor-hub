@@ -252,7 +252,7 @@ export function SegredosView() {
           <span className="font-mono text-xs">PAYMENT_CONFIRMED</span>.
         </p>
         <code className="block overflow-x-auto rounded bg-muted px-3 py-2 text-xs">
-          https://ulgiochewwpmmssksqlw.supabase.co/functions/v1/broker-asaas-webhook
+          {`${import.meta.env.VITE_SUPABASE_URL ?? ""}/functions/v1/broker-asaas-webhook`}
         </code>
       </Card>
     </div>

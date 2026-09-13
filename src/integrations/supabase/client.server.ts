@@ -4,6 +4,7 @@
 // For user-authenticated queries (with RLS), use the auth middleware instead.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { opcoesDeSchema } from './schema';
 
 function createSupabaseAdminClient() {
   const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -25,7 +26,10 @@ function createSupabaseAdminClient() {
       storage: undefined,
       persistSession: false,
       autoRefreshToken: false,
-    }
+    },
+    // O service_role ignora RLS, mas não ignora schema: sem isto o servidor
+    // leria o `public` vazio do banco único. Ver schema.ts.
+    ...opcoesDeSchema,
   });
 }
 

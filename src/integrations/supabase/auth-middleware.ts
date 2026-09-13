@@ -3,6 +3,7 @@ import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
+import { opcoesDeSchema } from './schema'
 
 
 
@@ -57,6 +58,10 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
           persistSession: false,
           autoRefreshToken: false,
         },
+        // Este é o cliente que responde pelas queries do usuário logado, com
+        // RLS. Sem o schema do produto ele leria o `public` vazio do banco
+        // único e devolveria lista vazia em toda tela. Ver schema.ts.
+        ...opcoesDeSchema,
       }
     );
 

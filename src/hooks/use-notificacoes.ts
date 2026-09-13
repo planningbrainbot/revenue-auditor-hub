@@ -7,6 +7,7 @@ import {
   marcarTodasNotificacoesLidas,
 } from "@/lib/notificacoes.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_SCHEMA } from "@/integrations/supabase/schema";
 import { usePermissions } from "@/hooks/use-permissions";
 
 const QUERY_KEY = ["notificacoes"];
@@ -27,7 +28,10 @@ export function useNotificacoes() {
     if (!isAdmin) return;
     const channel = supabase
       .channel("notificacoes-bell")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notificacoes" }, () =>
+      // Realtime não herda o `db.schema` do cliente: o schema vai no filtro do
+      // canal. Deixar "public" cravado aqui faria o sino parar de tocar no banco
+      // único, calado. Ver integrations/supabase/schema.ts.
+      .on("postgres_changes", { event: "INSERT", schema: SUPABASE_SCHEMA, table: "notificacoes" }, () =>
         qc.invalidateQueries({ queryKey: QUERY_KEY }),
       )
       .subscribe();
