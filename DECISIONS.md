@@ -828,3 +828,34 @@ Resíduo real após controlar os 3 fatores: ~3%, majoritariamente ajustes manuai
 **Pendente — o mesmo vazamento continua em `contratos`, `empresas`, `nps_pesquisas` e `central_tratativas`.** As quatro têm policy só por permissão de página, sem predicado de unidade, e o franqueado tem `view.clientes`/`view.painel_cs`. As telas recortam no cliente (`/clientes`, `/painel-cs`, `/nps` usam `scopedToOwnUnit`), então não vaza na interface — mas vaza na API. Efeito visível: `v_funil_mensal` é `security_invoker`, então o franqueado ainda lê o MRR contratado das outras unidades por ela, mesmo com faturado/recebido já zerados pelo recorte de `contas_receber`.
 
 **Pendente — `italo.amaral@grupoplanning.com.br` tem o papel `socio_franqueado` e nenhuma linha em `socios`,** logo `current_user_unidade()` devolve nulo e ele passa a ver zero linha em Contas a Receber (antes via a rede toda). Precisa ser vinculado a uma unidade.
+
+## [2026-09-14] Os três produtos continuam três aplicações, com casca única
+
+**Contexto:** depois do corte do banco único, o usuário apontou que Ops, Growth
+e Financeiro "parecem 3 sistemas diferentes". A causa não era o menu: eram três
+molduras (lateral no Ops e no Financeiro, barra no topo no Growth), três fontes
+(Poppins, Geist, Inter por fallback) e três paletas.
+
+**Decisão:** unificar a casca, não o código. Os três seguem como aplicações
+separadas, com repositório, build e deploy próprios; o que fica igual é a
+moldura: barra lateral esquerda, trocador de produto, paleta da marca, fonte
+Poppins, estado do menu e preferência de tema compartilhados por cookie.
+
+**Alternativa recusada — fundir tudo num app só.** Medido antes de decidir:
+163 mil linhas em três frameworks. Ops em TanStack Start com 51 rotas, Growth
+em Next.js App Router com 25 páginas (23 delas server components) e 28 rotas de
+API, Financeiro em Vite + React Router com 12 rotas. Portar o Growth significa
+reescrever todos os server components e as rotas de API; são ferramentas que 15
+pessoas usam diariamente, e o porte troca o motor com o carro andando. O ganho
+restante seria só o recarregamento ao trocar de produto, que a casca idêntica já
+disfarça quase por completo.
+
+**Se o recarregamento incomodar depois**, a ordem de custo é: pré-carregar o
+outro produto ao passar o mouse (meia hora), embutir por iframe com o app de
+dentro escondendo a própria lateral (traz problema de link direto e de botão
+voltar), e só então fundir — começando pelo Financeiro, que é o mesmo React e
+são 12 rotas. O Growth só com um motivo além da estética.
+
+**Consequência prática:** cada produto mantém o seu ambiente de teste. Não
+existe uma homologação que cubra os três a menos que o `vercel.json` do branch
+de homologação do Ops aponte para os endereços de branch dos outros dois.
