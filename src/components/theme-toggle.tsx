@@ -1,15 +1,17 @@
 import { Clock, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
+// A preferência vale nos três produtos (ver lib/tema-compartilhado.ts), e o
+// rótulo diz isso: senão a pessoa acha que mudou só esta tela.
 const LABELS: Record<string, string> = {
-  auto: "Automático (acompanha o horário do computador) — clique para tema claro",
-  light: "Tema claro — clique para tema escuro",
-  dark: "Tema escuro — clique para automático",
+  auto: "Automático, pelo horário — clique para o tema escuro. Vale em Ops, Growth e Financeiro",
+  claro: "Tema claro — clique para automático. Vale em Ops, Growth e Financeiro",
+  escuro: "Tema escuro — clique para o tema claro. Vale em Ops, Growth e Financeiro",
 };
 
 export function ThemeToggle() {
   const { mode, theme, toggle } = useTheme();
-  const Icon = mode === "auto" ? Clock : theme === "dark" ? Moon : Sun;
+  const Icon = mode === "auto" ? Clock : theme === "escuro" ? Moon : Sun;
   return (
     <button
       type="button"

@@ -1,66 +1,51 @@
 import { useEffect, useState } from "react";
+import {
+  aplicarTema,
+  gravarModo,
+  lerModo,
+  temaPeloRelogio,
+  type ModoTema,
+  type Tema,
+} from "@/lib/tema-compartilhado";
 
-export type Theme = "dark" | "light";
-export type ThemeMode = Theme | "auto";
-
-const STORAGE_KEY = "planning-theme";
-
-// Horário comercial considerado "dia" no modo automático.
-const DIA_INICIO_HORA = 6;
-const DIA_FIM_HORA = 18;
-
-function autoTheme(): Theme {
-  const hora = new Date().getHours();
-  return hora >= DIA_INICIO_HORA && hora < DIA_FIM_HORA ? "light" : "dark";
-}
-
-function getInitialMode(): ThemeMode {
-  if (typeof window === "undefined") return "auto";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "dark" || stored === "light" || stored === "auto") return stored;
-  return "auto"; // padrão: acompanha o horário do computador
-}
-
-function applyTheme(theme: Theme) {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  if (theme === "dark") root.classList.add("dark");
-  else root.classList.remove("dark");
-}
+// Tipos antigos mantidos para não quebrar quem importa daqui. O vocabulário
+// agora é o compartilhado ("escuro"/"claro"), porque a preferência viaja entre
+// Ops, Growth e Financeiro — ver src/lib/tema-compartilhado.ts.
+export type Theme = Tema;
+export type ThemeMode = ModoTema;
 
 export function useTheme() {
-  const [mode, setMode] = useState<ThemeMode>(() => getInitialMode());
-  const [theme, setThemeState] = useState<Theme>(() => (mode === "auto" ? autoTheme() : mode));
+  const [mode, setMode] = useState<ModoTema>(() => lerModo());
+  const [theme, setThemeState] = useState<Tema>(() =>
+    mode === "auto" ? temaPeloRelogio() : mode,
+  );
 
-  // Modo automático: recalcula ao entrar no modo e reavalia a cada minuto,
-  // pra pegar a virada dia/noite sem precisar recarregar a página.
+  // Modo automático: reavalia a cada minuto, para pegar a virada dia/noite sem
+  // recarregar. Ele deixou de ser o padrão (o padrão agora é escuro, igual aos
+  // outros dois produtos), mas segue disponível para quem escolher.
   useEffect(() => {
     if (mode !== "auto") {
       setThemeState(mode);
       return;
     }
-    setThemeState(autoTheme());
-    const id = window.setInterval(() => setThemeState(autoTheme()), 60_000);
+    setThemeState(temaPeloRelogio());
+    const id = window.setInterval(() => setThemeState(temaPeloRelogio()), 60_000);
     return () => window.clearInterval(id);
   }, [mode]);
 
   useEffect(() => {
-    applyTheme(theme);
+    aplicarTema(theme);
   }, [theme]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, mode);
-    } catch {
-      /* ignore */
-    }
+    gravarModo(mode);
   }, [mode]);
 
   return {
     theme,
     mode,
     setMode,
-    // Ciclo: automático → claro → escuro → automático...
-    toggle: () => setMode((m) => (m === "auto" ? "light" : m === "light" ? "dark" : "auto")),
+    // Ciclo: escuro → claro → automático → escuro...
+    toggle: () => setMode((m) => (m === "escuro" ? "claro" : m === "claro" ? "auto" : "escuro")),
   };
 }

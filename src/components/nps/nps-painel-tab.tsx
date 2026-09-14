@@ -92,8 +92,8 @@ function csatRatings(r: NpsRow): number[] {
 // fill="hsl(var(--x))" como atributo SVG puro não resolve de forma confiável
 // em produção (bug observado: barras saindo pretas) — resolvemos a cor em
 // JS a partir do tema ativo em vez de depender do var() dentro do atributo.
-const NPS_FILL = { light: "#00c38b", dark: "#3ce7ad" };
-const CSAT_FILL = { light: "#0e5e8a", dark: "#2f91bd" };
+const NPS_FILL = { claro: "#00c38b", escuro: "#3ce7ad" };
+const CSAT_FILL = { claro: "#0e5e8a", escuro: "#2f91bd" };
 
 export function NpsPainelTab() {
   const { data, isLoading, error } = useNps();
