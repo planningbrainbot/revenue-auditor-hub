@@ -243,6 +243,32 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.gente",
+    label: "Acessar Gente da Rede",
+    description: "Cadastro de pessoas das unidades, com hierarquia de gestor.",
+    group: "Acesso",
+  },
+  {
+    key: "view.gente.individual",
+    label: "Gente: ver pessoa a pessoa",
+    description:
+      "Lista nominal do cadastro, sempre recortada pela unidade de quem acessa. Sem esta chave a tela mostra só os números por unidade.",
+    group: "Dados",
+  },
+  {
+    key: "view.gente.agregado",
+    label: "Gente: ver números por unidade",
+    description:
+      "Totais de pessoas, vínculo e cobertura de gestor por unidade, sem nomes. É o que a Matriz usa.",
+    group: "Dados",
+  },
+  {
+    key: "manage.gente",
+    label: "Administrar o cadastro de Gente",
+    description: "Criar, editar e importar pessoas. Dá leitura nominal do cadastro.",
+    group: "Administração",
+  },
+  {
     key: "view.contatos",
     label: "Ver contatos dos clientes",
     description:

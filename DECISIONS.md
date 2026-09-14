@@ -938,3 +938,28 @@ com categoria 1.01.95 e `REF: 08/2026` no Omie.
 **Pendente:** o botão só aparece em mês fechado (mês em andamento ainda recebe
 recebimento). A varredura lê todas as OS da conta a cada simulação (274 hoje, 6
 páginas) — se a conta crescer muito, vale filtrar por cliente na API.
+
+---
+
+## [2026-09-14] Módulo Gente: fica dentro do Ops, sem subdomínio, e a Matriz só vê agregado
+
+**Contexto:** o Qulture.Rocks custa R$ 2.191/mês e cobre 4 das 8 unidades regionais. O export da ferramenta (215 pessoas, 55 colunas) mostrou que as 4 que usam são exatamente as 4 inauguradas antes de 2026, e as 4 de fora são todas de 2026: ninguém decidiu não adotar, as unidades novas nunca foram incluídas. Isso tirou "adesão" do problema e recolocou o projeto como três trilhas separadas, registradas em `PLANO-GENTE-REDE.md` no repo do wiki.
+
+Com 215 pessoas, o preço real é **R$ 10,19 por pessoa/mês**, e chegar a 100% da rede custaria entre R$ 37 mil e R$ 43 mil por ano. Isso é menos que o tempo de engenharia de construir e manter o equivalente, então **custo deixou de ser razão para construir**. O que justifica é integração: ligar desempenho a IDU, churn, NPS e royalties, que o Qulture nunca vai fazer.
+
+**Decisão:**
+
+1. **Gente é módulo do Ops, não produto novo, e não ganha subdomínio.** Reafirma a Decisão 1 e 1-B do `PLANO-PLATAFORMA-PLANNING-BRAIN`: a organização é por path, e "subdomínio não é uma opção". As razões específicas aqui: o valor do módulo é cruzar com dado que vive no mesmo schema `ops`; a RLS que isola unidade depende do `auth.uid()` da mesma sessão, então outra origem exigiria replicar credencial ou montar um segundo fluxo de login; e mais um projeto na Vercel é mais um build e mais uma variável para errar. Se um dia virar produto grande, o caminho é `planningbrain.com.br/gente`, por path.
+
+2. **Separar público é problema de permissão e de rota de entrada, não de DNS.** `view.gente` é chave própria, e quem só tem ela deve cair direto em `/gente` no login.
+
+3. **A Matriz vê agregado por unidade, não nota nominal.** Daí `view.gente.agregado` ser chave separada de `view.gente.individual`. `admin`, `diretor` e `head` têm agregado e **não** têm individual; `socio` e `socio_regional` têm individual, sempre recortado pela própria unidade. A razão é de governança e de LGPD: quem é avaliado é empregado da unidade, não da Partners.
+   **Ressalva que precisa sobreviver a esta entrada:** `manage.gente` dá leitura nominal do **cadastro**, de propósito, porque quem administra precisa ver as pessoas. A separação individual x agregado vale para **nota de desempenho**. A policy das tabelas de nota **não pode** repetir `or can('manage.gente')`, senão a Matriz volta a ver nota nominal pela porta dos fundos.
+
+4. **Escopo de unidade em RLS é policy RESTRICTIVE separada, uma por tabela.** Policies `PERMISSIVE` se combinam por OR, então trava embutida em policy de leitura não trava nada: basta uma policy futura liberar. `contas_receber` tem esse defeito hoje; `omie_clientes` faz certo. Testado: sócio de Belém vê 68 de 215 linhas, e **continuou vendo 68 mesmo com uma policy `using (true)` adicionada**.
+
+5. **O isolamento não é reimplementado no TypeScript.** A server function faz `select` simples e quem recorta é a RLS, porque o middleware usa a publishable key com o Bearer do usuário. Uma regra só, no banco, em vez de duas que podem divergir.
+
+**Status:** parcialmente implementado. Migration `53_gente_cadastro.sql` (no repo do wiki) aplicada no banco único com `gente_pessoas`, `gente_cargos`, `minhas_unidades_gente()`, `e_gestor_de()`, `v_gente_por_unidade` e as 4 chaves; 215 pessoas e 196 vínculos de hierarquia carregados. Tela `/gente` com cadastro, agregado por unidade e filtros.
+
+**Próximos passos:** o módulo hoje é **só o cadastro**. As funcionalidades que substituem o Qulture (1:1, feedback contínuo, pesquisa de clima/eNPS e ciclo de avaliação) são a trilha C e não existem. Antes delas, duas coisas: a trilha A, que atinge 100% de adesão cadastrando Campo Novo, São Luís, Fortaleza e Maceió no Qulture sem construir nada; e o portão de adesão ao Ops, já que nenhum dos 34 sócios das unidades regionais entra na plataforma hoje.

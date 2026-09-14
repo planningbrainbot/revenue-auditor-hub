@@ -129,6 +129,10 @@ const AREAS: Area[] = [
           },
         ],
       },
+      {
+        label: "Pessoas",
+        items: [{ title: "Gente da Rede", url: "/gente", icon: Users, permission: "view.gente" }],
+      },
     ],
   },
   {
