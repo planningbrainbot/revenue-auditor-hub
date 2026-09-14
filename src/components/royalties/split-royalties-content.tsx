@@ -74,8 +74,9 @@ function fmtDoc(v: string | null): string | null {
 
 /** Só as duas pontas que exigem ação ficam em vermelho. */
 function tomEtapa(e: string): "destructive" | "secondary" | "outline" {
-  if (e.startsWith("4.") || e.startsWith("0.")) return "destructive";
-  if (e.startsWith("6.")) return "secondary";
+  // 5 = pagou e nada foi retido; 0 = fatura sem venda registrada.
+  if (e.startsWith("5.") || e.startsWith("0.")) return "destructive";
+  if (e.startsWith("7.")) return "secondary";
   return "outline";
 }
 
@@ -305,14 +306,25 @@ export function SplitRoyaltiesContent() {
         </Table>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Etapa 0 é cliente que fatura sem venda registrada no Pipedrive; etapa 1 é o
-        contrário, vendido e nunca cadastrado no Omie, que não vira boleto nem
-        splita. O vínculo entre os dois lados é pelo CNPJ, e onde ele falta o
-        casamento é por nome, então confira antes de cobrar. O Asaas aplica o
-        percentual sobre o valor do boleto menos a taxa do gateway (Pix R$ 1,00;
-        cartão cerca de 2%), e Pix pago fora de uma cobrança não gera split.
-      </p>
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {/* 1, 2 e 3 são diagnósticos diferentes, não graus do mesmo problema.
+            Tratá-los como um só mandava o time procurar no Omie cliente que
+            talvez já estivesse lá. */}
+        <p>
+          <strong>Etapa 1</strong> não é ausência de cadastro, é ausência de CNPJ
+          no contrato: sem ele não dá para verificar nada. Quem resolve é quem
+          preenche o CNPJ no card do Pipefy. <strong>Etapa 2</strong> é afirmação:
+          temos o CNPJ e ele não está no cadastro do Omie da unidade.{" "}
+          <strong>Etapa 3</strong> é cadastro feito e cobrança não emitida.
+          <strong> Etapa 0</strong> é o contrário de tudo: fatura sem venda
+          registrada no Pipedrive.
+        </p>
+        <p>
+          O Asaas aplica o percentual sobre o valor do boleto menos a taxa do
+          gateway (Pix R$ 1,00; cartão cerca de 2%), e Pix pago fora de uma
+          cobrança não gera split.
+        </p>
+      </div>
     </div>
   );
 }
