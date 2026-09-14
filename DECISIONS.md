@@ -919,6 +919,22 @@ main. Arquivos: `supabase/functions/royalties-faturamento/index.ts` e
 `src/components/royalties/emitir-faturas-dialog.tsx`,
 `src/components/royalties/apuracao-royalties-content.tsx`.
 
+**Correção no mesmo dia, apontada pelo usuário ao ver o botão na tela:** ele
+perguntou se, tendo só Belém fechada, o clique emitiria só Belém. Não emitiria.
+A rotina somava os itens conferidos de cada unidade sem olhar o status da
+apuração, então oferecia seis unidades pré-marcadas em agosto, todas em
+rascunho, incluindo o Rio com R$ 61.460,81. **Agora só entra apuração em
+`confirmado` ou `faturado`**; rascunho e `em_revisao` aparecem como "não
+fechada", com o valor à vista para conferência mas sem checkbox. Rascunho ainda
+muda de número, e nota emitida não muda. Conferido depois da mudança: com Belém
+fechada às 14:50, a simulação de agosto passou a oferecer só Belém, R$
+14.808,06.
+
+A segunda pergunta dele — se, ao fechar outras unidades depois, Belém sairia de
+novo — já estava coberta, e por duas camadas: a linha em `royalties_faturas`
+volta como `ja_registrada`, e mesmo sem ela a varredura acharia a OS de Belém
+com categoria 1.01.95 e `REF: 08/2026` no Omie.
+
 **Pendente:** o botão só aparece em mês fechado (mês em andamento ainda recebe
 recebimento). A varredura lê todas as OS da conta a cada simulação (274 hoje, 6
 páginas) — se a conta crescer muito, vale filtrar por cliente na API.
