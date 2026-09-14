@@ -1,5 +1,6 @@
 import {
-  Activity, BadgeCheck, BarChart3, BookUser, Building2, ClipboardCheck, Coins, FileBarChart2, Filter, Gauge, GitMerge, History, KeyRound, LayoutDashboard, ListChecks, Megaphone, MessageSquareHeart, Percent, Scale, Send, ShieldCheck, Store, TrendingDown, TrendingUp, UserCheck, UserCog, Users, Wallet,
+  Activity,
+  UsersRound, BadgeCheck, BarChart3, BookUser, Building2, ClipboardCheck, Coins, FileBarChart2, Filter, Gauge, GitMerge, History, KeyRound, LayoutDashboard, ListChecks, Megaphone, MessageSquareHeart, Percent, Scale, Send, ShieldCheck, Store, TrendingDown, TrendingUp, UserCheck, UserCog, Users, Wallet,
 } from "lucide-react";
 
 /**
@@ -69,13 +70,6 @@ export const AREAS: Area[] = [
         ],
       },
       {
-        // Veio do modulo Gente (commit a63a5ee): cadastro unico das pessoas das
-        // unidades. Fica em Rede porque a pergunta que ele responde e sobre a
-        // rede, nao sobre a carteira de clientes.
-        label: "Pessoas",
-        items: [{ title: "Gente da Rede", url: "/gente", icon: Users, permission: "view.gente" }],
-      },
-      {
         label: "Desempenho",
         items: [
           {
@@ -112,6 +106,15 @@ export const AREAS: Area[] = [
             icon: ClipboardCheck,
             permission: "view.auditoria_interna",
           },
+          {
+            // Estava sozinha num grupo "Ferramentas", o que a deixava solta na
+            // leitura. É uma simulação que se roda PARA um cliente, então mora
+            // com a carteira.
+            title: "Reforma Tributária",
+            url: "/reforma-tributaria",
+            icon: FileBarChart2,
+            permission: "view.reforma_tributaria",
+          },
         ],
       },
       {
@@ -129,17 +132,6 @@ export const AREAS: Area[] = [
             url: "/base-contatos",
             icon: BookUser,
             permission: "view.base_contatos",
-          },
-        ],
-      },
-      {
-        label: "Ferramentas",
-        items: [
-          {
-            title: "Reforma Tributária",
-            url: "/reforma-tributaria",
-            icon: FileBarChart2,
-            permission: "view.reforma_tributaria",
           },
         ],
       },
@@ -209,6 +201,34 @@ export const AREAS: Area[] = [
     ],
   },
   {
+    slug: "people",
+    nome: "Planning People",
+    descricao: "Cadastro das pessoas das unidades, com hierarquia de gestor.",
+    icone: UsersRound,
+    grupos: [
+      {
+        label: "Pessoas",
+        items: [
+          { title: "Cadastro", url: "/gente", icon: Users, permission: "view.gente" },
+        ],
+      },
+    ],
+  },
+  {
+    slug: "monetizacao",
+    nome: "Monetização",
+    descricao: "Fila de oportunidades de receita na base que já é nossa.",
+    icone: ListChecks,
+    grupos: [
+      {
+        label: "Oportunidades",
+        items: [
+          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
+        ],
+      },
+    ],
+  },
+  {
     slug: "broker",
     descricao: "Fila de oportunidades e a matriz do broker.",
     nome: "Broker",
@@ -224,7 +244,6 @@ export const AREAS: Area[] = [
             icon: Coins,
             permission: "view.broker_admin",
           },
-          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
         ],
       },
     ],

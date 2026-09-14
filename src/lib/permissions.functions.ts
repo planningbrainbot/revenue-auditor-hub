@@ -244,27 +244,27 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.gente",
-    label: "Acessar Gente da Rede",
+    label: "Acessar o Planning People",
     description: "Cadastro de pessoas das unidades, com hierarquia de gestor.",
     group: "Acesso",
   },
   {
     key: "view.gente.individual",
-    label: "Gente: ver pessoa a pessoa",
+    label: "People: ver pessoa a pessoa",
     description:
       "Lista nominal do cadastro, sempre recortada pela unidade de quem acessa. Sem esta chave a tela mostra só os números por unidade.",
     group: "Dados",
   },
   {
     key: "view.gente.agregado",
-    label: "Gente: ver números por unidade",
+    label: "People: ver números por unidade",
     description:
       "Totais de pessoas, vínculo e cobertura de gestor por unidade, sem nomes. É o que a Matriz usa.",
     group: "Dados",
   },
   {
     key: "manage.gente",
-    label: "Administrar o cadastro de Gente",
+    label: "Administrar o cadastro do People",
     description: "Criar, editar e importar pessoas. Dá leitura nominal do cadastro.",
     group: "Administração",
   },

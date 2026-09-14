@@ -12,7 +12,7 @@ function GentePage() {
       <div className="flex items-center gap-3">
         <Users className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold">Gente da Rede</h1>
+          <h1 className="text-2xl font-bold">Planning People</h1>
           <p className="text-sm text-muted-foreground">
             Cadastro único de pessoas das unidades, com hierarquia de gestor. Cada unidade enxerga
             só a sua.
