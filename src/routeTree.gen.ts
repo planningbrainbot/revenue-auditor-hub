@@ -30,6 +30,7 @@ import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_a
 import { Route as AuthenticatedOperacaoRouteImport } from './routes/_authenticated/operacao'
 import { Route as AuthenticatedNpsRouteImport } from './routes/_authenticated/nps'
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
+import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
@@ -172,6 +173,11 @@ const AuthenticatedMeusRoyaltiesRoute =
     path: '/meus-royalties',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
+  id: '/inicio',
+  path: '/inicio',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedIndicadoresTrimestreRoute =
   AuthenticatedIndicadoresTrimestreRouteImport.update({
     id: '/indicadores-trimestre',
@@ -356,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
+  '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
+  '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
@@ -456,6 +464,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
+  '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/_authenticated/nps': typeof AuthenticatedNpsRoute
   '/_authenticated/operacao': typeof AuthenticatedOperacaoRoute
@@ -509,6 +518,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/indicadores-trimestre'
+    | '/inicio'
     | '/meus-royalties'
     | '/nps'
     | '/operacao'
@@ -558,6 +568,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/indicadores-trimestre'
+    | '/inicio'
     | '/meus-royalties'
     | '/nps'
     | '/operacao'
@@ -608,6 +619,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/funil-receita'
     | '/_authenticated/indicadores-trimestre'
+    | '/_authenticated/inicio'
     | '/_authenticated/meus-royalties'
     | '/_authenticated/nps'
     | '/_authenticated/operacao'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       path: '/meus-royalties'
       fullPath: '/meus-royalties'
       preLoaderRoute: typeof AuthenticatedMeusRoyaltiesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inicio': {
+      id: '/_authenticated/inicio'
+      path: '/inicio'
+      fullPath: '/inicio'
+      preLoaderRoute: typeof AuthenticatedInicioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/indicadores-trimestre': {
@@ -1030,6 +1049,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
+  AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
   AuthenticatedNpsRoute: typeof AuthenticatedNpsRoute
   AuthenticatedOperacaoRoute: typeof AuthenticatedOperacaoRoute
@@ -1077,6 +1097,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedIndicadoresTrimestreRoute:
     AuthenticatedIndicadoresTrimestreRoute,
+  AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,
   AuthenticatedNpsRoute: AuthenticatedNpsRoute,
   AuthenticatedOperacaoRoute: AuthenticatedOperacaoRoute,
