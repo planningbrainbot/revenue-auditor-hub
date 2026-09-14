@@ -80,6 +80,7 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
   {
     label: "Rede",
     items: [
+      { title: "IDU", url: "/idu", icon: Gauge, permission: "view.idu" },
       {
         title: "Indicadores do Trimestre",
         url: "/indicadores-trimestre",
@@ -167,6 +168,12 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         url: "/unidades",
         icon: Coins,
         permission: ["view.unidades_rede", "view.royalties_historico"],
+      },
+      {
+        title: "Split de Royalties",
+        url: "/royalties/split",
+        icon: Coins,
+        permission: "view.royalties_split",
       },
     ],
   },

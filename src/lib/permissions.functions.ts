@@ -113,6 +113,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.royalties_split",
+    label: "Split de Royalties",
+    description:
+      "Página de acompanhamento do royalty retido na fonte pelo Asaas: título x royalty retido e a cadeia da venda até o crédito na matriz.",
+    group: "Acesso",
+  },
+  {
     key: "view.royalties_historico",
     label: "Receitas Partners — aba Histórico",
     description:

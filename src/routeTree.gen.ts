@@ -49,6 +49,7 @@ import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
+import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
@@ -278,6 +279,12 @@ const AuthenticatedBrokerIndexRoute =
     path: '/broker/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRoyaltiesSplitRoute =
+  AuthenticatedRoyaltiesSplitRouteImport.update({
+    id: '/split',
+    path: '/split',
+    getParentRoute: () => AuthenticatedRoyaltiesRoute,
+  } as any)
 const AuthenticatedBrokerAdminRoute =
   AuthenticatedBrokerAdminRouteImport.update({
     id: '/broker/admin',
@@ -372,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
@@ -420,6 +428,7 @@ export interface FileRoutesByTo {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
@@ -471,6 +480,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/admin/validacao'
     | '/broker/admin'
+    | '/royalties/split'
     | '/broker/'
     | '/royalties/'
     | '/royalties/$unidadeId/$mes'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/admin/validacao'
     | '/broker/admin'
+    | '/royalties/split'
     | '/broker'
     | '/royalties'
     | '/royalties/$unidadeId/$mes'
@@ -620,6 +632,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/admin/validacao'
     | '/_authenticated/broker/admin'
+    | '/_authenticated/royalties/split'
     | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
     | '/_authenticated/royalties/$unidadeId/$mes'
@@ -914,6 +927,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrokerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/royalties/split': {
+      id: '/_authenticated/royalties/split'
+      path: '/split'
+      fullPath: '/royalties/split'
+      preLoaderRoute: typeof AuthenticatedRoyaltiesSplitRouteImport
+      parentRoute: typeof AuthenticatedRoyaltiesRoute
+    }
     '/_authenticated/broker/admin': {
       id: '/_authenticated/broker/admin'
       path: '/broker/admin'
@@ -974,12 +994,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRoyaltiesRouteChildren {
+  AuthenticatedRoyaltiesSplitRoute: typeof AuthenticatedRoyaltiesSplitRoute
   AuthenticatedRoyaltiesIndexRoute: typeof AuthenticatedRoyaltiesIndexRoute
   AuthenticatedRoyaltiesUnidadeIdMesRoute: typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 
 const AuthenticatedRoyaltiesRouteChildren: AuthenticatedRoyaltiesRouteChildren =
   {
+    AuthenticatedRoyaltiesSplitRoute: AuthenticatedRoyaltiesSplitRoute,
     AuthenticatedRoyaltiesIndexRoute: AuthenticatedRoyaltiesIndexRoute,
     AuthenticatedRoyaltiesUnidadeIdMesRoute:
       AuthenticatedRoyaltiesUnidadeIdMesRoute,
