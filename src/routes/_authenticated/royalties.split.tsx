@@ -61,6 +61,7 @@ type Cadeia = {
   ganho_em: string | null;
   dias_desde_ganho: number | null;
   mrr_mensal: number | null;
+  pipedrive_deal_id: string | null;
   omie_cnpj: string | null;
   metodo_vinculo: string | null;
   titulos: number | null;
@@ -72,6 +73,19 @@ type Cadeia = {
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+
+/**
+ * CNPJ chega em dois formatos: pontuado de `contas_receber.cpf_cnpj` e cru de
+ * `omie_clientes.cnpj_cpf`. Normaliza os dois para a mesma máscara, senão a
+ * coluna fica com metade das linhas pontuada e metade não.
+ * CPF (11 dígitos) também aparece: unidade fatura pessoa física.
+ */
+function fmtDoc(v: string | null): string | null {
+  const d = (v ?? "").replace(/\D/g, "");
+  if (d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  if (d.length === 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  return d ? v : null;
+}
 
 const ROTULO_SITUACAO: Record<string, string> = {
   retido: "Royalty retido",
@@ -250,7 +264,13 @@ function SplitRoyaltiesPage() {
                     <TableBody>
                       {confFiltrada.map((r) => (
                         <TableRow key={r.codigo_omie ?? `${r.cliente}-${r.data_vencimento}`}>
-                          <TableCell className="max-w-[260px] truncate font-medium">{r.cliente ?? "—"}</TableCell>
+                          <TableCell className="max-w-[280px]">
+                            <div className="truncate font-medium">{r.cliente ?? "—"}</div>
+                            {/* CNPJ do título: é por ele que se acha o cliente no Omie. */}
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {fmtDoc(r.cpf_cnpj) ?? "sem CNPJ"}
+                            </div>
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">{fmtBRL(r.valor_titulo)}</TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                             {r.status_pagamento === "RECEBIDO" ? fmtData(r.data_pagamento) : (r.status_pagamento ?? "—")}
@@ -304,16 +324,22 @@ function SplitRoyaltiesPage() {
                     <TableBody>
                       {cadeiaFiltrada.map((r) => (
                         <TableRow key={r.contrato_id}>
-                          <TableCell className="max-w-[260px] truncate font-medium">
-                            {r.titulo ?? "—"}
-                            {/* Vínculo por nome erra: cliente com título e split
-                                pode cair na etapa 1 só porque o nome não casou. */}
-                            {r.omie_cnpj == null && (
-                              <span className="ml-2 text-xs text-muted-foreground">sem vínculo</span>
-                            )}
-                            {r.metodo_vinculo === "similaridade" && (
-                              <span className="ml-2 text-xs text-amber-600">vínculo por semelhança</span>
-                            )}
+                          <TableCell className="max-w-[320px]">
+                            <div className="truncate font-medium">
+                              {r.titulo ?? "—"}
+                              {/* Vínculo por nome erra: cliente com título e split
+                                  pode cair na etapa 1 só porque o nome não casou. */}
+                              {r.metodo_vinculo === "similaridade" && (
+                                <span className="ml-2 text-xs text-amber-600">vínculo por semelhança</span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
+                              {/* CNPJ do faturamento: o do cliente no Omie da unidade,
+                                  que é o que liga a venda ao título e ao split. */}
+                              <span>{fmtDoc(r.omie_cnpj) ?? "sem CNPJ no Omie"}</span>
+                              {/* Deal do Pipedrive: por onde se confere a venda. */}
+                              <span>deal {r.pipedrive_deal_id ?? "—"}</span>
+                            </div>
                           </TableCell>
                           <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtData(r.ganho_em)}</TableCell>
                           <TableCell className="text-right tabular-nums">{r.dias_desde_ganho ?? "—"}</TableCell>
