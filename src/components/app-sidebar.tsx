@@ -169,12 +169,6 @@ const DEFAULT_GROUPS: { label: string; items: Item[] }[] = [
         icon: Coins,
         permission: ["view.unidades_rede", "view.royalties_historico"],
       },
-      {
-        title: "Split de Royalties",
-        url: "/royalties/split",
-        icon: Coins,
-        permission: "view.royalties_split",
-      },
     ],
   },
   {

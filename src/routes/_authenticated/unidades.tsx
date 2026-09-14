@@ -8,14 +8,16 @@ import { RedeContent } from "@/components/page-content/rede-content";
 import { ApuracaoRoyaltiesContent } from "@/components/royalties/apuracao-royalties-content";
 import { RoyaltiesHistoricoContent } from "@/components/royalties/royalties-historico-content";
 import { ApuracaoCacContent } from "@/components/cac/apuracao-cac-content";
+import { SplitRoyaltiesContent } from "@/components/royalties/split-royalties-content";
 
-type Tab = "regras" | "royalties" | "historico" | "cac";
+type Tab = "regras" | "royalties" | "historico" | "cac" | "split";
 
 const ALL_TABS: { key: Tab; label: string; permission: string }[] = [
   { key: "regras", label: "Regras", permission: "view.unidades_rede" },
   { key: "royalties", label: "Royalties", permission: "view.unidades_rede" },
   { key: "historico", label: "Histórico", permission: "view.royalties_historico" },
   { key: "cac", label: "CAC", permission: "view.unidades_rede" },
+  { key: "split", label: "Split", permission: "view.royalties_split" },
 ];
 
 export const Route = createFileRoute("/_authenticated/unidades")({
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/unidades")({
   }),
   validateSearch: (search: Record<string, unknown>): { tab: Tab } => {
     const t = search.tab;
-    const valid: Tab[] = ["regras", "royalties", "historico", "cac"];
+    const valid: Tab[] = ["regras", "royalties", "historico", "cac", "split"];
     return { tab: valid.includes(t as Tab) ? (t as Tab) : "regras" };
   },
   component: UnidadesRoute,
@@ -59,7 +61,7 @@ function UnidadesRoute() {
   return (
     <AppShell
       title="Receitas Partners"
-      subtitle="Regras da rede, apuração e histórico de royalties, e CAC"
+      subtitle="Regras da rede, apuração e histórico de royalties, CAC e split do Asaas"
     >
       <div className="border-b bg-card">
         <div className="mx-auto max-w-7xl px-4">
@@ -88,6 +90,7 @@ function UnidadesRoute() {
           {tab === "royalties" && idsVisiveis.has("royalties") && <ApuracaoRoyaltiesContent />}
           {tab === "historico" && idsVisiveis.has("historico") && <RoyaltiesHistoricoContent />}
           {tab === "cac" && idsVisiveis.has("cac") && <ApuracaoCacContent />}
+          {tab === "split" && idsVisiveis.has("split") && <SplitRoyaltiesContent />}
         </>
       )}
     </AppShell>
