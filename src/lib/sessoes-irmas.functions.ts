@@ -42,21 +42,39 @@ const ESCOPOS: Record<string, string> = {
 async function permissoesDoCockpit(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+  // QUEM ENTRA no cockpit vem de `public.produto_acesso`, desde 14/09/2026.
+  // Antes vinha da chave `view.brain_financeiro` na matriz de papéis do Ops, o
+  // que fazia o acesso a um produto depender do papel em outro — e deixava o
+  // Financeiro sem lugar próprio para conceder ou tirar acesso.
+  // `as any`: ver a nota em produtos.functions.ts — `produto_acesso` está no
+  // schema `public` e fora dos tipos gerados, que cobrem o `ops`.
+  const { data: acesso } = await (supabaseAdmin as any)
+    .schema("public")
+    .from("produto_acesso")
+    .select("produto")
+    .eq("user_id", userId)
+    .eq("produto", "financeiro")
+    .maybeSingle();
+  if (!acesso) return null;
+
+  // O QUE ela vê dentro do cockpit (os escopos por unidade) continua vindo das
+  // chaves do Ops. Separar isso é o passo seguinte do plano; misturar as duas
+  // mudanças num commit só tornaria impossível saber o que causou o quê.
   const { data: papeis } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
   const roles = (papeis ?? []).map((r) => r.role as string);
-  if (roles.length === 0) return null;
 
-  const { data: perms } = await supabaseAdmin
-    .from("role_permissions")
-    .select("permission_key")
-    .in("role", roles)
-    .eq("allowed", true);
+  const { data: perms } = roles.length
+    ? await supabaseAdmin
+        .from("role_permissions")
+        .select("permission_key")
+        .in("role", roles)
+        .eq("allowed", true)
+    : { data: [] as { permission_key: string }[] };
 
   const chaves = new Set((perms ?? []).map((p) => p.permission_key as string));
-  if (!chaves.has("view.brain_financeiro")) return null;
 
   const escopos = Object.entries(ESCOPOS)
     .filter(([sufixo]) => chaves.has(PREFIXO_ESCOPO + sufixo))

@@ -49,7 +49,7 @@ import { PlanningLogo } from "@/components/planning-logo";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { meuAcessoGrowth } from "@/lib/produtos.functions";
+import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 
 // Mesmo domínio, de propósito. O apex serve `/growth` e `/financeiro` por
 // rewrite dentro deste mesmo projeto da Vercel, então trocar de produto não
@@ -286,10 +286,17 @@ export function AppSidebar() {
   });
   const mostrarGrowth = growthQuery.data?.temAcesso ?? false;
 
-  // O cockpit financeiro é liberado pelo Ops (view.brain_financeiro) — a mesma
-  // chave que autoriza a emissão da sessão irmã. Sem ela o Financial devolve
-  // 403, então não faz sentido mostrar o link.
-  const mostrarFinanceiro = !loading && can("view.brain_financeiro");
+  // Quem abre o cockpit vem de `public.produto_acesso`, a mesma fonte que
+  // autoriza a emissão da sessão irmã. Antes era uma chave da matriz de papéis
+  // do Ops, e o menu e o servidor podiam discordar.
+  const produtosFn = useServerFn(meusProdutos);
+  const produtos = useQuery({
+    queryKey: ["meus-produtos"],
+    queryFn: () => produtosFn(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const mostrarFinanceiro = produtos.data?.financeiro ?? false;
 
   return (
     <Sidebar collapsible="icon">

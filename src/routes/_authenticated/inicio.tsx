@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { LayoutGrid, Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { meuAcessoGrowth } from "@/lib/produtos.functions";
+import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { PlanningLogo } from "@/components/planning-logo";
 import { Card } from "@/components/ui/card";
 
@@ -68,7 +68,18 @@ function InicioPage() {
     retry: false,
   });
 
-  if (loading || growth.isLoading) return null;
+  // Financeiro vem de `public.produto_acesso`, a mesma fonte que o servidor usa
+  // para emitir a sessão do cockpit. Antes vinha de uma chave da matriz de
+  // papéis do Ops, e tela e servidor podiam discordar.
+  const produtosFn = useServerFn(meusProdutos);
+  const acessoProdutos = useQuery({
+    queryKey: ["meus-produtos"],
+    queryFn: () => produtosFn(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  if (loading || growth.isLoading || acessoProdutos.isLoading) return null;
 
   const opsHref = primaryRole === "socio_franqueado" ? "/painel-unidade" : "/rede-overview";
 
@@ -91,7 +102,7 @@ function InicioPage() {
       Icone: Rocket,
     });
   }
-  if (can("view.brain_financeiro")) {
+  if (acessoProdutos.data?.financeiro) {
     produtos.push({
       slug: "financeiro",
       nome: "Financeiro",
