@@ -7,7 +7,7 @@
 // comporta os dois, e de quebra não conta MRR em dobro quando há vários
 // boletos. Ver ops.v_split_cliente (migration 50).
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Clock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Clock, ShieldCheck, Sigma } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,11 +40,20 @@ type Linha = {
   etapa: string;
 };
 
-type Split = {
-  id: string;
-  valor: number | null;
-  status: string;
-  codigo_omie: number | null;
+/**
+ * Totais vindos de asaas_splits, por unidade. Os cards NAO podem sair da
+ * tabela por cliente: ela nasce do titulo do Omie, e split creditado cujo
+ * titulo nao esta na nossa base ficava de fora. O extrato do Asaas e a fonte
+ * de caixa; a tabela e o detalhamento possivel dela.
+ */
+type Resumo = {
+  unidade: string | null;
+  creditado: number | null;
+  a_creditar: number | null;
+  cancelado: number | null;
+  splits_creditados: number | null;
+  creditado_sem_titulo: number | null;
+  splits_sem_titulo: number | null;
 };
 
 const fmtBRL = (v: number | null | undefined) =>
@@ -74,7 +83,7 @@ export function SplitRoyaltiesContent() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [splits, setSplits] = useState<Split[]>([]);
+  const [resumo, setResumo] = useState<Resumo[]>([]);
   const [unidade, setUnidade] = useState<string>("todas");
   const [etapaFiltro, setEtapaFiltro] = useState<string>("todas");
 
@@ -84,14 +93,12 @@ export function SplitRoyaltiesContent() {
     (async () => {
       const [l, s] = await Promise.all([
         (supabase as any).from("v_split_cliente").select("*").order("etapa"),
-        // Contraprova: a view nasce do título, e existe split creditado sem
-        // título. Sem isto o total da tela nunca fecha com o extrato do Asaas.
-        (supabase as any).from("asaas_splits").select("id,valor,status,codigo_omie"),
+        (supabase as any).from("v_split_resumo").select("*"),
       ]);
       if (!vivo) return;
       if (l.error) setErro(l.error.message);
       setLinhas((l.data ?? []) as Linha[]);
-      setSplits((s.data ?? []) as Split[]);
+      setResumo((s.data ?? []) as Resumo[]);
       setLoading(false);
     })();
     return () => { vivo = false; };
@@ -120,18 +127,22 @@ export function SplitRoyaltiesContent() {
     () => linhas.filter((r) => unidade === "todas" || r.unidade === unidade),
     [linhas, unidade],
   );
-  const soma = (f: (r: Linha) => number | null) =>
-    doUnidade.reduce((a, r) => a + Number(f(r) ?? 0), 0);
-  const creditado = soma((r) => r.royalty_creditado);
-  const aCreditar = soma((r) => r.royalty_a_creditar);
-  const perdido = soma((r) => r.royalty_perdido);
-
-  const creditadoNoAsaas = splits
-    .filter((s) => s.status === "DONE")
-    .reduce((a, s) => a + Number(s.valor ?? 0), 0);
-  const foraDaTabela = creditadoNoAsaas - linhas.reduce(
-    (a, r) => a + Number(r.royalty_creditado ?? 0), 0,
+  const resumoFiltrado = useMemo(
+    () => resumo.filter((r) => unidade === "todas" || r.unidade === unidade),
+    [resumo, unidade],
   );
+  const somaResumo = (f: (r: Resumo) => number | null) =>
+    resumoFiltrado.reduce((a, r) => a + Number(f(r) ?? 0), 0);
+
+  // Caixa: vem do Asaas, nao da tabela.
+  const creditado = somaResumo((r) => r.creditado);
+  const aCreditar = somaResumo((r) => r.a_creditar);
+  const total = creditado + aCreditar;
+  const semTitulo = somaResumo((r) => r.creditado_sem_titulo);
+  const qtdSemTitulo = somaResumo((r) => r.splits_sem_titulo);
+
+  // Perda so existe onde ha titulo pago sem split, entao sai da tabela mesmo.
+  const perdido = doUnidade.reduce((a, r) => a + Number(r.royalty_perdido ?? 0), 0);
 
   const porEtapa = useMemo(() => {
     const m = new Map<string, number>();
@@ -179,7 +190,7 @@ export function SplitRoyaltiesContent() {
         </Select>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="flex items-center gap-3 p-4">
           <ShieldCheck className="h-5 w-5 shrink-0 text-muted-foreground" />
           <div>
@@ -194,6 +205,15 @@ export function SplitRoyaltiesContent() {
             <div className="text-xl font-semibold">{fmtBRL(aCreditar)}</div>
           </div>
         </Card>
+        {/* Tudo que o split ja capturou, dentro e fora do caixa. Cancelado
+            continua fora: nao vira dinheiro. */}
+        <Card className="flex items-center gap-3 border-primary/40 p-4">
+          <Sigma className="h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <div className="text-xs text-muted-foreground">Total retido</div>
+            <div className="text-xl font-semibold">{fmtBRL(total)}</div>
+          </div>
+        </Card>
         <Card className={`flex items-center gap-3 p-4 ${perdido > 0 ? "border-destructive/40" : ""}`}>
           <AlertTriangle className={`h-5 w-5 shrink-0 ${perdido > 0 ? "text-destructive" : "text-muted-foreground"}`} />
           <div>
@@ -203,14 +223,16 @@ export function SplitRoyaltiesContent() {
         </Card>
       </div>
 
-      {/* Sem esta linha o total da tela não fecha com o extrato e quem confere
-          procura um erro que não está na conta. */}
-      {Math.abs(foraDaTabela) >= 0.01 && (
+      {/* O card ja mostra o caixa correto; esta faixa explica so por que a
+          TABELA soma menos que ele. Antes o texto dizia "cobranca sem titulo",
+          o que sugeria origem fora do split — e errado: sao splits, com
+          percentual e carteira de destino iguais aos demais. */}
+      {semTitulo > 0 && (
         <Card className="border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-          <span className="font-medium">Conferência com o Asaas:</span> creditado no
-          gateway {fmtBRL(creditadoNoAsaas)}, dos quais {fmtBRL(foraDaTabela)} vêm de
-          cobrança sem título correspondente no Omie, e por isso fora da tabela.
-          Cancelados não entram em nenhum total: split cancelado não vira dinheiro.
+          <span className="font-medium">Detalhamento incompleto:</span>{" "}
+          {fmtBRL(semTitulo)} do royalty creditado vem de {qtdSemTitulo} split cujo
+          título não existe na nossa base do Omie. O valor entra nos totais acima,
+          mas não tem linha na tabela porque não sabemos a qual cliente atribuir.
         </Card>
       )}
 
