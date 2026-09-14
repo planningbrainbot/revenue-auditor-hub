@@ -15,6 +15,7 @@ import {
 import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
 import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
+import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
 
 function defaultMes(): string {
   const d = new Date();
@@ -41,10 +42,22 @@ function formatMesLabel(mes: string): string {
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  rascunho: { label: "Rascunho", cls: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200" },
-  em_revisao: { label: "Em revisão", cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" },
-  confirmado: { label: "Confirmado", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200" },
-  faturado: { label: "Faturado", cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200" },
+  rascunho: {
+    label: "Rascunho",
+    cls: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+  },
+  em_revisao: {
+    label: "Em revisão",
+    cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+  },
+  confirmado: {
+    label: "Confirmado",
+    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+  },
+  faturado: {
+    label: "Faturado",
+    cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200",
+  },
 };
 
 export function ApuracaoRoyaltiesContent() {
@@ -76,7 +89,9 @@ export function ApuracaoRoyaltiesContent() {
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
   if (!isAdmin)
-    return <div className="p-6 text-sm text-muted-foreground">Acesso restrito a usuários admin.</div>;
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Acesso restrito a usuários admin.</div>
+    );
 
   return (
     <div className="space-y-6 p-6">
@@ -91,6 +106,9 @@ export function ApuracaoRoyaltiesContent() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Fatura é dinheiro saindo para a unidade: só aparece em mês fechado,
+              porque mês em andamento ainda vai receber recebimento. */}
+          {!isMesEmAndamento(mes) && <EmitirFaturasDialog competencia={mes} />}
           <Button variant="outline" size="icon" onClick={() => setMes(shiftMes(mes, -1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -105,7 +123,8 @@ export function ApuracaoRoyaltiesContent() {
 
       {isMesEmAndamento(mes) && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          Mês em andamento — a apuração só fecha depois que o mês termina. Use as setas para voltar ao mês anterior.
+          Mês em andamento — a apuração só fecha depois que o mês termina. Use as setas para voltar
+          ao mês anterior.
         </div>
       )}
 
@@ -170,7 +189,10 @@ export function ApuracaoRoyaltiesContent() {
                 const ap = u.apuracao;
                 const statusKey = ap?.status ?? "nao_iniciada";
                 const badge = STATUS_BADGE[statusKey];
-                const cscModel = u.csc_percentual_base_antiga != null ? `${u.csc_percentual_base_antiga}% base antiga` : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
+                const cscModel =
+                  u.csc_percentual_base_antiga != null
+                    ? `${u.csc_percentual_base_antiga}% base antiga`
+                    : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
                 return (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
@@ -184,18 +206,31 @@ export function ApuracaoRoyaltiesContent() {
                         <Badge variant="outline">Não iniciada</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{ap ? brl(ap.royalties_valor ?? 0) : "—"}</TableCell>
                     <TableCell className="text-right">
-                      {ap ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number) : "—"}
+                      {ap ? brl(ap.royalties_valor ?? 0) : "—"}
                     </TableCell>
-                    <TableCell className="text-right">{ap ? brl(ap.cac_valor ?? 0) : "—"}</TableCell>
-                    <TableCell className="text-right">{ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}</TableCell>
-                    <TableCell className="text-right">{ap ? brl(ap.outras_receitas ?? 0) : "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {ap
+                        ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number)
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {ap ? brl(ap.cac_valor ?? 0) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {ap ? brl(ap.outras_receitas ?? 0) : "—"}
+                    </TableCell>
                     <TableCell className="text-right font-semibold">
                       {ap ? brl(ap.total_fatura ?? 0) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link to="/royalties/$unidadeId/$mes" params={{ unidadeId: String(u.id), mes }}>
+                      <Link
+                        to="/royalties/$unidadeId/$mes"
+                        params={{ unidadeId: String(u.id), mes }}
+                      >
                         <Button size="sm" variant={ap ? "outline" : "default"}>
                           {ap?.status === "confirmado" || ap?.status === "faturado"
                             ? "Ver apuração"

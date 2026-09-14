@@ -859,3 +859,66 @@ são 12 rotas. O Growth só com um motivo além da estética.
 **Consequência prática:** cada produto mantém o seu ambiente de teste. Não
 existe uma homologação que cubra os três a menos que o `vercel.json` do branch
 de homologação do Ops aponte para os endereços de branch dos outros dois.
+
+## [2026-09-14] Emissão das faturas da apuração no Omie da Partners
+
+**Contexto:** fechada a apuração do mês, alguém abria a conta Omie da Planning
+Partners e digitava as ordens de serviço uma a uma. O histórico mostra o custo
+disso: em 11/08/2026 saíram 5 OS manuais para a competência de julho (Belém
+19.836,00 de royalties e 1.803,39 de outras receitas, Campo Novo 5.524,00 e
+2.536,00 de CAC, São Luís 2.508,00 e 420,36), e em 14/09 mais três de Patos e
+São Luís. Nenhuma com código de integração, nenhuma registrada em lugar nenhum:
+a única trava contra cobrar a unidade duas vezes era a memória de quem fazia.
+
+**Decisão:** botão "Emitir faturas no Omie" na aba Royalties de `/unidades`,
+com diálogo que pergunta a data de vencimento do boleto e mostra, antes de
+qualquer escrita, o que vai e o que não vai.
+
+**Escopo da fatura (decisão do usuário):** royalties, CAC e outras receitas.
+**CSC fixo e reembolso de tráfego pago ficam de fora** — os dois já são
+emitidos pela `csc-faturamento-mensal` com os códigos `SIGLA-CSC-MMYYYY` e
+`SIGLA-MIDIA-MMYYYY`, e incluí-los aqui cobraria a unidade duas vezes pela
+mesma coisa. É o erro mais caro possível nesta tela, e por isso está no
+comentário de topo dos três arquivos.
+
+**Uma OS por unidade, um item por natureza,** cada item com a sua categoria
+gravada em `cCodCategItem`: royalties no serviço 1906814347 (`1.01.95`), CAC no
+2246218440 (`1.01.92`), outras receitas no 1868191225 (`1.01.99`). Mandar
+`cCodCateg` só no cabeçalho não resolve — o item sobrescreve com a categoria
+padrão do cadastro do serviço, que foi como 9 de 10 OS nasceram na categoria
+errada no ciclo de agosto do CSC.
+
+**Idempotência em duas camadas, porque uma só não cobre o passado:**
+1. `ops.royalties_faturas` com `unique (competencia, unidade_id)`;
+2. varredura no Omie antes de criar, que é o que enxerga o que foi digitado à
+   mão e portanto não tem código de integração nosso. A competência sai do
+   `cDadosAdicNF` por regex (os dois formatos em uso na conta: `REF: 07/2026` e
+   `Referente|06/2026| ||`) e a natureza, da categoria do item.
+
+Conferido contra dado real antes de entregar: simulando julho/2026, a varredura
+marcou Belém, Campo Novo e São Luís como "já no Omie" apontando as OS 265, 259,
+262 e 264, todas sem `cCodIntOS`. Simulando agosto/2026, nenhuma unidade cai
+nessa trava (só CSC e mídia foram emitidos), e o lote fica em R$ 97.705,10.
+
+**Três modos na Edge Function, nunca um clique só:** `simular` não escreve nada
+(nem no Omie, nem no nosso banco) e é o que roda ao abrir o diálogo; `criar`
+inclui a OS na etapa 50 sem gerar financeiro; `faturar` chama `FaturarOS` em
+`servicos/osp`, que gera nota de débito, título e boleto. A tela usa simular e
+faturar; `criar` fica para depuração.
+
+**Parâmetros do Omie reaproveitados de `csc_unidades`** (cliente, projeto,
+departamento, conta corrente, vendedor e destinatários) em vez de uma tabela
+nova: corrigir um e-mail passa a consertar os dois faturamentos de uma vez.
+
+**Status:** implementado e conferido com `tsc --noEmit` (zero erro nos arquivos
+novos; os 14 do repo são anteriores e estão em outros arquivos) e `vite build`.
+A Edge Function está publicada no banco único; a tela ainda **não** foi para a
+main. Arquivos: `supabase/functions/royalties-faturamento/index.ts` e
+`migrations/52_royalties_faturamento.sql` (no repo do wiki),
+`src/lib/royalties-faturamento.functions.ts`,
+`src/components/royalties/emitir-faturas-dialog.tsx`,
+`src/components/royalties/apuracao-royalties-content.tsx`.
+
+**Pendente:** o botão só aparece em mês fechado (mês em andamento ainda recebe
+recebimento). A varredura lê todas as OS da conta a cada simulação (274 hoje, 6
+páginas) — se a conta crescer muito, vale filtrar por cliente na API.
