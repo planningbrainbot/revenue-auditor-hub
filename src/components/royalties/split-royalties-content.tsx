@@ -139,8 +139,6 @@ export function SplitRoyaltiesContent() {
   const creditado = somaResumo((r) => r.creditado);
   const aCreditar = somaResumo((r) => r.a_creditar);
   const total = creditado + aCreditar;
-  const semTitulo = somaResumo((r) => r.creditado_sem_titulo);
-  const qtdSemTitulo = somaResumo((r) => r.splits_sem_titulo);
 
   // Perda so existe onde ha titulo pago sem split, entao sai da tabela mesmo.
   const perdido = doUnidade.reduce((a, r) => a + Number(r.royalty_perdido ?? 0), 0);
@@ -223,19 +221,6 @@ export function SplitRoyaltiesContent() {
           </div>
         </Card>
       </div>
-
-      {/* O card ja mostra o caixa correto; esta faixa explica so por que a
-          TABELA soma menos que ele. Antes o texto dizia "cobranca sem titulo",
-          o que sugeria origem fora do split — e errado: sao splits, com
-          percentual e carteira de destino iguais aos demais. */}
-      {semTitulo > 0 && (
-        <Card className="border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-          <span className="font-medium">Detalhamento incompleto:</span>{" "}
-          {fmtBRL(semTitulo)} do royalty creditado vem de {qtdSemTitulo} split cujo
-          título não existe na nossa base do Omie. O valor entra nos totais acima,
-          mas não tem linha na tabela porque não sabemos a qual cliente atribuir.
-        </Card>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {porEtapa.map(([e, n]) => (
