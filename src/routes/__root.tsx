@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportarErro } from "../lib/error-reporting";
+import { SCRIPT_TEMA_COMPARTILHADO } from "../lib/tema-compartilhado";
 
 function NotFoundComponent() {
   return (
@@ -111,7 +112,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('planning-theme');var r=document.documentElement;var isLight;if(t==='light'){isLight=true;}else if(t==='dark'){isLight=false;}else{var h=new Date().getHours();isLight=h>=6&&h<18;}if(isLight){r.classList.remove('dark');}else{r.classList.add('dark');}}catch(e){}})();`,
+            __html: SCRIPT_TEMA_COMPARTILHADO,
           }}
         />
         <HeadContent />

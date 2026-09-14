@@ -58,76 +58,88 @@
 /* Light theme (white background) */
 :root {
   --radius: 0.75rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.15 0 0);
-  --card: oklch(0.985 0 0);
-  --card-foreground: oklch(0.15 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0 0);
-  --primary: oklch(0.72 0.16 165);
-  --primary-foreground: oklch(0.15 0 0);
-  --secondary: oklch(0.96 0 0);
-  --secondary-foreground: oklch(0.15 0 0);
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.45 0 0);
-  --accent: oklch(0.94 0.04 165);
-  --accent-foreground: oklch(0.15 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9 0 0);
-  --input: oklch(0.9 0 0);
-  --ring: oklch(0.72 0.16 165);
-  --chart-1: oklch(0.72 0.16 165);
-  --chart-2: oklch(0.6 0.12 200);
-  --chart-3: oklch(0.55 0.18 250);
-  --chart-4: oklch(0.7 0.18 60);
-  --chart-5: oklch(0.65 0.22 320);
-  --chart-csat: oklch(0.46 0.1 240);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.15 0 0);
-  --sidebar-primary: oklch(0.72 0.16 165);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.94 0.04 165);
-  --sidebar-accent-foreground: oklch(0.15 0 0);
-  --sidebar-border: oklch(0.9 0 0);
-  --sidebar-ring: oklch(0.72 0.16 165);
+
+  /* Paleta Planning Brain — a mesma no Ops, no Growth e no Financeiro.
+   *
+   * Antes o Ops usava cinza neutro (croma zero) e um verde proprio, enquanto
+   * os outros dois ja usavam a marca: verde #0ae18c, ciano #14c8fa e um preto
+   * azulado. Quem trocava de produto via a temperatura da tela mudar. Quem se
+   * moveu foi o Ops, porque era o unico fora do padrao.
+   *
+   * No claro, verde e ciano aparecem em DOIS valores: um escuro para texto e
+   * borda (contraste sobre branco) e o vivo para preenchimento. Verde vivo em
+   * texto sobre branco da 1.7:1 e e ilegivel. */
+  --background: #f4f7f9;
+  --foreground: #10171c;
+  --card: #ffffff;
+  --card-foreground: #10171c;
+  --popover: #ffffff;
+  --popover-foreground: #10171c;
+  --primary: #0ae18c;
+  --primary-foreground: #06090b;
+  --secondary: #f7f9fa;
+  --secondary-foreground: #10171c;
+  --muted: #eceff2;
+  --muted-foreground: #4a5b66;
+  --accent: #e2f8ee;
+  --accent-foreground: #00875a;
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+  --border: #dde4e9;
+  --input: #dde4e9;
+  --ring: #00875a;
+  --chart-1: #0ae18c;
+  --chart-2: #14c8fa;
+  --chart-3: #5b8def;
+  --chart-4: #ffc857;
+  --chart-5: #c792ea;
+  --chart-csat: #0b7285;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #10171c;
+  --sidebar-primary: #00875a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2f8ee;
+  --sidebar-accent-foreground: #00875a;
+  --sidebar-border: #dde4e9;
+  --sidebar-ring: #00875a;
 }
 
 /* Dark theme (Planning signature) */
 .dark {
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.17 0 0);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.83 0.16 165);
-  --primary-foreground: oklch(0.13 0 0);
-  --secondary: oklch(0.22 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.7 0 0);
-  --accent: oklch(0.25 0.04 165);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.7 0.19 22);
-  --destructive-foreground: oklch(0.13 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.83 0.16 165);
-  --chart-1: oklch(0.83 0.16 165);
-  --chart-2: oklch(0.7 0.14 200);
-  --chart-3: oklch(0.65 0.18 250);
-  --chart-4: oklch(0.78 0.18 60);
-  --chart-5: oklch(0.72 0.22 320);
-  --chart-csat: oklch(0.62 0.11 232);
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.83 0.16 165);
-  --sidebar-primary-foreground: oklch(0.13 0 0);
-  --sidebar-accent: oklch(0.25 0.04 165);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.83 0.16 165);
+  /* Mesmos nomes, valores do tema escuro da marca. */
+  --background: #06090b;
+  --foreground: #e8eef2;
+  --card: #10171c;
+  --card-foreground: #e8eef2;
+  --popover: #10171c;
+  --popover-foreground: #e8eef2;
+  --primary: #0ae18c;
+  --primary-foreground: #06090b;
+  --secondary: #141c22;
+  --secondary-foreground: #e8eef2;
+  --muted: #141c22;
+  --muted-foreground: #8fa0ab;
+  --accent: #0c2a20;
+  --accent-foreground: #0ae18c;
+  --destructive: #ff6b5e;
+  --destructive-foreground: #06090b;
+  --border: #1e2a31;
+  --input: #1e2a31;
+  --ring: #0ae18c;
+  --chart-1: #0ae18c;
+  --chart-2: #14c8fa;
+  --chart-3: #7aa2ff;
+  --chart-4: #ffc857;
+  --chart-5: #c792ea;
+  --chart-csat: #14c8fa;
+  --sidebar: #10171c;
+  --sidebar-foreground: #e8eef2;
+  --sidebar-primary: #0ae18c;
+  --sidebar-primary-foreground: #06090b;
+  --sidebar-accent: #0c2a20;
+  --sidebar-accent-foreground: #0ae18c;
+  --sidebar-border: #1e2a31;
+  --sidebar-ring: #0ae18c;
 }
 
 @layer base {
