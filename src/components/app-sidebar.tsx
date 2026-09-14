@@ -47,6 +47,16 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { PlanningLogo } from "@/components/planning-logo";
+import { AREAS, type Item } from "@/lib/areas";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronsUpDown } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -58,264 +68,6 @@ import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 // e o botão "voltar" do navegador funciona como a pessoa espera.
 const GROWTH_URL = "/growth";
 const FINANCEIRO_URL = "/financeiro";
-
-type Item = {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
-  // Array = OR (item aparece se o usuário tiver qualquer uma das permissões) —
-  // usado quando o item cobre conteúdo que veio de mais de uma página antiga.
-  permission?: string | string[];
-};
-
-// Os grupos do menu.
-//
-// Eram 13, sete deles com um item só — a lista virava uma coluna de títulos com
-// mais rótulo do que link. Aqui são 8, agrupados por ASSUNTO de quem usa, não
-// pela ordem em que as telas foram nascendo.
-type Grupo = { label: string; items: Item[] };
-type Area = {
-  slug: string;
-  nome: string;
-  icone: React.ComponentType<{ className?: string }>;
-  grupos: Grupo[];
-};
-
-// As ÁREAS do Ops.
-//
-// O Ops virou muita coisa num lugar só: 35 telas numa lista única, e quem
-// trabalha em CS convivia com contas a receber e apuração de royalties no
-// mesmo menu. Agora a lateral mostra UMA área por vez, escolhida no seletor do
-// topo — o mesmo gesto do trocador de produto, um nível abaixo.
-//
-// A área "Partners" foi dissolvida em 14/09/2026: `Financeiro Partners` era
-// redundante com a DRE e o fluxo do cockpit, e o resto (despesas de C&M, EBIT
-// e comissões) não tem equivalente lá, então migrou para Receita e Repasses,
-// que já é a área de dinheiro dentro do Ops.
-const AREAS: Area[] = [
-  {
-    slug: "rede",
-    nome: "Rede",
-    icone: Activity,
-    grupos: [
-      {
-        label: "Visão geral",
-        items: [
-          { title: "Overview", url: "/rede-overview", icon: Activity, permission: "view.hub" },
-          { title: "IDU", url: "/idu", icon: Gauge, permission: "view.idu" },
-          {
-            title: "Indicadores do Trimestre",
-            url: "/indicadores-trimestre",
-            icon: LayoutDashboard,
-            permission: "view.indicadores_trimestre",
-          },
-        ],
-      },
-      {
-        label: "Desempenho",
-        items: [
-          {
-            title: "Realizado Unidades",
-            url: "/rede-realizado",
-            icon: BarChart3,
-            permission: "view.rede_realizado",
-          },
-          { title: "LTV Estimado", url: "/rede-ltv", icon: TrendingUp, permission: "view.rede_ltv" },
-          {
-            title: "Headcount",
-            url: "/rede-headcount",
-            icon: Users,
-            permission: "view.rede_headcount",
-          },
-        ],
-      },
-      {
-        label: "Pessoas",
-        items: [{ title: "Gente da Rede", url: "/gente", icon: Users, permission: "view.gente" }],
-      },
-    ],
-  },
-  {
-    slug: "clientes",
-    nome: "Clientes",
-    icone: Building2,
-    grupos: [
-      {
-        label: "Carteira",
-        items: [
-          { title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" },
-          { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
-          {
-            title: "Auditoria Interna",
-            url: "/auditoria-interna",
-            icon: ClipboardCheck,
-            permission: "view.auditoria_interna",
-          },
-        ],
-      },
-      {
-        label: "Relacionamento",
-        items: [
-          { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
-          {
-            title: "Disparos de WhatsApp",
-            url: "/disparos-whatsapp",
-            icon: Send,
-            permission: "view.disparos_whatsapp",
-          },
-          {
-            title: "Base de Contatos",
-            url: "/base-contatos",
-            icon: BookUser,
-            permission: "view.base_contatos",
-          },
-        ],
-      },
-      {
-        label: "Ferramentas",
-        items: [
-          {
-            title: "Reforma Tributária",
-            url: "/reforma-tributaria",
-            icon: FileBarChart2,
-            permission: "view.reforma_tributaria",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    slug: "receita",
-    nome: "Receita e Repasses",
-    icone: Coins,
-    grupos: [
-      {
-        label: "Receita da rede",
-        items: [
-          {
-            title: "Funil de Receita",
-            url: "/funil-receita",
-            icon: Filter,
-            permission: "view.funil_receita",
-          },
-          {
-            title: "Reconciliação",
-            url: "/reconciliacao",
-            icon: GitMerge,
-            permission: "view.reconciliacao",
-          },
-          {
-            title: "Contas a Receber",
-            url: "/contas-receber",
-            icon: Wallet,
-            permission: "view.contas_receber",
-          },
-          { title: "BI de Vendas", url: "/bi-vendas", icon: Megaphone, permission: "view.bi_vendas" },
-        ],
-      },
-      {
-        label: "Repasses das unidades",
-        items: [
-          {
-            title: "Receitas Partners",
-            url: "/unidades",
-            icon: Coins,
-            permission: ["view.unidades_rede", "view.royalties_historico"],
-          },
-        ],
-      },
-      {
-        // Veio da antiga área Partners. Não é redundante com o cockpit: aqui se
-        // RATEIA custo por unidade e se apura comissão, lá se mostra resultado.
-        label: "Custos e comissões",
-        items: [
-          {
-            title: "Despesas Partners",
-            url: "/despesas-cm",
-            icon: TrendingDown,
-            permission: "view.despesas_partners",
-          },
-          { title: "Comissões", url: "/comissoes", icon: Percent, permission: "view.comissoes" },
-          {
-            title: "EBIT Operacional",
-            url: "/ebit-operacional",
-            icon: Scale,
-            permission: "view.ebit_operacional",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    slug: "broker",
-    nome: "Broker",
-    icone: Store,
-    grupos: [
-      {
-        label: "Broker",
-        items: [
-          { title: "Fila de oportunidades", url: "/broker", icon: Store, permission: "view.broker" },
-          {
-            title: "Matriz",
-            url: "/broker/admin",
-            icon: Coins,
-            permission: "view.broker_admin",
-          },
-          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
-        ],
-      },
-    ],
-  },
-  {
-    slug: "admin",
-    nome: "Administração",
-    icone: ShieldCheck,
-    grupos: [
-      {
-        label: "Pessoas e acesso",
-        items: [
-          { title: "Usuários", url: "/admin/usuarios", icon: Users, permission: "view.admin.users" },
-          { title: "Perfis", url: "/admin/perfis", icon: UserCog, permission: "view.admin.profiles" },
-          {
-            title: "Permissões",
-            url: "/admin/permissoes",
-            icon: ShieldCheck,
-            permission: "view.admin.permissions",
-          },
-        ],
-      },
-      {
-        label: "Sistema",
-        items: [
-          {
-            title: "Atividade do Sistema",
-            url: "/atividade",
-            icon: History,
-            permission: "view.atividade",
-          },
-          {
-            title: "Chaves de Integração",
-            url: "/admin/credenciais",
-            icon: KeyRound,
-            permission: "view.admin.credenciais",
-          },
-          {
-            title: "Integrações",
-            url: "/admin/integracoes",
-            icon: KeyRound,
-            permission: "view.admin.integracoes",
-          },
-          {
-            title: "Validação de páginas",
-            url: "/admin/validacao",
-            icon: BadgeCheck,
-            permission: "view.admin.permissions",
-          },
-        ],
-      },
-    ],
-  },
-];
 
 const SOCIO_FRANQUEADO_GROUPS: { label: string; items: Item[] }[] = [
   {
@@ -396,54 +148,65 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b">
-        <Link to="/" className="flex items-center gap-2 px-2 py-1.5">
-          <PlanningLogo className="h-7 w-auto" />
-        </Link>
+      {/* Seletor de FRENTE no cabeçalho, não em lista fixa.
+          Antes eram três níveis empilhados na mesma coluna: produto, área e
+          página. O primeiro nível custava espaço permanente para uma escolha
+          que a pessoa faz poucas vezes ao dia. Aqui ele mostra só onde você
+          está e abre a lista num clique — é o padrão de troca de contexto que
+          Linear, Notion e a própria Vercel usam, e some com um nível inteiro
+          da leitura. */}
+      <SidebarHeader className="border-b p-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent">
+            <PlanningLogo className="h-6 w-auto shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+              {areaAtual?.nome ?? "Planning Brain"}
+            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-60">
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Planning Brain
+            </DropdownMenuLabel>
+            {areasVisiveis.map((a) => (
+              <DropdownMenuItem key={a.slug} asChild>
+                <Link
+                  to={a.grupos[0].items[0].url}
+                  onClick={() => setAreaEscolhida(a.slug)}
+                  className="flex items-center gap-2"
+                >
+                  <a.icone className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{a.nome}</span>
+                  {a.slug === areaAtual?.slug && (
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      aqui
+                    </span>
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+            {(mostrarGrowth || mostrarFinanceiro) && <DropdownMenuSeparator />}
+            {mostrarGrowth && (
+              <DropdownMenuItem asChild>
+                {/* Outra aplicação no mesmo domínio: <a>, não Link. */}
+                <a href={GROWTH_URL} className="flex items-center gap-2">
+                  <Rocket className="h-4 w-4 shrink-0" />
+                  <span>Growth</span>
+                </a>
+              </DropdownMenuItem>
+            )}
+            {mostrarFinanceiro && (
+              <DropdownMenuItem asChild>
+                <a href={FINANCEIRO_URL} className="flex items-center gap-2">
+                  <Landmark className="h-4 w-4 shrink-0" />
+                  <span>Financeiro</span>
+                </a>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarHeader>
       <SidebarContent>
-        {(mostrarGrowth || mostrarFinanceiro) && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Planning Brain</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive tooltip="Ops · você está aqui">
-                    <Link to="/" className="flex items-center gap-2">
-                      <LayoutGrid className="h-4 w-4 shrink-0" />
-                      <span>Ops</span>
-                      <span className="ml-auto text-[10px] uppercase tracking-wide opacity-60">
-                        aqui
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                {mostrarGrowth && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Ir para o Growth">
-                      {/* <a> e não <Link>: é outra aplicação, servida por rewrite
-                          no mesmo domínio. O router daqui não conhece essa rota. */}
-                      <a href={GROWTH_URL} className="flex items-center gap-2">
-                        <Rocket className="h-4 w-4 shrink-0" />
-                        <span>Growth</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-                {mostrarFinanceiro && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Ir para o Financeiro">
-                      <a href={FINANCEIRO_URL} className="flex items-center gap-2">
-                        <Landmark className="h-4 w-4 shrink-0" />
-                        <span>Financeiro</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
         {ehSocioRegional
           ? SOCIO_FRANQUEADO_GROUPS.map((group) => {
               const visible = group.items.filter(podeVer);
@@ -474,36 +237,6 @@ export function AppSidebar() {
             })
           : (
             <>
-              {areasVisiveis.length > 1 && (
-                <SidebarGroup>
-                  <SidebarGroupLabel>Áreas</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {areasVisiveis.map((a) => (
-                        <SidebarMenuItem key={a.slug}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={a.slug === areaAtual?.slug}
-                            tooltip={a.nome}
-                          >
-                            {/* Clicar na área abre a primeira tela dela: seletor que
-                                não leva a lugar nenhum obriga um segundo clique. */}
-                            <Link
-                              to={a.grupos[0].items[0].url}
-                              onClick={() => setAreaEscolhida(a.slug)}
-                              className="flex items-center gap-2"
-                            >
-                              <a.icone className="h-4 w-4 shrink-0" />
-                              <span>{a.nome}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              )}
-
               {areaAtual?.grupos.map((group) => (
                 <SidebarGroup key={`${areaAtual.slug}-${group.label}`}>
                   <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -531,7 +264,7 @@ export function AppSidebar() {
           )}
       </SidebarContent>
       <SidebarFooter className="border-t px-2 py-2 text-[10px] text-muted-foreground">
-        Planning Brain · Ops
+        {areaAtual?.nome ?? "Planning Brain"}
       </SidebarFooter>
     </Sidebar>
   );

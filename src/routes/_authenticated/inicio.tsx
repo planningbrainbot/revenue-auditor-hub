@@ -1,9 +1,10 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { LayoutGrid, Landmark, Rocket } from "lucide-react";
+import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
+import { AREAS } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
 import { Card } from "@/components/ui/card";
 
@@ -83,16 +84,27 @@ function InicioPage() {
 
   const opsHref = primaryRole === "socio_franqueado" ? "/painel-unidade" : "/rede-overview";
 
-  const produtos: Produto[] = [
-    {
-      slug: "ops",
-      nome: "Operação",
-      descricao: "Clientes, rede, receita, CS e broker.",
-      href: opsHref,
-      Icone: LayoutGrid,
+  // As frentes deste app entram no MESMO nível de Growth e Financeiro. Não
+  // existe mais um cartão "Ops" agrupando o resto: o guarda-chuva não
+  // significava nada para quem usa, e obrigava um clique a mais.
+  const podeVerItem = (permission?: string | string[]) =>
+    !permission || (Array.isArray(permission) ? permission.some((p) => can(p)) : can(permission));
+
+  const produtos: Produto[] = AREAS.map<Produto | null>((a) => {
+    const primeiro = a.grupos
+      .flatMap((g) => g.items)
+      .find((i) => podeVerItem(i.permission));
+    if (!primeiro) return null;
+    return {
+      slug: a.slug,
+      nome: a.nome,
+      descricao: a.descricao,
+      href: primeiro.url,
+      Icone: a.icone,
       interno: true,
-    },
-  ];
+    };
+  }).filter((x): x is Produto => x !== null);
+
   if (growth.data?.temAcesso) {
     produtos.push({
       slug: "growth",
@@ -129,12 +141,12 @@ function InicioPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Onde você quer entrar?</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Os três abrem no mesmo lugar; dá para trocar a qualquer momento pelo menu.
+            Dá para trocar a qualquer momento, no topo do menu.
           </p>
         </div>
       </div>
 
-      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-3">
+      <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {produtos.map((p) => (
           <Card
             key={p.slug}
