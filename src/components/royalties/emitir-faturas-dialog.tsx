@@ -38,6 +38,7 @@ const ROTULO: Record<string, { texto: string; cls: string }> = {
   a_emitir: { texto: "A emitir", cls: "text-emerald-700 dark:text-emerald-300" },
   ja_existia: { texto: "Já no Omie", cls: "text-amber-700 dark:text-amber-300" },
   ja_registrada: { texto: "Já emitida", cls: "text-amber-700 dark:text-amber-300" },
+  nao_fechada: { texto: "Não fechada", cls: "text-muted-foreground" },
   sem_valor: { texto: "Sem valor", cls: "text-muted-foreground" },
   sem_apuracao: { texto: "Sem apuração", cls: "text-muted-foreground" },
   criada: { texto: "OS criada", cls: "text-sky-700 dark:text-sky-300" },
@@ -113,6 +114,7 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
   );
 
   const jaFoi = linhas.filter((u) => u.status === "ja_existia" || u.status === "ja_registrada");
+  const naoFechadas = linhas.filter((u) => u.status === "nao_fechada");
   const podeEmitir = !!venceEm && escolhidas.length > 0 && !emitir.isPending && !resultado;
 
   function alternar(id: number) {
@@ -136,7 +138,8 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
           <DialogDescription>
             Uma ordem de serviço por unidade na conta Omie da Planning Partners, com um item por
             natureza: royalties, CAC e outras receitas. CSC fixo e reembolso de tráfego pago não
-            entram aqui, porque já saem pela rotina mensal do CSC.
+            entram aqui, porque já saem pela rotina mensal do CSC. Só entra unidade com a apuração
+            do mês fechada, e nenhuma sai duas vezes.
           </DialogDescription>
         </DialogHeader>
 
@@ -156,6 +159,16 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
 
         {!simular.isPending && linhas.length > 0 && (
           <>
+            {naoFechadas.length > 0 && !resultado && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                {naoFechadas.length === 1
+                  ? "1 unidade tem apuração aberta"
+                  : `${naoFechadas.length} unidades têm apuração aberta`}{" "}
+                e ficou de fora: só mês fechado vira fatura, porque rascunho ainda muda de número.
+                Feche a apuração da unidade e volte aqui.
+              </div>
+            )}
+
             {jaFoi.length > 0 && !resultado && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                 {jaFoi.length === 1
