@@ -25,7 +25,7 @@ async function ensureAdmin(userId: string) {
 }
 
 function appUrl() {
-  return (process.env.APP_URL || "https://ops.planningbrain.com.br").replace(/\/+$/, "");
+  return (process.env.APP_URL || "https://planningbrain.com.br").replace(/\/+$/, "");
 }
 
 /**

@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Planning Brain" },
       { name: "twitter:description", content: "Gestão a vista dos principais indicadores da rede" },
-      { property: "og:image", content: "https://ops.planningbrain.com.br/brand/planning-logo-dark.png" },
-      { name: "twitter:image", content: "https://ops.planningbrain.com.br/brand/planning-logo-dark.png" },
+      { property: "og:image", content: "https://planningbrain.com.br/brand/planning-logo-dark.png" },
+      { name: "twitter:image", content: "https://planningbrain.com.br/brand/planning-logo-dark.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

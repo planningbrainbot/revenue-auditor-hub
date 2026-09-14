@@ -2,7 +2,7 @@
 // HTML em tabela e estilo inline de propósito: é o que sobrevive ao Gmail,
 // Outlook e ao webmail das unidades.
 
-const LOGO_URL = "https://ops.planningbrain.com.br/brand/planning-logo-dark.png";
+const LOGO_URL = "https://planningbrain.com.br/brand/planning-logo-dark.png";
 const VERDE = "#00C38B";
 
 function layout(opts: {
@@ -37,7 +37,7 @@ function layout(opts: {
           ${opts.rodape}
         </td></tr>
       </table>
-      <p style="margin:16px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af;">Planning Brain · ops.planningbrain.com.br</p>
+      <p style="margin:16px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af;">Planning Brain · planningbrain.com.br</p>
     </td></tr>
   </table>
 </body>
@@ -73,7 +73,7 @@ export function emailBoasVindas(params: {
       params.link,
       ``,
       `Se o link expirar, use "Esqueci minha senha" na tela de login.`,
-      `Planning Brain — ops.planningbrain.com.br`,
+      `Planning Brain — planningbrain.com.br`,
     ].join("\n"),
   };
 }
@@ -99,7 +99,7 @@ export function emailRedefinicaoSenha(params: { nome: string; email: string; lin
       params.link,
       ``,
       `Se você não esperava este e-mail, avise a equipe de Operações.`,
-      `Planning Brain — ops.planningbrain.com.br`,
+      `Planning Brain — planningbrain.com.br`,
     ].join("\n"),
   };
 }
