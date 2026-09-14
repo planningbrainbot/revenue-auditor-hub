@@ -1,5 +1,11 @@
 import { useEffect } from "react";
-import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,8 +36,14 @@ const ROLE_LABEL: Record<string, string> = {
   socio_franqueado: "Sócio Franqueado",
 };
 
+// Telas que são PORTA, não destino: entram autenticadas, mas sem a moldura.
+// O /inicio pergunta em qual produto entrar; menu ali seria contraditório,
+// porque o menu já é de um produto — o que a pessoa ainda não escolheu.
+const SEM_MOLDURA = ["/inicio"];
+
 function AuthenticatedLayout() {
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = Route.useRouteContext();
   const { primaryRole, unidade, loading } = usePermissions(user.id);
 
@@ -45,6 +57,12 @@ function AuthenticatedLayout() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
+  }
+
+  if (SEM_MOLDURA.includes(pathname)) {
+    // Só o guarda de autenticação (que vive no `beforeLoad` desta rota) e a
+    // tela. Sem barra lateral, sem cabeçalho, sem sino.
+    return <Outlet />;
   }
 
   return (
