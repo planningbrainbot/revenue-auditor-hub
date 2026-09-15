@@ -3,11 +3,12 @@ import { Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GenteView } from "@/components/gente/gente-view";
 import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
+import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
 
 // A aba vem da URL para o menu poder apontar direto para 1:1 e Feedback, em vez
 // de jogar todo mundo no Cadastro e obrigar a clicar de novo.
-type Aba = "cadastro" | "um-a-um" | "feedback";
-const ABAS: Aba[] = ["cadastro", "um-a-um", "feedback"];
+type Aba = "cadastro" | "um-a-um" | "feedback" | "clima";
+const ABAS: Aba[] = ["cadastro", "um-a-um", "feedback", "clima"];
 
 export const Route = createFileRoute("/_authenticated/gente")({
   validateSearch: (busca: Record<string, unknown>): { aba: Aba } => {
@@ -42,6 +43,7 @@ function GentePage() {
           <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
           <TabsTrigger value="um-a-um">1:1</TabsTrigger>
           <TabsTrigger value="feedback">Feedback</TabsTrigger>
+          <TabsTrigger value="clima">Clima</TabsTrigger>
         </TabsList>
         <TabsContent value="cadastro" className="mt-4">
           <GenteView />
@@ -51,6 +53,9 @@ function GentePage() {
         </TabsContent>
         <TabsContent value="feedback" className="mt-4">
           <GenteFeedbackTab />
+        </TabsContent>
+        <TabsContent value="clima" className="mt-4">
+          <GenteClimaTab />
         </TabsContent>
       </Tabs>
     </div>
