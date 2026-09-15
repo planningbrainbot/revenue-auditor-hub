@@ -329,10 +329,10 @@ export function IndicadoresTrimestreView() {
                         ) : null}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.tem_omie ? (
+                        {r.fat_base_nova !== null ? (
                           fmtBRL(r.fat_base_nova)
                         ) : (
-                          <span className="text-muted-foreground">sem Omie</span>
+                          <span className="text-muted-foreground">sem apuração</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
@@ -404,16 +404,22 @@ function DetalheUnidade({ row: r }: { row: Row }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <CardKPI
             label="Faturamento base nova"
-            valor={r.tem_omie ? fmtBRL(r.fat_base_nova) : NA}
-            hint={
-              r.tem_omie
-                ? `${fmtNum(r.clientes_base_nova)} clientes · total da unidade ${fmtBRL(r.fat_total)}`
-                : undefined
-            }
+            valor={fmtBRL(r.fat_base_nova)}
+            hint={[
+              "Base das apurações de royalties confirmadas",
+              r.clientes_base_nova > 0 ? `${fmtNum(r.clientes_base_nova)} clientes` : null,
+              (r.fat_total ?? 0) > (r.fat_base_nova ?? 0)
+                ? `com base antiga ${fmtBRL(r.fat_total)}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             alerta={
-              r.tem_omie
-                ? undefined
-                : "Unidade sem títulos no Omie — não é zero, é ausência de fonte."
+              r.fat_base_nova === null
+                ? "Nenhuma apuração confirmada no trimestre — não é zero, é ausência de fonte."
+                : rampa
+                  ? `Só ${r.meses_apurados} de 3 meses confirmados na apuração — o trimestre está subrepresentado.`
+                  : undefined
             }
           />
           <CardKPI
@@ -433,6 +439,7 @@ function DetalheUnidade({ row: r }: { row: Row }) {
           <CardKPI
             label="Take rate da rede"
             valor={fmtPct(r.take_rate_pct)}
+            hint="Royalties + CSC ÷ base apurada"
             alerta={
               rampa && r.take_rate_pct !== null
                 ? "Unidade em rampa: CSC fixo distorce o percentual."

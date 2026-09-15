@@ -39,6 +39,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      idu_metas: {
+        Row: {
+          id: number
+          unidade_id: number
+          periodo_inicio: string
+          periodo_fim: string
+          indicador: string
+          meta: number
+          observacao: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          unidade_id: number
+          periodo_inicio: string
+          periodo_fim: string
+          indicador: string
+          meta: number
+          observacao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          unidade_id?: number
+          periodo_inicio?: string
+          periodo_fim?: string
+          indicador?: string
+          meta?: number
+          observacao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idu_metas_unidade_id_fkey"
+            columns: ["unidade_id"]
+            isOneToOne: false
+            referencedRelation: "unidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_arquitetura: {
         Row: {
           detalhes: Json
@@ -4731,6 +4775,46 @@ export type Database = {
           total_esperado: number
           unidade: string
         }[]
+      }
+      idu_apuracao: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          unidade_id: number
+          unidade: string
+          curva: string
+          trimestres: number
+          indicador: string
+          rotulo: string
+          pilar: string
+          peso: number
+          direcao: string
+          unidade_medida: string
+          meta: number | null
+          realizado: number | null
+          atingimento: number | null
+          ajuste: string
+          pontos: number | null
+        }[]
+      }
+      idu_ranking: {
+        Args: { p_fim: string; p_inicio: string }
+        Returns: {
+          posicao: number
+          unidade_id: number
+          unidade: string
+          curva: string
+          soma_pontos: number | null
+          base_efetiva: number | null
+          idu: number | null
+          faixa: string
+          liberado_pct: number | null
+          falta_corte: number | null
+          pilar_fraco: string | null
+        }[]
+      }
+      idu_pode_ver: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       indicadores_trimestre: {
         Args: { _fim: string; _ini: string }

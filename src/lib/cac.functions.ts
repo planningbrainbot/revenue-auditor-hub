@@ -870,13 +870,21 @@ export const updateItemCac = createServerFn({ method: "POST" })
     const patch: any = {};
     if ("prazo_parcela_1" in data) patch.prazo_parcela_1 = data.prazo_parcela_1;
     if ("data_envio_parcela_1" in data) patch.data_envio_parcela_1 = data.data_envio_parcela_1;
-    if ("data_pagamento_parcela_1" in data)
+    if ("data_pagamento_parcela_1" in data) {
       patch.data_pagamento_parcela_1 = data.data_pagamento_parcela_1;
+      // Marcar (ou desmarcar) pago à mão tira a parcela da automação de
+      // sync_cac_pago_via_recebimento — senão uma reversão futura da
+      // confirmação de recebimento poderia apagar um pagamento que a
+      // própria pessoa confirmou manualmente depois.
+      patch.pago_auto_parcela_1 = false;
+    }
     if ("valor_pago_parcela_1" in data) patch.valor_pago_parcela_1 = data.valor_pago_parcela_1;
     if ("prazo_parcela_2" in data) patch.prazo_parcela_2 = data.prazo_parcela_2;
     if ("data_envio_parcela_2" in data) patch.data_envio_parcela_2 = data.data_envio_parcela_2;
-    if ("data_pagamento_parcela_2" in data)
+    if ("data_pagamento_parcela_2" in data) {
       patch.data_pagamento_parcela_2 = data.data_pagamento_parcela_2;
+      patch.pago_auto_parcela_2 = false;
+    }
     if ("valor_pago_parcela_2" in data) patch.valor_pago_parcela_2 = data.valor_pago_parcela_2;
     if ("estimativa_parcela_2" in data) patch.estimativa_parcela_2 = data.estimativa_parcela_2;
     if ("observacao" in data) patch.observacao = data.observacao;
