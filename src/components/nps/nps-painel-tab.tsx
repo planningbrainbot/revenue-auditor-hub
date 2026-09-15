@@ -104,11 +104,11 @@ export function NpsPainelTab() {
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
     // Mesmo padrão de tratativas-tab.tsx: só restringe por unidade quando o
-    // usuário é escopado a uma unidade própria (sócio franqueado). Papéis
+    // usuário é escopado a uma unidade própria (sócio regional). Papéis
     // sem esse escopo (admin/diretor/auditor/CS) veem tudo, inclusive linhas
     // sem unidade reconhecida — necessário pra campanha de WhatsApp, cujos
     // cards nascem sem unidade (só descoberta depois, se descoberta).
-    // Antes disso usava isFranquiaUnidade, que descartava silenciosamente
+    // Antes disso usava isUnidadeDaRede, que descartava silenciosamente
     // qualquer linha sem unidade pra TODO MUNDO, inclusive admin.
     if (!perms.scopedToOwnUnit || !perms.unidade) return all;
     return all.filter((r) => unitMatches(perms.unidade, r.unidade ?? r.empresa_unidade));

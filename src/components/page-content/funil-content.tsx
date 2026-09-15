@@ -171,7 +171,7 @@ export function FunilContent() {
     enabled: !permLoading && (can("view.funil_receita") || can("view.auditoria")),
   });
 
-  // Sócio franqueado enxerga só a própria unidade — o recorte vem antes da
+  // Sócio regional enxerga só a própria unidade — o recorte vem antes da
   // lista de unidades, para que o seletor também não revele a rede.
   const escopoUnidade = scopedToOwnUnit && !!userUnidade;
   const baseRows = useMemo(

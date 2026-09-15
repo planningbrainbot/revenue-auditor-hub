@@ -69,7 +69,7 @@ import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 const GROWTH_URL = "/growth";
 const FINANCEIRO_URL = "/financeiro";
 
-const SOCIO_FRANQUEADO_GROUPS: { label: string; items: Item[] }[] = [
+const SOCIO_REGIONAL_GROUPS: { label: string; items: Item[] }[] = [
   {
     label: "Minha Unidade",
     items: [
@@ -97,7 +97,7 @@ export function AppSidebar() {
   const isActive = (url: string) =>
     url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/");
 
-  const ehSocioRegional = primaryRole === "socio_franqueado";
+  const ehSocioRegional = primaryRole === "socio_regional";
 
   const podeVer = (item: Item) =>
     !item.permission ||
@@ -208,7 +208,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {ehSocioRegional
-          ? SOCIO_FRANQUEADO_GROUPS.map((group) => {
+          ? SOCIO_REGIONAL_GROUPS.map((group) => {
               const visible = group.items.filter(podeVer);
               if (visible.length === 0) return null;
               return (

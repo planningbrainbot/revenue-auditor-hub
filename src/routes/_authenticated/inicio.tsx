@@ -82,7 +82,7 @@ function InicioPage() {
 
   if (loading || growth.isLoading || acessoProdutos.isLoading) return null;
 
-  const opsHref = primaryRole === "socio_franqueado" ? "/painel-unidade" : "/rede-overview";
+  const opsHref = primaryRole === "socio_regional" ? "/painel-unidade" : "/rede-overview";
 
   // As frentes deste app entram no MESMO nível de Growth e Financeiro. Não
   // existe mais um cartão "Ops" agrupando o resto: o guarda-chuva não

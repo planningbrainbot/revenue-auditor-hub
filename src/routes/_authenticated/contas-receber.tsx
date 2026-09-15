@@ -116,7 +116,7 @@ function ContasReceberPage() {
   const { data, isLoading } = useContasReceber();
   const perms = usePermissions();
   const allRows = data?.rows ?? [];
-  // Sócio franqueado só enxerga a própria unidade. Recorta na origem para que
+  // Sócio regional só enxerga a própria unidade. Recorta na origem para que
   // KPIs, resumo, faturas e gráficos herdem o escopo.
   const rows = useMemo(
     () =>

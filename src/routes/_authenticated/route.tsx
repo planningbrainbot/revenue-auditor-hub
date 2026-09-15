@@ -33,7 +33,7 @@ const ROLE_LABEL: Record<string, string> = {
   socio: "Sócio",
   head: "Head",
   auditor: "Auditor",
-  socio_franqueado: "Sócio Franqueado",
+  socio_regional: "Sócio Regional",
 };
 
 // Telas que são PORTA, não destino: entram autenticadas, mas sem a moldura.
@@ -81,7 +81,7 @@ function AuthenticatedLayout() {
                 {!loading && primaryRole && (
                   <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
                     {ROLE_LABEL[primaryRole] ?? primaryRole}
-                    {(primaryRole === "socio" || primaryRole === "socio_franqueado") && unidade && (
+                    {(primaryRole === "socio" || primaryRole === "socio_regional") && unidade && (
                       <span className="rounded bg-primary/15 px-1 py-px text-primary">{unidade}</span>
                     )}
                   </span>

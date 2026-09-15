@@ -97,7 +97,7 @@ export const listPlanoAcaoContatos = createServerFn({ method: "GET" })
     );
 
     // Mesma régua de "cliente ativo" da página /clientes e da cobertura de
-    // NPS: franquia, unidade regional ativa e sem card de churn em
+    // NPS: cliente da rede, unidade regional ativa e sem card de churn em
     // Tratativas — plano de ação do CS só faz sentido pra quem é cliente
     // ativo de verdade, não pra base bruta de `empresas`.
     const { data: regionaisData, error: erroRegionais } = await supabase

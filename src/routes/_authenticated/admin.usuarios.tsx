@@ -45,7 +45,7 @@ const SYSTEM_ROLE_PILL: Record<string, string> = {
   socio: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
   head: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
   auditor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200",
-  socio_franqueado: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
+  socio_regional: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
 };
 const CUSTOM_ROLE_PILL = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
 
@@ -382,7 +382,7 @@ function UsersPage() {
                 email,
                 role,
                 password: generatePassword(12),
-                unidade: role === "socio_franqueado" ? unidadeSel : undefined,
+                unidade: role === "socio_regional" ? unidadeSel : undefined,
               });
             }}
             className="rounded-xl border bg-card p-4 grid gap-3 sm:grid-cols-4"
@@ -425,7 +425,7 @@ function UsersPage() {
                 ))}
               </select>
             </div>
-            {role === "socio_franqueado" && (
+            {role === "socio_regional" && (
               <div className="sm:col-span-1">
                 <label className="block text-xs font-medium text-foreground">Unidade</label>
                 <select
@@ -490,7 +490,7 @@ function UsersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {u.role === "socio" || u.role === "socio_franqueado"
+                    {u.role === "socio" || u.role === "socio_regional"
                       ? (u.unidade ?? <span className="text-amber-600">não vinculada</span>)
                       : "—"}
                   </td>

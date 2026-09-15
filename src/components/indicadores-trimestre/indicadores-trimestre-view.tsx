@@ -142,7 +142,7 @@ export function IndicadoresTrimestreView() {
   const [erro, setErro] = useState<string | null>(null);
   // A página é usada para apresentar os números PARA a unidade, na reunião trimestral.
   // Por isso o comparativo da rede nasce fechado e é opt-in: ninguém abre a tela na frente
-  // de um franqueado e mostra, sem querer, o resultado dos outros. Mesma lógica da decisão
+  // de um sócio regional e mostra, sem querer, o resultado dos outros. Mesma lógica da decisão
   // de 11/08/2026 em /rede-overview (dados agregados de rede ficam fechados por padrão).
   const [mostrarRede, setMostrarRede] = useState(false);
   const { can, loading: permLoading } = usePermissions();
@@ -431,7 +431,7 @@ function DetalheUnidade({ row: r }: { row: Row }) {
             hint={r.midia ? `Tráfego pago à parte: ${fmtBRL(r.midia)}` : undefined}
           />
           <CardKPI
-            label="Take rate da franquia"
+            label="Take rate da rede"
             valor={fmtPct(r.take_rate_pct)}
             alerta={
               rampa && r.take_rate_pct !== null

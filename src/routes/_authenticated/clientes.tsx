@@ -291,7 +291,7 @@ function ClientesPage() {
       ]);
       if (!mounted) return;
       // Unidades regionais ativas (fonte de verdade: tabela `unidades`, tipo='regional').
-      // Alinha com v_funil_mensal / v_reconciliacao_mensal — exclui franquias desativadas
+      // Alinha com v_funil_mensal / v_reconciliacao_mensal — exclui unidades desativadas
       // como Itaúna mesmo que ainda estejam marcadas tipo_unidade='franquia' em contratos/empresas.
       const regionais = new Set((unidadesRes.data ?? []).map((u) => u.nome_da_praca));
       if (empRes.data) {

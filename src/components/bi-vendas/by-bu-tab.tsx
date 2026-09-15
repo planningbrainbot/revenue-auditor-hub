@@ -132,7 +132,7 @@ export function ByBuTab() {
 
       <p className="text-xs text-muted-foreground">
         ROAS = Vendas Realizadas (MRR ganho no mês) ÷ Investimento em anúncios do mês. Ex: investimento de R$50k
-        gerando R$50k em vendas = ROAS 1,0x. Métrica distinta do ROAS de expansão de franquia (payback de CAC).
+        gerando R$50k em vendas = ROAS 1,0x. Métrica distinta do ROAS de expansão da rede (payback de CAC).
         "Propostas Geradas" vem de sqls_por_bu (deals com estágio ≥ Precificação), não de todo deal criado.
       </p>
     </div>

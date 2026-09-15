@@ -51,7 +51,7 @@ export function NpsCoberturaTab() {
             enviadas têm esse vínculo resolvido ({coverage.pesquisasTotal > 0 ? Math.round((coverage.pesquisasComEmpresaResolvida / coverage.pesquisasTotal) * 100) : 0}%).
             O número real de empresas já pesquisadas é maior do que o mostrado aqui.
             <br />
-            O denominador ("clientes ativos") usa a mesma régua de <code>/clientes</code>: franquia, unidade
+            O denominador ("clientes ativos") usa a mesma régua de <code>/clientes</code>: cliente da rede, unidade
             regional ativa e sem card de churn em Tratativas — por isso pode ser menor que a contagem bruta de
             empresas cadastradas por unidade.
           </Card>

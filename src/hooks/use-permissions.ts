@@ -45,8 +45,8 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
           ? "head"
           : roles.includes("auditor")
             ? "auditor"
-            : roles.includes("socio_franqueado")
-              ? "socio_franqueado"
+            : roles.includes("socio_regional")
+              ? "socio_regional"
               : roles.includes("socio")
                 ? "socio"
                 : (roles[0] ?? null);

@@ -33,7 +33,7 @@ function RootRedirect() {
 
   if (loading || growth.isLoading) return null;
 
-  if (primaryRole === "socio_franqueado") {
+  if (primaryRole === "socio_regional") {
     return <Navigate to="/painel-unidade" replace />;
   }
 

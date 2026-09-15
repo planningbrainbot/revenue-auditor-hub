@@ -7,7 +7,7 @@ import { emailBoasVindas, emailRedefinicaoSenha } from "@/lib/email-templates";
 type Role = string;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ROLE_PRECEDENCE = ["admin", "head", "auditor", "socio_franqueado", "socio", "diretor"];
+const ROLE_PRECEDENCE = ["admin", "head", "auditor", "socio_regional", "socio", "diretor"];
 
 async function ensureAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -95,7 +95,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
     return (profiles ?? []).map((p) => {
       const userRoles = rolesByUser.get(p.user_id) ?? [];
       const role = pickPrimaryRole(userRoles);
-      const isSocio = role === "socio" || role === "socio_franqueado";
+      const isSocio = role === "socio" || role === "socio_regional";
       const unidade = isSocio ? emailToUnidade.get((p.email ?? "").trim().toLowerCase()) ?? null : null;
       return {
         user_id: p.user_id,
@@ -121,7 +121,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Email inválido.");
     if (!role) throw new Error("Papel inválido.");
     if (password.length < 8) throw new Error("Senha deve ter pelo menos 8 caracteres.");
-    if (role === "socio_franqueado" && !unidade) throw new Error("Selecione a unidade do sócio franqueado.");
+    if (role === "socio_regional" && !unidade) throw new Error("Selecione a unidade do sócio regional.");
     return { nome, email, role, password, unidade };
   })
   .handler(async ({ data, context }) => {
@@ -160,7 +160,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
 
     // Para sócio (qualquer tipo), vincula a unidade em public.socios
     let unidade: string | null = null;
-    if (data.role === "socio" || data.role === "socio_franqueado") {
+    if (data.role === "socio" || data.role === "socio_regional") {
       if (data.unidade) {
         // Unidade escolhida no formulário: cria ou atualiza o registro em socios
         const { data: existing } = await supabaseAdmin

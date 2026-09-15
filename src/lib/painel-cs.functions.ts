@@ -31,7 +31,7 @@ function faseOrdem(nome: string | null | undefined): number {
 
 // Campo "Unidade" vem do Start Form como "Planning <Unidade>" (ex: "Planning
 // Fortaleza") — normaliza pro nome canônico usado no resto do app
-// (FRANQUIA_UNIDADES em src/lib/franquias.ts). "Sudeste" é o rename conhecido
+// (UNIDADES_REDE em src/lib/unidades-rede.ts). "Sudeste" é o rename conhecido
 // pra Rio de Janeiro nesse pipe (ver project_pipedrive_pipefy_onboarding_sync).
 function canonicalUnidade(raw: string | null | undefined): string | null {
   if (!raw) return null;

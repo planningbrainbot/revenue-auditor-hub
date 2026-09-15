@@ -388,7 +388,7 @@ async function gerarItensParaApuracao(
       continue;
     }
 
-    if (regime === "excedente_mensal" && valorTotal <= 0) continue; // dentro da franquia mensal de R$10 mil, não gera CAC
+    if (regime === "excedente_mensal" && valorTotal <= 0) continue; // dentro da cota mensal de R$10 mil, não gera CAC
 
     itens.push({
       apuracao_id: apuracao_id,

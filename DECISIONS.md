@@ -17,6 +17,20 @@ Formato de cada entrada:
 
 ---
 
+## [2026-09-09] Fim do vocabulário de franquia: papel `socio_franqueado` vira `socio_regional`
+
+**Contexto:** a Planning é uma rede de unidades regionais, no modelo de agência de banco — "franquia", "franqueadora" e "franqueado" não descrevem o negócio e não devem aparecer na plataforma. O termo estava espalhado em rótulo de papel, subtítulo de tela, descrição de permissão, textos de ajuda e comentários.
+
+**Decisão — o papel passa a se chamar `socio_regional` / "Sócio Regional".** O rótulo antigo era "Sócio Franqueado" e precisava continuar distinguível do papel `socio` (matriz), por isso "Sócio Regional" e não só "Sócio". A troca inclui a chave técnica, não só o rótulo: `roles`, `role_permissions` (22 linhas), `user_roles` (2 usuários) e o valor do enum legado `public.app_role`. Foi seguro porque nenhuma policy de RLS e nenhuma função citam o papel pelo nome — as policies vão por `public.can(permission_key)` — e `app_role` não tipa coluna nenhuma, só a função `has_role`.
+
+**Decisão — `tipo_unidade = 'franquia'` fica como está.** É valor de dado gravado em `empresas`/`contratos` pelos syncs (Pipedrive, Omie, n8n), fora deste repo. Não aparece em tela nenhuma, e trocá-lo exigiria coordenar a migração com todos os produtores ao mesmo tempo. Mesma razão para a tabela `recebimentos_franquias` e para o campo `nome_da_unidade_franqueada` do Pipefy, que é slug de campo externo.
+
+**Decisão — `src/lib/franquias.ts` vira `src/lib/unidades-rede.ts`,** com `FRANQUIA_UNIDADES` → `UNIDADES_REDE` e `isFranquiaUnidade` → `isUnidadeDaRede`. Nas telas, "take rate da franquia" virou "take rate da rede", "obrigações financeiras com a franqueadora" virou "com a matriz", e "ROAS de expansão de franquia" virou "da rede".
+
+**Status:** implementado no dev server local (`npm run build` limpo; `tsc --noEmit` sem nenhum erro novo — os 6 arquivos que já erravam antes seguem iguais e nenhum deles foi tocado). Migration em `supabase/migrations/20260909120000_papel_socio_regional.sql`, **ainda não aplicada**. Não commitado nem deployado.
+
+**Atenção na hora de aplicar:** dev local e produção compartilham o banco `ulgiochewwpmmssksqlw`. Entre aplicar a migration e publicar o frontend novo, a produção (código velho, comparando com `socio_franqueado`) deixa de reconhecer o papel e os dois usuários caem no menu interno em vez do menu "Minha Unidade". Não vaza dado — `role_permissions` migra junto e as policies continuam resolvendo por permissão —, mas o menu fica errado nessa janela. Hoje só `italo.amaral@grupoplanning.com.br` e a conta de teste `victoreliezek@gmail.com` têm o papel, então a janela é de baixo impacto; ainda assim, aplicar migration e deploy na mesma janela.
+
 ## [2026-09-03] Broker: fatura de CashBrain passa a ser cobrada pelo Asaas (reverte decisão do mesmo dia)
 
 **Contexto:** a entrada anterior de hoje registrou a decisão de **não** usar Asaas, para não misturar os recebimentos de royalties com os do broker, deixando a emissão preparada e desintegrada. O usuário reverteu no mesmo dia: "decidi que irei conectar com asaas mesmo".

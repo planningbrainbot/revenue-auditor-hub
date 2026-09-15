@@ -126,7 +126,7 @@ function MeusRoyaltiesPage() {
   }
 
   return (
-    <AppShell title="Meus Royalties" subtitle="Obrigações financeiras com a franqueadora">
+    <AppShell title="Meus Royalties" subtitle="Obrigações financeiras com a matriz">
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Info label="Royalties" value={regras?.royalties_percentual != null ? `${regras.royalties_percentual}%` : "—"} />

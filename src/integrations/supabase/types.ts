@@ -4796,7 +4796,7 @@ export type Database = {
         | "socio"
         | "head"
         | "auditor"
-        | "socio_franqueado"
+        | "socio_regional"
       grupo_dre:
         | "entrada"
         | "aporte"
@@ -4941,7 +4941,7 @@ export const Constants = {
         "socio",
         "head",
         "auditor",
-        "socio_franqueado",
+        "socio_regional",
       ],
       grupo_dre: [
         "entrada",

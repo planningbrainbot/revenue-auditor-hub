@@ -8,7 +8,7 @@ export function ValidationBanner() {
   const validated = useIsPageValidated(pathname);
   const { scopedToOwnUnit } = usePermissions();
 
-  // Sócios franqueados não veem o banner de validação (controle interno da franqueadora).
+  // Sócios regionais não veem o banner de validação (controle interno da matriz).
   if (scopedToOwnUnit) return null;
   if (validated === null || validated === true) return null;
 

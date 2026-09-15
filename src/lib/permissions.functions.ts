@@ -19,7 +19,7 @@ export const KNOWN_PERMISSIONS: {
   {
     key: "view.painel_unidade",
     label: "Painel da Unidade",
-    description: "Painel inicial do sócio franqueado.",
+    description: "Painel inicial do sócio regional.",
     group: "Acesso",
   },
   {
@@ -55,7 +55,7 @@ export const KNOWN_PERMISSIONS: {
   {
     key: "view.meus_royalties",
     label: "Acessar Meus Royalties",
-    description: "Histórico de royalties da unidade (sócio franqueado).",
+    description: "Histórico de royalties da unidade (sócio regional).",
     group: "Acesso",
   },
   {

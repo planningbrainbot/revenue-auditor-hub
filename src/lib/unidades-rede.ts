@@ -1,11 +1,12 @@
 /**
- * Unidades do tipo "franquia" (rede regional gerenciada pelo OpsBoard).
+ * Unidades regionais da rede (as praças gerenciadas pelo Ops).
  * Usado para filtrar telas operacionais quando a tabela de origem não tem
  * a coluna `tipo_unidade` (ex.: central_tratativas, nps_pesquisas.unidade).
  *
- * Mantenha em sincronia com `empresas.tipo_unidade = 'franquia'`.
+ * Mantenha em sincronia com `empresas.tipo_unidade = 'franquia'` — esse valor
+ * é dado legado no banco e nos syncs, não vocabulário de tela.
  */
-export const FRANQUIA_UNIDADES = [
+export const UNIDADES_REDE = [
   "Rio de Janeiro",
   "Belém",
   "Curitiba",
@@ -25,9 +26,9 @@ const NORM = (s: string | null | undefined) =>
     .toLowerCase()
     .trim();
 
-const SET = new Set(FRANQUIA_UNIDADES.map((u) => NORM(u)));
+const SET = new Set(UNIDADES_REDE.map((u) => NORM(u)));
 
-export function isFranquiaUnidade(unidade: string | null | undefined): boolean {
+export function isUnidadeDaRede(unidade: string | null | undefined): boolean {
   if (!unidade) return false;
   return SET.has(NORM(unidade));
 }

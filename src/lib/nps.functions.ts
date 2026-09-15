@@ -169,7 +169,7 @@ export const listNpsCoverage = createServerFn({ method: "GET" })
       return all;
     }
 
-    // Mesma régua de "cliente ativo" da página /clientes: franquia, unidade
+    // Mesma régua de "cliente ativo" da página /clientes: cliente da rede, unidade
     // regional ativa (tabela `unidades`, tipo='regional') e sem card de churn
     // em central_tratativas. Sem isso o denominador de cobertura de NPS não
     // batia com o que o CS já usa como referência (ex.: Belém 101 "Base Nova"

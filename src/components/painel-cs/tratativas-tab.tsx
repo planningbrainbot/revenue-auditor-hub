@@ -35,7 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { isFranquiaUnidade } from "@/lib/franquias";
+import { isUnidadeDaRede } from "@/lib/unidades-rede";
 import { cn } from "@/lib/utils";
 
 type Tratativa = {
@@ -172,12 +172,12 @@ export function TratativasTab() {
   }
 
   const visiveis = useMemo(() => {
-    // Hard filter: somente unidades da rede de franquias (OpsBoard).
-    const onlyFranchise = rows.filter((r) => isFranquiaUnidade(r.unidade));
+    // Hard filter: somente unidades regionais da rede.
+    const daRede = rows.filter((r) => isUnidadeDaRede(r.unidade));
     if (perms.scopedToOwnUnit && perms.unidade) {
-      return onlyFranchise.filter((r) => unitMatches(perms.unidade, r.unidade ?? ""));
+      return daRede.filter((r) => unitMatches(perms.unidade, r.unidade ?? ""));
     }
-    return onlyFranchise;
+    return daRede;
   }, [rows, perms.scopedToOwnUnit, perms.unidade]);
 
   const unidades = useMemo(
