@@ -55,8 +55,27 @@ async function collect() {
   const summary = await Promise.all(["open", "won", "lost"].map(status => pd("deals/summary", { pipeline_id: PIPE, status })));
   const expected = summary.reduce((n, b) => n + Number(b.data?.total_count || 0), 0);
   if (deals.length !== expected) throw new Error("A contagem do CRM não fechou com a paginação. Carga anterior preservada.");
-  const flows = Object.fromEntries(await limited(deals, async d => [d.id, await pages(`deals/${d.id}/flow`, { items: "dealChange" })]));
+  const [cachedRows, previous] = await Promise.all([
+    db("monetizacao_deals?select=id,payload&limit=1000", ADMIN),
+    db("monetizacao_sync?select=stages&id=eq.true", ADMIN),
+  ]);
+  const cache = new Map(cachedRows.map((r: Row) => [r.id, r.payload]));
+  const signature = (rows: Row[], live = false) => JSON.stringify(rows.filter(s => !/(reciclad|perdid|descart|estacion|parking)/i.test(s.name)).map(s => [s.id, s.name, live ? s.order_nr : s.order]));
+  const sameStages = signature(previous[0]?.stages || []) === signature(stageRows, true);
+  const now = Date.now(), month = localDate(new Date().toISOString()).slice(0,7);
+  const changed = deals.filter(d => {
+    const old = cache.get(d.id) as Row | undefined;
+    return !sameStages || !old?.history_known || !d.update_time || old.updated_at !== d.update_time || !old.history_refreshed_at || now - Date.parse(old.history_refreshed_at) > 86400000;
+  });
+  const flows = Object.fromEntries(await limited(changed, async d => [d.id, await pages(`deals/${d.id}/flow`, { items: "dealChange" })]));
   const snapshot = summarize(deals, stageRows, flows);
+  const changedIds = new Set(changed.map(d => d.id));
+  snapshot.cards = snapshot.cards.map((c: Row) => {
+    if (changedIds.has(c.id)) return { ...c, history_refreshed_at: new Date(now).toISOString() };
+    const old = cache.get(c.id) as Row;
+    const flags = Object.fromEntries(Object.entries(old.events).map(([key, rows]) => [key, (rows as Row[]).some(e => e.date.startsWith(month))]));
+    return { ...old, ...flags };
+  });
   snapshot.verified_count = expected;
   return { snapshot, deals };
 }
@@ -64,6 +83,7 @@ async function sync() {
   const run = await rpc("monetizacao_start_sync", {});
   if (!run) return { status: "running" };
   try {
+    await rpc("monetizacao_intake_ops", {});
     const { snapshot, deals } = await collect();
     await rpc("monetizacao_refresh_ops", {});
     await rpc("monetizacao_replace_snapshot", { _run: run, _snapshot: snapshot });
@@ -93,6 +113,14 @@ async function send(itemIds: string[], token: string) {
       if (!users.some(u => u.id === claim.owner_id && u.active_flag)) throw new Error("Hunter não está ativo no Pipedrive");
       const account = claim.account, product = claim.item.product, orgs: number[] = claim.org_ids || [];
       if (!OPTIONS[product]) throw new Error("Produto canônico inválido");
+      // O contrato confirmado é um ID de negócio, nunca um ID de organização.
+      // Reconsulta antes do envio para não criar organização duplicada nem usar contrato desfeito.
+      if (account.pipedrive_contract_id) {
+        const contract = (await pd(`deals/${Number(account.pipedrive_contract_id)}`)).data;
+        if (product === "finance" && contract?.status !== "won") throw new Error("O contrato de origem não está ganho no Pipedrive; revise o cadastro.");
+        const contractOrg = id(contract?.org_id);
+        if (contractOrg && !orgs.includes(contractOrg)) orgs.push(contractOrg);
+      }
       // Verifica todas as organizações da conta, e somente a oferta do produto selecionado.
       const existing: Row[] = [];
       for (const orgId of orgs) existing.push(...await pages(`organizations/${orgId}/deals`, { status: "all_not_deleted" }));
@@ -109,6 +137,7 @@ async function send(itemIds: string[], token: string) {
         org = (await pd("organizations", {}, { name: account.name.trim(), owner_id: claim.owner_id })).data.id;
         await rpc("monetizacao_record_org", { _nonce: claim.nonce, _org: org });
       }
+      await rpc("monetizacao_record_org", { _nonce: claim.nonce, _org: org });
       // Contato não é requisito para criar uma oportunidade validada pelo sócio.
       const payload = { title: `${account.name.trim()} · ${LABELS[product]} [AQ:${claim.nonce}]`, org_id: org, user_id: claim.owner_id, pipeline_id: PIPE, stage_id: stageRows[0].id, [PRODUCT]: OPTIONS[product] };
       remoteStarted = true;
@@ -138,9 +167,12 @@ Deno.serve(async req => {
     if (!token) return result({ error: "Autenticação obrigatória" }, 401);
     const auth = await fetch(`${URL_BASE}/auth/v1/user`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
     if (!auth.ok) return result({ error: "Sessão inválida" }, 401);
-    const key = body.action === "send" ? "send.monetizacao" : "manage.aquario";
+    const key = body.action === "send" ? "send.monetizacao" : "view.monetizacao";
     if (!await rpc("monetizacao_can", { _key: key }, token)) return result({ error: "Sem permissão para esta operação" }, 403);
-    if (body.action === "sync") return result(await sync());
+    if (body.action === "sync") {
+      if (!await rpc("monetizacao_scope", { _ids: [] }, token)) return result({ error: "Atualização global restrita à equipe central" }, 403);
+      return result(await sync());
+    }
     if (body.action === "send" && Array.isArray(body.items) && body.items.length >= 1 && body.items.length <= 10 && new Set(body.items).size === body.items.length && body.items.every((x: unknown) => typeof x === "string" && /^[0-9a-f-]{36}$/.test(x))) return result(await send(body.items, token));
     return result({ error: "Ação ou seleção inválida" }, 400);
   } catch(e) { return result({ error: e instanceof Error ? e.message : "Falha na integração" }, 400); }

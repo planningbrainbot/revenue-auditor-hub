@@ -189,11 +189,18 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
     [editing, setEditing] = useState(!saved);
   const fn = useServerFn(salvarPlanoMonetizacao),
     invalidate = useAtualizarMonetizacao();
-  const rows = capacidade(plan, data.accounts, data.cards, {
-      ...filter,
-      from: month + "-01",
-      owner: plan.owner_id,
-    }),
+  const rows = capacidade(
+      plan,
+      data.accounts,
+      data.cards,
+      {
+        ...filter,
+        from: month + "-01",
+        owner: plan.owner_id,
+        product: "",
+      },
+      data.reservations,
+    ),
     allocated = PRODUTOS.reduce((n, p) => n + plan.allocation[p], 0);
   const save = async () => {
     setBusy(true);
@@ -235,7 +242,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
         <Kpi
           label="Falta de base na alocação"
           value={rows.reduce((n, r) => n + r.gap, 0)}
-          hint="Ofertas planejadas acima da base disponível"
+          hint="Alocação restante acima da base disponível"
         />
       </div>
       <Panel title="Estoque, esforço e capacidade por produto">
@@ -272,7 +279,8 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Disponibilidade é por produto; há empresas em mais de uma coluna. Antes de distribuir a
+          A base faltante considera a alocação mensal menos o trabalho já iniciado. Esta tela usa o
+          mês inteiro e todos os produtos. Há empresas em mais de uma coluna. Antes de distribuir a
           carga, valide as listas no Aquário e coordene as abordagens da mesma empresa.
         </p>
         <Link to="/aquario" className="mt-3 inline-block text-sm text-primary underline">
@@ -286,7 +294,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
             size="sm"
             variant="outline"
             onClick={() => setEditing(!editing)}
-            disabled={!data.permissions.manage}
+            disabled={!(data.permissions.view && data.permissions.all_units)}
           >
             {editing ? "Fechar editor" : "Editar plano"}
           </Button>
@@ -355,7 +363,11 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
               ))}
             </div>
             <Button
-              disabled={busy || !data.permissions.manage || allocated > plan.capacity}
+              disabled={
+                busy ||
+                !(data.permissions.view && data.permissions.all_units) ||
+                allocated > plan.capacity
+              }
               onClick={save}
             >
               Salvar plano e hipóteses
@@ -731,7 +743,7 @@ function People({ data, filter }: Pick<Props, "data" | "filter">) {
             onClick={save}
             disabled={
               busy ||
-              !data.permissions.manage ||
+              !(data.permissions.view && data.permissions.all_units) ||
               !filter.owner ||
               !title ||
               !sample ||
@@ -838,7 +850,12 @@ function Scripts({ data }: { data: BaseMonetizacao }) {
           <div className="flex gap-2">
             <Button
               onClick={save}
-              disabled={busy || !data.permissions.manage || title.trim().length < 3 || !text}
+              disabled={
+                busy ||
+                !(data.permissions.view && data.permissions.all_units) ||
+                title.trim().length < 3 ||
+                !text
+              }
             >
               Salvar abordagem
             </Button>
@@ -958,7 +975,12 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
                 placeholder="Ex.: priorizar a carteira de Curitiba para Consultoria; sócio confirmou disponibilidade nesta semana."
               />
             </Field>
-            <Button disabled={busy || !data.permissions.manage || !reason.trim()} onClick={save}>
+            <Button
+              disabled={
+                busy || !(data.permissions.view && data.permissions.all_units) || !reason.trim()
+              }
+              onClick={save}
+            >
               Registrar decisão
             </Button>
             <Link to="/aquario" className="ml-3 text-sm text-primary underline">
@@ -1027,7 +1049,7 @@ function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string
                     ))}
                   </ul>
                 ) : null}
-                {data.permissions.manage && kind !== "distribuicao" && (
+                {data.permissions.view && data.permissions.all_units && kind !== "distribuicao" && (
                   <div className="flex gap-2">
                     <Button
                       size="sm"

@@ -112,10 +112,31 @@ export function disponibilidade(
   produto: Produto,
   cards: Negocio[],
   month = hoje().slice(0, 7),
+  reservations: {
+    account_key: string;
+    product: Produto;
+    status: string;
+    deal_id: number | null;
+  }[] = [],
 ) {
   const own = negociosDaConta(a, cards).filter((c) => c.route === produto);
   const open = own.find((c) => c.status === "open");
   if (open) return { free: false, reason: "Oportunidade aberta de " + NOMES[produto], deal: open };
+  const reserved = reservations.find(
+    (r) =>
+      r.account_key === a.key &&
+      r.product === produto &&
+      ["sending", "sent", "uncertain"].includes(r.status),
+  );
+  if (reserved)
+    return {
+      free: false,
+      reason:
+        reserved.status === "uncertain"
+          ? "Envio pendente de conferência"
+          : "Oferta reservada / enviada ao CRM",
+      deal: cards.find((c) => c.id === reserved.deal_id) || null,
+    };
   const loaded = own.find((c) => c.events.loaded.some((e) => e.date.startsWith(month)));
   if (loaded)
     return { free: false, reason: "Já trabalhada neste mês para " + NOMES[produto], deal: loaded };
@@ -237,13 +258,22 @@ export function receitaSomada(cards: Negocio[]) {
     unit: totals.unit / 100,
   };
 }
-export function capacidade(plan: Plano, accounts: Conta[], cards: Negocio[], f: Filtro) {
+export function capacidade(
+  plan: Plano,
+  accounts: Conta[],
+  cards: Negocio[],
+  f: Filtro,
+  reservations: Parameters<typeof disponibilidade>[4] = [],
+) {
   const actual = operacao(cards, f);
   return PRODUTOS.map((product) => {
     const eligible = accounts.filter((a) => oferta(a, product).status === "elegivel");
-    const available = eligible.filter((a) => disponibilidade(a, product, cards, plan.month).free);
+    const available = eligible.filter(
+      (a) => disponibilidade(a, product, cards, plan.month, reservations).free,
+    );
     const started = actual.rows.started.filter((c) => c.route === product).length;
     const planned = Math.max(0, plan.allocation[product]);
+    const remaining = Math.max(0, planned - started);
     const approved = plan.rates[product];
     return {
       product,
@@ -251,8 +281,9 @@ export function capacidade(plan: Plano, accounts: Conta[], cards: Negocio[], f: 
       available: available.length,
       started,
       planned,
-      executable: Math.min(planned, available.length),
-      gap: Math.max(0, planned - available.length),
+      remaining,
+      executable: Math.min(remaining, available.length),
+      gap: Math.max(0, remaining - available.length),
       estimate:
         approved === null
           ? null

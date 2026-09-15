@@ -73,7 +73,8 @@ export function Aquario() {
   const refresh = async () => {
     setRefreshing(true);
     try {
-      if (data.permissions.manage) await sync({ data: { action: "sync" } });
+      if (data.permissions.view && data.permissions.all_units)
+        await sync({ data: { action: "sync" } });
       await invalidate();
     } catch (e) {
       toast.error((e as Error).message);
@@ -301,7 +302,7 @@ function PortfolioTable({
             filters.product &&
             filters.status === "free" &&
             (oferta(a, filters.product).status !== "elegivel" ||
-              !disponibilidade(a, filters.product, data.cards).free)
+              !disponibilidade(a, filters.product, data.cards, undefined, data.reservations).free)
           )
             return false;
           return true;
@@ -311,7 +312,7 @@ function PortfolioTable({
             (FAIXAS[b.band || ""]?.[0] ?? -1) - (FAIXAS[a.band || ""]?.[0] ?? -1) ||
             a.name.localeCompare(b.name, "pt-BR"),
         ),
-    [accounts, filters, data.cards],
+    [accounts, filters, data.cards, data.reservations],
   );
   const visible = rows.slice(0, limit),
     selected = accounts.filter((a) => picked.has(a.key));
@@ -539,7 +540,13 @@ function PortfolioTable({
                   {a.contact ? "Com contato" : "Obter com o sócio"}
                   <p className="mt-1 text-muted-foreground">
                     {filters.product
-                      ? disponibilidade(a, filters.product, data.cards).reason
+                      ? disponibilidade(
+                          a,
+                          filters.product,
+                          data.cards,
+                          undefined,
+                          data.reservations,
+                        ).reason
                       : "Selecione o produto para ver disponibilidade"}
                   </p>
                 </td>
@@ -642,7 +649,7 @@ function Gates({ data }: { data: BaseMonetizacao }) {
                   {PRODUTOS.map((p) => {
                     const n = data.accounts.filter((a) => {
                       const s = oferta(a, p).status,
-                        free = disponibilidade(a, p, data.cards).free;
+                        free = disponibilidade(a, p, data.cards, undefined, data.reservations).free;
                       return index === 0
                         ? s === "elegivel"
                         : index === 1

@@ -165,7 +165,7 @@ begin
  select * into current_list from ops.monetizacao_listas where id=lid for update;
  if found then
   if not ops.monetizacao_list_scope(lid) then raise exception 'Lista fora do seu escopo'; end if;
-  if current_list.revision <> (_data->>'revision')::integer then raise exception 'A lista mudou. Atualize antes de salvar'; end if;
+  if current_list.revision <> coalesce((_data->>'revision')::integer,-1) then raise exception 'A lista mudou. Atualize antes de salvar'; end if;
   if exists(select 1 from ops.monetizacao_itens where list_id=lid and status in ('sending','sent','uncertain')) then raise exception 'Lista com envio registrado: crie outra lista para novas oportunidades'; end if;
  end if;
  if mode='validate' and (length(trim(coalesce(_data->>'partner','')))<3 or not coalesce((_data->>'origin_confirmed')::boolean,false)) then raise exception 'Registre o sócio e a confirmação da origem das oportunidades'; end if;
@@ -237,7 +237,7 @@ create or replace function ops.monetizacao_save_record(_kind text,_title text,_b
 language plpgsql security definer set search_path=ops,public,extensions as $$
 declare rid uuid:=coalesce(_id,gen_random_uuid());
 begin
- if not ops.monetizacao_can('manage.aquario') or not ops.monetizacao_scope('{}') then raise exception 'Sem permissão para gerir a operação geral'; end if;
+ if not ops.monetizacao_can('view.monetizacao') or not ops.monetizacao_scope('{}') then raise exception 'Sem permissão para gerir a operação geral'; end if;
  if _kind not in ('pdi','roteiro','distribuicao','followup') or length(trim(_title)) not between 3 and 200 or pg_column_size(_body)>60000 then raise exception 'Registro inválido'; end if;
  insert into ops.monetizacao_registros(id,kind,title,body,created_by) values(rid,_kind,trim(_title),_body,auth.uid())
  on conflict(id) do update set title=excluded.title,body=excluded.body,updated_at=now();
@@ -246,7 +246,7 @@ end $$;
 create or replace function ops.monetizacao_save_plan(_plan jsonb) returns void
 language plpgsql security definer set search_path=ops,public,extensions as $$
 begin
- if not ops.monetizacao_can('manage.aquario') or not ops.monetizacao_scope('{}') then raise exception 'Sem permissão para gerir metas'; end if;
+ if not ops.monetizacao_can('view.monetizacao') or not ops.monetizacao_scope('{}') then raise exception 'Sem permissão para gerir metas'; end if;
  if (_plan->>'month') !~ '^\d{4}-(0[1-9]|1[0-2])$' or coalesce((_plan->>'owner_id')::bigint,0)<=0 then raise exception 'Mês ou responsável inválido'; end if;
  if coalesce((_plan->>'capacity')::numeric,-1) not between 0 and 10000 then raise exception 'Capacidade inválida'; end if;
  if coalesce((_plan->>'meetings_capacity')::numeric,-1) not between 0 and 10000 or coalesce((_plan->>'target_contracts')::numeric,-1) not between 0 and 10000 or coalesce((_plan->>'daily_target')::numeric,-1) not between 0 and 1000 then raise exception 'Metas inválidas'; end if;

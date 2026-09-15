@@ -97,7 +97,8 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
   const refresh = async () => {
     setRefreshing(true);
     try {
-      if (data.permissions.manage) await sync({ data: { action: "sync" } });
+      if (data.permissions.view && data.permissions.all_units)
+        await sync({ data: { action: "sync" } });
       await invalidate();
     } catch (e) {
       toast.error((e as Error).message);
@@ -460,7 +461,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           </details>
         </>
       )}
-      {aba !== "operacao" && (
+      {data.measured_at && aba !== "operacao" && (
         <Analysis
           aba={aba}
           data={data}
@@ -563,7 +564,7 @@ function DealDetails({
                   <td className="p-3">{c.stage}</td>
                   <td className="p-3">{date(c.expected_close)}</td>
                   <td className="p-3">
-                    {money(c.revenue.total.amount ?? c.revenue.sum)}
+                    {money(c.revenue.total.amount ?? c.revenue.sum, c.revenue.total.currency)}
                     <span className="block text-[10px] text-muted-foreground">
                       {c.revenue.status === "ok"
                         ? "Split conferido"
@@ -574,9 +575,11 @@ function DealDetails({
                             : "Conferir preenchimento"}
                     </span>
                   </td>
-                  <td className="p-3">{money(c.revenue.partners.amount)}</td>
                   <td className="p-3">
-                    {money(c.revenue.unit.amount)}
+                    {money(c.revenue.partners.amount, c.revenue.partners.currency)}
+                  </td>
+                  <td className="p-3">
+                    {money(c.revenue.unit.amount, c.revenue.unit.currency)}
                     <span className="block text-muted-foreground">{c.revenue.unit_name}</span>
                   </td>
                 </tr>

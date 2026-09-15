@@ -47,19 +47,22 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
       throw new Error(
         "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
       );
-    const [accounts, units, cards, lists, items, health, plans, records] = await Promise.all([
-      all(db, "monetizacao_contas", "key,perfil,source_at,unidade_ids", "key"),
-      all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
-      all(db, "monetizacao_deals", "id,payload", "id"),
-      all(db, "monetizacao_listas", "*", "created_at"),
-      all(db, "monetizacao_itens", "*", "id"),
-      all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
-      all(db, "monetizacao_planos", "payload", "month"),
-      all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
-    ]);
+    const [accounts, units, cards, lists, items, health, plans, records, reservations] =
+      await Promise.all([
+        all(db, "monetizacao_contas", "key,perfil,source_at,unidade_ids", "key"),
+        all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
+        all(db, "monetizacao_deals", "id,payload", "id"),
+        all(db, "monetizacao_listas", "*", "created_at"),
+        all(db, "monetizacao_itens", "*", "id"),
+        all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
+        all(db, "monetizacao_planos", "payload", "month"),
+        all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
+        all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
+      ]);
     const profiles = accounts.map((a) => a.perfil as Conta),
       sync = health[0];
     return {
+      reservations: reservations as BaseMonetizacao["reservations"],
       accounts: profiles,
       units: units.map((u) => ({
         id: u.unidade_id,
@@ -70,7 +73,7 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
           .filter((a) =>
             u.unidade_id
               ? a.unidade_ids.includes(u.unidade_id)
-                  : a.perfil.units.includes(u.key) || a.perfil.unit_label === u.nome,
+              : a.perfil.units.includes(u.key) || a.perfil.unit_label === u.nome,
           )
           .map((a) => a.key),
       })),
@@ -188,7 +191,7 @@ export const acionarMonetizacao = createServerFn({ method: "POST" })
     if (
       !(await check(
         context.supabase,
-        data.action === "send" ? "send.monetizacao" : "manage.aquario",
+        data.action === "send" ? "send.monetizacao" : "view.monetizacao",
       ))
     )
       throw new Error("Sem permissão para esta operação.");

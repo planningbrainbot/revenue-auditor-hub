@@ -1,9 +1,20 @@
 export const PRODUTOS = ["consultoria", "finance", "cella"] as const;
 export type Produto = (typeof PRODUTOS)[number];
-export type RegistroValor = string | number | boolean | null | Record<string, number> | {
-  id: number; name: string; open: number; loaded: number; started: number;
-  validated: number; capacity: number | null;
-}[];
+export type RegistroValor =
+  | string
+  | number
+  | boolean
+  | null
+  | Record<string, number>
+  | {
+      id: number;
+      name: string;
+      open: number;
+      loaded: number;
+      started: number;
+      validated: number;
+      capacity: number | null;
+    }[];
 export const NOMES: Record<Produto | "sem_produto", string> = {
   consultoria: "Consultoria",
   finance: "Finance",
@@ -139,6 +150,7 @@ export interface Registro {
   updated_at: string;
 }
 export interface BaseMonetizacao {
+  reservations: { account_key: string; product: Produto; status: string; deal_id: number | null }[];
   accounts: Conta[];
   units: Unidade[];
   cards: Negocio[];

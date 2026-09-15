@@ -7,10 +7,12 @@ import { csv, oferta } from "@/lib/monetizacao/model";
 
 export const number = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-export const money = (n: number | null | undefined) =>
+export const money = (n: number | null | undefined, currency: string | null = "BRL") =>
   n === null || n === undefined
     ? "A preencher"
-    : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
+    : currency && /^[A-Z]{3}$/.test(currency)
+      ? n.toLocaleString("pt-BR", { style: "currency", currency, maximumFractionDigits: 2 })
+      : `${n.toLocaleString("pt-BR")} · moeda a preencher`;
 export const date = (v: string | null | undefined) =>
   v
     ? new Date(v.length === 10 ? v + "T12:00:00Z" : v).toLocaleDateString("pt-BR", {

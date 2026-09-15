@@ -106,7 +106,7 @@ export function ListWorkspace({
     setSelected(new Set());
     setDirty(true);
     onConsume();
-  }, [initial]); // Somente uma seleção explícita substitui o rascunho; refetch não apaga edição.
+  }, [initial, data.units, onConsume]); // Refetch não substitui rascunho: initial só existe após seleção explícita.
   const owners = [
     ...new Map([
       [28381245, "Matheus Carvalho"],
@@ -185,6 +185,11 @@ export function ListWorkspace({
   };
   // Itens confirmados pelo banco são a única fonte para os IDs enviados ao CRM.
   const persisted = data.lists.find((l) => l.id === draft.id);
+  useEffect(() => {
+    if (!dirty && persisted && persisted.revision >= (draft.revision || 0)) {
+      setDraft(draftFrom(persisted));
+    }
+  }, [persisted, dirty, draft.revision]);
   const sendable =
     !dirty && persisted?.status === "validated"
       ? persisted.items.filter((i) => ["validated", "blocked"].includes(i.status))
@@ -602,7 +607,9 @@ export function ListWorkspace({
             <div className="space-y-2">
               {sendable.map((i) => {
                 const a = by.get(i.account_key),
-                  available = a ? disponibilidade(a, i.product, data.cards) : null;
+                  available = a
+                    ? disponibilidade(a, i.product, data.cards, undefined, data.reservations)
+                    : null;
                 return (
                   <label
                     key={i.id}
@@ -615,7 +622,8 @@ export function ListWorkspace({
                         disabled={!data.permissions.send || busy}
                         onChange={(e) => {
                           const next = new Set(selected);
-                          e.target.checked ? next.add(i.id) : next.delete(i.id);
+                          if (e.target.checked) next.add(i.id);
+                          else next.delete(i.id);
                           setSelected(next);
                         }}
                       />

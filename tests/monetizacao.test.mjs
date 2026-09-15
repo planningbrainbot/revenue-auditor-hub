@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { oferta, disponibilidade, operacao, temporal, receitaSomada, dias, csv } from '../src/lib/monetizacao/model.ts';
+import { oferta, disponibilidade, operacao, temporal, receitaSomada, dias, csv, capacidade } from '../src/lib/monetizacao/model.ts';
 import { summarize, PRODUCT } from '../supabase/functions/monetizacao-crm/crm.mjs';
 import { expectedRevenue, REVENUE_FIELDS } from '../supabase/functions/monetizacao-crm/revenue.mjs';
 
@@ -71,4 +71,16 @@ test('Sem data fica em bucket explícito, não é alocada ao mês arbitrariament
 test('Período valida datas reais e limite; CSV neutraliza fórmulas',()=>{
  assert.throws(()=>dias('2026-02-30','2026-03-01'));assert.throws(()=>dias('2026-03-01','2026-02-01'));assert.throws(()=>dias('2020-01-01','2026-01-01'));
  assert.ok(csv([['=IMPORTXML("x")']]).includes("'=IMPORTXML"));
+});
+
+test('Reserva compartilhada ocupa só a mesma oferta, inclusive enquanto o CRM ainda sincroniza',()=>{
+ const reserved=[{account_key:'a',product:'consultoria',status:'uncertain',deal_id:null}];
+ assert.equal(disponibilidade(account(),'consultoria',[],'2026-09',reserved).free,false);
+ assert.equal(disponibilidade(account(),'finance',[],'2026-09',reserved).free,true);
+ assert.equal(disponibilidade(account(),'consultoria',[],'2026-09',[{...reserved[0],status:'released'}]).free,true);
+});
+test('Capacidade desconta o trabalho iniciado antes de pedir base adicional',()=>{
+ const plan={month:'2026-09',allocation:{consultoria:2,finance:0,cella:0},rates:{consultoria:null,finance:null,cella:null}};
+ const row=capacidade(plan,[account(),account({key:'b',orgs:[11]})],[card()],filter).find(r=>r.product==='consultoria');
+ assert.equal(row.started,1);assert.equal(row.available,1);assert.equal(row.remaining,1);assert.equal(row.executable,1);assert.equal(row.gap,0);assert.equal(row.estimate,null);
 });
