@@ -332,6 +332,17 @@ export const KNOWN_PERMISSIONS: {
     group: "Dados",
   },
   {
+    key: "admin.acessos.financeiro",
+    label: "Administrar acessos do Brain Financeiro",
+    description:
+      "Conceder e tirar acesso ao Brain Financeiro e escolher quais unidades cada pessoa abre " +
+      "(BPO, MAROX, PAT…). É a ÚNICA chave da Administração que não exige ser admin global: quem " +
+      "a tem enxerga a Administração com este item sozinho e não alcança usuários, perfis, " +
+      "permissões nem chaves de integração. Dar isto a um perfil dá a TODAS as pessoas daquele " +
+      "perfil — para uma pessoa só, use o perfil 'Admin do Financeiro'.",
+    group: "Administração",
+  },
+  {
     key: "view.admin.credenciais",
     label: "Chaves de Integração",
     description:

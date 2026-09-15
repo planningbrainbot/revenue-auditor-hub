@@ -65,6 +65,7 @@ import { Route as AuthenticatedAdminPermissoesRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminPerfisRouteImport } from './routes/_authenticated/admin.perfis'
 import { Route as AuthenticatedAdminIntegracoesRouteImport } from './routes/_authenticated/admin.integracoes'
 import { Route as AuthenticatedAdminCredenciaisRouteImport } from './routes/_authenticated/admin.credenciais'
+import { Route as AuthenticatedAdminAcessosFinanceiroRouteImport } from './routes/_authenticated/admin.acessos-financeiro'
 import { Route as AuthenticatedRoyaltiesUnidadeIdMesRouteImport } from './routes/_authenticated/royalties.$unidadeId.$mes'
 
 const TrustRoute = TrustRouteImport.update({
@@ -380,6 +381,12 @@ const AuthenticatedAdminCredenciaisRoute =
     path: '/admin/credenciais',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminAcessosFinanceiroRoute =
+  AuthenticatedAdminAcessosFinanceiroRouteImport.update({
+    id: '/admin/acessos-financeiro',
+    path: '/admin/acessos-financeiro',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRoyaltiesUnidadeIdMesRoute =
   AuthenticatedRoyaltiesUnidadeIdMesRouteImport.update({
     id: '/$unidadeId/$mes',
@@ -428,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/unidades': typeof AuthenticatedUnidadesRouteWithChildren
+  '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
   '/admin/perfis': typeof AuthenticatedAdminPerfisRoute
@@ -484,6 +492,7 @@ export interface FileRoutesByTo {
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
   '/admin/perfis': typeof AuthenticatedAdminPerfisRoute
@@ -544,6 +553,7 @@ export interface FileRoutesById {
   '/_authenticated/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/_authenticated/unidades': typeof AuthenticatedUnidadesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/_authenticated/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/_authenticated/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
   '/_authenticated/admin/perfis': typeof AuthenticatedAdminPerfisRoute
@@ -604,6 +614,7 @@ export interface FileRouteTypes {
     | '/royalties'
     | '/simulador-caixa'
     | '/unidades'
+    | '/admin/acessos-financeiro'
     | '/admin/credenciais'
     | '/admin/integracoes'
     | '/admin/perfis'
@@ -660,6 +671,7 @@ export interface FileRouteTypes {
     | '/reforma-tributaria'
     | '/simulador-caixa'
     | '/'
+    | '/admin/acessos-financeiro'
     | '/admin/credenciais'
     | '/admin/integracoes'
     | '/admin/perfis'
@@ -719,6 +731,7 @@ export interface FileRouteTypes {
     | '/_authenticated/simulador-caixa'
     | '/_authenticated/unidades'
     | '/_authenticated/'
+    | '/_authenticated/admin/acessos-financeiro'
     | '/_authenticated/admin/credenciais'
     | '/_authenticated/admin/integracoes'
     | '/_authenticated/admin/perfis'
@@ -1138,6 +1151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCredenciaisRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/acessos-financeiro': {
+      id: '/_authenticated/admin/acessos-financeiro'
+      path: '/admin/acessos-financeiro'
+      fullPath: '/admin/acessos-financeiro'
+      preLoaderRoute: typeof AuthenticatedAdminAcessosFinanceiroRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/royalties/$unidadeId/$mes': {
       id: '/_authenticated/royalties/$unidadeId/$mes'
       path: '/$unidadeId/$mes'
@@ -1226,6 +1246,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSimuladorCaixaRoute: typeof AuthenticatedSimuladorCaixaRoute
   AuthenticatedUnidadesRoute: typeof AuthenticatedUnidadesRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminAcessosFinanceiroRoute: typeof AuthenticatedAdminAcessosFinanceiroRoute
   AuthenticatedAdminCredenciaisRoute: typeof AuthenticatedAdminCredenciaisRoute
   AuthenticatedAdminIntegracoesRoute: typeof AuthenticatedAdminIntegracoesRoute
   AuthenticatedAdminPerfisRoute: typeof AuthenticatedAdminPerfisRoute
@@ -1276,6 +1297,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSimuladorCaixaRoute: AuthenticatedSimuladorCaixaRoute,
   AuthenticatedUnidadesRoute: AuthenticatedUnidadesRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminAcessosFinanceiroRoute:
+    AuthenticatedAdminAcessosFinanceiroRoute,
   AuthenticatedAdminCredenciaisRoute: AuthenticatedAdminCredenciaisRoute,
   AuthenticatedAdminIntegracoesRoute: AuthenticatedAdminIntegracoesRoute,
   AuthenticatedAdminPerfisRoute: AuthenticatedAdminPerfisRoute,

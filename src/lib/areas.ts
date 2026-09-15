@@ -14,6 +14,7 @@ import {
   HeartPulse,
   History,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   Megaphone,
@@ -373,6 +374,19 @@ export const AREAS: Area[] = [
             title: "Permissões",
             url: "/admin/permissoes",
             icon: ShieldCheck,
+          },
+          // A EXCEÇÃO de que o tipo `Item` fala, e o único item da Administração
+          // que declara área própria. A fronteira do MENU diz "isto é
+          // administração"; a fronteira de CONFIANÇA diz outra coisa: quem
+          // administra os acessos do Financeiro não administra usuários,
+          // perfis, permissões nem chaves do Asaas. Sem `area` própria o item
+          // herdaria `admin` e a controladoria continuaria barrada — que é
+          // exatamente o que o dono pediu para deixar de acontecer.
+          {
+            title: "Acessos do Financeiro",
+            url: "/admin/acessos-financeiro",
+            icon: Landmark,
+            area: "admin_financeiro",
           },
         ],
       },
