@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, ShoppingCart, Timer, CheckCircle2, Wallet, Info, Tag } from "lucide-react";
+import {
+  RefreshCw,
+  ShoppingCart,
+  Timer,
+  CheckCircle2,
+  Wallet,
+  Info,
+  Tag,
+  History as HistoryIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   carregarBrokerUnidade,
@@ -12,6 +21,7 @@ import {
   cancelarFatura,
   type BrokerUnidadeData,
   type FilaUnidadeRow,
+  type HistoricoPrecoRow,
 } from "@/lib/broker.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,6 +119,57 @@ function NotaIa({
       </p>
       {aberto ? (
         <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{corpo}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Trâmite do preço: o que mudou, de quanto para quanto, e por quem. */
+function HistoricoPreco({ linhas }: { linhas: HistoricoPrecoRow[] }) {
+  const [aberto, setAberto] = useState(false);
+  if (linhas.length === 0) return null;
+  return (
+    <div className="rounded-md border bg-muted/40 p-3">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-sm font-medium"
+      >
+        <HistoryIcon className="h-3.5 w-3.5" />
+        <span>Histórico de preço</span>
+        <span className="ml-auto text-xs font-normal text-muted-foreground">
+          {linhas.length} altera{linhas.length === 1 ? "ção" : "ções"} ·{" "}
+          {aberto ? "esconder" : "ver"}
+        </span>
+      </button>
+      {aberto ? (
+        <ul className="mt-2 space-y-1.5 text-sm">
+          {linhas.map((h) => (
+            <li key={h.id} className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {new Date(h.criado_em).toLocaleString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <span className="tabular-nums">
+                {h.preco_cb_anterior === null ? (
+                  <>
+                    precificado em <b>{cb(h.preco_cb)}</b>
+                  </>
+                ) : (
+                  <>
+                    {cb(h.preco_cb_anterior)} <span className="text-muted-foreground">→</span>{" "}
+                    <b>{cb(h.preco_cb)}</b>
+                  </>
+                )}
+              </span>
+              <span className="text-xs text-muted-foreground">{h.origem ?? ""}</span>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );
@@ -401,6 +462,10 @@ export function BrokerUnidadeView() {
                   <Campo rotulo="Canal" valor={o.canal} />
                   <Campo rotulo="Conduziu a reunião" valor={o.condutor_reuniao} />
                 </div>
+
+                <HistoricoPreco
+                  linhas={(data.historicoPreco ?? []).filter((h) => h.oportunidade_id === o.id)}
+                />
 
                 <div className="space-y-2">
                   <NotaIa

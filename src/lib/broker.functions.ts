@@ -316,8 +316,19 @@ export type FaturaRow = {
   observacao: string | null;
 };
 
+export type HistoricoPrecoRow = {
+  id: number;
+  oportunidade_id: number;
+  mrr_mensal: number | null;
+  preco_cb: number | null;
+  preco_cb_anterior: number | null;
+  origem: string | null;
+  criado_em: string;
+};
+
 export type BrokerUnidadeData = {
   fila: FilaUnidadeRow[];
+  historicoPreco: HistoricoPrecoRow[];
   extrato: ExtratoUnidadeRow[];
   saldo: SaldoRow | null;
   faturas: FaturaRow[];
@@ -331,7 +342,7 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
 
-    const [fila, extrato, saldo, faturas, instr] = await Promise.all([
+    const [fila, extrato, saldo, faturas, instr, hist] = await Promise.all([
       sb.from("v_broker_fila").select("*").order("entrou_em", { ascending: false }),
       sb.from("v_broker_extrato").select("*").order("criado_em", { ascending: false }).limit(100),
       sb
@@ -342,6 +353,11 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
         ),
       sb.from("v_broker_minhas_faturas").select("*").order("pedida_em", { ascending: false }),
       sb.rpc("broker_instrucoes_pagamento"),
+      sb
+        .from("v_broker_historico_preco")
+        .select("*")
+        .order("criado_em", { ascending: false })
+        .limit(300),
     ]);
     for (const r of [fila, extrato, saldo, faturas]) if (r.error) throw new Error(r.error.message);
 
@@ -350,6 +366,7 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
     const linhas = saldo.data ?? [];
     return {
       fila: fila.data ?? [],
+      historicoPreco: hist.data ?? [],
       extrato: extrato.data ?? [],
       saldo: linhas[0] ?? null,
       faturas: faturas.data ?? [],
