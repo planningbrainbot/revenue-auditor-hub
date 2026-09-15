@@ -100,7 +100,20 @@ export function AppSidebar() {
   // Área fora do alcance do papel não aparece: nem na lateral, nem no seletor
   // do topo. Antes o corte era por item, e um papel com uma página de oito
   // continuava vendo a área quase vazia.
-  const areasVisiveis = AREAS.filter((a) => !loading && temArea(a.slug))
+  //
+  // A SEGUNDA CONDIÇÃO é o outro lado da exceção que `Item.area` já previa. Um
+  // item pode declarar área própria quando a fronteira do menu e a da confiança
+  // não coincidem — e aí existe o caso em que a pessoa tem SÓ a área do item, e
+  // não a que o contém. É a controladoria em "Acessos do Financeiro": ela
+  // administra os acessos do cockpit e não administra usuários, perfis nem
+  // chaves do Asaas. Sem esta linha a Administração some inteira para ela e o
+  // item nunca aparece, mesmo com a permissão certa.
+  const areasVisiveis = AREAS.filter(
+    (a) =>
+      !loading &&
+      (temArea(a.slug) ||
+        a.grupos.some((g) => g.items.some((i) => i.area && temArea(i.area)))),
+  )
     .map((a) => ({
       ...a,
       grupos: a.grupos

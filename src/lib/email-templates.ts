@@ -103,3 +103,60 @@ export function emailRedefinicaoSenha(params: { nome: string; email: string; lin
     ].join("\n"),
   };
 }
+
+/**
+ * Avisa que a pessoa recebeu acesso ao Brain Financeiro.
+ *
+ * PEDIDO DO DONO, verbatim (15/09/2026): "Quero enviar o acesso via email.
+ * Igual acontece no sistema geral hoje. Só que dentro do financeiro
+ * especificamente."
+ *
+ * DIFERENÇA DELIBERADA EM RELAÇÃO AO `emailBoasVindas`: aqui NÃO vai link de
+ * definir senha. O cockpit financeiro não tem login próprio — a sessão nasce
+ * da sessão do Ops. Mandar "defina sua senha" apontaria para uma senha que não
+ * existe e não serve para nada. O botão leva ao cockpit; quem ainda não tem
+ * senha do Ops recebe o `emailBoasVindas` na mesma leva, por outro caminho.
+ *
+ * As unidades vão escritas no corpo de propósito. Quem concede erra, e a
+ * pessoa que recebe é a única em posição de dizer "eu não deveria ver MAROX".
+ */
+export function emailAcessoFinanceiro(params: {
+  nome: string;
+  email: string;
+  link: string;
+  unidades: string[];
+  concedidoPor: string;
+}) {
+  const primeiroNome = (params.nome || "").trim().split(/\s+/)[0] || params.email;
+  const lista = params.unidades.length
+    ? params.unidades.join(", ")
+    : "nenhuma unidade ainda — peça a quem te liberou";
+  return {
+    subject: "Seu acesso ao Brain Financeiro",
+    html: layout({
+      titulo: `Olá, ${primeiroNome}`,
+      corpo: `
+        <p style="margin:0 0 12px 0;">Você recebeu acesso ao <strong>Brain Financeiro</strong>, o cockpit de DRE, fluxo de caixa, inadimplência e aprovações do Grupo Planning.</p>
+        <p style="margin:0 0 12px 0;">As unidades que você abre: <strong>${lista}</strong>.</p>
+        <p style="margin:0;">Você entra com o mesmo e-mail e a mesma senha do Planning Ops (<strong>${params.email}</strong>) — não há senha separada.</p>`,
+      botao: { texto: "Abrir o Brain Financeiro", url: params.link },
+      rodape: `Acesso concedido por ${params.concedidoPor}. Se alguma unidade dessa lista não deveria estar aí, responda este e-mail antes de abrir.`,
+    }),
+    text: [
+      `Olá, ${primeiroNome}`,
+      ``,
+      `Você recebeu acesso ao Brain Financeiro, o cockpit de DRE, fluxo de caixa,`,
+      `inadimplência e aprovações do Grupo Planning.`,
+      ``,
+      `Unidades que você abre: ${lista}`,
+      ``,
+      `Você entra com o mesmo e-mail e senha do Planning Ops (${params.email}).`,
+      `Não há senha separada.`,
+      ``,
+      params.link,
+      ``,
+      `Acesso concedido por ${params.concedidoPor}.`,
+      `Planning Brain — planningbrain.com.br`,
+    ].join("\n"),
+  };
+}

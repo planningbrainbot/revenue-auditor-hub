@@ -15,7 +15,11 @@
  */
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
 import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.financeiro";
-import { emitirSessaoGrowth, emitirSessaoFinanceiro } from "@/lib/sessoes-irmas.functions";
+import {
+  emitirSessaoGrowth,
+  emitirSessaoFinanceiro,
+  sincronizarConcessaoFinanceiro,
+} from "@/lib/sessoes-irmas.functions";
 
 let emAndamento: Promise<void> | null = null;
 
@@ -25,6 +29,13 @@ async function garantirUma(
   emitir: () => Promise<{ ok: true; tokenHash: string } | { ok: false; motivo: string }>,
   /** Quando informado, uma sessão existente SEM esta marca é reemitida. */
   exigeClaim?: (appMetadata: Record<string, unknown> | undefined) => boolean,
+  /**
+   * Rodado quando a sessão JÁ existe e a marca está lá. É o que mantém a
+   * concessão viva: sem isto o app_metadata congela no dia da primeira entrada
+   * e nem concessão nem revogação chegam. Ver a nota em
+   * `sincronizarConcessaoFinanceiro`.
+   */
+  sincronizar?: () => Promise<unknown>,
 ) {
   if (!cliente) return;
   try {
@@ -34,7 +45,12 @@ async function garantirUma(
       // servidor responderia 403. Reemitir é o que evita 403 em massa na
       // virada — sem isto, todo mundo com sessão aberta precisaria relogar.
       const meta = data.session.user?.app_metadata as Record<string, unknown> | undefined;
-      if (!exigeClaim || exigeClaim(meta)) return;
+      if (!exigeClaim || exigeClaim(meta)) {
+        // Sessão boa. Ainda assim sincroniza a concessão, porque ela muda sem
+        // a sessão mudar. Não bloqueia a navegação: é best-effort.
+        if (sincronizar) void sincronizar().catch(() => {});
+        return;
+      }
       console.info(`[sessoes-irmas] ${nome}: sessão sem concessão, reemitindo`);
     }
 
@@ -65,6 +81,7 @@ export function garantirSessoesIrmas(): Promise<void> {
         getFinanceiroBrowserClient(),
         emitirSessaoFinanceiro,
         (meta) => Boolean((meta?.brain as { financeiro?: boolean } | undefined)?.financeiro),
+        () => sincronizarConcessaoFinanceiro(),
       ),
     ]);
   })().finally(() => {

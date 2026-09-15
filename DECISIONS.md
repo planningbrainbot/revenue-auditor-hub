@@ -7,6 +7,92 @@ Nunca editar ou apagar entradas antigas. Se uma decisão for revertida, adiciona
 Formato de cada entrada:
 
 ```
+## [2026-09-15] Admin delegado do Financeiro, e o escopo do cockpit vira linha por pessoa
+
+**Contexto:** o dono pediu duas coisas que não cabiam no modelo. (1) "a ana
+consiga administrar acesso só da parte do financeiro, e não de todos os outros
+módulos" — e `assertAdmin` é `has_role(user,'admin')`, binário, com dois admins;
+dar admin à Ana daria os três produtos mais escrita em repasses, royalties e
+sócios. (2) "quero dar acesso só à partners para o eliezek, ou só à Marox para o
+roney" — e as oito chaves `view.brain_financeiro_*` viviam em
+`ops.role_permissions`, que é (PAPEL, chave); as oito estavam marcadas para
+`admin` e `financeiro`, e o papel `financeiro` tem oito pessoas. As oito recebiam
+as oito unidades, idênticas.
+
+Medido antes de desenhar: `public.produto_acesso` não tinha NENHUMA tela — a
+porta dos três produtos era concedida só por SQL na mão. E `ops.can()` não lê
+`role_permissions`: lê `user_roles → role_areas → area_chaves → areas`. Os dois
+modelos discordam em 198 pares (papel, chave), e 16 dessas divergências são
+exatamente as oito chaves do Financeiro nos dois papéis — elas não estão em
+`area_chaves` nenhuma.
+
+**Decisão — a concessão sai do papel e vira linha, na tabela que JÁ EXISTIA.**
+O recorte passa a vir de `ops.usuario_escopo.todas_empresas` +
+`ops.usuario_empresas`. Isto era o item "Pendente" declarado no commit
+`078eabe` do mesmo dia: *"sessoes-irmas.functions.ts ainda monta o escopo do
+cockpit lendo role_permissions em vez de ops.usuario_empresas"*.
+
+**Erro meu, registrado porque custa caro repetir:** eu cheguei a criar
+`public.produto_escopo` para isto, às 13h39 — três horas depois de `078eabe`
+subir com o mesmo propósito. Não vi porque estava lendo um checkout local vinte
+commits atrás do `origin/main`. A tabela foi apagada na migration 20260915190000,
+com gate provando que ninguém perdia acesso na troca (as 23 linhas de
+`usuario_escopo` estão com `todas_empresas = true`, então o estado descrito pelas
+duas tabelas era idêntico). A dele fica porque é mais fina (empresa, não
+unidade — "só a PARTNERS dentro da EXPANSÃO" só cabe nela), porque a flag
+`todas_empresas` continua certa quando uma empresa nova for cadastrada amanhã, e
+porque serve aos dois produtos. **Antes de criar tabela num repo de outra pessoa,
+`git fetch` e leia o `origin/main`.**
+
+NEO entrou junto, por decisão do dono: existia em `unidades_navegacao` com nove
+telas habilitadas e não tinha chave em lugar nenhum.
+
+**Decisão — admin delegado é ÁREA nova, não chave na área `admin`.**
+`role_areas` é (papel, área), então pendurar a chave nova na área `admin`
+obrigaria a dar as outras seis junto, incluindo `view.admin.credenciais` (chaves
+do Asaas). Então: área `admin_financeiro`, chave `admin.acessos.financeiro`,
+papel `financeiro_admin`. Ana Aguiar recebeu o papel — das duas Anas, é a que já
+entrou no sistema (a carvalhais nunca logou).
+
+**Decisão — `ops.can` passa a delegar para `ops.can_user(uuid, text)`.** O
+servidor fala como service_role, onde `auth.uid()` é nulo, então precisava de uma
+versão com a pessoa explícita. Escrita uma vez só: duplicar a lógica (a regra do
+`data.scope.own_unit_only` é sutil) divergiria na primeira manutenção. 111
+policies chamam `ops.can`; o gate comparou as 2.624 combinações (pessoa × chave)
+antes e depois — zero divergências, 656 liberadas nas duas.
+
+**Decisão — a concessão passa a ser sincronizada, não só emitida.** Achado do
+caminho: `garantirSessoesIrmas` só reemitia quando faltava `brain.financeiro`.
+Com ela presente, `updateUserById` nunca mais rodava e o `app_metadata` do
+cockpit ficava congelado no dia da primeira entrada — as seis pessoas com sessão
+lá estavam todas com os oito escopos de agosto. Isso tornava o painel inútil dos
+dois lados: conceder não chegava, e REVOGAR não chegava também. Agora
+`sincronizarConcessaoFinanceiro` roda a cada navegação e grava
+`financeiro: false` quando a pessoa perdeu o acesso.
+
+**Status:** aplicado em produção (`npknehhyyzelmrbbxvtu`, migration
+20260915170000) e implementado. Tela em `/admin/acessos-financeiro`, guardada por
+`ops.can('admin.acessos.financeiro')` no beforeLoad e em cada server fn — é a
+única tela da Administração que não exige admin global. Ela é também o primeiro
+uso do escape hatch `Item.area`: sem área própria o item herdaria `admin` e a
+controladoria continuaria barrada. `areasVisiveis` no app-sidebar ganhou a
+segunda condição correspondente — uma área aparece quando a pessoa tem a área
+dela OU a área declarada por algum item seu. Build e typecheck limpos (os erros
+remanescentes em reconciliacao.functions.ts e admin.integracoes.tsx são
+anteriores e não foram tocados). Três pessoas administram: pedro.luca,
+victor.eliezek e ana.aguiar.
+
+**Próximos passos:** (a) a redundância dos dois modelos de permissão continua —
+a chave nova foi semeada nos DOIS (`role_permissions` para a lateral aparecer,
+`area_chaves` para o guarda passar) e isso está marcado como provisório na
+migration; reconciliar é trabalho separado. (b) as oito chaves
+`view.brain_financeiro_*` em `role_permissions` agora são legado: quem manda é
+`produto_escopo`, e elas só servem de fallback para quem não tiver linha.
+(c) no cockpit, `exigirEscopo` é chamado por 1 de 31 edge functions — o escopo
+concedido aqui só vira barreira de verdade quando ele for espalhado, e isso NÃO
+pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
+
+
 ## [YYYY-MM-DD] Título curto da decisão
 
 **Contexto:** por que isso surgiu / qual problema resolve.
