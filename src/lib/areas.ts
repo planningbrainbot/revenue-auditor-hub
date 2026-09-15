@@ -1,6 +1,35 @@
 import {
   Activity,
-  UsersRound, BadgeCheck, BarChart3, BookUser, Building2, ClipboardCheck, Coins, FileBarChart2, Filter, Gauge, GitMerge, History, KeyRound, LayoutDashboard, ListChecks, Megaphone, MessageSquareHeart, Percent, Scale, Send, ShieldCheck, Store, TrendingDown, TrendingUp, UserCheck, UserCog, Users, Wallet,
+  BadgeCheck,
+  BarChart3,
+  BookUser,
+  Building2,
+  CalendarClock,
+  ClipboardCheck,
+  Coins,
+  FileBarChart2,
+  Filter,
+  Gauge,
+  GitMerge,
+  History,
+  KeyRound,
+  LayoutDashboard,
+  ListChecks,
+  Megaphone,
+  MessageSquareHeart,
+  MessageSquarePlus,
+  Percent,
+  Scale,
+  Send,
+  ShieldCheck,
+  Store,
+  TrendingDown,
+  TrendingUp,
+  UserCheck,
+  UserCog,
+  Users,
+  UsersRound,
+  Wallet,
 } from "lucide-react";
 
 /**
@@ -203,13 +232,25 @@ export const AREAS: Area[] = [
   {
     slug: "people",
     nome: "Planning People",
-    descricao: "Cadastro das pessoas das unidades, com hierarquia de gestor.",
+    descricao: "Pessoas das unidades: cadastro, 1:1 e feedback.",
     icone: UsersRound,
     grupos: [
       {
         label: "Pessoas",
         items: [
           { title: "Cadastro", url: "/gente", icon: Users, permission: "view.gente" },
+          {
+            title: "1:1",
+            url: "/gente?aba=um-a-um",
+            icon: CalendarClock,
+            permission: "view.gente.um_a_um",
+          },
+          {
+            title: "Feedback",
+            url: "/gente?aba=feedback",
+            icon: MessageSquarePlus,
+            permission: "view.gente.feedback",
+          },
         ],
       },
     ],
@@ -299,4 +340,3 @@ export const AREAS: Area[] = [
     ],
   },
 ];
-

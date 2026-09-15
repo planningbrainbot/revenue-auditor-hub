@@ -269,6 +269,20 @@ export const KNOWN_PERMISSIONS: {
     group: "Administração",
   },
   {
+    key: "view.gente.um_a_um",
+    label: "Gente: 1:1",
+    description:
+      "Liga o módulo de 1:1. Não decide qual linha aparece: isso é hierarquia, então cada um vê só os 1:1 em que é gestor ou liderado. Nota privada do gestor só o autor lê.",
+    group: "Dados",
+  },
+  {
+    key: "view.gente.feedback",
+    label: "Gente: feedback contínuo",
+    description:
+      "Liga o feedback entre pessoas. Quem lê cada um depende da visibilidade escolhida por quem escreveu.",
+    group: "Dados",
+  },
+  {
     key: "view.contatos",
     label: "Ver contatos dos clientes",
     description:
