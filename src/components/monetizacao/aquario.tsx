@@ -40,6 +40,7 @@ type Filters = {
   product: Produto | "";
   status: string;
   overlap: boolean;
+  unit: string;
 };
 const emptyFilters: Filters = {
   query: "",
@@ -49,6 +50,7 @@ const emptyFilters: Filters = {
   product: "",
   status: "",
   overlap: false,
+  unit: "",
 };
 export function Aquario() {
   const q = useMonetizacao(),
@@ -88,9 +90,12 @@ export function Aquario() {
     setTab("listas");
     setPicked(new Set());
   };
-  const consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
+  const cella = data.accounts.filter((a) => oferta(a, "cella").status === "elegivel"),
+    consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
-  const overlap = consult.filter((a) => finance.some((f) => f.key === a.key));
+  const overlap = data.accounts.filter(
+    (a) => PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length > 1,
+  );
   const content = (rows: Conta[], drawer = false) => (
     <PortfolioTable
       data={data}
@@ -124,11 +129,22 @@ export function Aquario() {
           {data.sync_error}
         </Notice>
       )}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {!data.permissions.all_units && !data.units.length && (
+        <Notice>
+          Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
+          definir suas carteiras.
+        </Notice>
+      )}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <Kpi
           label="Contas na base conciliada"
           value={number(data.accounts.length)}
           hint="Uma conta, mesmo com mais de um produto"
+        />
+        <Kpi
+          label="Cella · perfil aderente"
+          value={number(cella.length)}
+          hint="A partir de R$ 25 mi · fora do Simples"
         />
         <Kpi
           label="Consultoria · perfil aderente"
@@ -142,11 +158,50 @@ export function Aquario() {
           hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
         />
         <Kpi
-          label="Aderentes aos dois produtos"
+          label="Mais de um produto"
           value={number(overlap.length)}
-          hint="Já incluídas nos dois números ao lado"
+          hint="Contas já incluídas nos produtos ao lado"
         />
       </div>
+      <Panel title="Listas potenciais por produto">
+        <div className="grid gap-3 md:grid-cols-3">
+          {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
+            const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
+            const free = eligible.filter(
+              (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+            );
+            return (
+              <button
+                key={p}
+                onClick={() => {
+                  setFilters({ ...emptyFilters, product: p, status: "eligible" });
+                  setPicked(new Set());
+                  setTab("contas");
+                }}
+                className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "contas" && filters.product === p ? "border-primary bg-primary/5" : ""}`}
+              >
+                <span className="flex items-center justify-between font-semibold">
+                  {NOMES[p]} <ArrowRight className="h-4 w-4" />
+                </span>
+                <p className="mt-2 text-sm">
+                  {eligible.length} aderentes · {free.length} disponíveis
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {p === "consultoria"
+                    ? "Prioridade das unidades · validar carteira retroativa"
+                    : p === "cella"
+                      ? "Faturamento a partir de R$ 25 mi · fora do Simples"
+                      : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi · fora do Simples"}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
+          preenchido no Pipedrive; contato é opcional.
+        </p>
+      </Panel>
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
@@ -192,6 +247,10 @@ export function Aquario() {
                     </p>
                     <div className="flex gap-3 text-xs">
                       <span className="text-primary">Consultoria {c}</span>
+                      <span>
+                        Cella{" "}
+                        {accounts.filter((a) => oferta(a, "cella").status === "elegivel").length}
+                      </span>
                       <span>Finance {f}</span>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -265,12 +324,18 @@ function PortfolioTable({
   const [limit, setLimit] = useState(50);
   const change = (key: keyof Filters, value: string | boolean) => {
     setFilters({ ...filters, [key]: value });
+    if (key === "product") setPicked(new Set());
     setLimit(50);
   };
   const rows = useMemo(
     () =>
       accounts
         .filter((a) => {
+          if (
+            filters.unit &&
+            !data.units.find((u) => u.key === filters.unit)?.account_keys.includes(a.key)
+          )
+            return false;
           if (
             filters.query &&
             !normal([a.name, a.segment, a.unit_label].join(" ")).includes(normal(filters.query))
@@ -287,9 +352,7 @@ function PortfolioTable({
           if (filters.contact && String(a.contact) !== filters.contact) return false;
           if (
             filters.overlap &&
-            !(["consultoria", "finance"] as Produto[]).every(
-              (p) => oferta(a, p).status === "elegivel",
-            )
+            PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length < 2
           )
             return false;
           if (
@@ -312,7 +375,7 @@ function PortfolioTable({
             (FAIXAS[b.band || ""]?.[0] ?? -1) - (FAIXAS[a.band || ""]?.[0] ?? -1) ||
             a.name.localeCompare(b.name, "pt-BR"),
         ),
-    [accounts, filters, data.cards, data.reservations],
+    [accounts, filters, data.cards, data.reservations, data.units],
   );
   const visible = rows.slice(0, limit),
     selected = accounts.filter((a) => picked.has(a.key));
@@ -324,7 +387,13 @@ function PortfolioTable({
   };
   return (
     <Panel
-      title={inUnit ? "Carteira da unidade" : "Carteira conciliada"}
+      title={
+        inUnit
+          ? "Carteira da unidade"
+          : filters.product
+            ? `Lista potencial · ${NOMES[filters.product]}`
+            : "Carteira conciliada"
+      }
       action={
         <div className="flex gap-2">
           <Button
@@ -341,6 +410,7 @@ function PortfolioTable({
                   "Contato",
                   "Consultoria",
                   "Finance",
+                  "Cella",
                 ],
                 ...rows.map((a) => [
                   a.name,
@@ -351,6 +421,7 @@ function PortfolioTable({
                   a.contact ? "Sim" : "Obter com o sócio",
                   oferta(a, "consultoria").reason,
                   oferta(a, "finance").reason,
+                  oferta(a, "cella").reason,
                 ]),
               ])
             }
@@ -370,6 +441,22 @@ function PortfolioTable({
       }
     >
       <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
+        {!inUnit && (
+          <Field label="Unidade">
+            <select
+              className={inputClass}
+              value={filters.unit}
+              onChange={(e) => change("unit", e.target.value)}
+            >
+              <option value="">Todas as unidades</option>
+              {data.units.map((u) => (
+                <option key={u.key} value={u.key}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Buscar empresa">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -451,7 +538,7 @@ function PortfolioTable({
             checked={filters.overlap}
             onChange={(e) => change("overlap", e.target.checked)}
           />
-          Aderentes a Consultoria e Finance
+          Aderentes a mais de um produto
         </label>
         <Button
           variant="ghost"
@@ -520,7 +607,7 @@ function PortfolioTable({
                   <div className="flex flex-wrap gap-1">
                     <OfertaTag account={a} product="consultoria" />
                     <OfertaTag account={a} product="finance" />
-                    {filters.product === "cella" && <OfertaTag account={a} product="cella" />}
+                    <OfertaTag account={a} product="cella" />
                   </div>
                 </td>
                 <td className="min-w-40 p-2 text-xs">

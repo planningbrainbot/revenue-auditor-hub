@@ -17,16 +17,19 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba } from "./dashboard";
+import { Forecast } from "./forecast";
 import { date, Field, inputClass, Kpi, money, Notice, number, Panel } from "./common";
 
 type Props = {
   aba: Aba;
   data: BaseMonetizacao;
   filter: Filtro;
-  openDeals: (title: string, rows: Negocio[]) => void;
+  openDeals: (title: string, rows: Negocio[], period?: { from: string; to: string }) => void;
 };
 export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
+  if (aba === "forecast")
+    return <Forecast data={data} month={filter.to.slice(0, 7)} openDeals={openDeals} />;
   if (aba === "temporal") return <Temporal data={data} filter={filter} openDeals={openDeals} />;
   if (aba === "capacidade")
     return (

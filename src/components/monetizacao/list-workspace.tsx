@@ -91,7 +91,7 @@ export function ListWorkspace({
       null;
     setDraft({
       ...empty(),
-      nome: `${inferred?.name || "Finance"} · ${NOMES[initial.product]}`,
+      nome: `${NOMES[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
       unidade_id: inferred?.id || null,
       items: initial.accounts.map((key) => ({
         id: crypto.randomUUID(),
@@ -222,8 +222,7 @@ export function ListWorkspace({
     }
   };
   const listUnit =
-    data.units.find((u) => u.id !== null && u.id === draft.unidade_id)?.name ||
-    "Finance · Contratos Pipedrive";
+    data.units.find((u) => u.id !== null && u.id === draft.unidade_id)?.name || "Todas as unidades";
   const exportRows = () => [
     [
       "Lista",
@@ -332,7 +331,7 @@ export function ListWorkspace({
       </Panel>
       <div className="space-y-4">
         <Panel
-          title={draft.nome || "Preparar apresentação ao sócio"}
+          title={draft.nome || "1. Preparar lista"}
           action={
             <div className="flex flex-wrap gap-2">
               <Button
@@ -372,7 +371,7 @@ export function ListWorkspace({
                 value={draft.unidade_id || ""}
                 onChange={(e) => change({ unidade_id: Number(e.target.value) || null })}
               >
-                <option value="">Finance · Contratos Pipedrive</option>
+                <option value="">Todas as unidades</option>
                 {data.units
                   .filter((u) => u.id)
                   .map((u) => (
@@ -430,6 +429,7 @@ export function ListWorkspace({
                         </span>
                         {a && (
                           <div className="mt-1 flex gap-1">
+                            <OfertaTag account={a} product="cella" />
                             <OfertaTag account={a} product="consultoria" />
                             <OfertaTag account={a} product="finance" />
                           </div>
@@ -541,7 +541,7 @@ export function ListWorkspace({
           )}
         </Panel>
         {!!draft.items.length && (
-          <Panel title="Validar com o sócio">
+          <Panel title="2. Validar com o sócio">
             <div className="space-y-3">
               <Field label="Sócio que validou">
                 <input
@@ -596,14 +596,14 @@ export function ListWorkspace({
                 Registrar validação
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                O registro guarda o usuário autenticado, o sócio, a data e a revisão validada.
-                Alterações posteriores exigem nova validação.
+                Registrar validação salva a aprovação e libera a seleção abaixo. O envio ao
+                Pipedrive acontece no próximo passo. Alterações posteriores exigem nova validação.
               </p>
             </div>
           </Panel>
         )}
         {persisted && (
-          <Panel title="Enviar oportunidades selecionadas ao Pipedrive">
+          <Panel title="3. Enviar oportunidades selecionadas ao Pipedrive">
             <div className="space-y-2">
               {sendable.map((i) => {
                 const a = by.get(i.account_key),
@@ -648,8 +648,9 @@ export function ListWorkspace({
                 Revisar envio ({sendingItems.length})
               </Button>
               <p className="text-xs text-muted-foreground">
-                Somente os itens selecionados serão enviados à etapa de entrada. Negócios existentes
-                são vinculados; respostas incertas ficam bloqueadas para conferência.
+                O campo “Caixa · Produto” receberá o produto exibido em cada oportunidade. Somente
+                os itens selecionados serão enviados à etapa de entrada. Negócios existentes são
+                vinculados; respostas incertas ficam bloqueadas para conferência.
               </p>
             </div>
           </Panel>

@@ -13,11 +13,27 @@ set local role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object('sub',current_setting('test.monet.scope_user'),'role','authenticated')::text,true);
 do $$ begin
  if not ops.monetizacao_can('view.aquario') then raise exception 'FAIL: acesso por área'; end if;
- if ops.monetizacao_can('manage.aquario') then raise exception 'FAIL: edição reservada à equipe de Monetização'; end if;
- if ops.monetizacao_can('send.monetizacao') then raise exception 'FAIL: Clientes não deve abrir envio de Monetização'; end if;
+ if not ops.monetizacao_can('manage.aquario') then raise exception 'FAIL: área Clientes deve permitir preparar listas'; end if;
+ if not ops.monetizacao_can('send.monetizacao') then raise exception 'FAIL: área Clientes deve permitir enviar listas validadas'; end if;
  if exists(select 1 from ops.monetizacao_contas where not (3=any(unidade_ids))) then raise exception 'FAIL: conta fora da unidade'; end if;
  if (select count(*) from ops.monetizacao_contas)=0 then raise exception 'FAIL: escopo escondeu carteira autorizada'; end if;
  if exists(select 1 from ops.monetizacao_planos) then raise exception 'FAIL: plano geral exposto a escopo de unidade'; end if;
+end $$;
+
+do $$
+declare a ops.monetizacao_contas; lid uuid; doc jsonb; denied boolean:=false;
+begin
+ select * into a from ops.monetizacao_contas limit 1;
+ doc:=jsonb_build_object('nome','Lista de unidade — rollback','unidade_id',3,'owner_id',28381245,'mode','draft','items',jsonb_build_array(jsonb_build_object('account_key',a.key,'product','consultoria','review','{}'::jsonb)));
+ lid:=ops.monetizacao_save_list(doc);
+ begin perform ops.monetizacao_claim((select id from ops.monetizacao_itens where list_id=lid limit 1)); exception when others then denied:=true; end;
+ if not denied then raise exception 'FAIL: envio sem validação aceito'; end if;
+ denied:=false;
+ begin perform ops.monetizacao_save_list(doc||jsonb_build_object('unidade_id',null)); exception when others then denied:=true; end;
+ if not denied then raise exception 'FAIL: usuário de unidade criou lista global'; end if;
+ denied:=false;
+ begin perform ops.monetizacao_save_list(doc||jsonb_build_object('unidade_id',1)); exception when others then denied:=true; end;
+ if not denied then raise exception 'FAIL: usuário de unidade criou lista fora de seu escopo'; end if;
 end $$;
 
 select set_config('request.jwt.claims',jsonb_build_object('sub',current_setting('test.monet.admin'),'role','authenticated')::text,true);

@@ -150,6 +150,7 @@ export interface Registro {
   updated_at: string;
 }
 export interface BaseMonetizacao {
+  forecasts: ForecastSource[];
   reservations: { account_key: string; product: Produto; status: string; deal_id: number | null }[];
   accounts: Conta[];
   units: Unidade[];
@@ -163,4 +164,22 @@ export interface BaseMonetizacao {
   sync_error: string | null;
   stages: { id: number; name: string; order: number }[];
   permissions: { view: boolean; manage: boolean; send: boolean; all_units: boolean };
+}
+
+export interface ForecastSource {
+  id: string;
+  version: string;
+  source_name: string;
+  source_date: string;
+  sha256: string;
+  scope: "front";
+  note: string;
+  months: string[];
+  rows: {
+    row: number;
+    label: string;
+    format: "percent" | "money" | "number";
+    values: number[];
+    formulas: (string | null)[];
+  }[];
 }

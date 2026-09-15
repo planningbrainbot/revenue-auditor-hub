@@ -45,6 +45,7 @@ import {
 
 export const ABAS = [
   "operacao",
+  "forecast",
   "temporal",
   "capacidade",
   "follow-day",
@@ -56,6 +57,7 @@ export const ABAS = [
 export type Aba = (typeof ABAS)[number];
 const labels: Record<Aba, string> = {
   operacao: "Operação",
+  forecast: "Projetado × realizado",
   temporal: "Temporal e previsão",
   capacidade: "Capacidade e alocação",
   "follow-day": "Follow Day",
@@ -77,9 +79,22 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
   });
   const [dates, setDates] = useState({ from: filter.from, to: filter.to });
   const [refreshing, setRefreshing] = useState(false),
-    [detail, setDetail] = useState<{ title: string; rows: Negocio[] } | null>(null);
+    [detail, setDetail] = useState<{
+      title: string;
+      rows: Negocio[];
+      period?: { from: string; to: string };
+    } | null>(null);
   if (!q.data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
   const data = q.data;
+  if (!data.permissions.all_units && !data.units.length)
+    return (
+      <div className="p-6">
+        <Notice>
+          Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
+          definir suas carteiras.
+        </Notice>
+      </div>
+    );
   if (!data.permissions.view)
     return (
       <div className="p-6">
@@ -153,87 +168,89 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           Clientes → Aquário ↗
         </Link>
       </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex gap-1">
-          {["Hoje", "7 dias", "Mês"].map((name, i) => (
-            <Button
-              key={name}
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                choosePeriod(
-                  i === 0
-                    ? today
-                    : i === 1
-                      ? new Date(Date.parse(today) - 6 * 86400000).toISOString().slice(0, 10)
-                      : today.slice(0, 7) + "-01",
-                  today,
-                )
-              }
-            >
-              {name}
-            </Button>
-          ))}
-        </div>
-        <Field label="De">
-          <input
-            type="date"
-            className={inputClass}
-            value={dates.from}
-            onChange={(e) => setDates({ ...dates, from: e.target.value })}
-          />
-        </Field>
-        <Field label="Até">
-          <input
-            type="date"
-            className={inputClass}
-            value={dates.to}
-            onChange={(e) => setDates({ ...dates, to: e.target.value })}
-          />
-        </Field>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            try {
-              operacao([], { ...filter, ...dates });
-              setFilter({ ...filter, ...dates });
-            } catch (e) {
-              toast.error((e as Error).message);
-            }
-          }}
-        >
-          Aplicar
-        </Button>
-        <Field label="Responsável pelo movimento">
-          <select
-            className={inputClass}
-            value={filter.owner || ""}
-            onChange={(e) => setFilter({ ...filter, owner: Number(e.target.value) || null })}
-          >
-            <option value="">Toda a frente</option>
-            {owners.map(([id, name]) => (
-              <option key={id} value={id}>
+      {aba !== "forecast" && (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex gap-1">
+            {["Hoje", "7 dias", "Mês"].map((name, i) => (
+              <Button
+                key={name}
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  choosePeriod(
+                    i === 0
+                      ? today
+                      : i === 1
+                        ? new Date(Date.parse(today) - 6 * 86400000).toISOString().slice(0, 10)
+                        : today.slice(0, 7) + "-01",
+                    today,
+                  )
+                }
+              >
                 {name}
-              </option>
+              </Button>
             ))}
-          </select>
-        </Field>
-        <Field label="Produto">
-          <select
-            className={inputClass}
-            value={filter.product}
-            onChange={(e) => setFilter({ ...filter, product: e.target.value as Produto | "" })}
+          </div>
+          <Field label="De">
+            <input
+              type="date"
+              className={inputClass}
+              value={dates.from}
+              onChange={(e) => setDates({ ...dates, from: e.target.value })}
+            />
+          </Field>
+          <Field label="Até">
+            <input
+              type="date"
+              className={inputClass}
+              value={dates.to}
+              onChange={(e) => setDates({ ...dates, to: e.target.value })}
+            />
+          </Field>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              try {
+                operacao([], { ...filter, ...dates });
+                setFilter({ ...filter, ...dates });
+              } catch (e) {
+                toast.error((e as Error).message);
+              }
+            }}
           >
-            <option value="">Todos os produtos</option>
-            {PRODUTOS.map((p) => (
-              <option key={p} value={p}>
-                {NOMES[p]}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
+            Aplicar
+          </Button>
+          <Field label="Responsável pelo movimento">
+            <select
+              className={inputClass}
+              value={filter.owner || ""}
+              onChange={(e) => setFilter({ ...filter, owner: Number(e.target.value) || null })}
+            >
+              <option value="">Toda a frente</option>
+              {owners.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Produto">
+            <select
+              className={inputClass}
+              value={filter.product}
+              onChange={(e) => setFilter({ ...filter, product: e.target.value as Produto | "" })}
+            >
+              <option value="">Todos os produtos</option>
+              {PRODUTOS.map((p) => (
+                <option key={p} value={p}>
+                  {NOMES[p]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
       {(data.sync_error || !data.measured_at) && (
         <Notice>
           {data.sync_error
@@ -466,10 +483,15 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           aba={aba}
           data={data}
           filter={filter}
-          openDeals={(title, rows) => setDetail({ title, rows })}
+          openDeals={(title, rows, period) => setDetail({ title, rows, period })}
         />
       )}
-      <DealDetails detail={detail} close={() => setDetail(null)} filter={filter} data={data} />
+      <DealDetails
+        detail={detail}
+        close={() => setDetail(null)}
+        filter={{ ...filter, ...detail?.period }}
+        data={data}
+      />
     </main>
   );
 }

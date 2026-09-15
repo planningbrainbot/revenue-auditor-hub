@@ -1,12 +1,12 @@
 // Única integração de escrita do Aquário com o pipe 39. Segredos só no runtime Supabase.
 import { summarize, PRODUCT } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
+import { dealPayload, hasCanonicalProduct, PRODUCT_OPTIONS } from "./send.mjs";
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const ADMIN = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const PD = Deno.env.get("PIPEDRIVE_TOKEN")!;
-const LABELS: Record<string, string> = { consultoria: "Consultoria", finance: "Finance", cella: "Cella" };
-const OPTIONS: Record<string, number> = { consultoria: 1129, finance: 1130, cella: 1128 };
+const OPTIONS: Record<string, number> = PRODUCT_OPTIONS;
 const PIPE = 39;
 type Row = Record<string, any>;
 const id = (v: any) => Number(typeof v === "object" ? v?.id ?? v?.value : v) || null;
@@ -88,10 +88,10 @@ async function sync() {
     await rpc("monetizacao_refresh_ops", {});
     await rpc("monetizacao_replace_snapshot", { _run: run, _snapshot: snapshot });
     // Reconciliar efeitos remotos confirmados depois de um timeout; nunca repetir o POST.
-    const pending: Row[] = await db("monetizacao_envios?select=id,item_id,status,org_id&status=in.(sending,uncertain)&order=created_at&limit=1000", ADMIN);
+    const pending: Row[] = await db("monetizacao_envios?select=id,item_id,status,org_id,product&status=in.(sending,uncertain)&order=created_at&limit=1000", ADMIN);
     for (const e of pending) {
       const found = deals.filter(d => String(d.title).includes(`[AQ:${e.id}]`));
-      if (found.length === 1) await rpc("monetizacao_finish", { _nonce: e.id, _status: "sent", _deal: found[0].id, _org: id(found[0].org_id), _reason: "Envio conciliado pelo identificador único no CRM." });
+      if (found.length === 1 && hasCanonicalProduct(found[0], e.product)) await rpc("monetizacao_finish", { _nonce: e.id, _status: "sent", _deal: found[0].id, _org: id(found[0].org_id), _reason: "Envio conciliado pelo identificador único e pelo produto no CRM." });
     }
     return { status: "ok", count: snapshot.cards.length, measured_at: snapshot.measured_at };
   } catch (e) {
@@ -107,7 +107,7 @@ async function send(itemIds: string[], token: string) {
   for (const item of itemIds) {
     const claim = await rpc("monetizacao_claim", { _item: item }, token);
     if (!claim.claimed) { results.push({ item, ...claim }); continue; }
-    let remoteStarted = false, org: number | null = null;
+    let remoteStarted = false, org: number | null = null, remoteDeal: number | null = null;
     const finish = async (status: string, deal: number | null, reason: string) => { await rpc("monetizacao_finish", { _nonce: claim.nonce, _status: status, _deal: deal, _org: org, _reason: reason }); results.push({ item, status, deal_id: deal, reason }); };
     try {
       if (!users.some(u => u.id === claim.owner_id && u.active_flag)) throw new Error("Hunter não está ativo no Pipedrive");
@@ -139,14 +139,20 @@ async function send(itemIds: string[], token: string) {
       }
       await rpc("monetizacao_record_org", { _nonce: claim.nonce, _org: org });
       // Contato não é requisito para criar uma oportunidade validada pelo sócio.
-      const payload = { title: `${account.name.trim()} · ${LABELS[product]} [AQ:${claim.nonce}]`, org_id: org, user_id: claim.owner_id, pipeline_id: PIPE, stage_id: stageRows[0].id, [PRODUCT]: OPTIONS[product] };
+      const payload = dealPayload({ account, product, org, owner: claim.owner_id, stage: stageRows[0].id, nonce: claim.nonce });
       remoteStarted = true;
       const created = await pd("deals", {}, payload);
-      await finish("sent", created.data.id, "Criada na etapa de entrada após validação registrada.");
+      remoteDeal = created.data.id;
+      const verified = (await pd(`deals/${created.data.id}`)).data;
+      if (!hasCanonicalProduct(verified, product)) {
+        await finish("uncertain", created.data.id, "Negócio criado, mas o produto não foi confirmado no CRM. Confira Caixa · Produto antes de qualquer reenvio.");
+        continue;
+      }
+      await finish("sent", created.data.id, "Criada na etapa de entrada, com Caixa · Produto conferido no Pipedrive.");
     } catch(e) {
       const message = e instanceof Error ? e.message : "Não foi possível confirmar o envio";
-      const definite = !remoteStarted || /^Pipedrive HTTP (400|401|403|404|422|429)$/.test(message);
-      await finish(definite ? "blocked" : "uncertain", null, definite ? message : "Resposta incerta. Atualize para conciliar antes de qualquer reenvio.").catch(() => { results.push({ item, status: "uncertain", reason: "Não foi possível confirmar o registro. Atualize para conciliar." }); });
+      const definite = !remoteStarted || (!remoteDeal && /^Pipedrive HTTP (400|401|403|404|422|429)$/.test(message));
+      await finish(definite ? "blocked" : "uncertain", remoteDeal, definite ? message : "Resposta incerta. Atualize para conciliar antes de qualquer reenvio.").catch(() => { results.push({ item, status: "uncertain", reason: "Não foi possível confirmar o registro. Atualize para conciliar." }); });
     }
   }
   // A próxima sincronização da nuvem também captura efeitos que terminaram depois da resposta.

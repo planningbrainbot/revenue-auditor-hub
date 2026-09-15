@@ -3,6 +3,19 @@ import assert from 'node:assert/strict';
 import { oferta, disponibilidade, operacao, temporal, receitaSomada, dias, csv, capacidade } from '../src/lib/monetizacao/model.ts';
 import { summarize, PRODUCT } from '../supabase/functions/monetizacao-crm/crm.mjs';
 import { expectedRevenue, REVENUE_FIELDS } from '../supabase/functions/monetizacao-crm/revenue.mjs';
+import { dealPayload, hasCanonicalProduct } from '../supabase/functions/monetizacao-crm/send.mjs';
+import { forecastComparison } from '../src/lib/monetizacao/forecast.ts';
+
+test('Envio preenche o campo canônico de cada produto no pipe 39 e confere o retorno',()=>{
+ for(const [product, option] of [['cella',1128],['consultoria',1129],['finance',1130]]) {
+  const d=dealPayload({account:{name:'Empresa sintética'},product,org:10,owner:20,stage:1,nonce:'teste'});
+  assert.equal(d[PRODUCT],option);assert.equal(d.pipeline_id,39);assert.equal(d.stage_id,1);
+  assert.equal(hasCanonicalProduct(d,product),true);
+  assert.equal(hasCanonicalProduct({...d,[PRODUCT]:null},product),false);
+  assert.equal(hasCanonicalProduct({...d,pipeline_id:1},product),false);
+ }
+ assert.throws(()=>dealPayload({product:'outro'}));
+});
 
 const account = (override={}) => ({key:'a',name:'Empresa sintética',units:[],unit_label:null,orgs:[10],contact:false,band:'R$ 10 milhões até R$ 25 milhões',regime:'Lucro Real',segment:'Indústria',old_base:true,matrix:false,new_commercial:false,pipedrive_contract:true,consultoria_priority:true,finance_candidate:true,finance:{status:'elegivel',reason:''},ecd:false,...override});
 const stages=[{id:1,order_nr:1,name:'Base elegível'},{id:2,order_nr:2,name:'Abordagem em curso'},{id:3,order_nr:3,name:'Reunião agendada'},{id:4,order_nr:4,name:'Reunião realizada'},{id:5,order_nr:5,name:'Em negociação'},{id:6,order_nr:6,name:'Proposta enviada'},{id:7,order_nr:7,name:'Reciclado'}];
@@ -50,6 +63,15 @@ test('Data local usa São Paulo, com mudança de dia em UTC',()=>{
 });
 test('Título não determina produto canônico',()=>{
  const c=card(raw({title:'Finance oportunidade Cella',[PRODUCT]:null}));assert.equal(c.route,'sem_produto');
+});
+test('Forecast compara mês global até a carga, sem fabricar realizado futuro ou aplicar mix',()=>{
+ const source={months:['2026-09','2026-10'],rows:[{row:29,values:[120,240]},{row:41,values:[8,16]},{row:25,values:[9.2,15.1]},{row:26,values:[65.9,151.4]},{row:27,values:[44.9,73.5]}]};
+ const rows=forecastComparison(source,[card(),card(raw({id:101,user_id:{id:99,name:'Outro'}}),[change(1,5,'2026-09-16 12:00:00',99)])],'2026-09-15');
+ assert.equal(rows[0].actual.rows.started.length,1);
+ assert.equal(rows[0].planned.signed,8);assert.equal(rows[0].partial,true);
+ assert.equal(rows[0].products.find(p=>p.product==='finance').actual.started,0);
+ assert.equal(rows[1].actual,null);assert.equal(rows[1].planned.signed,16);
+ assert.equal(forecastComparison(source,[],null)[0].actual,null);
 });
 test('Histórico indisponível não vira validação inferida da etapa atual',()=>{
  const c=summarize([raw()],stages,{},'2026-09').cards[0];assert.equal(c.history_known,false);assert.equal(c.events.validated.length,0);
