@@ -32,6 +32,7 @@ import { Route as AuthenticatedNpsRouteImport } from './routes/_authenticated/np
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
+import { Route as AuthenticatedIduRouteImport } from './routes/_authenticated/idu'
 import { Route as AuthenticatedGenteRouteImport } from './routes/_authenticated/gente'
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
@@ -49,8 +50,13 @@ import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_aut
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
+import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
+import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
+import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
+import { Route as AuthenticatedUnidadesHistoricoRouteImport } from './routes/_authenticated/unidades.historico'
+import { Route as AuthenticatedUnidadesCacRouteImport } from './routes/_authenticated/unidades.cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
@@ -185,6 +191,11 @@ const AuthenticatedIndicadoresTrimestreRoute =
     path: '/indicadores-trimestre',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedIduRoute = AuthenticatedIduRouteImport.update({
+  id: '/idu',
+  path: '/idu',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedGenteRoute = AuthenticatedGenteRouteImport.update({
   id: '/gente',
   path: '/gente',
@@ -279,6 +290,12 @@ const AuthenticatedAtividadeRoute = AuthenticatedAtividadeRouteImport.update({
   path: '/atividade',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedUnidadesIndexRoute =
+  AuthenticatedUnidadesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
 const AuthenticatedRoyaltiesIndexRoute =
   AuthenticatedRoyaltiesIndexRouteImport.update({
     id: '/',
@@ -290,6 +307,30 @@ const AuthenticatedBrokerIndexRoute =
     id: '/broker/',
     path: '/broker/',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedUnidadesSplitRoute =
+  AuthenticatedUnidadesSplitRouteImport.update({
+    id: '/split',
+    path: '/split',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
+const AuthenticatedUnidadesRoyaltiesRoute =
+  AuthenticatedUnidadesRoyaltiesRouteImport.update({
+    id: '/royalties',
+    path: '/royalties',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
+const AuthenticatedUnidadesHistoricoRoute =
+  AuthenticatedUnidadesHistoricoRouteImport.update({
+    id: '/historico',
+    path: '/historico',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
+const AuthenticatedUnidadesCacRoute =
+  AuthenticatedUnidadesCacRouteImport.update({
+    id: '/cac',
+    path: '/cac',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
   } as any)
 const AuthenticatedRoyaltiesSplitRoute =
   AuthenticatedRoyaltiesSplitRouteImport.update({
@@ -368,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
+  '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -385,7 +427,7 @@ export interface FileRoutesByFullPath {
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
-  '/unidades': typeof AuthenticatedUnidadesRoute
+  '/unidades': typeof AuthenticatedUnidadesRouteWithChildren
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
   '/admin/perfis': typeof AuthenticatedAdminPerfisRoute
@@ -394,8 +436,13 @@ export interface FileRoutesByFullPath {
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
+  '/unidades/cac': typeof AuthenticatedUnidadesCacRoute
+  '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
+  '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
+  '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
+  '/unidades/': typeof AuthenticatedUnidadesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesByTo {
@@ -419,6 +466,7 @@ export interface FileRoutesByTo {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
+  '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -435,7 +483,6 @@ export interface FileRoutesByTo {
   '/rede-realizado': typeof AuthenticatedRedeRealizadoRoute
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
-  '/unidades': typeof AuthenticatedUnidadesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
@@ -445,8 +492,13 @@ export interface FileRoutesByTo {
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
+  '/unidades/cac': typeof AuthenticatedUnidadesCacRoute
+  '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
+  '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
+  '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
+  '/unidades': typeof AuthenticatedUnidadesIndexRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesById {
@@ -472,6 +524,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/gente': typeof AuthenticatedGenteRoute
+  '/_authenticated/idu': typeof AuthenticatedIduRoute
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
@@ -489,7 +542,7 @@ export interface FileRoutesById {
   '/_authenticated/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/_authenticated/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/_authenticated/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
-  '/_authenticated/unidades': typeof AuthenticatedUnidadesRoute
+  '/_authenticated/unidades': typeof AuthenticatedUnidadesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/_authenticated/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
@@ -499,8 +552,13 @@ export interface FileRoutesById {
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
+  '/_authenticated/unidades/cac': typeof AuthenticatedUnidadesCacRoute
+  '/_authenticated/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
+  '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
+  '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
+  '/_authenticated/unidades/': typeof AuthenticatedUnidadesIndexRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRouteTypes {
@@ -527,6 +585,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/gente'
+    | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
@@ -553,8 +612,13 @@ export interface FileRouteTypes {
     | '/admin/validacao'
     | '/broker/admin'
     | '/royalties/split'
+    | '/unidades/cac'
+    | '/unidades/historico'
+    | '/unidades/royalties'
+    | '/unidades/split'
     | '/broker/'
     | '/royalties/'
+    | '/unidades/'
     | '/royalties/$unidadeId/$mes'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -578,6 +642,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/gente'
+    | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
@@ -594,7 +659,6 @@ export interface FileRouteTypes {
     | '/rede-realizado'
     | '/reforma-tributaria'
     | '/simulador-caixa'
-    | '/unidades'
     | '/'
     | '/admin/credenciais'
     | '/admin/integracoes'
@@ -604,8 +668,13 @@ export interface FileRouteTypes {
     | '/admin/validacao'
     | '/broker/admin'
     | '/royalties/split'
+    | '/unidades/cac'
+    | '/unidades/historico'
+    | '/unidades/royalties'
+    | '/unidades/split'
     | '/broker'
     | '/royalties'
+    | '/unidades'
     | '/royalties/$unidadeId/$mes'
   id:
     | '__root__'
@@ -630,6 +699,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/funil-receita'
     | '/_authenticated/gente'
+    | '/_authenticated/idu'
     | '/_authenticated/indicadores-trimestre'
     | '/_authenticated/inicio'
     | '/_authenticated/meus-royalties'
@@ -657,8 +727,13 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/validacao'
     | '/_authenticated/broker/admin'
     | '/_authenticated/royalties/split'
+    | '/_authenticated/unidades/cac'
+    | '/_authenticated/unidades/historico'
+    | '/_authenticated/unidades/royalties'
+    | '/_authenticated/unidades/split'
     | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
+    | '/_authenticated/unidades/'
     | '/_authenticated/royalties/$unidadeId/$mes'
   fileRoutesById: FileRoutesById
 }
@@ -832,6 +907,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndicadoresTrimestreRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/idu': {
+      id: '/_authenticated/idu'
+      path: '/idu'
+      fullPath: '/idu'
+      preLoaderRoute: typeof AuthenticatedIduRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/gente': {
       id: '/_authenticated/gente'
       path: '/gente'
@@ -951,6 +1033,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAtividadeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/unidades/': {
+      id: '/_authenticated/unidades/'
+      path: '/'
+      fullPath: '/unidades/'
+      preLoaderRoute: typeof AuthenticatedUnidadesIndexRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
     '/_authenticated/royalties/': {
       id: '/_authenticated/royalties/'
       path: '/'
@@ -964,6 +1053,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/broker/'
       preLoaderRoute: typeof AuthenticatedBrokerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/unidades/split': {
+      id: '/_authenticated/unidades/split'
+      path: '/split'
+      fullPath: '/unidades/split'
+      preLoaderRoute: typeof AuthenticatedUnidadesSplitRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
+    '/_authenticated/unidades/royalties': {
+      id: '/_authenticated/unidades/royalties'
+      path: '/royalties'
+      fullPath: '/unidades/royalties'
+      preLoaderRoute: typeof AuthenticatedUnidadesRoyaltiesRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
+    '/_authenticated/unidades/historico': {
+      id: '/_authenticated/unidades/historico'
+      path: '/historico'
+      fullPath: '/unidades/historico'
+      preLoaderRoute: typeof AuthenticatedUnidadesHistoricoRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
+    '/_authenticated/unidades/cac': {
+      id: '/_authenticated/unidades/cac'
+      path: '/cac'
+      fullPath: '/unidades/cac'
+      preLoaderRoute: typeof AuthenticatedUnidadesCacRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
     }
     '/_authenticated/royalties/split': {
       id: '/_authenticated/royalties/split'
@@ -1050,6 +1167,27 @@ const AuthenticatedRoyaltiesRouteWithChildren =
     AuthenticatedRoyaltiesRouteChildren,
   )
 
+interface AuthenticatedUnidadesRouteChildren {
+  AuthenticatedUnidadesCacRoute: typeof AuthenticatedUnidadesCacRoute
+  AuthenticatedUnidadesHistoricoRoute: typeof AuthenticatedUnidadesHistoricoRoute
+  AuthenticatedUnidadesRoyaltiesRoute: typeof AuthenticatedUnidadesRoyaltiesRoute
+  AuthenticatedUnidadesSplitRoute: typeof AuthenticatedUnidadesSplitRoute
+  AuthenticatedUnidadesIndexRoute: typeof AuthenticatedUnidadesIndexRoute
+}
+
+const AuthenticatedUnidadesRouteChildren: AuthenticatedUnidadesRouteChildren = {
+  AuthenticatedUnidadesCacRoute: AuthenticatedUnidadesCacRoute,
+  AuthenticatedUnidadesHistoricoRoute: AuthenticatedUnidadesHistoricoRoute,
+  AuthenticatedUnidadesRoyaltiesRoute: AuthenticatedUnidadesRoyaltiesRoute,
+  AuthenticatedUnidadesSplitRoute: AuthenticatedUnidadesSplitRoute,
+  AuthenticatedUnidadesIndexRoute: AuthenticatedUnidadesIndexRoute,
+}
+
+const AuthenticatedUnidadesRouteWithChildren =
+  AuthenticatedUnidadesRoute._addFileChildren(
+    AuthenticatedUnidadesRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAtividadeRoute: typeof AuthenticatedAtividadeRoute
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
@@ -1068,6 +1206,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedGenteRoute: typeof AuthenticatedGenteRoute
+  AuthenticatedIduRoute: typeof AuthenticatedIduRoute
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
@@ -1085,7 +1224,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReformaTributariaRoute: typeof AuthenticatedReformaTributariaRoute
   AuthenticatedRoyaltiesRoute: typeof AuthenticatedRoyaltiesRouteWithChildren
   AuthenticatedSimuladorCaixaRoute: typeof AuthenticatedSimuladorCaixaRoute
-  AuthenticatedUnidadesRoute: typeof AuthenticatedUnidadesRoute
+  AuthenticatedUnidadesRoute: typeof AuthenticatedUnidadesRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminCredenciaisRoute: typeof AuthenticatedAdminCredenciaisRoute
   AuthenticatedAdminIntegracoesRoute: typeof AuthenticatedAdminIntegracoesRoute
@@ -1116,6 +1255,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedGenteRoute: AuthenticatedGenteRoute,
+  AuthenticatedIduRoute: AuthenticatedIduRoute,
   AuthenticatedIndicadoresTrimestreRoute:
     AuthenticatedIndicadoresTrimestreRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
@@ -1134,7 +1274,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReformaTributariaRoute: AuthenticatedReformaTributariaRoute,
   AuthenticatedRoyaltiesRoute: AuthenticatedRoyaltiesRouteWithChildren,
   AuthenticatedSimuladorCaixaRoute: AuthenticatedSimuladorCaixaRoute,
-  AuthenticatedUnidadesRoute: AuthenticatedUnidadesRoute,
+  AuthenticatedUnidadesRoute: AuthenticatedUnidadesRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminCredenciaisRoute: AuthenticatedAdminCredenciaisRoute,
   AuthenticatedAdminIntegracoesRoute: AuthenticatedAdminIntegracoesRoute,

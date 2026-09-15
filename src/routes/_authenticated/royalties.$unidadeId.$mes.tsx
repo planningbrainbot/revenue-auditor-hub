@@ -178,7 +178,7 @@ function ApuracaoPage() {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         URL inválida. Volte para{" "}
-        <Link to="/unidades" search={{ tab: "royalties" }} className="underline">
+        <Link to="/unidades/royalties" className="underline">
           Royalties
         </Link>
         .
@@ -196,7 +196,7 @@ function ApuracaoPage() {
       apuracaoId={apuracaoId}
       mes={mes}
       unidadeId={unidadeId}
-      onBack={() => navigate({ to: "/unidades", search: { tab: "royalties" } })}
+      onBack={() => navigate({ to: "/unidades/royalties" })}
     />
   );
 }

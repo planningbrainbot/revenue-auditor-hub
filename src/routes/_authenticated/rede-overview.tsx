@@ -1297,7 +1297,7 @@ function RedeOverviewPage() {
                   Royalties indisponível para este usuário (requer acesso admin).
                 </p>
               )}
-              <VerDetalheLink to="/unidades" search={{ tab: "historico" }} />
+              <VerDetalheLink to="/unidades/historico" />
             </Card>
           )}
 

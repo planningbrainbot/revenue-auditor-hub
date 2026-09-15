@@ -17,6 +17,15 @@ export function usePageValidations() {
 export function useIsPageValidated(pageKey: string): boolean | null {
   const q = usePageValidations();
   if (!q.data) return null;
-  const row = q.data.rows.find((r) => r.page_key === pageKey);
-  return row?.validated ?? false;
+  const exata = q.data.rows.find((r) => r.page_key === pageKey);
+  if (exata) return exata.validated;
+
+  // Subpágina herda a marcação do caminho pai. /unidades era uma página só com
+  // cinco abas; virou cinco páginas irmãs sob /unidades/*, e sem a herança
+  // todas nasceriam "em validação" no dia do desmembramento, avisando de um
+  // problema que não existe. A raiz "/" fica fora: é prefixo de tudo.
+  const pai = q.data.rows
+    .filter((r) => r.page_key !== "/" && pageKey.startsWith(r.page_key + "/"))
+    .sort((a, b) => b.page_key.length - a.page_key.length)[0];
+  return pai?.validated ?? false;
 }

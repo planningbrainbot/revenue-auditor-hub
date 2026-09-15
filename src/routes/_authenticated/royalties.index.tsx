@@ -4,7 +4,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 // aba "Histórico" — ver src/components/royalties/royalties-historico-content.tsx.
 export const Route = createFileRoute("/_authenticated/royalties/")({
   beforeLoad: () => {
-    throw redirect({ to: "/unidades", search: { tab: "historico" } });
+    throw redirect({ to: "/unidades/historico" });
   },
   component: () => null,
 });

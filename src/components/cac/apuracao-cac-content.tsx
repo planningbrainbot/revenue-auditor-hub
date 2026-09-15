@@ -438,7 +438,8 @@ export function ApuracaoCacContent() {
         <div className="flex items-center gap-3">
           <Wallet className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">CAC por unidade</h1>
+            {/* O nome da página é do AppShell; aqui fica só a regra, que é
+                longa demais para caber num subtítulo. */}
             <p className="text-sm text-muted-foreground">
               Repasse de CAC por cliente novo — a regra varia por unidade (mês de atribuição, 7 dias
               após a assinatura, ou excedente mensal). Lista contínua, sempre editável — o que

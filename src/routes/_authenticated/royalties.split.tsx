@@ -6,7 +6,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 // padrão que royalties.index.tsx usa desde a fusão anterior.
 export const Route = createFileRoute("/_authenticated/royalties/split")({
   beforeLoad: () => {
-    throw redirect({ to: "/unidades", search: { tab: "split" } });
+    throw redirect({ to: "/unidades/split" });
   },
   component: () => null,
 });

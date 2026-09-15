@@ -99,7 +99,9 @@ export function ApuracaoRoyaltiesContent() {
         <div className="flex items-center gap-3">
           <Coins className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Apuração de Royalties</h1>
+            {/* Sem <h1> aqui: o nome da página vem do AppShell desde que a aba
+                virou rota própria, e dois títulos iguais empilhados só ocupavam
+                a primeira dobra. */}
             <p className="text-sm text-muted-foreground">
               Gere a base de cobrança mensal de cada unidade.
             </p>
