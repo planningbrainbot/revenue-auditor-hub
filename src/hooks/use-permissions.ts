@@ -1,19 +1,42 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo } from "react";
-import { getMyPermissions, type AppRole } from "@/lib/permissions.functions";
+import {
+  getMyPermissions,
+  type AppRole,
+  type EscopoDoUsuario,
+} from "@/lib/permissions.functions";
 import { useAuth } from "@/hooks/use-auth";
 
 export interface PermissionsState {
   loading: boolean;
   roles: AppRole[];
+  /** Áreas que o papel abriu. É o nível 1 do acesso. */
+  areas: Set<string>;
+  /**
+   * As chaves que essas áreas carregam.
+   *
+   * Continua existindo porque as 96 policies de RLS falam em chave, e porque
+   * as telas que já checam `can(...)` não precisaram mudar quando o modelo
+   * virou por área. Para decidir se um MENU aparece, use `temArea`.
+   */
   permissions: Set<string>;
   unidade: string | null;
   can: (key: string) => boolean;
+  temArea: (slug: string) => boolean;
+  /** Nível 2: o filtro de unidade e de empresa desta pessoa. */
+  escopo: EscopoDoUsuario;
   scopedToOwnUnit: boolean;
   primaryRole: AppRole | null;
   isAdmin: boolean;
 }
+
+const ESCOPO_VAZIO: EscopoDoUsuario = {
+  todas_unidades: false,
+  todas_empresas: false,
+  unidades: [],
+  empresas: [],
+};
 
 /**
  * @param userIdOverride Pass the already-resolved user id (e.g. from a route's
@@ -50,13 +73,21 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
               : roles.includes("socio")
                 ? "socio"
                 : (roles[0] ?? null);
+    const areas = new Set(q.data?.areas ?? []);
+    const escopo = q.data?.escopo ?? ESCOPO_VAZIO;
     return {
       loading: permsLoading,
       roles,
+      areas,
       permissions: perms,
       unidade: q.data?.unidade ?? null,
       can: (key: string) => perms.has(key),
-      scopedToOwnUnit: perms.has("data.scope.own_unit_only"),
+      temArea: (slug: string) => areas.has(slug),
+      escopo,
+      // Deixou de ser chave concedida em papel: agora é a ausência de "todas as
+      // unidades" no escopo da pessoa. O nome fica porque as 8 policies que
+      // perguntam isso ainda falam `data.scope.own_unit_only`.
+      scopedToOwnUnit: !escopo.todas_unidades,
       primaryRole: primary,
       isAdmin: roles.includes("admin"),
     };

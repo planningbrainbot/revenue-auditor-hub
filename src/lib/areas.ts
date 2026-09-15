@@ -21,9 +21,12 @@ import {
   MessageSquarePlus,
   Percent,
   Scale,
+  ScrollText,
   Send,
   ShieldCheck,
+  Split,
   Store,
+  Target,
   TrendingDown,
   TrendingUp,
   UserCheck,
@@ -48,9 +51,16 @@ export type Item = {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
-  // Array = OR (item aparece se o usuário tiver qualquer uma das permissões) —
-  // usado quando o item cobre conteúdo que veio de mais de uma página antiga.
-  permission?: string | string[];
+  /**
+   * Área de permissão do item, quando difere da área que o contém.
+   *
+   * O normal é o item NÃO declarar nada: quem tem a área tem todas as páginas
+   * dela, que é a regra desde 15/09/2026. A exceção existe quando a fronteira
+   * do menu e a fronteira de confiança não coincidem — hoje só a Matriz do
+   * broker, que mora no menu ao lado da fila mas guarda multiplicador e
+   * composição de CAC, que não circulam na rede.
+   */
+  area?: string;
 };
 
 // Os grupos do menu.
@@ -60,6 +70,7 @@ export type Item = {
 // pela ordem em que as telas foram nascendo.
 export type Grupo = { label: string; items: Item[] };
 export type Area = {
+  /** Chave da área em `ops.areas`. É o que o papel concede. */
   slug: string;
   nome: string;
   /** Uma linha, para o cartão da porta de entrada. */
@@ -67,6 +78,11 @@ export type Area = {
   icone: React.ComponentType<{ className?: string }>;
   grupos: Grupo[];
 };
+
+/** A área que decide se este item aparece. */
+export function areaDoItem(area: Area, item: Item): string {
+  return item.area ?? area.slug;
+}
 
 // As ÁREAS do Ops.
 //
@@ -89,13 +105,12 @@ export const AREAS: Area[] = [
       {
         label: "Visão geral",
         items: [
-          { title: "Overview", url: "/rede-overview", icon: Activity, permission: "view.hub" },
-          { title: "IDU", url: "/idu", icon: Gauge, permission: "view.idu" },
+          { title: "Overview", url: "/rede-overview", icon: Activity },
+          { title: "IDU", url: "/idu", icon: Gauge },
           {
             title: "Indicadores do Trimestre",
             url: "/indicadores-trimestre",
             icon: LayoutDashboard,
-            permission: "view.indicadores_trimestre",
           },
         ],
       },
@@ -106,14 +121,12 @@ export const AREAS: Area[] = [
             title: "Realizado Unidades",
             url: "/rede-realizado",
             icon: BarChart3,
-            permission: "view.rede_realizado",
           },
-          { title: "LTV Estimado", url: "/rede-ltv", icon: TrendingUp, permission: "view.rede_ltv" },
+          { title: "LTV Estimado", url: "/rede-ltv", icon: TrendingUp },
           {
             title: "Headcount",
             url: "/rede-headcount",
             icon: Users,
-            permission: "view.rede_headcount",
           },
         ],
       },
@@ -128,13 +141,12 @@ export const AREAS: Area[] = [
       {
         label: "Carteira",
         items: [
-          { title: "Clientes", url: "/clientes", icon: Building2, permission: "view.clientes" },
-          { title: "CS", url: "/painel-cs", icon: UserCheck, permission: "view.painel_cs" },
+          { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "CS", url: "/painel-cs", icon: UserCheck },
           {
             title: "Auditoria Interna",
             url: "/auditoria-interna",
             icon: ClipboardCheck,
-            permission: "view.auditoria_interna",
           },
           {
             // Estava sozinha num grupo "Ferramentas", o que a deixava solta na
@@ -143,25 +155,22 @@ export const AREAS: Area[] = [
             title: "Reforma Tributária",
             url: "/reforma-tributaria",
             icon: FileBarChart2,
-            permission: "view.reforma_tributaria",
           },
         ],
       },
       {
         label: "Relacionamento",
         items: [
-          { title: "NPS", url: "/nps", icon: MessageSquareHeart, permission: "view.nps" },
+          { title: "NPS", url: "/nps", icon: MessageSquareHeart },
           {
             title: "Disparos de WhatsApp",
             url: "/disparos-whatsapp",
             icon: Send,
-            permission: "view.disparos_whatsapp",
           },
           {
             title: "Base de Contatos",
             url: "/base-contatos",
             icon: BookUser,
-            permission: "view.base_contatos",
           },
         ],
       },
@@ -180,31 +189,51 @@ export const AREAS: Area[] = [
             title: "Funil de Receita",
             url: "/funil-receita",
             icon: Filter,
-            permission: "view.funil_receita",
           },
           {
             title: "Reconciliação",
             url: "/reconciliacao",
             icon: GitMerge,
-            permission: "view.reconciliacao",
           },
           {
             title: "Contas a Receber",
             url: "/contas-receber",
             icon: Wallet,
-            permission: "view.contas_receber",
           },
-          { title: "BI de Vendas", url: "/bi-vendas", icon: Megaphone, permission: "view.bi_vendas" },
+          { title: "BI de Vendas", url: "/bi-vendas", icon: Megaphone },
         ],
       },
       {
+        // Eram cinco abas dentro de "Receitas Partners". A aba escondia tela
+        // dentro de tela: quem não abrisse a página não sabia que Split e
+        // Histórico existiam. Com a lateral por área há espaço para os cinco
+        // destinos aparecerem por nome.
         label: "Repasses das unidades",
         items: [
           {
-            title: "Receitas Partners",
+            title: "Regras da Rede",
             url: "/unidades",
+            icon: ScrollText,
+          },
+          {
+            title: "Apuração de Royalties",
+            url: "/unidades/royalties",
             icon: Coins,
-            permission: ["view.unidades_rede", "view.royalties_historico"],
+          },
+          {
+            title: "Histórico de Royalties",
+            url: "/unidades/historico",
+            icon: History,
+          },
+          {
+            title: "Apuração de CAC",
+            url: "/unidades/cac",
+            icon: Target,
+          },
+          {
+            title: "Split do Asaas",
+            url: "/unidades/split",
+            icon: Split,
           },
         ],
       },
@@ -217,14 +246,12 @@ export const AREAS: Area[] = [
             title: "Despesas Partners",
             url: "/despesas-cm",
             icon: TrendingDown,
-            permission: "view.despesas_partners",
           },
-          { title: "Comissões", url: "/comissoes", icon: Percent, permission: "view.comissoes" },
+          { title: "Comissões", url: "/comissoes", icon: Percent },
           {
             title: "EBIT Operacional",
             url: "/ebit-operacional",
             icon: Scale,
-            permission: "view.ebit_operacional",
           },
         ],
       },
@@ -239,24 +266,21 @@ export const AREAS: Area[] = [
       {
         label: "Pessoas",
         items: [
-          { title: "Cadastro", url: "/gente", icon: Users, permission: "view.gente" },
+          { title: "Cadastro", url: "/gente", icon: Users },
           {
             title: "1:1",
             url: "/gente?aba=um-a-um",
             icon: CalendarClock,
-            permission: "view.gente.um_a_um",
           },
           {
             title: "Feedback",
             url: "/gente?aba=feedback",
             icon: MessageSquarePlus,
-            permission: "view.gente.feedback",
           },
           {
             title: "Clima",
             url: "/gente?aba=clima",
             icon: HeartPulse,
-            permission: "view.gente.clima",
           },
         ],
       },
@@ -271,7 +295,7 @@ export const AREAS: Area[] = [
       {
         label: "Oportunidades",
         items: [
-          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks, permission: "view.fila_cella" },
+          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks },
         ],
       },
     ],
@@ -285,13 +309,51 @@ export const AREAS: Area[] = [
       {
         label: "Broker",
         items: [
-          { title: "Fila de oportunidades", url: "/broker", icon: Store, permission: "view.broker" },
+          { title: "Fila de oportunidades", url: "/broker", icon: Store },
           {
+            // Única exceção à regra de "a área libera tudo": a Matriz mostra o
+            // multiplicador e a composição do CAC, que são camada interna. Ela
+            // mora no menu ao lado da fila porque é o mesmo assunto, mas quem
+            // concede é a área `broker_matriz`.
             title: "Matriz",
             url: "/broker/admin",
             icon: Coins,
-            permission: "view.broker_admin",
+            area: "broker_matriz",
           },
+        ],
+      },
+    ],
+  },
+  {
+    // O menu do sócio regional. Até 15/09/2026 isto era `SOCIO_REGIONAL_GROUPS`,
+    // uma lista fixa dentro de app-sidebar.tsx cujos itens não declaravam
+    // permissão nenhuma — apareciam sempre, e quem segurava o dado era só a
+    // RLS. Virou área para ter dono no /admin/permissoes e, principalmente,
+    // para que dar "Contas a Receber" ao sócio não signifique dar comissões,
+    // EBIT e DRE Partners junto, que é o que aconteceria se ele recebesse a
+    // área Receita inteira.
+    slug: "minha_unidade",
+    nome: "Minha Unidade",
+    descricao: "A unidade do sócio regional: carteira, CS, NPS e repasses.",
+    icone: Gauge,
+    grupos: [
+      {
+        label: "Minha Unidade",
+        items: [
+          { title: "Painel", url: "/painel-unidade", icon: Gauge },
+          { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "CS", url: "/painel-cs", icon: UserCheck },
+          { title: "NPS", url: "/nps", icon: MessageSquareHeart },
+          { title: "IDU", url: "/idu", icon: Activity },
+          { title: "Broker", url: "/broker", icon: Store, area: "broker" },
+        ],
+      },
+      {
+        label: "Financeiro",
+        items: [
+          { title: "Funil de Receita", url: "/funil-receita", icon: Filter },
+          { title: "Contas a Receber", url: "/contas-receber", icon: Wallet },
+          { title: "Meus Royalties", url: "/meus-royalties", icon: Coins },
         ],
       },
     ],
@@ -305,13 +367,12 @@ export const AREAS: Area[] = [
       {
         label: "Pessoas e acesso",
         items: [
-          { title: "Usuários", url: "/admin/usuarios", icon: Users, permission: "view.admin.users" },
-          { title: "Perfis", url: "/admin/perfis", icon: UserCog, permission: "view.admin.profiles" },
+          { title: "Usuários", url: "/admin/usuarios", icon: Users },
+          { title: "Perfis", url: "/admin/perfis", icon: UserCog },
           {
             title: "Permissões",
             url: "/admin/permissoes",
             icon: ShieldCheck,
-            permission: "view.admin.permissions",
           },
         ],
       },
@@ -322,25 +383,21 @@ export const AREAS: Area[] = [
             title: "Atividade do Sistema",
             url: "/atividade",
             icon: History,
-            permission: "view.atividade",
           },
           {
             title: "Chaves de Integração",
             url: "/admin/credenciais",
             icon: KeyRound,
-            permission: "view.admin.credenciais",
           },
           {
             title: "Integrações",
             url: "/admin/integracoes",
             icon: KeyRound,
-            permission: "view.admin.integracoes",
           },
           {
             title: "Validação de páginas",
             url: "/admin/validacao",
             icon: BadgeCheck,
-            permission: "view.admin.permissions",
           },
         ],
       },

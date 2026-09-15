@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { acessoDoUsuario } from "@/lib/permissions.functions";
 
 // Cadastro de gente da rede. As 215 primeiras linhas vieram do export do
 // Qulture (migration 53 + tools/importar_qulture_gente.py no repo do wiki).
@@ -88,16 +89,12 @@ export const listGente = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = context.supabase as any;
 
-    // Mesmo caminho de `getMyPermissions`: papéis do usuário, depois a matriz.
-    const rolesRes = await supabase.from("user_roles").select("role").eq("user_id", context.userId);
-    const roles = ((rolesRes?.data ?? []) as { role: string }[]).map((r) => r.role);
-    const permRes = roles.length
-      ? await supabase
-          .from("role_permissions")
-          .select("permission_key")
-          .in("role", roles)
-          .eq("allowed", true)
-      : { data: [] };
+    // Resolve pelo mesmo helper que `getMyPermissions` usa. Até 15/09/2026 esta
+    // função lia `role_permissions` com a sua própria consulta; com a matriz
+    // agora em `role_areas`, a consulta própria viraria uma segunda resposta
+    // para a mesma pergunta — e o Gente continuaria liberando pela tabela
+    // antiga depois de alguém tirar a área na tela de permissões.
+    const acesso = await acessoDoUsuario(supabase, context.userId);
 
     const [pessoasRes, unidadesRes, praçasRes] = await Promise.all([
       supabase
@@ -110,11 +107,7 @@ export const listGente = createServerFn({ method: "GET" })
       supabase.from("unidades").select("id,nome_da_praca"),
     ]);
 
-    const chaves: string[] = Array.isArray(permRes?.data)
-      ? (permRes.data as { permission_key?: string }[])
-          .map((r) => r?.permission_key ?? "")
-          .filter(Boolean)
-      : [];
+    const chaves: string[] = acesso.permissions;
 
     if (pessoasRes?.error && pessoasRes.error.code !== "42P01") {
       throw new Error(pessoasRes.error.message);

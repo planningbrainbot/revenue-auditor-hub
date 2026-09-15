@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
-import { AREAS } from "@/lib/areas";
+import { AREAS, areaDoItem } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
 import { Card } from "@/components/ui/card";
 
@@ -59,7 +59,7 @@ type Produto = {
 
 function InicioPage() {
   const navigate = useNavigate();
-  const { can, loading, primaryRole } = usePermissions();
+  const { temArea, loading, primaryRole } = usePermissions();
 
   const acessoGrowthFn = useServerFn(meuAcessoGrowth);
   const growth = useQuery({
@@ -87,13 +87,13 @@ function InicioPage() {
   // As frentes deste app entram no MESMO nível de Growth e Financeiro. Não
   // existe mais um cartão "Ops" agrupando o resto: o guarda-chuva não
   // significava nada para quem usa, e obrigava um clique a mais.
-  const podeVerItem = (permission?: string | string[]) =>
-    !permission || (Array.isArray(permission) ? permission.some((p) => can(p)) : can(permission));
-
-  const produtos: Produto[] = AREAS.map<Produto | null>((a) => {
+  // Mesmo critério da lateral desde 15/09/2026: quem manda é a ÁREA. O cartão
+  // aponta para a primeira página que a pessoa realmente abre, que pode não ser
+  // a primeira da área quando um item guarda área própria (a Matriz do broker).
+  const produtos: Produto[] = AREAS.filter((a) => temArea(a.slug)).map<Produto | null>((a) => {
     const primeiro = a.grupos
       .flatMap((g) => g.items)
-      .find((i) => podeVerItem(i.permission));
+      .find((i) => temArea(areaDoItem(a, i)));
     if (!primeiro) return null;
     return {
       slug: a.slug,

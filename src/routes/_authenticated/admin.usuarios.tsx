@@ -18,6 +18,7 @@ import { generatePassword } from "@/lib/password-utils";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
+import { EscopoUsuarioDialog } from "@/components/admin/escopo-usuario-dialog";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
@@ -142,6 +143,7 @@ function UsersPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [socioUnidade, setSocioUnidade] = useState<string | null>(null);
+  const [escopoAlvo, setEscopoAlvo] = useState<{ userId: string; nome: string } | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
 
@@ -536,6 +538,13 @@ function UsersPage() {
                         >
                           Editar
                         </button>
+                        <button
+                          onClick={() => setEscopoAlvo({ userId: u.user_id, nome: u.nome || u.email })}
+                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
+                          title="Quais unidades e empresas esta pessoa enxerga dentro das áreas do papel dela"
+                        >
+                          Escopo
+                        </button>
                         {growthConfigurado && (
                           <button
                             onClick={() => {
@@ -688,6 +697,14 @@ function UsersPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {escopoAlvo && (
+          <EscopoUsuarioDialog
+            userId={escopoAlvo.userId}
+            nome={escopoAlvo.nome}
+            onClose={() => setEscopoAlvo(null)}
+          />
         )}
       </div>
     </AppShell>

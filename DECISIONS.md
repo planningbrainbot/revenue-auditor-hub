@@ -977,3 +977,100 @@ Com 215 pessoas, o preço real é **R$ 10,19 por pessoa/mês**, e chegar a 100% 
 **Status:** parcialmente implementado. Migration `53_gente_cadastro.sql` (no repo do wiki) aplicada no banco único com `gente_pessoas`, `gente_cargos`, `minhas_unidades_gente()`, `e_gestor_de()`, `v_gente_por_unidade` e as 4 chaves; 215 pessoas e 196 vínculos de hierarquia carregados. Tela `/gente` com cadastro, agregado por unidade e filtros.
 
 **Próximos passos:** o módulo hoje é **só o cadastro**. As funcionalidades que substituem o Qulture (1:1, feedback contínuo, pesquisa de clima/eNPS e ciclo de avaliação) são a trilha C e não existem. Antes delas, duas coisas: a trilha A, que atinge 100% de adesão cadastrando Campo Novo, São Luís, Fortaleza e Maceió no Qulture sem construir nada; e o portão de adesão ao Ops, já que nenhum dos 34 sócios das unidades regionais entra na plataforma hoje.
+
+---
+
+## [2026-09-14] Receitas Partners vira cinco páginas irmãs sob /unidades
+
+**Contexto:** `/unidades` juntava cinco telas em abas (`?tab=regras|royalties|historico|cac|split`). A fusão fazia sentido quando a lateral era uma lista única de 35 links: ali, cinco entradas seguidas de royalties empurravam o resto da operação para fora da tela. Depois que o menu passou a mostrar uma área por vez, a economia virou custo: Split e Histórico só existiam para quem já soubesse abrir "Receitas Partners" e procurar dentro. Tela escondida dentro de tela não aparece em busca, não é favoritável por nome e não tem título próprio.
+
+**Decisão:** cada aba vira página com caminho próprio, todas sob o mesmo tronco para a família continuar legível na URL.
+
+1. `/unidades` (Regras da Rede), `/unidades/royalties`, `/unidades/historico`, `/unidades/cac`, `/unidades/split`. O tronco `unidades.tsx` é só `<Outlet />`; o conteúdo já morava em componentes separados (`RedeContent`, `ApuracaoRoyaltiesContent` e companhia), então o desmembramento foi de roteamento, não de lógica.
+
+2. **As URLs antigas continuam de pé.** `/unidades?tab=X` redireciona para a página nova, e `?tab=regras` perde o parâmetro para não deixar dois endereços equivalentes circulando. Os redirects que já existiam de `/rede`, `/royalties` e `/royalties/split` passaram a apontar direto para o destino final, sem escala no `?tab=`.
+
+3. **As chaves de permissão não mudaram.** `view.unidades_rede` continua cobrindo Regras, Royalties e CAC; `view.royalties_historico` e `view.royalties_split` seguem sozinhas nas suas. Desmembrar a navegação sem mexer em acesso mantém idêntico o que cada perfil enxerga hoje, e evita uma migration de concessão só para acompanhar uma mudança de menu. Se um dia fizer sentido separar quem vê Regras de quem apura, aí sim vale chave própria: a UI já está pronta para isso.
+   Em compensação, quem não tem a chave agora encontra a tela dizendo qual permissão falta (`GuardaUnidades`), em vez de uma aba que some sem explicação. Com URL própria a pessoa consegue chegar lá digitando.
+
+4. **O grifo da lateral passou a ser do caminho mais específico**, não de todo prefixo que casa. Com filhas sob `/unidades`, o critério antigo acendia "Regras da Rede" junto com "Split do Asaas": dois itens marcados e nenhum respondendo onde a pessoa está. O mesmo defeito existia em `/broker` x `/broker/admin` e foi corrigido junto.
+
+5. **Validação de página é herdada pelo caminho pai.** `PAGE_DEFS` continua com uma entrada só para `/unidades`, e `useIsPageValidated` procura o prefixo mais longo quando não acha a chave exata. Sem isso, as quatro páginas novas nasceriam todas com o aviso de "dados em validação" no dia do desmembramento, denunciando um problema que não existe.
+
+**Status:** implementado e buildando. Falta subir: o código está no dev local, conforme a regra de validar antes de ir para a main.
+
+---
+
+## [2026-09-15] Permissão é por área, e o filtro de unidade/empresa é por pessoa
+
+**Contexto:** a matriz tinha 66 chaves por 10 papéis, e crescia uma linha a cada
+página nova. Ninguém respondia "o que o CS enxerga?" sem ler 66 caixinhas. Pior,
+a lista tinha furado: 7 chaves exigidas por policy (`manage.gente.avaliacao`,
+`view.gente.avaliacao`, `manage.gente.clima`, `view.gente.clima`,
+`view.csc_faturamento`, `edit.csc_faturamento`, `view.qualidade_base`) nunca
+entraram em `KNOWN_PERMISSIONS`, então eram invisíveis na tela e impossíveis de
+conceder. Três delas não tinham grant em papel nenhum, o que deixava
+`csc_ciclos`, `csc_unidades`, `base_antiga_unidades` e `qualidade_base_historico`
+ilegíveis para todo usuário logado. Ninguém tinha percebido porque a tela
+simplesmente abria vazia.
+
+**Decisão:** dois níveis. O **papel** abre **áreas**; a **pessoa** tem **escopo**.
+
+1. **A área é a unidade de concessão, e libera tudo dentro dela.** Sem exceção
+   por ação sensível. São 10 áreas, 8 delas as do menu.
+
+2. **As 66 chaves não somem: viram ponte.** `ops.area_chaves` diz a que área
+   cada chave pertence, e `ops.can()` passa a responder pela área. As 96 policies
+   de RLS que falam em chave **não foram tocadas**. Reescrever 96 policies num
+   banco com 24 pessoas trabalhando seria 96 chances de errar por um ganho de
+   legibilidade que ninguém vê, e a ponte entrega o mesmo resultado mudando uma
+   função. Efeito colateral bom: **página nova não precisa mais de chave nova**,
+   herda a área em que mora, e a tela de admin para de crescer.
+
+3. **Duas áreas existem por fronteira de confiança, não por menu.**
+   `broker_matriz` porque a Matriz mostra multiplicador e composição de CAC, que
+   são camada interna; e `minha_unidade` porque o sócio regional precisa de
+   Contas a Receber sem levar comissões, EBIT e DRE Partners junto. "A área
+   libera tudo" só é seguro quando a fronteira da área coincide com a de
+   confiança. `minha_unidade` também absorveu `SOCIO_REGIONAL_GROUPS`, que era
+   uma lista fixa em `app-sidebar.tsx` cujos itens **não declaravam permissão
+   nenhuma** e apareciam sempre.
+
+4. **Escopo é do usuário, não do papel**, em duas dimensões: unidade da rede
+   (11) para o Ops e empresa do grupo (17) para o Brain Financeiro. Dois
+   analistas com o mesmo papel cuidam de unidades diferentes, então isso nunca
+   coube no papel. `todas_unidades` e `todas_empresas` são flags **explícitas**:
+   ausência de linha fecha, não abre, para que um backfill esquecido falhe
+   fechando.
+
+5. **A tradução para o cockpit é conservadora.** A navegação do Financeiro é por
+   grupo de apuração, não por empresa. A pessoa só recebe o escopo `BPO` quando
+   tem **todas** as empresas ativas do grupo. Ter uma empresa não abre o grupo.
+
+**Isto substitui o item 3 da decisão de 14/09** (Módulo Gente), que separava
+`view.gente.individual` de `view.gente.agregado` para que a Matriz visse nota
+agregada e não nominal, por LGPD. Com a área liberando tudo, quem tem Planning
+People vê nota nominal, e `diretor`, `head` e `socio` passaram a ver. O usuário
+foi avisado do conflito antes de decidir e reafirmou. O que sobrevive daquela
+decisão é o **escopo**: o sócio regional continua vendo só a própria unidade,
+agora pela tabela de escopo em vez da policy amarrada em
+`data.scope.own_unit_only`.
+
+**O que a simplificação alargou**, medido antes de aplicar: `cs` (3 pessoas) e
+`auditor` (2) passaram a ver Receita inteira, com comissões, DRE Partners, EBIT e
+despesas de C&M; `head` (1) idem, mais `manage.gente`; `diretoria_comercial` (2)
+passou de uma chave para a área Clientes inteira, com NPS, disparos e churn.
+Conferido usuário a usuário depois do corte: **ninguém perdeu acesso**, e as 4
+tabelas ilegíveis voltaram a abrir.
+
+**Status:** Fases 1 e 2 aplicadas. Migration `20260915100000_permissoes_por_area`
+(em 3 partes), rollback em `supabase/rollback/`. `ops.role_permissions` ficou
+intacta e deixou de ser consultada: é o retrato para voltar atrás, e voltar é
+restaurar a versão antiga de `ops.can()`.
+
+**Pendente:** a Fase 3, que é `sessoes-irmas.functions.ts` parar de montar o
+escopo do cockpit a partir de `role_permissions` e passar a ler
+`ops.usuario_empresas`. Enquanto isso não acontece, os 8 usuários do papel
+`financeiro` seguem recebendo os 8 escopos pela tabela antiga, que é o
+comportamento de hoje. E a Fase 4, tirar `data.scope.own_unit_only` das 8
+policies em favor de um nome honesto.

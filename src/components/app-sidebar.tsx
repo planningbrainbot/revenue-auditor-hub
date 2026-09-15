@@ -47,7 +47,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { PlanningLogo } from "@/components/planning-logo";
-import { AREAS, type Item } from "@/lib/areas";
+import { AREAS, areaDoItem, type Area, type Item } from "@/lib/areas";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,56 +69,54 @@ import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 const GROWTH_URL = "/growth";
 const FINANCEIRO_URL = "/financeiro";
 
-const SOCIO_REGIONAL_GROUPS: { label: string; items: Item[] }[] = [
-  {
-    label: "Minha Unidade",
-    items: [
-      { title: "Painel", url: "/painel-unidade", icon: Gauge },
-      { title: "Clientes", url: "/clientes", icon: Building2 },
-      { title: "CS", url: "/painel-cs", icon: UserCheck },
-      { title: "NPS", url: "/nps", icon: MessageSquareHeart },
-      { title: "Broker", url: "/broker", icon: Store, permission: "view.broker" },
-    ],
-  },
-  {
-    label: "Financeiro",
-    items: [
-      { title: "Funil de Receita", url: "/funil-receita", icon: Filter },
-      { title: "Contas a Receber", url: "/contas-receber", icon: Wallet },
-      { title: "Meus Royalties", url: "/meus-royalties", icon: Coins },
-    ],
-  },
-];
+// A lista fixa do sócio regional saiu daqui em 15/09/2026.
+//
+// Eram dois menus concorrentes no mesmo arquivo, e o dele não declarava
+// permissão em item nenhum: aparecia sempre, e quem segurava o dado era só a
+// RLS. Agora é a área `minha_unidade` em areas.ts, concedida ao papel como
+// qualquer outra, e a lateral tem um caminho só.
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { can, loading, primaryRole } = usePermissions();
+  const { temArea, loading } = usePermissions();
 
-  const isActive = (url: string) =>
+  // "Está dentro deste caminho?" — serve para descobrir a ÁREA da rota, onde
+  // qualquer filha de /unidades deve acender a área de Receita e Repasses.
+  const dentroDe = (url: string) =>
     url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/");
 
-  const ehSocioRegional = primaryRole === "socio_regional";
+  // Quem decide é a ÁREA, não a chave. O item só declara área própria quando a
+  // fronteira do menu e a da confiança não coincidem (a Matriz do broker).
+  const podeVer = (area: Area, item: Item) => !loading && temArea(areaDoItem(area, item));
 
-  const podeVer = (item: Item) =>
-    !item.permission ||
-    (!loading &&
-      (Array.isArray(item.permission)
-        ? item.permission.some((p) => can(p))
-        : can(item.permission)));
+  // Área fora do alcance do papel não aparece: nem na lateral, nem no seletor
+  // do topo. Antes o corte era por item, e um papel com uma página de oito
+  // continuava vendo a área quase vazia.
+  const areasVisiveis = AREAS.filter((a) => !loading && temArea(a.slug))
+    .map((a) => ({
+      ...a,
+      grupos: a.grupos
+        .map((g) => ({ ...g, items: g.items.filter((i) => podeVer(a, i)) }))
+        .filter((g) => g.items.length > 0),
+    }))
+    .filter((a) => a.grupos.length > 0);
 
-  // Área só aparece se sobrar item nela depois do filtro de permissão.
-  const areasVisiveis = AREAS.map((a) => ({
-    ...a,
-    grupos: a.grupos
-      .map((g) => ({ ...g, items: g.items.filter(podeVer) }))
-      .filter((g) => g.items.length > 0),
-  })).filter((a) => a.grupos.length > 0);
+  // Já o grifo do ITEM é do caminho mais específico que casa, não de todos os
+  // que casam. Desde que /unidades ganhou filhas, "Regras da Rede" (/unidades)
+  // acenderia junto com "Split do Asaas" (/unidades/split) se bastasse o
+  // prefixo — dois itens grifados e nenhum deles respondendo "onde estou".
+  const itemAtivo = areasVisiveis
+    .flatMap((a) => a.grupos.flatMap((g) => g.items.map((i) => i.url)))
+    .filter(dentroDe)
+    .sort((a, b) => b.length - a.length)[0];
+
+  const isActive = (url: string) => url === itemAtivo;
 
   // A área ativa sai da ROTA, não de estado próprio: assim link direto,
   // favorito e botão voltar abrem a lateral já na área certa. Estado à parte
   // só serviria para discordar da tela.
   const areaDaRota = areasVisiveis.find((a) =>
-    a.grupos.some((g) => g.items.some((i) => isActive(i.url))),
+    a.grupos.some((g) => g.items.some((i) => dentroDe(i.url))),
   );
   const [areaEscolhida, setAreaEscolhida] = useState<string | null>(null);
   const areaAtual = areaDaRota ?? areasVisiveis.find((a) => a.slug === areaEscolhida) ?? areasVisiveis[0];
@@ -207,61 +205,25 @@ export function AppSidebar() {
         </DropdownMenu>
       </SidebarHeader>
       <SidebarContent>
-        {ehSocioRegional
-          ? SOCIO_REGIONAL_GROUPS.map((group) => {
-              const visible = group.items.filter(podeVer);
-              if (visible.length === 0) return null;
-              return (
-                <SidebarGroup key={group.label}>
-                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {visible.map((item) => (
-                        <SidebarMenuItem key={`${group.label}-${item.title}`}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={isActive(item.url)}
-                            tooltip={item.title}
-                          >
-                            <Link to={item.url} className="flex items-center gap-2">
-                              <item.icon className="h-4 w-4 shrink-0" />
-                              <span>{item.title}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              );
-            })
-          : (
-            <>
-              {areaAtual?.grupos.map((group) => (
-                <SidebarGroup key={`${areaAtual.slug}-${group.label}`}>
-                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {group.items.map((item) => (
-                        <SidebarMenuItem key={`${group.label}-${item.title}`}>
-                          <SidebarMenuButton
-                            asChild
-                            isActive={isActive(item.url)}
-                            tooltip={item.title}
-                          >
-                            <Link to={item.url} className="flex items-center gap-2">
-                              <item.icon className="h-4 w-4 shrink-0" />
-                              <span>{item.title}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              ))}
-            </>
-          )}
+        {areaAtual?.grupos.map((group) => (
+          <SidebarGroup key={`${areaAtual.slug}-${group.label}`}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={`${group.label}-${item.title}`}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                      <Link to={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter className="border-t px-2 py-2 text-[10px] text-muted-foreground">
         {areaAtual?.nome ?? "Planning Brain"}

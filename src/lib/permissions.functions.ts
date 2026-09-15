@@ -114,23 +114,23 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.royalties_split",
-    label: "Split de Royalties",
+    label: "Split do Asaas",
     description:
-      "Página de acompanhamento do royalty retido na fonte pelo Asaas: título x royalty retido e a cadeia da venda até o crédito na matriz.",
+      "Página /unidades/split: royalty retido na fonte pelo Asaas, título x royalty retido e a cadeia da venda até o crédito na matriz.",
     group: "Acesso",
   },
   {
     key: "view.royalties_historico",
-    label: "Receitas Partners — aba Histórico",
+    label: "Histórico de Royalties",
     description:
-      "Aba Histórico da página Receitas Partners: histórico de royalties por cliente e evolução do valor apurado, rede toda.",
+      "Página /unidades/historico: histórico de royalties por cliente e evolução do valor apurado, rede toda.",
     group: "Acesso",
   },
   {
     key: "view.unidades_rede",
-    label: "Receitas Partners — abas Regras/Royalties/CAC",
+    label: "Regras da Rede, Apuração de Royalties e CAC",
     description:
-      "Página Receitas Partners (ex-Unidades): regras da rede, apuração de royalties e CAC.",
+      "As três páginas de /unidades que andam juntas: Regras da Rede, Apuração de Royalties e Apuração de CAC. Uma chave só porque quem apura precisa das três.",
     group: "Acesso",
   },
   {
@@ -379,6 +379,55 @@ export const KNOWN_PERMISSIONS: {
       "Reabrir ciclo antes do bloqueio de 60/180 dias, com fato novo e justificativa. Escape hatch auditável — o desvio fica caro e visível, não impossível.",
     group: "Administração",
   },
+  // --- As 7 que viviam só no banco ---
+  // Exigidas por policy desde as migrations de Gente, CSC e Qualidade da Base,
+  // mas ausentes desta lista até 15/09/2026 — logo, invisíveis em
+  // /admin/permissoes e impossíveis de conceder. `view.csc_faturamento`,
+  // `edit.csc_faturamento` e `view.qualidade_base` não tinham grant em papel
+  // NENHUM, o que deixava csc_ciclos, csc_unidades, base_antiga_unidades e
+  // qualidade_base_historico ilegíveis para todo usuário logado.
+  {
+    key: "view.gente.avaliacao",
+    label: "Ver ciclo de avaliação",
+    description: "Ciclo de avaliação de desempenho do módulo Gente.",
+    group: "Dados",
+  },
+  {
+    key: "manage.gente.avaliacao",
+    label: "Administrar ciclo de avaliação",
+    description: "Abrir, fechar e editar ciclos de avaliação de desempenho.",
+    group: "Administração",
+  },
+  {
+    key: "view.gente.clima",
+    label: "Ver pesquisa de clima / eNPS",
+    description: "Resultados da pesquisa de clima e do eNPS.",
+    group: "Dados",
+  },
+  {
+    key: "manage.gente.clima",
+    label: "Administrar pesquisa de clima",
+    description: "Disparar e encerrar rodadas de pesquisa de clima.",
+    group: "Administração",
+  },
+  {
+    key: "view.csc_faturamento",
+    label: "Ver faturamento do CSC",
+    description: "Ciclos e configuração do CSC automático das unidades.",
+    group: "Acesso",
+  },
+  {
+    key: "edit.csc_faturamento",
+    label: "Editar faturamento do CSC",
+    description: "Alterar valor e regra do CSC por unidade.",
+    group: "Administração",
+  },
+  {
+    key: "view.qualidade_base",
+    label: "Ver Qualidade da Base",
+    description: "Histórico dos 8 checks semanais Pipedrive x Pipefy x Omie.",
+    group: "Acesso",
+  },
   // --- Financial Brain (planningbrain.com.br/financeiro) ---
   // Produto separado, em outro projeto Supabase. A concessão acontece aqui e
   // viaja no token: quando o Ops emite a sessão do Financial, grava estas
@@ -447,70 +496,237 @@ export const KNOWN_PERMISSIONS: {
 
 // (admin check usa helper compartilhado em @/lib/server-utils)
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Permissão por ÁREA (15/09/2026)
+//
+// O papel concede ÁREAS; a área carrega as chaves. As chaves acima continuam
+// existindo porque as 96 policies de RLS falam nelas — reescrever as 96 seria
+// 96 chances de errar para um ganho que ninguém vê. Quem traduz é a tabela
+// `ops.area_chaves`, e `ops.can()` já resolve por lá desde a migration
+// 20260915100000_permissoes_por_area.
+//
+// Consequência prática: página nova NÃO precisa de chave nova nesta lista. Ela
+// herda a área em que mora. A lista aqui vale como dicionário do que cada
+// chave significa, e é isso que a tela de permissões mostra quando alguém abre
+// uma área para ver o que tem dentro.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Area = {
+  slug: string;
+  nome: string;
+  descricao: string;
+  /** Qual filtro de nível 2 faz sentido dentro desta área. */
+  escopo: "unidade" | "empresa" | "nenhum";
+  ordem: number;
+};
+
+export type EscopoDoUsuario = {
+  todas_unidades: boolean;
+  todas_empresas: boolean;
+  unidades: number[];
+  empresas: string[];
+};
+
+/**
+ * Resolve papéis, áreas e chaves de uma pessoa.
+ *
+ * Fonte única do lado do servidor: `getMyPermissions`, o módulo Gente e a
+ * emissão das sessões irmãs precisavam da mesma resposta e cada um montava a
+ * sua consulta, o que já tinha deixado o Gente lendo `role_permissions` direto.
+ * Com a matriz agora em `role_areas`, três consultas diferentes virariam três
+ * respostas diferentes.
+ */
+export async function acessoDoUsuario(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<{ roles: AppRole[]; areas: string[]; permissions: string[] }> {
+  const { data: papeis } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  const roles = ((papeis ?? []) as { role: string }[]).map((r) => r.role as AppRole);
+  if (roles.length === 0) return { roles: [], areas: [], permissions: [] };
+
+  const { data: grants } = await supabase
+    .from("role_areas")
+    .select("area")
+    .in("role", roles)
+    .eq("allowed", true);
+  const areas = Array.from(new Set(((grants ?? []) as { area: string }[]).map((g) => g.area)));
+  if (areas.length === 0) return { roles, areas: [], permissions: [] };
+
+  const { data: chaves } = await supabase
+    .from("area_chaves")
+    .select("permission_key")
+    .in("area", areas);
+  const permissions = Array.from(
+    new Set(((chaves ?? []) as { permission_key: string }[]).map((c) => c.permission_key)),
+  );
+  return { roles, areas, permissions };
+}
+
 export const getMyPermissions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const [rolesRes, unidadeRes] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", userId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+
+    const [acesso, escopoRes, unidadesRes, empresasRes, unidadeAtual] = await Promise.all([
+      acessoDoUsuario(db, userId),
+      db.from("usuario_escopo").select("todas_unidades, todas_empresas").eq("user_id", userId).maybeSingle(),
+      db.from("usuario_unidades").select("unidade_id").eq("user_id", userId),
+      db.from("usuario_empresas").select("empresa_id").eq("user_id", userId),
       supabase.rpc("current_user_unidade"),
     ]);
-    const roles = (rolesRes.data ?? []).map((r) => r.role as AppRole);
-    if (roles.length === 0) {
-      return { roles: [], permissions: [] as string[], unidade: null as string | null };
-    }
-    const { data: perms } = await supabase
-      .from("role_permissions")
-      .select("permission_key, allowed")
-      .in("role", roles)
-      .eq("allowed", true);
-    const permissions = Array.from(new Set((perms ?? []).map((p) => p.permission_key)));
-    const unidade = (unidadeRes.data as string | null) ?? null;
-    return { roles, permissions, unidade };
+
+    const escopo: EscopoDoUsuario = {
+      // Sem linha em usuario_escopo a pessoa NÃO enxerga a rede toda. O default
+      // restritivo é de propósito: um backfill que esquecesse alguém precisa
+      // falhar fechando, não abrindo.
+      todas_unidades: escopoRes?.data?.todas_unidades ?? false,
+      todas_empresas: escopoRes?.data?.todas_empresas ?? false,
+      unidades: ((unidadesRes?.data ?? []) as { unidade_id: number }[]).map((u) => u.unidade_id),
+      empresas: ((empresasRes?.data ?? []) as { empresa_id: string }[]).map((e) => e.empresa_id),
+    };
+
+    return {
+      roles: acesso.roles,
+      areas: acesso.areas,
+      permissions: acesso.permissions,
+      escopo,
+      unidade: (unidadeAtual?.data as string | null) ?? null,
+    };
   });
 
-export const listRolePermissions = createServerFn({ method: "GET" })
+/** A matriz papel x área, para /admin/permissoes. */
+export const listRoleAreas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const [{ data, error }, { data: roleRows, error: rolesErr }] = await Promise.all([
-      context.supabase.from("role_permissions").select("role, permission_key, allowed"),
-      context.supabase
-        .from("roles")
-        .select("key, label, description, is_system")
-        .order("is_system", { ascending: false })
-        .order("label", { ascending: true }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const [areasRes, grantsRes, rolesRes, chavesRes] = await Promise.all([
+      db.from("areas").select("slug, nome, descricao, escopo, ordem").eq("ativa", true).order("ordem"),
+      db.from("role_areas").select("role, area, allowed"),
+      db.from("roles").select("key, label, description, is_system").order("is_system", { ascending: false }).order("label"),
+      db.from("area_chaves").select("area, permission_key"),
     ]);
-    if (error || rolesErr) throw new Error("Erro ao carregar permissões.");
-    return { rows: data ?? [], permissions: KNOWN_PERMISSIONS, roles: roleRows ?? [] };
+    if (areasRes.error || grantsRes.error || rolesRes.error) {
+      throw new Error("Erro ao carregar as áreas.");
+    }
+    return {
+      areas: (areasRes.data ?? []) as Area[],
+      grants: (grantsRes.data ?? []) as { role: string; area: string; allowed: boolean }[],
+      roles: (rolesRes.data ?? []) as { key: string; label: string; description: string; is_system: boolean }[],
+      chaves: (chavesRes.data ?? []) as { area: string; permission_key: string }[],
+      dicionario: KNOWN_PERMISSIONS,
+    };
   });
 
-export const upsertRolePermission = createServerFn({ method: "POST" })
+export const upsertRoleArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { role: AppRole; permission_key: string; allowed: boolean }) => {
+  .inputValidator((input: { role: AppRole; area: string; allowed: boolean }) => {
     const role = (input?.role ?? "").trim();
     if (!role) throw new Error("Papel inválido.");
-    if (!input.permission_key) throw new Error("Permissão inválida.");
-    return { role, permission_key: input.permission_key, allowed: !!input.allowed };
+    if (!input?.area) throw new Error("Área inválida.");
+    return { role, area: input.area, allowed: !!input.allowed };
   })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { data: role } = await context.supabase
-      .from("roles")
-      .select("key")
-      .eq("key", data.role)
-      .maybeSingle();
-    if (!role) throw new Error("Papel inválido.");
-    const { error } = await context.supabase.from("role_permissions").upsert(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const { error } = await db.from("role_areas").upsert(
+      { role: data.role, area: data.area, allowed: data.allowed, updated_at: new Date().toISOString() },
+      { onConflict: "role,area" },
+    );
+    if (error) throw new Error("Erro ao salvar a área do papel.");
+    return { ok: true };
+  });
+
+/** Nível 2: o que este usuário enxerga dentro das áreas que o papel abriu. */
+export const getEscopoDoUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string }) => ({ userId: (input?.userId ?? "").trim() }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const [escopo, unidades, empresas, catalogoUnidades, catalogoEmpresas] = await Promise.all([
+      db.from("usuario_escopo").select("todas_unidades, todas_empresas").eq("user_id", data.userId).maybeSingle(),
+      db.from("usuario_unidades").select("unidade_id").eq("user_id", data.userId),
+      db.from("usuario_empresas").select("empresa_id").eq("user_id", data.userId),
+      db.from("unidades").select("id, nome_da_praca").order("nome_da_praca"),
+      db.schema("financeiro").from("empresas").select("id, apelido, nome_fantasia, grupo_apuracao").eq("ativa", true).order("grupo_apuracao"),
+    ]);
+    return {
+      escopo: {
+        todas_unidades: escopo?.data?.todas_unidades ?? false,
+        todas_empresas: escopo?.data?.todas_empresas ?? false,
+        unidades: ((unidades?.data ?? []) as { unidade_id: number }[]).map((u) => u.unidade_id),
+        empresas: ((empresas?.data ?? []) as { empresa_id: string }[]).map((e) => e.empresa_id),
+      } as EscopoDoUsuario,
+      unidades: (catalogoUnidades?.data ?? []) as { id: number; nome_da_praca: string }[],
+      empresas: (catalogoEmpresas?.data ?? []) as {
+        id: string;
+        apelido: string;
+        nome_fantasia: string;
+        grupo_apuracao: string;
+      }[],
+    };
+  });
+
+export const salvarEscopoDoUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      userId: string;
+      todas_unidades: boolean;
+      todas_empresas: boolean;
+      unidades: number[];
+      empresas: string[];
+    }) => {
+      if (!input?.userId) throw new Error("Usuário inválido.");
+      return {
+        userId: input.userId,
+        todas_unidades: !!input.todas_unidades,
+        todas_empresas: !!input.todas_empresas,
+        unidades: Array.isArray(input.unidades) ? input.unidades : [],
+        empresas: Array.isArray(input.empresas) ? input.empresas : [],
+      };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+
+    const { error: e1 } = await db.from("usuario_escopo").upsert(
       {
-        role: data.role,
-        permission_key: data.permission_key,
-        allowed: data.allowed,
+        user_id: data.userId,
+        todas_unidades: data.todas_unidades,
+        todas_empresas: data.todas_empresas,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "role,permission_key" },
+      { onConflict: "user_id" },
     );
-    if (error) throw new Error("Erro ao salvar permissão.");
+    if (e1) throw new Error("Erro ao salvar o escopo.");
+
+    // Apaga e reinsere: a lista é pequena (11 unidades, 17 empresas) e um diff
+    // incremental aqui só criaria estado intermediário para dar errado.
+    await db.from("usuario_unidades").delete().eq("user_id", data.userId);
+    if (!data.todas_unidades && data.unidades.length) {
+      const { error } = await db
+        .from("usuario_unidades")
+        .insert(data.unidades.map((unidade_id) => ({ user_id: data.userId, unidade_id })));
+      if (error) throw new Error("Erro ao salvar as unidades.");
+    }
+
+    await db.from("usuario_empresas").delete().eq("user_id", data.userId);
+    if (!data.todas_empresas && data.empresas.length) {
+      const { error } = await db
+        .from("usuario_empresas")
+        .insert(data.empresas.map((empresa_id) => ({ user_id: data.userId, empresa_id })));
+      if (error) throw new Error("Erro ao salvar as empresas.");
+    }
     return { ok: true };
   });
 
