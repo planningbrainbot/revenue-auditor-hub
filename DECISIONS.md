@@ -1101,3 +1101,12 @@ policies em favor de um nome honesto.
 **Conferência visual:** a situação do CRM diz “Sem card aberto ou carga no mês”; ela não deve prometer elegibilidade de produto. Esta depende dos gates de perfil ao lado. Capacidade considera o mês completo da alocação, independentemente do intervalo diário selecionado.
 
 **Repositório:** PR https://github.com/planningbrainbot/revenue-auditor-hub/pull/2 aberto. A revisão automática rejeitou push direto para `main`; aguarda autorização específica para merge. A publicação autorizada na Vercel foi feita separadamente sem alterar `main`. Até incorporar o PR, uma publicação de uma main antiga pode remover estas rotas. Não presumir que o deploy e a branch padrão já estão alinhados.
+
+
+## [2026-09-15] Metas preservadas e ajuste final da publicação
+
+**Decisão:** as metas já informadas para setembro foram preservadas via interface autenticada: Matheus, 120 leads/mês, teto de 60 reuniões/mês, 8 contratos/mês e 7 leads/dia útil. O plano está salvo no banco central. A alocação por produto permanece não definida (zero alocado, 120 vagas para distribuir), e as hipóteses de conversão são nulas. Os oito contratos continuam sendo meta, nunca previsão automática a partir de um mix de ofertas que não foi trabalhado.
+
+**Status:** ajuste final de disponibilidade e período mensal (`b568aec`) publicado pelo deploy Vercel `dpl_9Tmj2RjFA7BDW1MPLNuECSiibHT9`, build Ready. A conferência de interface não salvou lista fictícia nem enviou negócio: contagens de listas/envios permanecem zero. A última carga consultada em 15/09 às 11h55 (São Paulo) concluiu sem erro. Os testes de domínio seguem 15/15. A conferência visual da carteira, ficha, preparação de lista e salvamento das metas foi concluída; o Computer Use perdeu a janela do Chrome antes de uma rodada completa das demais análises, que têm build e rotas conferidos.
+
+**Pendências externas:** PR #2 aguarda a autorização de merge solicitada após rejeição do push direto pela revisão automática. O e-mail de login central de Matheus ainda aguarda confirmação. Nenhuma senha paralela ou convite foi criado. O painel independente antigo não foi redirecionado nesta publicação; as rotas oficiais integradas são `/aquario` e `/monetizacao` do Planning Brain.
