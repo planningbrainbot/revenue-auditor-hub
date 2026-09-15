@@ -1092,3 +1092,12 @@ policies em favor de um nome honesto.
 8. PDI e abordagens são registros operacionais editáveis, com evidência disponível; não são apresentados como análise de IA de reuniões que não foi executada. As análises temporais e de coorte calculam os denominadores e a mediana/p90 do histórico observado.
 
 **Status:** implementação nativa e migrations aplicadas. Primeira carga conciliada: 128 cards; 1.683 registros da auditoria inicial, mais 81 cadastros novos do Ops e um vínculo por identidade (1.764 registros, não declaração de clientes pagantes). Testes de regras (15) e RLS/revisão/reserva em transação passaram. Build de revisão Vercel `dpl_8hMAU1uFRzWMgGfCZu36AL1VRb6e` Ready; publicação final será registrada em entrada própria após verificação. Identidade de Matheus no login central pendente de confirmação: o e-mail do CRM ainda não tem conta em `auth.users`; não foi enviado convite nem criada senha.
+
+
+## [2026-09-15] Publicação da integração e conferência no domínio
+
+**Status:** versão `81ecd67` publicada em `planningbrain.com.br` pelo deploy Vercel `dpl_B3b2xCaPXRwCBYya7XtSj3TUyxCq` (promoção autorizada, build Ready). `/aquario` está no módulo Clientes; `/monetizacao` no módulo Monetização. Verificadas no Chrome com a sessão existente de Pedro: navegação de Clientes, carteira lateral de Belém, ficha da empresa com fontes/contatos e preparação da lista para sócio, sem salvar lista de teste nem enviar oportunidade. Rotas do domínio respondem 200; endpoint de envio sem login responde 401. Carga corrente confirmou as 15 validadas de Matheus em 01–14/09. Sync v6 reaproveita históricos inalterados e os relê integralmente no máximo a cada 24h ou quando etapas/cadastro do negócio mudam; a contagem continua conciliada em toda rodada.
+
+**Conferência visual:** a situação do CRM diz “Sem card aberto ou carga no mês”; ela não deve prometer elegibilidade de produto. Esta depende dos gates de perfil ao lado. Capacidade considera o mês completo da alocação, independentemente do intervalo diário selecionado.
+
+**Repositório:** PR https://github.com/planningbrainbot/revenue-auditor-hub/pull/2 aberto. A revisão automática rejeitou push direto para `main`; aguarda autorização específica para merge. A publicação autorizada na Vercel foi feita separadamente sem alterar `main`. Até incorporar o PR, uma publicação de uma main antiga pode remover estas rotas. Não presumir que o deploy e a branch padrão já estão alinhados.

@@ -196,6 +196,9 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
       {
         ...filter,
         from: month + "-01",
+        to: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+          .toISOString()
+          .slice(0, 10),
         owner: plan.owner_id,
         product: "",
       },

@@ -139,8 +139,8 @@ export function disponibilidade(
     };
   const loaded = own.find((c) => c.events.loaded.some((e) => e.date.startsWith(month)));
   if (loaded)
-    return { free: false, reason: "Já trabalhada neste mês para " + NOMES[produto], deal: loaded };
-  return { free: true, reason: "Disponível para " + NOMES[produto], deal: null };
+    return { free: false, reason: "Já carregada neste mês para " + NOMES[produto], deal: loaded };
+  return { free: true, reason: "Sem card aberto ou carga no mês · " + NOMES[produto], deal: null };
 }
 export interface Filtro {
   from: string;
