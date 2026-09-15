@@ -29,6 +29,7 @@ import { Route as AuthenticatedPainelCsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_authenticated/pagamentos-unidades'
 import { Route as AuthenticatedOperacaoRouteImport } from './routes/_authenticated/operacao'
 import { Route as AuthenticatedNpsRouteImport } from './routes/_authenticated/nps'
+import { Route as AuthenticatedMonetizacaoRouteImport } from './routes/_authenticated/monetizacao'
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
@@ -50,6 +51,7 @@ import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_aut
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
+import { Route as AuthenticatedAquarioRouteImport } from './routes/_authenticated/aquario'
 import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
@@ -175,6 +177,12 @@ const AuthenticatedNpsRoute = AuthenticatedNpsRouteImport.update({
   path: '/nps',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMonetizacaoRoute =
+  AuthenticatedMonetizacaoRouteImport.update({
+    id: '/monetizacao',
+    path: '/monetizacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMeusRoyaltiesRoute =
   AuthenticatedMeusRoyaltiesRouteImport.update({
     id: '/meus-royalties',
@@ -291,6 +299,11 @@ const AuthenticatedAtividadeRoute = AuthenticatedAtividadeRouteImport.update({
   path: '/atividade',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAquarioRoute = AuthenticatedAquarioRouteImport.update({
+  id: '/aquario',
+  path: '/aquario',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUnidadesIndexRoute =
   AuthenticatedUnidadesIndexRouteImport.update({
     id: '/',
@@ -399,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
@@ -420,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
@@ -457,6 +472,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
@@ -478,6 +494,7 @@ export interface FileRoutesByTo {
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
@@ -516,6 +533,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/_authenticated/aquario': typeof AuthenticatedAquarioRoute
   '/_authenticated/atividade': typeof AuthenticatedAtividadeRoute
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
   '/_authenticated/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
@@ -537,6 +555,7 @@ export interface FileRoutesById {
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/_authenticated/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/_authenticated/nps': typeof AuthenticatedNpsRoute
   '/_authenticated/operacao': typeof AuthenticatedOperacaoRoute
   '/_authenticated/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
@@ -578,6 +597,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/aquario'
     | '/atividade'
     | '/auditoria'
     | '/auditoria-faturamento'
@@ -599,6 +619,7 @@ export interface FileRouteTypes {
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
+    | '/monetizacao'
     | '/nps'
     | '/operacao'
     | '/pagamentos-unidades'
@@ -636,6 +657,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/aquario'
     | '/atividade'
     | '/auditoria'
     | '/auditoria-faturamento'
@@ -657,6 +679,7 @@ export interface FileRouteTypes {
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
+    | '/monetizacao'
     | '/nps'
     | '/operacao'
     | '/pagamentos-unidades'
@@ -694,6 +717,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/_authenticated/aquario'
     | '/_authenticated/atividade'
     | '/_authenticated/auditoria'
     | '/_authenticated/auditoria-faturamento'
@@ -715,6 +739,7 @@ export interface FileRouteTypes {
     | '/_authenticated/indicadores-trimestre'
     | '/_authenticated/inicio'
     | '/_authenticated/meus-royalties'
+    | '/_authenticated/monetizacao'
     | '/_authenticated/nps'
     | '/_authenticated/operacao'
     | '/_authenticated/pagamentos-unidades'
@@ -899,6 +924,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNpsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/monetizacao': {
+      id: '/_authenticated/monetizacao'
+      path: '/monetizacao'
+      fullPath: '/monetizacao'
+      preLoaderRoute: typeof AuthenticatedMonetizacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/meus-royalties': {
       id: '/_authenticated/meus-royalties'
       path: '/meus-royalties'
@@ -1044,6 +1076,13 @@ declare module '@tanstack/react-router' {
       path: '/atividade'
       fullPath: '/atividade'
       preLoaderRoute: typeof AuthenticatedAtividadeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/aquario': {
+      id: '/_authenticated/aquario'
+      path: '/aquario'
+      fullPath: '/aquario'
+      preLoaderRoute: typeof AuthenticatedAquarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/unidades/': {
@@ -1209,6 +1248,7 @@ const AuthenticatedUnidadesRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAquarioRoute: typeof AuthenticatedAquarioRoute
   AuthenticatedAtividadeRoute: typeof AuthenticatedAtividadeRoute
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
   AuthenticatedAuditoriaFaturamentoRoute: typeof AuthenticatedAuditoriaFaturamentoRoute
@@ -1230,6 +1270,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
+  AuthenticatedMonetizacaoRoute: typeof AuthenticatedMonetizacaoRoute
   AuthenticatedNpsRoute: typeof AuthenticatedNpsRoute
   AuthenticatedOperacaoRoute: typeof AuthenticatedOperacaoRoute
   AuthenticatedPagamentosUnidadesRoute: typeof AuthenticatedPagamentosUnidadesRoute
@@ -1258,6 +1299,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAquarioRoute: AuthenticatedAquarioRoute,
   AuthenticatedAtividadeRoute: AuthenticatedAtividadeRoute,
   AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
   AuthenticatedAuditoriaFaturamentoRoute:
@@ -1281,6 +1323,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedIndicadoresTrimestreRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,
+  AuthenticatedMonetizacaoRoute: AuthenticatedMonetizacaoRoute,
   AuthenticatedNpsRoute: AuthenticatedNpsRoute,
   AuthenticatedOperacaoRoute: AuthenticatedOperacaoRoute,
   AuthenticatedPagamentosUnidadesRoute: AuthenticatedPagamentosUnidadesRoute,
