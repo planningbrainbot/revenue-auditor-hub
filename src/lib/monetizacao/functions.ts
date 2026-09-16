@@ -60,7 +60,22 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
         all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
         all(db, "monetizacao_forecasts", "payload", "id"),
       ]);
-    const profiles = accounts.map((a) => a.perfil as Conta),
+    const { data: origins, error: originError } = await (db as DB)
+      .schema("ops")
+      .rpc("monetizacao_base_origins");
+    if (originError)
+      throw new Error(
+        "Não foi possível conferir a origem das carteiras. Atualize para tentar novamente.",
+      );
+    const originBy = new Map(
+      (origins || []).map((o: { account_key: string; origin: Conta["base_origin"] }) => [
+        o.account_key,
+        o.origin,
+      ]),
+    );
+    const profiles = accounts.map(
+        (a) => ({ ...a.perfil, base_origin: originBy.get(a.key) }) as Conta,
+      ),
       sync = health[0];
     return {
       forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
@@ -178,7 +193,20 @@ export const salvarListaAquario = createServerFn({ method: "POST" })
       .schema("ops")
       .rpc("monetizacao_save_list", { _data: data });
     if (error) throw new Error(error.message);
-    return { id: id as string };
+    const db = (context.supabase as DB).schema("ops");
+    const [list, items] = await Promise.all([
+      db.from("monetizacao_listas").select("revision").eq("id", id).single(),
+      db.from("monetizacao_itens").select("id,account_key,product,status").eq("list_id", id),
+    ]);
+    if (list.error || items.error)
+      throw new Error(
+        "Lista salva, mas a leitura não foi confirmada. Atualize as listas antes de enviar.",
+      );
+    return {
+      id: id as string,
+      revision: list.data.revision as number,
+      items: items.data as Pick<ItemLista, "id" | "account_key" | "product" | "status">[],
+    };
   });
 
 export const acionarMonetizacao = createServerFn({ method: "POST" })

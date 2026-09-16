@@ -2,7 +2,14 @@ import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { normal, oferta } from "@/lib/monetizacao/model";
-import { ofertaRecon } from "@/lib/monetizacao/recon";
+import {
+  faturamentoRecon,
+  GRUPOS_RECON,
+  grupoRecon,
+  ofertaRecon,
+  potencialRecon,
+} from "@/lib/monetizacao/recon";
+import type { GrupoRecon } from "@/lib/monetizacao/recon";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { Conta } from "@/lib/monetizacao/types";
 import { date, downloadCsv, Field, inputClass, Kpi, Notice, number, Panel } from "./common";
@@ -14,13 +21,17 @@ export function ReconAquario({
   accounts: Conta[];
   showAccount: (a: Conta) => void;
 }) {
-  const [status, setStatus] = useState("elegivel"),
+  const [status, setStatus] = useState("potencial"),
     [query, setQuery] = useState(""),
     [unit, setUnit] = useState(""),
     [contact, setContact] = useState(""),
     [limit, setLimit] = useState(50);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const eligible = accounts.filter((a) => ofertaRecon(a).status === "elegivel");
+  const potential = accounts.filter(potencialRecon);
+  const counts = Object.fromEntries(
+    Object.keys(GRUPOS_RECON).map((g) => [g, accounts.filter((a) => grupoRecon(a) === g).length]),
+  ) as Record<GrupoRecon, number>;
   const checked = accounts.filter((a) => a.recon);
   const updated = checked
     .map((a) => a.recon!.checked_at)
@@ -31,7 +42,7 @@ export function ReconAquario({
       accounts
         .filter(
           (a) =>
-            (!status || ofertaRecon(a).status === status) &&
+            (!status || (status === "potencial" ? potencialRecon(a) : grupoRecon(a) === status)) &&
             (!query ||
               normal([a.name, a.unit_label, a.segment].join(" ")).includes(normal(query))) &&
             (!unit || a.unit_label === unit) &&
@@ -39,7 +50,10 @@ export function ReconAquario({
         )
         .sort(
           (a, b) =>
-            (b.recon?.revenue_min ?? -1) - (a.recon?.revenue_min ?? -1) ||
+            Number(ofertaRecon(b).status === "elegivel") -
+              Number(ofertaRecon(a).status === "elegivel") ||
+            (b.recon?.revenue_exact ?? b.recon?.revenue_min ?? -1) -
+              (a.recon?.revenue_exact ?? a.recon?.revenue_min ?? -1) ||
             a.name.localeCompare(b.name, "pt-BR"),
         ),
     [accounts, status, query, unit, contact],
@@ -51,6 +65,7 @@ export function ReconAquario({
         "Empresa",
         "Unidade",
         "Faturamento anual",
+        "Fonte do faturamento",
         "Segmento",
         "Contato",
         "Classificação",
@@ -63,10 +78,11 @@ export function ReconAquario({
       ...items.map((a) => [
         a.name,
         a.unit_label,
-        a.band,
+        faturamentoRecon(a),
+        a.recon?.revenue_sources?.join("; "),
         a.segment,
         a.contact ? "Com contato" : "Obter com o sócio",
-        ofertaRecon(a).status,
+        GRUPOS_RECON[grupoRecon(a)],
         ofertaRecon(a).reason,
         a.recon?.products.join("; "),
         a.recon?.contract_ids.join("; "),
@@ -78,28 +94,77 @@ export function ReconAquario({
     ]);
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
-          label="Recon · base apta"
+          label="Contas no radar Recon"
+          value={number(potential.length)}
+          hint="Aptas + pendentes abaixo · contas únicas"
+          onClick={() => {
+            setStatus("potencial");
+            setLimit(50);
+          }}
+        />
+        <Kpi
+          label="Aptas nos dados conferidos"
           value={number(eligible.length)}
           hint="Acima de R$ 5 mi · fora de qualquer BPO"
           accent
+          onClick={() => {
+            setStatus("elegivel");
+            setLimit(50);
+          }}
         />
         <Kpi
-          label="Excluídas por BPO"
-          value={number(checked.filter((a) => a.recon?.bpo_status === "bpo").length)}
-          hint="Contábil, fiscal, folha, financeiro e demais BPOs"
+          label="Acima de R$ 5 mi · conferir BPO"
+          value={number(counts.confirmar_bpo)}
+          hint="Falta identificação ou comprovar serviços"
+          onClick={() => {
+            setStatus("confirmar_bpo");
+            setLimit(50);
+          }}
         />
         <Kpi
-          label="Dados a confirmar"
-          value={number(accounts.filter((a) => ofertaRecon(a).status === "revisar").length)}
-          hint="Não entram na base apta"
+          label="Faixa atravessa R$ 5 mi"
+          value={number(counts.faixa_limite)}
+          hint="Confirmar valor anual e eventuais serviços pendentes"
+          onClick={() => {
+            setStatus("faixa_limite");
+            setLimit(50);
+          }}
         />
       </div>
       <Notice>
-        Base para seleção no Aquário. Nenhum envio ao Pipedrive. Contato e regime tributário não são
-        critérios de exclusão do Recon. Conferência dos contratos: {date(updated)}.
+        {number(potential.length)} contas no radar = {number(eligible.length)} aptas +{" "}
+        {number(counts.confirmar_bpo)} para conferir BPO + {number(counts.faixa_limite)} com faixa
+        atravessando o corte. Pendência não equivale a aprovação. Contato e regime não são vetos.
+        Conferido em {date(updated)}; veja a data da fonte em cada conta. Seleção somente no
+        Aquário.
       </Notice>
+      <details className="rounded-lg border bg-card p-4 text-sm">
+        <summary className="cursor-pointer font-medium">
+          De onde saem os números · {number(accounts.length)} contas analisadas
+        </summary>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Grupos sem sobreposição. Uma conta com BPO identificado sai antes da análise do
+          faturamento. Contas sem faturamento ou com divergências continuam disponíveis para
+          conferência.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {(Object.entries(GRUPOS_RECON) as [GrupoRecon, string][]).map(([g, label]) => (
+            <button
+              key={g}
+              className="flex justify-between rounded border p-2 text-left hover:bg-muted/50"
+              onClick={() => {
+                setStatus(g);
+                setLimit(50);
+              }}
+            >
+              <span>{label}</span>
+              <strong>{number(counts[g])}</strong>
+            </button>
+          ))}
+        </div>
+      </details>
       <Panel
         title="Recon · carteira para trabalhar"
         action={
@@ -135,9 +200,12 @@ export function ReconAquario({
                 setLimit(50);
               }}
             >
-              <option value="elegivel">Base apta para Recon</option>
-              <option value="revisar">Dados a confirmar</option>
-              <option value="fora_regra">Fora do perfil</option>
+              <option value="potencial">No radar · aptas e pendentes</option>
+              {(Object.entries(GRUPOS_RECON) as [GrupoRecon, string][]).map(([g, label]) => (
+                <option key={g} value={g}>
+                  {label} ({number(counts[g])})
+                </option>
+              ))}
               <option value="">Todas as contas</option>
             </select>
           </Field>
@@ -217,13 +285,26 @@ export function ReconAquario({
                       {a.segment || "Segmento a confirmar"}
                     </p>
                   </td>
-                  <td className="p-3">{a.band || "A confirmar"}</td>
+                  <td className="max-w-xs p-3">
+                    {faturamentoRecon(a)}
+                    {!!a.recon?.revenue_sources?.length && (
+                      <details className="mt-1 text-xs text-muted-foreground">
+                        <summary className="cursor-pointer">Ver fonte</summary>
+                        {a.recon.revenue_sources.map((source) => (
+                          <p key={source} className="mt-1">
+                            {source}
+                          </p>
+                        ))}
+                      </details>
+                    )}
+                  </td>
                   <td className="max-w-xs p-3 text-xs">
                     {a.recon?.products.length
                       ? a.recon.products.join(" · ")
                       : "Serviços a confirmar"}
                   </td>
                   <td className="max-w-sm p-3">
+                    <p className="mb-1 text-xs font-semibold">{GRUPOS_RECON[grupoRecon(a)]}</p>
                     <span
                       className={
                         ofertaRecon(a).status === "elegivel"
@@ -234,7 +315,14 @@ export function ReconAquario({
                       {ofertaRecon(a).reason}
                     </span>
                   </td>
-                  <td className="p-3 text-xs">{a.contact ? "Com contato" : "Obter com o sócio"}</td>
+                  <td className="p-3 text-xs">
+                    {a.contact ? "Com contato" : "Obter com o sócio"}
+                    <p className="mt-1 text-muted-foreground">
+                      {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel")
+                        .map((p) => NOMES[p])
+                        .join(" · ") || "Sem outra oferta confirmada"}
+                    </p>
+                  </td>
                 </tr>
               ))}
             </tbody>

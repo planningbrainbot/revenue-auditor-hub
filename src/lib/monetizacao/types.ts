@@ -46,6 +46,12 @@ export interface Conta {
   finance_candidate: boolean;
   finance: Oferta;
   ecd: boolean;
+  base_origin?: {
+    status: "antiga" | "nova" | "divergente" | "confirmar";
+    reason: string;
+    source: string;
+    commercial: boolean;
+  };
   consultoria_origin?: {
     status: "retroativa" | "comercial" | "nao_retroativa" | "pendente";
     reason: string;
@@ -62,6 +68,10 @@ export interface Conta {
     revenue_max: number | null;
     revenue_exact?: number | null;
     revenue_conflict: boolean;
+    revenue_label?: string | null;
+    revenue_sources?: string[];
+    identity_note_ids?: number[];
+    pending_checks?: string[];
     checked_at: string;
     reason: string;
     contract_ids: number[];
