@@ -1226,3 +1226,10 @@ policies em favor de um nome honesto.
 - Inclui as melhorias de apresentação do forecast e os ajustes de acesso já implementados: envio pelo Resend no servidor e redefinição de senha confirmada pelo usuário.
 - Nenhuma credencial, lista de destinatários ou resultado operacional é incluído nesta atualização.
 - Validação: testes de Monetização, e-mails e recuperação; build Vercel concluído; rotas de produção verificadas.
+
+
+## 2026-09-16 — Recon no Aquário, antes da revisão de Consultoria
+
+- Regra confirmada pelo usuário: faturamento anual estritamente acima de R$ 5 milhões e exclusão de qualquer BPO, incluindo contábil, fiscal, folha e financeiro. Contato e regime não são vetos adicionais. Faixas que atravessam o corte permanecem para conferência.
+- O usuário corrigiu o destino: deixar a seleção no Aquário, sem criar negócios no Pipedrive. Recon tem visão própria de elegibilidade, motivos e exportação, sem alterar os produtos/forecast da operação de Monetização.
+- A conferência combina os produtos de contratos ganhos e a carteira financeira por identificador exato. Falta de informação não comprova ausência de BPO. Evidências ficam no perfil privado da conta; o repositório contém apenas lógica, interface e testes sintéticos.

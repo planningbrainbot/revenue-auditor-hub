@@ -18,6 +18,8 @@ import { disponibilidade, FAIXAS, normal, oferta } from "@/lib/monetizacao/model
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Conta, Produto, Unidade } from "@/lib/monetizacao/types";
 import { AccountDetail } from "./account-detail";
+import { ReconAquario } from "./recon";
+import { ofertaRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
 import {
   downloadCsv,
@@ -164,7 +166,22 @@ export function Aquario() {
         />
       </div>
       <Panel title="Listas potenciais por produto">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <button
+            onClick={() => setTab("recon")}
+            className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "recon" ? "border-primary bg-primary/5" : ""}`}
+          >
+            <span className="flex items-center justify-between font-semibold">
+              Recon <ArrowRight className="h-4 w-4" />
+            </span>
+            <p className="mt-2 text-sm">
+              {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} contas
+              aptas
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
+            </p>
+          </button>
           {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
             const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
             const free = eligible.filter(
@@ -207,6 +224,7 @@ export function Aquario() {
           <TabsList>
             <TabsTrigger value="carteiras">Carteiras por unidade</TabsTrigger>
             <TabsTrigger value="contas">Todas as contas</TabsTrigger>
+            <TabsTrigger value="recon">Recon</TabsTrigger>
             <TabsTrigger value="listas">
               Listas para sócios <span className="ml-1 text-xs">{data.lists.length}</span>
             </TabsTrigger>
@@ -268,6 +286,9 @@ export function Aquario() {
           </Notice>
         </TabsContent>
         <TabsContent value="contas">{content(data.accounts)}</TabsContent>
+        <TabsContent value="recon">
+          <ReconAquario accounts={data.accounts} showAccount={setAccount} />
+        </TabsContent>
         <TabsContent value="listas">
           <ListWorkspace
             data={data}

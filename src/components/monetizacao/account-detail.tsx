@@ -10,6 +10,7 @@ import {
 import { detalheAquario } from "@/lib/monetizacao/functions";
 import { negociosDaConta, oferta } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
+import { ofertaRecon } from "@/lib/monetizacao/recon";
 import type { Conta, Negocio } from "@/lib/monetizacao/types";
 import { date, Notice, Panel } from "./common";
 
@@ -51,6 +52,16 @@ export function AccountDetail({
           <div className="space-y-4">
             <Panel title="Oportunidades desta empresa">
               <div className="space-y-3">
+                <div>
+                  <strong className="text-sm">Recon</strong>
+                  <p className="text-xs text-muted-foreground">{ofertaRecon(account).reason}</p>
+                  {account.recon && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Contratos conferidos em {date(account.recon.checked_at)} ·{" "}
+                      {account.recon.products.join(" · ") || "Serviços a confirmar"}
+                    </p>
+                  )}
+                </div>
                 {PRODUTOS.map((p) => {
                   const result = oferta(account, p);
                   return (

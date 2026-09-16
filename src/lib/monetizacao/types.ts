@@ -46,6 +46,19 @@ export interface Conta {
   finance_candidate: boolean;
   finance: Oferta;
   ecd: boolean;
+  recon?: {
+    bpo_status: "bpo" | "fora_bpo" | "pendente";
+    revenue_min: number | null;
+    revenue_max: number | null;
+    revenue_exact?: number | null;
+    revenue_conflict: boolean;
+    checked_at: string;
+    reason: string;
+    contract_ids: number[];
+    products: string[];
+    finance_checked_at: string | null;
+    crm_existing: number[];
+  };
 }
 export interface Unidade {
   id: number | null;
