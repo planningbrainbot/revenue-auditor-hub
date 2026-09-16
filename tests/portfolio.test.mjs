@@ -4,7 +4,10 @@ import {
   EMPTY_PORTFOLIO_FILTERS as empty,
   filtrarCarteira,
   origemBase,
+  potencialConsultoria,
+  situacaoInicialProduto,
 } from "../src/lib/monetizacao/portfolio.ts";
+import { oferta } from "../src/lib/monetizacao/model.ts";
 const account = (key, changes = {}) => ({
   key,
   name: key,
@@ -113,4 +116,21 @@ test("Origem atual divergente ou nova não conserva uma aprovação retroativa a
   for (const status of ["nova", "divergente", "confirmar"]) {
     assert.deepEqual(keys({ product: "consultoria" }, [{ ...old, base_origin: { status } }]), []);
   }
+});
+
+test("Consultoria abre a carteira retroativa pendente sem tratá-la como apta para envio", () => {
+  const pending = { ...old, key: "sem-regime", regime: null };
+  const simples = { ...old, key: "simples", regime: "Simples Nacional" };
+  const conflict = { ...old, key: "origem-divergente", base_origin: { status: "divergente" } };
+  const rows = [...accounts, pending, simples, conflict];
+  assert.equal(situacaoInicialProduto("consultoria"), "potential");
+  assert.equal(situacaoInicialProduto("finance"), "eligible");
+  assert.deepEqual(keys({ product: "consultoria" }, rows), ["antiga", "sem-regime"]);
+  assert.deepEqual(keys({ product: "consultoria", status: "eligible" }, rows), ["antiga"]);
+  assert.deepEqual(keys({ product: "consultoria", status: "free" }, rows), ["antiga"]);
+  assert.equal(potencialConsultoria(pending), true);
+  assert.equal(oferta(pending, "consultoria").status, "revisar");
+  assert.equal(potencialConsultoria(simples), false);
+  assert.equal(potencialConsultoria(conflict), false);
+  assert.deepEqual(keys({ product: "consultoria", unit: "u1" }, rows), ["antiga"]);
 });
