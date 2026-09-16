@@ -192,7 +192,14 @@ export function ListWorkspace({
   }, [persisted, dirty, draft.revision]);
   const sendable =
     !dirty && persisted?.status === "validated"
-      ? persisted.items.filter((i) => ["validated", "blocked"].includes(i.status))
+      ? persisted.items.filter((i) => {
+          const a = by.get(i.account_key);
+          return (
+            ["validated", "blocked"].includes(i.status) &&
+            a &&
+            oferta(a, i.product, i.review).status === "elegivel"
+          );
+        })
       : [];
   const sendingItems = sendable.filter((i) => selected.has(i.id));
   const send = async () => {
@@ -545,8 +552,15 @@ export function ListWorkspace({
             <div className="space-y-3">
               {draft.status === "sent" && !draft.origin_confirmed && (
                 <Notice>
-                  Lista enviada para qualificação. A validação com o sócio ainda não foi registrada.
-                  Confira as pendências de origem e reoferta nas oportunidades do CRM.
+                  Histórico de envio anterior. A validação com o sócio ainda não foi registrada. A
+                  regra atual de Consultoria exclui os fechamentos comerciais; os itens abaixo
+                  mostram a classificação atual.
+                </Notice>
+              )}
+              {draft.status === "sent" && issues.length > 0 && (
+                <Notice>
+                  {issues.length} itens desta lista histórica não atendem à regra atual ou têm dados
+                  pendentes. Eles não integram a base apta de Consultoria.
                 </Notice>
               )}
               <Field label="Sócio que validou">
@@ -565,18 +579,8 @@ export function ListWorkspace({
                   disabled={locked}
                   onChange={(e) => change({ origin_confirmed: e.target.checked })}
                 />
-                O sócio confirmou as oportunidades e a origem da carteira. Em Consultoria, confirmou
-                que são contas retroativas.
-              </label>
-              <label className="flex gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={draft.scan_confirmed}
-                  disabled={locked}
-                  onChange={(e) => change({ scan_confirmed: e.target.checked })}
-                />
-                Nas contas também identificadas na carteira comercial, a varredura anterior e a
-                reoferta foram conferidas.
+                O sócio confirmou as oportunidades. Consultoria exige Base Antiga comprovada, sem
+                fechamento pelo comercial e fora do Simples.
               </label>
               {issues.length > 0 && (
                 <details className="text-xs text-amber-600">

@@ -52,40 +52,51 @@ export const distancia = (a: string, b: string) =>
   Math.max(0, Math.floor((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000));
 export const uteis = (from: string, to: string) =>
   dias(from, to).filter((d) => ![0, 6].includes(new Date(d).getUTCDay())).length;
+export const baseRetroativaConsultoria = (a: Conta) =>
+  a.old_base === true && !a.new_commercial && a.consultoria_origin?.status === "retroativa";
 export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta {
-  const regime = normal(review.regime || a.regime),
-    segmento = normal(review.segment || a.segment);
+  const regime = normal(review.regime || a.regime);
   const band = review.band || a.band || "",
     bounds = FAIXAS[band];
   const result = (status: Oferta["status"], reason: string) => ({ status, reason });
-  if (produto === "finance" && !a.pipedrive_contract)
-    return result("fora_regra", "Sem contrato ganho identificado no Pipedrive.");
-  if (/simples|mei/.test(regime)) return result("fora_regra", "Regime Simples Nacional ou MEI.");
-  if (
-    (!review.regime && a.regime_conflict) ||
-    (!review.band && a.band_conflict) ||
-    (produto === "consultoria" && !review.segment && a.segment_conflict)
-  )
-    return result("revisar", "Fontes divergem; confirmar os dados com o sócio.");
-  if (!["lucro real", "lucro presumido", "lucro arbitrado"].includes(regime))
-    return result("revisar", "Regime tributário a confirmar.");
   if (produto === "consultoria") {
-    if (regime !== "lucro real")
-      return result("fora_regra", "Consultoria: perfil definido para Lucro Real.");
-    if (!segmento || /nao informado|outros/.test(segmento))
-      return result("revisar", "Confirmar segmento: indústria, agro, distribuição ou varejo.");
-    if (!/industr|agro|varejo|distribui/.test(segmento))
-      return result("fora_regra", "Segmento fora do perfil de Consultoria.");
-    if (!bounds)
+    if (a.new_commercial || a.consultoria_origin?.status === "comercial")
+      return result(
+        "fora_regra",
+        "Fechamento pelo comercial identificado. Não pertence ao Aquário retroativo de Consultoria.",
+      );
+    if (!baseRetroativaConsultoria(a))
+      return result(
+        a.old_base ? "revisar" : "fora_regra",
+        a.consultoria_origin?.reason || "Origem Base Antiga das unidades não comprovada.",
+      );
+    if (
+      /simples|mei/.test(regime) ||
+      (!review.regime && a.consultoria_origin?.non_simples_confirmed === false)
+    )
+      return result("fora_regra", "Regime Simples Nacional ou MEI.");
+    if (!review.regime && a.regime_conflict)
+      return result("revisar", "Fontes divergem sobre o regime tributário; confirmar com o sócio.");
+    if (
+      !["lucro real", "lucro presumido", "lucro arbitrado"].includes(regime) &&
+      a.consultoria_origin?.non_simples_confirmed !== true
+    )
       return result(
         "revisar",
-        "Faturamento a confirmar com o sócio; sem piso adicional de Consultoria.",
+        "Base retroativa confirmada. Falta comprovar que está fora do Simples.",
       );
     return result(
       "elegivel",
-      "Lucro Real e segmento do perfil. Validar origem retroativa e oportunidade com o sócio.",
+      "Base Antiga das unidades, sem fechamento pelo comercial e fora do Simples. Contato, faturamento e segmento não são vetos.",
     );
   }
+  if (produto === "finance" && !a.pipedrive_contract)
+    return result("fora_regra", "Sem contrato ganho identificado no Pipedrive.");
+  if (/simples|mei/.test(regime)) return result("fora_regra", "Regime Simples Nacional ou MEI.");
+  if ((!review.regime && a.regime_conflict) || (!review.band && a.band_conflict))
+    return result("revisar", "Fontes divergem; confirmar os dados com o sócio.");
+  if (!["lucro real", "lucro presumido", "lucro arbitrado"].includes(regime))
+    return result("revisar", "Regime tributário a confirmar.");
   if (!bounds) return result("revisar", "Faixa de faturamento anual a confirmar.");
   if (produto === "finance") {
     if (bounds[0] >= 25)

@@ -1233,3 +1233,11 @@ policies em favor de um nome honesto.
 - Regra confirmada pelo usuário: faturamento anual estritamente acima de R$ 5 milhões e exclusão de qualquer BPO, incluindo contábil, fiscal, folha e financeiro. Contato e regime não são vetos adicionais. Faixas que atravessam o corte permanecem para conferência.
 - O usuário corrigiu o destino: deixar a seleção no Aquário, sem criar negócios no Pipedrive. Recon tem visão própria de elegibilidade, motivos e exportação, sem alterar os produtos/forecast da operação de Monetização.
 - A conferência combina os produtos de contratos ganhos e a carteira financeira por identificador exato. Falta de informação não comprova ausência de BPO. Evidências ficam no perfil privado da conta; o repositório contém apenas lógica, interface e testes sintéticos.
+
+
+## 2026-09-16 — Consultoria exclusiva para origem retroativa
+
+- Regra corrigida por instrução explícita: Consultoria exige Base Antiga das unidades comprovada, ausência de fechamento pelo comercial e regime fora do Simples/MEI. Faturamento, segmento, contato e exigência exclusiva de Lucro Real deixam de bloquear essa oferta. Regras de Finance e Cella preservadas.
+- Origem confrontada nos cadastros vinculados de Ops/Pipefy e nos fechamentos comerciais por identificadores exatos. Divergência ou regime ausente permanece pendente. Evidências individuais são armazenadas no banco privado, sem publicação no repositório.
+- A restrição vale na interface, na validação e na reserva para envio. A antiga confirmação de reoferta não permite incluir carteira comercial. Histórico de envios permanece visível como histórico; nenhuma oportunidade é criada ou alterada no Pipedrive nesta revisão.
+- Recon foi publicado e conferido antes de iniciar a revisão de Consultoria, conforme a prioridade solicitada.

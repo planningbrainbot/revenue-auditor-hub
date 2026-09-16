@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/sheet";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
-import { disponibilidade, FAIXAS, normal, oferta } from "@/lib/monetizacao/model";
+import {
+  baseRetroativaConsultoria,
+  disponibilidade,
+  FAIXAS,
+  normal,
+  oferta,
+} from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Conta, Produto, Unidade } from "@/lib/monetizacao/types";
 import { AccountDetail } from "./account-detail";
@@ -96,7 +102,10 @@ export function Aquario() {
     consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
   const overlap = data.accounts.filter(
-    (a) => PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length > 1,
+    (a) =>
+      PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length +
+        Number(ofertaRecon(a).status === "elegivel") >
+      1,
   );
   const content = (rows: Conta[], drawer = false) => (
     <PortfolioTable
@@ -151,7 +160,7 @@ export function Aquario() {
         <Kpi
           label="Consultoria · perfil aderente"
           value={number(consult.length)}
-          hint="Prioridade das unidades · ainda exige validação"
+          hint="Base Antiga · sem comercial · fora do Simples"
           accent
         />
         <Kpi
@@ -205,15 +214,39 @@ export function Aquario() {
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {p === "consultoria"
-                    ? "Prioridade das unidades · validar carteira retroativa"
+                    ? "Base Antiga · exclui fechamento comercial · fora do Simples"
                     : p === "cella"
                       ? "Faturamento a partir de R$ 25 mi · fora do Simples"
                       : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi · fora do Simples"}
                 </p>
+                {p === "consultoria" && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    {
+                      data.accounts.filter(
+                        (a) =>
+                          baseRetroativaConsultoria(a) &&
+                          oferta(a, "consultoria").status === "revisar",
+                      ).length
+                    }{" "}
+                    retroativas aguardam confirmação do regime
+                  </p>
+                )}
               </button>
             );
           })}
         </div>
+        <Button
+          className="mt-3"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setFilters({ ...emptyFilters, product: "consultoria", status: "review" });
+            setPicked(new Set());
+            setTab("contas");
+          }}
+        >
+          Conferir regime da base retroativa
+        </Button>
         <p className="mt-3 text-xs text-muted-foreground">
           A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
           preenchido no Pipedrive; contato é opcional.
@@ -250,7 +283,7 @@ export function Aquario() {
                     key={u.key}
                     onClick={() => {
                       setUnit(u);
-                      setFilters({ ...emptyFilters, product: "consultoria" });
+                      setFilters({ ...emptyFilters, product: "consultoria", status: "eligible" });
                       setPicked(new Set());
                     }}
                     className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
@@ -352,6 +385,13 @@ function PortfolioTable({
     () =>
       accounts
         .filter((a) => {
+          if (filters.product === "consultoria" && !baseRetroativaConsultoria(a)) return false;
+          if (
+            filters.product &&
+            filters.status === "review" &&
+            oferta(a, filters.product).status !== "revisar"
+          )
+            return false;
           if (
             filters.unit &&
             !data.units.find((u) => u.key === filters.unit)?.account_keys.includes(a.key)
@@ -373,7 +413,9 @@ function PortfolioTable({
           if (filters.contact && String(a.contact) !== filters.contact) return false;
           if (
             filters.overlap &&
-            PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length < 2
+            PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length +
+              Number(ofertaRecon(a).status === "elegivel") <
+              2
           )
             return false;
           if (
@@ -550,6 +592,7 @@ function PortfolioTable({
           >
             <option value="">Todas as contas</option>
             <option value="eligible">Perfil aderente</option>
+            <option value="review">Dados a confirmar</option>
             <option value="free">Aderentes e disponíveis para o produto</option>
           </select>
         </Field>
@@ -619,10 +662,10 @@ function PortfolioTable({
                     {a.name}
                   </button>
                   <p className="my-1 text-[11px] text-muted-foreground">
-                    {a.old_base
-                      ? "Base antiga declarada"
-                      : a.new_commercial
-                        ? "Contrato comercial"
+                    {a.new_commercial || a.consultoria_origin?.status === "comercial"
+                      ? "Fechamento comercial · fora de Consultoria retroativa"
+                      : baseRetroativaConsultoria(a)
+                        ? "Base Antiga · origem conferida"
                         : "Origem retroativa a confirmar"}
                   </p>
                   <div className="flex flex-wrap gap-1">
@@ -710,6 +753,23 @@ function Gates({ data }: { data: BaseMonetizacao }) {
       "Com resumo ECD vinculado",
       data.accounts.filter((a) => a.ecd).length,
       "Cobertura de evidência contábil; não acrescenta clientes ao total.",
+    ],
+    [
+      "Consultoria · base antiga sem fechamento comercial",
+      data.accounts.filter(baseRetroativaConsultoria).length,
+      "Origem conferida nos registros vinculados. Exclui conflitos e fechamentos comerciais identificados.",
+    ],
+    [
+      "Consultoria · fora do Simples comprovado",
+      data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+      "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
+    ],
+    [
+      "Consultoria · regime a confirmar",
+      data.accounts.filter(
+        (a) => baseRetroativaConsultoria(a) && oferta(a, "consultoria").status === "revisar",
+      ).length,
+      "Não entram na base apta até comprovar que estão fora do Simples.",
     ],
   ];
   return (

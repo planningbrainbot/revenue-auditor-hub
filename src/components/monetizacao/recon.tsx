@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { normal } from "@/lib/monetizacao/model";
+import { normal, oferta } from "@/lib/monetizacao/model";
 import { ofertaRecon } from "@/lib/monetizacao/recon";
+import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { Conta } from "@/lib/monetizacao/types";
 import { date, downloadCsv, Field, inputClass, Kpi, Notice, number, Panel } from "./common";
 
@@ -57,6 +58,7 @@ export function ReconAquario({
         "Produtos dos contratos",
         "Contratos conferidos",
         "Conferido em",
+        "Outras ofertas aderentes",
       ],
       ...items.map((a) => [
         a.name,
@@ -69,6 +71,9 @@ export function ReconAquario({
         a.recon?.products.join("; "),
         a.recon?.contract_ids.join("; "),
         a.recon?.checked_at,
+        PRODUTOS.filter((p) => oferta(a, p).status === "elegivel")
+          .map((p) => NOMES[p])
+          .join("; "),
       ]),
     ]);
   return (
@@ -179,7 +184,7 @@ export function ReconAquario({
                 <th className="p-3">Faturamento anual</th>
                 <th className="p-3">Serviços contratados</th>
                 <th className="p-3">Critério Recon</th>
-                <th className="p-3">Contato</th>
+                <th className="p-3">Contato / outras ofertas</th>
               </tr>
             </thead>
             <tbody>

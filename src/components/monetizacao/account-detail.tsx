@@ -62,6 +62,18 @@ export function AccountDetail({
                     </p>
                   )}
                 </div>
+                {account.consultoria_origin && (
+                  <div className="rounded border p-2 text-xs">
+                    <strong>Origem para Consultoria</strong>
+                    <p className="mt-1 text-muted-foreground">
+                      {account.consultoria_origin.reason}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Conferido em {date(account.consultoria_origin.checked_at)} ·{" "}
+                      {account.consultoria_origin.regime_source || "Regime ainda não confirmado"}
+                    </p>
+                  </div>
+                )}
                 {PRODUTOS.map((p) => {
                   const result = oferta(account, p);
                   return (
