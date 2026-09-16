@@ -22,6 +22,24 @@ export const NOMES: Record<Produto | "sem_produto", string> = {
   sem_produto: "Sem produto",
 };
 export type Oferta = { status: "elegivel" | "revisar" | "fora_regra"; reason: string };
+export interface DrivaRecord {
+  cnpj: string;
+  queried_at: string | null;
+  source_updated_at?: string | null;
+  status: string;
+  non_simples: boolean | null;
+  regime: string | null;
+  raw_regime?: string | null;
+  adjusted_regime?: string | null;
+  simples?: boolean | null;
+  mei?: boolean | null;
+  revenue_estimate?: number | null;
+  group_revenue_estimate?: number | null;
+  group_revenue_band?: string | null;
+  segment?: string | null;
+  cnae?: string | null;
+  registration_status?: string | null;
+}
 export interface Conta {
   key: string;
   name: string;
@@ -31,6 +49,8 @@ export interface Conta {
   contact: boolean;
   band: string | null;
   regime: string | null;
+  regime_source?: string | null;
+  regime_at?: string | null;
   segment: string | null;
   segment_source?: string | null;
   segment_at?: string | null;
@@ -46,6 +66,19 @@ export interface Conta {
   finance_candidate: boolean;
   finance: Oferta;
   ecd: boolean;
+  driva?: {
+    source: string;
+    queried_at: string;
+    cnpjs_total: number;
+    cnpjs_found: number;
+    status: string;
+    non_simples: boolean | null;
+    regime: string | null;
+    regime_conflict: boolean;
+    group_revenue_band: string | null;
+    revenue_estimated: boolean;
+    segment: string | null;
+  };
   base_origin?: {
     status: "antiga" | "nova" | "divergente" | "confirmar";
     reason: string;

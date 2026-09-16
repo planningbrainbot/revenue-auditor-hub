@@ -19,6 +19,7 @@ export const situacaoInicialProduto = (p: Produto | "") =>
 export type PortfolioFilters = {
   query: string;
   band: string;
+  drivaBand: string;
   segment: string;
   contact: string;
   regime: string;
@@ -31,6 +32,7 @@ export type PortfolioFilters = {
 export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   query: "",
   band: "",
+  drivaBand: "",
   segment: "",
   contact: "",
   regime: "",
@@ -54,6 +56,7 @@ export function filtrarCarteira(
       if (f.query && !normal([a.name, a.segment, a.unit_label].join(" ")).includes(normal(f.query)))
         return false;
       if (f.band === "unknown" && a.band) return false;
+      if (f.drivaBand && a.driva?.group_revenue_band !== f.drivaBand) return false;
       if (f.band.startsWith("exact:") && a.band !== f.band.slice(6)) return false;
       if (
         f.band &&

@@ -12,7 +12,7 @@ import { negociosDaConta, oferta } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import { ofertaRecon } from "@/lib/monetizacao/recon";
 import type { Conta, Negocio } from "@/lib/monetizacao/types";
-import { date, Notice, Panel } from "./common";
+import { date, money, Notice, Panel } from "./common";
 
 export function AccountDetail({
   account,
@@ -115,6 +115,102 @@ export function AccountDetail({
                 })}
               </div>
             </Panel>
+            {account.driva && (
+              <Panel title="Dados Driva">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {account.driva.source} · consulta em {date(account.driva.queried_at)} ·{" "}
+                  {account.driva.cnpjs_found} de {account.driva.cnpjs_total} CNPJs encontrados.
+                  Faturamentos são estimativas do fornecedor; não substituem a receita declarada.
+                </p>
+                {account.driva.status === "missing_cnpj" ? (
+                  <Notice>Falta CNPJ para consultar esta conta.</Notice>
+                ) : q.isPending ? (
+                  <p className="text-sm">Carregando evidências…</p>
+                ) : q.error ? (
+                  <Notice>{q.error.message}</Notice>
+                ) : (
+                  <div className="space-y-3">
+                    {q.data?.driva?.records.map((r) => (
+                      <div key={r.cnpj} className="rounded-lg border p-3 text-sm">
+                        <p className="font-medium">CNPJ {r.cnpj}</p>
+                        {r.status !== "enriched" && (
+                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                            {r.status === "invalid_cnpj"
+                              ? "CNPJ inválido no cadastro"
+                              : r.status === "not_found"
+                                ? "Não encontrado na Driva"
+                                : r.status === "conflict"
+                                  ? "Dados divergentes · confirmar antes de qualificar"
+                                  : "Consulta pendente"}
+                          </p>
+                        )}
+                        <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Regime tributário</dt>
+                            <dd>
+                              {r.regime ||
+                                (r.non_simples === true
+                                  ? "Fora do Simples · regime específico não informado"
+                                  : "Não confirmado")}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Simples / MEI</dt>
+                            <dd>
+                              {r.simples === true
+                                ? "Optante do Simples"
+                                : r.simples === false
+                                  ? "Não optante do Simples"
+                                  : "Simples não informado"}{" "}
+                              ·{" "}
+                              {r.mei === true
+                                ? "MEI"
+                                : r.mei === false
+                                  ? "Não MEI"
+                                  : "MEI não informado"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">
+                              Faturamento estimado · estabelecimento
+                            </dt>
+                            <dd>
+                              {r.revenue_estimate ? money(r.revenue_estimate) : "Não informado"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">
+                              Faturamento estimado · grupo Driva
+                            </dt>
+                            <dd>
+                              {r.group_revenue_band || "Faixa não informada"}
+                              {r.group_revenue_estimate
+                                ? ` · ${money(r.group_revenue_estimate)}`
+                                : ""}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Atividade / CNAE</dt>
+                            <dd>{r.cnae || r.segment || "Não informado"}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">Situação cadastral</dt>
+                            <dd>{r.registration_status || "Não informada"}</dd>
+                          </div>
+                        </dl>
+                        <p className="mt-3 text-[11px] text-muted-foreground">
+                          Consulta: {date(r.queried_at)}. Referência dos dados:{" "}
+                          {r.source_updated_at
+                            ? date(r.source_updated_at)
+                            : "não informada pelo fornecedor"}
+                          .
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            )}
             <Panel title="Cadastro e procedência">
               {q.isPending ? (
                 <p className="text-sm">Carregando detalhes…</p>

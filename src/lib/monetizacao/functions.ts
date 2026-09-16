@@ -1,7 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { BaseMonetizacao, Conta, ItemLista, Lista, Negocio, Plano, Registro } from "./types";
+import type {
+  BaseMonetizacao,
+  Conta,
+  DrivaRecord,
+  ItemLista,
+  Lista,
+  Negocio,
+  Plano,
+  Registro,
+} from "./types";
 
 // O schema é explícito: o banco único é o único destino desta integração.
 // Tipos dessas tabelas serão incorporados à próxima geração global do Database.
@@ -133,6 +142,7 @@ export const detalheAquario = createServerFn({ method: "GET" })
           }
         : undefined,
       sources: row.detalhe.sources,
+      driva: row.detalhe.driva,
       contacts: contactsAllowed ? row.detalhe.contacts || [] : [],
       contacts_restricted: !contactsAllowed,
       updated_at: row.updated_at,
@@ -151,6 +161,7 @@ export const detalheAquario = createServerFn({ method: "GET" })
       >;
       ecd_summary?: { available: boolean; exercise?: string };
       sources?: Record<string, number>;
+      driva?: { records: DrivaRecord[] };
       contacts_restricted: boolean;
       updated_at: string;
     };

@@ -134,3 +134,11 @@ test("Consultoria abre a carteira retroativa pendente sem tratá-la como apta pa
   assert.equal(potencialConsultoria(conflict), false);
   assert.deepEqual(keys({ product: "consultoria", unit: "u1" }, rows), ["antiga"]);
 });
+
+test("Estimativa de grupo Driva filtra separadamente e não vira faixa anual comprovada", () => {
+  const enriched = { ...old, driva: { group_revenue_band: "20M A 30M" } };
+  assert.deepEqual(keys({ drivaBand: "20M A 30M" }, [enriched]), ["antiga"]);
+  assert.deepEqual(keys({ drivaBand: "50M A 100M" }, [enriched]), []);
+  assert.deepEqual(keys({ band: "25" }, [enriched]), []);
+  assert.equal(oferta(enriched, "cella").status, "revisar");
+});

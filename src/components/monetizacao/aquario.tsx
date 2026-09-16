@@ -93,6 +93,8 @@ export function Aquario() {
     consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
     consultPool = data.accounts.filter(potencialConsultoria),
     consultPending = consultPool.filter((a) => oferta(a, "consultoria").status === "revisar"),
+    consultBase = data.accounts.filter(baseRetroativaConsultoria),
+    consultExcluded = consultBase.filter((a) => oferta(a, "consultoria").status === "fora_regra"),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
   const overlap = data.accounts.filter(
     (a) =>
@@ -152,9 +154,9 @@ export function Aquario() {
           hint="A partir de R$ 25 mi · fora do Simples"
         />
         <Kpi
-          label="Consultoria · base para análise"
-          value={number(consultPool.length)}
-          hint={`${consult.length} aptas confirmadas · ${consultPending.length} com regime a confirmar`}
+          label="Consultoria · carteira retroativa"
+          value={number(consultBase.length)}
+          hint={`${consult.length} aptas · ${consultExcluded.length} fora da regra · ${consultPending.length} a confirmar`}
           accent
         />
         <Kpi
@@ -220,6 +222,8 @@ export function Aquario() {
                     {consultPending.length > 0
                       ? `${consultPending.length} com regime a confirmar. ${eligible.length ? `${eligible.length} aptas confirmadas · ${free.length} disponíveis.` : "Aptidão ainda não apurada."}`
                       : `${eligible.length} aptas confirmadas · ${free.length} disponíveis`}
+                    {consultExcluded.length > 0 &&
+                      ` ${consultExcluded.length} retroativas excluídas por Simples/MEI.`}
                   </p>
                 )}
               </button>
@@ -317,7 +321,7 @@ export function Aquario() {
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {accounts.filter((a) => a.contact).length} com contato ·{" "}
-                      {accounts.filter((a) => !a.band).length} sem faturamento
+                      {accounts.filter((a) => !a.band).length} sem faturamento declarado
                     </p>
                   </button>
                 );
@@ -445,6 +449,8 @@ function PortfolioTable({
                   "Origem da base",
                   "Fonte da origem",
                   "Faturamento anual",
+                  "Faixa de faturamento estimado do grupo · Driva",
+                  "Driva · consultado em",
                   "Segmento",
                   "Regime",
                   "Contato",
@@ -458,6 +464,8 @@ function PortfolioTable({
                   ORIGENS_BASE[origemBase(a)],
                   a.base_origin?.reason,
                   a.band,
+                  a.driva?.group_revenue_band,
+                  a.driva?.queried_at,
                   a.segment,
                   a.regime,
                   a.contact ? "Sim" : "Obter com o sócio",
@@ -545,7 +553,7 @@ function PortfolioTable({
             />
           </div>
         </Field>
-        <Field label="Faturamento anual">
+        <Field label="Faturamento anual · cadastro">
           <select
             className={inputClass}
             value={filters.band}
@@ -565,6 +573,24 @@ function PortfolioTable({
             </optgroup>
           </select>
         </Field>
+        {accounts.some((a) => a.driva?.group_revenue_band) && (
+          <Field label="Faturamento estimado · grupo Driva">
+            <select
+              className={inputClass}
+              value={filters.drivaBand}
+              onChange={(e) => change("drivaBand", e.target.value)}
+            >
+              <option value="">Todas as estimativas</option>
+              {[...new Set(accounts.map((a) => a.driva?.group_revenue_band).filter(Boolean))]
+                .sort()
+                .map((band) => (
+                  <option key={band} value={band!}>
+                    {band}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
         <Field label="Segmento">
           <select
             className={inputClass}
@@ -697,7 +723,7 @@ function PortfolioTable({
                 />
               </th>
               <th className="p-2">Empresa</th>
-              <th className="p-2">Faturamento anual</th>
+              <th className="p-2">Faturamento · cadastro / Driva</th>
               <th className="p-2">Segmento / regime</th>
               <th className="p-2">Contato / CRM</th>
             </tr>
@@ -731,14 +757,30 @@ function PortfolioTable({
                   </div>
                 </td>
                 <td className="min-w-40 p-2 text-xs">
-                  {a.band || "A confirmar com o sócio"}
+                  {a.band || "Declarado não informado"}
+                  {a.driva?.group_revenue_band && (
+                    <p className="mt-1 font-medium">
+                      {a.driva.group_revenue_band}
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        Estimativa Driva · grupo econômico
+                      </span>
+                    </p>
+                  )}
                   {a.band_conflict && <span className="block text-amber-600">Fontes divergem</span>}
                 </td>
                 <td className="min-w-36 p-2 text-xs">
                   {a.segment || "Segmento a confirmar"}
                   <span className="block text-muted-foreground">
-                    {a.regime || "Regime a confirmar"}
+                    {a.regime ||
+                      (a.driva?.non_simples === true
+                        ? "Fora do Simples · regime específico não informado"
+                        : "Regime a confirmar")}
                   </span>
+                  {a.regime_source && (
+                    <span className="block text-[10px] text-muted-foreground">
+                      Regime: {a.regime_source}
+                    </span>
+                  )}
                   <span className="block text-[10px] text-muted-foreground">
                     {a.segment_source || "Sem fonte preenchida"}
                   </span>
@@ -819,6 +861,13 @@ function Gates({ data }: { data: BaseMonetizacao }) {
       "Consultoria · fora do Simples comprovado",
       data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
       "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
+    ],
+    [
+      "Consultoria · excluídas por Simples/MEI",
+      data.accounts.filter(
+        (a) => baseRetroativaConsultoria(a) && oferta(a, "consultoria").status === "fora_regra",
+      ).length,
+      "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
     ],
     [
       "Consultoria · regime a confirmar",
