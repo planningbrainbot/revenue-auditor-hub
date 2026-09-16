@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   adminCreateUser,
+  adminAccessEmailStatus,
   adminDeleteUser,
   adminEnviarRedefinicaoSenha,
   adminGrantGrowthAccess,
@@ -74,6 +75,7 @@ function UsersPage() {
   const qc = useQueryClient();
 
   const listFn = useServerFn(adminListUsers);
+  const emailStatusFn = useServerFn(adminAccessEmailStatus);
   const createFn = useServerFn(adminCreateUser);
   const resetFn = useServerFn(adminEnviarRedefinicaoSenha);
   const deleteFn = useServerFn(adminDeleteUser);
@@ -91,6 +93,12 @@ function UsersPage() {
   const usersQuery = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => listFn(),
+    enabled: isAdmin,
+  });
+
+  const emailStatus = useQuery({
+    queryKey: ["admin-access-email-status"],
+    queryFn: () => emailStatusFn(),
     enabled: isAdmin,
   });
 
@@ -269,6 +277,23 @@ function UsersPage() {
   return (
     <AppShell title="Gerenciar usuários" subtitle="Cadastre admins, diretores e sócios">
       <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
+        <section className="rounded-xl border bg-card px-5 py-4">
+          <h2 className="text-sm font-semibold">Emails de acesso</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Convites e redefinições saem como Planning Brain · noreply@planningbrain.com.br. Para
+            uma conta existente, use “Enviar redefinição” na linha do usuário. A pessoa define a
+            própria senha pelo link recebido.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground" role="status">
+            {emailStatus.isError
+              ? "Não foi possível consultar a configuração de envio."
+              : !emailStatus.data
+                ? "Conferindo o envio…"
+                : emailStatus.data.configured
+                  ? "Resend configurado · link de uso único, válido por 1 hora."
+                  : "Resend pendente de configuração. O administrador pode copiar o link após gerá-lo."}
+          </p>
+        </section>
         {acesso && (
           <div
             className={`rounded-xl border p-4 ${

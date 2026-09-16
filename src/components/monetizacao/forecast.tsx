@@ -10,12 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Button } from "@/components/ui/button";
+import { ForecastModel } from "./forecast-model";
 import { disponibilidade, oferta } from "@/lib/monetizacao/model";
 import { forecastComparison } from "@/lib/monetizacao/forecast";
 import { NOMES } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
-import { date, downloadCsv, Field, inputClass, Kpi, money, Notice, number, Panel } from "./common";
+import { date, Field, inputClass, Kpi, money, Notice, number, Panel } from "./common";
 
 export function Forecast({
   data,
@@ -68,7 +68,6 @@ export function Forecast({
     projetado: c.planned.signed,
     realizado: c.actual?.rows.signed.length ?? null,
   }));
-  const index = source.months.indexOf(selected.month);
   const fmt = (v: number | null, type: string) =>
     v === null
       ? "—"
@@ -253,68 +252,7 @@ export function Forecast({
           Os movimentos desses negócios não são inferidos da etapa atual.
         </Notice>
       )}
-      <Panel
-        title="Modelo completo de referência"
-        action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              downloadCsv("forecast-v10.csv", [
-                ["Linha", ...source.months],
-                ...source.rows.map((r) => [r.label, ...r.values]),
-              ])
-            }
-          >
-            Exportar modelo
-          </Button>
-        }
-      >
-        <details>
-          <summary className="cursor-pointer text-sm text-primary">
-            Ver as 44 linhas e os 12 meses da planilha
-          </summary>
-          <p className="my-3 text-xs text-muted-foreground">
-            Valores do modelo original, incluindo estoque, receita, caixa e custo. O caixa projetado
-            não é comparado à receita prevista contratual: são medidas diferentes. Passe sobre um
-            valor para conferir a célula e a fórmula de origem.
-          </p>
-          <div className="max-h-[560px] overflow-auto">
-            <table className="w-full min-w-[1450px] text-right text-xs">
-              <thead className="sticky top-0 bg-background">
-                <tr>
-                  <th className="sticky left-0 bg-background py-3 text-left">Linha</th>
-                  {source.months.map((m) => (
-                    <th className="px-3" key={m}>
-                      {date(m + "-01").slice(3)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {source.rows.map((r) => (
-                  <tr className="border-t" key={r.row}>
-                    <td className="sticky left-0 bg-background py-2 pr-4 text-left">{r.label}</td>
-                    {r.values.map((v, i) => (
-                      <td
-                        className={`px-3 tabular-nums ${i === index ? "bg-primary/5" : ""}`}
-                        key={i}
-                        title={`Forecast!${String.fromCharCode(67 + i)}${r.row}${r.formulas[i] ? " = " + r.formulas[i] : " · entrada da planilha"}`}
-                      >
-                        {fmt(v, r.format)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-        <p className="mt-3 text-xs text-muted-foreground">
-          {source.source_name} · referência importada e preservada no Planning Brain. Atualizar o
-          CRM não altera as premissas da planilha.
-        </p>
-      </Panel>
+      <ForecastModel source={source} selectedMonth={selected.month} />
     </div>
   );
 }

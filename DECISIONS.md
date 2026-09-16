@@ -1217,3 +1217,12 @@ policies em favor de um nome honesto.
 **Status:** commit de aplicação `940bedb`, incluindo a main até `2a93602`, publicado no domínio `planningbrain.com.br` pelo deploy `dpl_7KsBaGoUpPStEztwsv2zoF4cH51S` (Ready, promoção concluída). Conferência no Chrome autenticado: Projetado × realizado carregou setembro com 61 trabalhos, 18 reuniões, 16 validadas e 0 assinados, para toda a frente; outubro mostrou realizado ausente e 16 contratos projetados. O Aquário mostrou as três entradas de produto, 62/45/144 perfis aderentes (Cella/Consultoria/Finance) e disponibilidade 22/45/113 no instante da consulta. Preparar lista a partir de Cella abriu rascunho com Cella e unidade inferida, sem salvar nem enviar. O rascunho de conferência foi descartado por navegação e o comparativo ficou aberto para o usuário. A comparação não alterou a fonte XLSX; o arquivo de Downloads e o do repositório têm hash idêntico.
 
 **Pendente:** a confirmação de escopo/ampliação dos acessos ainda não chegou. Jordana está habilitada para Clientes/Monetização com o escopo de rede preexistente; Matheus está cadastrado e habilitado para os módulos, sem carteira liberada até a aprovação do escopo. A proposta de ampliar o envio para todos que acessam Clientes permanece fora das migrations. Nenhum email foi enviado. PR #2 atualizado, sem merge na main por este trabalho.
+
+
+## 2026-09-16 — Integração do Aquário na main
+
+- A publicação automática da main não continha as rotas do Aquário e da Monetização, que permaneciam em um PR aberto.
+- Integração reconciliada com a main atual, preservando as alterações de navegação e permissões de Financeiro da Unidade.
+- Inclui as melhorias de apresentação do forecast e os ajustes de acesso já implementados: envio pelo Resend no servidor e redefinição de senha confirmada pelo usuário.
+- Nenhuma credencial, lista de destinatários ou resultado operacional é incluído nesta atualização.
+- Validação: testes de Monetização, e-mails e recuperação; build Vercel concluído; rotas de produção verificadas.

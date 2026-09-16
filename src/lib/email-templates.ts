@@ -1,9 +1,16 @@
-// Templates dos e-mails transacionais de acesso ao Planning Ops.
+// Templates dos e-mails transacionais de acesso ao Planning Brain.
 // HTML em tabela e estilo inline de propósito: é o que sobrevive ao Gmail,
 // Outlook e ao webmail das unidades.
 
 const LOGO_URL = "https://planningbrain.com.br/brand/planning-logo-dark.png";
 const VERDE = "#00C38B";
+
+function escapeHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
 
 function layout(opts: {
   titulo: string;
@@ -21,20 +28,20 @@ function layout(opts: {
           <img src="${LOGO_URL}" alt="Planning" width="132" style="display:block;height:auto;border:0;" />
         </td></tr>
         <tr><td style="padding:12px 32px 0 32px;">
-          <h1 style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:20px;line-height:28px;color:#111827;font-weight:700;">${opts.titulo}</h1>
+          <h1 style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:20px;line-height:28px;color:#111827;font-weight:700;">${escapeHtml(opts.titulo)}</h1>
         </td></tr>
         <tr><td style="padding:12px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:23px;color:#374151;">
           ${opts.corpo}
         </td></tr>
         <tr><td style="padding:24px 32px 4px 32px;">
-          <a href="${opts.botao.url}" style="display:inline-block;background:${VERDE};color:#0b1f18;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;padding:13px 26px;border-radius:999px;">${opts.botao.texto}</a>
+          <a href="${escapeHtml(opts.botao.url)}" style="display:inline-block;background:${VERDE};color:#0b1f18;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;padding:13px 26px;border-radius:999px;">${escapeHtml(opts.botao.texto)}</a>
         </td></tr>
         <tr><td style="padding:18px 32px 0 32px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#6b7280;">
           Se o botão não funcionar, copie e cole este endereço no navegador:<br />
-          <span style="word-break:break-all;color:#374151;">${opts.botao.url}</span>
+          <span style="word-break:break-all;color:#374151;">${escapeHtml(opts.botao.url)}</span>
         </td></tr>
         <tr><td style="padding:22px 32px 30px 32px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#6b7280;border-top:1px solid #f0f1f3;margin-top:8px;">
-          ${opts.rodape}
+          ${escapeHtml(opts.rodape)}
         </td></tr>
       </table>
       <p style="margin:16px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af;">Planning Brain · planningbrain.com.br</p>
@@ -44,7 +51,7 @@ function layout(opts: {
 </html>`;
 }
 
-const VALIDADE = "O link vale por 24 horas e só pode ser usado uma vez.";
+const VALIDADE = "O link vale por 1 hora. A confirmação acontece ao salvar sua nova senha.";
 
 export function emailBoasVindas(params: {
   nome: string;
@@ -54,22 +61,22 @@ export function emailBoasVindas(params: {
 }) {
   const primeiroNome = params.nome.trim().split(/\s+/)[0] || params.nome;
   return {
-    subject: "Seu acesso ao Planning Ops",
+    subject: "Seu acesso ao Planning Brain",
     html: layout({
       titulo: `Olá, ${primeiroNome}`,
       corpo: `
-        <p style="margin:0 0 12px 0;">Sua conta no <strong>Planning Ops</strong> foi criada com o perfil <strong>${params.papel}</strong>.</p>
-        <p style="margin:0;">Seu usuário é <strong>${params.email}</strong>. Defina sua senha no botão abaixo para entrar pela primeira vez.</p>`,
+        <p style="margin:0 0 12px 0;">Sua conta no <strong>Planning Brain</strong> foi criada com o perfil <strong>${escapeHtml(params.papel)}</strong>.</p>
+        <p style="margin:0;">Seu usuário é <strong>${escapeHtml(params.email)}</strong>. Defina sua senha no botão abaixo para entrar pela primeira vez.</p>`,
       botao: { texto: "Definir minha senha", url: params.link },
       rodape: `${VALIDADE} Se ele expirar, use "Esqueci minha senha" na tela de login que um novo chega no mesmo e-mail.`,
     }),
     text: [
       `Olá, ${primeiroNome}`,
       ``,
-      `Sua conta no Planning Ops foi criada com o perfil ${params.papel}.`,
+      `Sua conta no Planning Brain foi criada com o perfil ${params.papel}.`,
       `Usuário: ${params.email}`,
       ``,
-      `Defina sua senha neste link (vale por 24 horas, uso único):`,
+      `Defina sua senha neste link (vale por 1 hora, uso único):`,
       params.link,
       ``,
       `Se o link expirar, use "Esqueci minha senha" na tela de login.`,
@@ -82,20 +89,20 @@ export function emailRedefinicaoSenha(params: { nome: string; email: string; lin
   const primeiroNome = (params.nome || "").trim().split(/\s+/)[0];
   const saudacao = primeiroNome ? `Olá, ${primeiroNome}` : "Redefinição de senha";
   return {
-    subject: "Redefinição de senha — Planning Ops",
+    subject: "Redefinição de senha — Planning Brain",
     html: layout({
       titulo: saudacao,
       corpo: `
-        <p style="margin:0 0 12px 0;">Um administrador solicitou a redefinição da senha da sua conta no <strong>Planning Ops</strong> (${params.email}).</p>
+        <p style="margin:0 0 12px 0;">Um administrador solicitou a redefinição da senha da sua conta no <strong>Planning Brain</strong> (${escapeHtml(params.email)}).</p>
         <p style="margin:0;">Sua senha atual continua valendo até você cadastrar uma nova pelo botão abaixo.</p>`,
       botao: { texto: "Cadastrar nova senha", url: params.link },
-      rodape: `${VALIDADE} Se você não esperava este e-mail, avise a equipe de Operações — nenhuma alteração acontece enquanto o link não for usado.`,
+      rodape: `${VALIDADE} Se você não esperava este e-mail, avise a equipe de Operações — nenhuma alteração acontece antes de salvar a nova senha.`,
     }),
     text: [
       saudacao,
       ``,
-      `Um administrador solicitou a redefinição da senha da sua conta no Planning Ops (${params.email}).`,
-      `Sua senha atual continua valendo até você cadastrar uma nova neste link (vale por 24 horas, uso único):`,
+      `Um administrador solicitou a redefinição da senha da sua conta no Planning Brain (${params.email}).`,
+      `Sua senha atual continua valendo até você cadastrar uma nova neste link (vale por 1 hora, uso único):`,
       params.link,
       ``,
       `Se você não esperava este e-mail, avise a equipe de Operações.`,
@@ -137,8 +144,8 @@ export function emailAcessoFinanceiro(params: {
       titulo: `Olá, ${primeiroNome}`,
       corpo: `
         <p style="margin:0 0 12px 0;">Você recebeu acesso ao <strong>Brain Financeiro</strong>, o cockpit de DRE, fluxo de caixa, inadimplência e aprovações do Grupo Planning.</p>
-        <p style="margin:0 0 12px 0;">As unidades que você abre: <strong>${lista}</strong>.</p>
-        <p style="margin:0;">Você entra com o mesmo e-mail e a mesma senha do Planning Ops (<strong>${params.email}</strong>) — não há senha separada.</p>`,
+        <p style="margin:0 0 12px 0;">As unidades que você abre: <strong>${escapeHtml(lista)}</strong>.</p>
+        <p style="margin:0;">Você entra com o mesmo e-mail e a mesma senha do Planning Brain (<strong>${escapeHtml(params.email)}</strong>) — não há senha separada.</p>`,
       botao: { texto: "Abrir o Brain Financeiro", url: params.link },
       rodape: `Acesso concedido por ${params.concedidoPor}. Se alguma unidade dessa lista não deveria estar aí, responda este e-mail antes de abrir.`,
     }),
@@ -150,7 +157,7 @@ export function emailAcessoFinanceiro(params: {
       ``,
       `Unidades que você abre: ${lista}`,
       ``,
-      `Você entra com o mesmo e-mail e senha do Planning Ops (${params.email}).`,
+      `Você entra com o mesmo e-mail e senha do Planning Brain (${params.email}).`,
       `Não há senha separada.`,
       ``,
       params.link,

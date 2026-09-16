@@ -543,6 +543,12 @@ export function ListWorkspace({
         {!!draft.items.length && (
           <Panel title="2. Validar com o sócio">
             <div className="space-y-3">
+              {draft.status === "sent" && !draft.origin_confirmed && (
+                <Notice>
+                  Lista enviada para qualificação. A validação com o sócio ainda não foi registrada.
+                  Confira as pendências de origem e reoferta nas oportunidades do CRM.
+                </Notice>
+              )}
               <Field label="Sócio que validou">
                 <input
                   className={inputClass}

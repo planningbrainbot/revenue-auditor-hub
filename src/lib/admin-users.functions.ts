@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAffected } from "@/lib/supabase-assert";
-import { enviarEmail } from "@/lib/email.server";
+import { enviarEmailAcesso as enviarEmail, accessEmailStatus } from "@/lib/email-access.server";
 import { emailBoasVindas, emailRedefinicaoSenha } from "@/lib/email-templates";
+import { passwordRecoveryLink } from "@/lib/password-recovery";
 
 type Role = string;
 
@@ -28,6 +29,13 @@ function appUrl() {
   return (process.env.APP_URL || "https://planningbrain.com.br").replace(/\/+$/, "");
 }
 
+export const adminAccessEmailStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await ensureAdmin(context.userId);
+    return accessEmailStatus();
+  });
+
 /**
  * Gera o link de uso único que leva a pessoa direto pra tela de definir senha.
  * É o mesmo tipo de link do "esqueci minha senha", só que emitido pelo admin —
@@ -40,11 +48,11 @@ async function gerarLinkDefinirSenha(email: string): Promise<string> {
     email,
     options: { redirectTo: `${appUrl()}/redefinir-senha` },
   });
-  if (error || !data?.properties?.action_link) {
-    console.error("[gerarLinkDefinirSenha] generateLink failed:", error);
+  if (error || !data?.properties?.hashed_token) {
+    console.error("[gerarLinkDefinirSenha] generateLink failed");
     throw new Error("Falha ao gerar o link de definição de senha.");
   }
-  return data.properties.action_link;
+  return passwordRecoveryLink(data.properties.hashed_token);
 }
 
 function pickPrimaryRole(roles: Role[]): Role {

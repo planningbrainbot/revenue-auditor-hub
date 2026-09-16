@@ -45,7 +45,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAffected } from "@/lib/supabase-assert";
-import { enviarEmail } from "@/lib/email.server";
+import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
 import { emailAcessoFinanceiro } from "@/lib/email-templates";
 
 const PRODUTO = "financeiro";

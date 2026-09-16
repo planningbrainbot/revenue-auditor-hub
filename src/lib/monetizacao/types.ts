@@ -167,6 +167,8 @@ export interface BaseMonetizacao {
 }
 
 export interface ForecastSource {
+  drive_url?: string;
+  drive_updated_at?: string;
   id: string;
   version: string;
   source_name: string;
