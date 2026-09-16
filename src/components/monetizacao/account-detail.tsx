@@ -52,14 +52,37 @@ export function AccountDetail({
           <div className="space-y-4">
             <Panel title="Oportunidades desta empresa">
               <div className="space-y-3">
+                {account.base_origin && (
+                  <div className="rounded border p-2 text-xs">
+                    <strong>Origem da carteira</strong>
+                    <p className="mt-1">{account.base_origin.reason}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      Fonte: {account.base_origin.source}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <strong className="text-sm">Recon</strong>
                   <p className="text-xs text-muted-foreground">{ofertaRecon(account).reason}</p>
                   {account.recon && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       Contratos conferidos em {date(account.recon.checked_at)} ·{" "}
                       {account.recon.products.join(" · ") || "Serviços a confirmar"}
-                    </p>
+                      {account.recon.revenue_label && (
+                        <p className="mt-2">Faturamento Recon: {account.recon.revenue_label}</p>
+                      )}
+                      {account.recon.revenue_sources?.map((source) => (
+                        <p className="mt-1" key={source}>
+                          {source}
+                        </p>
+                      ))}
+                      {!!account.recon.identity_note_ids?.length && (
+                        <p className="mt-1">
+                          Identificação conferida nas notas CRM:{" "}
+                          {account.recon.identity_note_ids.join(", ")}.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
                 {account.consultoria_origin && (

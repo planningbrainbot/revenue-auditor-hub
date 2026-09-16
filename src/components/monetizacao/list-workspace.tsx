@@ -167,14 +167,14 @@ export function ListWorkspace({
       setDraft({
         ...draft,
         id: res.id,
-        revision: (draft.revision || 0) + 1,
+        revision: res.revision,
         status: mode === "validate" ? "validated" : "draft",
       });
       setDirty(false);
       await invalidate();
       toast.success(
         mode === "validate"
-          ? "Validação registrada. Abra a lista salva para selecionar o envio."
+          ? "Validação opcional registrada. A lista está pronta para seleção."
           : "Lista salva e disponível à equipe.",
       );
     } catch (e) {
@@ -191,11 +191,11 @@ export function ListWorkspace({
     }
   }, [persisted, dirty, draft.revision]);
   const sendable =
-    !dirty && persisted?.status === "validated"
+    !dirty && persisted && ["draft", "validated"].includes(persisted.status)
       ? persisted.items.filter((i) => {
           const a = by.get(i.account_key);
           return (
-            ["validated", "blocked"].includes(i.status) &&
+            ["draft", "validated", "blocked"].includes(i.status) &&
             a &&
             oferta(a, i.product, i.review).status === "elegivel"
           );
@@ -548,15 +548,11 @@ export function ListWorkspace({
           )}
         </Panel>
         {!!draft.items.length && (
-          <Panel title="2. Validar com o sócio">
+          <details className="rounded-lg border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-medium">
+              Registrar validação com o sócio · opcional
+            </summary>
             <div className="space-y-3">
-              {draft.status === "sent" && !draft.origin_confirmed && (
-                <Notice>
-                  Histórico de envio anterior. A validação com o sócio ainda não foi registrada. A
-                  regra atual de Consultoria exclui os fechamentos comerciais; os itens abaixo
-                  mostram a classificação atual.
-                </Notice>
-              )}
               {draft.status === "sent" && issues.length > 0 && (
                 <Notice>
                   {issues.length} itens desta lista histórica não atendem à regra atual ou têm dados
@@ -606,15 +602,25 @@ export function ListWorkspace({
                 Registrar validação
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                Registrar validação salva a aprovação e libera a seleção abaixo. O envio ao
-                Pipedrive acontece no próximo passo. Alterações posteriores exigem nova validação.
+                Este registro é opcional e não bloqueia o envio direto. As regras do produto e os
+                dados da oportunidade são conferidos no envio.
               </p>
             </div>
-          </Panel>
+          </details>
         )}
         {persisted && (
-          <Panel title="3. Enviar oportunidades selecionadas ao Pipedrive">
+          <Panel title="Enviar oportunidades selecionadas ao Pipedrive">
             <div className="space-y-2">
+              {!!sendable.length && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelected(new Set(sendable.map((i) => i.id)))}
+                  disabled={busy || !data.permissions.send}
+                >
+                  Selecionar todas as aptas ({sendable.length})
+                </Button>
+              )}
               {sendable.map((i) => {
                 const a = by.get(i.account_key),
                   available = a
@@ -646,8 +652,8 @@ export function ListWorkspace({
               {!sendable.length && (
                 <p className="text-sm text-muted-foreground">
                   {dirty
-                    ? "Salve e valide esta revisão antes de enviar."
-                    : "Nenhum item validado aguardando envio."}
+                    ? "Salve as alterações para enviar os dados atuais. Não é necessária validação com o sócio."
+                    : "Nenhuma oportunidade apta aguardando envio. Confira os dados e os motivos acima."}
                 </p>
               )}
               <Button
@@ -655,7 +661,7 @@ export function ListWorkspace({
                 onClick={() => setConfirmSend(true)}
               >
                 <Send className="mr-2 h-4 w-4" />
-                Revisar envio ({sendingItems.length})
+                Enviar ao Pipedrive ({sendingItems.length})
               </Button>
               <p className="text-xs text-muted-foreground">
                 O campo “Caixa · Produto” receberá o produto exibido em cada oportunidade. Somente
