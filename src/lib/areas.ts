@@ -57,9 +57,9 @@ export type Item = {
    *
    * O normal é o item NÃO declarar nada: quem tem a área tem todas as páginas
    * dela, que é a regra desde 15/09/2026. A exceção existe quando a fronteira
-   * do menu e a fronteira de confiança não coincidem — hoje só a Matriz do
-   * broker, que mora no menu ao lado da fila mas guarda multiplicador e
-   * composição de CAC, que não circulam na rede.
+   * do menu e a fronteira de confiança não coincidem — a Matriz do broker, que
+   * mora no menu ao lado da fila mas guarda multiplicador e composição de CAC,
+   * e o bloco Financeiro da unidade, que o sócio regional pode ou não abrir.
    */
   area?: string;
 };
@@ -365,11 +365,30 @@ export const AREAS: Area[] = [
         ],
       },
       {
+        // Segunda exceção à regra de "a área libera tudo", pelo mesmo motivo da
+        // Matriz do broker: o bloco mora no menu da unidade porque é assunto
+        // dela, mas dar carteira, CS e NPS ao sócio não deve dar junto o
+        // financeiro. Desde 16/09/2026 quem concede é `minha_unidade_financeiro`.
         label: "Financeiro",
         items: [
-          { title: "Funil de Receita", url: "/funil-receita", icon: Filter },
-          { title: "Contas a Receber", url: "/contas-receber", icon: Wallet },
-          { title: "Meus Royalties", url: "/meus-royalties", icon: Coins },
+          {
+            title: "Funil de Receita",
+            url: "/funil-receita",
+            icon: Filter,
+            area: "minha_unidade_financeiro",
+          },
+          {
+            title: "Contas a Receber",
+            url: "/contas-receber",
+            icon: Wallet,
+            area: "minha_unidade_financeiro",
+          },
+          {
+            title: "Meus Royalties",
+            url: "/meus-royalties",
+            icon: Coins,
+            area: "minha_unidade_financeiro",
+          },
         ],
       },
     ],
