@@ -12,6 +12,9 @@ insert into ops.usuario_unidades(user_id,unidade_id) values(current_setting('tes
 select set_config('test.monet.ready','rollback-direct-'||gen_random_uuid()::text,true);
 insert into ops.monetizacao_contas(key,perfil,unidade_ids,source_at)
 values(current_setting('test.monet.ready'), jsonb_build_object('key',current_setting('test.monet.ready'),'name','Conta sintética — rollback','band','R$ 10 milhões até R$ 25 milhões','regime','Lucro Presumido','pipedrive_contract',true,'new_commercial',true),array[3],now());
+select set_config('test.monet.origin_changed','rollback-origin-'||gen_random_uuid()::text,true);
+insert into ops.monetizacao_contas(key,perfil,empresa_ids,unidade_ids,source_at)
+values(current_setting('test.monet.origin_changed'),jsonb_build_object('key',current_setting('test.monet.origin_changed'),'name','Origem sintética — rollback','regime','Lucro Presumido','old_base',true,'new_commercial',false,'consultoria_origin',jsonb_build_object('status','retroativa')),array[(select id from ops.empresas where origem_da_base='Base Nova' limit 1)],array[3],now());
 
 set local role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object('sub',current_setting('test.monet.scope_user'),'role','authenticated')::text,true);
@@ -20,7 +23,7 @@ do $$ begin
  if not ops.monetizacao_can('manage.aquario') then raise exception 'FAIL: área Clientes deve permitir preparar listas'; end if;
  if not ops.monetizacao_can('send.monetizacao') then raise exception 'FAIL: área Clientes deve permitir enviar seleção direta'; end if;
  if exists(select 1 from ops.monetizacao_contas where not (3=any(unidade_ids))) then raise exception 'FAIL: conta fora da unidade'; end if;
- if exists(select 1 from ops.monetizacao_base_origins() o join ops.monetizacao_contas a on a.key=o.account_key where not (3=any(a.unidade_ids))) then raise exception 'FAIL: origem fora do escopo'; end if;
+ if exists(select 1 from ops.monetizacao_base_origins() o where o.account_key not in (select key from ops.monetizacao_contas)) then raise exception 'FAIL: origem fora do escopo'; end if;
  if (select count(*) from ops.monetizacao_contas)=0 then raise exception 'FAIL: escopo escondeu carteira autorizada'; end if;
  if exists(select 1 from ops.monetizacao_planos) then raise exception 'FAIL: plano geral exposto a escopo de unidade'; end if;
 end $$;
@@ -65,6 +68,10 @@ begin
  if (select count(*) from ops.monetizacao_envios where account_key=a.key and product='finance' and status='sending')<>1 then raise exception 'FAIL: índice de exclusão falhou'; end if;
  -- Um usuário autenticado não pode fabricar o resultado de um envio remoto.
  if has_function_privilege('authenticated','ops.monetizacao_finish(uuid,text,bigint,bigint,text)','execute') then raise exception 'FAIL: confirmação de envio exposta ao cliente'; end if;
+ l2:=ops.monetizacao_save_list(doc||jsonb_build_object('items',jsonb_build_array(jsonb_build_object('account_key',current_setting('test.monet.origin_changed'),'product','consultoria','review','{}'::jsonb))));
+ denied:=false;
+ begin perform ops.monetizacao_claim((select id from ops.monetizacao_itens where list_id=l2 limit 1)); exception when others then denied:=true; end;
+ if not denied then raise exception 'FAIL: origem atual Base Nova foi ignorada no envio de Consultoria'; end if;
 end $$;
 
 select set_config('request.jwt.claims','{}',true);

@@ -53,7 +53,10 @@ export const distancia = (a: string, b: string) =>
 export const uteis = (from: string, to: string) =>
   dias(from, to).filter((d) => ![0, 6].includes(new Date(d).getUTCDay())).length;
 export const baseRetroativaConsultoria = (a: Conta) =>
-  a.old_base === true && !a.new_commercial && a.consultoria_origin?.status === "retroativa";
+  a.old_base === true &&
+  !a.new_commercial &&
+  a.consultoria_origin?.status === "retroativa" &&
+  (!a.base_origin || a.base_origin.status === "antiga");
 export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta {
   const regime = normal(review.regime || a.regime);
   const band = review.band || a.band || "",
@@ -64,6 +67,11 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
       return result(
         "fora_regra",
         "Fechamento pelo comercial identificado. Não pertence ao Aquário retroativo de Consultoria.",
+      );
+    if (a.base_origin && a.base_origin.status !== "antiga")
+      return result(
+        a.base_origin.status === "nova" ? "fora_regra" : "revisar",
+        a.base_origin.reason,
       );
     if (!baseRetroativaConsultoria(a))
       return result(

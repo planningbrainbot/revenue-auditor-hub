@@ -108,3 +108,9 @@ test("Sobreposição preserva a oferta selecionada e não soma contas", () => {
   assert.deepEqual(keys({ product: "finance", overlap: true }, [...accounts, both]), ["ambas"]);
   assert.deepEqual(keys({ product: "consultoria", overlap: true }, [...accounts, both]), ["ambas"]);
 });
+
+test("Origem atual divergente ou nova não conserva uma aprovação retroativa antiga", () => {
+  for (const status of ["nova", "divergente", "confirmar"]) {
+    assert.deepEqual(keys({ product: "consultoria" }, [{ ...old, base_origin: { status } }]), []);
+  }
+});

@@ -17,6 +17,7 @@ begin
  if not ops.monetizacao_scope(a.unidade_ids) then raise exception 'Conta fora do escopo'; end if;
  if i.status in ('sent','sending','uncertain') then return jsonb_build_object('claimed',false,'status',i.status,'deal_id',i.deal_id); end if;
  if l.status not in ('draft','validated') or i.status not in ('draft','validated','blocked') then raise exception 'Esta oportunidade não está disponível para envio'; end if;
+ if i.product='consultoria' and exists(select 1 from ops.empresas empresa where empresa.id=any(a.empresa_ids) and trim(empresa.origem_da_base)='Base Nova') then raise exception 'A origem atual no Ops é Base Nova ou divergente; excluída da Consultoria retroativa'; end if;
  issue:=ops.monetizacao_offer_issue(a.perfil,i.product,i.review);
  if issue is not null then raise exception 'O cadastro mudou: %',issue; end if;
  if exists(select 1 from ops.monetizacao_envios where account_key=i.account_key and product=i.product and status in ('sending','sent','uncertain')) then return jsonb_build_object('claimed',false,'status','blocked','reason','Já existe um envio desta empresa/produto. Confira o CRM.'); end if;
