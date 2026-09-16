@@ -1160,3 +1160,69 @@ escopo do cockpit a partir de `role_permissions` e passar a ler
 `financeiro` seguem recebendo os 8 escopos pela tabela antiga, que é o
 comportamento de hoje. E a Fase 4, tirar `data.scope.own_unit_only` das 8
 policies em favor de um nome honesto.
+
+
+## [2026-09-15] Aquário em Clientes; operação e análises dentro de Monetização
+
+**Contexto:** Pedro pediu incorporar o painel Caixa de Oportunidade e as análises estudadas no Growth ao Planning Brain. A orientação final coloca as carteiras e listas do Aquário dentro do módulo Clientes. Há autorização explícita para publicar na Vercel, usar o acesso central de Pedro e Matheus e enviar somente oportunidades selecionadas e validadas.
+
+**Decisões:**
+
+1. Clientes → `/aquario` reúne carteiras por unidade, ficha da empresa, segmentação, sobreposição Consultoria/Finance, gates da base e listas compartilhadas para sócios. Monetização → `/monetizacao` reúne Operação, Temporal e previsão, Capacidade e alocação, Follow Day, Funil, Pessoas/PDI, Abordagens e Distribuição. Nada é iframe nem depende de senha adicional.
+2. Tabelas e funções `ops.monetizacao_*` vivem exclusivamente no Brain unificado (`npknehhyyzelmrbbxvtu`). A reconciliação inicial é preservada por chave técnica; novos cadastros do Ops entram por ID, com vínculo por CNPJ/Pipefy exatos e fila de divergências. Nunca conciliar por semelhança de nome. Quantidade de registros conciliados não declara quantidade de clientes ativos pagantes.
+3. As carteiras são leitura da área Clientes. A preparação/validação de listas e o envio ao CRM permanecem na área Monetização, com escopo por pessoa; não ampliar automaticamente os papéis de Clientes para operar a monetização. Esta é a fronteira entre consulta da carteira e operação central, preservando a autorização reservada. Uma primeira proposta de ampliar a edição para Clientes foi rejeitada na revisão automática e retirada; não reintroduzir por acidente.
+4. Finance segue contrato ganho identificado no Pipedrive + faturamento anual abaixo de R$ 25 milhões + fora do Simples/MEI. Não há novo piso, requisito de contato/CNPJ ou gatilho de demanda. Consultoria é a prioridade das carteiras: Lucro Real e segmentos do perfil; faturamento é validado com o sócio, sem novo piso. Contato é filtro, não veto. Faixas desconhecidas, atravessando o limite ou divergentes ficam para conferência. As ofertas dos produtos se sobrepõem; não somar os produtos como clientes distintos.
+5. O produto canônico é `Caixa · Produto`, chave `0646513ee16829605c0af8b15b415ebf05beb6c5` (1128 Cella; 1129 Consultoria; 1130 Finance). Não inferir pelo título. Oportunidade validada é a primeira entrada em Negociação ou etapa normal superior, inclusive salto direto; Reciclado não valida. Movimentos são atribuídos ao ator no histórico, não ao dono atual. Datas usam São Paulo e filtro personalizado.
+6. Receita prevista total, Partners e unidade usam os três campos monetários próprios do CRM. Nulo não vira zero, moedas diferentes não são somadas, valores divergentes ficam para preenchimento. Não há rateio inventado nem divisão por 12. Metas e taxas de planejamento são hipóteses explícitas e editáveis; não herdar conversão/elasticidade de Growth como resultado observado de Monetização.
+7. Envio exige lista salva, revisão vigente, validação registrada e seleção explícita. Reserva única por empresa/produto previne duas listas concorrentes. Timeout remoto fica como incerto, conciliado pelo identificador `[AQ:uuid]`, sem repetir POST. O sync roda a cada 5 minutos, a tela refaz a leitura a cada minuto e após uma mutação. Testes não criam oportunidades reais no CRM.
+8. PDI e abordagens são registros operacionais editáveis, com evidência disponível; não são apresentados como análise de IA de reuniões que não foi executada. As análises temporais e de coorte calculam os denominadores e a mediana/p90 do histórico observado.
+
+**Status:** implementação nativa e migrations aplicadas. Primeira carga conciliada: 128 cards; 1.683 registros da auditoria inicial, mais 81 cadastros novos do Ops e um vínculo por identidade (1.764 registros, não declaração de clientes pagantes). Testes de regras (15) e RLS/revisão/reserva em transação passaram. Build de revisão Vercel `dpl_8hMAU1uFRzWMgGfCZu36AL1VRb6e` Ready; publicação final será registrada em entrada própria após verificação. Identidade de Matheus no login central pendente de confirmação: o e-mail do CRM ainda não tem conta em `auth.users`; não foi enviado convite nem criada senha.
+
+
+## [2026-09-15] Publicação da integração e conferência no domínio
+
+**Status:** versão `81ecd67` publicada em `planningbrain.com.br` pelo deploy Vercel `dpl_B3b2xCaPXRwCBYya7XtSj3TUyxCq` (promoção autorizada, build Ready). `/aquario` está no módulo Clientes; `/monetizacao` no módulo Monetização. Verificadas no Chrome com a sessão existente de Pedro: navegação de Clientes, carteira lateral de Belém, ficha da empresa com fontes/contatos e preparação da lista para sócio, sem salvar lista de teste nem enviar oportunidade. Rotas do domínio respondem 200; endpoint de envio sem login responde 401. Carga corrente confirmou as 15 validadas de Matheus em 01–14/09. Sync v6 reaproveita históricos inalterados e os relê integralmente no máximo a cada 24h ou quando etapas/cadastro do negócio mudam; a contagem continua conciliada em toda rodada.
+
+**Conferência visual:** a situação do CRM diz “Sem card aberto ou carga no mês”; ela não deve prometer elegibilidade de produto. Esta depende dos gates de perfil ao lado. Capacidade considera o mês completo da alocação, independentemente do intervalo diário selecionado.
+
+**Repositório:** PR https://github.com/planningbrainbot/revenue-auditor-hub/pull/2 aberto. A revisão automática rejeitou push direto para `main`; aguarda autorização específica para merge. A publicação autorizada na Vercel foi feita separadamente sem alterar `main`. Até incorporar o PR, uma publicação de uma main antiga pode remover estas rotas. Não presumir que o deploy e a branch padrão já estão alinhados.
+
+
+## [2026-09-15] Metas preservadas e ajuste final da publicação
+
+**Decisão:** as metas já informadas para setembro foram preservadas via interface autenticada: Matheus, 120 leads/mês, teto de 60 reuniões/mês, 8 contratos/mês e 7 leads/dia útil. O plano está salvo no banco central. A alocação por produto permanece não definida (zero alocado, 120 vagas para distribuir), e as hipóteses de conversão são nulas. Os oito contratos continuam sendo meta, nunca previsão automática a partir de um mix de ofertas que não foi trabalhado.
+
+**Status:** ajuste final de disponibilidade e período mensal (`b568aec`) publicado pelo deploy Vercel `dpl_9Tmj2RjFA7BDW1MPLNuECSiibHT9`, build Ready. A conferência de interface não salvou lista fictícia nem enviou negócio: contagens de listas/envios permanecem zero. A última carga consultada em 15/09 às 11h55 (São Paulo) concluiu sem erro. Os testes de domínio seguem 15/15. A conferência visual da carteira, ficha, preparação de lista e salvamento das metas foi concluída; o Computer Use perdeu a janela do Chrome antes de uma rodada completa das demais análises, que têm build e rotas conferidos.
+
+**Pendências externas:** PR #2 aguarda a autorização de merge solicitada após rejeição do push direto pela revisão automática. O e-mail de login central de Matheus ainda aguarda confirmação. Nenhuma senha paralela ou convite foi criado. O painel independente antigo não foi redirecionado nesta publicação; as rotas oficiais integradas são `/aquario` e `/monetizacao` do Planning Brain.
+
+
+## [2026-09-15] Três listas de produto e forecast comparado ao realizado
+
+**Decisões:** o Aquário oferece entradas explícitas para Cella, Consultoria e Finance. Os números distinguem perfil aderente de disponibilidade atual, por conta/produto. Consultoria permanece a primeira opção das unidades. Contas aderentes a mais de um produto aparecem nas respectivas listas e no indicador de sobreposição. Uma lista geral pode ser preparada para qualquer produto por quem já tem escopo geral; as checagens de escopo por conta, revisão e validação continuam no servidor.
+
+**Envio:** Registrar validação grava a aprovação; o envio exige selecionar os itens e confirmar o passo seguinte. O servidor preenche Caixa · Produto (1128/1129/1130), relê o negócio criado e só confirma o envio quando o valor canônico confere. Se a leitura ou o produto não forem confirmados, preserva o ID e a reserva como incertos. A conciliação agendada também verifica o produto, além do identificador único.
+
+**Forecast:** a última planilha mensal localizada é a v10 de 09/09/2026, idêntica à versão em Downloads. A revisão v11 de 10/09 contém gates e declara o forecast ainda não pronto. A pesquisa no Drive conectado não encontrou outra planilha da frente. A comparação usa a v10 como referência histórica explícita, preservando as 44 linhas mensais e 12 meses, sem transformar seu mix em previsão operacional atual. O XLSX não tinha cache: o importador avalia somente as fórmulas suportadas e confere os valores de setembro/outubro e as identidades de trabalho, contratos, receita, caixa e margem em todos os meses. Os valores, fórmulas e hash de origem ficam em ops.monetizacao_forecasts no Brain unificado, com RLS da Monetização e escopo geral. O realizado usa o histórico do CRM até a última carga; futuro é nulo, não zero. A comparação é de toda a frente e por mês, sem aplicar o filtro pessoal da daily. Receita contratual prevista não é comparada ao caixa do modelo como se fossem a mesma medida.
+
+**Acessos individuais:** Pedro nomeou matheus.carvalho@planning.com.br e jordana.vieira@planning.com.br. Jordana já existia e preservou seus papéis, produtos e escopo. Matheus foi criado no login central, sem envio de email; pode definir sua senha pela recuperação do próprio login. Ambos receberam o papel específico de Clientes/Monetização, sem administração ou novas áreas financeiras. Matheus ainda não tem unidades liberadas: sua concessão de escopo geral ficou pendente da confirmação exigida pela revisão automática. A interface identifica ausência de carteiras autorizadas, em vez de apresentar zero como tamanho da base.
+
+**Alteração de área pendente:** Pedro também pediu que todo usuário que acessa a aba possa enviar ao pipe. A revisão automática rejeitou o script combinado de alteração global de area_chaves, criação de usuário e concessão de escopo geral, por considerar esse alcance além da concessão individual. Foi solicitada confirmação explícita do alcance. Até a resposta, somente os acessos individuais foram aplicados, preservando os escopos existentes. A proposta global está em supabase/proposals/20260915150000_monetizacao_acesso_produtos.sql, fora das migrations executáveis, e não foi aplicada. Seu teste transacional passou com ROLLBACK, incluindo acesso por área, isolamento de unidade, envio sem validação, revisão e reserva única.
+
+**Validação:** 17 testes de domínio passaram; ESLint dos arquivos alterados sem erros; TypeScript não apontou erro novo em Monetização (persistem os erros anteriores de outras telas). Integração CRM v7 e tabela/referência do forecast aplicadas. A publicação web será registrada após confirmação da Vercel. Nenhum negócio de teste criado no Pipedrive.
+
+## [2026-09-15] Publicação das listas dos três produtos e do comparativo
+
+**Status:** commit de aplicação `940bedb`, incluindo a main até `2a93602`, publicado no domínio `planningbrain.com.br` pelo deploy `dpl_7KsBaGoUpPStEztwsv2zoF4cH51S` (Ready, promoção concluída). Conferência no Chrome autenticado: Projetado × realizado carregou setembro com 61 trabalhos, 18 reuniões, 16 validadas e 0 assinados, para toda a frente; outubro mostrou realizado ausente e 16 contratos projetados. O Aquário mostrou as três entradas de produto, 62/45/144 perfis aderentes (Cella/Consultoria/Finance) e disponibilidade 22/45/113 no instante da consulta. Preparar lista a partir de Cella abriu rascunho com Cella e unidade inferida, sem salvar nem enviar. O rascunho de conferência foi descartado por navegação e o comparativo ficou aberto para o usuário. A comparação não alterou a fonte XLSX; o arquivo de Downloads e o do repositório têm hash idêntico.
+
+**Pendente:** a confirmação de escopo/ampliação dos acessos ainda não chegou. Jordana está habilitada para Clientes/Monetização com o escopo de rede preexistente; Matheus está cadastrado e habilitado para os módulos, sem carteira liberada até a aprovação do escopo. A proposta de ampliar o envio para todos que acessam Clientes permanece fora das migrations. Nenhum email foi enviado. PR #2 atualizado, sem merge na main por este trabalho.
+
+
+## 2026-09-16 — Integração do Aquário na main
+
+- A publicação automática da main não continha as rotas do Aquário e da Monetização, que permaneciam em um PR aberto.
+- Integração reconciliada com a main atual, preservando as alterações de navegação e permissões de Financeiro da Unidade.
+- Inclui as melhorias de apresentação do forecast e os ajustes de acesso já implementados: envio pelo Resend no servidor e redefinição de senha confirmada pelo usuário.
+- Nenhuma credencial, lista de destinatários ou resultado operacional é incluído nesta atualização.
+- Validação: testes de Monetização, e-mails e recuperação; build Vercel concluído; rotas de produção verificadas.

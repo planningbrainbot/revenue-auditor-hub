@@ -89,12 +89,20 @@ const AREA_RODAPE = "admin";
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const { temArea, loading } = usePermissions();
 
   // "Está dentro deste caminho?" — serve para descobrir a ÁREA da rota, onde
   // qualquer filha de /unidades deve acender a área de Receita e Repasses.
-  const dentroDe = (url: string) =>
-    url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(url + "/");
+  const dentroDe = (url: string) => {
+    const path = url.split("?")[0];
+    return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(path + "/");
+  };
+  const consultaConfere = (url: string) => {
+    const expected = new URLSearchParams(url.split("?")[1] || "");
+    const current = new URLSearchParams(searchStr);
+    return [...expected].every(([key, value]) => current.get(key) === value);
+  };
 
   // Quem decide é a ÁREA, não a chave. O item só declara área própria quando a
   // fronteira do menu e a da confiança não coincidem (a Matriz do broker).
@@ -131,7 +139,7 @@ export function AppSidebar() {
   // prefixo — dois itens grifados e nenhum deles respondendo "onde estou".
   const itemAtivo = areasVisiveis
     .flatMap((a) => a.grupos.flatMap((g) => g.items.map((i) => i.url)))
-    .filter(dentroDe)
+    .filter((url) => dentroDe(url) && consultaConfere(url))
     .sort((a, b) => b.length - a.length)[0];
 
   const isActive = (url: string) => url === itemAtivo;
@@ -150,7 +158,8 @@ export function AppSidebar() {
     a.grupos.some((g) => g.items.some((i) => dentroDe(i.url))),
   );
   const [areaEscolhida, setAreaEscolhida] = useState<string | null>(null);
-  const areaAtual = areaDaRota ?? areasVisiveis.find((a) => a.slug === areaEscolhida) ?? areasVisiveis[0];
+  const areaAtual =
+    areaDaRota ?? areasVisiveis.find((a) => a.slug === areaEscolhida) ?? areasVisiveis[0];
 
   // Só oferece o Growth a quem realmente tem acesso lá — o link para quem não
   // tem levaria a uma tela vazia (o Growth barra por public.membros).
@@ -244,7 +253,15 @@ export function AppSidebar() {
                 {group.items.map((item) => (
                   <SidebarMenuItem key={`${group.label}-${item.title}`}>
                     <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                      <Link to={item.url} className="flex items-center gap-2">
+                      <Link
+                        to={item.url.split("?")[0]}
+                        search={
+                          item.url.includes("?")
+                            ? Object.fromEntries(new URLSearchParams(item.url.split("?")[1]))
+                            : undefined
+                        }
+                        className="flex items-center gap-2"
+                      >
                         <item.icon className="h-4 w-4 shrink-0" />
                         <span>{item.title}</span>
                       </Link>

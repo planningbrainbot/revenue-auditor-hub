@@ -10,6 +10,10 @@ export const KNOWN_PERMISSIONS: {
   description: string;
   group: string;
 }[] = [
+  { key: "view.aquario", label: "Aquário de clientes", description: "Carteiras, perfis de produto e listas para sócios, no escopo autorizado.", group: "Clientes" },
+  { key: "view.monetizacao", label: "Operação e análises de Monetização", description: "Daily, previsão, capacidade e desenvolvimento comercial.", group: "Monetização" },
+  { key: "manage.aquario", label: "Gerir listas e planos", description: "Preparar listas, registrar validações, metas e desenvolvimento.", group: "Monetização" },
+  { key: "send.monetizacao", label: "Enviar oportunidades ao Pipedrive", description: "Somente ofertas selecionadas e validadas, com proteção contra duplicidade.", group: "Monetização" },
   {
     key: "view.hub",
     label: "Acessar Hub inicial",

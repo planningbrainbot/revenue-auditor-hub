@@ -143,6 +143,7 @@ export const AREAS: Area[] = [
         label: "Carteira",
         items: [
           { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "Aquário", url: "/aquario", icon: Users },
           { title: "CS", url: "/painel-cs", icon: UserCheck },
           {
             title: "Auditoria Interna",
@@ -296,7 +297,21 @@ export const AREAS: Area[] = [
       {
         label: "Oportunidades",
         items: [
+          { title: "Operação diária", url: "/monetizacao", icon: LayoutDashboard },
+          { title: "Temporal e previsão", url: "/monetizacao?aba=temporal", icon: TrendingUp },
+          { title: "Projetado × realizado", url: "/monetizacao?aba=forecast", icon: BarChart3 },
+          { title: "Capacidade e alocação", url: "/monetizacao?aba=capacidade", icon: Gauge },
+          { title: "Follow Day", url: "/monetizacao?aba=follow-day", icon: CalendarClock },
           { title: "Fila Cella", url: "/fila-cella", icon: ListChecks },
+        ],
+      },
+      {
+        label: "Desenvolvimento comercial",
+        items: [
+          { title: "Funil comercial", url: "/monetizacao?aba=funil", icon: Filter },
+          { title: "Pessoas e PDI", url: "/monetizacao?aba=pessoas", icon: Users },
+          { title: "Abordagens", url: "/monetizacao?aba=roteiros", icon: MessageSquarePlus },
+          { title: "Distribuição", url: "/monetizacao?aba=distribuicao", icon: GitMerge },
         ],
       },
     ],
