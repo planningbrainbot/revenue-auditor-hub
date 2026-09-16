@@ -1,4 +1,4 @@
-import { disponibilidade, FAIXAS, normal, oferta } from "./model.ts";
+import { baseRetroativaConsultoria, disponibilidade, FAIXAS, normal, oferta } from "./model.ts";
 import { ofertaRecon } from "./recon.ts";
 import { PRODUTOS } from "./types.ts";
 import type { BaseMonetizacao, Conta, Produto } from "./types";
@@ -11,6 +11,11 @@ export const ORIGENS_BASE = {
 } as const;
 export type OrigemBase = keyof typeof ORIGENS_BASE;
 export const origemBase = (a: Conta): OrigemBase => a.base_origin?.status || "confirmar";
+// A conta retroativa sem regime continua visível para qualificação; não vira apta para envio.
+export const potencialConsultoria = (a: Conta) =>
+  baseRetroativaConsultoria(a) && oferta(a, "consultoria").status !== "fora_regra";
+export const situacaoInicialProduto = (p: Produto | "") =>
+  p === "consultoria" ? "potential" : p ? "eligible" : "";
 export type PortfolioFilters = {
   query: string;
   band: string;
@@ -71,7 +76,9 @@ export function filtrarCarteira(
         return false;
       if (f.product) {
         const result = oferta(a, f.product).status;
-        const state = f.status || "eligible";
+        const state = f.status || situacaoInicialProduto(f.product);
+        if (state === "potential" && (f.product !== "consultoria" || !potencialConsultoria(a)))
+          return false;
         if (state === "review" && result !== "revisar") return false;
         if (state === "excluded" && result !== "fora_regra") return false;
         if (["eligible", "free", "occupied"].includes(state) && result !== "elegivel") return false;

@@ -32,6 +32,8 @@ import {
   filtrarCarteira,
   ORIGENS_BASE,
   origemBase,
+  potencialConsultoria,
+  situacaoInicialProduto,
 } from "@/lib/monetizacao/portfolio";
 import type { PortfolioFilters } from "@/lib/monetizacao/portfolio";
 import {
@@ -89,6 +91,8 @@ export function Aquario() {
   };
   const cella = data.accounts.filter((a) => oferta(a, "cella").status === "elegivel"),
     consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
+    consultPool = data.accounts.filter(potencialConsultoria),
+    consultPending = consultPool.filter((a) => oferta(a, "consultoria").status === "revisar"),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
   const overlap = data.accounts.filter(
     (a) =>
@@ -148,9 +152,9 @@ export function Aquario() {
           hint="A partir de R$ 25 mi · fora do Simples"
         />
         <Kpi
-          label="Consultoria · perfil aderente"
-          value={number(consult.length)}
-          hint="Base Antiga · sem comercial · fora do Simples"
+          label="Consultoria · base para análise"
+          value={number(consultPool.length)}
+          hint={`${consult.length} aptas confirmadas · ${consultPending.length} com regime a confirmar`}
           accent
         />
         <Kpi
@@ -190,7 +194,7 @@ export function Aquario() {
               <button
                 key={p}
                 onClick={() => {
-                  setFilters({ ...emptyFilters, product: p, status: "eligible" });
+                  setFilters({ ...emptyFilters, product: p, status: situacaoInicialProduto(p) });
                   setPicked(new Set());
                   setTab("contas");
                 }}
@@ -200,25 +204,22 @@ export function Aquario() {
                   {NOMES[p]} <ArrowRight className="h-4 w-4" />
                 </span>
                 <p className="mt-2 text-sm">
-                  {eligible.length} aderentes · {free.length} disponíveis
+                  {p === "consultoria"
+                    ? `${consultPool.length} contas retroativas para análise`
+                    : `${eligible.length} aderentes · ${free.length} disponíveis`}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {p === "consultoria"
-                    ? "Base Antiga · exclui fechamento comercial · fora do Simples"
+                    ? "Base Antiga · sem fechamento comercial identificado · contato opcional"
                     : p === "cella"
                       ? "Faturamento a partir de R$ 25 mi · fora do Simples"
                       : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi · fora do Simples"}
                 </p>
                 {p === "consultoria" && (
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                    {
-                      data.accounts.filter(
-                        (a) =>
-                          baseRetroativaConsultoria(a) &&
-                          oferta(a, "consultoria").status === "revisar",
-                      ).length
-                    }{" "}
-                    retroativas aguardam confirmação do regime
+                    {consultPending.length > 0
+                      ? `${consultPending.length} com regime a confirmar. ${eligible.length ? `${eligible.length} aptas confirmadas · ${free.length} disponíveis.` : "Aptidão ainda não apurada."}`
+                      : `${eligible.length} aptas confirmadas · ${free.length} disponíveis`}
                   </p>
                 )}
               </button>
@@ -230,7 +231,12 @@ export function Aquario() {
           variant="outline"
           size="sm"
           onClick={() => {
-            setFilters({ ...emptyFilters, product: "consultoria", status: "review" });
+            setFilters({
+              ...emptyFilters,
+              product: "consultoria",
+              origin: "antiga",
+              status: "review",
+            });
             setPicked(new Set());
             setTab("contas");
           }}
@@ -267,6 +273,9 @@ export function Aquario() {
               {data.units.map((u) => {
                 const accounts = data.accounts.filter((a) => u.account_keys.includes(a.key)),
                   c = accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+                  pending = accounts.filter(
+                    (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
+                  ).length,
                   f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length;
                 return (
                   <button
@@ -286,8 +295,11 @@ export function Aquario() {
                       {number(accounts.length)}{" "}
                       <span className="text-xs font-normal text-muted-foreground">contas</span>
                     </p>
-                    <div className="flex gap-3 text-xs">
-                      <span className="text-primary">Consultoria {c}</span>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      <span className="text-primary">
+                        Consultoria · {c} aptas
+                        {pending > 0 ? ` · ${pending} com regime a confirmar` : ""}
+                      </span>
                       <span>
                         Cella{" "}
                         {accounts.filter((a) => oferta(a, "cella").status === "elegivel").length}
@@ -397,7 +409,7 @@ function PortfolioTable({
     setFilters({
       ...filters,
       [key]: value,
-      ...(key === "product" ? { status: value ? "eligible" : "" } : {}),
+      ...(key === "product" ? { status: situacaoInicialProduto(value as Produto | "") } : {}),
     });
     setPicked(new Set());
     setLimit(50);
@@ -616,6 +628,9 @@ function PortfolioTable({
             onChange={(e) => change("status", e.target.value)}
           >
             {!filters.product && <option value="">Selecione um produto</option>}
+            {filters.product === "consultoria" && (
+              <option value="potential">Base retroativa · aptas e regime a confirmar</option>
+            )}
             <option value="eligible">Perfil aderente</option>
             <option value="review">Dados a confirmar</option>
             <option value="free">Aderentes e disponíveis para o produto</option>
@@ -642,6 +657,17 @@ function PortfolioTable({
           Limpar filtros
         </Button>
       </div>
+      {filters.product === "consultoria" && (
+        <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <p className="font-medium">Regime não informado não significa empresa inapta.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A base para análise reúne contas antigas das unidades sem fechamento comercial
+            identificado. Para confirmar aptidão, falta verificar se estão fora do Simples. Contato
+            e faturamento não são exigidos. Você pode organizar essas contas em listas; o envio
+            exige regime confirmado.
+          </p>
+        </div>
+      )}
       <p className="mb-2 text-xs text-muted-foreground">
         {number(rows.length)} de {number(accounts.length)} contas · maior faturamento primeiro ·{" "}
         {selected.length} selecionadas
