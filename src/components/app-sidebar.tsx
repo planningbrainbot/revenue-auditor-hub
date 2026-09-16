@@ -69,6 +69,17 @@ import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 const GROWTH_URL = "/growth";
 const FINANCEIRO_URL = "/financeiro";
 
+// A Administração não divide o seletor com as áreas de trabalho.
+//
+// O seletor do topo responde "em que estou trabalhando agora", e a resposta
+// certa nunca é "configurando quem vê o quê". Ela ficava no meio de Rede,
+// Clientes e Receita custando uma linha de leitura a cada troca de contexto,
+// para uma visita que o admin faz uma vez por semana. Desde 16/09/2026 mora
+// fixa no rodapé, que é onde as ferramentas de manutenção ficam em quem faz
+// isso bem. A área continua existindo igual: some da LISTA, não do acesso, e
+// dentro dela a lateral mostra as páginas normalmente.
+const AREA_RODAPE = "admin";
+
 // A lista fixa do sócio regional saiu daqui em 15/09/2026.
 //
 // Eram dois menus concorrentes no mesmo arquivo, e o dele não declarava
@@ -125,6 +136,13 @@ export function AppSidebar() {
 
   const isActive = (url: string) => url === itemAtivo;
 
+  // O seletor mostra as áreas de trabalho; a Administração sai daqui e vai
+  // para o rodapé. Ela CONTINUA em `areasVisiveis` de propósito: é assim que a
+  // lateral acha as páginas dela quando você está dentro, e que o grifo do item
+  // funciona igual ao das outras.
+  const areasDoSeletor = areasVisiveis.filter((a) => a.slug !== AREA_RODAPE);
+  const areaAdmin = areasVisiveis.find((a) => a.slug === AREA_RODAPE);
+
   // A área ativa sai da ROTA, não de estado próprio: assim link direto,
   // favorito e botão voltar abrem a lateral já na área certa. Estado à parte
   // só serviria para discordar da tela.
@@ -179,7 +197,7 @@ export function AppSidebar() {
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Planning Brain
             </DropdownMenuLabel>
-            {areasVisiveis.map((a) => (
+            {areasDoSeletor.map((a) => (
               <DropdownMenuItem key={a.slug} asChild>
                 <Link
                   to={a.grupos[0].items[0].url}
@@ -238,8 +256,32 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t px-2 py-2 text-[10px] text-muted-foreground">
-        {areaAtual?.nome ?? "Planning Brain"}
+      <SidebarFooter className="border-t p-2">
+        {areaAdmin ? (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                size="sm"
+                isActive={areaAtual?.slug === AREA_RODAPE}
+                tooltip={areaAdmin.nome}
+              >
+                <Link
+                  to={areaAdmin.grupos[0].items[0].url}
+                  onClick={() => setAreaEscolhida(areaAdmin.slug)}
+                  className="flex items-center gap-2 text-muted-foreground"
+                >
+                  <areaAdmin.icone className="h-4 w-4 shrink-0" />
+                  <span>{areaAdmin.nome}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : (
+          <div className="px-2 py-1 text-[10px] text-muted-foreground">
+            {areaAtual?.nome ?? "Planning Brain"}
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
