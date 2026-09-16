@@ -46,6 +46,29 @@ export interface Conta {
   finance_candidate: boolean;
   finance: Oferta;
   ecd: boolean;
+  consultoria_origin?: {
+    status: "retroativa" | "comercial" | "nao_retroativa" | "pendente";
+    reason: string;
+    checked_at: string;
+    ops_ids: number[];
+    pipefy_ids: string[];
+    commercial_deal_ids: number[];
+    non_simples_confirmed: boolean | null;
+    regime_source: string | null;
+  };
+  recon?: {
+    bpo_status: "bpo" | "fora_bpo" | "pendente";
+    revenue_min: number | null;
+    revenue_max: number | null;
+    revenue_exact?: number | null;
+    revenue_conflict: boolean;
+    checked_at: string;
+    reason: string;
+    contract_ids: number[];
+    products: string[];
+    finance_checked_at: string | null;
+    crm_existing: number[];
+  };
 }
 export interface Unidade {
   id: number | null;
