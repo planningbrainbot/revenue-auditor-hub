@@ -133,3 +133,89 @@ export const emitirFaturasRoyalties = createServerFn({ method: "POST" })
       solicitado_por: perfil?.user?.email ?? context.userId,
     });
   });
+
+export type FaturaDoMes = {
+  unidade_id: number;
+  status: string;
+  num_os: string | null;
+  valor_total: number;
+  vence_em: string;
+  faturada_em: string | null;
+  erro: string | null;
+  recebimento: {
+    status: string;
+    vencimento: string | null;
+    pago_em: string | null;
+    valor: number;
+  } | null;
+};
+
+/**
+ * Situação das faturas do mês e do título de cada uma no Omie da Partners.
+ *
+ * O título sai de `contas_receber` (unidade = Partners), que o sync atualiza
+ * uma vez por dia: o recebimento aparece no dia seguinte à baixa. O vínculo é
+ * pelo `cod_titulo`; enquanto a Edge Function não gravar esse código em toda
+ * emissão, cai para valor + vencimento, que é único na prática porque a
+ * fatura soma royalties, CAC e outras receitas num título só.
+ */
+export const listarFaturasRoyalties = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { competencia: string }) => {
+    const competencia = String(input.competencia ?? "").slice(0, 7);
+    if (!MES_RE.test(competencia)) throw new Error("Competência inválida.");
+    return { competencia };
+  })
+  .handler(async ({ data, context }): Promise<{ faturas: FaturaDoMes[] }> => {
+    const sb = context.supabase as any;
+    await assertAdmin(sb, context.userId);
+
+    const { data: faturas, error } = await sb
+      .from("royalties_faturas")
+      .select("unidade_id,status,num_os,valor_total,vence_em,faturada_em,erro,cod_titulo")
+      .eq("competencia", `${data.competencia}-01`);
+    if (error) throw new Error(error.message);
+    if (!faturas?.length) return { faturas: [] };
+
+    const vencimentos = [...new Set(faturas.map((f: any) => f.vence_em))];
+    const { data: titulos, error: tErr } = await sb
+      .from("contas_receber")
+      .select("codigo_omie,status_pagamento,data_vencimento,data_pagamento,valor")
+      .eq("unidade", "Partners")
+      .in("data_vencimento", vencimentos);
+    if (tErr) throw new Error(tErr.message);
+
+    const porCodigo = new Map<number, any>();
+    for (const t of titulos ?? []) porCodigo.set(Number(t.codigo_omie), t);
+
+    return {
+      faturas: faturas.map((f: any) => {
+        const titulo =
+          (f.cod_titulo && porCodigo.get(Number(f.cod_titulo))) ||
+          (titulos ?? []).find(
+            (t: any) =>
+              t.data_vencimento === f.vence_em &&
+              Number(t.valor) === Number(f.valor_total) &&
+              t.status_pagamento !== "CANCELADO",
+          ) ||
+          null;
+        return {
+          unidade_id: f.unidade_id,
+          status: f.status,
+          num_os: f.num_os ? String(Number(f.num_os)) : null,
+          valor_total: Number(f.valor_total),
+          vence_em: f.vence_em,
+          faturada_em: f.faturada_em,
+          erro: f.erro,
+          recebimento: titulo
+            ? {
+                status: titulo.status_pagamento,
+                vencimento: titulo.data_vencimento,
+                pago_em: titulo.data_pagamento,
+                valor: Number(titulo.valor),
+              }
+            : null,
+        };
+      }),
+    };
+  });

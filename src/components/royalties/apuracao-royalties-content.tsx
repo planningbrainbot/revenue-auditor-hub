@@ -16,6 +16,9 @@ import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
 import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
 import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { listarFaturasRoyalties, type FaturaDoMes } from "@/lib/royalties-faturamento.functions";
 
 function defaultMes(): string {
   const d = new Date();
@@ -60,12 +63,91 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   },
 };
 
+const TOM = {
+  ok: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+  aviso: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+  ruim: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200",
+  neutro: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+};
+
+function dataCurta(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}`;
+}
+
+function CelulaFatura({ f }: { f: FaturaDoMes | undefined }) {
+  if (!f) return <span className="text-xs text-muted-foreground">Não emitida</span>;
+  if (f.status === "erro")
+    return (
+      <Badge className={TOM.ruim} title={f.erro ?? undefined}>
+        Erro na emissão
+      </Badge>
+    );
+  if (f.status === "ja_existia") return <Badge className={TOM.neutro}>Emitida à mão</Badge>;
+  if (f.status === "criada") return <Badge className={TOM.aviso}>OS {f.num_os} sem boleto</Badge>;
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <Badge className={TOM.ok}>OS {f.num_os}</Badge>
+      <span className="text-[11px] text-muted-foreground">
+        {brl(f.valor_total)} · emitida {dataCurta(f.faturada_em)}
+      </span>
+    </div>
+  );
+}
+
+function CelulaRecebimento({ f }: { f: FaturaDoMes | undefined }) {
+  if (!f || f.status === "erro") return <span className="text-xs text-muted-foreground">—</span>;
+  const r = f.recebimento;
+  if (!r)
+    return (
+      <span className="text-xs text-muted-foreground" title="O título ainda não chegou do Omie">
+        Aguardando sync
+      </span>
+    );
+  const vence = `vence ${dataCurta(r.vencimento)}`;
+  switch (r.status) {
+    case "RECEBIDO":
+      return <Badge className={TOM.ok}>Recebido {dataCurta(r.pago_em)}</Badge>;
+    case "ATRASADO":
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <Badge className={TOM.ruim}>Atrasado</Badge>
+          <span className="text-[11px] text-muted-foreground">
+            venceu {dataCurta(r.vencimento)}
+          </span>
+        </div>
+      );
+    case "CANCELADO":
+      return <Badge className={TOM.neutro}>Título cancelado</Badge>;
+    default:
+      return (
+        <div className="flex flex-col items-start gap-0.5">
+          <Badge className={TOM.aviso}>A vencer</Badge>
+          <span className="text-[11px] text-muted-foreground">{vence}</span>
+        </div>
+      );
+  }
+}
+
 export function ApuracaoRoyaltiesContent() {
   const { isAdmin, loading } = usePermissions();
   const [mes, setMes] = useState(defaultMes());
   const { data, isLoading } = useRoyaltiesUnidades(mes);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+
+  const listarFaturas = useServerFn(listarFaturasRoyalties);
+  const { data: faturasData } = useQuery({
+    queryKey: ["royalties", "faturas", mes],
+    queryFn: () => listarFaturas({ data: { competencia: mes } }),
+    enabled: !isMesEmAndamento(mes),
+    staleTime: 30_000,
+  });
+  const faturaPorUnidade = useMemo(
+    () => new Map((faturasData?.faturas ?? []).map((f) => [f.unidade_id, f])),
+    [faturasData],
+  );
 
   const totais = useMemo(
     () =>
@@ -176,13 +258,15 @@ export function ApuracaoRoyaltiesContent() {
               <TableRow>
                 <TableHead>Unidade</TableHead>
                 <TableHead>Modelo</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Apuração</TableHead>
                 <TableHead className="text-right">Royalties</TableHead>
                 <TableHead className="text-right">CSC</TableHead>
                 <TableHead className="text-right">CAC</TableHead>
                 <TableHead className="text-right">Mídia</TableHead>
                 <TableHead className="text-right">Outras</TableHead>
                 <TableHead className="text-right">Total fatura</TableHead>
+                <TableHead>Fatura no Omie</TableHead>
+                <TableHead>Recebimento</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -227,6 +311,12 @@ export function ApuracaoRoyaltiesContent() {
                     </TableCell>
                     <TableCell className="text-right font-semibold">
                       {ap ? brl(ap.total_fatura ?? 0) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <CelulaFatura f={faturaPorUnidade.get(u.id)} />
+                    </TableCell>
+                    <TableCell>
+                      <CelulaRecebimento f={faturaPorUnidade.get(u.id)} />
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
