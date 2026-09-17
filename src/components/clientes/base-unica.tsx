@@ -88,14 +88,14 @@ export function ClientesBase() {
   const rows = useMemo(() => {
     const data = query.data;
     if (!data) return [];
+    const selectedUnit = search.unidade
+      ? data.units.find(
+          (u) => u.key === search.unidade || normal(u.name) === normal(search.unidade),
+        )
+      : null;
+    const unitKeys = new Set(selectedUnit?.account_keys);
     return data.accounts.filter((a) => {
-      if (
-        search.unidade &&
-        !data.units
-          .find((u) => u.key === search.unidade || normal(u.name) === normal(search.unidade))
-          ?.account_keys.includes(a.key)
-      )
-        return false;
+      if (search.unidade && !unitKeys.has(a.key)) return false;
       if (search.origem && a.base?.origin !== search.origem) return false;
       if (
         search.q &&
@@ -120,12 +120,15 @@ export function ClientesBase() {
     }),
     [rows],
   );
-  const filtered = rows.filter((a) => passaRefinamento(a, search.gate as Refinamento));
+  const filtered = useMemo(
+    () => rows.filter((a) => passaRefinamento(a, search.gate as Refinamento)),
+    [rows, search.gate],
+  );
   const visible =
     view === "pendencias"
       ? filtered.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
       : filtered;
-  const accountKeys = new Set(filtered.map((a) => a.key));
+  const accountKeys = useMemo(() => new Set(filtered.map((a) => a.key)), [filtered]);
   if (!query.data) return <LoadingState error={query.error} retry={() => query.refetch()} />;
   const data = query.data,
     units = data.units.filter((u) => u.account_keys.length),

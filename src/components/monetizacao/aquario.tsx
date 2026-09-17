@@ -69,13 +69,17 @@ export function Aquario({
     product: Produto;
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  if (!q.data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
-  const data = accountKeys
-    ? { ...q.data, accounts: q.data.accounts.filter((a) => accountKeys.has(a.key)) }
-    : q.data;
-  const unitAccounts = unit
-    ? data.accounts.filter((a) => unit.account_keys.includes(a.key))
-    : data.accounts;
+  const data = useMemo(
+    () =>
+      q.data &&
+      (accountKeys
+        ? { ...q.data, accounts: q.data.accounts.filter((a) => accountKeys.has(a.key)) }
+        : q.data),
+    [q.data, accountKeys],
+  );
+  if (!data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
+  const unitKeys = new Set(unit?.account_keys);
+  const unitAccounts = unit ? data.accounts.filter((a) => unitKeys.has(a.key)) : data.accounts;
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -280,7 +284,8 @@ export function Aquario({
           <Panel title="Abra a unidade para organizar a apresentação">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {data.units.map((u) => {
-                const accounts = data.accounts.filter((a) => u.account_keys.includes(a.key)),
+                const keys = new Set(u.account_keys);
+                const accounts = data.accounts.filter((a) => keys.has(a.key)),
                   c = accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
                   pending = accounts.filter(
                     (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",

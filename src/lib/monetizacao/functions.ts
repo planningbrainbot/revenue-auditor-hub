@@ -70,19 +70,15 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
         all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
         all(db, "monetizacao_forecasts", "payload", "id"),
       ]);
-    const { count: baseCount, error: countError } = await (db as DB)
+    const { data: catalog, error: catalogError } = await (db as DB)
       .schema("ops")
-      .from("monetizacao_contas")
-      .select("key", { count: "exact", head: true });
-    if (countError) throw new Error("Não foi possível conferir o total da base.");
-    const { data: scopeSignature, error: scopeError } = await (db as DB)
-      .schema("ops")
-      .rpc("base_access_signature");
-    if (scopeError) throw new Error("Não foi possível conferir seu escopo atual.");
+      .rpc("base_carteira_manifesto");
+    if (catalogError) throw new Error("Não foi possível conferir a base e seu escopo atual.");
     const sync = health[0];
     return {
-      base_count: baseCount,
-      scope_signature: scopeSignature,
+      base_count: catalog.count,
+      catalog_pages: catalog.pages,
+      scope_signature: catalog.scope_signature,
       forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
       reservations: reservations as BaseMonetizacao["reservations"],
       accounts: [],
@@ -101,7 +97,7 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
       plans: plans.map((p) => p.payload) as Plano[],
       records: records as Registro[],
       measured_at: sync?.measured_at || null,
-      catalog_at: sync?.catalog_at || null,
+      catalog_at: catalog.catalog_at,
       sync_status: sync?.status || "pending",
       sync_error: sync?.error || null,
       stages: sync?.stages || [],
@@ -113,33 +109,32 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
 // A interface só publica a contagem depois de carregar todas as páginas.
 export const carregarContasBase = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ after: z.string().max(80).nullable() }))
+  .inputValidator(
+    z.object({
+      after: z.string().max(80).nullable(),
+      through: z.string().min(1).max(80).nullable().optional(),
+    }),
+  )
   .handler(
     async ({
       context,
       data,
-    }): Promise<{ accounts: (Conta & { unit_ids: number[] })[]; next: string | null }> => {
+    }): Promise<{
+      accounts: (Conta & { unit_ids: number[] })[];
+      next: string | null;
+      catalog_at: string | null;
+      scope_signature: string;
+    }> => {
       const db = (context.supabase as DB).schema("ops");
-      const allowed = await Promise.all([
-        check(context.supabase, "view.clientes"),
-        check(context.supabase, "view.aquario"),
-        check(context.supabase, "view.monetizacao"),
-      ]);
-      if (!allowed.some(Boolean)) throw new Error("Sem acesso à base de clientes.");
-      let query = db
-        .from("monetizacao_contas")
-        .select("key,perfil,unidade_ids")
-        .order("key")
-        .limit(400);
-      if (data.after) query = query.gt("key", data.after);
-      const { data: rows, error } = await query;
+      // A RPC valida usuário ativo, permissão e unidades antes de consultar dados.
+      const { data: batch, error } = await db.rpc("base_carteira_pagina", {
+        _after: data.after,
+        _through: data.through ?? null,
+      });
       if (error)
         throw new Error("Não foi possível carregar as empresas. Nenhum total parcial foi exibido.");
-      if (!rows.length) return { accounts: [], next: null };
-      const { data: master, error: baseError } = await db.rpc("base_unica_catalogo", {
-        _keys: rows.map((a: DB) => a.key),
-      });
-      if (baseError) throw new Error("Não foi possível conferir origem e refinamento da base.");
+      const rows = batch.rows;
+      const master = batch.base;
       const by = new Map<string, BaseEmpresa>((master || []).map((m: BaseEmpresa) => [m.key, m]));
       if (rows.some((a: DB) => !by.has(a.key)))
         throw new Error("A base mudou durante a leitura. Atualize para conferir os totais.");
@@ -148,7 +143,9 @@ export const carregarContasBase = createServerFn({ method: "GET" })
           ...aplicarBase(a.perfil as Conta, by.get(a.key)),
           unit_ids: a.unidade_ids,
         })),
-        next: rows.length === 400 ? rows.at(-1).key : null,
+        next: batch.next,
+        catalog_at: batch.catalog_at,
+        scope_signature: batch.scope_signature,
       };
     },
   );

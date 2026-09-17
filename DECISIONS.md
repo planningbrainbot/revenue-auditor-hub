@@ -1301,3 +1301,11 @@ Metadados ECD históricos ficam em `base_ecd_registros`, unidos ao cadastro fisc
 **Proposta para revisão, ainda não implementada no fluxo real:** Base / Oportunidades / Listas; um seletor de quatro produtos; seleção persistente por produto com indicação de itens fora do filtro; painel de montagem e uma revisão comum de envio direto/lista salva. Listas novas de um produto, preservando listas históricas mistas. Recon aponta ao Conciliador após verificar campo canônico e etapa de entrada, sem inserir Recon automaticamente no forecast de Monetização. Pendências podem ser organizadas em rascunho; contato e aprovação do sócio permanecem opcionais. Perfil, disponibilidade e andamento são conceitos separados.
 
 **Limite desta entrega:** estudo e renomeação, sem criar listas reais, modificar banco ou enviar negócios. Não tratar a proposta como funcionalidade já disponível. O protótipo é auditável no navegador e não usa APIs ou dados reais. Aceites de UX, idempotência, acesso e falhas parciais estão no estudo.
+
+## [2026-09-17] Carteira: carga em lotes paralelos e agregação por conta
+
+**Contexto:** usuário relatou demora excessiva na carteira. A carga esperava 20 páginas sequenciais para 7.937 contas, recalculando a base inteira por página.
+
+**Decisão:** preservar a visão canônica e suas regras, movendo os agregados para consultas correlacionadas às contas solicitadas. Manifesto autenticado fornece limites por chave; cada página retorna perfil e metadados no mesmo snapshot, com até 400 contas e revalidação de permissão/escopo. Navegador usa no máximo quatro requisições simultâneas e só publica totais após conferir revisão, escopo, quantidade, limites e unicidade. Não usar cache global de clientes nem retirar validação para acelerar. Filtros de unidade usam conjuntos de chaves e os dados derivados da carteira são memorizados.
+
+**Validação:** 7.937 contas comparadas sem alteração no resultado; consulta de 400 metadados caiu de 1.242 ms para 239 ms no teste transacional. As novas RPCs passaram para acesso geral, unidade e bloqueio anônimo. Testes cobrem duplicatas, lote parcial, troca de versão/escopo, ordem e cancelamento. Esses números medem SQL; não são uma afirmação sobre tempo total do navegador. Detalhes em `docs/dev_notes/carteira-performance/resultado.md`.
