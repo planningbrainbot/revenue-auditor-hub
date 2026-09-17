@@ -172,6 +172,20 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "edit.nps",
+    label: "Operar NPS",
+    description:
+      "Registrar ligação, resposta e gravação do NPS e disparar campanha. Separada de ver desde 17/09/2026: usuário só consulta.",
+    group: "Dados",
+  },
+  {
+    key: "edit.gente.conversas",
+    label: "Gente: registrar 1:1 e feedback",
+    description:
+      "Criar 1:1 como gestor e enviar feedback. Ver continua com as chaves de 1:1 e feedback; registrar é esta.",
+    group: "Dados",
+  },
+  {
     key: "view.base_contatos",
     label: "Acessar Base de Contatos",
     description:
@@ -556,26 +570,21 @@ export async function acessoDoUsuario(
   supabase: any,
   userId: string,
 ): Promise<{ roles: AppRole[]; areas: string[]; permissions: string[] }> {
-  const { data: papeis } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const roles = ((papeis ?? []) as { role: string }[]).map((r) => r.role as AppRole);
-  if (roles.length === 0) return { roles: [], areas: [], permissions: [] };
-
-  const { data: grants } = await supabase
-    .from("role_areas")
-    .select("area")
-    .in("role", roles)
-    .eq("allowed", true);
-  const areas = Array.from(new Set(((grants ?? []) as { area: string }[]).map((g) => g.area)));
-  if (areas.length === 0) return { roles, areas: [], permissions: [] };
-
-  const { data: chaves } = await supabase
-    .from("area_chaves")
-    .select("permission_key")
-    .in("area", areas);
-  const permissions = Array.from(
-    new Set(((chaves ?? []) as { permission_key: string }[]).map((c) => c.permission_key)),
-  );
-  return { roles, areas, permissions };
+  // Áreas e chaves saem de `ops.acesso_do_usuario`, a MESMA regra do
+  // `can_user` que a RLS usa. Até 17/09/2026 isto era remontado aqui lendo só
+  // `role_areas`, e quem entra por delegação (admin, sócio, colaborador de
+  // unidade) ficaria sem menu mesmo com acesso concedido no banco.
+  const [papeisRes, acessoRes] = await Promise.all([
+    supabase.from("user_roles").select("role").eq("user_id", userId),
+    supabase.rpc("acesso_do_usuario", { _user: userId }),
+  ]);
+  const roles = ((papeisRes?.data ?? []) as { role: string }[]).map((r) => r.role as AppRole);
+  if (acessoRes?.error) {
+    console.error("[acessoDoUsuario] acesso_do_usuario falhou:", acessoRes.error);
+    return { roles, areas: [], permissions: [] };
+  }
+  const acesso = (acessoRes?.data ?? {}) as { areas?: string[]; permissions?: string[] };
+  return { roles, areas: acesso.areas ?? [], permissions: acesso.permissions ?? [] };
 }
 
 export const getMyPermissions = createServerFn({ method: "GET" })
@@ -756,4 +765,187 @@ export const getSocioUnidadeByEmail = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: u } = await supabase.rpc("get_socio_unidade_by_email", { _email: data.email });
     return { unidade: (u as string | null) ?? null };
+  });
+
+// ─────────────────────────────────────────────────────────────
+// Níveis por área (Fase 2 do PLANO-ADMIN-DELEGADO, 17/09/2026)
+//
+// Super admin decide, área por área, se a pessoa é admin, sócio, usuário (e
+// quais páginas vê) ou nada. Quem grava é o banco, pelas funções
+// `ops.acesso_*`: elas conferem nível e recorte, então esta camada não repete
+// regra nenhuma. Chamamos com o cliente DA PESSOA LOGADA de propósito, para
+// que `auth.uid()` lá dentro seja quem está mexendo.
+// ─────────────────────────────────────────────────────────────
+
+export type NivelNaArea = "nenhum" | "usuario" | "socio" | "admin";
+
+export type AcessoPorArea = {
+  slug: string;
+  nome: string;
+  escopo: "unidade" | "empresa" | "nenhum";
+  /** A pessoa já entra nesta área pelo papel (modelo antigo, decisão 11). */
+  pelo_papel: boolean;
+  nivel: NivelNaArea;
+  /** Chaves de ver da área, com rótulo, para o usuário escolher. */
+  paginas: { key: string; label: string }[];
+  /** Páginas liberadas por delegação. */
+  liberadas: string[];
+  /** Páginas negadas a esta pessoa, venham de onde vierem. */
+  negadas: string[];
+};
+
+export const getAcessosDoUsuario = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string }) => ({ userId: (input?.userId ?? "").trim() }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const [areasRes, papeisRes, chavesRes, adminsRes, membrosRes, porPessoaRes, unidadesRes] =
+      await Promise.all([
+        db.from("areas").select("slug, nome, escopo, ordem").eq("ativa", true).order("ordem"),
+        db.from("user_roles").select("role").eq("user_id", data.userId),
+        db.from("area_chaves").select("area, permission_key"),
+        db.from("area_admins").select("area, nivel").eq("user_id", data.userId),
+        db.from("usuario_areas").select("area, allowed").eq("user_id", data.userId),
+        db.from("usuario_chaves").select("permission_key, allowed").eq("user_id", data.userId),
+        db.from("usuario_unidades").select("unidade_id").eq("user_id", data.userId),
+      ]);
+    for (const r of [areasRes, papeisRes, chavesRes, adminsRes, membrosRes, porPessoaRes]) {
+      if (r?.error) {
+        console.error("[getAcessosDoUsuario]", r.error);
+        throw new Error("Erro ao carregar os acessos.");
+      }
+    }
+
+    const papeis = ((papeisRes.data ?? []) as { role: string }[]).map((r) => r.role);
+    const { data: pelosPapeis } = papeis.length
+      ? await db.from("role_areas").select("area").in("role", papeis).eq("allowed", true)
+      : { data: [] };
+    const areasDoPapel = new Set(((pelosPapeis ?? []) as { area: string }[]).map((r) => r.area));
+
+    const rotulo = new Map(KNOWN_PERMISSIONS.map((p) => [p.key, p.label]));
+    const chavesPorArea = new Map<string, string[]>();
+    for (const c of (chavesRes.data ?? []) as { area: string; permission_key: string }[]) {
+      const l = chavesPorArea.get(c.area) ?? [];
+      l.push(c.permission_key);
+      chavesPorArea.set(c.area, l);
+    }
+    const nivelDelegado = new Map(
+      ((adminsRes.data ?? []) as { area: string; nivel: "admin" | "socio" }[]).map((a) => [a.area, a.nivel]),
+    );
+    const membro = new Set(
+      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[]).filter((m) => m.allowed).map((m) => m.area),
+    );
+    const porPessoa = (porPessoaRes.data ?? []) as { permission_key: string; allowed: boolean }[];
+    const liberadas = new Set(porPessoa.filter((p) => p.allowed).map((p) => p.permission_key));
+    const negadas = new Set(porPessoa.filter((p) => !p.allowed).map((p) => p.permission_key));
+
+    const areas: AcessoPorArea[] = ((areasRes.data ?? []) as Omit<AcessoPorArea, "pelo_papel" | "nivel" | "paginas" | "liberadas" | "negadas">[]).map((a) => {
+      const chaves = chavesPorArea.get(a.slug) ?? [];
+      return {
+        slug: a.slug,
+        nome: a.nome,
+        escopo: a.escopo,
+        pelo_papel: areasDoPapel.has(a.slug),
+        nivel: nivelDelegado.get(a.slug) ?? (membro.has(a.slug) ? "usuario" : "nenhum"),
+        paginas: chaves
+          .filter((k) => k.startsWith("view."))
+          .map((k) => ({ key: k, label: rotulo.get(k) ?? k }))
+          .sort((x, y) => x.label.localeCompare(y.label, "pt-BR")),
+        liberadas: chaves.filter((k) => liberadas.has(k)),
+        negadas: chaves.filter((k) => negadas.has(k)),
+      };
+    });
+
+    return {
+      superAdmin: papeis.includes("admin"),
+      temUnidade: ((unidadesRes?.data ?? []) as unknown[]).length > 0,
+      areas,
+    };
+  });
+
+export const salvarAcessoNaArea = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; area: string; nivel: NivelNaArea; paginas?: string[] }) => {
+    const userId = (input?.userId ?? "").trim();
+    const area = (input?.area ?? "").trim();
+    if (!userId || !area) throw new Error("Pessoa e área são obrigatórias.");
+    if (!["nenhum", "usuario", "socio", "admin"].includes(input?.nivel)) throw new Error("Nível inválido.");
+    const paginas = Array.from(new Set((input?.paginas ?? []).map((p) => p.trim()).filter(Boolean)));
+    return { userId, area, nivel: input.nivel, paginas };
+  })
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+
+    const rpc = async (fn: string, args: Record<string, unknown>) => {
+      const { data: out, error } = await db.rpc(fn, args);
+      // As funções do banco já falam português e dizem o motivo; repassamos.
+      if (error) throw new Error(error.message || "Erro ao salvar o acesso.");
+      return out;
+    };
+
+    const { data: atual } = await db
+      .from("area_admins")
+      .select("nivel")
+      .eq("user_id", data.userId)
+      .eq("area", data.area)
+      .maybeSingle();
+    const { data: membro } = await db
+      .from("usuario_areas")
+      .select("allowed")
+      .eq("user_id", data.userId)
+      .eq("area", data.area)
+      .maybeSingle();
+
+    let ficouSemArea = false;
+    if (data.nivel === "admin" || data.nivel === "socio") {
+      await rpc("acesso_nomear", { _alvo: data.userId, _area: data.area, _nivel: data.nivel });
+    } else if (data.nivel === "usuario") {
+      if (atual) {
+        // Rebaixar: sai da administração e volta como membro com as páginas escolhidas.
+        await rpc("acesso_remover_da_area", { _alvo: data.userId, _area: data.area });
+        await rpc("acesso_adicionar_na_area", {
+          _alvo: data.userId, _area: data.area, _unidades: [], _chaves: data.paginas,
+        });
+      } else if (membro?.allowed) {
+        await rpc("acesso_definir_paginas", { _alvo: data.userId, _area: data.area, _chaves: data.paginas });
+      } else {
+        await rpc("acesso_adicionar_na_area", {
+          _alvo: data.userId, _area: data.area, _unidades: [], _chaves: data.paginas,
+        });
+      }
+    } else if (atual || membro) {
+      ficouSemArea = Boolean(
+        await rpc("acesso_remover_da_area", { _alvo: data.userId, _area: data.area }),
+      );
+    }
+    return { ok: true, ficouSemArea };
+  });
+
+/** Quem administra cada área, para a matriz de /admin/permissoes. */
+export const listAdministradoresPorArea = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const { data: linhas, error } = await db.from("area_admins").select("user_id, area, nivel");
+    if (error) throw new Error("Erro ao carregar quem administra as áreas.");
+    const ids = Array.from(new Set(((linhas ?? []) as { user_id: string }[]).map((l) => l.user_id)));
+    const { data: perfis } = ids.length
+      ? await db.from("profiles").select("user_id, nome, email").in("user_id", ids)
+      : { data: [] };
+    const nome = new Map(
+      ((perfis ?? []) as { user_id: string; nome: string | null; email: string | null }[]).map((p) => [
+        p.user_id,
+        p.nome || p.email || p.user_id,
+      ]),
+    );
+    return ((linhas ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[]).map((l) => ({
+      ...l,
+      nome: nome.get(l.user_id) ?? l.user_id,
+    }));
   });

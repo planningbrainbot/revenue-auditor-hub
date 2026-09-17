@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { acessoDoUsuario } from "@/lib/permissions.functions";
 
 // 1:1 e feedback contínuo (migration 54, no repo do wiki).
 //
@@ -61,6 +62,7 @@ export interface ConversasResult {
   minhaPessoaId: number | null;
   podeUmAUm: boolean;
   podeFeedback: boolean;
+  podeRegistrar: boolean;
   umAUm: UmAUmRow[];
   cobertura: CoberturaRow[];
   meuTime: PessoaOpcao[];
@@ -69,16 +71,11 @@ export interface ConversasResult {
   feedbackEnviado: FeedbackRow[];
 }
 
+// Lia `role_permissions`, que está congelada desde 15/09/2026 como retrato de
+// rollback. A fonte é a mesma do resto do app.
 async function chavesDoUsuario(supabase: Cliente, userId: string): Promise<string[]> {
-  const rolesRes = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const roles = ((rolesRes?.data ?? []) as { role: string }[]).map((r) => r.role);
-  if (!roles.length) return [];
-  const permRes = await supabase
-    .from("role_permissions")
-    .select("permission_key")
-    .in("role", roles)
-    .eq("allowed", true);
-  return ((permRes?.data ?? []) as { permission_key: string }[]).map((p) => p.permission_key);
+  const acesso = await acessoDoUsuario(supabase, userId);
+  return acesso.permissions;
 }
 
 export const listConversas = createServerFn({ method: "GET" })
@@ -98,6 +95,9 @@ export const listConversas = createServerFn({ method: "GET" })
       minhaPessoaId: eu?.id ?? null,
       podeUmAUm: chaves.includes("view.gente.um_a_um"),
       podeFeedback: chaves.includes("view.gente.feedback"),
+      // Ver e registrar são chaves diferentes desde 17/09/2026. A RLS já barra
+      // o INSERT sem esta; o campo existe para a tela esconder o formulário.
+      podeRegistrar: chaves.includes("edit.gente.conversas"),
       umAUm: [],
       cobertura: [],
       meuTime: [],

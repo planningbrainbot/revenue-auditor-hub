@@ -1317,3 +1317,112 @@ Metadados ECD históricos ficam em `base_ecd_registros`, unidos ao cadastro fisc
 **Decisão:** manter validade de uma hora e verificação apenas após salvar a nova senha. A rota trata links legados explicitamente, sem a detecção automática do SDK, tolera os formatos usuais de encaminhamento e preserva o fragmento até terminar para não perder o token ao recarregar. Expiração só é afirmada após resposta do Auth. O usuário pode escolher código + e-mail quando o link não abre corretamente; código e link são o mesmo pedido de recuperação, nunca uma senha enviada por e-mail. A atualização verifica a identidade e não usa uma sessão existente de outra conta.
 
 **Design e publicação:** layout compartilhado com logo, verde `#0ae18c`, texto `#10171c`, fundo `#f4f7f9`, CTA e alternativa por código. Template do Supabase gerado e testado a partir do código; a configuração hospedada deve ser aplicada separadamente, após a tela nova. Sem mudanças de provedor, remetente, permissões ou bancos legados. Relatório em `docs/dev_notes/recuperacao-senha/resultado.md`.
+
+## [2026-09-16] O financeiro da unidade vira área própria, e a Administração sai do seletor
+
+**Contexto:** o usuário pediu para tirar do sócio regional o bloco "Financeiro"
+do menu da unidade (Funil de Receita, Contas a Receber e Meus Royalties) e não
+achou a opção em `/admin/permissoes`. Não era bug da tela: desde 15/09 a unidade
+de concessão é a ÁREA, e as três chaves moravam dentro de `minha_unidade`. Tirar
+o financeiro significava tirar junto carteira, CS, NPS e IDU.
+
+**Decisão — área `minha_unidade_financeiro`.** Mesmo precedente do
+`broker_matriz`: quando a fronteira do MENU e a fronteira da CONFIANÇA não
+coincidem, o item declara área própria e o grupo continua no mesmo lugar da
+lateral. As três chaves saíram de `minha_unidade` e entraram na área nova, que
+nasce concedida ao `admin` e negada ao `socio_regional`. Elas seguem em
+`receita`, que é quem as concede para a Matriz, então ninguém da Matriz perdeu
+nada. Religar para o sócio é um clique na matriz de permissões.
+
+A alternativa de apagar os três itens do menu foi descartada: some da tela e
+volta a ser decisão em código, que é o defeito que o modelo por área corrigiu.
+
+**Decisão — a Administração não divide o seletor com as áreas de trabalho.**
+O seletor do topo responde "em que estou trabalhando agora", e a resposta nunca
+é "configurando quem vê o quê". Ela virou linha fixa no rodapé da lateral, com
+grifo quando você está dentro. Continua em `areasVisiveis`, então dentro dela a
+lateral mostra as páginas normalmente. A porta de entrada (`/inicio`) segue
+listando o cartão: ali é catálogo, não menu de trabalho.
+
+**Status:** publicado. Migration `20260916100000_area_minha_unidade_financeiro.sql`
+aplicada no banco único e deploy `442ccf1` READY em produção. Conferido no banco:
+os dois sócios regionais respondem `false` para as três chaves e seguem `true`
+em painel da unidade, clientes, CS, NPS e IDU.
+
+**Achado de caminho, não corrigido:** o papel `financeiro_admin` tem a área
+`admin_financeiro` mas não tem a área `admin`, e `areasVisiveis` filtra por
+`temArea(a.slug)` ANTES de olhar item por item. Logo a Administração inteira não
+renderiza para ele e `/admin/acessos-financeiro` fica inalcançável pelo menu (a
+rota abre por link direto). Some se o filtro de área cair e a decisão passar a
+ser só do item, que é o que `areaDoItem` já faz.
+
+## [2026-09-16] Super admin e admins de área: quem delega o quê
+
+**Contexto:** o usuário pediu uma estrutura de admin delegado. "O sócio regional
+é o admin do painel da unidade dele, ele que controla o acesso dos colaboradores
+dele; o admin de growth controla o que cada um vê no Growth; o admin do
+financeiro controla o que cada um vê do resultado de cada empresa."
+
+**Decisão — dois níveis, dois donos.** O super admin decide quais ÁREAS cada
+papel e cada pessoa alcança, e quem administra cada área. O admin da área decide,
+dentro dela, quais CHAVES daquela área cada pessoa vê, e o escopo dela. O super
+admin nunca desce para a chave; o delegado nunca sobe para a área.
+
+Isto não reverte o corte de 15/09: a chave segue invisível para quem concede
+área. Ela reaparece só na tela do delegado, onde a pergunta é "dentro de Minha
+Unidade, o Fulano abre CS e NPS mas não abre Clientes". As 76 chaves e as 111
+policies não mudam.
+
+**Decisão — colaborador de unidade vira usuário do Ops,** com login próprio,
+papel `colaborador_unidade` sem área por padrão e escopo de uma unidade,
+obrigatório. Quem abre área para ele é o sócio. Piloto no Rio, a única unidade
+com escopo correto hoje.
+
+**Decisão — uma tela só para os três domínios,** na Administração do Brain.
+Unifica a operação, não as tabelas: Growth continua entrando por
+`growth.membros` e o Financeiro por `produto_acesso` mais `usuario_empresas`.
+
+**Decisão — não escalada na função, não na tela:** o delegado só concede o que
+ele mesmo tem, só para gente dentro do escopo dele, e nunca toca em papel, área
+ou na lista de admins. `ops.pode_administrar()` responde as três e a RLS amarra.
+
+**Status:** plano escrito em `~/Desktop/AI Projects/PLANO-ADMIN-DELEGADO.md`,
+nada implementado. Fase 0 (três consertos) antes de qualquer tabela nova: escopo
+vazio do Italo Amaral, o menu inalcançável do `financeiro_admin` e a
+`usuario_empresas` vazia.
+
+## [2026-09-17] Níveis de acesso por área: banco aplicado, tela do super admin no dev
+
+**Contexto:** as 11 decisões do PLANO-ADMIN-DELEGADO foram confirmadas. Os
+níveis, nas palavras do dono: Super Admin (acesso full); Admin (todas as
+empresas, só nas áreas que o super admin permitir); Sócio (full nas áreas e
+unidades que o admin permitir, e convida a equipe); Usuário (só consulta, por
+enquanto).
+
+**Decisão — as escritas delegadas moram no banco.** Funções `ops.acesso_*`
+(adicionar na área, definir páginas, remover da área, nomear, definir unidades,
+negar página) conferem nível e recorte e registram em `ops.acessos_log`. As
+tabelas novas só aceitam escrita direta do super admin. Refinamento sobre o
+plano: o delegado ESCREVE em `usuario_areas` (convidar para a área dele é
+justamente o pedido), mas só por essas funções.
+
+**Decisão — "usuário só consulta" é uma constraint, não uma tela.**
+`usuario_chaves` só aceita conceder chave `view.*`. Para isso valer, as seis
+gravações que passavam com chave de ver ganharam chave de operar nas mesmas
+áreas: `edit.nps` (envio, pesquisa, ligação e gravação do NPS, e o disparo) e
+`edit.gente.conversas` (1:1 e feedback).
+
+**Decisão — o menu lê o banco.** `acessoDoUsuario` passou a chamar
+`ops.acesso_do_usuario`, a mesma regra do `can_user`. O Gente deixou de ler
+`role_permissions`, congelada desde 15/09.
+
+**Status:** migration `20260917100000_gestao_acessos_niveis.sql` aplicada em
+produção; 2.940 pares pessoa × chave idênticos antes e depois; gate de 37
+cenários em `supabase/gates/`, rollback ensaiado em `supabase/rollback/`. Tela
+(botão "Acessos" e "Administra" na matriz) publicada em 17/09. Fase 0
+aplicada no mesmo dia: Italo Amaral em Belém, e `headcount_mensal` e
+`comite_correcoes` só aceitam escrita do super admin.
+
+**Achado, não corrigido:** `headcount_mensal` (vazia, a tela só lê) e
+`comite_correcoes` (1 linha, nenhuma tela do app grava) aceitam escrita de
+qualquer pessoa com a porta do Ops.

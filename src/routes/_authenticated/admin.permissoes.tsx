@@ -3,7 +3,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, ChevronRight, ShieldCheck, Users } from "lucide-react";
-import { listRoleAreas, upsertRoleArea } from "@/lib/permissions.functions";
+import { listAdministradoresPorArea, listRoleAreas, upsertRoleArea } from "@/lib/permissions.functions";
 import { AppShell } from "@/components/app-shell";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,22 @@ function PermissionsPage() {
   }, [loading, isAdmin, navigate]);
 
   const q = useQuery({ queryKey: ["role-areas"], queryFn: () => listFn(), enabled: isAdmin });
+
+  // Quem administra cada área (admin ou sócio). Nomear é na tela de Usuários,
+  // botão "Acessos": aqui é só a leitura, ao lado da matriz de papéis.
+  const adminsFn = useServerFn(listAdministradoresPorArea);
+  const adminsQ = useQuery({ queryKey: ["area-admins"], queryFn: () => adminsFn(), enabled: isAdmin });
+  const adminsPorArea = useMemo(() => {
+    const map = new Map<string, { nome: string; nivel: "admin" | "socio" }[]>();
+    for (const l of adminsQ.data ?? []) {
+      const lista = map.get(l.area) ?? [];
+      lista.push({ nome: l.nome, nivel: l.nivel });
+      map.set(l.area, lista);
+    }
+    for (const lista of map.values())
+      lista.sort((x, y) => (x.nivel === y.nivel ? x.nome.localeCompare(y.nome, "pt-BR") : x.nivel === "admin" ? -1 : 1));
+    return map;
+  }, [adminsQ.data]);
 
   const concedida = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -181,6 +197,18 @@ function PermissionsPage() {
                               {ROTULO_ESCOPO[a.escopo] ?? a.escopo}
                             </span>
                             <span className="block text-xs text-muted-foreground">{a.descricao}</span>
+                            <span className="mt-1 block text-xs">
+                              {(adminsPorArea.get(a.slug) ?? []).length === 0 ? (
+                                <span className="text-muted-foreground">Administra: só o super admin</span>
+                              ) : (
+                                <span className="text-foreground">
+                                  Administra:{" "}
+                                  {(adminsPorArea.get(a.slug) ?? [])
+                                    .map((x) => `${x.nome} (${x.nivel === "admin" ? "admin" : "sócio"})`)
+                                    .join(", ")}
+                                </span>
+                              )}
+                            </span>
                           </span>
                         </button>
                       </td>

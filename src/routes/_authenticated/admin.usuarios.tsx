@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
 import { EscopoUsuarioDialog } from "@/components/admin/escopo-usuario-dialog";
+import { AcessosUsuarioDialog } from "@/components/admin/acessos-usuario-dialog";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
@@ -152,6 +153,7 @@ function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [socioUnidade, setSocioUnidade] = useState<string | null>(null);
   const [escopoAlvo, setEscopoAlvo] = useState<{ userId: string; nome: string } | null>(null);
+  const [acessosAlvo, setAcessosAlvo] = useState<{ userId: string; nome: string } | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
 
@@ -570,6 +572,13 @@ function UsersPage() {
                         >
                           Escopo
                         </button>
+                        <button
+                          onClick={() => setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email })}
+                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
+                          title="Em cada área: admin, sócio, usuário ou sem acesso"
+                        >
+                          Acessos
+                        </button>
                         {growthConfigurado && (
                           <button
                             onClick={() => {
@@ -729,6 +738,13 @@ function UsersPage() {
             userId={escopoAlvo.userId}
             nome={escopoAlvo.nome}
             onClose={() => setEscopoAlvo(null)}
+          />
+        )}
+        {acessosAlvo && (
+          <AcessosUsuarioDialog
+            userId={acessosAlvo.userId}
+            nome={acessosAlvo.nome}
+            onClose={() => setAcessosAlvo(null)}
           />
         )}
       </div>
