@@ -1,3 +1,4 @@
+import { aplicarBase, type BaseEmpresa } from "../clientes-base";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -45,20 +46,20 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<BaseMonetizacao> => {
     const db = context.supabase;
-    const [aquario, operation, manage, send, scope] = await Promise.all([
+    const [aquario, operation, manage, send, scope, clients] = await Promise.all([
       check(db, "view.aquario"),
       check(db, "view.monetizacao"),
       check(db, "manage.aquario"),
       check(db, "send.monetizacao"),
       (db as DB).schema("ops").rpc("monetizacao_scope", { _ids: [] }),
+      check(db, "view.clientes"),
     ]);
-    if (!aquario && !operation)
+    if (!aquario && !operation && !clients)
       throw new Error(
         "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
       );
-    const [accounts, units, cards, lists, items, health, plans, records, reservations, forecasts] =
+    const [units, cards, lists, items, health, plans, records, reservations, forecasts] =
       await Promise.all([
-        all(db, "monetizacao_contas", "key,perfil,source_at,unidade_ids", "key"),
         all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
         all(db, "monetizacao_deals", "id,payload", "id"),
         all(db, "monetizacao_listas", "*", "created_at"),
@@ -69,39 +70,28 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
         all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
         all(db, "monetizacao_forecasts", "payload", "id"),
       ]);
-    const { data: origins, error: originError } = await (db as DB)
+    const { count: baseCount, error: countError } = await (db as DB)
       .schema("ops")
-      .rpc("monetizacao_base_origins");
-    if (originError)
-      throw new Error(
-        "Não foi possível conferir a origem das carteiras. Atualize para tentar novamente.",
-      );
-    const originBy = new Map(
-      (origins || []).map((o: { account_key: string; origin: Conta["base_origin"] }) => [
-        o.account_key,
-        o.origin,
-      ]),
-    );
-    const profiles = accounts.map(
-        (a) => ({ ...a.perfil, base_origin: originBy.get(a.key) }) as Conta,
-      ),
-      sync = health[0];
+      .from("monetizacao_contas")
+      .select("key", { count: "exact", head: true });
+    if (countError) throw new Error("Não foi possível conferir o total da base.");
+    const { data: scopeSignature, error: scopeError } = await (db as DB)
+      .schema("ops")
+      .rpc("base_access_signature");
+    if (scopeError) throw new Error("Não foi possível conferir seu escopo atual.");
+    const sync = health[0];
     return {
+      base_count: baseCount,
+      scope_signature: scopeSignature,
       forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
       reservations: reservations as BaseMonetizacao["reservations"],
-      accounts: profiles,
+      accounts: [],
       units: units.map((u) => ({
         id: u.unidade_id,
         key: u.key,
         name: u.nome,
         classification: u.classification,
-        account_keys: accounts
-          .filter((a) =>
-            u.unidade_id
-              ? a.unidade_ids.includes(u.unidade_id)
-              : a.perfil.units.includes(u.key) || a.perfil.unit_label === u.nome,
-          )
-          .map((a) => a.key),
+        account_keys: [],
       })),
       cards: cards.map((d) => d.payload as Negocio),
       lists: lists.map((l) => ({
@@ -119,11 +109,58 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
     };
   });
 
+// Paginação no transporte evita estourar o limite de resposta do servidor.
+// A interface só publica a contagem depois de carregar todas as páginas.
+export const carregarContasBase = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ after: z.string().max(80).nullable() }))
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<{ accounts: (Conta & { unit_ids: number[] })[]; next: string | null }> => {
+      const db = (context.supabase as DB).schema("ops");
+      const allowed = await Promise.all([
+        check(context.supabase, "view.clientes"),
+        check(context.supabase, "view.aquario"),
+        check(context.supabase, "view.monetizacao"),
+      ]);
+      if (!allowed.some(Boolean)) throw new Error("Sem acesso à base de clientes.");
+      let query = db
+        .from("monetizacao_contas")
+        .select("key,perfil,unidade_ids")
+        .order("key")
+        .limit(400);
+      if (data.after) query = query.gt("key", data.after);
+      const { data: rows, error } = await query;
+      if (error)
+        throw new Error("Não foi possível carregar as empresas. Nenhum total parcial foi exibido.");
+      if (!rows.length) return { accounts: [], next: null };
+      const { data: master, error: baseError } = await db.rpc("base_unica_catalogo", {
+        _keys: rows.map((a: DB) => a.key),
+      });
+      if (baseError) throw new Error("Não foi possível conferir origem e refinamento da base.");
+      const by = new Map<string, BaseEmpresa>((master || []).map((m: BaseEmpresa) => [m.key, m]));
+      if (rows.some((a: DB) => !by.has(a.key)))
+        throw new Error("A base mudou durante a leitura. Atualize para conferir os totais.");
+      return {
+        accounts: rows.map((a: DB) => ({
+          ...aplicarBase(a.perfil as Conta, by.get(a.key)),
+          unit_ids: a.unidade_ids,
+        })),
+        next: rows.length === 400 ? rows.at(-1).key : null,
+      };
+    },
+  );
+
 export const detalheAquario = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ key: z.string().min(1).max(80) }))
   .handler(async ({ context, data }) => {
-    if (!(await check(context.supabase, "view.aquario")))
+    if (
+      !(await check(context.supabase, "view.aquario")) &&
+      !(await check(context.supabase, "view.clientes"))
+    )
       throw new Error("Sem permissão para consultar clientes.");
     const db = (context.supabase as DB).schema("ops");
     const { data: detail, error } = await db.rpc("monetizacao_detail", { _key: data.key });

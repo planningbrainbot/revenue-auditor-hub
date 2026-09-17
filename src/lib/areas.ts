@@ -143,7 +143,6 @@ export const AREAS: Area[] = [
         label: "Carteira",
         items: [
           { title: "Clientes", url: "/clientes", icon: Building2 },
-          { title: "Aquário", url: "/aquario", icon: Users },
           { title: "CS", url: "/painel-cs", icon: UserCheck },
           {
             title: "Auditoria Interna",

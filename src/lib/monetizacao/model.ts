@@ -62,6 +62,7 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
   const band = review.band || a.band || "",
     bounds = FAIXAS[band];
   const result = (status: Oferta["status"], reason: string) => ({ status, reason });
+  if (a.base?.source_status === "absent") return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
   if (produto === "consultoria") {
     if (a.new_commercial || a.consultoria_origin?.status === "comercial")
       return result(

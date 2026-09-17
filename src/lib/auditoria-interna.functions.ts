@@ -1,3 +1,4 @@
+import { strictDate } from "../../supabase/functions/_shared/strict-date.mjs";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/server-utils";
@@ -55,11 +56,10 @@ function parseJsonArrayField(raw: string | null | undefined): string | null {
 }
 
 function parseBrDate(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const m = String(raw).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!m) return null;
-  const [, mm, dd, yyyy] = m;
-  return `${yyyy}-${mm}-${dd}`;
+  if (!raw?.trim()) return null;
+  const date = strictDate(raw);
+  if (!date) throw new Error("Data inválida no Pipefy; corrija a origem antes de sincronizar.");
+  return date;
 }
 
 // Campo de texto livre no Pipefy: chega como "R$ 2.691.472,74", " 1.261.824,20 " ou "0,00".

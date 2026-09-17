@@ -42,9 +42,33 @@ export const atualizarCliente = createServerFn({ method: "POST" })
     }
     if (Object.keys(patch).length === 0) throw new Error("Nada para atualizar.");
 
+    const { data: empresa, error: readError } = await supabase
+      .from("empresas")
+      .select("pipefy_record_id")
+      .eq("id", data.id)
+      .single();
+    if (readError || !empresa) throw new Error("Empresa indisponível no seu escopo.");
+    if (empresa.pipefy_record_id) {
+      const fields = Object.fromEntries(
+        Object.entries(patch).map(([field, value]) => [
+          field === "razao_social" ? "raz_o_social" : field,
+          value,
+        ]),
+      );
+      const { error } = await (supabase as any).rpc("base_propor_alteracoes", {
+        _empresa: data.id,
+        _campos: fields,
+        _motivo: "Correção manual no cadastro de Clientes",
+      });
+      if (error) throw new Error(error.message);
+      return { ok: true, status: "pending" };
+    }
     const result = await supabase.from("empresas").update(patch).eq("id", data.id).select("id");
-    assertAffected(result, `Nenhuma empresa foi atualizada (id ${data.id}) — possível bloqueio de permissão (RLS).`);
-    return { ok: true, ...patch };
+    assertAffected(
+      result,
+      `Nenhuma empresa foi atualizada (id ${data.id}) — possível bloqueio de permissão (RLS).`,
+    );
+    return { ok: true, status: "confirmed", ...patch };
   });
 
 // ============ marcarChurnCliente ============
