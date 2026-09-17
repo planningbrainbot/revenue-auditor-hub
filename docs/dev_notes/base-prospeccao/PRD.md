@@ -31,3 +31,19 @@ Classificar origem com evidência, reaproveitar dados existentes e liberar ofert
 - Correções externas só contam como concluídas após confirmação no Pipefy.
 - Nenhum envio de negócio ou mensagem para sócio é disparado pelo enriquecimento.
 - Segredos, cadastros e respostas individuais ficam fora do Git e de páginas públicas.
+
+## Estado da execução
+
+- Carga de vigências, classificação, evidência tributária, correções confirmadas no Pipefy e exibição no painel: publicadas no PR #11.
+- Atualização diária Omie: ativada após a autorização de continuação de 17/09. Migration `20260917174200_base_vigencias_sync.sql`, worker versão 5 e job `base-omie-vigencias` ativos. Primeiro ciclo completo nos três aplicativos, com pausa de 24 horas validada.
+- Consulta adicional ao cadastro de clientes Omie e revisão dos campos de unidade do Pipedrive: realizadas. Ausências não foram convertidas em comprovação de regime ou identidade.
+- Listas de origem, regime e vínculos a revisar: evidências nominais em diretório privado Planning, fora deste repositório público. Disponibilidade no painel respeita produto, reservas e negócios existentes.
+- Pendências externas: resposta sobre o mês de abril/2025, evidências das unidades e saldo da Driva para novas consultas. Convites GitHub aguardam o aceite dos destinatários. Não declarar essas etapas concluídas por ter terminado a parte técnica.
+
+## Acompanhamento da rotina Omie
+
+Conferir `ops.base_omie_jobs`: página, última atualização, próxima execução, lease e erro por aplicativo. O agendador roda a cada dois minutos, mas não consulta Omie quando todos os aplicativos estão no intervalo de 24 horas. Erros registram a causa e adiam a tentativa em 15 minutos; o lease impede dois trabalhadores de usar simultaneamente o mesmo checkpoint.
+
+Conferir o cron `base-omie-vigencias` e confirmar o resultado no worker/banco; a execução SQL do cron apenas enfileira a chamada HTTP. As correções de origem geradas ao concluir cada aplicativo continuam na outbox existente e só contam como concluídas depois da releitura no Pipefy.
+
+Para suspender somente esta atualização, desativar o job `base-omie-vigencias`; preservar `base-clientes-reconcile`, dados, checkpoints e histórico de alterações. Reativar após corrigir a causa, sem recriar a base ou reenviar negócios ao CRM.

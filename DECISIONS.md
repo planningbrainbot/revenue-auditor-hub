@@ -1487,3 +1487,11 @@ reemitida prenderia a pessoa lá dentro.
 **Tributação:** reutilizar evidências anteriores e flags S/N explícitos do Omie; Driva complementa lacunas com fonte/data. Ausência não significa fora do Simples, divergências não liberam oferta e estimativas não substituem faturamento declarado. A evidência de não opção serve aos critérios existentes de Consultoria, Finance e Cella sem inventar Lucro Real/Presumido. Consultoria continua exclusivamente antiga e sem fechamento comercial; contato, segmento, faturamento e ECD não são vetos adicionais. Recon permanece no Aquário e mantém a comprovação de ausência de qualquer BPO.
 
 **Operação:** carga inicial e correções autorizadas aplicadas. A consulta Driva é uma carga limitada ao saldo existente, sem compra ou recorrência paga automática. Atualização diária das vigências foi implementada em páginas com checkpoint, mas sua ativação aguarda autorização específica após bloqueio da revisão automática. Não ativar o cron só por aplicar a migration de metadados.
+
+## 2026-09-17 — Atualização diária de vigências ativada
+
+**Autorização e execução:** após a explicação da pendência, o usuário autorizou executar todos os passos listados. Foi aplicada a migration `20260917174200_base_vigencias_sync.sql` e publicado o sincronizador `base-clientes-sync` versão 5. O job `base-omie-vigencias` verifica a fila a cada dois minutos; cada chamada consulta até 50 contratos de um aplicativo. Ao terminar um aplicativo, seu checkpoint aguarda 24 horas. Isso não cria contratos nem agenda consultas pagas à Driva.
+
+**Verificação:** primeiro ciclo completo nos três aplicativos Omie de Curitiba, sem erro e sem lease pendente; checkpoints reiniciados na página 1 com próxima execução no dia seguinte. O cron anterior do Pipefy e a fila de correções foram preservados. A rotina e a pausa diária estão verificadas; campos ausentes na fonte continuam pendentes.
+
+**Refinamento complementar:** cadastros Omie sem flag explícita de Simples permanecem desconhecidos. Campos de unidade em negócios Pipedrive foram conferidos, mas não substituem o vínculo de identidade da empresa nem criam unidades automaticamente a partir de rótulos desconhecidos. Casos sem prova suficiente seguem em listas privadas para validação. O mês de abril/2025 continua aguardando a definição solicitada e nenhuma compra de créditos foi feita.
