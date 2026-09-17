@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/admin/niveis")({
   component: NiveisPage,
 });
 
-type Nivel = "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "nenhum";
+type Nivel = "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "bloqueado" | "nenhum";
 
 const CELULA: Record<Nivel, { texto: string; classe: string }> = {
   super_admin: { texto: "total", classe: "bg-primary text-primary-foreground" },
@@ -41,6 +41,7 @@ const CELULA: Record<Nivel, { texto: string; classe: string }> = {
   socio: { texto: "sócio", classe: "bg-primary/25 text-foreground" },
   usuario: { texto: "usuário", classe: "bg-primary/10 text-primary" },
   perfil: { texto: "perfil", classe: "border border-border text-muted-foreground" },
+  bloqueado: { texto: "bloqueada", classe: "bg-destructive/10 text-destructive" },
   nenhum: { texto: "", classe: "" },
 };
 
@@ -71,7 +72,8 @@ function NiveisPage() {
               <strong className="text-foreground">admin</strong> área inteira, todas as unidades, nomeia sócios ·{" "}
               <strong className="text-foreground">sócio</strong> área inteira nas unidades dele, convida a equipe ·{" "}
               <strong className="text-foreground">usuário</strong> só as páginas liberadas, só consulta ·{" "}
-              <strong className="text-foreground">perfil</strong> entra pela área que o perfil abre.
+              <strong className="text-foreground">perfil</strong> entra pela área que o perfil abre ·{" "}
+              <strong className="text-foreground">bloqueada</strong> o perfil abre, mas foi tirada desta pessoa.
             </p>
           </div>
         </div>

@@ -22,6 +22,11 @@ import { cn } from "@/lib/utils";
  */
 const NIVEIS: { valor: NivelNaArea; rotulo: string; ajuda: string }[] = [
   { valor: "nenhum", rotulo: "Sem acesso", ajuda: "Não entra nesta área." },
+  {
+    valor: "bloqueado",
+    rotulo: "Bloquear esta área",
+    ajuda: "A área some para esta pessoa, mesmo que o perfil dela abra. Só o super admin bloqueia.",
+  },
   { valor: "usuario", rotulo: "Usuário", ajuda: "Vê só as páginas marcadas. Só consulta." },
   { valor: "socio", rotulo: "Sócio", ajuda: "Área inteira, nas unidades dele. Convida a equipe." },
   { valor: "admin", rotulo: "Admin", ajuda: "Área inteira, todas as unidades e empresas. Nomeia sócios." },
@@ -152,10 +157,16 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
         <div className="min-w-[10rem] flex-1">
           <p className="text-sm font-medium text-foreground">
             {area.nome}
-            {area.pelo_papel && (
-              <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
-                área inteira pelo perfil
+            {area.nivel === "bloqueado" ? (
+              <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-destructive">
+                bloqueada
               </span>
+            ) : (
+              area.pelo_papel && (
+                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                  área inteira pelo perfil
+                </span>
+              )
             )}
           </p>
           <p className="text-[11px] text-muted-foreground">
@@ -175,11 +186,14 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
           className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
           title={NIVEIS.find((n) => n.valor === nivel)?.ajuda}
         >
-          {NIVEIS.map((n) => (
-            <option key={n.valor} value={n.valor}>
-              {n.valor === "nenhum" && area.pelo_papel ? "Só o perfil" : n.rotulo}
-            </option>
-          ))}
+          {NIVEIS
+            // Bloquear só faz sentido onde o perfil abre a área (ou já está bloqueada).
+            .filter((n) => n.valor !== "bloqueado" || area.pelo_papel || area.nivel === "bloqueado")
+            .map((n) => (
+              <option key={n.valor} value={n.valor}>
+                {n.valor === "nenhum" && area.pelo_papel ? "Só o perfil" : n.rotulo}
+              </option>
+            ))}
         </select>
         <button
           onClick={() => mut.mutate()}

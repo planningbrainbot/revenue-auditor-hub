@@ -781,7 +781,8 @@ export const getSocioUnidadeByEmail = createServerFn({ method: "POST" })
 // que `auth.uid()` lá dentro seja quem está mexendo.
 // ─────────────────────────────────────────────────────────────
 
-export type NivelNaArea = "nenhum" | "usuario" | "socio" | "admin";
+/** `bloqueado`: o super admin tirou a área desta pessoa, mesmo que o perfil a abra. */
+export type NivelNaArea = "nenhum" | "bloqueado" | "usuario" | "socio" | "admin";
 
 export type AcessoPorArea = {
   slug: string;
@@ -844,6 +845,9 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
     const membro = new Set(
       ((membrosRes.data ?? []) as { area: string; allowed: boolean }[]).filter((m) => m.allowed).map((m) => m.area),
     );
+    const bloqueada = new Set(
+      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[]).filter((m) => !m.allowed).map((m) => m.area),
+    );
     const porPessoa = (porPessoaRes.data ?? []) as { permission_key: string; allowed: boolean }[];
     const liberadas = new Set(porPessoa.filter((p) => p.allowed).map((p) => p.permission_key));
     const negadas = new Set(porPessoa.filter((p) => !p.allowed).map((p) => p.permission_key));
@@ -855,7 +859,9 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
         nome: a.nome,
         escopo: a.escopo,
         pelo_papel: areasDoPapel.has(a.slug),
-        nivel: nivelDelegado.get(a.slug) ?? (membro.has(a.slug) ? "usuario" : "nenhum"),
+        nivel: bloqueada.has(a.slug)
+          ? "bloqueado"
+          : nivelDelegado.get(a.slug) ?? (membro.has(a.slug) ? "usuario" : "nenhum"),
         paginas: chaves
           .filter((k) => k.startsWith("view."))
           .map((k) => ({ key: k, label: rotulo.get(k) ?? k }))
@@ -879,7 +885,7 @@ export const salvarAcessoNaArea = createServerFn({ method: "POST" })
     const userId = (input?.userId ?? "").trim();
     const area = (input?.area ?? "").trim();
     if (!userId || !area) throw new Error("Pessoa e área são obrigatórias.");
-    if (!["nenhum", "usuario", "socio", "admin"].includes(input?.nivel)) throw new Error("Nível inválido.");
+    if (!["nenhum", "bloqueado", "usuario", "socio", "admin"].includes(input?.nivel)) throw new Error("Nível inválido.");
     const paginas = Array.from(new Set((input?.paginas ?? []).map((p) => p.trim()).filter(Boolean)));
     return { userId, area, nivel: input.nivel, paginas };
   })
@@ -908,7 +914,23 @@ export const salvarAcessoNaArea = createServerFn({ method: "POST" })
       .eq("area", data.area)
       .maybeSingle();
 
+    const { data: bloqueio } = await db
+      .from("usuario_areas")
+      .select("allowed")
+      .eq("user_id", data.userId)
+      .eq("area", data.area)
+      .eq("allowed", false)
+      .maybeSingle();
+
     let ficouSemArea = false;
+    if (data.nivel === "bloqueado") {
+      await rpc("acesso_bloquear_area", { _alvo: data.userId, _area: data.area, _bloquear: true });
+      return { ok: true, ficouSemArea };
+    }
+    // Qualquer outra escolha começa tirando o bloqueio, se houver.
+    if (bloqueio) {
+      await rpc("acesso_bloquear_area", { _alvo: data.userId, _area: data.area, _bloquear: false });
+    }
     if (data.nivel === "admin" || data.nivel === "socio") {
       await rpc("acesso_nomear", { _alvo: data.userId, _area: data.area, _nivel: data.nivel });
     } else if (data.nivel === "usuario") {
@@ -925,7 +947,7 @@ export const salvarAcessoNaArea = createServerFn({ method: "POST" })
           _alvo: data.userId, _area: data.area, _unidades: [], _chaves: data.paginas,
         });
       }
-    } else if (atual || membro) {
+    } else if (atual || membro?.allowed) {
       ficouSemArea = Boolean(
         await rpc("acesso_remover_da_area", { _alvo: data.userId, _area: data.area }),
       );
@@ -975,7 +997,7 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
       db.from("roles").select("key, label"),
       db.from("role_areas").select("role, area").eq("allowed", true),
       db.from("area_admins").select("user_id, area, nivel"),
-      db.from("usuario_areas").select("user_id, area").eq("allowed", true),
+      db.from("usuario_areas").select("user_id, area, allowed"),
     ]);
     for (const r of [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes]) {
       if (r?.error) {
@@ -994,8 +1016,9 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
     for (const r of (papeisRes.data ?? []) as { user_id: string; role: string }[]) {
       papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), r.role]);
     }
-    const delegado = new Map<string, "admin" | "socio" | "usuario">();
-    for (const m of (membrosRes.data ?? []) as { user_id: string; area: string }[]) delegado.set(`${m.user_id}|${m.area}`, "usuario");
+    const delegado = new Map<string, "admin" | "socio" | "usuario" | "bloqueado">();
+    for (const m of (membrosRes.data ?? []) as { user_id: string; area: string; allowed: boolean }[])
+      delegado.set(`${m.user_id}|${m.area}`, m.allowed ? "usuario" : "bloqueado");
     for (const a of (adminsRes.data ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[])
       delegado.set(`${a.user_id}|${a.area}`, a.nivel);
 
@@ -1018,7 +1041,7 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
                 ? "super_admin"
                 : delegado.get(`${p.user_id}|${a.slug}`) ?? (pelosPapeis.has(a.slug) ? "perfil" : "nenhum"),
             ]),
-          ) as Record<string, "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "nenhum">,
+          ) as Record<string, "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "bloqueado" | "nenhum">,
         };
       })
       .sort((x, y) => Number(y.superAdmin) - Number(x.superAdmin) || x.nome.localeCompare(y.nome, "pt-BR"));
