@@ -37,7 +37,7 @@ test('Tokens de outro fluxo e erros não autorizam redefinir a senha da sessão 
 });
 
 test('Emails antigos válidos preservam a identidade do token para conferir a sessão', () => {
-  assert.deepEqual(readRecoveryLink('https://planningbrain.com.br/redefinir-senha#access_token=legacy-token&type=recovery'), { kind: 'legacy', accessToken: 'legacy-token' });
+  assert.deepEqual(readRecoveryLink('https://planningbrain.com.br/redefinir-senha#access_token=legacy-token&refresh_token=refresh-token&type=recovery'), { kind: 'legacy', accessToken: 'legacy-token', refreshToken: 'refresh-token' });
 });
 
 test('HTML mantém um link próprio e não permite inserir conteúdo via nome', () => {
@@ -47,4 +47,14 @@ test('HTML mantém um link próprio e não permite inserir conteúdo via nome', 
   assert.equal(mail.html.includes('supabase.co'), false);
   assert.equal(mail.html.includes('<img/src=x>'), false);
   assert.ok(mail.text.includes(link));
+});
+
+
+test('Fragmentos encaminhados com entidades HTML ou codificação continuam válidos', () => {
+  const expected = { kind: 'token', tokenHash: token };
+  assert.deepEqual(readRecoveryLink(passwordRecoveryLink(token).replace('&type', '&amp;type')), expected);
+  assert.deepEqual(readRecoveryLink('https://planningbrain.com.br/redefinir-senha#' + encodeURIComponent(`token_hash=${token}&type=recovery`)), expected);
+  assert.deepEqual(readRecoveryLink(`https://planningbrain.com.br/redefinir-senha?token_hash=${token}&type=recovery`), expected);
+  assert.equal(readRecoveryLink('malformed').kind, 'invalid');
+  assert.equal(readRecoveryLink('https://planningbrain.com.br/redefinir-senha#error_code=otp_expired').kind, 'invalid');
 });

@@ -1,9 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { readRecoveryLink } from "@/lib/password-recovery";
+import {
+  readRecoveryLink,
+  PASSWORD_RECOVERY_URL,
+  recoveryRequestError,
+} from "@/lib/password-recovery";
+import { createPasswordRecoveryFlow } from "@/lib/password-recovery-flow";
 
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
@@ -19,43 +24,19 @@ export const Route = createFileRoute("/redefinir-senha")({
 
 function ResetPasswordPage() {
   const [link] = useState(() => readRecoveryLink(window.location.href));
-  const [status, setStatus] = useState<"checking" | "ready" | "invalid" | "done">(
-    link.kind === "token" ? "ready" : link.kind === "legacy" ? "checking" : "invalid",
+  const [status, setStatus] = useState<"ready" | "invalid" | "done">(
+    link.kind === "token" || link.kind === "legacy" ? "ready" : "invalid",
   );
-  const verifiedUser = useRef<string | null>(null);
+  const [flow] = useState(() => createPasswordRecoveryFlow(supabase.auth, link));
+  const [codeMode, setCodeMode] = useState(false);
+  const [code, setCode] = useState("");
+  const [verified, setVerified] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (link.kind !== "legacy") {
-      // Nenhuma chamada ao Auth ao abrir um link novo (inclusive em scanners).
-      window.history.replaceState(window.history.state, "", window.location.pathname);
-      return;
-    }
-    let active = true;
-    // Compatibilidade com emails antigos. Nunca aceitar uma sessão de outra conta.
-    supabase.auth
-      .getSession()
-      .then(({ data, error: sessionError }) => {
-        if (!active) return;
-        const session = data.session;
-        if (!sessionError && session?.access_token === link.accessToken) {
-          verifiedUser.current = session.user.id;
-          setStatus("ready");
-        } else setStatus("invalid");
-        window.history.replaceState(window.history.state, "", window.location.pathname);
-      })
-      .catch(() => {
-        if (active) setStatus("invalid");
-      });
-    return () => {
-      active = false;
-    };
-  }, [link]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,46 +50,28 @@ function ResetPasswordPage() {
       setError("As senhas não coincidem.");
       return;
     }
-    setLoading(true);
-    try {
-      if (!verifiedUser.current && link.kind === "token") {
-        // Só a ação explícita da pessoa consome o token de uso único.
-        const { data, error: tokenError } = await supabase.auth.verifyOtp({
-          type: "recovery",
-          token_hash: link.tokenHash,
-        });
-        if (tokenError || !data.session || !data.user) {
-          if (tokenError?.code === "otp_expired" || tokenError?.status === 403) {
-            setStatus("invalid");
-            setError("Este link expirou ou já foi usado. Solicite outro abaixo.");
-          } else setError("Não foi possível validar o link. Tente novamente.");
-          return;
-        }
-        verifiedUser.current = data.user.id;
-      }
-      const { data: current, error: userError } = await supabase.auth.getUser();
-      if (userError || !verifiedUser.current || current.user?.id !== verifiedUser.current) {
-        setStatus("invalid");
-        setError("A sessão de recuperação não está disponível. Solicite um novo link.");
-        return;
-      }
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) {
-        setError(
-          updateError.code === "same_password"
-            ? "Escolha uma senha diferente da anterior."
-            : "Não foi possível salvar a senha. Confira os requisitos e tente novamente.",
-        );
-        return;
-      }
-      setPassword("");
-      setConfirmPassword("");
-      setStatus("done");
-    } catch {
-      setError("Falha de conexão. Tente novamente.");
-    } finally {
-      setLoading(false);
+    if (codeMode && (!email.trim() || !/^\d{6,10}$/.test(code.trim()))) {
+      setError("Informe seu e-mail e o código recebido.");
+      return;
     }
+    setLoading(true);
+    const result = await flow.save(password, codeMode ? { email, token: code } : undefined);
+    setVerified(flow.isVerified());
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.message);
+      if (result.expired) {
+        setStatus("invalid");
+        setCodeMode(false);
+        window.history.replaceState(window.history.state, "", window.location.pathname);
+      }
+      return;
+    }
+    window.history.replaceState(window.history.state, "", window.location.pathname);
+    setPassword("");
+    setConfirmPassword("");
+    setCode("");
+    setStatus("done");
   }
 
   async function requestLink(e: React.FormEvent) {
@@ -118,14 +81,10 @@ function ResetPasswordPage() {
     setError(null);
     try {
       const { error: sendError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: "https://planningbrain.com.br/redefinir-senha",
+        redirectTo: PASSWORD_RECOVERY_URL,
       });
       if (sendError) {
-        setError(
-          sendError.status === 429
-            ? "Aguarde um minuto antes de solicitar outro link."
-            : "Não foi possível enviar agora. Tente novamente em instantes.",
-        );
+        setError(recoveryRequestError(sendError.status));
       } else setSent(true);
     } catch {
       setError("Falha de conexão. Tente novamente.");
@@ -155,15 +114,42 @@ function ResetPasswordPage() {
               Entrar no painel
             </Link>
           </div>
-        ) : status === "checking" ? (
-          <p className="mt-6 text-center text-sm" role="status">
-            Conferindo seu link…
-          </p>
-        ) : status === "ready" ? (
+        ) : status === "ready" || codeMode ? (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
               Escolha sua nova senha. Ela será alterada somente quando você salvar.
             </p>
+            {codeMode && (
+              <>
+                <label className="block text-sm font-medium">
+                  Email de acesso
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    required
+                    disabled={verified}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block text-sm font-medium">
+                  Código do e-mail
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6,10}"
+                    maxLength={10}
+                    required
+                    disabled={verified}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\s/g, ""))}
+                    className={inputClass}
+                  />
+                </label>
+              </>
+            )}
             <label className="block text-sm font-medium">
               Nova senha
               <input
@@ -201,13 +187,13 @@ function ResetPasswordPage() {
           <form onSubmit={requestLink} className="mt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
               {link.kind === "missing"
-                ? "Informe seu email para receber um link de recuperação."
-                : "Este link expirou ou já foi usado. Informe seu email para receber um novo."}
+                ? "Informe seu e-mail para receber um link e um código de recuperação."
+                : "Não foi possível ler este link. Use o código do e-mail ou solicite um novo abaixo."}
             </p>
             {sent ? (
               <p role="status" className="text-sm">
-                Se esse email estiver cadastrado, um novo link foi enviado. Use o email mais
-                recente.
+                Se esse e-mail estiver cadastrado, enviamos um novo link e um código. Use o e-mail
+                mais recente. Ambos valem por 1 hora.
               </p>
             ) : (
               <>
@@ -236,6 +222,19 @@ function ResetPasswordPage() {
               Voltar para o login
             </Link>
           </form>
+        )}
+        {status !== "done" && !verified && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setCodeMode(!codeMode);
+              setError(null);
+            }}
+            className="mt-5 w-full text-center text-sm font-medium underline underline-offset-4"
+          >
+            {codeMode ? "Voltar para recuperação por link" : "Usar código do e-mail"}
+          </button>
         )}
       </div>
     </div>

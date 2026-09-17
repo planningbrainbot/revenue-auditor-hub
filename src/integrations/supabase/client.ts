@@ -32,6 +32,10 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? cookieStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+      // Na recuperação, nem o SDK nem um scanner devem consumir o link antes
+      // de a pessoa salvar a senha. O formulário trata os links legados também.
+      detectSessionInUrl: typeof window === 'undefined' || window.location.pathname !== '/redefinir-senha',
+
     },
     // Ver schema.ts: sem a variável de ambiente isto é um objeto vazio e nada
     // muda. Com ela, todo `.from()` e `.rpc()` passa a falar com o schema do
