@@ -1,3 +1,4 @@
+import type { BaseEmpresa } from "../clientes-base";
 export const PRODUTOS = ["consultoria", "finance", "cella"] as const;
 export type Produto = (typeof PRODUTOS)[number];
 export type RegistroValor =
@@ -41,6 +42,7 @@ export interface DrivaRecord {
   registration_status?: string | null;
 }
 export interface Conta {
+  base?: BaseEmpresa;
   key: string;
   name: string;
   units: string[];
@@ -216,6 +218,8 @@ export interface Registro {
   updated_at: string;
 }
 export interface BaseMonetizacao {
+  base_count?: number;
+  scope_signature?: string;
   forecasts: ForecastSource[];
   reservations: { account_key: string; product: Produto; status: string; deal_id: number | null }[];
   accounts: Conta[];

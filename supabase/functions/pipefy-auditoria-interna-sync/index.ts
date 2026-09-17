@@ -1,5 +1,6 @@
+import { strictDate } from "../_shared/strict-date.mjs";
 // Sincroniza o pipe Pipefy "Auditoria Interna" (id 307181077) para a tabela
-// public.auditorias_internas — alimenta a tela executiva /auditoria-interna.
+// ops.auditorias_internas — alimenta a tela executiva /auditoria-interna.
 // Mesmo padrão da pipefy-tratativas-sync: full-refresh periódico (pg_cron),
 // não webhook — o valor aqui é reconciliação completa (detectar cards que
 // saíram do pipe), não reagir rápido a um evento pontual.
@@ -54,11 +55,10 @@ function parseJsonArrayField(raw: string | null | undefined): string | null {
 }
 
 function parseBrDate(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const m = String(raw).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!m) return null;
-  const [, mm, dd, yyyy] = m;
-  return `${yyyy}-${mm}-${dd}`;
+  if (!raw?.trim()) return null;
+  const date = strictDate(raw);
+  if (!date) throw new Error("Data inválida no Pipefy; corrija a origem antes de sincronizar.");
+  return date;
 }
 
 // Campo de texto livre no Pipefy: chega como "R$ 2.691.472,74", " 1.261.824,20 " ou "0,00".
@@ -147,12 +147,32 @@ function mapCard(card: any) {
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (authHeader !== `Bearer ${serviceKey}`) {
+  const input = await req.json().catch(() => ({}));
+  // A chave técnica da base pode executar somente a validação sem persistência.
+  const validationKey = Deno.env.get("BASE_CLIENTES_CRON_SECRET");
+  const readOnlyValidation = input.validate_only === true && !!validationKey &&
+    req.headers.get("x-planning-base-cron") === validationKey;
+  if (authHeader !== `Bearer ${serviceKey}` && !readOnlyValidation) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   const pipefyToken = Deno.env.get("PIPEFY_TOKEN")!;
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+  // Verificação operacional sem upsert, exclusão ou alteração de logs.
+  if (input.validate_only === true) {
+    try {
+      const cards = await fetchAllCards(pipefyToken);
+      const mapped = cards.map(mapCard);
+      return new Response(JSON.stringify({ validated: mapped.length, persisted: false }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      return new Response(JSON.stringify({ error: "Leitura ou validação da fonte falhou", persisted: false }), {
+        status: 422, headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
 
   const start = Date.now();
   let rows: ReturnType<typeof mapCard>[] = [];
@@ -167,6 +187,8 @@ Deno.serve(async (req: Request) => {
     const upsertResp = await fetch(`${supabaseUrl}/rest/v1/auditorias_internas`, {
       method: "POST",
       headers: {
+        "Accept-Profile": "ops",
+        "Content-Profile": "ops",
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
@@ -180,7 +202,9 @@ Deno.serve(async (req: Request) => {
 
     const existingResp = await fetch(
       `${supabaseUrl}/rest/v1/auditorias_internas?select=pipefy_card_id`,
-      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      { headers: { "Accept-Profile": "ops",
+        "Content-Profile": "ops",
+        apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     const existing: { pipefy_card_id: string }[] = await existingResp.json();
     const currentIds = new Set(rows.map((r) => r.pipefy_card_id));
@@ -191,7 +215,9 @@ Deno.serve(async (req: Request) => {
       const inList = staleIds.map((id) => `"${id}"`).join(",");
       await fetch(
         `${supabaseUrl}/rest/v1/auditorias_internas?pipefy_card_id=in.(${inList})`,
-        { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+        { method: "DELETE", headers: { "Accept-Profile": "ops",
+        "Content-Profile": "ops",
+        apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
     }
   } catch (e) {
@@ -203,7 +229,9 @@ Deno.serve(async (req: Request) => {
   await fetch(`${supabaseUrl}/rest/v1/sync_log`, {
     method: "POST",
     headers: {
-      apikey: serviceKey,
+      "Accept-Profile": "ops",
+        "Content-Profile": "ops",
+        apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
       "Content-Type": "application/json",
       Prefer: "return=minimal",

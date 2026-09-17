@@ -1,6 +1,7 @@
 import type { Conta, Oferta } from "./types";
 
 export const GRUPOS_RECON = {
+  identidade: "CNPJ divergente",
   elegivel: "Aptas",
   confirmar_bpo: "Acima de R$ 5 mi · confirmar BPO",
   faixa_limite: "Faixa atravessa R$ 5 mi",
@@ -12,6 +13,7 @@ export const GRUPOS_RECON = {
 export type GrupoRecon = keyof typeof GRUPOS_RECON;
 
 export function grupoRecon(a: Conta): GrupoRecon {
+  if (a.base?.identity_conflict) return "identidade";
   const r = a.recon;
   if (r?.bpo_status === "bpo") return "bpo";
   if (r?.revenue_conflict || a.band_conflict) return "divergencia";
@@ -36,6 +38,8 @@ export function faturamentoRecon(a: Conta): string {
 }
 
 export function ofertaRecon(a: Conta): Oferta {
+  if (a.base?.identity_conflict)
+    return { status: "revisar", reason: "CNPJ divergente entre fontes; revisar a identidade." };
   const r = a.recon;
   if (!r) return { status: "revisar", reason: "Contrato e carteira BPO ainda não conferidos." };
   if (r.bpo_status === "bpo") return { status: "fora_regra", reason: r.reason };

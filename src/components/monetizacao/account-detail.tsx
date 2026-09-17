@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -24,13 +26,25 @@ export function AccountDetail({
   close: () => void;
 }) {
   const fn = useServerFn(detalheAquario);
+  const { user } = useAuth();
+  const perms = usePermissions();
   const q = useQuery({
-    queryKey: ["aquario-detail", account?.key],
+    queryKey: [
+      "aquario-detail",
+      user?.id,
+      perms.can("view.contatos"),
+      JSON.stringify(perms.escopo),
+      account?.key,
+    ],
     queryFn: () => fn({ data: { key: account!.key } }),
-    enabled: !!account,
+    enabled: !!account && !!user && !perms.loading,
     staleTime: 60_000,
   });
   const fieldNames: Record<string, string> = {
+    cnpj: "CNPJ",
+    pipedrive_id: "Vínculo Pipedrive",
+    origem_venda: "Origem da venda",
+    razao_social: "Razão social",
     segmento: "Segmento",
     regime: "Regime tributário",
     faixa: "Faturamento anual",
@@ -45,11 +59,55 @@ export function AccountDetail({
           <DialogTitle>{account?.name}</DialogTitle>
           <DialogDescription>
             {account?.unit_label || "Unidade a confirmar"} ·{" "}
-            {q.data?.cnpjs?.join(" · ") || "CNPJ a confirmar"}
+            {(account?.base?.cnpjs || q.data?.cnpjs)?.join(" · ") || "CNPJ a confirmar"}
           </DialogDescription>
         </DialogHeader>
         {account && (
           <div className="space-y-4">
+            {account.base && (
+              <Panel title="Cadastro e origem">
+                <div className="grid gap-3 text-xs sm:grid-cols-2">
+                  <div>
+                    <strong>Origem no Pipefy</strong>
+                    <p>{account.base.declared_origin.join(" / ") || "Não declarada"}</p>
+                  </div>
+                  <div>
+                    <strong>Cadastros vinculados</strong>
+                    <p>
+                      {account.base.empresa_ids.length} registros de empresa ·{" "}
+                      {account.base.contact_count} pessoas · {account.base.omie_records} cadastros
+                      Omie
+                    </p>
+                  </div>
+                  <div>
+                    <strong>Omie</strong>
+                    <p>{account.base.omie_units.join(" / ") || "Sem vínculo identificado"}</p>
+                  </div>
+                  <div>
+                    <strong>Última leitura do Pipefy</strong>
+                    <p>{date(account.base.synced_at)}</p>
+                  </div>
+                </div>
+                {!!account.base.pending_fields?.length && (
+                  <Notice>
+                    Campos a reconciliar com o Pipefy:{" "}
+                    {account.base.pending_fields.map((k) => fieldNames[k] || k).join(", ")}. A
+                    informação anterior foi preservada até a correção da fonte.
+                  </Notice>
+                )}
+                {account.base.needs_source_correction && (
+                  <Notice>
+                    A regra determina Base Nova. O Pipefy ainda precisa receber essa correção; a
+                    divergência permanece visível até a confirmação.
+                  </Notice>
+                )}
+                {account.base.validated_at && (
+                  <p className="mt-3 text-xs">
+                    Validado com {account.base.responsible} em {date(account.base.validated_at)}.
+                  </p>
+                )}
+              </Panel>
+            )}
             <Panel title="Oportunidades desta empresa">
               <div className="space-y-3">
                 {account.base_origin && (
@@ -288,9 +346,9 @@ export function AccountDetail({
             </Panel>
             <p className="text-xs text-muted-foreground">
               ECD:{" "}
-              {q.data?.ecd_summary?.available
-                ? `resumo disponível${q.data.ecd_summary.exercise ? " · exercício " + q.data.ecd_summary.exercise : ""}`
-                : "sem resumo vinculado"}
+              {account.base?.ecd.length
+                ? account.base.ecd.map((e) => `${e.cnpj} · ${e.year} · ${e.source}`).join("; ")
+                : "sem metadado confirmado por CNPJ e exercício"}
               . Cadastro apurado em {date(q.data?.updated_at)}.
             </p>
           </div>

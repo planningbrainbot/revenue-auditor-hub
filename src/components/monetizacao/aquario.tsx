@@ -51,7 +51,10 @@ import {
 
 type Filters = PortfolioFilters;
 const emptyFilters = EMPTY_PORTFOLIO_FILTERS;
-export function Aquario() {
+export function Aquario({
+  embedded = false,
+  accountKeys,
+}: { embedded?: boolean; accountKeys?: Set<string> } = {}) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
     sync = useServerFn(acionarMonetizacao);
@@ -67,7 +70,9 @@ export function Aquario() {
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   if (!q.data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
-  const data = q.data;
+  const data = accountKeys
+    ? { ...q.data, accounts: q.data.accounts.filter((a) => accountKeys.has(a.key)) }
+    : q.data;
   const unitAccounts = unit
     ? data.accounts.filter((a) => unit.account_keys.includes(a.key))
     : data.accounts;
@@ -117,12 +122,12 @@ export function Aquario() {
     />
   );
   return (
-    <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:p-6">
+    <main className={embedded ? "space-y-4" : "mx-auto max-w-[1600px] space-y-4 p-4 md:p-6"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Fish className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold">Aquário</h1>
+            <h1 className="text-2xl font-semibold">Oportunidades da base</h1>
             <p className="text-xs text-muted-foreground">
               Clientes · carteiras e listas para os sócios
             </p>
