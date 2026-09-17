@@ -178,7 +178,7 @@ export function ClientesBase() {
         <div className="flex items-center gap-3">
           <Building2 className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold">Clientes</h1>
+            <h1 className="text-2xl font-semibold">Base de clientes</h1>
             <p className="text-xs text-muted-foreground">
               Uma base · empresas, contatos, negócios e oportunidades
             </p>
