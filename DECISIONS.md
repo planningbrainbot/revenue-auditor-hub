@@ -1474,3 +1474,16 @@ antes do de pai; sair no render abria o cockpit em 401). Só o Financeiro: o
 "Sair" do cockpit passa a ir para `/auth?sair=1`, que desloga Ops, Growth e
 Financeiro; o do Growth não foi conferido, e voltar a ele com a sessão
 reemitida prenderia a pessoa lá dentro.
+
+
+## 2026-09-17 — Origem comprovada por registro e vigência contratual
+
+**Regra confirmada pelo usuário:** fora de Curitiba, qualquer registro vinculado no Omie ou Pipedrive determina Base Nova, independentemente de pagamento ou fechamento ganho. Curitiba usa a primeira `cabecalho.dVigInicial` por CNPJ nos Contratos de Serviço do Omie: antes de abril/2025 é Antiga, após abril/2025 é Nova. Abril permanece pendente porque o usuário não definiu o tratamento do mês de corte. Esta decisão substitui o alcance Pipedrive pendente da entrada de Base Única.
+
+**Identidade:** Curitiba, Planning CWB 01 e Planning CWB 02 são aplicativos diferentes. Código de cliente só identifica dentro do aplicativo; o vínculo com a base usa CNPJ completo válido. Data de cadastro/pagamento não substitui vigência. A primeira vigência preserva a origem em renovações. Cobertura parcial, CNPJs com coortes mistas, unidade ambígua e conflito de identidade exigem revisão. Nenhuma validação de sócio é fabricada.
+
+**Execução:** evidências mínimas ficam no banco unificado, protegidas por RLS e expostas apenas pelas RPCs que já respeitam o escopo de unidade. A regra é calculada na leitura, sem mudar chaves de contas ou recriar listas. Correções no Pipefy passam pela outbox com comparação anterior e releitura; o worker aceita escoamento administrativo em lotes limitados. CNPJs recuperados por IDs ligados são propostos na mesma fila; colisões exigem reconciliação.
+
+**Tributação:** reutilizar evidências anteriores e flags S/N explícitos do Omie; Driva complementa lacunas com fonte/data. Ausência não significa fora do Simples, divergências não liberam oferta e estimativas não substituem faturamento declarado. A evidência de não opção serve aos critérios existentes de Consultoria, Finance e Cella sem inventar Lucro Real/Presumido. Consultoria continua exclusivamente antiga e sem fechamento comercial; contato, segmento, faturamento e ECD não são vetos adicionais. Recon permanece no Aquário e mantém a comprovação de ausência de qualquer BPO.
+
+**Operação:** carga inicial e correções autorizadas aplicadas. A consulta Driva é uma carga limitada ao saldo existente, sem compra ou recorrência paga automática. Atualização diária das vigências foi implementada em páginas com checkpoint, mas sua ativação aguarda autorização específica após bloqueio da revisão automática. Não ativar o cron só por aplicar a migration de metadados.

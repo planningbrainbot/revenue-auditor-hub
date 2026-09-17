@@ -782,7 +782,7 @@ function PortfolioTable({
                   {a.segment || "Segmento a confirmar"}
                   <span className="block text-muted-foreground">
                     {a.regime ||
-                      (a.driva?.non_simples === true
+                      (a.base?.tax_evidence?.non_simples === true || a.driva?.non_simples === true
                         ? "Fora do Simples · regime específico não informado"
                         : "Regime a confirmar")}
                   </span>

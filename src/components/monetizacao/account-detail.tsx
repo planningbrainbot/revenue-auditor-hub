@@ -97,9 +97,44 @@ export function AccountDetail({
                 )}
                 {account.base.needs_source_correction && (
                   <Notice>
-                    A regra determina Base Nova. O Pipefy ainda precisa receber essa correção; a
-                    divergência permanece visível até a confirmação.
+                    A regra determina{" "}
+                    {account.base.origin === "antiga" ? "Base Antiga" : "Base Nova"}. O Pipefy ainda
+                    precisa receber essa correção; a divergência permanece visível até a
+                    confirmação.
                   </Notice>
+                )}
+                {!!account.base.origin_evidence?.contracts.length && (
+                  <div className="mt-3 rounded-lg border p-3 text-xs">
+                    <strong>Vigência inicial no Omie</strong>
+                    <p className="mt-1 text-muted-foreground">
+                      Primeira vigência por CNPJ. Renovações preservam a origem do relacionamento.
+                    </p>
+                    {account.base.origin_evidence.contracts.map((c) => (
+                      <p key={c.cnpj} className="mt-2">
+                        {c.cnpj} · {c.first_start.split("-").reverse().join("/")} · consultado em{" "}
+                        {date(c.checked_at)}
+                      </p>
+                    ))}
+                    <p className="mt-2 text-muted-foreground">{account.base.origin_reason}</p>
+                  </div>
+                )}
+                {!!account.base.tax_evidence?.sources.length && (
+                  <div className="mt-3 rounded-lg border p-3 text-xs">
+                    <strong>Conferência do Simples</strong>
+                    <p className="mt-1">
+                      {account.base.tax_evidence.conflict
+                        ? "Fontes divergem: revisar antes de prospectar."
+                        : account.base.tax_evidence.non_simples === true
+                          ? "Fora do Simples confirmado para os CNPJs da conta."
+                          : account.base.tax_evidence.non_simples === false
+                            ? "Optante pelo Simples."
+                            : "Cobertura incompleta: regime a confirmar."}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {account.base.tax_evidence.sources.join(" / ")} ·{" "}
+                      {date(account.base.tax_evidence.checked_at)}
+                    </p>
+                  </div>
                 )}
                 {account.base.validated_at && (
                   <p className="mt-3 text-xs">

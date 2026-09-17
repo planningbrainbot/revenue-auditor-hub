@@ -1,4 +1,5 @@
-export const ORIGIN_RULE_VERSION = '2026-09-16';
+import { strictDate as validContractDate } from '../_shared/strict-date.mjs';
+export const ORIGIN_RULE_VERSION = '2026-09-17';
 
 export function digits(value) { return String(value ?? '').replace(/\D/g, ''); }
 export function normalizeCnpj(value) {
@@ -44,24 +45,30 @@ export function resolveUnit(value, units, options = []) {
   return { status: 'resolved', id: unit.id, name: unit.nome_da_praca, pipefyId: unit.pipefy_id, raw };
 }
 
-export function classifyOrigin(input, policy = {}) {
+export function classifyOrigin(input) {
   const omie = [...new Set((input.omieUnits ?? []).map(unitName).filter(Boolean))];
+  const units = [...new Set((input.units?.length ? input.units : omie).map(unitName).filter(Boolean))];
   const declared = input.declared ?? null;
-  const base = { version: ORIGIN_RULE_VERSION, declared, omieUnits: omie };
   const result = (status, reason, requiresUnitValidation = false) => {
     const expectedPipefy = status === 'nova' ? 'Base Nova' : status === 'antiga' ? 'Base Antiga' : null;
-    return { ...base, status, reason, expectedPipefy, requiresUnitValidation, needsSourceCorrection: expectedPipefy !== null && expectedPipefy !== declared };
+    return { version: ORIGIN_RULE_VERSION, declared, omieUnits: omie, status, reason, expectedPipefy, requiresUnitValidation, needsSourceCorrection: expectedPipefy !== null && expectedPipefy !== declared };
   };
   if (input.identityConflict) return result('confirmar', 'Identidade ambígua; revisar o vínculo antes de classificar.', true);
-  if (omie.some((u) => u !== 'curitiba')) return result('nova', 'Cadastro Omie fora de Curitiba; pagamento não altera a origem.');
-  if (policy.pipedrive === 'any' && input.pipedrivePresent) return result('nova', 'Vínculo identificado no Pipedrive.');
-  if (policy.pipedrive === 'commercial_won' && input.commercialWon) return result('nova', 'Contrato ganho pelo comercial identificado.');
-  if (!policy.pipedrive && (input.pipedrivePresent || input.commercialWon)) return result('confirmar', 'Aguardando definição do alcance Pipedrive.');
-  const validation = input.validation;
-  if (validation?.actor && validation?.at && ['antiga', 'nova'].includes(validation.origin)) {
-    return result(validation.origin, 'Origem confirmada pela unidade com responsável e data.');
+  if (units.includes('curitiba')) {
+    if (units.length > 1) return result('confirmar', 'Curitiba e outra unidade vinculadas; confirmar a carteira responsável.', true);
+    const dates = input.firstContractDates ?? [];
+    if (!input.contractCoverage || !dates.length || dates.some(d => validContractDate(d) !== d || !d)) return result('confirmar', 'Curitiba: falta vigência inicial para todos os CNPJs.', true);
+    if (dates.some(d => d >= '2025-04-01' && d < '2025-05-01')) return result('confirmar', 'Vigência inicial em abril de 2025; corte aguardando definição.', true);
+    if (dates.every(d => d < '2025-04-01')) return result('antiga', 'Curitiba: primeira vigência anterior a abril de 2025.');
+    if (dates.every(d => d >= '2025-05-01')) return result('nova', 'Curitiba: primeira vigência posterior a abril de 2025.');
+    return result('confirmar', 'CNPJs com vigências em coortes diferentes; revisar agrupamento.', true);
   }
-  if (omie.includes('curitiba')) return result('confirmar', 'Curitiba possui Base Antiga e Base Nova; confirmar a origem.', true);
+  if (omie.length) return result('nova', 'Cadastro Omie fora de Curitiba; pagamento não altera a origem.');
+  if (input.pipedrivePresent || input.commercialWon) return units.length
+    ? result('nova', 'Registro no Pipedrive fora de Curitiba; não exige negócio ganho.')
+    : result('confirmar', 'Registro no Pipedrive sem unidade confirmada.', true);
+  const v = input.validation;
+  if (v?.actor && v?.at && ['antiga', 'nova'].includes(v.origin)) return result(v.origin, 'Origem confirmada pela unidade com responsável e data.');
   return result('confirmar', 'Sem vínculo que comprove a origem; validar com a unidade responsável.', true);
 }
 

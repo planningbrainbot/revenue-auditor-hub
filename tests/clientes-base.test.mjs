@@ -25,17 +25,22 @@ test('AC03: Omie fora de Curitiba é Nova, com ou sem pagamento, sobrepondo orig
     assert.equal(result.needsSourceCorrection, true);
   }
 });
-test('AC04: presença somente no Omie Curitiba não prova origem', () => {
-  assert.equal(classifyOrigin({ omieUnits: ['Curitiba'], declared: 'Base Antiga' }).status, 'confirmar');
-  assert.equal(classifyOrigin({ omieUnits: ['Curitiba'], validation: { origin: 'antiga', actor: 'unit-user', at: '2026-09-16' } }).status, 'antiga');
-  assert.equal(classifyOrigin({ omieUnits: ['Curitiba', 'Belém'] }).status, 'nova');
+test('AC04: Curitiba usa vigência e não presença, ganho ou data de cadastro', () => {
+  const input = { omieUnits: ['Curitiba'], pipedrivePresent: true, commercialWon: true, contractCoverage: true };
+  assert.equal(classifyOrigin({ ...input }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, firstContractDates: ['2025-03-31'] }).status, 'antiga');
+  assert.equal(classifyOrigin({ ...input, firstContractDates: ['2025-05-01'] }).status, 'nova');
+  for (const date of ['2025-04-01', '2025-04-30']) assert.equal(classifyOrigin({ ...input, firstContractDates: [date] }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, firstContractDates: ['2024-01-01', '2026-01-01'] }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, firstContractDates: ['2024-01-01'], contractCoverage: false }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, units: ['Curitiba', 'Belém'], firstContractDates: ['2024-01-01'] }).status, 'confirmar');
 });
-test('AC05: mantém a decisão Pipedrive explícita, sem assumir ganho a partir de existência', () => {
-  const input = { pipedrivePresent: true, commercialWon: false, declared: 'Base Antiga' };
-  assert.equal(classifyOrigin(input).status, 'confirmar');
-  assert.equal(classifyOrigin(input, { pipedrive: 'any' }).status, 'nova');
-  assert.equal(classifyOrigin(input, { pipedrive: 'commercial_won' }).status, 'confirmar');
-  assert.equal(classifyOrigin({ ...input, commercialWon: true }, { pipedrive: 'commercial_won' }).status, 'nova');
+test('AC05: qualquer registro Pipedrive fora de Curitiba determina Nova', () => {
+  const input = { units: ['Belém'], pipedrivePresent: true, commercialWon: false, declared: 'Base Antiga' };
+  assert.equal(classifyOrigin(input).status, 'nova');
+  assert.equal(classifyOrigin({ ...input, units: ['Curitiba'] }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, units: [] }).status, 'confirmar');
+  assert.equal(classifyOrigin({ ...input, identityConflict: true }).status, 'confirmar');
 });
 test('AC06: sem vínculo gera validação da unidade e preserva a origem declarada como evidência', () => {
   const result = classifyOrigin({ declared: 'Base Antiga' });
