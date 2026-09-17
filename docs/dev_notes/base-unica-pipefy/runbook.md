@@ -12,7 +12,7 @@
 
 1. Rodar `node --test tests/clientes-base.test.mjs tests/clientes-webhook.test.mjs tests/clientes-catalog.test.mjs tests/monetizacao.test.mjs tests/portfolio.test.mjs tests/recon.test.mjs`.
 2. Rodar build Vite/Nitro para Vercel. Conferir erros TypeScript novos separadamente dos preexistentes registrados no resumo.
-3. Em staging ou transação explicitamente terminada em rollback, aplicar as migrations `base_clientes_sync`, `base_unica_catalogo` e complementos `base_ecd_metadata`, `base_vinculos_conflitantes`, `base_clientes_acesso`, `base_eventos_perdidos` e `tests/clientes-sync.sql`. Não enviar eventos remotos durante o teste. A versão final das migrations exige esta revalidação.
+3. Em staging ou transação explicitamente terminada em rollback, aplicar as migrations `base_clientes_sync`, `base_unica_catalogo` e complementos `base_ecd_metadata`, `base_vinculos_conflitantes`, `base_clientes_acesso`, `base_eventos_perdidos`, `base_identidade_pendente` e `tests/clientes-sync.sql`. Não enviar eventos remotos durante o teste. A versão final das migrations exige esta revalidação.
 4. Testar a carga Omie e ECD, contagens antes/depois, repetição sem duplicatas, CNPJs múltiplos/ausentes, quantidade/tamanho das respostas de 400 contas e tempo de leitura. Distinguir cadastro, CNPJ, conta, contato e negócio no relatório.
 5. Testar RPCs como usuário sem sessão, operador de uma unidade e administrador. Em particular: não expor contatos sem permissão e não reutilizar cache entre usuários/escopos.
 6. Atualizar backup privado dos registros que serão alterados. Registrar revisão/horário para não reverter depois uma mudança legítima de outro operador.

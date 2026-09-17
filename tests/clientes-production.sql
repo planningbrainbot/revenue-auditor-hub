@@ -11,7 +11,10 @@ begin
  perform ops.base_refinar_ecd();
  if ops.base_refinar_ecd()<>0 then raise exception 'ECD não idempotente';end if;
  if exists(select 1 from ops.base_ecd_registros where ops.base_cnpj(cnpj) is null or ano>extract(year from current_date)) then raise exception 'Metadado ECD inválido';end if;
- if exists(select 1 from ops.base_conta_estado where omie_nova and origem<>'nova') then raise exception 'Origem não respeita Omie';end if;
+ if exists(select 1 from ops.base_conta_estado where omie_nova and not identity_conflict and origem<>'nova') then raise exception 'Origem não respeita Omie';end if;
+ if ops.base_identity_conflict('[{"cnpj":{"anterior":"11.222.333/0001-81","pipefy":"11222333000181"}}]') then raise exception 'Formatação não é conflito de identidade';end if;
+ if ops.base_identity_conflict('[{"cnpj":{"anterior":"11222333000181","pipefy":null}}]') then raise exception 'Lacuna não é documento contraditório';end if;
+ if not ops.base_identity_conflict('[{"cnpj":{"anterior":"11222333000181","pipefy":"19131243000197"}}]') then raise exception 'Documentos diferentes não sinalizados';end if;
  insert into ops.empresas(titulo,pipedrive_id) values('Teste sintético de colisão','sdd-pd-duplicate') returning id into eid;
  result:=ops.base_ingest_pipefy('pipefy_empresa','sdd-conflict-test',now(),now(),'{"titulo":"Outra empresa sintética","pipedrive_id":"sdd-pd-duplicate"}','{}');
  if result->>'status'<>'pending' then raise exception 'Colisão não ficou pendente';end if;

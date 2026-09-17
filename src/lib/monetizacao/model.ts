@@ -58,11 +58,17 @@ export const baseRetroativaConsultoria = (a: Conta) =>
   a.consultoria_origin?.status === "retroativa" &&
   (!a.base_origin || a.base_origin.status === "antiga");
 export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta {
+  if (a.base?.identity_conflict)
+    return {
+      status: "revisar",
+      reason: "CNPJ divergente entre fontes; revisar a identidade antes de enviar.",
+    };
   const regime = normal(review.regime || a.regime);
   const band = review.band || a.band || "",
     bounds = FAIXAS[band];
   const result = (status: Oferta["status"], reason: string) => ({ status, reason });
-  if (a.base?.source_status === "absent") return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
+  if (a.base?.source_status === "absent")
+    return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
   if (produto === "consultoria") {
     if (a.new_commercial || a.consultoria_origin?.status === "comercial")
       return result(

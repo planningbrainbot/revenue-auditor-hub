@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts/monetizacao'))
 from bootstrap import call,sql
-FILES=['20260916235000_base_clientes_sync.sql','20260917000000_base_unica_catalogo.sql','20260917010000_base_ecd_metadata.sql','20260917011000_base_vinculos_conflitantes.sql','20260917012000_base_clientes_acesso.sql','20260917013000_base_eventos_perdidos.sql']
+FILES=['20260916235000_base_clientes_sync.sql','20260917000000_base_unica_catalogo.sql','20260917010000_base_ecd_metadata.sql','20260917011000_base_vinculos_conflitantes.sql','20260917012000_base_clientes_acesso.sql','20260917013000_base_eventos_perdidos.sql','20260917014000_base_identidade_pendente.sql']
 def schemas():
  if sql("select to_regclass('ops.base_sync_registros') is not null installed",True)[0]['installed']:
   raise RuntimeError('Base já iniciada: conferir as migrations aplicadas antes de retomar. Não repetir renomeações/policies.')

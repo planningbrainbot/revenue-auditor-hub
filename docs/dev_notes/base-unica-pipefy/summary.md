@@ -1,9 +1,9 @@
 # Evidências de execução — Base única e Pipefy
 
 ## Resultado
-- Status: banco, sincronizador e interface publicados; integração final do PR em andamento. Convergência integral das fontes ainda possui pendências de dados e regra.
+- Status: banco, sincronizador e interface publicados; código reunido no PR #7. Convergência integral das fontes ainda possui pendências de dados e regra.
 - Preparado: PRD, contratos de domínio, sincronizador de empresas/contatos, fila de correções, conciliação Omie/ECD, tela única de Clientes, visões de contatos/negócios/oportunidades e validação de origem.
-- Aplicado: seis migrations, sincronizador de empresas/contatos, dois webhooks Planning e reconciliação agendada. Interface publicada em https://planningbrain.com.br/clientes. PR: https://github.com/planningbrainbot/revenue-auditor-hub/pull/7.
+- Aplicado: sete migrations, sincronizador de empresas/contatos, dois webhooks Planning e reconciliação agendada. Interface publicada em https://planningbrain.com.br/clientes. PR: https://github.com/planningbrainbot/revenue-auditor-hub/pull/7.
 - Após a pergunta de autorização de produção, o usuário respondeu “continua”. Aplicação retomada com backup atualizado e teste transacional. A revisão automática barrou a invocação legada de Auditoria por exclusão de ausentes; foi preparado modo de validação somente leitura.
 
 ## Alterações
@@ -16,7 +16,7 @@
 ## Verificação
 | Critério | Evidência | Resultado |
 |---|---|---|
-| Identidade, origem, refinamento, produtos, filtros | 50 testes Node | Passaram |
+| Identidade, origem, refinamento, produtos, filtros | 51 testes Node | Passaram |
 | Ingestão e segurança do evento | Testes com fonte/HTTP simulados | Relê fonte, rejeita tabela externa, não confia no payload |
 | Migração e ingestão SQL | Testes transacionais com rollback | Duplicação, atraso, limpeza, preservação, vínculos e privilégios passaram; aceite instalado também confirmou idempotência Omie/ECD, colisão Pipedrive e RLS de unidade |
 | Bootstrap de campos vazios | Cenário SQL com rollback | Preserva evidência; repetição mantém pendência; confirmação na fonte resolve |
@@ -33,7 +33,7 @@
 4. Autorização de produção recebida na continuação; não há bloqueio pendente para publicar a interface.
 
 ## Próxima execução autorizada
-Concluir revisão/merge do PR e conferir a versão final no domínio. Para dados pendentes, seguir `runbook.md`: revisão concreta dos campos e decisão de origem antes de escrever em massa na fonte.
+Conferir o estado de integração no PR #7 e a versão final no domínio. Para dados pendentes, seguir `runbook.md`: revisão concreta dos campos e decisão de origem antes de escrever em massa na fonte.
 
 ## Ajustes encontrados na execução
 - A tabela fiscal ECD exige campos de escrituração indisponíveis no resumo histórico. A evidência fica em `base_ecd_registros`, com CNPJ/exercício/fonte/conta; `base_ecd_evidencias` une metadados e cadastro fiscal existente. Nenhuma receita ou contagem contábil foi inventada.
@@ -50,3 +50,5 @@ Concluir revisão/merge do PR e conferir a versão final no domínio. Para dados
 
 ## Limites de conclusão
 A tela e as rotinas estão entregues. Isso não significa que todos os campos das duas fontes já sejam iguais: conflitos e vazios históricos ficam pendentes, sem exclusão de informação e sem rótulo de sincronização plena. Curitiba, alcance de Pipedrive e preenchimento em massa dependem das definições já solicitadas. A cobertura do produtor Omie e o disparador externo de NPS/Tratativas continuam como itens de revisão, sem criar cron duplicado.
+
+Divergência real de CNPJ suspende classificação e ofertas em todos os produtos. Campo vazio e diferença de máscara não são tratados como documento contraditório. A proteção foi verificada em SQL com rollback e em teste de produto.

@@ -1,6 +1,6 @@
 # Task 05 — Migração, testes de aceite e publicação
 
-Status: Banco e Vercel publicados; integração final do PR em andamento. Limitações no summary.md.
+Status: Banco e Vercel publicados; código reunido no PR #7. Limitações no summary.md.
 
 ## Objetivo
 Entregar o fluxo no banco novo, no Pipefy e no domínio de produção, com evidência de convergência.

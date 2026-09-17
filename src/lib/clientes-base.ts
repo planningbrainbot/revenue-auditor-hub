@@ -12,6 +12,7 @@ export type BaseEmpresa = {
   ecd: { cnpj: string; year: number; source: string; registered_at: string }[];
   declared_origin: string[];
   pending_fields?: string[];
+  identity_conflict?: boolean;
   origin: "nova" | "antiga" | "confirmar";
   origin_reason: string;
   responsible: string | null;
