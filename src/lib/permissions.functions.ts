@@ -87,12 +87,6 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
-    key: "view.bi_vendas",
-    label: "Acessar BI de Vendas",
-    description: "Propostas, vendas, contratos e ROAS de mídia por BU.",
-    group: "Acesso",
-  },
-  {
     key: "view.rede_ltv",
     label: "LTV Estimado",
     description: "Página de LTV estimado por unidade.",
@@ -111,9 +105,11 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    // A página /reconciliacao foi apagada em 17/09/2026, mas a chave fica:
+    // policies de RLS de contratos e contas_receber ainda leem can('view.reconciliacao').
     key: "view.reconciliacao",
     label: "Reconciliação",
-    description: "Página de reconciliação de royalties.",
+    description: "Leitura de contratos e contas a receber (a página foi removida; a chave segue nas regras de acesso).",
     group: "Acesso",
   },
   {
@@ -170,6 +166,13 @@ export const KNOWN_PERMISSIONS: {
     description:
       "Estrutura de disparo em massa via WhatsApp e acompanhamento de status (enviado/entregue/lido/falhou) — usada hoje pelo NPS, mas genérica pra qualquer campanha.",
     group: "Acesso",
+  },
+  {
+    key: "send.whatsapp",
+    label: "Disparar WhatsApp",
+    description:
+      "Abrir a tela de Disparos de WhatsApp e enviar mensagens (em massa ou individual). Só o Super admin desde 17/09/2026.",
+    group: "Dados",
   },
   {
     key: "edit.nps",
@@ -239,12 +242,6 @@ export const KNOWN_PERMISSIONS: {
     label: "Acessar Financeiro Partners",
     description:
       "DRE Projetada, DRE Realizada e FCx (fluxo de caixa realizado) da Planning Partners.",
-    group: "Planning Partners",
-  },
-  {
-    key: "view.despesas_partners",
-    label: "Acessar Despesas Partners",
-    description: "Despesas (Confronto Mensal) da Planning Partners.",
     group: "Planning Partners",
   },
   {

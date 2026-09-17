@@ -1,10 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { Send } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NpsExecucaoTab } from "@/components/nps/nps-execucao-tab";
 import { CustosTab } from "@/components/whatsapp/custos-tab";
 
 export const Route = createFileRoute("/_authenticated/disparos-whatsapp")({
+  ssr: false,
+  // Bloqueada desde 17/09/2026: só quem tem `send.whatsapp` (perfil Super admin)
+  // abre. Sem isto, o link direto abria a página mesmo fora do menu.
+  beforeLoad: async () => {
+    const { data } = await supabase.rpc("can", { _key: "send.whatsapp" });
+    if (!data) throw redirect({ to: "/" });
+  },
   component: DisparosWhatsappPage,
 });
 

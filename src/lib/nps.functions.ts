@@ -19,6 +19,14 @@ const N8N_DISPARO_WEBHOOK_URL = "https://n8n.planningbrain.com.br/webhook/nps-di
 const N8N_DISPARO_INDIVIDUAL_WEBHOOK_URL =
   "https://n8n.planningbrain.com.br/webhook/nps-disparar-individual-758cf0af";
 
+// Enviar mensagem pelo WhatsApp (em massa ou individual). Só o perfil Super
+// admin, desde 17/09/2026. Registrar ligação e resposta continua em edit.nps.
+async function assertCanEnviarWhatsapp(supabase: any) {
+  const { data, error } = await supabase.rpc("can", { _key: "send.whatsapp" });
+  if (error) throw new Error("Erro de autorização.");
+  if (!data) throw new Error("Acesso negado: o disparo de WhatsApp está bloqueado para o seu perfil.");
+}
+
 async function assertCanDispararCampanha(supabase: any) {
   // Operar, não ver: desde 17/09/2026 usuário só consulta.
   const { data, error } = await supabase.rpc("can", { _key: "edit.nps" });
@@ -642,7 +650,7 @@ export const dispararCampanhaNps = createServerFn({ method: "POST" })
   .inputValidator((d: { unidade: string }) => d)
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase } = context;
-    await assertCanDispararCampanha(supabase);
+    await assertCanEnviarWhatsapp(supabase);
 
     const unidade = data.unidade?.trim();
     if (!unidade) throw new Error("Selecione uma unidade.");
@@ -674,7 +682,7 @@ export const dispararPesquisaIndividual = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase } = context;
-    await assertCanDispararCampanha(supabase);
+    await assertCanEnviarWhatsapp(supabase);
 
     const telefone = data.telefone?.trim();
     if (!telefone) throw new Error("Telefone obrigatório.");

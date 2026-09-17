@@ -17,7 +17,6 @@ import {
   Landmark,
   LayoutDashboard,
   ListChecks,
-  Megaphone,
   MessageSquareHeart,
   MessageSquarePlus,
   Percent,
@@ -28,7 +27,6 @@ import {
   Split,
   Store,
   Target,
-  TrendingDown,
   TrendingUp,
   UserCheck,
   UserCog,
@@ -173,6 +171,9 @@ export const AREAS: Area[] = [
             title: "Disparos de WhatsApp",
             url: "/disparos-whatsapp",
             icon: Send,
+            // Bloqueada desde 17/09/2026: só o super admin dispara. Disparo custa
+            // por conversa e fala com o cliente em nome da rede.
+            area: "disparos_whatsapp",
           },
           {
             title: "Base de Contatos",
@@ -198,16 +199,10 @@ export const AREAS: Area[] = [
             icon: Filter,
           },
           {
-            title: "Reconciliação",
-            url: "/reconciliacao",
-            icon: GitMerge,
-          },
-          {
             title: "Contas a Receber",
             url: "/contas-receber",
             icon: Wallet,
           },
-          { title: "BI de Vendas", url: "/bi-vendas", icon: Megaphone },
         ],
       },
       {
@@ -249,11 +244,6 @@ export const AREAS: Area[] = [
         // RATEIA custo por unidade e se apura comissão, lá se mostra resultado.
         label: "Custos e comissões",
         items: [
-          {
-            title: "Despesas Partners",
-            url: "/despesas-cm",
-            icon: TrendingDown,
-          },
           { title: "Comissões", url: "/comissoes", icon: Percent },
           {
             title: "EBIT Operacional",
