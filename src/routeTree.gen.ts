@@ -38,6 +38,7 @@ import { Route as AuthenticatedGenteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
 import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authenticated/fila-cella'
+import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
@@ -225,6 +226,11 @@ const AuthenticatedFinanceiroPartnersRoute =
 const AuthenticatedFilaCellaRoute = AuthenticatedFilaCellaRouteImport.update({
   id: '/fila-cella',
   path: '/fila-cella',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
+  id: '/equipe',
+  path: '/equipe',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEbitOperacionalRoute =
@@ -426,6 +432,7 @@ export interface FileRoutesByFullPath {
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
@@ -486,6 +493,7 @@ export interface FileRoutesByTo {
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
+  '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
@@ -547,6 +555,7 @@ export interface FileRoutesById {
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
+  '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
@@ -611,6 +620,7 @@ export interface FileRouteTypes {
     | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
+    | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
     | '/funil-receita'
@@ -671,6 +681,7 @@ export interface FileRouteTypes {
     | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
+    | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
     | '/funil-receita'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-partners'
     | '/_authenticated/ebit-operacional'
+    | '/_authenticated/equipe'
     | '/_authenticated/fila-cella'
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/funil-receita'
@@ -985,6 +997,13 @@ declare module '@tanstack/react-router' {
       path: '/fila-cella'
       fullPath: '/fila-cella'
       preLoaderRoute: typeof AuthenticatedFilaCellaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/equipe': {
+      id: '/_authenticated/equipe'
+      path: '/equipe'
+      fullPath: '/equipe'
+      preLoaderRoute: typeof AuthenticatedEquipeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ebit-operacional': {
@@ -1262,6 +1281,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
   AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
+  AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFilaCellaRoute: typeof AuthenticatedFilaCellaRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
@@ -1314,6 +1334,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
   AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
+  AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFilaCellaRoute: AuthenticatedFilaCellaRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,

@@ -62,6 +62,12 @@ export type Item = {
    * e o bloco Financeiro da unidade, que o sócio regional pode ou não abrir.
    */
   area?: string;
+  /**
+   * Página que o item abre, quando ela pode ser dada a uma pessoa sozinha.
+   * Desde 17/09/2026 o sócio escolhe as páginas de cada colaborador dentro da
+   * área, então ter a área não basta: o item só aparece com a chave.
+   */
+  chave?: string;
 };
 
 // Os grupos do menu.
@@ -355,11 +361,11 @@ export const AREAS: Area[] = [
       {
         label: "Minha Unidade",
         items: [
-          { title: "Painel", url: "/painel-unidade", icon: Gauge },
-          { title: "Base de clientes", url: "/clientes", icon: Building2 },
-          { title: "CS", url: "/painel-cs", icon: UserCheck },
-          { title: "NPS", url: "/nps", icon: MessageSquareHeart },
-          { title: "IDU", url: "/idu", icon: Activity },
+          { title: "Painel", url: "/painel-unidade", icon: Gauge, chave: "view.painel_unidade" },
+          { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
+          { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
+          { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
+          { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
           { title: "Broker", url: "/broker", icon: Store, area: "broker" },
         ],
       },

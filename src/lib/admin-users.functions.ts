@@ -41,7 +41,7 @@ export const adminAccessEmailStatus = createServerFn({ method: "GET" })
  * É o mesmo tipo de link do "esqueci minha senha", só que emitido pelo admin —
  * assim a senha nunca trafega por e-mail.
  */
-async function gerarLinkDefinirSenha(email: string): Promise<string> {
+export async function gerarLinkDefinirSenha(email: string): Promise<string> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "recovery",

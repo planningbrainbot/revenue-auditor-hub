@@ -612,10 +612,14 @@ export const getMyPermissions = createServerFn({ method: "GET" })
       empresas: ((empresasRes?.data ?? []) as { empresa_id: string }[]).map((e) => e.empresa_id),
     };
 
+    // Áreas que a pessoa administra (admin ou sócio): abre "Minha equipe".
+    const { data: administra } = await db.from("area_admins").select("area").eq("user_id", userId);
+
     return {
       roles: acesso.roles,
       areas: acesso.areas,
       permissions: acesso.permissions,
+      administra: ((administra ?? []) as { area: string }[]).map((a) => a.area),
       escopo,
       unidade: (unidadeAtual?.data as string | null) ?? null,
     };

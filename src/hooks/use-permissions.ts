@@ -24,6 +24,8 @@ export interface PermissionsState {
   unidade: string | null;
   can: (key: string) => boolean;
   temArea: (slug: string) => boolean;
+  /** Áreas em que a pessoa é admin ou sócio. Super admin fica de fora: usa a Administração. */
+  administra: string[];
   /** Nível 2: o filtro de unidade e de empresa desta pessoa. */
   escopo: EscopoDoUsuario;
   scopedToOwnUnit: boolean;
@@ -83,6 +85,7 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
       unidade: q.data?.unidade ?? null,
       can: (key: string) => perms.has(key),
       temArea: (slug: string) => areas.has(slug),
+      administra: q.data?.administra ?? [],
       escopo,
       // Deixou de ser chave concedida em papel: agora é a ausência de "todas as
       // unidades" no escopo da pessoa. O nome fica porque as 8 policies que

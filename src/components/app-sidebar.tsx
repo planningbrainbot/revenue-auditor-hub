@@ -90,7 +90,7 @@ const AREA_RODAPE = "admin";
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
-  const { temArea, loading } = usePermissions();
+  const { temArea, can, administra, isAdmin, loading } = usePermissions();
 
   // "Está dentro deste caminho?" — serve para descobrir a ÁREA da rota, onde
   // qualquer filha de /unidades deve acender a área de Receita e Repasses.
@@ -106,7 +106,10 @@ export function AppSidebar() {
 
   // Quem decide é a ÁREA, não a chave. O item só declara área própria quando a
   // fronteira do menu e a da confiança não coincidem (a Matriz do broker).
-  const podeVer = (area: Area, item: Item) => !loading && temArea(areaDoItem(area, item));
+  // Item com `chave` também exige a página: o colaborador de unidade recebe só
+  // algumas páginas da área, e o menu não pode oferecer as outras.
+  const podeVer = (area: Area, item: Item) =>
+    !loading && temArea(areaDoItem(area, item)) && (!item.chave || can(item.chave));
 
   // Área fora do alcance do papel não aparece: nem na lateral, nem no seletor
   // do topo. Antes o corte era por item, e um papel com uma página de oito
@@ -150,6 +153,7 @@ export function AppSidebar() {
   // funciona igual ao das outras.
   const areasDoSeletor = areasVisiveis.filter((a) => a.slug !== AREA_RODAPE);
   const areaAdmin = areasVisiveis.find((a) => a.slug === AREA_RODAPE);
+  const mostrarEquipe = !loading && !isAdmin && administra.length > 0;
 
   // A área ativa sai da ROTA, não de estado próprio: assim link direto,
   // favorito e botão voltar abrem a lateral já na área certa. Estado à parte
@@ -274,25 +278,39 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
-        {areaAdmin ? (
+        {mostrarEquipe || areaAdmin ? (
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                size="sm"
-                isActive={areaAtual?.slug === AREA_RODAPE}
-                tooltip={areaAdmin.nome}
-              >
-                <Link
-                  to={areaAdmin.grupos[0].items[0].url}
-                  onClick={() => setAreaEscolhida(areaAdmin.slug)}
-                  className="flex items-center gap-2 text-muted-foreground"
+            {/* Quem administra uma área (admin ou sócio) cuida da equipe aqui.
+                O super admin faz isso pela Administração, logo abaixo. */}
+            {mostrarEquipe && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild size="sm" isActive={pathname === "/equipe"} tooltip="Minha equipe">
+                  <Link to="/equipe" className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span>Minha equipe</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+            {areaAdmin && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  size="sm"
+                  isActive={areaAtual?.slug === AREA_RODAPE}
+                  tooltip={areaAdmin.nome}
                 >
-                  <areaAdmin.icone className="h-4 w-4 shrink-0" />
-                  <span>{areaAdmin.nome}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+                  <Link
+                    to={areaAdmin.grupos[0].items[0].url}
+                    onClick={() => setAreaEscolhida(areaAdmin.slug)}
+                    className="flex items-center gap-2 text-muted-foreground"
+                  >
+                    <areaAdmin.icone className="h-4 w-4 shrink-0" />
+                    <span>{areaAdmin.nome}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         ) : (
           <div className="px-2 py-1 text-[10px] text-muted-foreground">
