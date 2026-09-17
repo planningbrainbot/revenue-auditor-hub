@@ -1426,3 +1426,25 @@ aplicada no mesmo dia: Italo Amaral em Belém, e `headcount_mensal` e
 **Achado, não corrigido:** `headcount_mensal` (vazia, a tela só lê) e
 `comite_correcoes` (1 linha, nenhuma tela do app grava) aceitam escrita de
 qualquer pessoa com a porta do Ops.
+
+## [2026-09-17] Minha equipe no ar, e o piloto do Rio aberto
+
+**Contexto:** dono autorizou as Fases 3 e 4 do PLANO-ADMIN-DELEGADO.
+
+**Decisão — o convite cria a conta e abre a porta do Ops.** Conta nova nasce
+sem senha e sem papel, recebe `produto_acesso` do Ops (sem ele as policies com
+`tem_produto('ops')` barram tudo) e o link de definir senha. A checagem de
+quem pode convidar vem ANTES de criar a conta, e se o banco recusar o acesso a
+conta recém-criada é apagada.
+
+**Decisão — tirar da área só desativa a conta quando ela não entra em mais
+nada.** Sem área no Ops, sai a porta do Ops; a conta só é banida (reversível)
+se também não tiver Growth nem Financeiro.
+
+**Decisão — item de menu pode exigir a página.** `Item.chave` nos itens de
+Minha Unidade: o colaborador vê no menu só o que recebeu. Quem entra por papel
+tem todas as chaves da área, então nada muda para ele.
+
+**Status:** publicado (commit `8f9100f`). Piloto: o sócio regional do Rio é
+sócio de Minha Unidade (migration `20260917170000`), páginas idênticas antes e
+depois. Pela tela Acessos, a Victor nomeou o Mateus Nunes admin de Clientes.
