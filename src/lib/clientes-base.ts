@@ -15,6 +15,17 @@ export type BaseEmpresa = {
   identity_conflict?: boolean;
   origin: "nova" | "antiga" | "confirmar";
   origin_reason: string;
+  origin_evidence?: {
+    version: string;
+    contracts: { cnpj: string; first_start: string; source: string; checked_at: string }[];
+  };
+  tax_evidence?: {
+    non_simples: boolean | null;
+    conflict: boolean;
+    covered: boolean;
+    checked_at: string | null;
+    sources: string[];
+  };
   responsible: string | null;
   validated_at: string | null;
   synced_at: string | null;
@@ -39,6 +50,7 @@ export function aplicarBase(a: Conta, m: BaseEmpresa | undefined): Conta {
     contact: m.contact,
     ecd: m.ecd.length > 0,
     old_base: m.origin === "antiga",
+    regime_conflict: a.regime_conflict || m.tax_evidence?.conflict === true,
     base_origin: {
       status: m.origin,
       reason: m.origin_reason,
@@ -55,8 +67,12 @@ export function aplicarBase(a: Conta, m: BaseEmpresa | undefined): Conta {
             ops_ids: m.empresa_ids,
             pipefy_ids: m.pipefy_ids,
             commercial_deal_ids: a.consultoria_origin?.commercial_deal_ids || [],
-            non_simples_confirmed: a.consultoria_origin?.non_simples_confirmed ?? null,
-            regime_source: a.consultoria_origin?.regime_source ?? a.regime_source ?? null,
+            non_simples_confirmed:
+              m.tax_evidence?.non_simples ?? a.consultoria_origin?.non_simples_confirmed ?? null,
+            regime_source:
+              m.tax_evidence?.non_simples != null
+                ? m.tax_evidence.sources.join(" / ")
+                : (a.consultoria_origin?.regime_source ?? a.regime_source ?? null),
           }
         : a.consultoria_origin,
   };

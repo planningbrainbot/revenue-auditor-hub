@@ -107,10 +107,14 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
   }
   if (produto === "finance" && !a.pipedrive_contract)
     return result("fora_regra", "Sem contrato ganho identificado no Pipedrive.");
-  if (/simples|mei/.test(regime)) return result("fora_regra", "Regime Simples Nacional ou MEI.");
+  if (/simples|mei/.test(regime) || (!review.regime && a.base?.tax_evidence?.non_simples === false))
+    return result("fora_regra", "Regime Simples Nacional ou MEI.");
   if ((!review.regime && a.regime_conflict) || (!review.band && a.band_conflict))
     return result("revisar", "Fontes divergem; confirmar os dados com o sócio.");
-  if (!["lucro real", "lucro presumido", "lucro arbitrado"].includes(regime))
+  if (
+    !["lucro real", "lucro presumido", "lucro arbitrado"].includes(regime) &&
+    a.base?.tax_evidence?.non_simples !== true
+  )
     return result("revisar", "Regime tributário a confirmar.");
   if (!bounds) return result("revisar", "Faixa de faturamento anual a confirmar.");
   if (produto === "finance") {

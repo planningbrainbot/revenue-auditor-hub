@@ -1,6 +1,7 @@
 // Integração exclusiva do Planning Brain. Os eventos apenas solicitam releitura.
 import { TABLES, COMPANY_FIELDS, webhookRecord, mapCompany, mapContact } from './pipefy.mjs';
 import { unitName } from './domain.mjs';
+import { contractEvidence } from './omie.mjs';
 type Row = Record<string, any>;
 const URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -8,8 +9,8 @@ const PIPEFY = Deno.env.get('PIPEFY_TOKEN')!;
 const HOOK = Deno.env.get('BASE_CLIENTES_WEBHOOK_SECRET');
 const CRON = Deno.env.get('BASE_CLIENTES_CRON_SECRET');
 const response = (body: Row, status=200) => new Response(JSON.stringify(body), { status, headers: {'Content-Type':'application/json','Cache-Control':'no-store'} });
-async function db(path: string, body?: unknown, method='POST') {
- const r=await fetch(`${URL}/rest/v1/${path}`,{method:body===undefined?'GET':method,headers:{apikey:SERVICE,Authorization:`Bearer ${SERVICE}`,'Content-Type':'application/json','Accept-Profile':'ops','Content-Profile':'ops',Prefer:'return=representation'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)});
+async function db(path: string, body?: unknown, method='POST', merge=false) {
+ const r=await fetch(`${URL}/rest/v1/${path}`,{method:body===undefined?'GET':method,headers:{apikey:SERVICE,Authorization:`Bearer ${SERVICE}`,'Content-Type':'application/json','Accept-Profile':'ops','Content-Profile':'ops',Prefer:`return=representation${merge?',resolution=merge-duplicates':''}`},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)});
  if(!r.ok) throw new Error(`Banco recusou operação (${r.status})`); // Nunca devolver linhas/valores SQL ao chamador.
  return r.status===204?null:await r.json();
 }
@@ -70,7 +71,7 @@ async function reconcile() {
    // para recuperar exclusões cujo webhook se perdeu, sem apagar histórico.
    const missing=await rpc('base_sync_missing',{_kind:job.kind,_lease:job.lease});
    for(const id of missing)await ingestOne(id,job.kind);
-   await rpc('monetizacao_intake_ops',{});await rpc('base_intake_omie',{});await rpc('base_refinar_ecd',{});await rpc('base_refresh_cadastro',{});
+   await rpc('monetizacao_intake_ops',{});await rpc('base_intake_omie',{});await rpc('base_refinar_ecd',{});await rpc('base_refresh_cadastro',{});await rpc('base_enfileirar_origens',{});
   }
   await rpc('base_sync_progress',{_kind:job.kind,_lease:job.lease,_cursor:cursor,_recebidos:received,_gravados:written,_complete:complete,_erro:null});
   return {status:complete?'ok':'running',source:job.kind,received,written};
@@ -90,9 +91,36 @@ async function outbox() {
   const confirmed=await read(change.pipefy_id,TABLES.companies);if(!confirmed)throw new Error('Não foi possível confirmar a alteração');
   const row=mapped(confirmed,'companies',fields,await units(),new Date().toISOString());
   if(JSON.stringify(row.campos[COMPANY_FIELDS[change.campo]]??null)!==JSON.stringify(change.valor_proposto))throw new Error('Pipefy ainda não confirmou o valor proposto');
-  await rpc('base_ingest_lote',{_registros:[row]});
+  const ingested=await rpc('base_ingest_lote',{_registros:[row]});
+  if(ingested[0]?.empresa_id)await rpc('base_refresh_cadastro',{_empresa:ingested[0].empresa_id});
   await db(`base_alteracoes?id=eq.${change.id}`,{status:'confirmed',confirmado_em:new Date().toISOString(),erro:null},'PATCH');return {status:'confirmed'};
  }catch(e){await db(`base_alteracoes?id=eq.${change.id}`,{status:'error',erro:(e as Error).message},'PATCH');throw e;}
+}
+async function omieContracts() {
+ const job=await rpc('base_omie_claim',{});if(!job)return {status:'idle'};
+ const jobPath=`base_omie_jobs?aplicativo=eq.${encodeURIComponent(job.aplicativo)}&lease=eq.${job.lease}`;
+ try{
+  const credentials=await db(`omie_credentials?ativo=eq.true&unidade=eq.${encodeURIComponent(job.aplicativo)}&select=app_key,app_secret`);
+  if(credentials.length!==1)throw new Error('Aplicativo Omie sem credencial ativa única');
+  const omie=async(endpoint:string,call:string,param:Row)=>{
+   const r=await fetch(`https://app.omie.com.br/api/v1/${endpoint}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({call,...credentials[0],param:[param]}),signal:AbortSignal.timeout(40000)});
+   if(!r.ok)throw new Error(`Omie indisponível (${r.status})`);
+   const b=await r.json();if(b.faultcode)throw new Error('Omie recusou consulta');return b;
+  };
+  const page=await omie('servicos/contrato','ListarContratos',{pagina:job.pagina,registros_por_pagina:50,apenas_importado_api:'N'});
+  if(!Array.isArray(page.contratoCadastro)||!Number.isInteger(page.total_de_paginas))throw new Error('Página de contratos Omie inválida');
+  const ids=[...new Set(page.contratoCadastro.map((r:Row)=>r.cabecalho?.nCodCli))];
+  const clients=ids.length?await omie('geral/clientes','ListarClientes',{pagina:1,registros_por_pagina:50,apenas_importado_api:'N',clientesPorCodigo:ids.map(id=>({codigo_cliente_omie:id}))}):{clientes_cadastro:[]};
+  const at=new Date().toISOString();
+  const evidence=contractEvidence(job.aplicativo,page.contratoCadastro,clients.clientes_cadastro,at);
+  if(evidence.contracts.length)await db('base_omie_contratos?on_conflict=aplicativo,contrato_id',evidence.contracts,'POST',true);
+  if(evidence.taxes.length)await db('base_enriquecimento_cnpj?on_conflict=cnpj,fonte,registro_fonte',evidence.taxes,'POST',true);
+  const complete=job.pagina>=page.total_de_paginas;
+  await db(jobPath,{pagina:complete?1:job.pagina+1,proxima_execucao:new Date(Date.now()+(complete?86400000:0)).toISOString(),atualizado_em:at,erro:null,lease:null},'PATCH');
+  await db('monetizacao_sync?id=eq.true',{catalog_at:at},'PATCH');
+  if(complete)await rpc('base_enfileirar_origens',{});
+  return {status:complete?'complete':'running',app:job.aplicativo,page:job.pagina,contracts:evidence.contracts.length};
+ }catch(e){await db(jobPath,{erro:(e as Error).message,proxima_execucao:new Date(Date.now()+900000).toISOString(),lease:null},'PATCH');throw e;}
 }
 Deno.serve(async(req:Request)=>{
  if(req.method!=='POST')return response({error:'Método não permitido'},405);
@@ -102,6 +130,15 @@ Deno.serve(async(req:Request)=>{
  if(!service&&!webhook&&!scheduled)return response({error:'Não autorizado'},401);
  let body:Row;try{body=await req.json();}catch{return response({error:'JSON inválido'},400);}
  try{
+  if((service||scheduled)&&body.action==='omie')return response(await omieContracts());
+  if((service||scheduled)&&body.action==='drain'){
+   const start=Date.now(),results:Row[]=[];
+   for(let i=0;i<10&&Date.now()-start<45000;i++){
+    try{const result=await outbox();results.push(result);if(result.status==='idle')break;}
+    catch(e){results.push({status:'error',error:(e as Error).message});break;}
+   }
+   return response({processed:results.length,results});
+  }
   if((service||scheduled)&&body.action==='tick')return response({sync:await reconcile(),outbox:await outbox()});
   const event=webhookRecord(body,[TABLES.companies,TABLES.contacts]);
   if(!event)return response({error:'Evento fora do contrato'},400);
