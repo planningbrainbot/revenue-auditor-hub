@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { carregarMonetizacao, carregarContasBase } from "@/lib/monetizacao/functions";
 import { useAuth } from "./use-auth";
+import { loadCatalogPages } from "@/lib/monetizacao/catalog-loader";
 
 import type { BaseMonetizacao } from "@/lib/monetizacao/types";
 
@@ -12,7 +13,7 @@ export function useMonetizacao() {
   const client = useQueryClient();
   return useQuery({
     queryKey: ["monetizacao", user?.id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const data = await fn();
       const previous = client.getQueryData<BaseMonetizacao>(["monetizacao", user?.id]);
       if (
@@ -22,21 +23,18 @@ export function useMonetizacao() {
         previous.base_count === data.base_count
       )
         return { ...data, accounts: previous.accounts, units: previous.units };
-      let after: string | null = null;
-      const accounts: Awaited<ReturnType<typeof pageFn>>["accounts"] = [];
-      for (let page = 0; page < 100; page++) {
-        const batch = await pageFn({ data: { after } });
-        accounts.push(...batch.accounts);
-        after = batch.next;
-        if (!after) break;
-        if (page === 99)
-          throw new Error("Base excedeu paginação; nenhum total parcial foi exibido.");
-      }
-      if (
-        accounts.length !== data.base_count ||
-        new Set(accounts.map((a) => a.key)).size !== accounts.length
-      )
-        throw new Error("A base mudou durante a consulta. Atualize novamente.");
+      if (!data.catalog_pages || data.base_count === undefined)
+        throw new Error("Não foi possível conferir os lotes da carteira.");
+      const accounts = await loadCatalogPages(
+        data.catalog_pages,
+        (page) => pageFn({ data: { after: page.after, through: page.through } }),
+        {
+          catalog_at: data.catalog_at,
+          scope_signature: data.scope_signature,
+          base_count: data.base_count,
+          signal,
+        },
+      );
       return {
         ...data,
         accounts,

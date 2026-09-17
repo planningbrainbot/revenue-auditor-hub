@@ -219,6 +219,7 @@ export interface Registro {
 }
 export interface BaseMonetizacao {
   base_count?: number;
+  catalog_pages?: { after: string | null; through: string; count: number }[];
   scope_signature?: string;
   forecasts: ForecastSource[];
   reservations: { account_key: string; product: Produto; status: string; deal_id: number | null }[];
