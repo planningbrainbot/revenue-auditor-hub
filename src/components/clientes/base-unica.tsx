@@ -308,7 +308,7 @@ export function ClientesBase() {
             <button className="underline" onClick={() => change({ view: "pendencias" })}>
               {health.isError
                 ? "Sincronização indisponível"
-                : `${health.data?.pending_changes ?? 0} correções de cadastro pendentes`}
+                : `${health.data?.pending_changes ?? 0} alterações na fila de envio ao Pipefy`}
             </button>
           </div>
           {view === "monetizacao" ? (

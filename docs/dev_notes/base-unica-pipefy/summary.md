@@ -1,9 +1,9 @@
 # Evidências de execução — Base única e Pipefy
 
 ## Resultado
-- Status: backend aplicado e em verificação; publicação da interface em andamento.
+- Status: banco, sincronizador e interface publicados; integração final do PR em andamento. Convergência integral das fontes ainda possui pendências de dados e regra.
 - Preparado: PRD, contratos de domínio, sincronizador de empresas/contatos, fila de correções, conciliação Omie/ECD, tela única de Clientes, visões de contatos/negócios/oportunidades e validação de origem.
-- Aplicado: cinco migrations, sincronizador de empresas/contatos, dois webhooks Planning e reconciliação agendada. Interface compilada; Vercel e integração da branch ainda em andamento.
+- Aplicado: seis migrations, sincronizador de empresas/contatos, dois webhooks Planning e reconciliação agendada. Interface publicada em https://planningbrain.com.br/clientes. PR: https://github.com/planningbrainbot/revenue-auditor-hub/pull/7.
 - Após a pergunta de autorização de produção, o usuário respondeu “continua”. Aplicação retomada com backup atualizado e teste transacional. A revisão automática barrou a invocação legada de Auditoria por exclusão de ausentes; foi preparado modo de validação somente leitura.
 
 ## Alterações
@@ -24,7 +24,7 @@
 | Typecheck global | TypeScript | Apenas erros preexistentes em integrações/reconciliação/rede/reforma; nenhum nos arquivos alterados |
 | Browser autenticado e domínio | CUA | Indisponível nesta sessão; ainda não validado |
 | Endpoint de eventos | Produção | Duas chamadas autenticadas do mesmo evento releram o registro real e retornaram ok. Correção remota em massa não executada |
-| Volumes finais e desempenho do catálogo ampliado | Produção/staging | Pendente; não afirmar que a base foi carregada |
+| Carga e desempenho | Produção | Ciclos de empresas/contatos concluídos; Omie/ECD carregados. Página de 400 contas abaixo do limite de resposta. Contagens e tempos no registro privado |
 
 ## Decisões pendentes
 1. Pipedrive: qualquer cadastro/negócio ou apenas ganho comercial determina Base Nova? Casos não comprovados ficam pendentes.
@@ -33,10 +33,20 @@
 4. Autorização de produção recebida na continuação; não há bloqueio pendente para publicar a interface.
 
 ## Próxima execução autorizada
-Seguir `runbook.md`. Revalidar as migrations finais e o plano de alteração; aplicar backup e migração por etapas; ativar worker/webhooks/agendas; conferir contagens, permissões, integridade, latência e tamanho das respostas; então publicar frontend e verificar o domínio. Atualizar este arquivo com fatos, não intenções.
+Concluir revisão/merge do PR e conferir a versão final no domínio. Para dados pendentes, seguir `runbook.md`: revisão concreta dos campos e decisão de origem antes de escrever em massa na fonte.
 
 ## Ajustes encontrados na execução
 - A tabela fiscal ECD exige campos de escrituração indisponíveis no resumo histórico. A evidência fica em `base_ecd_registros`, com CNPJ/exercício/fonte/conta; `base_ecd_evidencias` une metadados e cadastro fiscal existente. Nenhuma receita ou contagem contábil foi inventada.
 - Colisão de ID Pipedrive entre empresas preserva o vínculo existente e registra pendência, sem abortar a página nem fundir por nome.
 - A ficha retorna canais atuais do Omie e contatos vinculados, sujeitos à permissão de contatos. Cadastro Omie exclusivo acompanha mudanças posteriores de nome/unidade.
 - Scripts de implantação recusam reaplicar o conjunto inicial em banco já iniciado. Retomadas exigem conferir a migration aplicada.
+
+## Publicação verificada
+- Primeiro deployment publicado: `dpl_3EgGpFfTUsRUMcqFNh5tSNwq5udV`, promovido para o domínio. `/clientes`, `/aquario` e `/login` responderam HTTP 200; asset novo de Clientes confirmado. HTTP não equivale a teste visual autenticado, que continua indisponível.
+- Sincronizador `base-clientes-sync` versão 3. Dois webhooks Planning e job `base-clientes-reconcile` ativos. Contatos concluíram com sucesso; empresas concluíram com pendências de bootstrap explicitamente marcadas como parcial.
+- Auditoria Interna versão 15: validação real somente leitura passou. A tentativa de invocação com possível remoção foi rejeitada pela revisão automática e não foi executada; o modo seguro retorna antes de qualquer gravação/exclusão.
+- Listas e histórico de envios preservados. Nenhum negócio criado, mensagem enviada ou consulta paga realizada.
+- Backups/evidências e chaves técnicas foram preservados em diretório privado Planning fora do repositório, com diretório 0700 e arquivos 0600. Não depender apenas de `/tmp`.
+
+## Limites de conclusão
+A tela e as rotinas estão entregues. Isso não significa que todos os campos das duas fontes já sejam iguais: conflitos e vazios históricos ficam pendentes, sem exclusão de informação e sem rótulo de sincronização plena. Curitiba, alcance de Pipedrive e preenchimento em massa dependem das definições já solicitadas. A cobertura do produtor Omie e o disparador externo de NPS/Tratativas continuam como itens de revisão, sem criar cron duplicado.

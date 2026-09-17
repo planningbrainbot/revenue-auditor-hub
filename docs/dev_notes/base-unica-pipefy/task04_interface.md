@@ -1,6 +1,6 @@
 # Task 04 — Clientes único e funil de refinamento
 
-Status: implementação local; validação final e publicação pendentes. Ver summary.md.
+Status: Interface publicada; build e HTTP verificados. Teste visual autenticado indisponível.
 
 ## Objetivo
 Uma entrada Clientes com visões da mesma base e listas verificáveis por filtro.

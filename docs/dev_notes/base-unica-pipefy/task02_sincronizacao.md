@@ -1,6 +1,6 @@
 # Task 02 — Sincronização autoritativa e observabilidade
 
-Status: implementação local; validação final e publicação pendentes. Ver summary.md.
+Status: Sincronizador, fila, webhooks e reconciliação publicados; conflitos de dados seguem pendentes de tratamento.
 
 ## Objetivo
 Fazer Pipefy, espelho cadastral e visões convergirem com idempotência e erro visível.

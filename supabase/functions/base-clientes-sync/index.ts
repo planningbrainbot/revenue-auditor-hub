@@ -65,7 +65,13 @@ async function reconcile() {
    received+=p.records.length;written+=results.filter((r:Row)=>['ok','pending'].includes(r.status)).length;cursor=p.next;
    if(!cursor){complete=true;break;}
   }
-  if(complete){await rpc('monetizacao_intake_ops',{});await rpc('base_intake_omie',{});await rpc('base_refinar_ecd',{});await rpc('base_refresh_cadastro',{});}
+  if(complete){
+   // Ausência na paginação é apenas suspeita. Relê até dez registros por ciclo
+   // para recuperar exclusões cujo webhook se perdeu, sem apagar histórico.
+   const missing=await rpc('base_sync_missing',{_kind:job.kind,_lease:job.lease});
+   for(const id of missing)await ingestOne(id,job.kind);
+   await rpc('monetizacao_intake_ops',{});await rpc('base_intake_omie',{});await rpc('base_refinar_ecd',{});await rpc('base_refresh_cadastro',{});
+  }
   await rpc('base_sync_progress',{_kind:job.kind,_lease:job.lease,_cursor:cursor,_recebidos:received,_gravados:written,_complete:complete,_erro:null});
   return {status:complete?'ok':'running',source:job.kind,received,written};
  }catch(e){await rpc('base_sync_progress',{_kind:job.kind,_lease:job.lease,_cursor:cursor,_recebidos:received,_gravados:written,_complete:false,_erro:(e as Error).message});throw e;}

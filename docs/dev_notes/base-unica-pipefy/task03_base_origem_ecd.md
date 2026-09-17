@@ -1,6 +1,6 @@
 # Task 03 — Identidade, origem, Omie, ECD e validação da unidade
 
-Status: implementação local; validação final e publicação pendentes. Ver summary.md.
+Status: Catálogo Omie e metadados ECD carregados; fila de origem disponível.
 
 ## Objetivo
 Reutilizar uma identidade única de empresa para o cadastro e a Monetização, incorporando Omie e os metadados ECD sem inflar clientes.

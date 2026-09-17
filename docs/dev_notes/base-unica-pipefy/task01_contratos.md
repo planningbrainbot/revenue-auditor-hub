@@ -1,6 +1,6 @@
 # Task 01 — Contratos de domínio e inventário
 
-Status: implementação local; validação final e publicação pendentes. Ver summary.md.
+Status: Contratos implementados; decisões Pipedrive/Curitiba explicitamente pendentes.
 
 ## Objetivo
 Transformar as atividades do print em regras executáveis antes das mutações. Mapear as tabelas e produtores existentes sem criar outra base concorrente.

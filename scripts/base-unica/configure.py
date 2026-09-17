@@ -18,14 +18,17 @@ def configure(private):
  if not ready[0]['ready']:raise RuntimeError('Aplicar as migrações revisadas antes de ativar as automações')
  private.mkdir(parents=True,exist_ok=True,mode=0o700)
  path=private/'automation-secrets.json'
+ url=f'https://{REF}.supabase.co/functions/v1/base-clientes-sync'
+ existing={kind:pf('query($id:ID!){table(id:$id){webhooks{id name url}}}',{'id':table})['table']['webhooks'] for kind,table in TABLES.items()}
+ if not path.exists() and any(w['url']==url for rows in existing.values() for w in rows):
+  raise RuntimeError('Integração já existe. Use o diretório privado original; não trocar a chave sem atualizar os webhooks.')
  if path.exists():keys=json.loads(path.read_text())
  else:
   keys={k:secrets.token_urlsafe(48) for k in ['BASE_CLIENTES_WEBHOOK_SECRET','BASE_CLIENTES_CRON_SECRET']}
   path.write_text(json.dumps(keys));path.chmod(0o600)
  call('/secrets',[{'name':k,'value':v} for k,v in keys.items()])
- url=f'https://{REF}.supabase.co/functions/v1/base-clientes-sync'
  for kind,table in TABLES.items():
-  current=pf('query($id:ID!){table(id:$id){webhooks{id name url}}}',{'id':table})['table']['webhooks']
+  current=existing[kind]
   found=[w for w in current if w['url']==url]
   if len(found)>1:raise RuntimeError('Webhooks duplicados: revisar antes de ativar')
   if not found:

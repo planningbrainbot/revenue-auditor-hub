@@ -147,7 +147,12 @@ function mapCard(card: any) {
 Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (authHeader !== `Bearer ${serviceKey}`) {
+  const input = await req.json().catch(() => ({}));
+  // A chave técnica da base pode executar somente a validação sem persistência.
+  const validationKey = Deno.env.get("BASE_CLIENTES_CRON_SECRET");
+  const readOnlyValidation = input.validate_only === true && !!validationKey &&
+    req.headers.get("x-planning-base-cron") === validationKey;
+  if (authHeader !== `Bearer ${serviceKey}` && !readOnlyValidation) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -155,7 +160,6 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
   // Verificação operacional sem upsert, exclusão ou alteração de logs.
-  const input = await req.json().catch(() => ({}));
   if (input.validate_only === true) {
     try {
       const cards = await fetchAllCards(pipefyToken);

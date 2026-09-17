@@ -12,14 +12,14 @@
 
 1. Rodar `node --test tests/clientes-base.test.mjs tests/clientes-webhook.test.mjs tests/clientes-catalog.test.mjs tests/monetizacao.test.mjs tests/portfolio.test.mjs tests/recon.test.mjs`.
 2. Rodar build Vite/Nitro para Vercel. Conferir erros TypeScript novos separadamente dos preexistentes registrados no resumo.
-3. Em staging ou transação explicitamente terminada em rollback, aplicar os dois arquivos de migration e `tests/clientes-sync.sql`. Não enviar eventos remotos durante o teste. A versão final das migrations exige esta revalidação.
+3. Em staging ou transação explicitamente terminada em rollback, aplicar as migrations `base_clientes_sync`, `base_unica_catalogo` e complementos `base_ecd_metadata`, `base_vinculos_conflitantes`, `base_clientes_acesso`, `base_eventos_perdidos` e `tests/clientes-sync.sql`. Não enviar eventos remotos durante o teste. A versão final das migrations exige esta revalidação.
 4. Testar a carga Omie e ECD, contagens antes/depois, repetição sem duplicatas, CNPJs múltiplos/ausentes, quantidade/tamanho das respostas de 400 contas e tempo de leitura. Distinguir cadastro, CNPJ, conta, contato e negócio no relatório.
 5. Testar RPCs como usuário sem sessão, operador de uma unidade e administrador. Em particular: não expor contatos sem permissão e não reutilizar cache entre usuários/escopos.
 6. Atualizar backup privado dos registros que serão alterados. Registrar revisão/horário para não reverter depois uma mudança legítima de outro operador.
 
 ## Aplicação por etapas
 
-1. `scripts/base-unica/deploy.py schemas` aplica apenas as migrations, com token administrativo no ambiente.
+1. `scripts/base-unica/deploy.py schemas` aplica as migrations em uma instalação ainda não iniciada, com token administrativo no ambiente. Se já houver estado técnico, o script recusa reaplicar: conferir o estado e executar apenas o complemento ausente.
 2. `scripts/base-unica/deploy.py edge --slug base-clientes-sync` publica o worker. Conferir o contrato GraphQL real e HTTP 401 para chamadas sem segredo.
 3. `scripts/base-unica/configure.py --private <diretório-privado>` cria/reutiliza chaves técnicas, cadastra os dois webhooks Planning e agenda a reconciliação. O script preserva outros webhooks. Conferir que os handlers antigos dessas tabelas não continuam escrevendo de forma concorrente.
 4. Acompanhar ciclos completos em `ops.base_sync_jobs` / `ops.base_sync_execucoes`. O snapshot é salvo em `ops.base_sync_registros`; pendência de bootstrap não é sucesso pleno. Não liberar origem em massa a partir de valores vazios.
@@ -51,3 +51,5 @@
 - Origem do disparador externo de algumas rotinas antigas não foi identificada. Não criar agendas duplicadas para essas funções.
 - Cobertura e qualidade da automação Omie existente (incluindo Matriz e Curitiba) ainda precisam de validação da configuração real; esta entrega não deve anunciar que todos os produtores foram corrigidos.
 - A massa de ECD referida é metadado histórico já presente no Brain; a associação ambígua não comprova ECD para cada CNPJ.
+
+Preservar `automation-secrets.json` em diretório privado durável. Configuração já existente sem o arquivo original deve ser revisada; o configurador não rotaciona a chave por acidente.
