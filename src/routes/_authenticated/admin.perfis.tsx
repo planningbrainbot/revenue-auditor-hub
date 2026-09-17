@@ -91,17 +91,17 @@ function ProfilesPage() {
   const roles = rolesQuery.data ?? [];
 
   return (
-    <AppShell title="Perfis de usuário" subtitle="Crie perfis customizados além dos papéis padrão">
+    <AppShell title="Perfis de usuário" subtitle="Cada perfil é um modelo: abre um conjunto de áreas para quem o recebe">
       <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
           <Info className="mt-0.5 h-5 w-5 text-primary" />
           <div className="flex-1 text-sm text-foreground">
             <p className="font-semibold">Como funciona</p>
             <p className="mt-1 text-muted-foreground">
-              Perfis customizados já nascem com leitura de <strong>Clientes</strong> e <strong>Unidades</strong> (toda a rede,
-              somente leitura). Nenhum perfil novo tem acesso de escrita a dados sensíveis (repasses, royalties, sócios) —
-              isso continua exclusivo do Admin. Para liberar outras páginas (NPS, Auditoria, Financeiro etc.) pro perfil,
-              vá em <Link to="/admin/permissoes" className="underline underline-offset-2">Permissões</Link> depois de criá-lo.
+              O perfil diz quais <strong>áreas</strong> a pessoa abre, e quais áreas cada perfil abre se ajusta em{" "}
+              <Link to="/admin/permissoes" className="underline underline-offset-2">Permissões</Link>. Perfil novo nasce
+              sem área nenhuma. O <strong>nível</strong> da pessoa em cada área (admin, sócio, usuário) não é perfil:
+              fica em Usuários, no botão Acessos, e soma ao que o perfil já abre. O perfil Super admin tem acesso total.
             </p>
           </div>
         </div>
@@ -174,13 +174,15 @@ function ProfilesPage() {
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2">Chave</th>
                 <th className="px-4 py-2">Tipo</th>
+                <th className="px-4 py-2 text-right">Pessoas</th>
+                <th className="px-4 py-2">Áreas que abre</th>
                 <th className="px-4 py-2">Descrição</th>
                 <th className="px-4 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {rolesQuery.isLoading && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
               )}
               {roles.map((r) => (
                 <tr key={r.id} className="border-t">
@@ -207,6 +209,16 @@ function ProfilesPage() {
                     >
                       {r.is_system ? "Sistema" : "Customizado"}
                     </span>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">
+                    {r.pessoas > 0 ? (
+                      r.pessoas
+                    ) : (
+                      <span className="text-xs text-amber-600" title="Ninguém tem este perfil hoje">sem uso</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {r.key === "admin" ? "todas" : r.areas.length ? r.areas.join(", ") : "nenhuma"}
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
                     {editingId === r.id ? (

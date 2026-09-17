@@ -823,9 +823,12 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
     }
 
     const papeis = ((papeisRes.data ?? []) as { role: string }[]).map((r) => r.role);
-    const { data: pelosPapeis } = papeis.length
-      ? await db.from("role_areas").select("area").in("role", papeis).eq("allowed", true)
-      : { data: [] };
+    const [{ data: pelosPapeis }, { data: rotulosPapeis }] = await Promise.all([
+      papeis.length
+        ? db.from("role_areas").select("area").in("role", papeis).eq("allowed", true)
+        : Promise.resolve({ data: [] }),
+      papeis.length ? db.from("roles").select("key, label").in("key", papeis) : Promise.resolve({ data: [] }),
+    ]);
     const areasDoPapel = new Set(((pelosPapeis ?? []) as { area: string }[]).map((r) => r.area));
 
     const rotulo = new Map(KNOWN_PERMISSIONS.map((p) => [p.key, p.label]));
@@ -864,6 +867,7 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
 
     return {
       superAdmin: papeis.includes("admin"),
+      papeis: ((rotulosPapeis ?? []) as { key: string; label: string }[]).map((r) => r.label),
       temUnidade: ((unidadesRes?.data ?? []) as unknown[]).length > 0,
       areas,
     };
@@ -952,4 +956,71 @@ export const listAdministradoresPorArea = createServerFn({ method: "GET" })
       ...l,
       nome: nome.get(l.user_id) ?? l.user_id,
     }));
+  });
+
+/**
+ * O quadro de /admin/niveis: cada pessoa, o perfil, e o nível em cada área.
+ * Só para o super admin.
+ */
+export const listNiveisDeAcesso = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = context.supabase as any;
+    const [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes] = await Promise.all([
+      db.from("areas").select("slug, nome, ordem").eq("ativa", true).neq("slug", "admin").order("ordem"),
+      db.from("profiles").select("user_id, nome, email"),
+      db.from("user_roles").select("user_id, role"),
+      db.from("roles").select("key, label"),
+      db.from("role_areas").select("role, area").eq("allowed", true),
+      db.from("area_admins").select("user_id, area, nivel"),
+      db.from("usuario_areas").select("user_id, area").eq("allowed", true),
+    ]);
+    for (const r of [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes]) {
+      if (r?.error) {
+        console.error("[listNiveisDeAcesso]", r.error);
+        throw new Error("Erro ao carregar os níveis de acesso.");
+      }
+    }
+    const rotulo = new Map(((rotulosRes.data ?? []) as { key: string; label: string }[]).map((r) => [r.key, r.label]));
+    const areasDoPapel = new Map<string, Set<string>>();
+    for (const r of (roleAreasRes.data ?? []) as { role: string; area: string }[]) {
+      const set = areasDoPapel.get(r.role) ?? new Set<string>();
+      set.add(r.area);
+      areasDoPapel.set(r.role, set);
+    }
+    const papeisDe = new Map<string, string[]>();
+    for (const r of (papeisRes.data ?? []) as { user_id: string; role: string }[]) {
+      papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), r.role]);
+    }
+    const delegado = new Map<string, "admin" | "socio" | "usuario">();
+    for (const m of (membrosRes.data ?? []) as { user_id: string; area: string }[]) delegado.set(`${m.user_id}|${m.area}`, "usuario");
+    for (const a of (adminsRes.data ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[])
+      delegado.set(`${a.user_id}|${a.area}`, a.nivel);
+
+    const areas = (areasRes.data ?? []) as { slug: string; nome: string }[];
+    const pessoas = ((perfisRes.data ?? []) as { user_id: string; nome: string | null; email: string | null }[])
+      .map((p) => {
+        const papeis = papeisDe.get(p.user_id) ?? [];
+        const superAdmin = papeis.includes("admin");
+        const pelosPapeis = new Set(papeis.flatMap((r) => [...(areasDoPapel.get(r) ?? [])]));
+        return {
+          userId: p.user_id,
+          nome: p.nome || p.email || "Sem nome",
+          email: p.email ?? "",
+          perfis: papeis.map((r) => rotulo.get(r) ?? r),
+          superAdmin,
+          niveis: Object.fromEntries(
+            areas.map((a) => [
+              a.slug,
+              superAdmin
+                ? "super_admin"
+                : delegado.get(`${p.user_id}|${a.slug}`) ?? (pelosPapeis.has(a.slug) ? "perfil" : "nenhum"),
+            ]),
+          ) as Record<string, "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "nenhum">,
+        };
+      })
+      .sort((x, y) => Number(y.superAdmin) - Number(x.superAdmin) || x.nome.localeCompare(y.nome, "pt-BR"));
+    return { areas, pessoas };
   });

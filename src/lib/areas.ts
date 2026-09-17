@@ -408,6 +408,10 @@ export const AREAS: Area[] = [
         label: "Pessoas e acesso",
         items: [
           { title: "Usuários", url: "/admin/usuarios", icon: Users },
+          // O quadro do super admin: nível de cada pessoa em cada área.
+          { title: "Níveis de acesso", url: "/admin/niveis", icon: ShieldCheck },
+          // A mesma tela que admin e sócio abrem pelo rodapé; aqui com todas as áreas.
+          { title: "Equipes", url: "/equipe", icon: UsersRound },
           { title: "Perfis", url: "/admin/perfis", icon: UserCog },
           {
             title: "Permissões",

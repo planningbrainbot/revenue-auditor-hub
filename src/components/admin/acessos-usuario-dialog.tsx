@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
  * próprias regras, e um erro numa não deve desfazer a outra.
  */
 const NIVEIS: { valor: NivelNaArea; rotulo: string; ajuda: string }[] = [
-  { valor: "nenhum", rotulo: "Sem acesso", ajuda: "Não entra nesta área por delegação." },
+  { valor: "nenhum", rotulo: "Sem acesso", ajuda: "Não entra nesta área." },
   { valor: "usuario", rotulo: "Usuário", ajuda: "Vê só as páginas marcadas. Só consulta." },
   { valor: "socio", rotulo: "Sócio", ajuda: "Área inteira, nas unidades dele. Convida a equipe." },
   { valor: "admin", rotulo: "Admin", ajuda: "Área inteira, todas as unidades e empresas. Nomeia sócios." },
@@ -49,8 +49,8 @@ export function AcessosUsuarioDialog({
           <div>
             <h2 className="text-sm font-semibold text-foreground">Acessos de {nome}</h2>
             <p className="text-xs text-muted-foreground">
-              Área por área: admin, sócio, usuário ou sem acesso. As unidades e empresas ficam em
-              "Escopo".
+              Área por área, o que esta pessoa faz além do perfil dela. As unidades e empresas
+              ficam em "Escopo".
             </p>
           </div>
           <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-accent" aria-label="Fechar">
@@ -68,19 +68,31 @@ export function AcessosUsuarioDialog({
           <div className="flex items-start gap-3 px-5 py-6">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <p className="text-sm text-foreground">
-              Esta pessoa é <strong>super admin</strong> e tem acesso total. Para mudar isso, troque
-              o papel dela em "Editar".
+              Esta pessoa é <strong>super admin</strong> e tem acesso total. Isso vem do perfil
+              Super admin, e não se altera por aqui.
             </p>
           </div>
         ) : (
           <>
+            <div className="mx-5 mt-4 rounded-md border bg-muted/40 px-3 py-2 text-xs text-foreground">
+              {(q.data?.papeis ?? []).length > 0 ? (
+                <>
+                  Perfil: <strong>{q.data?.papeis.join(", ")}</strong>. Ele já abre as áreas marcadas
+                  com "pelo perfil". O que você escolher abaixo soma a isso.
+                </>
+              ) : (
+                <>Sem perfil. Esta pessoa só entra no que for liberado abaixo.</>
+              )}
+            </div>
             {!q.data?.temUnidade && (
               <p className="mx-5 mt-4 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
                 Sem unidade no Escopo. Para nomear como sócio, defina a unidade primeiro.
               </p>
             )}
             <ul className="divide-y">
-              {(q.data?.areas ?? []).map((a) => (
+              {[...(q.data?.areas ?? [])]
+                .sort((x, y) => Number(y.pelo_papel || y.nivel !== "nenhum") - Number(x.pelo_papel || x.nivel !== "nenhum"))
+                .map((a) => (
                 <LinhaDaArea key={a.slug} userId={userId} area={a} />
               ))}
             </ul>
@@ -138,9 +150,15 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
     <li className="px-5 py-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-[10rem] flex-1">
-          <p className="text-sm font-medium text-foreground">{area.nome}</p>
+          <p className="text-sm font-medium text-foreground">
+            {area.nome}
+            {area.pelo_papel && (
+              <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                área inteira pelo perfil
+              </span>
+            )}
+          </p>
           <p className="text-[11px] text-muted-foreground">
-            {area.pelo_papel ? "Já entra pelo papel. " : ""}
             {area.escopo === "unidade" ? "Recorte por unidade" : area.escopo === "empresa" ? "Recorte por empresa" : "Sem recorte"}
           </p>
         </div>
@@ -159,7 +177,7 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
         >
           {NIVEIS.map((n) => (
             <option key={n.valor} value={n.valor}>
-              {n.rotulo}
+              {n.valor === "nenhum" && area.pelo_papel ? "Só o perfil" : n.rotulo}
             </option>
           ))}
         </select>
@@ -172,7 +190,11 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
         </button>
       </div>
 
-      <p className="mt-1 text-[11px] text-muted-foreground">{NIVEIS.find((n) => n.valor === nivel)?.ajuda}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {nivel === "nenhum" && area.pelo_papel
+          ? "Vê a área inteira pelo perfil. Nada a mais por delegação."
+          : NIVEIS.find((n) => n.valor === nivel)?.ajuda}
+      </p>
 
       {nivel === "usuario" && (
         <fieldset className="mt-2">
