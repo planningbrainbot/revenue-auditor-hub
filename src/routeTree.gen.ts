@@ -23,7 +23,6 @@ import { Route as AuthenticatedRedeOverviewRouteImport } from './routes/_authent
 import { Route as AuthenticatedRedeLtvRouteImport } from './routes/_authenticated/rede-ltv'
 import { Route as AuthenticatedRedeHeadcountRouteImport } from './routes/_authenticated/rede-headcount'
 import { Route as AuthenticatedRedeRouteImport } from './routes/_authenticated/rede'
-import { Route as AuthenticatedReconciliacaoRouteImport } from './routes/_authenticated/reconciliacao'
 import { Route as AuthenticatedPainelUnidadeRouteImport } from './routes/_authenticated/painel-unidade'
 import { Route as AuthenticatedPainelCsRouteImport } from './routes/_authenticated/painel-cs'
 import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_authenticated/pagamentos-unidades'
@@ -42,11 +41,9 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
-import { Route as AuthenticatedDespesasCmRouteImport } from './routes/_authenticated/despesas-cm'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
-import { Route as AuthenticatedBiVendasRouteImport } from './routes/_authenticated/bi-vendas'
 import { Route as AuthenticatedBaseContatosRouteImport } from './routes/_authenticated/base-contatos'
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
 import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
@@ -146,12 +143,6 @@ const AuthenticatedRedeRoute = AuthenticatedRedeRouteImport.update({
   path: '/rede',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedReconciliacaoRoute =
-  AuthenticatedReconciliacaoRouteImport.update({
-    id: '/reconciliacao',
-    path: '/reconciliacao',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedPainelUnidadeRoute =
   AuthenticatedPainelUnidadeRouteImport.update({
     id: '/painel-unidade',
@@ -252,11 +243,6 @@ const AuthenticatedDisparosWhatsappRoute =
     path: '/disparos-whatsapp',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedDespesasCmRoute = AuthenticatedDespesasCmRouteImport.update({
-  id: '/despesas-cm',
-  path: '/despesas-cm',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedContasReceberRoute =
   AuthenticatedContasReceberRouteImport.update({
     id: '/contas-receber',
@@ -271,11 +257,6 @@ const AuthenticatedComissoesRoute = AuthenticatedComissoesRouteImport.update({
 const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedBiVendasRoute = AuthenticatedBiVendasRouteImport.update({
-  id: '/bi-vendas',
-  path: '/bi-vendas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedBaseContatosRoute =
@@ -431,11 +412,9 @@ export interface FileRoutesByFullPath {
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
-  '/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
-  '/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
@@ -454,7 +433,6 @@ export interface FileRoutesByFullPath {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -493,11 +471,9 @@ export interface FileRoutesByTo {
   '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
-  '/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
-  '/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
@@ -516,7 +492,6 @@ export interface FileRoutesByTo {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -556,11 +531,9 @@ export interface FileRoutesById {
   '/_authenticated/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/_authenticated/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/_authenticated/base-contatos': typeof AuthenticatedBaseContatosRoute
-  '/_authenticated/bi-vendas': typeof AuthenticatedBiVendasRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
-  '/_authenticated/despesas-cm': typeof AuthenticatedDespesasCmRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
@@ -579,7 +552,6 @@ export interface FileRoutesById {
   '/_authenticated/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/_authenticated/painel-cs': typeof AuthenticatedPainelCsRoute
   '/_authenticated/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
-  '/_authenticated/reconciliacao': typeof AuthenticatedReconciliacaoRoute
   '/_authenticated/rede': typeof AuthenticatedRedeRoute
   '/_authenticated/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/_authenticated/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -622,11 +594,9 @@ export interface FileRouteTypes {
     | '/auditoria-faturamento'
     | '/auditoria-interna'
     | '/base-contatos'
-    | '/bi-vendas'
     | '/clientes'
     | '/comissoes'
     | '/contas-receber'
-    | '/despesas-cm'
     | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
@@ -645,7 +615,6 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
-    | '/reconciliacao'
     | '/rede'
     | '/rede-headcount'
     | '/rede-ltv'
@@ -684,11 +653,9 @@ export interface FileRouteTypes {
     | '/auditoria-faturamento'
     | '/auditoria-interna'
     | '/base-contatos'
-    | '/bi-vendas'
     | '/clientes'
     | '/comissoes'
     | '/contas-receber'
-    | '/despesas-cm'
     | '/disparos-whatsapp'
     | '/dre-partners'
     | '/ebit-operacional'
@@ -707,7 +674,6 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
-    | '/reconciliacao'
     | '/rede'
     | '/rede-headcount'
     | '/rede-ltv'
@@ -746,11 +712,9 @@ export interface FileRouteTypes {
     | '/_authenticated/auditoria-faturamento'
     | '/_authenticated/auditoria-interna'
     | '/_authenticated/base-contatos'
-    | '/_authenticated/bi-vendas'
     | '/_authenticated/clientes'
     | '/_authenticated/comissoes'
     | '/_authenticated/contas-receber'
-    | '/_authenticated/despesas-cm'
     | '/_authenticated/disparos-whatsapp'
     | '/_authenticated/dre-partners'
     | '/_authenticated/ebit-operacional'
@@ -769,7 +733,6 @@ export interface FileRouteTypes {
     | '/_authenticated/pagamentos-unidades'
     | '/_authenticated/painel-cs'
     | '/_authenticated/painel-unidade'
-    | '/_authenticated/reconciliacao'
     | '/_authenticated/rede'
     | '/_authenticated/rede-headcount'
     | '/_authenticated/rede-ltv'
@@ -907,13 +870,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRedeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/reconciliacao': {
-      id: '/_authenticated/reconciliacao'
-      path: '/reconciliacao'
-      fullPath: '/reconciliacao'
-      preLoaderRoute: typeof AuthenticatedReconciliacaoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/painel-unidade': {
       id: '/_authenticated/painel-unidade'
       path: '/painel-unidade'
@@ -1040,13 +996,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDisparosWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/despesas-cm': {
-      id: '/_authenticated/despesas-cm'
-      path: '/despesas-cm'
-      fullPath: '/despesas-cm'
-      preLoaderRoute: typeof AuthenticatedDespesasCmRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/contas-receber': {
       id: '/_authenticated/contas-receber'
       path: '/contas-receber'
@@ -1066,13 +1015,6 @@ declare module '@tanstack/react-router' {
       path: '/clientes'
       fullPath: '/clientes'
       preLoaderRoute: typeof AuthenticatedClientesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/bi-vendas': {
-      id: '/_authenticated/bi-vendas'
-      path: '/bi-vendas'
-      fullPath: '/bi-vendas'
-      preLoaderRoute: typeof AuthenticatedBiVendasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/base-contatos': {
@@ -1293,11 +1235,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAuditoriaFaturamentoRoute: typeof AuthenticatedAuditoriaFaturamentoRoute
   AuthenticatedAuditoriaInternaRoute: typeof AuthenticatedAuditoriaInternaRoute
   AuthenticatedBaseContatosRoute: typeof AuthenticatedBaseContatosRoute
-  AuthenticatedBiVendasRoute: typeof AuthenticatedBiVendasRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
-  AuthenticatedDespesasCmRoute: typeof AuthenticatedDespesasCmRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
   AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
@@ -1316,7 +1256,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPagamentosUnidadesRoute: typeof AuthenticatedPagamentosUnidadesRoute
   AuthenticatedPainelCsRoute: typeof AuthenticatedPainelCsRoute
   AuthenticatedPainelUnidadeRoute: typeof AuthenticatedPainelUnidadeRoute
-  AuthenticatedReconciliacaoRoute: typeof AuthenticatedReconciliacaoRoute
   AuthenticatedRedeRoute: typeof AuthenticatedRedeRoute
   AuthenticatedRedeHeadcountRoute: typeof AuthenticatedRedeHeadcountRoute
   AuthenticatedRedeLtvRoute: typeof AuthenticatedRedeLtvRoute
@@ -1347,11 +1286,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedAuditoriaFaturamentoRoute,
   AuthenticatedAuditoriaInternaRoute: AuthenticatedAuditoriaInternaRoute,
   AuthenticatedBaseContatosRoute: AuthenticatedBaseContatosRoute,
-  AuthenticatedBiVendasRoute: AuthenticatedBiVendasRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
-  AuthenticatedDespesasCmRoute: AuthenticatedDespesasCmRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
   AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
@@ -1371,7 +1308,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPagamentosUnidadesRoute: AuthenticatedPagamentosUnidadesRoute,
   AuthenticatedPainelCsRoute: AuthenticatedPainelCsRoute,
   AuthenticatedPainelUnidadeRoute: AuthenticatedPainelUnidadeRoute,
-  AuthenticatedReconciliacaoRoute: AuthenticatedReconciliacaoRoute,
   AuthenticatedRedeRoute: AuthenticatedRedeRoute,
   AuthenticatedRedeHeadcountRoute: AuthenticatedRedeHeadcountRoute,
   AuthenticatedRedeLtvRoute: AuthenticatedRedeLtvRoute,
