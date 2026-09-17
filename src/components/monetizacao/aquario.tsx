@@ -129,7 +129,7 @@ export function Aquario({
           <div>
             <h1 className="text-2xl font-semibold">Oportunidades da base</h1>
             <p className="text-xs text-muted-foreground">
-              Clientes · carteiras e listas para os sócios
+              Base de clientes · carteiras e listas para os sócios
             </p>
           </div>
         </div>

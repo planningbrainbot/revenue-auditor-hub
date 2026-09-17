@@ -136,13 +136,13 @@ export const AREAS: Area[] = [
   {
     slug: "clientes",
     descricao: "Carteira, CS, NPS, disparos e base de contatos.",
-    nome: "Clientes",
+    nome: "Base de clientes",
     icone: Building2,
     grupos: [
       {
         label: "Carteira",
         items: [
-          { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "Base de clientes", url: "/clientes", icon: Building2 },
           { title: "CS", url: "/painel-cs", icon: UserCheck },
           {
             title: "Auditoria Interna",
@@ -356,7 +356,7 @@ export const AREAS: Area[] = [
         label: "Minha Unidade",
         items: [
           { title: "Painel", url: "/painel-unidade", icon: Gauge },
-          { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "Base de clientes", url: "/clientes", icon: Building2 },
           { title: "CS", url: "/painel-cs", icon: UserCheck },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart },
           { title: "IDU", url: "/idu", icon: Activity },

@@ -1289,3 +1289,15 @@ Metadados ECD históricos ficam em `base_ecd_registros`, unidos ao cadastro fisc
 **Publicação:** banco e tela única disponíveis em `planningbrain.com.br/clientes`, com compatibilidade de `/aquario`. A conciliação concluída distingue sucesso de pendência; não anunciar igualdade integral enquanto houver conflitos. Validação somente leitura de Auditoria foi acrescentada para conferir datas sem acionar a remoção legada. Webhook perdido de exclusão é recuperado por releitura limitada por ciclo, preservando histórico. O PR e o estado de cada aceite estão no resumo SDD.
 
 **Identidade:** CNPJ realmente contraditório entre fonte e espelho exige revisão antes de classificar origem ou enviar qualquer produto, inclusive na apresentação do Recon. Falta de CNPJ na fonte e diferença de máscara não equivalem a contradição. Ambos os valores e o vínculo anterior são preservados; não unir empresas por esse conflito.
+
+## [2026-09-17] Base de clientes: estudo do fluxo produto, oportunidade e lista
+
+**Contexto:** o usuário relatou que Recon permite ver a sugestão, mas não construir lista/enviar, e pediu estudo de UX e renomeação de Clientes.
+
+**Implementado nesta entrega:** rótulo da tela, módulo e navegação passa a **Base de clientes**, preservando `/clientes` e permissões. Estudo em `docs/dev_notes/base-clientes-listas-ux/estudo.md`; protótipo independente em `public/estudos/base-clientes-listas.html`, somente com dados sintéticos e ações locais em memória.
+
+**Diagnóstico:** Recon usa uma tabela própria com seleção/exportação, enquanto produto de lista, validação no servidor, constraint SQL e mapeamento CRM aceitam somente Cella, Consultoria e Finance. O envio e o sincronizador se concentram no funil 39. Isso preservava a orientação anterior de manter Recon no Aquário, mas cria uma quebra no fluxo aparente. Não se resolve apenas habilitando o botão.
+
+**Proposta para revisão, ainda não implementada no fluxo real:** Base / Oportunidades / Listas; um seletor de quatro produtos; seleção persistente por produto com indicação de itens fora do filtro; painel de montagem e uma revisão comum de envio direto/lista salva. Listas novas de um produto, preservando listas históricas mistas. Recon aponta ao Conciliador após verificar campo canônico e etapa de entrada, sem inserir Recon automaticamente no forecast de Monetização. Pendências podem ser organizadas em rascunho; contato e aprovação do sócio permanecem opcionais. Perfil, disponibilidade e andamento são conceitos separados.
+
+**Limite desta entrega:** estudo e renomeação, sem criar listas reais, modificar banco ou enviar negócios. Não tratar a proposta como funcionalidade já disponível. O protótipo é auditável no navegador e não usa APIs ou dados reais. Aceites de UX, idempotência, acesso e falhas parciais estão no estudo.
