@@ -1448,3 +1448,29 @@ tem todas as chaves da área, então nada muda para ele.
 **Status:** publicado (commit `8f9100f`). Piloto: o sócio regional do Rio é
 sócio de Minha Unidade (migration `20260917170000`), páginas idênticas antes e
 depois. Pela tela Acessos, a Victor nomeou o Mateus Nunes admin de Clientes.
+
+## [2026-09-17] O admin do Financeiro estava na Ana errada, e o /inicio escondia a Administração
+
+**Contexto:** a Ana da controladoria entrou procurando a Administração e não
+achou. Três causas somadas.
+
+**1. A pessoa errada.** Em `20260915170000` o papel `financeiro_admin` foi para
+`ana.aguiar`, com o critério "das duas, só a aguiar já entrou". São duas
+pessoas: a da controladoria é a Ana Laura **Carvalhais**; a Aguiar é uma das
+quatro colegas que ela pediu para incluir no Financeiro. Migration
+`20260917233000` move o papel (com gate: a Aguiar nunca concedeu nada). O gate
+de `20260917_gestao_acessos.sql` passa a usar o uuid da Carvalhais.
+
+**2. O cartão que não existia.** O `/inicio` filtrava por `temArea(a.slug)`, e
+quem tem só a área de um ITEM (`admin_financeiro` dentro da Administração)
+ficava sem cartão — o mesmo defeito que a lateral já tinha resolvido em
+`areasVisiveis`. Agora usa a mesma segunda condição, e o cartão aponta para a
+primeira página que a pessoa abre, respeitando `Item.chave`.
+
+**3. Produto único ia para o Ops.** Quem só tem o Financeiro caía no
+`/rede-overview`, inclusive pelo "Ver todas as frentes" do cockpit. Agora vai
+para `/financeiro`, depois de `garantirSessoesIrmas()` (efeito de filho roda
+antes do de pai; sair no render abria o cockpit em 401). Só o Financeiro: o
+"Sair" do cockpit passa a ir para `/auth?sair=1`, que desloga Ops, Growth e
+Financeiro; o do Growth não foi conferido, e voltar a ele com a sessão
+reemitida prenderia a pessoa lá dentro.

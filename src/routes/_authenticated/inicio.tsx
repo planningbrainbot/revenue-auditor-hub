@@ -1,10 +1,12 @@
+import { useEffect } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
-import { AREAS, areaDoItem } from "@/lib/areas";
+import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
+import { AREAS, areaDoItem, type Area } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
 import { Card } from "@/components/ui/card";
 
@@ -57,9 +59,27 @@ type Produto = {
   interno?: boolean;
 };
 
+/**
+ * Navegação para outra aplicação do domínio, DEPOIS da sessão dela existir. O
+ * efeito que emite as sessões irmãs mora no layout, e efeito de filho roda antes
+ * do de pai: sair daqui no render abriria o cockpit sem sessão, em 401.
+ */
+function IrParaOutraAplicacao({ href }: { href: string }) {
+  useEffect(() => {
+    let vivo = true;
+    void garantirSessoesIrmas().finally(() => {
+      if (vivo) window.location.replace(href);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [href]);
+  return null;
+}
+
 function InicioPage() {
   const navigate = useNavigate();
-  const { temArea, loading, primaryRole } = usePermissions();
+  const { temArea, can, loading, primaryRole } = usePermissions();
 
   const acessoGrowthFn = useServerFn(meuAcessoGrowth);
   const growth = useQuery({
@@ -90,20 +110,29 @@ function InicioPage() {
   // Mesmo critério da lateral desde 15/09/2026: quem manda é a ÁREA. O cartão
   // aponta para a primeira página que a pessoa realmente abre, que pode não ser
   // a primeira da área quando um item guarda área própria (a Matriz do broker).
-  const produtos: Produto[] = AREAS.filter((a) => temArea(a.slug)).map<Produto | null>((a) => {
-    const primeiro = a.grupos
-      .flatMap((g) => g.items)
-      .find((i) => temArea(areaDoItem(a, i)));
-    if (!primeiro) return null;
-    return {
-      slug: a.slug,
-      nome: a.nome,
-      descricao: a.descricao,
-      href: primeiro.url,
-      Icone: a.icone,
-      interno: true,
-    };
-  }).filter((x): x is Produto => x !== null);
+  //
+  // A área também entra quando a pessoa tem SÓ a área de um item dela — a mesma
+  // segunda condição de `areasVisiveis` na lateral. É a controladoria: tem
+  // "Acessos do Financeiro" e não tem a Administração, e sem isto o cartão não
+  // existia e a tela só abria por link direto (17/09/2026).
+  const alcanca = (a: Area) =>
+    temArea(a.slug) || a.grupos.some((g) => g.items.some((i) => i.area && temArea(i.area)));
+  const produtos: Produto[] = AREAS.filter(alcanca)
+    .map<Produto | null>((a) => {
+      const primeiro = a.grupos
+        .flatMap((g) => g.items)
+        .find((i) => temArea(areaDoItem(a, i)) && (!i.chave || can(i.chave)));
+      if (!primeiro) return null;
+      return {
+        slug: a.slug,
+        nome: a.nome,
+        descricao: a.descricao,
+        href: primeiro.url,
+        Icone: a.icone,
+        interno: true,
+      };
+    })
+    .filter((x): x is Produto => x !== null);
 
   if (growth.data?.temAcesso) {
     produtos.push({
@@ -126,6 +155,14 @@ function InicioPage() {
 
   // Um produto só: nada a escolher. Chegar aqui por link direto não pode virar
   // uma tela com um botão — manda para onde a pessoa ia de qualquer jeito.
+  // Quando o que sobrou é o Financeiro, é para ele: quem só tem o cockpit caía
+  // no /rede-overview, que não abre para ela — inclusive pelo "Ver todas as
+  // frentes" de dentro do cockpit (17/09/2026). Só o Financeiro porque o "Sair"
+  // dele passa por /auth?sair=1 e desloga o Ops junto; o do Growth não se sabe,
+  // e mandar de volta para ele com a sessão reemitida prenderia a pessoa lá.
+  if (produtos.length === 1 && produtos[0].slug === "financeiro") {
+    return <IrParaOutraAplicacao href={produtos[0].href} />;
+  }
   if (produtos.length === 1) return <Navigate to={opsHref} replace />;
 
   function abrir(p: Produto, fixar: boolean) {

@@ -99,7 +99,7 @@ do $$
 declare
   sa    constant uuid := '5c4d0e46-fc33-4132-bcca-47c05ad001c7';  -- super admin
   rio   constant uuid := 'b73f6a7c-db83-4a68-acc7-f2c7fde4caa4';  -- sócio regional do Rio
-  ana   constant uuid := '65ce2f14-c9d7-4587-85fe-c3db2972d4ee';  -- financeiro_admin
+  ana   constant uuid := 'c68b4fcb-9e15-4180-822c-9f03cbf898c7';  -- financeiro_admin (ana.carvalhais desde 20260917233000)
   italo constant uuid := '9bb70b7c-196f-4ef3-82df-07adfcba9c01';  -- sócio sem unidade
   novo  uuid := gen_random_uuid();
   novo2 uuid := gen_random_uuid();

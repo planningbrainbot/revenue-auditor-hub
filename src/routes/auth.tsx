@@ -30,6 +30,17 @@ function AuthPage() {
   const [recoverSent, setRecoverSent] = useState(false);
 
   useEffect(() => {
+    // `?sair=1` é o "Sair" das outras aplicações do domínio (o cockpit do
+    // Financeiro). Elas só alcançam a própria sessão; sem isto a do Ops ficava
+    // aberta, e o "/" devolvia a pessoa para dentro do produto de onde saiu.
+    if (new URLSearchParams(window.location.search).has("sair")) {
+      void Promise.allSettled([
+        supabase.auth.signOut(),
+        getGrowthBrowserClient()?.auth.signOut(),
+        getFinanceiroBrowserClient()?.auth.signOut(),
+      ]).then(() => window.history.replaceState(null, "", "/auth"));
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/" });
     });
