@@ -6,6 +6,7 @@ import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.finan
 import { emitirSessaoFinanceiro, emitirSessaoGrowth } from "@/lib/sessoes-irmas.functions";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PASSWORD_RECOVERY_URL, recoveryRequestError } from "@/lib/password-recovery";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -36,13 +37,17 @@ function AuthPage() {
 
   async function handleRecoverSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: PASSWORD_RECOVERY_URL,
       });
-      if (error) throw error;
+      if (error) {
+        setError(recoveryRequestError(error.status));
+        return;
+      }
       setRecoverSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
@@ -208,8 +213,9 @@ function AuthPage() {
         ) : recoverSent ? (
           <div className="mt-6 space-y-4 text-center">
             <p className="text-sm text-foreground">
-              Se houver uma conta com o email <span className="font-medium">{email}</span>,
-              enviamos um link para redefinir a senha.
+              Se houver uma conta com o email <span className="font-medium">{email}</span>, enviamos
+              um link e um código para redefinir a senha. Use o e-mail mais recente, válido por 1
+              hora.
             </p>
             <button
               type="button"
@@ -222,7 +228,8 @@ function AuthPage() {
         ) : (
           <form onSubmit={handleRecoverSubmit} className="mt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Informe seu email de acesso. Vamos enviar um link para você criar uma nova senha.
+              Informe seu email de acesso. Vamos enviar um link e um código para criar uma nova
+              senha.
             </p>
             <div>
               <label className="block text-sm font-medium text-foreground">Email</label>
@@ -288,4 +295,3 @@ function AuthPage() {
     </div>
   );
 }
-
