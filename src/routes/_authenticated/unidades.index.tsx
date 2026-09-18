@@ -11,7 +11,6 @@ import { RedeContent } from "@/components/page-content/rede-content";
 const DESTINO_DA_ABA = {
   royalties: "/unidades/royalties",
   historico: "/unidades/historico",
-  cac: "/unidades/cac",
   split: "/unidades/split",
 } as const;
 

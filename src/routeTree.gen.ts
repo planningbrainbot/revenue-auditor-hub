@@ -56,7 +56,6 @@ import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
 import { Route as AuthenticatedUnidadesHistoricoRouteImport } from './routes/_authenticated/unidades.historico'
-import { Route as AuthenticatedUnidadesCacRouteImport } from './routes/_authenticated/unidades.cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
@@ -328,12 +327,6 @@ const AuthenticatedUnidadesHistoricoRoute =
     path: '/historico',
     getParentRoute: () => AuthenticatedUnidadesRoute,
   } as any)
-const AuthenticatedUnidadesCacRoute =
-  AuthenticatedUnidadesCacRouteImport.update({
-    id: '/cac',
-    path: '/cac',
-    getParentRoute: () => AuthenticatedUnidadesRoute,
-  } as any)
 const AuthenticatedRoyaltiesSplitRoute =
   AuthenticatedRoyaltiesSplitRouteImport.update({
     id: '/split',
@@ -452,7 +445,6 @@ export interface FileRoutesByFullPath {
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
-  '/unidades/cac': typeof AuthenticatedUnidadesCacRoute
   '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -510,7 +502,6 @@ export interface FileRoutesByTo {
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
-  '/unidades/cac': typeof AuthenticatedUnidadesCacRoute
   '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -572,7 +563,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
-  '/_authenticated/unidades/cac': typeof AuthenticatedUnidadesCacRoute
   '/_authenticated/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -634,7 +624,6 @@ export interface FileRouteTypes {
     | '/admin/validacao'
     | '/broker/admin'
     | '/royalties/split'
-    | '/unidades/cac'
     | '/unidades/historico'
     | '/unidades/royalties'
     | '/unidades/split'
@@ -692,7 +681,6 @@ export interface FileRouteTypes {
     | '/admin/validacao'
     | '/broker/admin'
     | '/royalties/split'
-    | '/unidades/cac'
     | '/unidades/historico'
     | '/unidades/royalties'
     | '/unidades/split'
@@ -753,7 +741,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/validacao'
     | '/_authenticated/broker/admin'
     | '/_authenticated/royalties/split'
-    | '/_authenticated/unidades/cac'
     | '/_authenticated/unidades/historico'
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
@@ -1101,13 +1088,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUnidadesHistoricoRouteImport
       parentRoute: typeof AuthenticatedUnidadesRoute
     }
-    '/_authenticated/unidades/cac': {
-      id: '/_authenticated/unidades/cac'
-      path: '/cac'
-      fullPath: '/unidades/cac'
-      preLoaderRoute: typeof AuthenticatedUnidadesCacRouteImport
-      parentRoute: typeof AuthenticatedUnidadesRoute
-    }
     '/_authenticated/royalties/split': {
       id: '/_authenticated/royalties/split'
       path: '/split'
@@ -1208,7 +1188,6 @@ const AuthenticatedRoyaltiesRouteWithChildren =
   )
 
 interface AuthenticatedUnidadesRouteChildren {
-  AuthenticatedUnidadesCacRoute: typeof AuthenticatedUnidadesCacRoute
   AuthenticatedUnidadesHistoricoRoute: typeof AuthenticatedUnidadesHistoricoRoute
   AuthenticatedUnidadesRoyaltiesRoute: typeof AuthenticatedUnidadesRoyaltiesRoute
   AuthenticatedUnidadesSplitRoute: typeof AuthenticatedUnidadesSplitRoute
@@ -1216,7 +1195,6 @@ interface AuthenticatedUnidadesRouteChildren {
 }
 
 const AuthenticatedUnidadesRouteChildren: AuthenticatedUnidadesRouteChildren = {
-  AuthenticatedUnidadesCacRoute: AuthenticatedUnidadesCacRoute,
   AuthenticatedUnidadesHistoricoRoute: AuthenticatedUnidadesHistoricoRoute,
   AuthenticatedUnidadesRoyaltiesRoute: AuthenticatedUnidadesRoyaltiesRoute,
   AuthenticatedUnidadesSplitRoute: AuthenticatedUnidadesSplitRoute,

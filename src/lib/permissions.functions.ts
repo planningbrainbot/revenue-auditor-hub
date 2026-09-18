@@ -128,9 +128,9 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.unidades_rede",
-    label: "Regras da Rede, Apuração de Royalties e CAC",
+    label: "Regras da Rede e Apuração de Royalties",
     description:
-      "As três páginas de /unidades que andam juntas: Regras da Rede, Apuração de Royalties e Apuração de CAC. Uma chave só porque quem apura precisa das três.",
+      "As duas páginas de /unidades que andam juntas: Regras da Rede e Apuração de Royalties. Uma chave só porque quem apura precisa das duas.",
     group: "Acesso",
   },
   {
@@ -233,7 +233,7 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "manage.repasses",
-    label: "Lançar repasses (Royalties/CAC)",
+    label: "Lançar repasses (Royalties)",
     description: "Importar planilha e lançar/excluir repasses recebidos das unidades.",
     group: "Auditoria",
   },

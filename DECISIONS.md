@@ -1317,6 +1317,31 @@ Metadados ECD históricos ficam em `base_ecd_registros`, unidos ao cadastro fisc
 **Decisão:** manter validade de uma hora e verificação apenas após salvar a nova senha. A rota trata links legados explicitamente, sem a detecção automática do SDK, tolera os formatos usuais de encaminhamento e preserva o fragmento até terminar para não perder o token ao recarregar. Expiração só é afirmada após resposta do Auth. O usuário pode escolher código + e-mail quando o link não abre corretamente; código e link são o mesmo pedido de recuperação, nunca uma senha enviada por e-mail. A atualização verifica a identidade e não usa uma sessão existente de outra conta.
 
 **Design e publicação:** layout compartilhado com logo, verde `#0ae18c`, texto `#10171c`, fundo `#f4f7f9`, CTA e alternativa por código. Template do Supabase gerado e testado a partir do código; a configuração hospedada deve ser aplicada separadamente, após a tela nova. Sem mudanças de provedor, remetente, permissões ou bancos legados. Relatório em `docs/dev_notes/recuperacao-senha/resultado.md`.
+## [2026-09-15] A Apuração de CAC passa a ser lista do pipe do Pipefy, não dos contratos
+
+**Contexto:** a tela `/unidades/cac` nascia dos contratos ganhos no Pipedrive: todo contrato de unidade que paga CAC virava item, e o pipe `[PTRS-CLI-03] Central de Contratos` (307285170) só respondia "já assinou?". Eram 117 itens, a maioria sem cobrança nenhuma em andamento, e a decisão de cobrar (quando, quanto) vivia fora do sistema, em planilha. Em 15/09/2026 o usuário montou o pipe **"Cobrança CAC Adiantado" (307316953)**, com uma fase por estágio da cobrança, e pediu que a tela passasse a se basear nele.
+
+**Decisão — o pipe é a lista.** Um card é uma cobrança. Quem não tem card não aparece na lista principal. As cinco fases mapeiam o que está liberado para cobrar da unidade:
+
+| Fase | O que libera |
+|---|---|
+| Nova Cobrança | nada |
+| Ainda não Faturou | nada (segura: o cliente ainda não faturou) |
+| Cobrar 50% | parcela 1 |
+| Cobrar 100% | parcela 1 + parcela 2 |
+| Cobrança Concluída | tudo |
+
+Fase que não estiver nessa lista não libera nada, de propósito: melhor segurar até alguém mapear do que cobrar por engano. Esse mapeamento é interpretação dos nomes das fases, não foi dito com todas as letras pelo usuário, e é o primeiro lugar a conferir se a cobrança sair errada.
+
+**Decisão — o valor continua vindo de `contratos.mrr_mensal`,** com as regras por unidade que já existiam (atribuição, 7 dias, excedente mensal de Patos, corte dos R$50 mil da Campo Novo). O pipe não tem campo de valor. O card se liga ao contrato pelo **nome do cliente normalizado** (sem acento, sem caixa, sem sufixo societário) dentro da unidade, porque o card não carrega CNPJ nem Deal ID. Nos 26 cards de hoje isso casou 26 de 26.
+
+**Decisão — o gate antigo sai.** A fase no pipe de contratos deixa de decidir a cobrança de CAC: uma fonte só, a do pipe da própria cobrança. A coluna "Assinatura do contrato" virou "Fase da cobrança".
+
+**Decisão — item sem card não some da base.** Os 80 itens anteriores ao pipe (R$ 184 mil em aberto; 25 deles já com pagamento marcado e vínculo com royalties) continuam gravados e aparecem num aviso à parte, com toggle "Mostrar". Sumir com eles apagaria da tela cobrança que já aconteceu. Para voltarem à lista, basta abrir card para eles.
+
+**Status: superado pela remoção da tela em 18/09/2026** (entrada abaixo). O que valeu foi o sync do pipe, que ficou de pé. Migration `supabase/migrations/20260915160000_cac_cobranca_pipefy.sql` **já aplicada no banco único** (`cac_cobranca_cards` + `cac_apuracao_itens.pipefy_card_id`; ambas aditivas). Edge Function `pipefy-cac-cobranca-sync` deployada e rodada uma vez (26 cards). Agendada no n8n em `[Pipefy] Sync - Cobranca CAC Adiantado (n8n)` (`GJIMxhmzwgtJEFgj`), a cada 30 min.
+
+**Próximos passos:** nenhum. A tela saiu; o que restou do trabalho é o sync do pipe.
 
 ## [2026-09-16] O financeiro da unidade vira área própria, e a Administração sai do seletor
 
@@ -1511,3 +1536,17 @@ A fila complementar nasce na mesma transação do status `sent`, usa lease e mar
 **Contexto:** um negócio marcado como ganho pelo closer não aparecia no indicador porque faltava preencher o campo customizado de assinatura.
 
 **Decisão:** o realizado comercial passa a “Contratos ganhos”: status atual `won` e data `won_time` do Pipedrive (histórico de ganho como alternativa), no fuso de São Paulo. Atribuir o movimento ao usuário que marcou ganho quando disponível no histórico. Receita e assinatura continuam campos independentes de completude; não condicionar a contagem a eles nem inventar valores. Negócios reabertos/perdidos deixam esse realizado. A chave interna `signed` é preservada por compatibilidade, com versão 3 do cálculo para reprocessar o cache. `signed_on` conserva a data documental; `won_on` alimenta o ciclo comercial e as coortes.
+
+## [2026-09-18] A Apuração de CAC sai do ar, e o pipe continua alimentando o broker
+
+**Contexto:** três dias depois de a tela passar a nascer do pipe "Cobrança CAC Adiantado", o usuário pediu para excluir `/unidades/cac`. A decisão é dele e não precisa de motivo técnico registrado aqui.
+
+**Decisão — sai a tela, fica o dado.** Foram removidos a rota `unidades.cac.tsx`, o conteúdo `components/cac/`, o hook `use-cac.ts`, as funções de servidor `lib/cac.functions.ts`, o item de menu em `areas.ts` e o redirect `/unidades?tab=cac` (que agora cai em `/unidades`). As três tabelas continuam gravadas: `cac_apuracao` (38), `cac_apuracao_itens` (117) e `cac_cobranca_cards` (84). Apagar histórico de cobrança que já aconteceu não foi pedido e não se desfaz.
+
+**Decisão — a notificação de CAC é desligada.** `trg_contas_receber_notificar_cac` e `notificar_cac_pagamento()` saem: o aviso do sininho dizia "parcela 2 liberada" e mandava a pessoa para uma URL que não existe mais. Era o único emissor de notificação in-app; a tabela `notificacoes`, a RLS, o realtime e o sininho ficam de pé para o próximo emissor. Migration `20260918120000_cac_tela_removida_desliga_notificacao.sql`.
+
+**Decisão — o sync do pipe NÃO é desligado, contra o pedido original.** A intenção era desligar todo o backend de CAC junto com a tela, mas `ops.broker_cac_sync()` lê `v_cac_cobranca_pipe` (ou seja, `cac_cobranca_cards`) para lançar os débitos de CAC no extrato do broker, origem `cac_pipe`: 82 movimentos, o último de 16/09/2026. Desligar a Edge Function `pipefy-cac-cobranca-sync` ou o agendamento `[Pipefy] Sync - Cobranca CAC Adiantado (n8n)` (`GJIMxhmzwgtJEFgj`, a cada 30 min) congelaria a cobrança de CAC das unidades no broker. Os dois seguem ativos, e a Edge Function e as duas migrations do pipe entram no repositório agora: estavam aplicadas em produção e fora do git, que é a pior combinação possível.
+
+**Decisão — `trg_sync_cac_pago_via_recebimento` fica.** Dispara no pagamento de royalties, não na tela. Removê-lo mudaria o comportamento de uma página viva para limpar algo que não incomoda.
+
+**Chave de permissão:** nenhuma foi removida. A tela usava `view.unidades_rede`, compartilhada com Regras da Rede e Apuração de Royalties; só os rótulos que citavam CAC foram corrigidos.
