@@ -16,7 +16,6 @@
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
 import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.financeiro";
 import {
-  emitirSessaoGrowth,
   emitirSessaoFinanceiro,
   sincronizarConcessaoFinanceiro,
 } from "@/lib/sessoes-irmas.functions";
@@ -75,7 +74,10 @@ export function garantirSessoesIrmas(): Promise<void> {
   if (emAndamento) return emAndamento;
   emAndamento = (async () => {
     await Promise.all([
-      garantirUma("Growth", getGrowthBrowserClient(), emitirSessaoGrowth),
+      // O Growth não é mais sessão irmã: desde 17/09/2026 ele mora no banco
+      // único e lê o MESMO cookie de login do Ops (sb-npkn…-auth-token no
+      // domínio raiz). Emitir sessão no projeto antigo só criaria um cookie
+      // que ninguém lê.
       garantirUma(
         "Financial",
         getFinanceiroBrowserClient(),

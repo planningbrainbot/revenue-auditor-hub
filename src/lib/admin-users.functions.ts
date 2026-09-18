@@ -328,12 +328,30 @@ async function actorEmail(userId: string): Promise<string> {
   return data?.email ?? "desconhecido";
 }
 
-/** Procura o usuário do Growth por e-mail. O projeto tem ~25 usuários. */
-async function findGrowthUser(growth: NonNullable<ReturnType<typeof import("@/integrations/supabase/client.growth.server").getGrowthAdmin>>, email: string) {
-  const { data, error } = await growth.auth.admin.listUsers({ page: 1, perPage: 1000 });
+// ─────────────────────────────────────────────────────────────
+// Acesso ao Growth, pelo banco único (17/09/2026)
+//
+// Até a migração, estas funções falavam com o projeto antigo do Growth
+// (wojgzfoeokgquxeobpwk): login próprio e allowlist por e-mail. Agora o Growth
+// mora no schema `growth` do banco único, e a conta é a MESMA do Ops:
+//   - a allowlist é `growth.membros`, por user_id;
+//   - a porta do produto é `public.produto_acesso` (produto = 'growth');
+//   - revogar tira as duas coisas e NUNCA apaga a conta.
+// ─────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function growthDb(): Promise<any> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (supabaseAdmin as any).schema("growth");
+}
+
+async function contaDoBancoUnico(email: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) {
     console.error("[growth] listUsers failed:", error);
-    throw new Error("Falha ao consultar usuários do Growth.");
+    throw new Error("Falha ao consultar usuários.");
   }
   return data.users.find((u) => (u.email ?? "").toLowerCase() === email) ?? null;
 }
@@ -342,19 +360,31 @@ export const adminListGrowthAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await ensureAdmin(context.userId);
-    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
-    const growth = getGrowthAdmin();
-    if (!growth) return { configured: false as const, membros: [] };
-
-    const { data, error } = await growth
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const growth = await growthDb();
+    const { data: membros, error } = await growth
       .from("membros")
-      .select("email, papel, departamento, nome")
-      .order("email");
+      .select("user_id, papel, departamento");
     if (error) {
       console.error("[adminListGrowthAccess] membros query failed:", error);
       throw new Error("Erro ao listar acessos do Growth.");
     }
-    return { configured: true as const, membros: data ?? [] };
+    const ids = ((membros ?? []) as { user_id: string }[]).map((m) => m.user_id);
+    const { data: perfis } = ids.length
+      ? await supabaseAdmin.from("profiles").select("user_id, nome, email").in("user_id", ids)
+      : { data: [] };
+    const perfil = new Map(
+      ((perfis ?? []) as { user_id: string; nome: string | null; email: string | null }[]).map((p) => [p.user_id, p]),
+    );
+    const lista = ((membros ?? []) as { user_id: string; papel: string; departamento: string | null }[])
+      .map((m) => ({
+        email: (perfil.get(m.user_id)?.email ?? "").toLowerCase(),
+        nome: perfil.get(m.user_id)?.nome ?? null,
+        papel: m.papel,
+        departamento: m.departamento,
+      }))
+      .sort((x, y) => x.email.localeCompare(y.email));
+    return { configured: true as const, membros: lista };
   });
 
 export const adminGrantGrowthAccess = createServerFn({ method: "POST" })
@@ -378,46 +408,59 @@ export const adminGrantGrowthAccess = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId);
-    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
-    const growth = getGrowthAdmin();
-    if (!growth) throw new Error("Integração com o Growth não está configurada neste ambiente.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const growth = await growthDb();
 
-    const existente = await findGrowthUser(growth, data.email);
+    // A conta é a mesma do Ops. Só cria quando a pessoa ainda não entra em
+    // nada; a senha informada vale para todos os produtos.
+    let conta = await contaDoBancoUnico(data.email);
     let loginCriado = false;
-
-    if (!existente) {
+    if (!conta) {
       if (!data.password) {
-        throw new Error("Esta pessoa ainda não tem login no Growth — defina uma senha inicial.");
+        throw new Error("Esta pessoa ainda não tem login no Brain — defina uma senha inicial.");
       }
-      const { error } = await growth.auth.admin.createUser({
+      const { data: criado, error } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
         email_confirm: true,
-        user_metadata: { nome: data.nome },
+        user_metadata: { nome: data.nome, senha_definida: true },
       });
-      if (error) {
+      if (error || !criado.user) {
         console.error("[adminGrantGrowthAccess] createUser failed:", error);
-        throw new Error("Falha ao criar login no Growth.");
+        throw new Error("Falha ao criar o login.");
       }
+      conta = criado.user;
       loginCriado = true;
+      await supabaseAdmin
+        .from("profiles")
+        .upsert({ user_id: conta.id, nome: data.nome, email: data.email }, { onConflict: "user_id" });
     } else if (data.password) {
-      const { error } = await growth.auth.admin.updateUserById(existente.id, { password: data.password });
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(conta.id, { password: data.password });
       if (error) {
         console.error("[adminGrantGrowthAccess] updateUserById failed:", error);
-        throw new Error("Falha ao atualizar a senha no Growth.");
+        throw new Error("Falha ao atualizar a senha.");
       }
     }
 
     const { error: mErr } = await growth
       .from("membros")
       .upsert(
-        { email: data.email, nome: data.nome, papel: data.papel, departamento: data.departamento },
-        { onConflict: "email" },
+        { user_id: conta.id, papel: data.papel, departamento: data.departamento },
+        { onConflict: "user_id" },
       );
     if (mErr) {
       console.error("[adminGrantGrowthAccess] membros upsert failed:", mErr);
       throw new Error("Falha ao conceder acesso no Growth.");
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: pErr } = await (supabaseAdmin as any)
+      .schema("public")
+      .from("produto_acesso")
+      .upsert(
+        { user_id: conta.id, produto: "growth", concedido_por: context.userId },
+        { onConflict: "user_id,produto", ignoreDuplicates: true },
+      );
+    if (pErr) console.error("[adminGrantGrowthAccess] produto_acesso upsert failed:", pErr);
 
     // Mesmo padrão de auditoria que o próprio Growth já usa.
     await growth.from("admin_auditoria").insert({
@@ -439,17 +482,25 @@ export const adminRevokeGrowthAccess = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId);
-    const { getGrowthAdmin } = await import("@/integrations/supabase/client.growth.server");
-    const growth = getGrowthAdmin();
-    if (!growth) throw new Error("Integração com o Growth não está configurada neste ambiente.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const growth = await growthDb();
+    const conta = await contaDoBancoUnico(data.email);
+    if (!conta) throw new Error("Usuário não encontrado.");
 
-    // Só remove a linha de membros: o login continua existindo, mas sem
-    // acesso a dado nenhum (e_membro() é o portão de tudo no Growth).
-    const { error } = await growth.from("membros").delete().eq("email", data.email);
+    // Tira a allowlist e a porta do Growth. A conta continua: ela é a mesma
+    // do Ops e do Financeiro.
+    const { error } = await growth.from("membros").delete().eq("user_id", conta.id);
     if (error) {
       console.error("[adminRevokeGrowthAccess] membros delete failed:", error);
       throw new Error("Falha ao revogar acesso no Growth.");
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabaseAdmin as any)
+      .schema("public")
+      .from("produto_acesso")
+      .delete()
+      .eq("user_id", conta.id)
+      .eq("produto", "growth");
 
     await growth.from("admin_auditoria").insert({
       ator_email: await actorEmail(context.userId),

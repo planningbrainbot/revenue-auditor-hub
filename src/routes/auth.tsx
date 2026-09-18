@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
 import { getFinanceiroBrowserClient } from "@/integrations/supabase/client.financeiro";
-import { emitirSessaoFinanceiro, emitirSessaoGrowth } from "@/lib/sessoes-irmas.functions";
+import { emitirSessaoFinanceiro } from "@/lib/sessoes-irmas.functions";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PASSWORD_RECOVERY_URL, recoveryRequestError } from "@/lib/password-recovery";
@@ -92,23 +92,8 @@ function AuthPage() {
       // bancos — e não é: em 02/09/2026 confirmou-se que o login do Growth
       // vinha falhando em silêncio por isso, com o último sign-in 12 dias
       // atrás enquanto a pessoa entrava no Ops normalmente.
-      const growth = getGrowthBrowserClient();
-      if (growth) {
-        try {
-          const g = await emitirSessaoGrowth();
-          if (g.ok) {
-            const { error: gErr } = await growth.auth.verifyOtp({
-              type: "email",
-              token_hash: g.tokenHash,
-            });
-            if (gErr) console.info("[login] Growth não autenticado:", gErr.message);
-          } else {
-            console.info("[login] Growth sem sessão:", g.motivo);
-          }
-        } catch (e) {
-          console.info("[login] Growth indisponível:", e);
-        }
-      }
+      // Growth: nada a emitir desde 17/09/2026. Ele está no banco único e usa o
+      // mesmo cookie de login do Ops.
 
       // Financial: caminho diferente do Growth de propósito. Lá a senha é a
       // mesma nos dois bancos; aqui ninguém tem senha (o cockpit nasceu sem
