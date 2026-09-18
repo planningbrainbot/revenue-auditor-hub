@@ -5,6 +5,7 @@ import {
   getMyPermissions,
   type AppRole,
   type EscopoDoUsuario,
+  type VerComoAtivo,
 } from "@/lib/permissions.functions";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -31,6 +32,15 @@ export interface PermissionsState {
   scopedToOwnUnit: boolean;
   primaryRole: AppRole | null;
   isAdmin: boolean;
+  /**
+   * A simulação de unidade em curso, quando existe.
+   *
+   * Tudo o mais neste objeto já vem TROCADO quando ela está ligada: papéis,
+   * áreas, chaves, escopo e unidade são os do sócio simulado, e é por isso que
+   * nenhuma tela precisou saber que a simulação existe. Este campo serve para
+   * a moldura — a tarja do topo e o botão de sair —, nunca para decidir acesso.
+   */
+  verComo: VerComoAtivo | null;
 }
 
 const ESCOPO_VAZIO: EscopoDoUsuario = {
@@ -92,7 +102,10 @@ export function usePermissions(userIdOverride?: string): PermissionsState {
       // perguntam isso ainda falam `data.scope.own_unit_only`.
       scopedToOwnUnit: !escopo.todas_unidades,
       primaryRole: primary,
+      // Durante a simulação `roles` já é o do sócio, então isto é falso — e as
+      // telas que escondem botão de admin escondem sozinhas.
       isAdmin: roles.includes("admin"),
+      verComo: q.data?.verComo ?? null,
     };
   }, [q.data, q.isError, permsLoading]);
 }

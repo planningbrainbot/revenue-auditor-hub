@@ -11,6 +11,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { usePermissions } from "@/hooks/use-permissions";
+import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
 
@@ -72,32 +73,40 @@ function AuthenticatedLayout() {
       <div className="flex min-h-screen w-full bg-background [--app-header-h:60px]">
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-[var(--app-header-h)] items-center gap-3 border-b bg-card px-4">
-            <SidebarTrigger />
-            <div className="min-w-0 flex-1" />
-            <div className="flex items-center gap-2">
-              <div className="hidden flex-col items-end text-right md:flex">
-                <span className="text-xs text-muted-foreground">{user?.email}</span>
-                {!loading && primaryRole && (
-                  <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
-                    {ROLE_LABEL[primaryRole] ?? primaryRole}
-                    {(primaryRole === "socio" || primaryRole === "socio_regional") && unidade && (
-                      <span className="rounded bg-primary/15 px-1 py-px text-primary">{unidade}</span>
-                    )}
-                  </span>
-                )}
+          {/* Tarja e cabeçalho grudam JUNTOS: o botão de sair da simulação que
+              some ao rolar é o mesmo que não existe, porque a tela do sócio é
+              longa e a dúvida ("por que sumiu meu menu?") chega no meio dela. */}
+          <div className="sticky top-0 z-20">
+            <VerComoTarja />
+            <header className="flex h-[var(--app-header-h)] items-center gap-3 border-b bg-card px-4">
+              <SidebarTrigger />
+              <div className="min-w-0 flex-1" />
+              <div className="flex items-center gap-2">
+                <div className="hidden flex-col items-end text-right md:flex">
+                  <span className="text-xs text-muted-foreground">{user?.email}</span>
+                  {!loading && primaryRole && (
+                    <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
+                      {ROLE_LABEL[primaryRole] ?? primaryRole}
+                      {(primaryRole === "socio" || primaryRole === "socio_regional") && unidade && (
+                        <span className="rounded bg-primary/15 px-1 py-px text-primary">
+                          {unidade}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <NotificationBell />
+                <ThemeToggle />
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
+                >
+                  Sair
+                </button>
               </div>
-              <NotificationBell />
-              <ThemeToggle />
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
-              >
-                Sair
-              </button>
-            </div>
-          </header>
+            </header>
+          </div>
           <main className="flex-1">
             <Outlet />
           </main>

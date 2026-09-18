@@ -554,6 +554,19 @@ export type EscopoDoUsuario = {
 };
 
 /**
+ * A simulação de unidade em curso, como `ops.ver_como_atual` devolve.
+ * `{ ativo: false }` quando não há nenhuma. Ver `ver-como.functions.ts`.
+ */
+export type VerComoAtivo = {
+  ativo: boolean;
+  unidade_id?: number;
+  unidade?: string;
+  papel?: string;
+  expira_em?: string;
+  acesso?: { areas: string[]; permissions: string[] };
+};
+
+/**
  * Resolve papéis, áreas e chaves de uma pessoa.
  *
  * Fonte única do lado do servidor: `getMyPermissions`, o módulo Gente e a
@@ -591,12 +604,18 @@ export const getMyPermissions = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
-    const [acesso, escopoRes, unidadesRes, empresasRes, unidadeAtual] = await Promise.all([
+    const [acesso, escopoRes, unidadesRes, empresasRes, unidadeAtual, verComoRes] = await Promise.all([
       acessoDoUsuario(db, userId),
       db.from("usuario_escopo").select("todas_unidades, todas_empresas").eq("user_id", userId).maybeSingle(),
       db.from("usuario_unidades").select("unidade_id").eq("user_id", userId),
       db.from("usuario_empresas").select("empresa_id").eq("user_id", userId),
       supabase.rpc("current_user_unidade"),
+      // A simulação de unidade entra AQUI, e não numa consulta à parte, porque
+      // esta resposta é a fonte única do menu, das chaves e do recorte. Em
+      // duas chamadas existe o instante em que o menu já é do sócio e o
+      // recorte ainda é do admin — e é justamente esse instante que faria a
+      // tela mentir sobre o que o sócio vê.
+      db.rpc("ver_como_atual"),
     ]);
 
     const escopo: EscopoDoUsuario = {
@@ -612,13 +631,46 @@ export const getMyPermissions = createServerFn({ method: "GET" })
     // Áreas que a pessoa administra (admin ou sócio): abre "Minha equipe".
     const { data: administra } = await db.from("area_admins").select("area").eq("user_id", userId);
 
-    return {
+    const real = {
       roles: acesso.roles,
       areas: acesso.areas,
       permissions: acesso.permissions,
       administra: ((administra ?? []) as { area: string }[]).map((a) => a.area),
       escopo,
       unidade: (unidadeAtual?.data as string | null) ?? null,
+      verComo: null as VerComoAtivo | null,
+    };
+
+    // ── "Ver como" uma unidade (18/09/2026) ──────────────────────────────
+    //
+    // Quem autoriza é o banco: `ops.ver_como_atual` só devolve algo para quem
+    // é super admin AGORA e tem uma simulação dentro do prazo. Perder o perfil
+    // no meio derruba a simulação junto, então não existe o caso de uma
+    // resposta de sócio sobrevivendo a uma queda de acesso.
+    //
+    // A troca é deliberadamente COMPLETA: perfil, áreas, chaves, escopo e
+    // unidade de uma vez. Simular só o menu produziria a pior das telas — a do
+    // sócio, com o dado da rede inteira dentro — e é essa tela que alguém
+    // levaria para uma reunião achando que é o que o sócio enxerga.
+    const verComo = (verComoRes?.data ?? null) as VerComoAtivo | null;
+    if (!verComo?.ativo) return real;
+
+    return {
+      roles: [(verComo.papel ?? "socio_regional") as AppRole],
+      areas: verComo.acesso?.areas ?? [],
+      permissions: verComo.acesso?.permissions ?? [],
+      // Sócio simulado não administra equipe de ninguém: "Minha equipe" abriria
+      // a tela de convidar e remover gente, e convite é escrita — que sairia com
+      // o poder real do super admin, não com o do papel que ele está vestindo.
+      administra: [],
+      escopo: {
+        todas_unidades: false,
+        todas_empresas: false,
+        unidades: verComo.unidade_id ? [verComo.unidade_id] : [],
+        empresas: [],
+      },
+      unidade: verComo.unidade ?? null,
+      verComo,
     };
   });
 

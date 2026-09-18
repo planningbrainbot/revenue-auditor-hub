@@ -1550,3 +1550,19 @@ A fila complementar nasce na mesma transação do status `sent`, usa lease e mar
 **Decisão — `trg_sync_cac_pago_via_recebimento` fica.** Dispara no pagamento de royalties, não na tela. Removê-lo mudaria o comportamento de uma página viva para limpar algo que não incomoda.
 
 **Chave de permissão:** nenhuma foi removida. A tela usava `view.unidades_rede`, compartilhada com Regras da Rede e Apuração de Royalties; só os rótulos que citavam CAC foram corrigidos.
+
+## [2026-09-18] O super admin veste a unidade: "ver como" o sócio regional
+
+**Contexto:** o pedido do dono foi literal — "clico em Minha Unidade, seleciono a regional e ele me mostra a mesma visão que o sócio da unidade teria". Hoje não havia caminho nenhum: o perfil `admin` não tem a área `minha_unidade` (só `socio_regional` tem), então o Painel da Unidade nem aparece no menu dele; e mesmo abrindo por link direto, todas as telas do sócio recortam por `scopedToOwnUnit && unidade`, duas coisas que quem enxerga a rede inteira não tem. A única forma de saber o que o sócio via era perguntar a ele.
+
+**Decisão — simula-se o ACESSO, não a identidade.** `ops.ver_como` guarda uma linha por pessoa (unidade, papel, expira em 8h) e `getMyPermissions` passa a devolver o perfil, as áreas, as chaves, o escopo e a unidade do sócio simulado. Nenhuma tela precisou saber que a simulação existe: todas já liam essa mesma resposta. O que NÃO muda é o `auth.uid()` — a RLS continua sendo a do super admin, e qualquer gravação feita durante a simulação é dele, com o poder dele. Trocar identidade de verdade significaria emitir token de outra pessoa, e esse preço não se paga para responder "o que o sócio de Curitiba está vendo".
+
+**Consequência assumida:** a visão bate porque as telas do sócio filtram por unidade no cliente. Uma tela que dependesse só da RLS mostraria mais do que o sócio vê — das 155 policies, 4 isolam por unidade hoje. A tarja diz "as telas mostram só essa unidade", não "você está sem acesso ao resto".
+
+**Decisão — simula-se o PERFIL, não a pessoa.** 12 das 14 unidades não têm sócio com login (só Rio e Belém têm). Simular "o Fulano de Curitiba" só funcionaria em duas praças, então `ops.acesso_do_papel('socio_regional')` responde o que o perfil alcança, e a lista de unidades mostra o nome de quem de fato entra por ali quando existe — para ninguém achar que está vendo a conta de uma pessoa que não existe.
+
+**Decisão — a simulação expira em 8 horas e some do menu.** Esquecer a simulação ligada é o erro fácil, e o sintoma ("sumiu metade do meu menu") não aponta para a causa. Por isso a tarja âmbar no topo, grudada junto com o cabeçalho, com o botão de sair; e por isso o `administra` volta vazio durante a simulação: "Minha equipe" abriria a tela de convidar e remover gente, e convite é escrita, que sairia com o poder real do super admin.
+
+**Auditoria:** entrar e sair gravam em `ops.acessos_log` (`ver_como_iniciar` / `ver_como_encerrar`), com unidade e papel. Migration `20260918160000_ver_como_unidade.sql`, rollback em `supabase/rollback/`.
+
+**Chave de permissão:** nenhuma nova. Quem pode é o super admin, conferido no banco por `ops.eh_super_admin` dentro de `ops.ver_como_iniciar`.

@@ -56,7 +56,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, Eye } from "lucide-react";
+import { VerComoDialog } from "@/components/ver-como/ver-como-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -91,6 +92,10 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const { temArea, can, administra, isAdmin, loading } = usePermissions();
+  // A porta da simulação de unidade fica no seletor de frentes porque é lá que
+  // o super admin já troca de contexto. Durante a simulação o `isAdmin` é do
+  // papel vestido (falso), então o item some sozinho e a volta é pela tarja.
+  const [verComoAberto, setVerComoAberto] = useState(false);
 
   // "Está dentro deste caminho?" — serve para descobrir a ÁREA da rota, onde
   // qualquer filha de /unidades deve acender a área de Receita e Repasses.
@@ -227,6 +232,27 @@ export function AppSidebar() {
                 </Link>
               </DropdownMenuItem>
             ))}
+            {isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  // `preventDefault` para o menu não fechar antes do diálogo
+                  // existir: fechando junto, o foco volta para o gatilho e o
+                  // diálogo abre sem teclado.
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setVerComoAberto(true);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Eye className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">Minha Unidade</span>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    ver como
+                  </span>
+                </DropdownMenuItem>
+              </>
+            )}
             {(mostrarGrowth || mostrarFinanceiro) && <DropdownMenuSeparator />}
             {mostrarGrowth && (
               <DropdownMenuItem asChild>
@@ -247,6 +273,7 @@ export function AppSidebar() {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        <VerComoDialog aberto={verComoAberto} aoFechar={() => setVerComoAberto(false)} />
       </SidebarHeader>
       <SidebarContent>
         {areaAtual?.grupos.map((group) => (
