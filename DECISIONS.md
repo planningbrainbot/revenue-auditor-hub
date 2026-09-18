@@ -1566,3 +1566,165 @@ A fila complementar nasce na mesma transação do status `sent`, usa lease e mar
 **Auditoria:** entrar e sair gravam em `ops.acessos_log` (`ver_como_iniciar` / `ver_como_encerrar`), com unidade e papel. Migration `20260918160000_ver_como_unidade.sql`, rollback em `supabase/rollback/`.
 
 **Chave de permissão:** nenhuma nova. Quem pode é o super admin, conferido no banco por `ops.eh_super_admin` dentro de `ops.ver_como_iniciar`.
+
+## [2026-09-18] Funil de CAC: o grão é a venda, não o card, e a tela nasce de view
+
+**Contexto:** a conciliação do dia entre o BI de vendas (Produtos por Cliente,
+118 vendas de inside sales de 01/02 a 18/09/2026) e o pipe "Cobrança CAC"
+(307316953) mostrou que ninguém no Ops enxergava o caminho inteiro. O pipe dizia
+que faltava cobrar R$ 23 mil; faltavam R$ 170 mil. A diferença estava em 27 dos
+84 cards (32%) com o campo "Valor 1º Honorário" vazio, que o relatório do Pipefy
+soma como zero sem avisar. Cinco vendas já assinadas não tinham card nenhum, e
+dois cards não tinham venda correspondente.
+
+A tela `/unidades/cac` havia sido removida hoje de manhã (commit `5cd42ed`)
+porque mostrava apuração, e apuração já vive no extrato do broker. O que faltava
+não era aquela tela de volta: era o caminho entre os sistemas.
+
+**Decisão 1 — o grão da tela é a VENDA, não o card.** Card como grão esconde
+exatamente o vazamento mais caro, que é a venda assinada que nunca virou
+cobrança. Cards órfãos não somem: viram a etapa `card_sem_venda`, porque card sem
+venda é erro de cadastro que precisa aparecer, não linha a descartar.
+
+**Decisão 2 — a lógica mora em view, não no componente.** `ops.v_cac_funil` e
+`ops.v_cac_funil_resumo` (migration `20260918200000`). O mesmo cruzamento vai
+precisar ser lido pelo extrato do broker e por qualquer auditoria futura; regra
+de negócio duplicada em TSX é regra que sai de sincronia.
+
+**Decisão 3 — o escopo é venda de inside sales desde 01/02/2026, nas unidades
+que pagam CAC ou que já têm card.** Venda de sócio (pipeline 4) não gera CAC, por
+decisão já registrada no broker. São Bernardo entra mesmo com `paga_cac = false`,
+porque já tem cinco cards abertos, e leva o selo "não cobra CAC" na tela para que
+ninguém confunda acompanhamento com cobrança devida. Patos de Minas entra mesmo
+com zero card, porque paga CAC e tem 11 vendas: a ausência é justamente o achado.
+
+**Decisão 4 — chave de permissão reaproveitada.** `view.unidades_rede`, a mesma
+de Regras da Rede, Apuração de Royalties e da tela de CAC removida. Mesmo
+público, nenhuma chave nova para administrar. A view aplica escopo de unidade
+como `v_broker_cac_fila` faz: admin do broker vê a rede, os demais veem só
+`ops.minhas_unidades()`.
+
+**Armadilha resolvida na migration:** o pipe escreve "São Bernardo do Campo" e
+`ops.unidades` guarda "São Bernardo". `ops.cac_unidade_chave()` normaliza os
+dois, senão a unidade fica de fora do próprio funil. E o cruzamento com a Central
+de Contratos é por `pipedrive_deal_id`, nunca por `cliente`: essa coluna vem com
+a string `undefined` em 80 dos 460 cards, defeito do
+`supabase/functions/pipefy-contratos-sync` que ainda não foi corrigido.
+
+## [2026-09-18] O funil de CAC só conta como falha o que é falha: `unidades.cac_desde`
+
+**Contexto:** o dono olhou o degrau "Contrato assinado → Card de cobrança
+aberto" (96 para 81, −15, −R$ 93.350) e disse o óbvio: "esse gap não deveria
+existir, se teve contrato assinado deveria ter card no CAC". Ele está certo, e o
+número estava errado. Dos 15, nove eram de Patos de Minas com venda anterior a
+agosto/2026 (a unidade só entra no CAC em 01/08/2026, decisão de 16/09), três
+eram de São Bernardo (que está com `paga_cac = false`) e uma era Grupo Andrade
+Bezerra, cujo card existe, só que aberto em Fortaleza enquanto o contrato diz
+Maceió. Falha operacional de verdade: três.
+
+**Decisão 1 — elegibilidade vira dado, não folclore.** Nova coluna
+`ops.unidades.cac_desde`: data em que a venda da unidade passa a gerar CAC, nula
+quando a unidade não cobra. Patos entra com 01/08/2026; as outras quatro com
+01/02/2026. O funil anda só sobre vendas elegíveis, e o que fica de fora vira a
+etapa `fora_da_regua`, visível na lista mas fora da conta. Sem isso o número de
+falhas era cinco vezes maior que a realidade, e um painel que grita errado deixa
+de ser lido.
+
+**Decisão 2 — card aberto na unidade errada não é venda sem cobrança.** A busca
+do card tenta a unidade da venda e, não achando, procura o mesmo cliente em
+qualquer unidade: aparece como `card_em_outra_unidade`, com o nome da unidade
+onde o card está. **O dinheiro continua com a unidade do card**, não com a da
+venda, para não mover R$ 4.000 de Fortaleza para Maceió por causa de um cadastro
+que o dono já decidiu em 18/09 que é venda de Fortaleza.
+
+**Decisão 3 — o funil termina em dinheiro, não em fase.** Os degraus "1º
+honorário lançado", "alguma parcela cobrada" e "cobrança concluída" viraram um
+só, "Recebido", e embaixo do funil ficam as duas linhas que interessam:
+**recebido** e **falta receber**, com o churn dito à parte porque não entra.
+Pedido do dono: "preciso saber só o que já recebi e o que falta receber".
+
+**Decisão 4 — a exceção vem nomeada.** Quando existe assinado sem card, a tela
+abre com um alerta listando cliente, unidade, data do ganho e valor esperado.
+Zero é o estado correto, então a lista tem que caber na tela.
+
+## [2026-09-18] As quatro réguas do CAC: quem cobra, desde quando, acima de quanto, e o que nem é contrato
+
+**Contexto:** ao ler o funil, o dono corrigiu quatro coisas de uma vez, e cada
+uma virou dado em vez de exceção escrita no código.
+
+**1. São Bernardo, Recife e Sorocaba cobram CAC.** O cadastro dizia
+`paga_cac = false` para as três. Corrigido, com `cac_desde = 01/02/2026`. Efeito
+imediato: as três vendas assinadas de São Bernardo sem card (Seminter, Resico,
+SQi) deixam de ser "fora da régua" e viram a única falha operacional aberta da
+rede.
+
+**2. Piso por unidade.** Patos de Minas só paga CAC quando o contrato inteiro
+passa de R$ 10.000. Virou `ops.unidades.cac_valor_minimo_contrato`, lida como
+`coalesce(valor_total, mrr_mensal * 12, 0) >= piso`, e não como número escrito na
+view. Das 11 vendas de Patos no recorte, uma é elegível.
+
+**3. Churn não é falha de cobrança.** Bender Industrial (Fortaleza) está em
+"Churn no Contrato" e nunca teve card. Contar isso como "assinado sem card"
+acusa o time de algo que não aconteceu: cliente que saiu antes do 1º fee não
+precisava de cobrança aberta. Nova etapa `churn_sem_cobranca`, antes do gate.
+
+**4. Venda que não é contrato sai do funil.** MARKTECH Publicidade (Segunda
+Oportunidade) é um deal ganho no Pipedrive (90577, Assessoria DOC, R$ 3.000
+avulso) que nunca virou contrato. Em vez de um `where id <> 23219` na view,
+criamos `ops.cac_funil_ignorados` (contrato_id, motivo): a exclusão fica
+auditável, com motivo e data, e qualquer leitor futuro do CAC pode respeitá-la.
+
+**Grupo Andrade Bezerra é Fortaleza.** O Pipedrive (deal 61648) já dizia
+Fortaleza; `ops.contratos` dizia Maceió e `ops.empresas` também. Corrigidos: o
+contrato direto no Ops, e a empresa pelo Pipefy (record `1430891562`), porque
+`empresas.unidade` é campo que pertence ao Pipefy e o trigger
+`sync_empresa_to_pipefy` recusa escrita direta, por desenho. Nas apurações de
+CAC de julho, ambas em rascunho, o item de R$ 4.000 estava ativo em Maceió e
+excluído em Fortaleza, exatamente ao contrário: invertido.
+
+**Fica registrado como sintoma a investigar:** `ops.contratos.unidade` não é
+reprocessada depois do primeiro sync. Quando a unidade do deal muda no
+Pipedrive, o Ops fica com a antiga.
+
+## [2026-09-18] Piso do CAC de Patos é no honorário mensal, não no contrato inteiro
+
+Complementa a entrada anterior. Perguntado se os R$ 10.000 de Patos de Minas se
+medem no contrato inteiro ou no mensal, o dono respondeu **honorário mensal**.
+A coluna virou `ops.unidades.cac_honorario_minimo_mensal` e a elegibilidade lê
+`coalesce(valor_1_honorario do card, mrr_mensal da venda, 0) >= piso`.
+
+**Efeito:** nenhuma das 11 vendas de Patos no recorte gera CAC. A maior desde
+01/08/2026 é DOM LOGISTICS, com R$ 7.500 por mês, e GRUPO MAGANHA entrou no
+Pipedrive com valor zero e sem produtos (deal 94481). Patos aparece na tela com
+zero a receber, e isso é o correto, não falta de dado.
+
+Na mesma conversa: "Grupo Andrade Bezerra (Segunda Oportunidade)" (deal 89761,
+R$ 4.200/mês) **fica como Matriz**, por decisão do dono. Só o contrato principal
+(deal 61648) é Fortaleza.
+
+## [2026-09-18] Mudança de contrato deixa rastro, e o sync do Pipedrive parou de morrer por causa do guarda do Pipefy
+
+**O que se descobriu procurando a causa:** o sync `pipedrive-contratos-sync`
+**estava quebrado desde 17/09/2026**. Ele roda 14:10 UTC e terminava em
+`HTTP 400: Campo titulo pertence ao Pipefy. Use a fila de correção`. O PATCH em
+`empresas` acontece ANTES do upsert de contratos, então o run inteiro morria e
+nenhum contrato era atualizado havia dois dias. Não era "a unidade não é
+reprocessada": era o sync inteiro no chão, sem ninguém perceber, porque o único
+sinal era uma linha `status = 'erro'` em `ops.sync_log`.
+
+**Decisão 1 — quem manda nos campos compartilhados é o Pipefy, e o sync aceita
+isso.** No PATCH de empresa casada por CNPJ, o sync deixa de enviar `titulo`,
+`razao_social`, `unidade` e `tipo_unidade`, e envolve a chamada em try/catch: uma
+empresa recusada não derruba o sync de 600 contratos.
+
+**Decisão 2 — mudança de contrato vira histórico.** `ops.contratos_alteracoes`
+grava antes e depois de `unidade`, `titulo`, `cnpj`, `status_contrato`,
+`mrr_mensal`, `origem_pipeline` e `ganho_em`, por gatilho, com `alterado_por`
+nulo quando veio de sync e preenchido quando veio de tela. Só esses campos: valor
+e produto mudam a cada sincronização e virariam ruído. Um contrato que troca de
+unidade troca de dono do royalty, do CAC e do ranking; mudança assim não pode
+mais acontecer em silêncio.
+
+**Corrigido junto:** duas divergências vivas entre Pipedrive e Ops, Pamonha Doce
+(Curitiba → São Bernardo) e Lisart (Belém → Maceió), as duas já registradas na
+tabela nova.

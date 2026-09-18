@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Split,
   Store,
+  Target,
   TrendingUp,
   UserCheck,
   UserCog,
@@ -225,6 +226,11 @@ export const AREAS: Area[] = [
             title: "Histórico de Royalties",
             url: "/unidades/historico",
             icon: History,
+          },
+          {
+            title: "Funil de CAC",
+            url: "/unidades/funil-cac",
+            icon: Target,
           },
           {
             title: "Split do Asaas",
