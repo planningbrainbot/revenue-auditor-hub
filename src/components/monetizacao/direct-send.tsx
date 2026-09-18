@@ -36,7 +36,9 @@ export function DirectSend({
   const [owner, setOwner] = useState(28381245);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Awaited<ReturnType<typeof save>> | null>(null);
-  const [results, setResults] = useState<{ item: string; status: string; reason?: string }[]>([]);
+  const [results, setResults] = useState<
+    NonNullable<Awaited<ReturnType<typeof acionarMonetizacao>>["results"]>
+  >([]);
   const listId = useRef(crypto.randomUUID());
   const running = useRef(false);
   const save = useServerFn(salvarListaAquario),
@@ -85,25 +87,34 @@ export function DirectSend({
           },
         }));
       setSaved(list);
-      const progress: typeof results = [];
-      for (let start = 0; start < list.items.length; start += 10) {
-        const reply = await action({
-          data: { action: "send", items: list.items.slice(start, start + 10).map((i) => i.id) },
-        });
-        const batch = reply.results || [];
-        progress.push(...batch);
-        setResults([...progress]);
+      const progress: typeof results = [...results];
+      for (const item of list.items) {
         if (
-          batch.length !== Math.min(10, list.items.length - start) ||
-          batch.some((r) => r.status !== "sent")
+          progress.some(
+            (r) => r.item === item.id && r.status === "sent" && r.handoff?.status === "complete",
+          )
         )
-          break;
+          continue;
+        let outcome: (typeof results)[number];
+        try {
+          const reply = await action({ data: { action: "send", items: [item.id] } });
+          outcome = reply.results?.[0] || {
+            item: item.id,
+            status: "uncertain",
+            reason: "Resposta não confirmada. Atualize para conferir o CRM.",
+          };
+        } catch (e) {
+          outcome = { item: item.id, status: "uncertain", reason: (e as Error).message };
+        }
+        const old = progress.findIndex((r) => r.item === item.id);
+        if (old < 0) progress.push(outcome);
+        else progress[old] = outcome;
+        setResults([...progress]);
       }
       await invalidate();
       const sent = progress.filter((r) => r.status === "sent").length;
-      if (sent === list.items.length) {
-        toast.success(`${sent} oportunidade(s) no Pipedrive, com produto preenchido.`);
-        done();
+      if (sent === list.items.length && progress.every((r) => r.handoff?.status === "complete")) {
+        toast.success(`${sent} oportunidade(s) no Pipedrive, com dados preparados.`);
       } else
         toast.warning(
           `${sent} envio(s) confirmado(s). Confira os demais resultados na lista salva.`,
@@ -127,8 +138,8 @@ export function DirectSend({
         <DialogHeader>
           <DialogTitle>Enviar seleção ao Pipedrive</DialogTitle>
           <DialogDescription>
-            {accounts.length} conta(s) selecionada(s). Envio à etapa de entrada de Monetização, sem
-            validação obrigatória com a unidade.
+            {accounts.length} conta(s) selecionada(s). O card recebe empresa, contatos disponíveis,
+            qualificação, histórico e arquivos vinculados. Validação com a unidade é opcional.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -167,6 +178,10 @@ export function DirectSend({
             <li key={account.key} className="rounded border p-3">
               <strong>{account.name}</strong>
               <p className="mt-1 text-xs text-muted-foreground">
+                {account.band || "Faturamento não informado"} ·{" "}
+                {account.regime || "Regime não informado"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {!product
                   ? "Escolha o produto para conferir a oportunidade."
                   : result?.status !== "elegivel"
@@ -175,6 +190,31 @@ export function DirectSend({
                       ? available?.reason
                       : `Pronta para enviar · ${NOMES[product]}`}
               </p>
+              {available?.deal && (
+                <a
+                  className="mt-2 block text-xs text-primary underline"
+                  href={available.deal.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir card existente · {available.deal.owner}
+                </a>
+              )}
+              {product &&
+                result?.status !== "elegivel" &&
+                PRODUTOS.filter(
+                  (p) => p !== product && oferta(account, p).status === "elegivel",
+                ).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    disabled={busy || !!saved}
+                    onClick={() => setProduct(p)}
+                    className="mt-2 mr-3 text-xs text-primary underline disabled:opacity-50"
+                  >
+                    Conferir para {NOMES[p]}
+                  </button>
+                ))}
             </li>
           ))}
         </ul>
@@ -182,11 +222,12 @@ export function DirectSend({
           <Notice>
             {accounts.length - ready.length} conta(s) têm dados pendentes, estão fora do perfil ou
             já têm oportunidade/reserva. Não serão incluídas neste envio. Consulte o motivo acima;
-            os dados podem ser completados na lista.
+            {product === "finance" && "Finance exige faturamento abaixo de R$ 25 milhões. "}As
+            demais contas aptas continuam disponíveis para envio; cada empresa mostra seu motivo.
           </Notice>
         )}
         {!!results.length && (
-          <ul className="space-y-1 text-xs">
+          <ul className="space-y-3 text-sm" aria-live="polite">
             {results.map((r) => (
               <li key={r.item}>
                 {
@@ -194,23 +235,67 @@ export function DirectSend({
                     (a) => a.key === saved?.items.find((i) => i.id === r.item)?.account_key,
                   )?.name
                 }
-                : {r.status === "sent" ? "Enviado" : r.reason || "Conferir envio na lista salva"}
+                :{" "}
+                {r.status === "sent"
+                  ? r.handoff?.status === "complete"
+                    ? "Card preparado"
+                    : "Card criado · dados complementares pendentes"
+                  : r.reason || "Conferir envio na lista salva"}
+                {r.deal_id && (
+                  <a
+                    className="ml-2 text-primary underline"
+                    target="_blank"
+                    rel="noreferrer"
+                    href={`https://grupoplanning.pipedrive.com/deal/${r.deal_id}`}
+                  >
+                    Abrir no Pipedrive
+                  </a>
+                )}
+                {r.handoff?.status === "complete" && (
+                  <p className="text-xs text-muted-foreground">
+                    {r.handoff.people || 0} contato(s) · {r.handoff.notes || 0} nota(s) de histórico
+                    · {r.handoff.files || 0} arquivo(s) · {r.handoff.documents || 0} documento(s)
+                    referenciados
+                  </p>
+                )}
+                {[...(r.handoff?.errors || []), ...(r.handoff?.warnings || [])].map(
+                  (message, i) => (
+                    <p key={i} className="text-xs text-amber-600">
+                      {message}
+                    </p>
+                  ),
+                )}
               </li>
             ))}
           </ul>
         )}
         <Button
           onClick={send}
-          disabled={busy || !data.permissions.send || (!saved && !ready.length) || !!results.length}
+          disabled={
+            busy ||
+            !data.permissions.send ||
+            (!saved && !ready.length) ||
+            (!!results.length &&
+              results.length === saved?.items.length &&
+              results.every((r) => r.status === "sent" && r.handoff?.status === "complete"))
+          }
         >
           <Send className="mr-2 h-4 w-4" />
           {busy
             ? "Enviando…"
-            : `Enviar ${saved?.items.length ?? ready.length} oportunidade(s) ao Pipedrive`}
+            : results.length
+              ? "Retomar preenchimento / conferir pendências"
+              : `Enviar ${saved?.items.length ?? ready.length} oportunidade(s) ao Pipedrive`}
         </Button>
+        {!!results.length && (
+          <Button variant="outline" disabled={busy} onClick={done}>
+            Concluir e voltar à base
+          </Button>
+        )}
         <p className="text-xs text-muted-foreground">
           O campo Caixa · Produto recebe o produto escolhido. O resultado ficará nas listas
-          compartilhadas e na operação.
+          compartilhadas e na operação. Dados ausentes serão indicados; uma falha complementar pode
+          ser retomada no mesmo card, sem criar outro negócio.
         </p>
       </DialogContent>
     </Dialog>

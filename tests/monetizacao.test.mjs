@@ -325,3 +325,34 @@ test("Capacidade desconta o trabalho iniciado antes de pedir base adicional", ()
   assert.equal(row.gap, 0);
   assert.equal(row.estimate, null);
 });
+
+test("Ganho do CRM conta sem assinatura ou receita e usa data/ator do ganho", () => {
+  const won = card(
+    raw({
+      status: "won",
+      won_time: "2026-09-12 01:00:00",
+      user_id: { id: 99, name: "Outro dono" },
+    }),
+    [change("open", "won", "2026-09-12 01:00:00", 20, "status")],
+  );
+  assert.equal(won.signed_on, null);
+  assert.equal(won.won_on, "2026-09-11");
+  assert.equal(operacao([won], filter).rows.signed.length, 1);
+  assert.equal(operacao([won], { ...filter, owner: 99 }).rows.signed.length, 0);
+  assert.equal(won.expected_revenue, null);
+  assert.equal(operacao([won], { ...filter, from: "2026-09-12" }).rows.signed.length, 0);
+});
+test("Assinatura preenchida não fabrica ganho; reaberto/perdido sai do realizado", () => {
+  for (const status of ["open", "lost"]) {
+    const c = card(
+      raw({
+        status,
+        won_time: "2026-09-10 12:00:00",
+        ["97cd6f5f0f051d7dfd29e709bfde5c048a17cf3e"]: "2026-09-10",
+      }),
+    );
+    assert.equal(c.signed_on, "2026-09-10");
+    assert.equal(c.won_on, null);
+    assert.equal(c.events.signed.length, 0);
+  }
+});

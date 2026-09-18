@@ -206,21 +206,24 @@ export function ListWorkspace({
     setConfirmSend(false);
     setBusy(true);
     try {
-      for (let n = 0; n < sendingItems.length; n += 10) {
-        const res = await action({
-          data: { action: "send", items: sendingItems.slice(n, n + 10).map((i) => i.id) },
-        });
-        const uncertain = res.results?.filter((r) => r.status !== "sent") || [];
-        if (uncertain.length) {
-          toast.warning(
-            `${uncertain.length} envio(s) exigem conferência. A lista mostra o motivo.`,
-          );
-          break;
+      let pending = 0;
+      for (let n = 0; n < sendingItems.length; n += 1) {
+        try {
+          const res = await action({ data: { action: "send", items: [sendingItems[n].id] } });
+          pending +=
+            res.results?.filter((r) => r.status !== "sent" || r.handoff?.status !== "complete")
+              .length ?? 1;
+        } catch {
+          pending += 1;
         }
       }
       setSelected(new Set());
       await invalidate();
-      toast.success("Resultado do envio atualizado. Consulte as oportunidades na lista.");
+      if (pending)
+        toast.warning(
+          `${pending} oportunidade(s) com pendências. Confira o card e complete os dados pela lista.`,
+        );
+      else toast.success("Cards preparados no Pipedrive. Consulte os links na lista.");
     } catch (e) {
       toast.error((e as Error).message);
       await invalidate();
@@ -530,6 +533,38 @@ export function ListWorkspace({
                             <span>{statusNames[savedItem.status]}</span>
                           )}
                           {savedItem.reason && <p className="text-amber-600">{savedItem.reason}</p>}
+                          {savedItem.status === "sent" && data.permissions.send && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={async () => {
+                                setBusy(true);
+                                try {
+                                  const reply = await action({
+                                    data: { action: "send", items: [savedItem.id] },
+                                  });
+                                  const report = reply.results?.[0]?.handoff;
+                                  if (report?.status === "complete")
+                                    toast.success(
+                                      `Card completo: ${report.people || 0} contato(s), ${report.notes || 0} nota(s), ${report.files || 0} arquivo(s).`,
+                                    );
+                                  else
+                                    toast.warning(
+                                      report?.errors?.join(" ") ||
+                                        "Preenchimento em andamento. O card existente foi preservado.",
+                                    );
+                                  await invalidate();
+                                } catch (e) {
+                                  toast.error((e as Error).message);
+                                } finally {
+                                  setBusy(false);
+                                }
+                              }}
+                            >
+                              Completar dados do card
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
