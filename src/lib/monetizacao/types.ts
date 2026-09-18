@@ -161,6 +161,7 @@ export interface Negocio {
   started_at: string | null;
   validated_at: string | null;
   signed_on: string | null;
+  won_on?: string | null;
   expected_close: string | null;
   revenue: Receita;
   next_activity: string | null;

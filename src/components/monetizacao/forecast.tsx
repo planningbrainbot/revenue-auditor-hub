@@ -61,7 +61,7 @@ export function Forecast({
     ["started", "Ofertas trabalhadas"],
     ["meeting", "Reuniões realizadas"],
     ["validated", "Oportunidades validadas"],
-    ["signed", "Contratos assinados"],
+    ["signed", "Contratos ganhos"],
   ] as const;
   const chart = comparisons.map((c) => ({
     name: date(c.month + "-01").slice(3),
@@ -194,7 +194,7 @@ export function Forecast({
                 <th>Trabalho projetado</th>
                 <th>Trabalho realizado</th>
                 <th>Contratos projetados</th>
-                <th>Contratos assinados</th>
+                <th>Contratos ganhos</th>
                 <th>Validadas com data no mês</th>
                 <th>Disponíveis agora</th>
               </tr>
@@ -235,8 +235,8 @@ export function Forecast({
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           As datas registradas no CRM representam expectativas das oportunidades em aberto. Não
-          somamos esse estoque aos contratos assinados para prometer um fechamento. “Disponíveis
-          agora” usa a base atual, independentemente do mês do plano.
+          somamos esse estoque aos contratos ganhos para prometer um fechamento. “Disponíveis agora”
+          usa a base atual, independentemente do mês do plano.
         </p>
         <Link
           to="/monetizacao"

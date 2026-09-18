@@ -62,7 +62,7 @@ function Temporal({ data, filter, openDeals }: Cut) {
         <Kpi
           label="Ciclo mediano até assinatura"
           value={t.median === null ? "—" : number(t.median) + " dias"}
-          hint={`${t.signed.length} contratos assinados no período`}
+          hint={`${t.signed.length} contratos ganhos no período`}
         />
         <Kpi
           label="90% das assinaturas até"
@@ -525,12 +525,12 @@ function Funnel({ data, filter, openDeals }: Cut) {
   const validated = v.rows.validated,
     signed = validated.filter(
       (c) =>
-        c.signed_on &&
-        c.signed_on <= filter.to &&
+        c.won_on &&
+        c.won_on <= filter.to &&
         c.events.validated.some(
           (e) =>
             e.date >= filter.from &&
-            e.date <= c.signed_on! &&
+            e.date <= c.won_on! &&
             (!filter.owner || e.actor_id === filter.owner),
         ),
     );
@@ -578,14 +578,14 @@ function Funnel({ data, filter, openDeals }: Cut) {
             onClick={() => openDeals("Coorte validada", validated)}
           />
           <Kpi
-            label="Assinadas até o fim do período"
+            label="Ganhos até o fim do período"
             value={signed.length}
             hint={
               validated.length
                 ? `${number((signed.length / validated.length) * 100)}% · coorte ainda pode amadurecer`
                 : "Sem amostra"
             }
-            onClick={() => openDeals("Assinadas da coorte validada", signed)}
+            onClick={() => openDeals("Ganhos da coorte validada", signed)}
           />
           <Kpi
             label="Ainda em aberto"
@@ -601,7 +601,7 @@ function Funnel({ data, filter, openDeals }: Cut) {
               <th>Produto</th>
               <th>Reuniões realizadas</th>
               <th>Validadas</th>
-              <th>Assinadas</th>
+              <th>Ganhos</th>
               <th>Abertas da coorte validada</th>
             </tr>
           </thead>

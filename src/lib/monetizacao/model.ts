@@ -7,7 +7,7 @@ export const METRICAS: { key: Metrica; label: string }[] = [
   { key: "scheduled", label: "Reuniões marcadas" },
   { key: "meeting", label: "Reuniões realizadas" },
   { key: "validated", label: "Oportunidades validadas" },
-  { key: "signed", label: "Contratos assinados" },
+  { key: "signed", label: "Contratos ganhos" },
 ];
 export const FAIXAS: Record<string, [number, number | null]> = {
   "Até R$ 500 mil": [0, 0.5],
@@ -119,7 +119,10 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
   if (!bounds) return result("revisar", "Faixa de faturamento anual a confirmar.");
   if (produto === "finance") {
     if (bounds[0] >= 25)
-      return result("fora_regra", "Faturamento anual a partir de R$ 25 milhões.");
+      return result(
+        "fora_regra",
+        "Fora de Finance: faturamento cadastrado a partir de R$ 25 milhões. Finance exige abaixo de R$ 25 milhões; confira Cella.",
+      );
     if (bounds[1] === null || bounds[1] > 25)
       return result(
         "revisar",
@@ -239,9 +242,9 @@ export function temporal(cards: Negocio[], f: Filtro) {
     (c) => (!f.product || c.route === f.product) && (!f.owner || c.owner_id === f.owner),
   );
   const signed = selected.filter(
-    (c) => c.signed_on && c.signed_on >= f.from && c.signed_on <= f.to && c.started_at,
+    (c) => c.status === "won" && c.won_on && c.won_on >= f.from && c.won_on <= f.to && c.started_at,
   );
-  const cycles = signed.map((c) => distancia(c.started_at!, c.signed_on!));
+  const cycles = signed.map((c) => distancia(c.started_at!, c.won_on!));
   const open = selected.filter((c) => c.status === "open" && c.validated_at);
   const weeks = new Map<string, Negocio[]>();
   for (const c of open) {

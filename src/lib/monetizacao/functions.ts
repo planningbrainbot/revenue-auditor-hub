@@ -273,14 +273,36 @@ export const acionarMonetizacao = createServerFn({ method: "POST" })
     const { data: result, error } = await context.supabase.functions.invoke("monetizacao-crm", {
       body: data,
     });
-    if (error || result?.error)
+    let detail = result?.error;
+    if (error && "context" in error && error.context instanceof Response) {
+      try {
+        detail = (await error.context.json())?.error || detail;
+      } catch {
+        /* mantém mensagem segura */
+      }
+    }
+    if (error || detail)
       throw new Error(
-        result?.error ||
+        detail ||
           "Não foi possível confirmar a operação. Atualize os dados antes de tentar novamente.",
       );
     return result as {
       status: string;
-      results?: { item: string; status: string; deal_id?: number; reason?: string }[];
+      results?: {
+        item: string;
+        status: string;
+        deal_id?: number;
+        reason?: string;
+        handoff?: {
+          status: string;
+          people?: number;
+          notes?: number;
+          files?: number;
+          documents?: number;
+          errors?: string[];
+          warnings?: string[];
+        };
+      }[];
     };
   });
 

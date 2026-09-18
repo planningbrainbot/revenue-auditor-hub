@@ -1495,3 +1495,19 @@ reemitida prenderia a pessoa lá dentro.
 **Verificação:** primeiro ciclo completo nos três aplicativos Omie de Curitiba, sem erro e sem lease pendente; checkpoints reiniciados na página 1 com próxima execução no dia seguinte. O cron anterior do Pipefy e a fila de correções foram preservados. A rotina e a pausa diária estão verificadas; campos ausentes na fonte continuam pendentes.
 
 **Refinamento complementar:** cadastros Omie sem flag explícita de Simples permanecem desconhecidos. Campos de unidade em negócios Pipedrive foram conferidos, mas não substituem o vínculo de identidade da empresa nem criam unidades automaticamente a partir de rótulos desconhecidos. Casos sem prova suficiente seguem em listas privadas para validação. O mês de abril/2025 continua aguardando a definição solicitada e nenhuma compra de créditos foi feita.
+
+## [2026-09-18] Envio ao CRM inclui contexto comercial e retomada por negócio
+
+**Contexto:** o closer recebia negócios sem contato, histórico ou arquivos; um bloqueio de perfil parecia erro de envio e interrompia o lote.
+
+**Decisão:** preservar a elegibilidade por produto e explicar cada bloqueio, oferecendo consulta às alternativas elegíveis sem trocar o produto automaticamente. Finance mantém contrato ganho, faturamento abaixo de R$ 25 milhões e regime fora do Simples. Validação com o sócio continua opcional. Cada item é enviado separadamente e os demais continuam quando um falha.
+
+Depois da confirmação do negócio, preparar contato principal, participantes, campos de qualificação existentes, nota fixada com empresa/origem/tese, histórico e arquivos dos vínculos confirmados. Não transportar ticket nem previsão de outra venda. Documentos externos ficam referenciados e ECD permanece resumo. Contatos respeitam a permissão do autor do envio; não casar empresa apenas por nome.
+
+A fila complementar nasce na mesma transação do status `sent`, usa lease e marcadores por envio/nota/arquivo, e retoma no mesmo negócio. Falha parcial não cria outro card. A tela apresenta o link, a situação e a ação “Completar dados do card”. Pacotes antigos não iniciados não recebem preenchimento em massa automaticamente.
+
+## [2026-09-18] Ganhos do CRM contam sem exigir data de assinatura
+
+**Contexto:** um negócio marcado como ganho pelo closer não aparecia no indicador porque faltava preencher o campo customizado de assinatura.
+
+**Decisão:** o realizado comercial passa a “Contratos ganhos”: status atual `won` e data `won_time` do Pipedrive (histórico de ganho como alternativa), no fuso de São Paulo. Atribuir o movimento ao usuário que marcou ganho quando disponível no histórico. Receita e assinatura continuam campos independentes de completude; não condicionar a contagem a eles nem inventar valores. Negócios reabertos/perdidos deixam esse realizado. A chave interna `signed` é preservada por compatibilidade, com versão 3 do cálculo para reprocessar o cache. `signed_on` conserva a data documental; `won_on` alimenta o ciclo comercial e as coortes.
