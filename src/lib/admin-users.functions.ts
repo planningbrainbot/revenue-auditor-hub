@@ -364,13 +364,22 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Edita nome e papel de quem já existe.
+ *
+ * O papel só podia ser escolhido no cadastro: depois disso, mudar de diretor
+ * para sócio exigia SQL. `role` ausente não mexe em nada; `null` tira todos os
+ * papéis (a pessoa segue entrando pelas áreas, se tiver alguma).
+ */
 export const adminUpdateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { user_id: string; nome: string }) => {
+  .inputValidator((input: { user_id: string; nome: string; role?: string | null }) => {
     if (!input?.user_id || !UUID_RE.test(input.user_id)) throw new Error("user_id inválido.");
     const nome = (input?.nome ?? "").trim();
     if (!nome) throw new Error("Nome é obrigatório.");
-    return { user_id: input.user_id, nome };
+    const role =
+      input?.role === undefined ? undefined : input.role === null ? null : String(input.role).trim() || null;
+    return { user_id: input.user_id, nome, role };
   })
   .handler(async ({ data, context }) => {
     await ensureAdmin(context.userId);
@@ -385,6 +394,42 @@ export const adminUpdateUser = createServerFn({ method: "POST" })
       user_metadata: { nome: data.nome },
     });
     if (aErr) console.error("[adminUpdateUser] auth metadata update failed:", aErr);
+
+    if (data.role !== undefined) {
+      // Tirar o próprio admin é o jeito mais rápido de se trancar do lado de
+      // fora justamente desta tela.
+      if (data.user_id === context.userId && data.role !== "admin") {
+        throw new Error("Você não pode tirar o seu próprio perfil de admin.");
+      }
+      if (data.role) {
+        const { data: roleRow } = await supabaseAdmin
+          .from("roles")
+          .select("key")
+          .eq("key", data.role)
+          .maybeSingle();
+        if (!roleRow) throw new Error("Papel inválido.");
+      }
+      // Um papel por pessoa: a lista é substituída, não somada. `pickPrimaryRole`
+      // até resolve empate, mas duas linhas seriam duas respostas para
+      // "qual é o papel dela".
+      const { error: delErr } = await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", data.user_id);
+      if (delErr) {
+        console.error("[adminUpdateUser] user_roles delete failed:", delErr);
+        throw new Error("Falha ao atualizar o papel.");
+      }
+      if (data.role) {
+        const { error: insErr } = await supabaseAdmin
+          .from("user_roles")
+          .upsert({ user_id: data.user_id, role: data.role }, { onConflict: "user_id,role" });
+        if (insErr) {
+          console.error("[adminUpdateUser] user_roles upsert failed:", insErr);
+          throw new Error("Falha ao atualizar o papel.");
+        }
+      }
+    }
     return { ok: true };
   });
 

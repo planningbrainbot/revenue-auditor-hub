@@ -281,10 +281,12 @@ function UsersPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: (input: { user_id: string; nome: string }) => updateFn({ data: input }),
+    mutationFn: (input: { user_id: string; nome: string; role?: string | null }) => updateFn({ data: input }),
     onSuccess: () => {
       setEditingId(null);
       setEditingNome("");
+      setEditingRole("");
+      setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : "Erro ao atualizar"),
@@ -292,6 +294,28 @@ function UsersPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNome, setEditingNome] = useState("");
+  // "" é sem papel. O papel só existia no cadastro: mudar depois pedia SQL.
+  const [editingRole, setEditingRole] = useState("");
+
+  function abrirEdicao(u: { user_id: string; nome: string | null; role: string | null }) {
+    setEditingId(u.user_id);
+    setEditingNome(u.nome || "");
+    setEditingRole(u.role ?? "");
+    setError(null);
+  }
+
+  function salvarEdicao(u: { user_id: string; role: string | null }) {
+    const nome = editingNome.trim();
+    if (!nome) return;
+    const roleAtual = u.role ?? "";
+    updateMut.mutate({
+      user_id: u.user_id,
+      nome,
+      // Só manda o papel quando mudou: assim salvar um nome nunca reescreve
+      // user_roles sem querer.
+      ...(editingRole === roleAtual ? {} : { role: editingRole || null }),
+    });
+  }
 
   function copyLink() {
     if (acesso?.link) navigator.clipboard?.writeText(acesso.link);
@@ -533,8 +557,8 @@ function UsersPage() {
                         value={editingNome}
                         onChange={(e) => setEditingNome(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && editingNome.trim()) updateMut.mutate({ user_id: u.user_id, nome: editingNome.trim() });
-                          if (e.key === "Escape") { setEditingId(null); setEditingNome(""); }
+                          if (e.key === "Enter") salvarEdicao(u);
+                          if (e.key === "Escape") setEditingId(null);
                         }}
                         className="w-full rounded border border-input bg-background px-2 py-1 text-sm"
                       />
@@ -544,14 +568,43 @@ function UsersPage() {
                   </td>
                   <td className="px-4 py-2 text-foreground">{u.email}</td>
                   <td className="px-4 py-2">
-                    {u.role ? (
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rolePill(u.role)}`}>
+                    {editingId === u.user_id ? (
+                      <>
+                        <select
+                          value={editingRole}
+                          onChange={(e) => setEditingRole(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
+                        >
+                          <option value="">sem papel</option>
+                          {roles.map((r) => (
+                            <option key={r.key} value={r.key}>{r.label}</option>
+                          ))}
+                        </select>
+                        {editingRole !== (u.role ?? "") && (
+                          <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                            Troca as áreas que vêm do perfil. O que foi dado a ela em Acessos
+                            continua igual.
+                          </p>
+                        )}
+                      </>
+                    ) : u.role ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirEdicao(u)}
+                        title="Clique para trocar o papel desta pessoa"
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide hover:opacity-80 ${rolePill(u.role)}`}
+                      >
                         {roleLabel(u.role)}
-                      </span>
+                      </button>
                     ) : (
-                      <span className="text-xs text-muted-foreground" title="Sem papel no Ops. Pode entrar por área, em Acessos.">
+                      <button
+                        type="button"
+                        onClick={() => abrirEdicao(u)}
+                        title="Sem papel no Ops. Pode entrar por área, pela pílula Ops. Clique para definir um papel."
+                        className="rounded px-1 py-0.5 text-xs text-muted-foreground underline decoration-dotted underline-offset-4 hover:bg-accent hover:text-foreground"
+                      >
                         sem papel
-                      </span>
+                      </button>
                     )}
                   </td>
                   {/* Unidade é o escopo: o que a pessoa enxerga nas áreas do
@@ -641,14 +694,14 @@ function UsersPage() {
                     {editingId === u.user_id ? (
                       <>
                         <button
-                          onClick={() => editingNome.trim() && updateMut.mutate({ user_id: u.user_id, nome: editingNome.trim() })}
+                          onClick={() => salvarEdicao(u)}
                           disabled={updateMut.isPending || !editingNome.trim()}
                           className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
                         >
-                          Salvar
+                          {updateMut.isPending ? "Salvando..." : "Salvar"}
                         </button>
                         <button
-                          onClick={() => { setEditingId(null); setEditingNome(""); }}
+                          onClick={() => setEditingId(null)}
                           className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
                         >
                           Cancelar
@@ -657,7 +710,8 @@ function UsersPage() {
                     ) : (
                       <>
                         <button
-                          onClick={() => { setEditingId(u.user_id); setEditingNome(u.nome || ""); }}
+                          onClick={() => abrirEdicao(u)}
+                          title="Nome e papel"
                           className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
                         >
                           Editar
