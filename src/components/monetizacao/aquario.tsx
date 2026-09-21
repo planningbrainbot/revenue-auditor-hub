@@ -200,7 +200,7 @@ export function Aquario({
         <Kpi
           label="Consultoria · carteira retroativa"
           value={number(consultBase.length)}
-          hint={`${consult.length} aptas · ${consultExcluded.length} fora da regra · ${consultPending.length} a confirmar`}
+          hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
           accent
         />
         <Kpi
@@ -246,32 +246,37 @@ export function Aquario({
                 }}
                 className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "contas" && filters.product === p ? "border-primary bg-primary/5" : ""}`}
               >
-                <span className="flex items-center justify-between font-semibold">
-                  {NOMES[p]} <ArrowRight className="h-4 w-4" />
+                <span className="flex items-center justify-between gap-2 font-semibold">
+                  {NOMES[p]}
+                  <span className="flex shrink-0 items-center gap-1">
+                    {p === "consultoria" && consultPending.length > 0 && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        {consultPending.length} a confirmar
+                      </span>
+                    )}
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
                 </span>
-                <p className="mt-2 text-sm">
-                  {p === "consultoria"
-                    ? `${consultPool.length} contas retroativas para análise`
-                    : `${eligible.length} aderentes · ${free.length} disponíveis`}
+                {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
+                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
+                <p className="my-2 text-3xl font-semibold tabular-nums">
+                  {number(free.length)}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    aptas e disponíveis
+                  </span>
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   {p === "consultoria"
-                    ? "Base Antiga · sem fechamento comercial identificado · contato opcional"
+                    ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
+                    : `${number(eligible.length)} com perfil aderente`}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {p === "consultoria"
+                    ? "Base Antiga · sem fechamento comercial · contato opcional"
                     : p === "cella"
-                      ? "Faturamento a partir de R$ 25 mi · fora do Simples"
-                      : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi · fora do Simples"}
+                      ? "A partir de R$ 25 mi · fora do Simples"
+                      : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
                 </p>
-                {p === "consultoria" && (
-                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                    {consultPending.length > 0
-                      ? `${consultPending.length} com regime a confirmar. ${eligible.length ? `${eligible.length} aptas confirmadas · ${free.length} disponíveis.` : "Aptidão ainda não apurada."}`
-                      : `${eligible.length} aptas confirmadas · ${free.length} disponíveis`}
-                    {consultExcluded.length > 0 &&
-                      ` ${consultExcluded.length} retroativas excluídas por Simples/MEI.`}
-                    {consultInativas.length > 0 &&
-                      ` ${consultInativas.length} fora das ofertas por situação na Receita.`}
-                  </p>
-                )}
               </button>
             );
           })}
@@ -327,7 +332,13 @@ export function Aquario({
                   pending = accounts.filter(
                     (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
                   ).length,
-                  f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length;
+                  f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length,
+                  cella_u = accounts.filter((a) => oferta(a, "cella").status === "elegivel").length,
+                  antigas = accounts.filter((a) => origemBase(a) === "antiga").length,
+                  novas = accounts.filter((a) => origemBase(a) === "nova").length,
+                  conferir = accounts.filter((a) =>
+                    ["confirmar", "divergente"].includes(origemBase(a)),
+                  ).length;
                 return (
                   <button
                     key={u.key}
@@ -341,37 +352,64 @@ export function Aquario({
                     }}
                     className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold">{u.name}</span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                      <div className="flex shrink-0 items-center gap-1">
+                        {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
+                          <span
+                            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
+                          >
+                            cobertura parcial
+                          </span>
+                        )}
+                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                      </div>
                     </div>
-                    <p className="my-3 text-2xl font-semibold tabular-nums">
-                      {number(accounts.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">contas</span>
+                    {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
+                        unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
+                    <p className="my-2 text-3xl font-semibold tabular-nums">
+                      {number(u.cnpjs ?? accounts.length)}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">empresas</span>
                     </p>
-                    <div className="flex flex-wrap gap-3 text-xs">
-                      <span className="text-primary">
-                        Consultoria · {c} aptas
-                        {pending > 0 ? ` · ${pending} com regime a confirmar` : ""}
-                      </span>
-                      <span>
-                        Cella{" "}
-                        {accounts.filter((a) => oferta(a, "cella").status === "elegivel").length}
-                      </span>
-                      <span>Finance {f}</span>
+                    {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
+                        censo. As fontes se sobrepõem, por isso não somam. */}
+                    <p className="text-[11px] text-muted-foreground">
+                      {u.omie_integrado === false
+                        ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
+                        : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
+                    </p>
+                    {/* Composição da origem em barra: comprimento compara melhor que três números. */}
+                    <div
+                      className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted"
+                      title={`${antigas} antigas · ${novas} novas · ${conferir} a conferir`}
+                    >
+                      {[
+                        ["bg-primary", antigas],
+                        ["bg-sky-500", novas],
+                        ["bg-muted-foreground/40", conferir],
+                      ].map(([cor, n], i) =>
+                        (n as number) > 0 ? (
+                          <div
+                            key={i}
+                            className={cor as string}
+                            style={{
+                              width: `${Math.max(2, ((n as number) / Math.max(1, accounts.length)) * 100)}%`,
+                            }}
+                          />
+                        ) : null,
+                      )}
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {accounts.filter((a) => origemBase(a) === "antiga").length} antigas ·{" "}
-                      {accounts.filter((a) => origemBase(a) === "nova").length} novas ·{" "}
-                      {
-                        accounts.filter((a) => ["confirmar", "divergente"].includes(origemBase(a)))
-                          .length
-                      }{" "}
-                      a conferir
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {accounts.filter((a) => a.contact).length} com contato ·{" "}
-                      {accounts.filter((a) => !a.band).length} sem faturamento declarado
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                      <span className="text-primary">{c} aptas em Consultoria</span>
+                      {pending > 0 && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                          {pending} a confirmar
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
                     </p>
                   </button>
                 );

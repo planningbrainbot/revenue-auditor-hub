@@ -127,6 +127,12 @@ export interface Unidade {
   name: string;
   classification: string;
   account_keys: string[];
+  // Cobertura da carteira. cnpjs é o tamanho ("empresas"); os dois seguintes são procedência e
+  // não somam entre si. omie_integrado falso = o Omie da unidade não chega ao Brain.
+  cnpjs?: number;
+  cnpjs_pipefy?: number;
+  cnpjs_omie?: number;
+  omie_integrado?: boolean;
 }
 export type Metrica = "loaded" | "started" | "scheduled" | "meeting" | "validated" | "signed";
 export interface Movimento {

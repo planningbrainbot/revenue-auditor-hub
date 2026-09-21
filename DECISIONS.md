@@ -1813,3 +1813,26 @@ Reversão: apagar as validações com esse responsável e as correções geradas
 **4 — A empresa de Curitiba ligada a mais de uma unidade.** "Tem que entender qual a empresa, pode acontecer de serem contratos distintos." Apurado: é a conta `e0401900797cfff5`, que juntou **duas empresas diferentes** pela mesma organização do Pipedrive (org 55503) — "Cambraia Hotel" (CNPJ 45.896.637/0001-46, unidade Curitiba, Omie Curitiba) e "Cambraia & Fonseca LTDA" (**sem CNPJ**, unidade gravada como o id cru `1436672162`). Não são dois contratos da mesma empresa: são duas razões sociais do mesmo grupo econômico. Achado colateral: **165 empresas** têm `unidade` gravada como esse id `1436672162`, que não existe em `ops.unidades` — o id do Pipefy nunca foi traduzido para nome de unidade. Isso é causa de conflito de unidade além deste caso.
 
 **Publicação (21/09).** Branch rebaseada sobre `origin/main` (que tinha andado três commits: ver-como, funil de CAC e acessos), commit `fb9c12a` em main, deploy por CLI no projeto `ops-brain` do time `planning17` e migration `20260919120000` aplicada em seguida. Verificação: produção serve o bundle com a regra nova, os 18 casos de `tests/situacao-receita-teto.sql` passam contra a função viva, e o wrapper passou a devolver o motivo de situação (antes devolvia o de origem) nas contas não ativas com origem ≠ 'antiga'. Backup do texto anterior das duas funções guardado para rollback.
+
+## [2026-09-21] O card da carteira para de afirmar censo: CNPJs distintos como tamanho, procedência declarada
+
+**Contexto:** o dono olhou a grade de carteiras e disse que o número não reflete o tamanho da unidade — "nenhuma unidade tem menos de 1K de CNPJs", contra cards de São Luís 256, Fortaleza 260, Campo Novo 246. A apuração (spec `docs/spec-cockpit-da-base.md`, rodada adversarial de 21/09) mostrou que o problema não é contagem errada: é o card afirmar censo sobre um número que só cobre o que foi conciliado.
+
+**O que o número era.** `accounts.length` das contas da unidade, rotulado "contas". Mistura três coisas: não é CNPJ (uma conta reúne vários), não é empresa do catálogo, não é cliente faturado. E a cobertura por praça é desigual — Fortaleza, Recife, São Bernardo, Sorocaba e São Paulo não têm credencial em `ops.omie_credentials`, então delas só se enxerga o catálogo Pipefy.
+
+**Decisão — três linhas, nada mais.**
+1. Número dominante = **CNPJs distintos**, rotulado "empresas". Responde "tamanho da unidade". Encolhe em toda praça (Curitiba 2.854 → 2.791, Belém 360 → 282, Patos 161 → 135) porque conta que reúne vários CNPJs deixa de contar como um.
+2. Linha de **procedência**: `catálogo Pipefy N · Omie M`, ou `Omie não integrado`. As fontes se sobrepõem e não somam. Selo "cobertura parcial" na face quando não há Omie.
+3. Linha de **ação**: aptas em Consultoria, com selo do que falta confirmar. `N contas conciliadas` desce para linha de apoio — continua existindo, com o rótulo honesto.
+
+**Onde o número vive.** View nova `ops.monetizacao_unidade_cobertura` (migration `20260921160000_cobertura_por_unidade.sql`), lida junto de `monetizacao_unidades` em `functions.ts`. O vínculo conta↔unidade da view **reproduz o do cliente** (`use-monetizacao.ts`: por `unidade_id` quando existe, senão por rótulo/chave no perfil) — conferido unidade a unidade contra a tela: Goiânia 3.110, Curitiba 2.854, Maceió 582, São Bernardo 454, Belém 360, Sudeste 318, Fortaleza 260, São Luís 256, Campo Novo 246, Patos 161. A procedência do Pipefy também casa por nome quando falta `unidade_id`, senão São Bernardo (451 CNPJs, todos do Pipefy) declararia "Pipefy 0".
+
+**Integrada é a unidade cujo Omie chega aqui** (`cnpjs_omie > 0`), não a que tem credencial cadastrada: as credenciais de Matriz e Partners respondem por Goiânia e a string não bate com a praça.
+
+**Ressalva registrada:** 8 CNPJs (de 9.247) aparecem em duas contas na conciliação — 0,08%. A contagem da view usa `count(distinct cnpj)` e não é afetada; o defeito de conciliação fica anotado.
+
+**Card de produto.** Passa a ter uma métrica dominante ("N aptas e disponíveis") com o perfil aderente como prova secundária. As contagens que já estavam na faixa de KPIs logo acima saíram do card — eram a mesma informação duas vezes. O parágrafo âmbar de quatro cláusulas da Consultoria virou selo na face; a separação entre exclusão por Simples/MEI e por situação na Receita subiu para o KPI.
+
+**Não entrou nesta rodada** (segue na spec): os quatro blocos numa página só (funil / oportunidades por produto / base por unidade / montagem de lista), o fluxo "clicar na unidade → auditar nominalmente → pesquisar → montar lista" como navegação real, e a persistência do rascunho.
+
+**Pendência que a apuração levantou e precisa de decisão:** Recife tem 385 contas e **não aparece em card nenhum** por falta de linha em `ops.monetizacao_unidades`; São Bernardo (454) só aparece por casamento de string. São 839 contas de duas praças reais invisíveis na grade, independentemente do redesign.

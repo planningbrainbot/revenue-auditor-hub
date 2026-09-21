@@ -58,9 +58,15 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
       throw new Error(
         "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
       );
-    const [units, cards, lists, items, health, plans, records, reservations, forecasts] =
+    const [units, cobertura, cards, lists, items, health, plans, records, reservations, forecasts] =
       await Promise.all([
         all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
+        all(
+          db,
+          "monetizacao_unidade_cobertura",
+          "key,contas,cnpjs,cnpjs_pipefy,cnpjs_omie,omie_integrado",
+          "key",
+        ),
         all(db, "monetizacao_deals", "id,payload", "id"),
         all(db, "monetizacao_listas", "*", "created_at"),
         all(db, "monetizacao_itens", "*", "id"),
@@ -82,13 +88,23 @@ export const carregarMonetizacao = createServerFn({ method: "GET" })
       forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
       reservations: reservations as BaseMonetizacao["reservations"],
       accounts: [],
-      units: units.map((u) => ({
-        id: u.unidade_id,
-        key: u.key,
-        name: u.nome,
-        classification: u.classification,
-        account_keys: [],
-      })),
+      units: units.map((u) => {
+        const c = cobertura.find((x) => x.key === u.key);
+        return {
+          id: u.unidade_id,
+          key: u.key,
+          name: u.nome,
+          classification: u.classification,
+          account_keys: [],
+          // Cobertura vem do banco (ops.monetizacao_unidade_cobertura): CNPJs distintos é o
+          // tamanho da carteira; Pipefy e Omie dizem de onde ela é conhecida. Sem isso o card
+          // afirma censo com um número que só cobre o que foi conciliado.
+          cnpjs: (c?.cnpjs as number) ?? 0,
+          cnpjs_pipefy: (c?.cnpjs_pipefy as number) ?? 0,
+          cnpjs_omie: (c?.cnpjs_omie as number) ?? 0,
+          omie_integrado: (c?.omie_integrado as boolean) ?? false,
+        };
+      }),
       cards: cards.map((d) => d.payload as Negocio),
       lists: lists.map((l) => ({
         ...l,
