@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Download, Fish, ListPlus, Search, Send, Users } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCheck,
+  Download,
+  Fish,
+  ListPlus,
+  Search,
+  Send,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +27,12 @@ import {
   baseRetroativaConsultoria,
   disponibilidade,
   FAIXAS,
+  faturamentoDeclarado,
   oferta,
+  tetoEmReais,
+  rotuloSituacaoReceita,
+  situacaoForaDeOferta,
+  tetoContradizFaixa,
 } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Conta, Produto, Unidade } from "@/lib/monetizacao/types";
@@ -28,15 +42,27 @@ import { ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
 import { DirectSend } from "./direct-send";
 import {
+  ABORDAGENS,
   EMPTY_PORTFOLIO_FILTERS,
+  estadoProduto,
   filtrarCarteira,
   ORIGENS_BASE,
   origemBase,
   potencialConsultoria,
-  situacaoInicialProduto,
+  situacoesIniciais,
+  SITUACOES,
+  SITUACOES_RECEITA_FILTRO,
 } from "@/lib/monetizacao/portfolio";
-import type { PortfolioFilters } from "@/lib/monetizacao/portfolio";
+import type {
+  Abordagem,
+  EstadoProduto,
+  OrigemBase,
+  PortfolioFilters,
+  Situacao,
+} from "@/lib/monetizacao/portfolio";
+import { FieldMulti, MultiSelect } from "./multi-select";
 import {
+  date,
   downloadCsv,
   Field,
   Freshness,
@@ -50,6 +76,10 @@ import {
 } from "./common";
 
 type Filters = PortfolioFilters;
+// Mesmo limite da validação do servidor para listas e envios (salvarListaAquario / monetizacao_save_list).
+const LIMITE_LOTE = 300;
+// Valor explícito de "todas as situações": vazio significa a situação padrão do produto.
+const TODAS = "todas";
 const emptyFilters = EMPTY_PORTFOLIO_FILTERS;
 export function Aquario({
   embedded = false,
@@ -103,7 +133,12 @@ export function Aquario({
     consultPool = data.accounts.filter(potencialConsultoria),
     consultPending = consultPool.filter((a) => oferta(a, "consultoria").status === "revisar"),
     consultBase = data.accounts.filter(baseRetroativaConsultoria),
-    consultExcluded = consultBase.filter((a) => oferta(a, "consultoria").status === "fora_regra"),
+    // Exclusão por regime e exclusão por situação cadastral são motivos diferentes; misturá-las
+    // faria o cartão afirmar que centenas de empresas fechadas são do Simples.
+    consultExcluded = consultBase.filter(
+      (a) => oferta(a, "consultoria").status === "fora_regra" && !situacaoForaDeOferta(a),
+    ),
+    consultInativas = consultBase.filter((a) => situacaoForaDeOferta(a)),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
   const overlap = data.accounts.filter(
     (a) =>
@@ -205,7 +240,7 @@ export function Aquario({
               <button
                 key={p}
                 onClick={() => {
-                  setFilters({ ...emptyFilters, product: p, status: situacaoInicialProduto(p) });
+                  setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
                   setPicked(new Set());
                   setTab("contas");
                 }}
@@ -233,6 +268,8 @@ export function Aquario({
                       : `${eligible.length} aptas confirmadas · ${free.length} disponíveis`}
                     {consultExcluded.length > 0 &&
                       ` ${consultExcluded.length} retroativas excluídas por Simples/MEI.`}
+                    {consultInativas.length > 0 &&
+                      ` ${consultInativas.length} fora das ofertas por situação na Receita.`}
                   </p>
                 )}
               </button>
@@ -247,8 +284,8 @@ export function Aquario({
             setFilters({
               ...emptyFilters,
               product: "consultoria",
-              origin: "antiga",
-              status: "review",
+              origin: ["antiga"],
+              status: ["qualificar"],
             });
             setPicked(new Set());
             setTab("contas");
@@ -379,7 +416,7 @@ export function Aquario({
                   label={label}
                   value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
                   onClick={() => {
-                    setFilters({ ...emptyFilters, origin: key as Filters["origin"] });
+                    setFilters({ ...emptyFilters, origin: [key as OrigemBase] });
                     setPicked(new Set());
                   }}
                 />
@@ -418,32 +455,93 @@ function PortfolioTable({
   unitId: number | null;
 }) {
   const [limit, setLimit] = useState(50);
-  const [sending, setSending] = useState(false);
-  const change = (key: keyof Filters, value: string | boolean) => {
+  // Cópia da seleção no momento do envio: o resultado continua legível mesmo quando as contas
+  // enviadas saem do filtro após a atualização.
+  const [sending, setSending] = useState<Conta[] | null>(null);
+  const product = filters.product;
+  const situacaoEfetiva = filters.status.length ? filters.status : situacoesIniciais(product);
+  // Mudar filtro limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
+  const change = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters({
       ...filters,
       [key]: value,
-      ...(key === "product" ? { status: situacaoInicialProduto(value as Produto | "") } : {}),
+      ...(key === "product"
+        ? { status: situacoesIniciais(value as Produto | ""), approach: [] }
+        : {}),
     });
     setPicked(new Set());
     setLimit(50);
   };
   const rows = useMemo(() => filtrarCarteira(accounts, filters, data), [accounts, filters, data]);
+  const semSituacao = useMemo(
+    () => (product ? filtrarCarteira(accounts, filters, data, { ignorarSituacao: true }) : []),
+    [accounts, filters, data, product],
+  );
+  const estado = (a: Conta) => (product ? estadoProduto(a, product, data) : null);
+  const contagem = useMemo(() => {
+    const n: Record<string, number> = {
+      free: 0,
+      occupied: 0,
+      qualificar: 0,
+      review: 0,
+      excluded: 0,
+    };
+    if (!product) return n;
+    for (const a of semSituacao) {
+      const e = estadoProduto(a, product, data);
+      n[e.situacao]++;
+      if (e.perfil.status === "revisar" && e.situacao !== "review") n.review++;
+    }
+    return n;
+  }, [semSituacao, product, data]);
   const visible = rows.slice(0, limit),
     selected = rows.filter((a) => picked.has(a.key));
+  const prontas = product ? rows.filter((a) => estado(a)!.situacao === "free") : [];
+  const acimaDoLimite = selected.length > LIMITE_LOTE;
+  const prontasSelecionadas = product
+    ? selected.filter((a) => estado(a)!.situacao === "free").length
+    : 0;
   const toggle = (key: string) => {
     const next = new Set(picked);
     if (next.has(key)) next.delete(key);
     else next.add(key);
     setPicked(next);
   };
+  const unique = (values: (string | null | undefined)[]) =>
+    [...new Set(values.filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const chips: { key: Situacao; label: string; n: number; tone: string }[] = product
+    ? [
+        {
+          key: "free",
+          label: "Prontas para enviar",
+          n: contagem.free,
+          tone: "text-emerald-700 dark:text-emerald-300",
+        },
+        {
+          key: "qualificar",
+          label: "A confirmar",
+          n: contagem.qualificar,
+          tone: "text-amber-700 dark:text-amber-300",
+        },
+        { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied, tone: "" },
+        {
+          key: "excluded",
+          label: "Fora da regra",
+          n: contagem.excluded,
+          tone: "text-muted-foreground",
+        },
+      ]
+    : [];
+  const situacoes = (Object.keys(SITUACOES) as Situacao[]).filter(
+    (s) => s !== "potential" || product === "consultoria",
+  );
   return (
     <Panel
       title={
         inUnit
           ? "Carteira da unidade"
-          : filters.product
-            ? `Lista potencial · ${NOMES[filters.product]}`
+          : product
+            ? `Lista potencial · ${NOMES[product]}`
             : "Carteira conciliada"
       }
       action={
@@ -458,7 +556,10 @@ function PortfolioTable({
                   "Unidade",
                   "Origem da base",
                   "Fonte da origem",
+                  "Situação na Receita",
+                  "Fonte da situação",
                   "Faturamento anual",
+                  "Conflito de faturamento",
                   "Faixa de faturamento estimado do grupo · Driva",
                   "Driva · consultado em",
                   "Segmento",
@@ -467,31 +568,69 @@ function PortfolioTable({
                   "Consultoria",
                   "Finance",
                   "Cella",
+                  ...(product ? [`Situação · ${NOMES[product]}`, "Abordagem"] : []),
                 ],
-                ...rows.map((a) => [
-                  a.name,
-                  a.unit_label,
-                  ORIGENS_BASE[origemBase(a)],
-                  a.base_origin?.reason,
-                  a.band,
-                  a.driva?.group_revenue_band,
-                  a.driva?.queried_at,
-                  a.segment,
-                  a.regime,
-                  a.contact ? "Sim" : "Obter com o sócio",
-                  oferta(a, "consultoria").reason,
-                  oferta(a, "finance").reason,
-                  oferta(a, "cella").reason,
-                ]),
+                ...rows.map((a) => {
+                  const e = estado(a);
+                  return [
+                    a.name,
+                    a.unit_label,
+                    ORIGENS_BASE[origemBase(a)],
+                    a.base_origin?.reason,
+                    rotuloSituacaoReceita(a) ?? "Sem consulta na Receita",
+                    a.situacao_receita_fonte,
+                    faturamentoDeclarado(a),
+                    tetoContradizFaixa(a),
+                    a.driva?.group_revenue_band,
+                    a.driva?.queried_at,
+                    a.segment,
+                    a.regime,
+                    a.contact ? "Sim" : "Obter com o sócio",
+                    oferta(a, "consultoria").reason,
+                    oferta(a, "finance").reason,
+                    oferta(a, "cella").reason,
+                    ...(e
+                      ? [
+                          ROTULO_SITUACAO[e.situacao],
+                          e.abordagem
+                            .map((x) =>
+                              x === "enviada" && e.envio === "incerto"
+                                ? "Envio incerto, conferir no Pipedrive"
+                                : ABORDAGENS[x],
+                            )
+                            .join("; "),
+                        ]
+                      : []),
+                  ];
+                }),
               ])
             }
           >
             <Download className="mr-1 h-3 w-3" />
             Exportar filtro
           </Button>
+          {product && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!prontas.length}
+              title={`Seleciona as contas deste filtro que estão aptas e disponíveis, inclusive as que ainda não apareceram na página. Envio e lista aceitam até ${LIMITE_LOTE} por vez: acima disso, entram as ${LIMITE_LOTE} primeiras da ordem da tabela.`}
+              onClick={() => setPicked(new Set(prontas.slice(0, LIMITE_LOTE).map((a) => a.key)))}
+            >
+              <CheckCheck className="mr-1 h-4 w-4" />
+              {prontas.length > LIMITE_LOTE
+                ? `Selecionar ${LIMITE_LOTE} de ${number(prontas.length)} prontas`
+                : `Selecionar prontas (${number(prontas.length)})`}
+            </Button>
+          )}
           <Button
             size="sm"
-            disabled={!data.permissions.manage || !selected.length}
+            disabled={!data.permissions.manage || !selected.length || acimaDoLimite}
+            title={
+              acimaDoLimite
+                ? `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`
+                : undefined
+            }
             onClick={() => onList(selected.map((a) => a.key))}
           >
             <ListPlus className="mr-1 h-4 w-4" />
@@ -499,11 +638,20 @@ function PortfolioTable({
           </Button>
           <Button
             size="sm"
-            disabled={!data.permissions.send || !selected.length}
-            onClick={() => setSending(true)}
+            disabled={!data.permissions.send || !selected.length || acimaDoLimite}
+            title={
+              !data.permissions.send
+                ? "Seu acesso não permite enviar ao Pipedrive."
+                : !selected.length
+                  ? "Selecione as contas para enviar."
+                  : acimaDoLimite
+                    ? `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`
+                    : undefined
+            }
+            onClick={() => setSending(selected)}
           >
             <Send className="mr-1 h-4 w-4" />
-            Enviar ao Pipedrive ({selected.length})
+            Enviar ao Pipedrive ({product ? prontasSelecionadas : selected.length})
           </Button>
         </div>
       }
@@ -511,47 +659,42 @@ function PortfolioTable({
       {sending && (
         <DirectSend
           data={data}
-          accounts={selected}
-          initialProduct={filters.product}
-          unitId={unitId ?? data.units.find((u) => u.key === filters.unit)?.id ?? null}
-          close={() => setSending(false)}
+          accounts={sending}
+          initialProduct={product}
+          unitId={
+            unitId ??
+            (filters.unit.length === 1
+              ? (data.units.find((u) => u.key === filters.unit[0])?.id ?? null)
+              : null)
+          }
+          close={() => setSending(null)}
           done={() => {
-            setSending(false);
+            setSending(null);
             setPicked(new Set());
           }}
         />
       )}
       <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
         {!inUnit && (
-          <Field label="Unidade">
-            <select
-              className={inputClass}
+          <FieldMulti label="Unidade">
+            <MultiSelect
+              label="Unidade"
+              placeholder="Todas as unidades"
               value={filters.unit}
-              onChange={(e) => change("unit", e.target.value)}
-            >
-              <option value="">Todas as unidades</option>
-              {data.units.map((u) => (
-                <option key={u.key} value={u.key}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+              onChange={(v) => change("unit", v)}
+              options={data.units.map((u) => ({ value: u.key, label: u.name }))}
+            />
+          </FieldMulti>
         )}
-        <Field label="Origem da base">
-          <select
-            className={inputClass}
+        <FieldMulti label="Origem da base">
+          <MultiSelect
+            label="Origem da base"
+            placeholder="Antigas, novas e pendentes"
             value={filters.origin}
-            onChange={(e) => change("origin", e.target.value)}
-          >
-            <option value="">Antigas, novas e pendentes</option>
-            {Object.entries(ORIGENS_BASE).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
+            onChange={(v) => change("origin", v as OrigemBase[])}
+            options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
+          />
+        </FieldMulti>
         <Field label="Buscar empresa">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -563,90 +706,101 @@ function PortfolioTable({
             />
           </div>
         </Field>
-        <Field label="Faturamento anual · cadastro">
-          <select
-            className={inputClass}
+        <FieldMulti label="Faturamento anual · cadastro">
+          <MultiSelect
+            label="Faturamento anual · cadastro"
+            placeholder="Todas as faixas"
             value={filters.band}
-            onChange={(e) => change("band", e.target.value)}
-          >
-            <option value="">Todas as faixas</option>
-            <option value="10">A partir de R$ 10 mi</option>
-            <option value="25">A partir de R$ 25 mi</option>
-            <option value="50">A partir de R$ 50 mi</option>
-            <option value="unknown">Não informado</option>
-            <optgroup label="Faixa cadastrada">
-              {[...new Set(accounts.map((a) => a.band).filter(Boolean))].sort().map((band) => (
-                <option key={band} value={`exact:${band}`}>
-                  {band}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </Field>
+            onChange={(v) => change("band", v)}
+            options={[
+              { value: "10", label: "A partir de R$ 10 mi" },
+              { value: "25", label: "A partir de R$ 25 mi" },
+              { value: "50", label: "A partir de R$ 50 mi" },
+              { value: "unknown", label: "Nada informado" },
+              ...unique(accounts.map((a) => a.band)).map((band) => ({
+                value: `exact:${band}`,
+                label: band,
+                group: "Faixa cadastrada",
+              })),
+              ...unique(
+                accounts.map((a) =>
+                  !a.band && a.faturamento_teto != null ? String(a.faturamento_teto) : null,
+                ),
+              ).map((teto) => ({
+                value: `teto:${teto}`,
+                label: `Até ${tetoEmReais(Number(teto))}`,
+                group: "Teto pelo porte na Receita · sem faixa declarada",
+              })),
+            ]}
+          />
+        </FieldMulti>
         {accounts.some((a) => a.driva?.group_revenue_band) && (
-          <Field label="Faturamento estimado · grupo Driva">
-            <select
-              className={inputClass}
+          <FieldMulti label="Faturamento estimado · grupo Driva">
+            <MultiSelect
+              label="Faturamento estimado · grupo Driva"
+              placeholder="Todas as estimativas"
               value={filters.drivaBand}
-              onChange={(e) => change("drivaBand", e.target.value)}
-            >
-              <option value="">Todas as estimativas</option>
-              {[...new Set(accounts.map((a) => a.driva?.group_revenue_band).filter(Boolean))]
-                .sort()
-                .map((band) => (
-                  <option key={band} value={band!}>
-                    {band}
-                  </option>
-                ))}
-            </select>
-          </Field>
+              onChange={(v) => change("drivaBand", v)}
+              options={unique(accounts.map((a) => a.driva?.group_revenue_band)).map((band) => ({
+                value: band,
+                label: band,
+              }))}
+            />
+          </FieldMulti>
         )}
-        <Field label="Segmento">
-          <select
-            className={inputClass}
+        <FieldMulti label="Segmento">
+          <MultiSelect
+            label="Segmento"
+            placeholder="Todos"
             value={filters.segment}
-            onChange={(e) => change("segment", e.target.value)}
-          >
-            <option value="">Todos</option>
-            <option value="unknown">Não informado</option>
-            {[...new Set(accounts.map((a) => a.segment).filter(Boolean))].sort().map((s) => (
-              <option key={s} value={s!}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Regime tributário">
-          <select
-            className={inputClass}
+            onChange={(v) => change("segment", v)}
+            options={[
+              { value: "unknown", label: "Não informado" },
+              ...unique(accounts.map((a) => a.segment)).map((s) => ({ value: s, label: s })),
+            ]}
+          />
+        </FieldMulti>
+        <FieldMulti label="Regime tributário">
+          <MultiSelect
+            label="Regime tributário"
+            placeholder="Todos os regimes"
             value={filters.regime}
-            onChange={(e) => change("regime", e.target.value)}
-          >
-            <option value="">Todos os regimes</option>
-            <option value="unknown">Não informado</option>
-            {[...new Set(accounts.map((a) => a.regime).filter(Boolean))].sort().map((regime) => (
-              <option key={regime} value={regime!}>
-                {regime}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Contato · filtro opcional">
-          <select
-            className={inputClass}
+            onChange={(v) => change("regime", v)}
+            options={[
+              { value: "unknown", label: "Não informado" },
+              ...unique(accounts.map((a) => a.regime)).map((r) => ({ value: r, label: r })),
+            ]}
+          />
+        </FieldMulti>
+        <FieldMulti label="Situação na Receita">
+          <MultiSelect
+            label="Situação na Receita"
+            placeholder="Todas as situações cadastrais"
+            value={filters.receita}
+            onChange={(v) => change("receita", v)}
+            options={Object.entries(SITUACOES_RECEITA_FILTRO).map(([value, label]) => ({
+              value,
+              label,
+            }))}
+          />
+        </FieldMulti>
+        <FieldMulti label="Contato · filtro opcional">
+          <MultiSelect
+            label="Contato"
+            placeholder="Com e sem contato"
             value={filters.contact}
-            onChange={(e) => change("contact", e.target.value)}
-          >
-            <option value="">Com e sem contato</option>
-            <option value="true">Com contato</option>
-            <option value="false">Obter com o sócio</option>
-          </select>
-        </Field>
+            onChange={(v) => change("contact", v)}
+            options={[
+              { value: "true", label: "Com contato" },
+              { value: "false", label: "Obter com o sócio" },
+            ]}
+          />
+        </FieldMulti>
         <Field label="Produto da lista">
           <select
             className={inputClass}
-            value={filters.product}
-            onChange={(e) => change("product", e.target.value)}
+            value={product}
+            onChange={(e) => change("product", e.target.value as Produto | "")}
           >
             <option value="">Todos os produtos</option>
             {PRODUTOS.map((p) => (
@@ -656,24 +810,30 @@ function PortfolioTable({
             ))}
           </select>
         </Field>
-        <Field label="Situação">
-          <select
-            className={inputClass}
-            value={filters.status}
-            disabled={!filters.product}
-            onChange={(e) => change("status", e.target.value)}
-          >
-            {!filters.product && <option value="">Selecione um produto</option>}
-            {filters.product === "consultoria" && (
-              <option value="potential">Base retroativa · aptas e regime a confirmar</option>
-            )}
-            <option value="eligible">Perfil aderente</option>
-            <option value="review">Dados a confirmar</option>
-            <option value="free">Aderentes e disponíveis para o produto</option>
-            <option value="occupied">Aderentes já trabalhadas / reservadas</option>
-            <option value="excluded">Fora da regra do produto</option>
-          </select>
-        </Field>
+        <FieldMulti label="Situação no produto">
+          <MultiSelect
+            label="Situação no produto"
+            disabled={!product}
+            placeholder={product ? "Todas as situações" : "Selecione um produto"}
+            // A situação padrão do produto aparece marcada; desmarcar tudo significa todas.
+            value={situacaoEfetiva.filter((s) => s !== TODAS)}
+            onChange={(v) => change("status", v.length ? v : [TODAS])}
+            options={situacoes.map((s) => ({ value: s, label: SITUACOES[s] }))}
+          />
+        </FieldMulti>
+        {product && (
+          <FieldMulti label="Abordagem no produto">
+            <MultiSelect
+              label="Abordagem no produto"
+              placeholder="Abordadas ou não"
+              value={filters.approach}
+              onChange={(v) => change("approach", v as Abordagem[])}
+              options={(Object.entries(ABORDAGENS) as [Abordagem, string][]).map(
+                ([value, label]) => ({ value, label }),
+              )}
+            />
+          </FieldMulti>
+        )}
         <label className="flex items-center gap-2 self-end pb-2 text-xs">
           <input
             type="checkbox"
@@ -686,14 +846,37 @@ function PortfolioTable({
           variant="ghost"
           className="self-end"
           onClick={() => {
-            setFilters(emptyFilters);
+            // Preserva o produto escolhido; limpar filtros não é trocar de lista.
+            setFilters({ ...emptyFilters, product, status: situacoesIniciais(product) });
             setPicked(new Set());
+            setLimit(50);
           }}
         >
           Limpar filtros
         </Button>
       </div>
-      {filters.product === "consultoria" && (
+      {product && (
+        <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {chips.map((c) => {
+            const active = situacaoEfetiva.length === 1 && situacaoEfetiva[0] === c.key;
+            return (
+              <button
+                key={c.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => change("status", active ? situacoesIniciais(product) : [c.key])}
+                className={`rounded-lg border p-3 text-left transition hover:border-primary ${active ? "border-primary bg-primary/5" : ""}`}
+              >
+                <span className="text-xs text-muted-foreground">{c.label}</span>
+                <span className={`block text-xl font-semibold tabular-nums ${c.tone}`}>
+                  {number(c.n)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {product === "consultoria" && (
         <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
           <p className="font-medium">Regime não informado não significa empresa inapta.</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -705,13 +888,26 @@ function PortfolioTable({
         </div>
       )}
       <p className="mb-2 text-xs text-muted-foreground">
-        {number(rows.length)} de {number(accounts.length)} contas · maior faturamento primeiro ·{" "}
-        {selected.length} selecionadas
+        {number(rows.length)} de {number(accounts.length)} contas ·{" "}
+        {product
+          ? "prontas para enviar primeiro, depois maior faturamento"
+          : "maior faturamento primeiro"}{" "}
+        · {selected.length} selecionadas
+        {product && selected.length > 0 && (
+          <>
+            {" "}
+            ({prontasSelecionadas} prontas para enviar
+            {selected.length - prontasSelecionadas > 0
+              ? ` · ${selected.length - prontasSelecionadas} ficam fora do envio e podem ir para uma lista`
+              : ""}
+            )
+          </>
+        )}
       </p>
-      {filters.product && (
+      {product && (
         <p className="mb-3 text-xs text-muted-foreground">
-          Produto selecionado: <strong>{NOMES[filters.product]}</strong>. Os selos dos demais
-          produtos mostram sobreposição, sem alterar este filtro.
+          Produto selecionado: <strong>{NOMES[product]}</strong>. Os selos dos demais produtos
+          mostram sobreposição, sem alterar este filtro.
         </p>
       )}
       <div className="overflow-x-auto">
@@ -733,84 +929,103 @@ function PortfolioTable({
                 />
               </th>
               <th className="p-2">Empresa</th>
+              {product && <th className="p-2">Situação · {NOMES[product]}</th>}
               <th className="p-2">Faturamento · cadastro / Driva</th>
               <th className="p-2">Segmento / regime</th>
-              <th className="p-2">Contato / CRM</th>
+              <th className="p-2">Contato</th>
             </tr>
           </thead>
           <tbody>
-            {visible.map((a) => (
-              <tr key={a.key} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="p-2 align-top">
-                  <input
-                    aria-label={`Selecionar ${a.name}`}
-                    type="checkbox"
-                    checked={picked.has(a.key)}
-                    onChange={() => toggle(a.key)}
-                  />
-                </td>
-                <td className="min-w-52 p-2">
-                  <button
-                    className="text-left font-medium hover:text-primary hover:underline"
-                    onClick={() => showAccount(a)}
-                  >
-                    {a.name}
-                  </button>
-                  <p className="my-1 text-[11px] text-muted-foreground">
-                    <span title={a.base_origin?.reason}>{ORIGENS_BASE[origemBase(a)]}</span>
-                    {a.base_origin?.commercial && " · fechamento comercial identificado"}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    <OfertaTag account={a} product="consultoria" />
-                    <OfertaTag account={a} product="finance" />
-                    <OfertaTag account={a} product="cella" />
-                  </div>
-                </td>
-                <td className="min-w-40 p-2 text-xs">
-                  {a.band || "Declarado não informado"}
-                  {a.driva?.group_revenue_band && (
-                    <p className="mt-1 font-medium">
-                      {a.driva.group_revenue_band}
-                      <span className="block text-[10px] font-normal text-muted-foreground">
-                        Estimativa Driva · grupo econômico
-                      </span>
+            {visible.map((a) => {
+              const e = estado(a);
+              return (
+                <tr key={a.key} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="p-2 align-top">
+                    <input
+                      aria-label={`Selecionar ${a.name}`}
+                      type="checkbox"
+                      checked={picked.has(a.key)}
+                      onChange={() => toggle(a.key)}
+                    />
+                  </td>
+                  <td className="min-w-52 p-2 align-top">
+                    <button
+                      className="text-left font-medium hover:text-primary hover:underline"
+                      onClick={() => showAccount(a)}
+                    >
+                      {a.name}
+                    </button>
+                    <p className="my-1 text-[11px] text-muted-foreground">
+                      {a.unit_label ? `${a.unit_label} · ` : ""}
+                      <span title={a.base_origin?.reason}>{ORIGENS_BASE[origemBase(a)]}</span>
+                      {a.situacao_receita && a.situacao_receita !== "ativa" && (
+                        <span
+                          className="ml-1 rounded bg-muted px-1 font-semibold"
+                          title={a.situacao_receita_fonte ?? undefined}
+                        >
+                          {rotuloSituacaoReceita(a)}
+                        </span>
+                      )}
+                      {a.base_origin?.commercial && " · fechamento comercial identificado"}
                     </p>
+                    <div className="flex flex-wrap gap-1">
+                      <OfertaTag account={a} product="consultoria" />
+                      <OfertaTag account={a} product="finance" />
+                      <OfertaTag account={a} product="cella" />
+                    </div>
+                  </td>
+                  {e && (
+                    <td className="min-w-56 p-2 align-top">
+                      <SituacaoProduto estado={e} />
+                    </td>
                   )}
-                  {a.band_conflict && <span className="block text-amber-600">Fontes divergem</span>}
-                </td>
-                <td className="min-w-36 p-2 text-xs">
-                  {a.segment || "Segmento a confirmar"}
-                  <span className="block text-muted-foreground">
-                    {a.regime ||
-                      (a.base?.tax_evidence?.non_simples === true || a.driva?.non_simples === true
-                        ? "Fora do Simples · regime específico não informado"
-                        : "Regime a confirmar")}
-                  </span>
-                  {a.regime_source && (
-                    <span className="block text-[10px] text-muted-foreground">
-                      Regime: {a.regime_source}
+                  <td className="min-w-40 p-2 align-top text-xs">
+                    {faturamentoDeclarado(a)}
+                    {tetoContradizFaixa(a) && (
+                      <p className="mt-1 text-[10px] font-medium text-amber-600">
+                        {tetoContradizFaixa(a)}
+                      </p>
+                    )}
+                    {a.driva?.group_revenue_band && (
+                      <p className="mt-1 font-medium">
+                        {a.driva.group_revenue_band}
+                        <span className="block text-[10px] font-normal text-muted-foreground">
+                          Estimativa Driva · grupo econômico
+                        </span>
+                      </p>
+                    )}
+                    {a.band_conflict && (
+                      <span className="block text-amber-600">Fontes divergem</span>
+                    )}
+                  </td>
+                  <td className="min-w-36 p-2 align-top text-xs">
+                    {a.segment || "Segmento a confirmar"}
+                    <span className="block text-muted-foreground">
+                      {a.regime ||
+                        (a.base?.tax_evidence?.non_simples === true || a.driva?.non_simples === true
+                          ? "Fora do Simples · regime específico não informado"
+                          : "Regime a confirmar")}
                     </span>
-                  )}
-                  <span className="block text-[10px] text-muted-foreground">
-                    {a.segment_source || "Sem fonte preenchida"}
-                  </span>
-                </td>
-                <td className="min-w-36 p-2 text-xs">
-                  {a.contact ? "Com contato" : "Obter com o sócio"}
-                  <p className="mt-1 text-muted-foreground">
-                    {filters.product
-                      ? disponibilidade(
-                          a,
-                          filters.product,
-                          data.cards,
-                          undefined,
-                          data.reservations,
-                        ).reason
-                      : "Selecione o produto para ver disponibilidade"}
-                  </p>
-                </td>
-              </tr>
-            ))}
+                    {a.regime_source && (
+                      <span className="block text-[10px] text-muted-foreground">
+                        Regime: {a.regime_source}
+                      </span>
+                    )}
+                    <span className="block text-[10px] text-muted-foreground">
+                      {a.segment_source || "Sem fonte preenchida"}
+                    </span>
+                  </td>
+                  <td className="min-w-32 p-2 align-top text-xs">
+                    {a.contact ? "Com contato" : "Obter com o sócio"}
+                    {!product && (
+                      <p className="mt-1 text-muted-foreground">
+                        Selecione o produto para ver situação e abordagem
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -825,6 +1040,106 @@ function PortfolioTable({
         </Button>
       )}
     </Panel>
+  );
+}
+
+// O Pipedrive devolve "AAAA-MM-DD HH:MM:SS" em UTC; sem o "Z" o navegador leria como hora local.
+const quando = (v: string) =>
+  date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(v) ? v.replace(" ", "T") + "Z" : v);
+
+const ROTULO_SITUACAO: Record<EstadoProduto["situacao"], string> = {
+  free: "Apta · pronta para enviar",
+  occupied: "Apta · já em trabalho ou reservada",
+  qualificar: "A confirmar",
+  review: "A confirmar",
+  excluded: "Fora da regra",
+};
+
+function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
+  const perfil =
+    e.perfil.status === "elegivel"
+      ? {
+          label: "Apta · validada",
+          tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+        }
+      : e.perfil.status === "revisar"
+        ? { label: "A confirmar", tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300" }
+        : { label: "Fora da regra", tone: "bg-muted text-muted-foreground" };
+  const lista = e.listas[0];
+  return (
+    <div className="space-y-1 text-xs">
+      <span
+        className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${perfil.tone}`}
+        title={e.perfil.reason}
+      >
+        {perfil.label}
+      </span>
+      {e.perfil.status === "elegivel" ? (
+        e.livre ? (
+          <p className="font-medium text-emerald-700 dark:text-emerald-300">Pronta para enviar</p>
+        ) : (
+          <p className="text-muted-foreground">{e.motivoDisponibilidade}</p>
+        )
+      ) : (
+        <p className="line-clamp-2 text-muted-foreground" title={e.perfil.reason}>
+          {e.perfil.reason}
+        </p>
+      )}
+      {e.aberto && (
+        <a
+          href={e.aberto.url}
+          target="_blank"
+          rel="noreferrer"
+          className="block font-medium text-primary hover:underline"
+        >
+          No Pipedrive · {e.aberto.stage} · {e.aberto.owner}
+        </a>
+      )}
+      {e.envio && !e.aberto && (
+        <p className="font-medium">
+          {e.envio === "incerto"
+            ? "Envio incerto · conferir no Pipedrive antes de reenviar"
+            : "Envio registrado · negócio ainda não sincronizado do Pipedrive"}
+        </p>
+      )}
+      {e.encerrado && (
+        <a
+          href={e.encerrado.url}
+          target="_blank"
+          rel="noreferrer"
+          className="block text-muted-foreground hover:underline"
+        >
+          {e.encerrado.status === "won"
+            ? `Abordada antes · ganho${e.encerrado.won_on ? ` em ${quando(e.encerrado.won_on)}` : ""}`
+            : `Abordada antes · perdido${e.encerrado.lost_reason ? ` · ${e.encerrado.lost_reason}` : ""}${e.encerrado.updated_at ? ` · atualizado em ${quando(e.encerrado.updated_at)}` : ""}`}
+        </a>
+      )}
+      {e.semProduto && (
+        <a
+          href={e.semProduto.url}
+          target="_blank"
+          rel="noreferrer"
+          className="block text-amber-700 hover:underline dark:text-amber-300"
+        >
+          Negócio sem produto no Pipedrive · {e.semProduto.stage} ·{" "}
+          {e.semProduto.status === "open"
+            ? "aberto"
+            : e.semProduto.status === "won"
+              ? "ganho"
+              : "perdido"}
+        </a>
+      )}
+      {lista && (
+        <p className="text-muted-foreground">
+          Em lista: {lista.lista.nome}
+          {lista.validada ? " · validada pelo sócio" : ""}
+          {e.listas.length > 1 ? ` +${e.listas.length - 1}` : ""}
+        </p>
+      )}
+      {e.abordagem.includes("nunca") && (
+        <p className="text-muted-foreground">Sem negócio, envio ou lista neste produto</p>
+      )}
+    </div>
   );
 }
 
@@ -875,9 +1190,17 @@ function Gates({ data }: { data: BaseMonetizacao }) {
     [
       "Consultoria · excluídas por Simples/MEI",
       data.accounts.filter(
-        (a) => baseRetroativaConsultoria(a) && oferta(a, "consultoria").status === "fora_regra",
+        (a) =>
+          baseRetroativaConsultoria(a) &&
+          oferta(a, "consultoria").status === "fora_regra" &&
+          !situacaoForaDeOferta(a),
       ).length,
       "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
+    ],
+    [
+      "Consultoria · fora por situação na Receita",
+      data.accounts.filter((a) => baseRetroativaConsultoria(a) && situacaoForaDeOferta(a)).length,
+      "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
     ],
     [
       "Consultoria · regime a confirmar",

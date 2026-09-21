@@ -90,3 +90,32 @@ test("Nota revisada acima de 5 mi resolve faixa limítrofe, preservando conflito
     "Faixa original",
   );
 });
+
+test("Conta não ativa na Receita sai do Recon por grupo próprio, não como 'Até R$ 5 mi'", () => {
+  const semFaturamento = account(proof({ revenue_min: null, revenue_max: null }));
+  assert.equal(grupoRecon(semFaturamento), "sem_faturamento");
+  for (const s of ["baixada", "inapta", "suspensa"]) {
+    const a = { ...semFaturamento, situacao_receita: s };
+    assert.equal(ofertaRecon(a).status, "fora_regra");
+    assert.match(ofertaRecon(a).reason, new RegExp(`${s} na Receita`));
+    assert.equal(
+      grupoRecon(a),
+      "inativa",
+      "não pode virar abaixo_corte: ninguém apurou faturamento",
+    );
+    assert.equal(potencialRecon(a), false);
+    assert.equal(faturamentoRecon(a), "A confirmar");
+  }
+  assert.equal(GRUPOS_RECON.inativa, "Inativa na Receita · baixada, inapta ou suspensa");
+  // A identidade divergente continua ganhando: ela é que impede saber de quem é o CNPJ.
+  assert.equal(
+    grupoRecon({
+      ...semFaturamento,
+      situacao_receita: "baixada",
+      base: { identity_conflict: true },
+    }),
+    "identidade",
+  );
+  assert.equal(grupoRecon({ ...semFaturamento, situacao_receita: "ativa" }), "sem_faturamento");
+  assert.equal(grupoRecon({ ...semFaturamento, situacao_receita: null }), "sem_faturamento");
+});

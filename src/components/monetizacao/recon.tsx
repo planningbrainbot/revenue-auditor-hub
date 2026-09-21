@@ -13,6 +13,7 @@ import type { GrupoRecon } from "@/lib/monetizacao/recon";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { Conta } from "@/lib/monetizacao/types";
 import { date, downloadCsv, Field, inputClass, Kpi, Notice, number, Panel } from "./common";
+import { FieldMulti, MultiSelect } from "./multi-select";
 
 export function ReconAquario({
   accounts,
@@ -21,10 +22,11 @@ export function ReconAquario({
   accounts: Conta[];
   showAccount: (a: Conta) => void;
 }) {
-  const [status, setStatus] = useState("potencial"),
+  // Classificação, unidade e contato aceitam várias opções; nada marcado = todas as contas.
+  const [status, setStatus] = useState<string[]>(["potencial"]),
     [query, setQuery] = useState(""),
-    [unit, setUnit] = useState(""),
-    [contact, setContact] = useState(""),
+    [unit, setUnit] = useState<string[]>([]),
+    [contact, setContact] = useState<string[]>([]),
     [limit, setLimit] = useState(50);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const eligible = accounts.filter((a) => ofertaRecon(a).status === "elegivel");
@@ -42,11 +44,12 @@ export function ReconAquario({
       accounts
         .filter(
           (a) =>
-            (!status || (status === "potencial" ? potencialRecon(a) : grupoRecon(a) === status)) &&
+            (!status.length ||
+              status.some((s) => (s === "potencial" ? potencialRecon(a) : grupoRecon(a) === s))) &&
             (!query ||
               normal([a.name, a.unit_label, a.segment].join(" ")).includes(normal(query))) &&
-            (!unit || a.unit_label === unit) &&
-            (!contact || String(a.contact) === contact),
+            (!unit.length || unit.includes(a.unit_label ?? "")) &&
+            (!contact.length || contact.includes(String(a.contact))),
         )
         .sort(
           (a, b) =>
@@ -100,7 +103,7 @@ export function ReconAquario({
           value={number(potential.length)}
           hint="Aptas + pendentes abaixo · contas únicas"
           onClick={() => {
-            setStatus("potencial");
+            setStatus(["potencial"]);
             setLimit(50);
           }}
         />
@@ -110,7 +113,7 @@ export function ReconAquario({
           hint="Acima de R$ 5 mi · fora de qualquer BPO"
           accent
           onClick={() => {
-            setStatus("elegivel");
+            setStatus(["elegivel"]);
             setLimit(50);
           }}
         />
@@ -119,7 +122,7 @@ export function ReconAquario({
           value={number(counts.confirmar_bpo)}
           hint="Falta identificação ou comprovar serviços"
           onClick={() => {
-            setStatus("confirmar_bpo");
+            setStatus(["confirmar_bpo"]);
             setLimit(50);
           }}
         />
@@ -128,7 +131,7 @@ export function ReconAquario({
           value={number(counts.faixa_limite)}
           hint="Confirmar valor anual e eventuais serviços pendentes"
           onClick={() => {
-            setStatus("faixa_limite");
+            setStatus(["faixa_limite"]);
             setLimit(50);
           }}
         />
@@ -155,7 +158,7 @@ export function ReconAquario({
               key={g}
               className="flex justify-between rounded border p-2 text-left hover:bg-muted/50"
               onClick={() => {
-                setStatus(g);
+                setStatus([g]);
                 setLimit(50);
               }}
             >
@@ -191,45 +194,53 @@ export function ReconAquario({
               />
             </div>
           </Field>
-          <Field label="Classificação">
-            <select
-              className={inputClass}
+          <FieldMulti label="Classificação">
+            <MultiSelect
+              label="Classificação"
+              placeholder="Todas as contas"
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
+              onChange={(v) => {
+                setStatus(v);
                 setLimit(50);
               }}
-            >
-              <option value="potencial">No radar · aptas e pendentes</option>
-              {(Object.entries(GRUPOS_RECON) as [GrupoRecon, string][]).map(([g, label]) => (
-                <option key={g} value={g}>
-                  {label} ({number(counts[g])})
-                </option>
-              ))}
-              <option value="">Todas as contas</option>
-            </select>
-          </Field>
-          <Field label="Unidade">
-            <select className={inputClass} value={unit} onChange={(e) => setUnit(e.target.value)}>
-              <option value="">Todas as unidades</option>
-              {[...new Set(accounts.map((a) => a.unit_label).filter(Boolean))].sort().map((u) => (
-                <option key={u} value={u!}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Contato">
-            <select
-              className={inputClass}
+              options={[
+                { value: "potencial", label: "No radar · aptas e pendentes" },
+                ...(Object.entries(GRUPOS_RECON) as [GrupoRecon, string][]).map(([g, label]) => ({
+                  value: g,
+                  label: `${label} (${number(counts[g])})`,
+                })),
+              ]}
+            />
+          </FieldMulti>
+          <FieldMulti label="Unidade">
+            <MultiSelect
+              label="Unidade"
+              placeholder="Todas as unidades"
+              value={unit}
+              onChange={(v) => {
+                setUnit(v);
+                setLimit(50);
+              }}
+              options={[...new Set(accounts.map((a) => a.unit_label).filter(Boolean) as string[])]
+                .sort((a, b) => a.localeCompare(b, "pt-BR"))
+                .map((u) => ({ value: u, label: u }))}
+            />
+          </FieldMulti>
+          <FieldMulti label="Contato">
+            <MultiSelect
+              label="Contato"
+              placeholder="Com e sem contato"
               value={contact}
-              onChange={(e) => setContact(e.target.value)}
-            >
-              <option value="">Com e sem contato</option>
-              <option value="true">Com contato</option>
-              <option value="false">Obter com o sócio</option>
-            </select>
-          </Field>
+              onChange={(v) => {
+                setContact(v);
+                setLimit(50);
+              }}
+              options={[
+                { value: "true", label: "Com contato" },
+                { value: "false", label: "Obter com o sócio" },
+              ]}
+            />
+          </FieldMulti>
         </div>
         <p className="mb-3 text-xs text-muted-foreground">
           {number(rows.length)} contas · clique na empresa para ver os detalhes e as fontes.

@@ -1,7 +1,9 @@
+import { situacaoForaDeOferta } from "./model.ts";
 import type { Conta, Oferta } from "./types";
 
 export const GRUPOS_RECON = {
   identidade: "CNPJ divergente",
+  inativa: "Inativa na Receita · baixada, inapta ou suspensa",
   elegivel: "Aptas",
   confirmar_bpo: "Acima de R$ 5 mi · confirmar BPO",
   faixa_limite: "Faixa atravessa R$ 5 mi",
@@ -14,6 +16,9 @@ export type GrupoRecon = keyof typeof GRUPOS_RECON;
 
 export function grupoRecon(a: Conta): GrupoRecon {
   if (a.base?.identity_conflict) return "identidade";
+  // Antes do corte por faturamento: "fora_regra" por situação cadastral não é prova de faturar
+  // pouco, e cair em "Até R$ 5 mi" afirmaria um valor que ninguém apurou.
+  if (situacaoForaDeOferta(a)) return "inativa";
   const r = a.recon;
   if (r?.bpo_status === "bpo") return "bpo";
   if (r?.revenue_conflict || a.band_conflict) return "divergencia";
@@ -40,6 +45,8 @@ export function faturamentoRecon(a: Conta): string {
 export function ofertaRecon(a: Conta): Oferta {
   if (a.base?.identity_conflict)
     return { status: "revisar", reason: "CNPJ divergente entre fontes; revisar a identidade." };
+  const parada = situacaoForaDeOferta(a);
+  if (parada) return { status: "fora_regra", reason: parada };
   const r = a.recon;
   if (!r) return { status: "revisar", reason: "Contrato e carteira BPO ainda não conferidos." };
   if (r.bpo_status === "bpo") return { status: "fora_regra", reason: r.reason };

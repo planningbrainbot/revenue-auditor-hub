@@ -57,6 +57,49 @@ export const baseRetroativaConsultoria = (a: Conta) =>
   !a.new_commercial &&
   a.consultoria_origin?.status === "retroativa" &&
   (!a.base_origin || a.base_origin.status === "antiga");
+export const SITUACOES_RECEITA = {
+  ativa: "Ativa na Receita",
+  baixada: "Baixada na Receita",
+  inapta: "Inapta na Receita",
+  suspensa: "Suspensa na Receita",
+} as const;
+// Rótulo único da situação cadastral, para tela e CSV. Estado novo da Receita cai no texto cru em
+// vez de sumir: melhor a tela mostrar um código estranho do que fingir que a empresa está ativa.
+export const rotuloSituacaoReceita = (a: Conta): string | null =>
+  a.situacao_receita
+    ? ((SITUACOES_RECEITA as Record<string, string>)[a.situacao_receita] ??
+      `${a.situacao_receita} na Receita`)
+    : null;
+// Empresa fechada não é oportunidade dos produtos; fica na lista separada para uso futuro
+// (decisão do dono em 18/09/2026). A situação vem da consulta em lote da Receita — um congelado.
+// Quando a inscrição é regularizada, `review.situacao_receita = "ativa"` no editor de lista é o
+// caminho de volta dentro do produto, com o mesmo trilho de auditoria do regime.
+export function situacaoForaDeOferta(a: Conta, review: Revisao = {}): string | null {
+  const s = review.situacao_receita || a.situacao_receita;
+  if (!s || s === "ativa") return null;
+  return `Empresa ${s} na Receita Federal${a.situacao_receita_fonte ? ` (${a.situacao_receita_fonte})` : ""}. Fora das ofertas; fica na lista de empresas inativas.`;
+}
+// Teto legal pelo porte quando não há faixa declarada. Um só limite para oferta, filtro e ordenação.
+export const limiteFaturamento = (
+  a: Conta,
+  band = a.band || "",
+): [number, number | null] | undefined =>
+  FAIXAS[band] ?? (!band && a.faturamento_teto != null ? [0, a.faturamento_teto] : undefined);
+export const tetoEmReais = (teto: number) => `R$ ${String(teto).replace(".", ",")} mi`;
+// O mesmo texto na linha da tabela e no CSV: sem faixa declarada, o teto do porte é o que se sabe.
+export function faturamentoDeclarado(a: Conta): string {
+  if (a.band) return a.band;
+  if (a.faturamento_teto != null)
+    return `Até ${tetoEmReais(a.faturamento_teto)} · teto pelo porte (${a.faturamento_teto_fonte || "Receita"})`;
+  return "Declarado não informado";
+}
+// Faixa declarada acima do teto legal do porte: as duas fontes não podem estar certas. A faixa segue
+// mandando (é declaração do sócio), mas o conflito para de ficar escondido.
+export function tetoContradizFaixa(a: Conta): string | null {
+  const bounds = FAIXAS[a.band || ""];
+  if (!bounds || a.faturamento_teto == null || bounds[0] <= a.faturamento_teto) return null;
+  return `Faixa declarada acima do teto do porte na Receita (até ${tetoEmReais(a.faturamento_teto)}). Confirmar com o sócio.`;
+}
 export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta {
   if (a.base?.identity_conflict)
     return {
@@ -64,9 +107,15 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
       reason: "CNPJ divergente entre fontes; revisar a identidade antes de enviar.",
     };
   const regime = normal(review.regime || a.regime);
-  const band = review.band || a.band || "",
-    bounds = FAIXAS[band];
+  const band = review.band || a.band || "";
+  // Sem faixa cadastrada, o porte na Receita (ME até R$ 0,36 mi, EPP até R$ 4,8 mi) é teto legal de
+  // faturamento: basta para o corte de Finance e para excluir de Cella, sem virar faixa declarada.
+  const teto = !band && a.faturamento_teto != null ? a.faturamento_teto : null;
+  const bounds = limiteFaturamento(a, band);
+  const pelaReceita = teto != null ? " pelo porte na Receita" : "";
   const result = (status: Oferta["status"], reason: string) => ({ status, reason });
+  const parada = situacaoForaDeOferta(a, review);
+  if (parada) return result("fora_regra", parada);
   if (a.base?.source_status === "absent")
     return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
   if (produto === "consultoria") {
@@ -130,12 +179,15 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
       );
     return result(
       "elegivel",
-      "Contrato ganho no Pipedrive, faixa abaixo de R$ 25 mi e regime fora do Simples.",
+      `Contrato ganho no Pipedrive, faturamento abaixo de R$ 25 mi${pelaReceita} e regime fora do Simples.`,
     );
   }
   return bounds[0] >= 25
     ? result("elegivel", "Faturamento a partir de R$ 25 mi, fora do Simples.")
-    : result("fora_regra", "Cella: faturamento a partir de R$ 25 mi.");
+    : result(
+        "fora_regra",
+        `Cella: faturamento a partir de R$ 25 mi${teto != null ? "; porte ME/EPP na Receita fica abaixo" : ""}.`,
+      );
 }
 export function negociosDaConta(a: Conta, cards: Negocio[]) {
   return cards.filter((c) => c.org_id !== null && a.orgs.includes(c.org_id));

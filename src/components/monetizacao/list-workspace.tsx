@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { acionarMonetizacao, salvarListaAquario } from "@/lib/monetizacao/functions";
-import { disponibilidade, FAIXAS, oferta } from "@/lib/monetizacao/model";
+import { disponibilidade, FAIXAS, oferta, SITUACOES_RECEITA } from "@/lib/monetizacao/model";
 import { NOMES } from "@/lib/monetizacao/types";
 import type {
   BaseMonetizacao,
@@ -498,6 +498,29 @@ export function ListWorkspace({
                         </select>
                       </Field>
                     </div>
+                    {a?.situacao_receita && a.situacao_receita !== "ativa" && (
+                      <div className="mt-2">
+                        <Field label="Situação na Receita">
+                          <select
+                            className={inputClass}
+                            value={i.review.situacao_receita || a.situacao_receita}
+                            disabled={locked}
+                            onChange={(e) => updateReview(idx, "situacao_receita", e.target.value)}
+                          >
+                            {Object.entries(SITUACOES_RECEITA).map(([v, label]) => (
+                              <option key={v} value={v}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {a.situacao_receita_fonte || "Consulta em lote da Receita"}. Marque
+                            &quot;Ativa&quot; só com a inscrição regularizada conferida — é o que
+                            libera a conta para oferta.
+                          </p>
+                        </Field>
+                      </div>
+                    )}
                     <div className="mt-2">
                       <Field label="Oportunidade e próximo passo para o sócio">
                         <input
