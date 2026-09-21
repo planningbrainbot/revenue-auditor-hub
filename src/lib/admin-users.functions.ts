@@ -55,12 +55,21 @@ export async function gerarLinkDefinirSenha(email: string): Promise<string> {
   return passwordRecoveryLink(data.properties.hashed_token);
 }
 
-function pickPrimaryRole(roles: Role[]): Role {
+/**
+ * O papel principal, ou `null` quando a pessoa não tem nenhum.
+ *
+ * Devolvia "diretor" quando a lista vinha vazia, de quando toda linha desta
+ * tela era gente do Ops. Hoje a tela lista `profiles` inteiro, que inclui quem
+ * só entra no Growth ou no Financeiro: em 21/09/2026 eram 19 de 45 pessoas
+ * aparecendo como DIRETOR sem ter papel nenhum aqui. Numa tela onde se decide
+ * acesso, inventar papel é pior do que admitir a ausência dele.
+ */
+function pickPrimaryRole(roles: Role[]): Role | null {
   if (roles.length === 1) return roles[0];
   for (const r of ROLE_PRECEDENCE) {
     if (roles.includes(r)) return r;
   }
-  return roles[0] ?? "diretor";
+  return roles[0] ?? null;
 }
 
 
@@ -91,6 +100,26 @@ export const adminListUsers = createServerFn({ method: "GET" })
       rolesByUser.set(r.user_id, arr);
     }
 
+    // A PORTA de cada produto. `public.produto_acesso` é a mesma fonte para os
+    // três: é ela que `public.tem_produto()` lê nas policies, que a sessão
+    // irmã do Financeiro consulta e que o botão do Growth escreve. A tela
+    // mostrava só o Growth porque ele era o único com cadastro próprio — o Ops
+    // era implícito ("está na lista, logo entra"), o que deixou de ser verdade
+    // quando a lista passou a ser `profiles` inteiro.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: portas, error: portaErr } = await (supabaseAdmin as any)
+      .schema("public")
+      .from("produto_acesso")
+      .select("user_id, produto");
+    if (portaErr) {
+      console.error("[adminListUsers] produto_acesso query failed:", portaErr);
+      throw new Error("Erro ao listar usuários. Tente novamente.");
+    }
+    const produtosByUser = new Map<string, string[]>();
+    for (const l of (portas ?? []) as { user_id: string; produto: string }[]) {
+      produtosByUser.set(l.user_id, [...(produtosByUser.get(l.user_id) ?? []), l.produto]);
+    }
+
     // For sócios, look up their unidade from socios table by email.
     const { data: socios } = await supabaseAdmin
       .from("socios")
@@ -112,6 +141,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
         created_at: p.created_at,
         role,
         unidade,
+        produtos: produtosByUser.get(p.user_id) ?? [],
       };
     });
 
@@ -165,6 +195,20 @@ export const adminCreateUser = createServerFn({ method: "POST" })
         .upsert({ user_id: userId, role: data.role }, { onConflict: "user_id,role" });
       if (roleErr) console.error("[adminCreateUser] role upsert failed:", roleErr);
     }
+
+    // A porta do Ops. Sem esta linha as policies com `tem_produto('ops')`
+    // barram a pessoa mesmo com papel certinho — foi o que aconteceu com três
+    // contas criadas por aqui (raul.dantas, heloisa.araujo, brenda.patury),
+    // porque só o convite da página de Equipe escrevia esta tabela.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: portaErr } = await (supabaseAdmin as any)
+      .schema("public")
+      .from("produto_acesso")
+      .upsert(
+        { user_id: userId, produto: "ops", concedido_por: context.userId },
+        { onConflict: "user_id,produto", ignoreDuplicates: true },
+      );
+    if (portaErr) console.error("[adminCreateUser] produto_acesso upsert failed:", portaErr);
 
     // Para sócio (qualquer tipo), vincula a unidade em public.socios
     let unidade: string | null = null;
@@ -471,6 +515,51 @@ export const adminGrantGrowthAccess = createServerFn({ method: "POST" })
     });
 
     return { email: data.email, loginCriado };
+  });
+
+/**
+ * Abre ou fecha a porta do Ops de alguém (`produto_acesso`, produto = 'ops').
+ *
+ * É o equivalente, para o Ops, do que o botão do Growth sempre fez: diz se a
+ * pessoa ENTRA no produto. O que ela vê lá dentro continua em "Acessos"
+ * (áreas) e "Escopo" (unidades e empresas) — fechar a porta não apaga nada
+ * disso, então reabrir devolve a pessoa exatamente como estava.
+ */
+export const adminDefinirPortaOps = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; conceder: boolean }) => {
+    const userId = (input?.userId ?? "").trim();
+    if (!UUID_RE.test(userId)) throw new Error("Pessoa inválida.");
+    return { userId, conceder: Boolean(input?.conceder) };
+  })
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId);
+    // Fechar a própria porta derrubaria quem está administrando, e a tela de
+    // conserto é justamente esta.
+    if (!data.conceder && data.userId === context.userId) {
+      throw new Error("Você não pode revogar o seu próprio acesso ao Ops.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const porta = (supabaseAdmin as any).schema("public").from("produto_acesso");
+
+    if (data.conceder) {
+      const { error } = await porta.upsert(
+        { user_id: data.userId, produto: "ops", concedido_por: context.userId },
+        { onConflict: "user_id,produto", ignoreDuplicates: true },
+      );
+      if (error) {
+        console.error("[adminDefinirPortaOps] upsert failed:", error);
+        throw new Error("Falha ao conceder o acesso ao Ops.");
+      }
+    } else {
+      const { error } = await porta.delete().eq("user_id", data.userId).eq("produto", "ops");
+      if (error) {
+        console.error("[adminDefinirPortaOps] delete failed:", error);
+        throw new Error("Falha ao revogar o acesso ao Ops.");
+      }
+    }
+    return { userId: data.userId, conceder: data.conceder };
   });
 
 export const adminRevokeGrowthAccess = createServerFn({ method: "POST" })

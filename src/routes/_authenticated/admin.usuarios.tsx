@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   adminCreateUser,
   adminAccessEmailStatus,
+  adminDefinirPortaOps,
   adminDeleteUser,
   adminEnviarRedefinicaoSenha,
   adminGrantGrowthAccess,
@@ -55,11 +56,29 @@ const CUSTOM_ROLE_PILL = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:tex
 // Papéis e departamentos do Growth — espelham os CHECK de public.membros lá.
 const GROWTH_PAPEIS = ["admin", "gestao", "operacional"] as const;
 const GROWTH_DEPARTAMENTOS = ["comercial", "diretoria", "marketing", "backoffice", "parcerias"] as const;
-const GROWTH_PILL: Record<string, string> = {
-  admin: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  gestao: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  operacional: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+
+/**
+ * Os três produtos da plataforma, na ordem de `public.produtos`.
+ *
+ * A porta de todos eles é a mesma tabela (`public.produto_acesso`); o que
+ * muda é onde se administra o que a pessoa vê DENTRO de cada um: no Ops são
+ * as áreas ("Acessos") e o escopo; no Growth, papel e departamento; no
+ * Financeiro, as unidades, que moram na página dedicada porque o recorte é
+ * por empresa e não cabe numa linha de tabela.
+ */
+const PRODUTOS = [
+  { slug: "ops", rotulo: "Ops" },
+  { slug: "growth", rotulo: "Growth" },
+  { slug: "financeiro", rotulo: "Financeiro" },
+] as const;
+
+const PRODUTO_PILL: Record<string, string> = {
+  ops: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
+  growth: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+  financeiro: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
 };
+const PRODUTO_PILL_OFF =
+  "border border-dashed border-border text-muted-foreground hover:border-solid hover:bg-accent";
 
 type GrowthAlvo = {
   email: string;
@@ -86,6 +105,7 @@ function UsersPage() {
   const growthListFn = useServerFn(adminListGrowthAccess);
   const growthGrantFn = useServerFn(adminGrantGrowthAccess);
   const growthRevokeFn = useServerFn(adminRevokeGrowthAccess);
+  const portaOpsFn = useServerFn(adminDefinirPortaOps);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) navigate({ to: "/" });
@@ -179,8 +199,19 @@ function UsersPage() {
     };
   }, [email, role, lookupFn]);
 
+  const [opsAlvo, setOpsAlvo] = useState<{ userId: string; nome: string; email: string; tem: boolean } | null>(null);
+
+  const portaOpsMut = useMutation({
+    mutationFn: (input: { userId: string; conceder: boolean }) => portaOpsFn({ data: input }),
+    onSuccess: () => {
+      setOpsAlvo(null);
+      setError(null);
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao mudar o acesso ao Ops"),
+  });
+
   const [growthAlvo, setGrowthAlvo] = useState<GrowthAlvo | null>(null);
-  const [growthSenha, setGrowthSenha] = useState("");
 
   const growthGrantMut = useMutation({
     mutationFn: (input: { email: string; nome: string; papel: string; departamento: string; password?: string }) =>
@@ -190,7 +221,6 @@ function UsersPage() {
         setCredential({ email: `${res.email} (Growth)`, password: variables.password });
       }
       setGrowthAlvo(null);
-      setGrowthSenha("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
     },
@@ -201,7 +231,6 @@ function UsersPage() {
     mutationFn: (email: string) => growthRevokeFn({ data: { email } }),
     onSuccess: () => {
       setGrowthAlvo(null);
-      setGrowthSenha("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
     },
@@ -486,7 +515,7 @@ function UsersPage() {
                 <th className="px-4 py-2">Email</th>
                 <th className="px-4 py-2">Papel</th>
                 <th className="px-4 py-2">Unidade</th>
-                <th className="px-4 py-2">Growth</th>
+                <th className="px-4 py-2">Produtos</th>
                 <th className="px-4 py-2 text-right">Ações</th>
               </tr>
             </thead>
@@ -514,9 +543,15 @@ function UsersPage() {
                   </td>
                   <td className="px-4 py-2 text-foreground">{u.email}</td>
                   <td className="px-4 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rolePill(u.role)}`}>
-                      {roleLabel(u.role)}
-                    </span>
+                    {u.role ? (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rolePill(u.role)}`}>
+                        {roleLabel(u.role)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground" title="Sem papel no Ops. Pode entrar por área, em Acessos.">
+                        sem papel
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
                     {u.role === "socio" || u.role === "socio_regional"
@@ -524,21 +559,55 @@ function UsersPage() {
                       : "—"}
                   </td>
                   <td className="px-4 py-2">
-                    {(() => {
-                      if (!growthConfigurado) return <span className="text-xs text-muted-foreground">—</span>;
-                      const m = growthPorEmail.get(u.email.toLowerCase());
-                      if (!m) return <span className="text-xs text-muted-foreground">sem acesso</span>;
-                      return (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            GROWTH_PILL[String(m.papel)] ?? CUSTOM_ROLE_PILL
-                          }`}
-                          title={`Departamento: ${m.departamento ?? "—"}`}
-                        >
-                          {String(m.papel)}
-                        </span>
-                      );
-                    })()}
+                    <div className="flex flex-wrap gap-1">
+                      {PRODUTOS.map((prod) => {
+                        const tem = u.produtos.includes(prod.slug);
+                        const membroGrowth =
+                          prod.slug === "growth" ? growthPorEmail.get(u.email.toLowerCase()) : undefined;
+                        // A porta sem o cadastro do Growth é acesso que não
+                        // funciona: a pessoa entra e o `e_membro()` de lá barra.
+                        const inconsistente = prod.slug === "growth" && tem && !membroGrowth;
+                        const titulo = !tem
+                          ? `Sem acesso ao ${prod.rotulo}. Clique para conceder.`
+                          : inconsistente
+                            ? "Tem a porta do Growth mas não está em growth.membros — clique para acertar o papel."
+                            : membroGrowth
+                              ? `${membroGrowth.papel} · ${membroGrowth.departamento ?? "sem departamento"}`
+                              : `Entra no ${prod.rotulo}. Clique para administrar.`;
+                        return (
+                          <button
+                            key={prod.slug}
+                            type="button"
+                            title={titulo}
+                            disabled={prod.slug === "growth" && !growthConfigurado}
+                            onClick={() => {
+                              if (prod.slug === "ops") {
+                                setOpsAlvo({ userId: u.user_id, nome: u.nome || u.email, email: u.email, tem });
+                                return;
+                              }
+                              if (prod.slug === "growth") {
+                                const m = growthPorEmail.get(u.email.toLowerCase());
+                                setGrowthAlvo({
+                                  email: u.email,
+                                  nome: u.nome || u.email,
+                                  papel: String(m?.papel ?? "operacional"),
+                                  departamento: String(m?.departamento ?? "comercial"),
+                                  jaTemAcesso: Boolean(m),
+                                });
+                                return;
+                              }
+                              navigate({ to: "/admin/acessos-financeiro" });
+                            }}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 ${
+                              tem ? PRODUTO_PILL[prod.slug] ?? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
+                            }`}
+                          >
+                            {prod.rotulo}
+                            {inconsistente && <span className="ml-1 text-amber-600">!</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </td>
                   <td className="px-4 py-2 text-right space-x-2">
                     {editingId === u.user_id ? (
@@ -579,24 +648,6 @@ function UsersPage() {
                         >
                           Acessos
                         </button>
-                        {growthConfigurado && (
-                          <button
-                            onClick={() => {
-                              const m = growthPorEmail.get(u.email.toLowerCase());
-                              setGrowthSenha("");
-                              setGrowthAlvo({
-                                email: u.email,
-                                nome: u.nome || u.email,
-                                papel: String(m?.papel ?? "operacional"),
-                                departamento: String(m?.departamento ?? "comercial"),
-                                jaTemAcesso: Boolean(m),
-                              });
-                            }}
-                            className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                          >
-                            Growth
-                          </button>
-                        )}
                         <button
                           onClick={() => resetMut.mutate({ user_id: u.user_id })}
                           disabled={resetMut.isPending}
@@ -625,6 +676,72 @@ function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {opsAlvo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
+              <h2 className="text-lg font-semibold text-foreground">Acesso ao Ops</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {opsAlvo.nome} · {opsAlvo.email}
+              </p>
+
+              <p className="mt-4 text-sm text-foreground">
+                {opsAlvo.tem
+                  ? "Esta pessoa entra no Ops. O que ela vê lá dentro fica em Acessos (áreas) e Escopo (unidades e empresas)."
+                  : "Esta pessoa não entra no Ops. Conceder abre a porta; as áreas continuam sendo definidas em Acessos."}
+              </p>
+              {opsAlvo.tem && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Revogar só fecha a porta. Áreas, escopo e papel ficam como estão, e reabrir
+                  devolve a pessoa exatamente ao que era.
+                </p>
+              )}
+
+              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+
+              <div className="mt-6 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    setOpsAlvo(null);
+                    setAcessosAlvo({ userId: opsAlvo.userId, nome: opsAlvo.nome });
+                  }}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+                >
+                  Definir áreas
+                </button>
+                <div className="space-x-2">
+                  <button
+                    onClick={() => { setOpsAlvo(null); setError(null); }}
+                    className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
+                  >
+                    Cancelar
+                  </button>
+                  {opsAlvo.tem ? (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Revogar o acesso de ${opsAlvo.email} ao Ops?`)) {
+                          portaOpsMut.mutate({ userId: opsAlvo.userId, conceder: false });
+                        }
+                      }}
+                      disabled={portaOpsMut.isPending}
+                      className="rounded-full border border-destructive/40 px-4 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    >
+                      {portaOpsMut.isPending ? "Salvando..." : "Revogar acesso"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => portaOpsMut.mutate({ userId: opsAlvo.userId, conceder: true })}
+                      disabled={portaOpsMut.isPending}
+                      className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                    >
+                      {portaOpsMut.isPending ? "Salvando..." : "Conceder acesso"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {growthAlvo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -661,29 +778,15 @@ function UsersPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-foreground">
-                    Senha do Growth {growthAlvo.jaTemAcesso && <span className="font-normal text-muted-foreground">(opcional)</span>}
-                  </label>
-                  <div className="mt-1 flex gap-2">
-                    <input
-                      value={growthSenha}
-                      onChange={(e) => setGrowthSenha(e.target.value)}
-                      placeholder={growthAlvo.jaTemAcesso ? "deixe vazio para não alterar" : "senha inicial"}
-                      className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setGrowthSenha(generatePassword(12))}
-                      className="shrink-0 rounded-lg border border-border px-3 text-xs text-foreground hover:bg-accent"
-                    >
-                      Gerar
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    O Growth é um login separado — a pessoa entra lá com este e-mail e senha.
-                  </p>
-                </div>
+                {/* Havia aqui um campo de senha, de quando o Growth era outro
+                    banco e outro login. Desde a migração de 18/09/2026 a conta
+                    é a mesma: digitar uma senha nesta tela trocaria também a
+                    senha do Ops e do Financeiro, sem avisar. Para trocar senha
+                    existe "Enviar redefinição", na linha da pessoa. */}
+                <p className="text-xs text-muted-foreground">
+                  Mesma conta do Ops e do Financeiro. Aqui se define só o que a pessoa é dentro
+                  do Growth.
+                </p>
               </div>
 
               {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
@@ -707,7 +810,7 @@ function UsersPage() {
 
                 <div className="space-x-2">
                   <button
-                    onClick={() => { setGrowthAlvo(null); setGrowthSenha(""); setError(null); }}
+                    onClick={() => { setGrowthAlvo(null); setError(null); }}
                     className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
                   >
                     Cancelar
@@ -719,7 +822,6 @@ function UsersPage() {
                         nome: growthAlvo.nome,
                         papel: growthAlvo.papel,
                         departamento: growthAlvo.departamento,
-                        password: growthSenha.trim() || undefined,
                       })
                     }
                     disabled={growthGrantMut.isPending}

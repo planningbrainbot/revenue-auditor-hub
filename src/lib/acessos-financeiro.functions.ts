@@ -70,7 +70,7 @@ async function emailDoAtor(userId: string) {
     .schema("public")
     .from("profiles")
     .select("email, nome")
-    .eq("id", userId)
+    .eq("user_id", userId)
     .maybeSingle();
   return (data?.nome || data?.email || "a administração") as string;
 }
@@ -146,7 +146,7 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
         db.schema("public").from("produto_acesso").select("user_id").eq("produto", PRODUTO),
         db.from("usuario_escopo").select("user_id, todas_empresas"),
         db.from("usuario_empresas").select("user_id, empresa_id"),
-        db.schema("public").from("profiles").select("id, email, nome"),
+        db.schema("public").from("profiles").select("user_id, email, nome"),
         db.from("user_roles").select("user_id, role"),
       ]);
 
@@ -160,7 +160,7 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
       s.add(l.empresa_id);
       empresasDe.set(l.user_id, s);
     }
-    const perfil = new Map(((perfisRes?.data ?? []) as any[]).map((p) => [p.id as string, p]));
+    const perfil = new Map(((perfisRes?.data ?? []) as any[]).map((p) => [p.user_id as string, p]));
     const papeis = new Map<string, string[]>();
     for (const r of (papeisRes?.data ?? []) as any[]) {
       papeis.set(r.user_id, [...(papeis.get(r.user_id) ?? []), r.role]);
@@ -197,14 +197,14 @@ export const listarCandidatosFinanceiro = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
     const [perfis, acessos] = await Promise.all([
-      db.schema("public").from("profiles").select("id, email, nome"),
+      db.schema("public").from("profiles").select("user_id, email, nome"),
       db.schema("public").from("produto_acesso").select("user_id").eq("produto", PRODUTO),
     ]);
     const jaTem = new Set(((acessos?.data ?? []) as any[]).map((a) => a.user_id as string));
     return {
       candidatos: ((perfis?.data ?? []) as any[])
-        .filter((p) => !jaTem.has(p.id))
-        .map((p) => ({ userId: p.id as string, email: p.email as string, nome: p.nome as string | null }))
+        .filter((p) => !jaTem.has(p.user_id))
+        .map((p) => ({ userId: p.user_id as string, email: p.email as string, nome: p.nome as string | null }))
         .sort((a, b) => (a.email ?? "").localeCompare(b.email ?? "")),
     };
   });
@@ -270,7 +270,7 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
     }
 
     const { data: perfil } = await db.schema("public").from("profiles")
-      .select("email, nome").eq("id", data.userId).maybeSingle();
+      .select("email, nome").eq("user_id", data.userId).maybeSingle();
 
     let emailEnviado = false;
     if (data.avisarPorEmail && perfil?.email) {
@@ -319,7 +319,7 @@ export const revogarAcessoFinanceiro = createServerFn({ method: "POST" })
     // guard do cockpit lê ELE, não esta tabela. Sem esta chamada a pessoa
     // continuaria entrando por tempo indefinido.
     const { data: perfil } = await db.schema("public").from("profiles")
-      .select("email").eq("id", data.userId).maybeSingle();
+      .select("email").eq("user_id", data.userId).maybeSingle();
     const { aplicarConcessaoNoFinanceiro } = await import("@/lib/sessoes-irmas.functions");
     const sinc = perfil?.email
       ? await aplicarConcessaoNoFinanceiro(data.userId, perfil.email)
