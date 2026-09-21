@@ -80,6 +80,16 @@ type ContratoInfo = {
   closer: string | null;
 };
 
+// Uma linha da view v_cliente_mrr. `mrr_fonte` é exibida na tela: sem ela o
+// número fica sem procedência e a primeira pergunta de quem olha ("de onde
+// saiu esse valor?") não tem resposta.
+type ClienteMrr = {
+  empresa_id: number;
+  mrr_mensal: number | null;
+  mrr_fonte: "omie" | "pipefy" | "pipedrive" | null;
+  data_assinatura: string | null;
+};
+
 // Cliente que existe no ERP (Omie) mas ainda não foi reconciliado em `empresas`
 // (sem pipedrive_id/contrato vinculado) — não entra em cards, contagem ou MRR total.
 type OmieMatch = {
@@ -172,6 +182,11 @@ export function ContratosClientes({
   const perms = usePermissions();
   const [rows, setRows] = useState<Cliente[]>([]);
   const [mrrByPipedriveId, setMrrByPipedriveId] = useState<Map<string, number>>(new Map());
+  // Cascata de MRR resolvida no banco (view v_cliente_mrr): Omie, depois
+  // Pipefy, depois Pipedrive. Existe porque o mapa acima só alcança cliente
+  // com deal — e a maior parte da lista entrou pelo pipe de Onboarding, sem
+  // deal nenhum, aparecendo zerada. Chaveada por empresa, não por deal.
+  const [cascataByEmpresaId, setCascataByEmpresaId] = useState<Map<number, ClienteMrr>>(new Map());
   const [contratoInfoByPipedriveId, setContratoInfoByPipedriveId] = useState<
     Map<string, ContratoInfo>
   >(new Map());
@@ -244,7 +259,7 @@ export function ContratosClientes({
         pipedrive_id: r.pipedrive_id ?? "",
         razao_social: displayName(r),
         unidade: r.unidade ?? "",
-        mrr: mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0,
+        mrr: mrrOf(r),
         motivo,
         observacao,
         data_churn: dataChurn,
@@ -257,7 +272,7 @@ export function ContratosClientes({
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [unidadesRes, empRes, contRes, tratRes] = await Promise.all([
+      const [unidadesRes, empRes, contRes, tratRes, cascataRes] = await Promise.all([
         supabase.from("unidades").select("nome_da_praca").eq("tipo", "regional"),
         supabase
           .from("empresas")
@@ -283,6 +298,15 @@ export function ContratosClientes({
           // filtro por nome (.eq("estagio","Perdido")) zerava o churn aqui.
           .eq("status", "lost")
           .limit(2000),
+        // A view já resolve a ordem Omie > Pipefy > Pipedrive por cliente.
+        // `limit` alto porque a base passa de 4 mil empresas e o PostgREST
+        // corta em 1000 por padrão — sem isso o MRR sumiria da cauda da lista
+        // sem erro nenhum.
+        supabase
+          .from("v_cliente_mrr")
+          .select("empresa_id,mrr_mensal,mrr_fonte,data_assinatura")
+          .not("mrr_mensal", "is", null)
+          .limit(20000),
       ]);
       if (!mounted) return;
       // Unidades regionais ativas (fonte de verdade: tabela `unidades`, tipo='regional').
@@ -313,6 +337,9 @@ export function ContratosClientes({
       }
       setMrrByPipedriveId(m);
       setContratoInfoByPipedriveId(info);
+      setCascataByEmpresaId(
+        new Map((cascataRes.data ?? []).map((c) => [Number(c.empresa_id), c as ClienteMrr])),
+      );
       const churned = new Set<string>(
         (tratRes.data ?? []).map((t) => String(t.pipedrive_deal_id)).filter(Boolean),
       );
@@ -429,6 +456,19 @@ export function ContratosClientes({
   // churn status derived from central_tratativas (estagio=Perdido)
   const isChurn = (r: Cliente) => !!r.pipedrive_id && churnedIds.has(r.pipedrive_id);
 
+  // MRR e data de assinatura passam pela cascata primeiro. O mapa por deal
+  // continua como rede: cobre o caso em que a view ainda não enxergou o
+  // cliente (empresa criada entre um refresh e outro).
+  const cascataOf = (r: Cliente) => cascataByEmpresaId.get(r.id);
+  const mrrOf = (r: Cliente) =>
+    cascataOf(r)?.mrr_mensal ?? mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0;
+  const mrrFonteOf = (r: Cliente) =>
+    cascataOf(r)?.mrr_fonte ?? (mrrByPipedriveId.get(r.pipedrive_id ?? "") ? "pipedrive" : null);
+  const assinaturaOf = (r: Cliente) =>
+    cascataOf(r)?.data_assinatura ??
+    contratoInfoByPipedriveId.get(r.pipedrive_id ?? "")?.entrada_contrato_assinado_em ??
+    null;
+
   // Todos os filtros da UI (busca, unidade, ERP, segmento, status, contrato assinado)
   // exceto o próprio filtro de churn — serve de base tanto pros cards de resumo
   // (que precisam contar ativo/churn dentro do recorte atual) quanto pra tabela.
@@ -443,8 +483,7 @@ export function ContratosClientes({
       if (erpFilter !== ALL && r.erp !== erpFilter) return false;
       if (segmentoFilter !== ALL && r.segmento !== segmentoFilter) return false;
       if (contratoAssinadoFilter !== null) {
-        const assinado = !!contratoInfoByPipedriveId.get(r.pipedrive_id ?? "")
-          ?.entrada_contrato_assinado_em;
+        const assinado = !!assinaturaOf(r);
         if (contratoAssinadoFilter !== assinado) return false;
       }
       if (term) {
@@ -485,7 +524,6 @@ export function ContratosClientes({
     });
     const rank = new Map<string, number>();
     STATUS_ORDER.forEach((s, i) => rank.set(s, i));
-    const mrrOf = (r: Cliente) => mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0;
     const infoOf = (r: Cliente) => contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
     if (!sort) {
       return out.sort((a, b) => {
@@ -549,8 +587,8 @@ export function ContratosClientes({
           break;
         case "entrada_contrato_assinado_em":
           c = cmpStr(
-            infoOf(a)?.entrada_contrato_assinado_em,
-            infoOf(b)?.entrada_contrato_assinado_em,
+            assinaturaOf(a),
+            assinaturaOf(b),
           );
           break;
         case "closer":
@@ -725,7 +763,8 @@ export function ContratosClientes({
                 return {
                   "Razão Social": displayName(r),
                   Unidade: r.unidade || "",
-                  MRR: mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0,
+                  MRR: mrrOf(r),
+                  "MRR vem de": mrrFonteOf(r) ?? "",
                   CNPJ: r.cnpj || "",
                   Estado: r.uf || "",
                   "Status Financeiro": r.status_financeiro
@@ -737,7 +776,7 @@ export function ContratosClientes({
                   Segmento: r.segmento || "",
                   "Regime Tributário": info?.regime_tributario || "",
                   "Data do Ganho": fmtDate(info?.ganho_em) || "",
-                  "Contrato Assinado em": fmtDate(info?.entrada_contrato_assinado_em) || "",
+                  "Contrato Assinado em": fmtDate(assinaturaOf(r)) || "",
                   Vendedor: info?.closer || "",
                 };
               });
@@ -763,7 +802,7 @@ export function ContratosClientes({
                 MRR total:{" "}
                 {fmtBRL(
                   filtered.reduce(
-                    (s, r) => s + (mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0),
+                    (s, r) => s + mrrOf(r),
                     0,
                   ),
                 )}
@@ -881,11 +920,22 @@ export function ContratosClientes({
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
                         {(() => {
-                          const v = mrrByPipedriveId.get(r.pipedrive_id ?? "") ?? 0;
-                          return v > 0 ? (
-                            fmtBRL(v)
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
+                          const v = mrrOf(r);
+                          if (!(v > 0)) return <span className="text-muted-foreground">—</span>;
+                          // A procedência fica visível na própria célula: o
+                          // mesmo cliente pode ter número no Omie e no
+                          // Pipedrive, e saber qual está na tela é o que
+                          // permite conferir a divergência na origem.
+                          const fonte = mrrFonteOf(r);
+                          return (
+                            <span title={fonte ? `MRR vem do ${fonte}` : undefined}>
+                              {fmtBRL(v)}
+                              {fonte ? (
+                                <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                                  {fonte}
+                                </span>
+                              ) : null}
+                            </span>
                           );
                         })()}
                       </TableCell>
@@ -916,7 +966,7 @@ export function ContratosClientes({
                       <TableCell>{r.segmento || "—"}</TableCell>
                       <TableCell>{info?.regime_tributario || "—"}</TableCell>
                       <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
-                      <TableCell>{fmtDate(info?.entrada_contrato_assinado_em) || "—"}</TableCell>
+                      <TableCell>{fmtDate(assinaturaOf(r)) || "—"}</TableCell>
                       <TableCell>{info?.closer || "—"}</TableCell>
                       {podeMarcarChurn && (
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>

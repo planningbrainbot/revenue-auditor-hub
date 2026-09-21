@@ -1870,3 +1870,111 @@ Reversão: apagar as validações com esse responsável e as correções geradas
 **Sem deploy.** Nome e colunas iguais aos da view, então o código do app não mudou: a correção é só de banco.
 
 **Lição para a próxima:** medir o custo de qualquer objeto novo que entre no caminho de carregamento, antes de publicar. `explain (analyze)` na view teria mostrado 1,3 s em dez segundos de trabalho.
+## [2026-09-18] A unidade "Matriz" passa a se chamar Goiânia
+
+**Contexto:** o card com 3.270 contas na Base de clientes dizia "Matriz", e o dono corrigiu: quem atende cliente em Goiânia é a **Planning Auditores e Contadores SS LTDA** (`24.296.850/0001-47`), como qualquer regional. A **Planning Partners Brasil LTDA** (`58.565.726/0001-51`) é a matriz de fato, fica em Goiânia também e **não tem carteira**. Ou seja, "Matriz" não era nome de unidade, era papel da holding, e o rótulo atribuía à holding uma carteira que é da operação. A linha 9 de `ops.unidades` ainda carregava CNPJ e razão social da Partners.
+
+**Decisão: muda o nome exibido, não o dado cru dos sistemas de origem.** `ops.unidades.nome_da_praca` e `ops.monetizacao_unidades.nome` passam a dizer "Goiânia", e o CNPJ da linha vira o da Planning Auditores (matriz e Filial 1, formato multi-linha igual ao de Curitiba). Os três apelidos que os sistemas gravam continuam existindo e continuam caindo na mesma unidade: Pipedrive (BU 694) grava `Matriz` em 145 contratos e 177 empresas, Pipefy grava `Goiânia / Matriz` em 10 sócios, Omie grava `Partners` em 566 contas a receber. Reescrever esse texto seria inútil: os syncs o regravam a cada rodada.
+
+**Consequência: quem reconcilia é a normalização, então ela foi reescrita.** O token canônico de `ops.base_unidade` passa de `matriz` para `goiania`; `ops.base_intake_omie` e `ops.monetizacao_intake_ops` casavam por nome contra o literal `'Matriz'` e agora apontam para `'Goiânia'` aceitando os apelidos antigos; `ops.unidade_do_usuario` e `ops.unidades_do_usuario` ganharam o caso `goiania` para que o escopo de unidade siga enxergando linhas gravadas como "Matriz"; `ops.v_clientes_diretorio` mapeia `Partners` para `Goiânia`. Conferido depois de aplicar: as 3.270 contas do card continuam vinculadas à unidade 9.
+
+**Fica de fora de propósito:** a policy `unit scope` de `ops.omie_clientes`, que mapeia `Partners` para `Matriz` e segue válida porque `matriz` continua no conjunto de apelidos do usuário; e a BU `Matriz` de `ops.v_rateio_cm_mensal`, que é rótulo de BU do Pipedrive, não esta unidade. Migration `20260918120000_unidade_goiania.sql`, aplicada em produção.
+
+## [2026-09-21] Estratégia & Execução: a área nova do Brain, e os OKRs saem do Growth
+
+**Contexto:** o dono pediu "uma área nova no Brain, o cockpit, com OKR, metas e dashboard do negócio", e, por ora, só o módulo criado e a área de OKR movida para lá. A tela de OKRs estava em `planningbrain.com.br/growth/okrs` — repo `brain-web`, Next.js com `basePath: /growth`. Ela nunca foi de Growth: o quadro cobre os dez departamentos da Expansão Nacional (CEO, Operações, Relacionamento & CS, Auditoria & Qualidade, Novos Sócios, Performance & Tech, Comercial, Receitas, Marketing, Rotina Semanal), e morar dentro do produto do comercial a escondia de quem não entra lá.
+
+**Decisão — a área nasce no Ops, não no Growth nem em app novo.** O Ops é a casca do apex e é dele o conceito de área (`ops.areas` + `src/lib/areas.ts`, fonte única da lateral e da porta de entrada). Foi ali que "metas" e "dashboard do negócio" vão encostar: IDU, Pacto Trimestral, indicadores e o painel financeiro já são dado do Ops. As alternativas foram descartadas na conversa: uma frente dentro do `brain-web` deixaria a URL com `/growth` no meio do caminho de uma área que não é de Growth; um quarto projeto na Vercel duplicaria sessão, navegação e tema por uma tela só.
+
+**Nome:** o dono descartou "Cockpit" porque a porta de entrada já descreve o Brain Financeiro como "Cockpit, fluxo de caixa, DRE e inadimplência" — duas coisas com o mesmo nome na mesma tela. Ficou **Estratégia & Execução**, slug `estrategia`, `ordem = 5` (primeira da lista) e `escopo = 'nenhum'`: não existe OKR "do Rio de Janeiro" neste quadro, filtrar por unidade aqui não significaria nada.
+
+**O que foi portado e o que ficou:** a camada pura (`tipos`, `normalizar`, `dashboard`, `campos`, `vazao`) veio sem mudança de regra. O `brain.ts` mudou só de fonte — lia o projeto Supabase do Growth, agora lê o schema `growth` do banco único, com service role (`client.growth-schema.server.ts`). As cinco rotas de API do Next viraram server functions (`src/lib/okrs.functions.ts`). O cache do Next (`revalidateTag` + `next.revalidate`) virou cache de processo com TTL de 5 min, estourado pelo botão "Atualizar agora" — mesmo comportamento visível.
+
+**Conferido antes de dar por feito:** o quadro montado pelo código novo bate número a número com o print da tela do Growth — ritmo 49%, esperado 34%, saúde 7/9/7/13 e 63 sem medição, confiança 12 com ponteiro real · 24 só execução · 63 sem medição, 99 KRs em 10 departamentos.
+
+**Duas chaves, não uma:** `view.okrs` e `manage.okrs`. A tela GRAVA no ClickUp (status de ação, ponteiro da KR, KR e ação novas), e quem só acompanha o ciclo recebe a primeira e vê a mesma tela sem os campos de escrita. No Growth não havia esse corte: todo departamento liberado via e editava.
+
+**Quem entra, de propósito conservador:** `admin`, `diretor`, `head` e `diretoria_comercial`. `socio`, `socio_regional` e `auditor` entram como linha explícita negada — o quadro é da matriz, e o sócio acompanha o próprio desempenho no IDU e no Painel da Unidade. **Consequência assumida:** no Growth qualquer pessoa liberada via os OKRs, inclusive os ~15 do comercial; várias delas não têm papel no Ops. Quem perder a tela volta com um clique em /admin/permissoes.
+
+**O token do ClickUp:** no `brain-web` era variável de ambiente `sensitive` na Vercel. Aqui o leitor aceita `CLICKUP_API_KEY` do ambiente **ou** a linha em `ops.integracoes_segredos`, editável em Administração › Chaves de Integração — trocar o token deixa de exigir deploy. O cache dele é de 1 minuto, não permanente, para não existir instância servindo com token velho até o próximo deploy.
+
+**O que NÃO se moveu, e por quê:** `/api/okrs/snapshot` e a lib de leitura continuam no `brain-web`. É o cron diário do GitHub Actions (repo `marketing-planning`) que alimenta `growth.okr_snapshot` com Bearer próprio; mover cron com segredo é outra tarefa, não o mesmo gesto de mudar uma tela de lugar.
+
+**Decisão do dono, no fim da sessão — a mudança vai em DOIS passos.** "Crie apenas o módulo por enquanto, não publique a mudança do OKR para outro módulo." Então o `brain-web` voltou INTACTO ao commit `3faba58`: a lateral do Growth continua com o item OKRs, `/growth/okrs` continua servindo a tela, e a matriz de acesso de lá segue com a tela `okrs`. Ninguém do comercial perde nada, e nenhum link antigo quebra.
+
+**Consequência assumida enquanto o passo 2 não vem:** a tela existe nos dois lugares, lendo o MESMO space do ClickUp. Não há divergência de dado possível — o ClickUp é a fonte, e as duas leituras usam a mesma régua, conferida número a número. O que existe é código duplicado, com prazo: o passo 2 é tirar a tela do `brain-web` (sidebar, matriz de acesso, componentes e as quatro rotas de escrita), deixando `/growth/okrs` como porta que redireciona preservando `?depto=` e `?faixa=`. Só o `snapshot` fica.
+
+Migration `20260921170000_area_estrategia_execucao.sql`.
+
+## [2026-09-21] Cadastro de sócio deixa de ser texto solto e passa a apontar para a unidade
+
+**O pedido:** cadastrar os sócios das unidades no Ops sem liberar acesso, só para conferir se os dados estão certos. No meio da conversa o dono corrigiu o alvo: o que ele quer é **vincular o sócio à sua unidade**, porque é esse vínculo que libera "os dados da minha unidade".
+
+**O que a apuração encontrou:** `ops.socios` nunca participou de escopo nenhum. Quem libera dado por unidade é `ops.usuario_unidades (user_id, unidade_id)`, lida por `minhas_unidades()` e `current_user_unidade()`. `socios.unidade` era texto livre, sem FK, divergindo do cadastro em dois pontos ("Goiânia / Matriz" contra "Goiânia", "São Luís" contra "São Luis"), e servia só para montar o bloco "Sócios & contatos" da página Rede. Os 34 sócios da planilha `Planning Expansão/Dados/Relação de sócios.xlsx` já estavam carregados desde antes, todos sem login.
+
+**Consequência que estava escondida:** como `usuario_unidades` exige `user_id`, não existia forma de prender um sócio à unidade antes de ele ter conta. E são dois passos, não um: `adminCreateUser` (`/admin/usuarios`) grava `socios.user_id` mas **não** grava `usuario_unidades`; o escopo só entra depois, no botão "Escopo", por `salvarEscopoDoUsuario`.
+
+**A decisão:** separar cadastro de acesso de vez. `socios.unidade_id` (FK para `ops.unidades`, migration `60_socios_unidade_id.sql`) guarda a que unidade o sócio pertence, valendo com ou sem conta. Não concede nada — quem concede segue sendo `usuario_unidades`. No dia em que o login for criado, o escopo já está definido e correto. O backfill resolveu 35 de 36 pelo texto livre, tratando os dois apelidos; sobrou só São Paulo.
+
+**São Paulo virou unidade `interna` (migration `62_unidade_sao_paulo.sql`).** O dono decidiu: "São Paulo é uma unidade que não faz parte do projeto de expansão por rede, Marcos Amorim pode mover sim para SP". Entrou no molde de Goiânia, Consultoria e Construção Civil — sem royalties, sem CAC, sem absorver mídia, sem data de inauguração. Como royalties, NPS, saúde de carteira e contatos de CS filtram `tipo = 'regional'`, a unidade nova não entra em nenhum desses fluxos. Antes disso, Marcos Amorim era o único sócio invisível na interface: a página Rede lista por unidade cadastrada e "São Paulo" não existia.
+
+**A conta de teste "Victor Unidade" foi revogada (migration `61`).** Criada para validar o "ver como a unidade" (ver entrada de 18/09), tinha papel `socio_regional` e vínculo real com o Rio de Janeiro em `usuario_unidades`, ou seja, acesso de verdade aos dados da unidade, sem corresponder a sócio algum. Saíram o escopo, o papel e o cadastro falso em `socios`. **O usuário no Auth e o profile ficaram de pé de propósito**, para a revogação ser reversível; apagar de vez está como bloco comentado na migration.
+
+**Estado depois:** 35 sócios, todos com `unidade_id`, zero nulos. Três ainda têm login: Italo Amaral (`socio_regional`, escopo Belém) e Pedro Henrique e Jordana (matriz, sem escopo de unidade, como esperado para diretoria).
+
+**O alerta que fica registrado, e que não foi resolvido aqui:** só **6 policies** de RLS filtram por unidade (as 4 do módulo Gente, `contas_receber` e `gente_pesquisa_envios`). Nas demais tabelas o vínculo não isola nada. Dar login a um sócio regional hoje não o prende à unidade dele fora dessas telas — ele enxerga a rede inteira. O vínculo é condição necessária, não suficiente. Antes de abrir acesso a sócio, fechar o escopo das outras policies. Ver `feedback_rls_escopo_unidade_restrictive`.
+
+As três migrations (`60_socios_unidade_id.sql`, `61_revogar_conta_teste_socio_regional.sql`, `62_unidade_sao_paulo.sql`) vivem no repo `AI Projects`, em `migrations/`, e já foram aplicadas no banco único `npknehhyyzelmrbbxvtu`.
+
+## [2026-09-21] Escopo de unidade na RLS: de 6 para 20 policies RESTRICTIVE
+
+**Continuação da entrada anterior.** Lá ficou registrado que o vínculo sócio→unidade era condição necessária mas não suficiente, porque quase nenhuma tabela filtrava por unidade. Aqui isso foi fechado.
+
+**O furo, medido e não estimado.** Em sessão simulada do Italo Amaral (`socio_regional`, sócio de Belém, a única conta de sócio regional real com login), ele enxergava **4.178 empresas e 770 contratos** — a rede inteira. Só `omie_clientes` (227) e `gente_pessoas` (68) o travavam, porque eram as duas únicas com policy RESTRICTIVE de unidade. `contas_receber` era o caso didático: tinha a expressão de escopo correta, mas dentro de uma policy PERMISSIVE, ao lado de `role_based_read` e `Auditors can read`. PERMISSIVE combina por OR, então qualquer uma que libere passa por cima.
+
+**A correção (`migrations/63_rls_escopo_unidade.sql`):** uma policy `escopo_unidade`, `as restrictive for all`, em 15 tabelas — 11 com coluna de unidade em texto (`empresas`, `contratos`, `central_tratativas`, `cs_onboarding_cards`, `nps_pesquisas`, `contratos_documentos`, `contas_receber`, `auditorias_internas`, `repasses_unidade`, `roas_por_unidade`, `vendas_servicos_unidades`) e 4 por id (`idu_metas`, `royalties_apuracao`, `royalties_faturas`, `cac_apuracao`). `gente_pessoas` e `omie_clientes` ficaram de fora porque já tinham a sua, com exceção própria (a própria pessoa; o apelido Partners/Matriz). RESTRICTIVE agora são 20, contra 6 antes.
+
+**Em `for all` sem `with check`, o Postgres usa a expressão do `using` também na escrita.** Então o sócio também não grava linha de outra unidade, não só deixa de lê-la.
+
+**A expressão ficou inline, não numa função, e isso foi medido.** A primeira versão envolvia a checagem em `ops.escopo_unidade_ok(unidade)`. Virou chamada por linha e o ensaio estourou o timeout do gateway em `contas_receber` (31 mil linhas). Inline, `(select ops.can(...))` e `(select ops.unidades_do_usuario())` são subconsultas não correlacionadas que o planner resolve uma vez como InitPlan; por linha sobra só `norm_unidade()`, que é IMMUTABLE. O `explain analyze` confirmou: 12 InitPlans e **127 ms** no mesmo scan. É também o formato que `omie_clientes` e `contas_receber` já usavam, então não é invenção nova.
+
+**O susto dos 107 segundos não era a policy.** Foi lock: a requisição que estourou o timeout antes ficou com a transação viva segurando ACCESS EXCLUSIVE das tabelas, e o DDL seguinte esperou. Vale lembrar ao rodar DDL de RLS por HTTP.
+
+**O time de CS/matriz teria sido atropelado, e a saída foi a flag.** Cinco pessoas (Bruno Subires, Daniele Andrade, Leonardo Gomes, Sarah Ferreira, Thais Gerlach) estavam com `todas_unidades = false` e as 14 unidades listadas uma a uma, o que dava no mesmo enquanto a trava não valia. Passando a valer, daria diferente: **749 linhas de `empresas` não casam com unidade nenhuma** e sumiriam da vista delas. A migration passa essas pessoas para `todas_unidades = true`, que é o que descreve o escopo real de quem cobre a rede inteira. **Isso preserva o que elas já viam, não amplia** — conferido antes e depois, 4.178 empresas nos dois lados.
+
+**Achado de qualidade de base, que fica pendente:** as tais 749 linhas são 260 com `empresas.unidade` vazio e **489 com um ID numérico no lugar do nome da unidade** (`1448470601`, `1436672162`, `1436672193`, `1439568426`, `1436672221`, `1436672203`, `1124`). É sujeira de sync gravando id onde devia ir nome. O `DATA-RULES.md` manda filtrar por `empresas.unidade`, então isso contamina qualquer recorte por unidade, não só a RLS. Não foi corrigido aqui.
+
+**Testes, todos com `rollback` antes de valer:** Italo caiu para 304 empresas, 97 contratos, 187 NPS e 47 cards de onboarding, batendo linha a linha com os números de Belém; `contas_receber` (734) e `gente_pessoas` (68) não mudaram, já estavam certos. Admin, sócio com todas as unidades, CS com todas e as duas pessoas de CS com lista não mudaram em nada. E o teste que o desenho existe para resistir: com uma PERMISSIVE `using (true)` adicionada em `empresas` e `contratos`, o Italo continuou vendo 304 e 97.
+
+**Quem ficou travado depois:** 5 usuários, contra 10 antes. O Italo, e quatro contas sem papel algum (Alexandre Almeida, Eduardo Torres, Luiz Carvalho, Thiago Domingos), que já viam zero antes da mudança — conferido em sessão simulada. Os outros 36 seguem livres.
+
+**Fail-closed de propósito:** travado sem nenhuma unidade em `usuario_unidades` não vê linha alguma, e linha com unidade vazia não aparece para quem é travado. Os syncs não sentem nada: rodam com `service_role`, que ignora RLS.
+
+## [2026-09-21] MRR por cascata Omie > Pipefy > Pipedrive, e a data de assinatura que secou
+
+**A pergunta que abriu isso:** por que a aba Contratos de `/clientes` mostra tanto cliente sem MRR e sem data de assinatura. Eram três causas independentes, não uma.
+
+**1. O MRR só existia para quem tinha deal.** A tela casava `empresas.pipedrive_id` com `contratos.pipedrive_deal_id`. Dos 2.920 clientes das unidades regionais, 2.474 não têm `pipedrive_id`: entraram pelo pipe de Onboarding, são a base antiga que as unidades integraram e nunca passaram pelo Pipedrive. Sem deal, nenhum número. Não era bug de sync, era a régua da tela.
+
+**2. O pipe de Contratos foi reestruturado e o sync não soube.** A fase "Vigente", de onde `pipefy-contratos-sync` lia `valor` e `data_de_assinatura`, virou "Enviar para Onboarding". Os campos que a operação preenche hoje ficam em "Nova Solicitação" e "Contrato Assinado", e o sync não os conhecia. Medição dos 460 cards em 21/09: `honor_rio_mensal` 358 preenchidos, `valor_total_do_contrato` 261, `data_da_venda` 261, `data_de_assinatura_do_contrato` 157, contra **1** no `data_de_assinatura` que era a fonte primária do código. O sync rodava de 15 em 15 minutos, reportando sucesso, lendo o campo mais vazio do pipe.
+
+**3. A data de assinatura nunca saiu do sync; saía de um backfill que morreu.** `contratos.entrada_contrato_assinado_em` era preenchida por um trecho à parte de `~/sync_pipedrive_contratos.py`, que lia no `/flow` do Pipedrive a entrada no stage 170. A Edge Function que substituiu o script deixou o trecho de fora de propósito (custa uma chamada `/flow` por deal), e o LaunchAgent foi arquivado em 31/08. Último valor gravado: **29/07/2026**. 630 dos 770 contratos sem data, incluindo 100% dos ganhos de agosto e setembro.
+
+**A ordem decidida pelo usuário:** tem no Omie usa do Omie, não tem puxa do Pipefy, não tem puxa do Pipedrive. A justificativa é a distância até o dinheiro: o Omie é o contrato de serviço que fatura o cliente todo mês, o Pipefy é o contrato jurídico assinado, o Pipedrive é a intenção comercial. Vale para MRR. Para data de assinatura a cascata começa no Pipefy, porque contrato de serviço do Omie só guarda vigência, não assinatura.
+
+**"Data da Venda" não vira data de assinatura.** Decisão explícita do usuário, mesmo custando 195 contratos de cobertura. Só assinatura real entra.
+
+**O que mudou no banco:** tabela `omie_contratos_servico` (contrato de serviço do Omie, `cabecalho.nValTotMes`, 1.784 linhas das 10 contas, 670 ativas somando R$ 1.949.169,39/mês); três colunas novas em `contratos_documentos` (`mrr_mensal`, `valor_total_contrato`, `data_venda`); a view `v_cliente_mrr`, que resolve a cascata por cliente e expõe `mrr_fonte`; e a função `contratos_propagar_data_assinatura_pipefy()`.
+
+**Três bugs corrigidos em `pipefy-contratos-sync`:**
+- `parseValor` apagava a vírgula em vez de tratá-la como decimal: `"17.526,00"` virava `"17.52600"`, ou seja mil vezes menos. 199 dos 234 valores gravados estavam abaixo de R$ 100.
+- `parsePipefyDate` assumia MM/DD/YYYY com base numa medição de 24/08. Em 21/09 o pipe manda dd/mm/yyyy (92 dos 157 valores com primeiro componente maior que 12, nenhum com o segundo). Os 65 cards com dia até 12 gravavam dia e mês trocados, em silêncio, porque a data continua válida. A regra agora decide pelo que o valor prova e só cai em dd/mm no caso ambíguo.
+- `empresa_id` nunca resolvia (0 de 460, com `empresa_id_resolvidos: 0` no log): a resolução dependia de `id_organiza_o_pipedrive`, campo da fase antiga, hoje vazio. Agora tenta primeiro o connector "Empresa" (a database canônica, 325 cards), depois o Deal ID direto, e só então o caminho caro pelo Pipedrive.
+
+**A armadilha que custou uma execução quebrada, e que vale para o próximo:** o repo `planning-dashboard` estava **desatualizado em relação à produção** para `pipefy-contratos-sync`. A versão publicada tinha uma linha a mais, `import "../_shared/perfil.ts"`, que carimba `Accept-Profile: ops` em toda chamada ao PostgREST. Publicar a cópia do repo por cima derrubou a execução das 22:37 UTC com `existing.map is not a function` — sem o carimbo o PostgREST procura as tabelas em `public`, onde nenhuma existe, e devolve objeto de erro no lugar da lista. O arquivo `_shared/perfil.ts` agora existe no repo. **Antes de publicar qualquer Edge Function a partir deste repo, comparar com o que está em produção.** Outras 27 funções em produção sequer existem aqui.
+
+**O que a cascata resolveu e o que não resolveu.** Clientes com MRR na tela foram de 263 para 624 (316 pelo Pipedrive, 308 pelo Omie). Sobram 2.296 sem número, e a causa é de origem, não de sync: 2.114 deles **não têm contrato em nenhum dos três sistemas**. Só 149 aparecem no Omie, sempre com contrato encerrado ou cancelado. A concentração é em São Bernardo (465 clientes, 15 com MRR) e Recife (385, nenhum), unidades novas cuja carteira entrou por cadastro. Isso é pergunta de qualidade de base: ou são clientes que ninguém contratou no ERP, ou `empresas` está guardando prospect junto com cliente.
+
+**Escopo de unidade:** `omie_contratos_servico` nasceu no mesmo dia em que 15 tabelas ganharam policy RESTRICTIVE, e ganhou a sua. Não pela coluna `unidade`, que aqui é o nome do aplicativo Omie e não bate com `unidades.nome_da_praca` (Curitiba responde por "Curitiba", "Planning CWB 01" e "Planning CWB 02"), mas pelo CNPJ pertencer a uma empresa que a pessoa já enxerga — herdando o recorte de `empresas` em vez de repetir a regra.
+
+**Agendamento (nuvem, nunca local):** `[Omie] Sync - Contratos de Servico` às 03:30 UTC e `[Pipedrive] Backfill - Data de Contrato Assinado` às 04:10 UTC, ambos no n8n, chamando as Edge Functions como wrapper fino.

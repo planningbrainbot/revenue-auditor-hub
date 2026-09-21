@@ -19,6 +19,14 @@
 //   - cs_onboarding_card_id: via connector "Card de Onboarding" -> id do card
 //     no pipe 307173656 (FK cs_onboarding_cards.pipefy_card_id).
 
+// Carimba `Accept-Profile: ops` em toda chamada ao PostgREST. Sem ele o
+// PostgREST resolve as tabelas em `public`, onde nenhuma delas existe. Esta
+// linha estava na versão em produção mas não no repositório, e publicar a
+// cópia do repositório por cima derrubou a execução das 22:37 de 21/09/2026
+// com "existing.map is not a function" — a leitura voltou objeto de erro em
+// vez de lista. Não apagar.
+import "../_shared/perfil.ts";
+
 const PIPE_ID = "307285170";
 
 const F_CLIENTE = "cliente";
@@ -43,6 +51,43 @@ const F_DATA_ASSINATURA_FASE = "data_de_assinatura_do_contrato";
 const F_CARD_ONBOARDING = "card_de_onboarding";
 const F_CONTRATO_VINCULADO = "contrato_vinculado_aditivo_de";
 
+// Campos da fase "Nova Solicitação", que é por onde todo card entra hoje. O
+// pipe foi reestruturado depois que este sync foi escrito: a fase "Vigente"
+// virou "Enviar para Onboarding" e os dados que a operação preenche de fato
+// passaram para cá. Medição de 21/09/2026 sobre os 460 cards:
+//   honor_rio_mensal        358 preenchidos   ← MRR do contrato
+//   valor_total_do_contrato 261
+//   data_da_venda           261
+//   valor (fase antiga)     234
+//   data_de_assinatura      1    ← era a fonte primária de data deste sync
+// Ou seja: o sync rodava verde lendo o campo mais vazio do pipe.
+const F_HONORARIO_MENSAL = "honor_rio_mensal";
+const F_VALOR_TOTAL_CONTRATO = "valor_total_do_contrato";
+const F_DATA_VENDA = "data_da_venda";
+// Connector "Selecione ou cadastre a Empresa" → [PTRS-DB-01] Empresas, a
+// database canônica. Preenchido em 325 dos 460 cards e é o vínculo com
+// `empresas.pipefy_record_id`.
+const F_EMPRESA = "empresa";
+// "Unidade de Negócio Planning" do Start Form: 454 dos 460 cards, contra 119
+// do campo `unidade` da fase antiga.
+const F_UNIDADE_START = "unidade_2";
+
+// Connector para uma database do Pipefy devolve os ids no próprio `value`,
+// como JSON (["1371986369"]), e não em `connectedRepoItems` — aquele campo só
+// materializa card de pipe, que é o que a query pede no fragmento PublicCard.
+function primeiroConectado(raw: unknown): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s || s === "[]") return null;
+  try {
+    const v = JSON.parse(s);
+    if (Array.isArray(v)) return v.length ? String(v[0]) : null;
+    return String(v) || null;
+  } catch {
+    return s;
+  }
+}
+
 const TIPOS_VALIDOS = new Set(["Contrato Novo", "Aditivo", "Distrato"]);
 
 const UPSERT_COLUMNS = [
@@ -57,6 +102,9 @@ const UPSERT_COLUMNS = [
   "contrato_pai_id",
   "cs_onboarding_card_id",
   "valor",
+  "mrr_mensal",
+  "valor_total_contrato",
+  "data_venda",
   "data_assinatura",
   "ferramenta_assinatura",
   "link_documento",
@@ -128,29 +176,63 @@ async function dealsDaOrg(pipedriveToken: string, orgId: string): Promise<string
   return ((body.data ?? []) as any[]).map((d) => String(d.id));
 }
 
+// Campo `currency` do Pipefy volta em pt-BR: "17.526,00". A versão anterior
+// apagava tudo que não fosse dígito, ponto ou hífen, o que transformava
+// "17.526,00" em "17.52600" — um número mil vezes menor, que o Postgres aceita
+// sem reclamar. Em 21/09/2026, 199 dos 234 valores gravados estavam abaixo de
+// R$ 100 por causa disso.
+//
+// A vírgula é o separador decimal em 358 de 358 valores medidos no pipe, então
+// ela manda: quando existe, o ponto é milhar. Sem vírgula, só um formato de
+// número simples ("2800" ou "2800.00") é aceito como decimal; qualquer outra
+// pontuação é tratada como milhar.
 function parseValor(raw: unknown): number | null {
-  if (!raw) return null;
-  const n = Number(String(raw).replace(/[^\d.-]/g, ""));
-  return Number.isNaN(n) ? null : n;
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const limpo = s.replace(/[^\d.,-]/g, "");
+  if (!limpo || !/\d/.test(limpo)) return null;
+  let normalizado: string;
+  if (limpo.includes(",")) {
+    normalizado = limpo.replace(/\./g, "").replace(",", ".");
+  } else if (/^-?\d+(\.\d{1,2})?$/.test(limpo)) {
+    normalizado = limpo;
+  } else {
+    normalizado = limpo.replace(/\./g, "");
+  }
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : null;
 }
 
-// Os campos de data deste pipe voltam em MM/DD/YYYY, não em dd/mm/yyyy:
-// entre os 95 valores preenchidos de `data_de_assinatura_do_contrato` em
-// 24/08/2026, nenhum tem o primeiro componente > 12 e 54 têm o segundo > 12
-// (ex.: "01/29/2026" = 29/01/2026). Ler como dd/mm gerava "2026-29-01" e
-// derrubava o upsert inteiro com 22008 (date/time field value out of range).
-// A ordem invertida (primeiro > 12) continua aceita como dd/mm por segurança,
-// para o caso de alguém digitar a data no formato brasileiro num campo de
-// texto. Data inválida vira null em vez de quebrar o lote.
+// O pipe manda dd/mm/yyyy. Medição de 21/09/2026 sobre os 460 cards: dos 157
+// valores de `data_de_assinatura_do_contrato`, 92 têm o primeiro componente
+// maior que 12 e **nenhum** tem o segundo — o mesmo vale para `data_da_venda`
+// (168 de 261). O formato é inequivocamente dd/mm.
+//
+// A versão anterior assumia MM/DD/YYYY, com base numa medição de 24/08/2026
+// que dava o contrário. Seja qual for a razão da virada (o Pipefy renderiza
+// data conforme a localidade de quem gerou o token), o efeito era este: card
+// com dia menor ou igual a 12 gravava dia e mês trocados, em silêncio, porque
+// a data continua sendo válida. Eram 65 dos 157.
+//
+// Por isso a regra agora decide pelo que o valor prova, e só cai em dd/mm
+// quando os dois componentes são ambíguos:
+//   primeiro > 12  → dd/mm (só pode ser dia)
+//   segundo  > 12  → mm/dd (só pode ser dia)
+//   ambíguo        → dd/mm, que é o formato medido no pipe
+// Data impossível vira null em vez de derrubar o lote com 22008.
 function parsePipefyDate(raw: unknown): string | null {
   if (!raw) return null;
   const s = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (!m) return null;
   const a = Number(m[1]);
   const b = Number(m[2]);
-  const [mes, dia] = a > 12 ? [b, a] : [a, b];
+  let dia: number, mes: number;
+  if (a > 12 && b <= 12) [dia, mes] = [a, b];
+  else if (b > 12 && a <= 12) [dia, mes] = [b, a];
+  else [dia, mes] = [a, b];
   if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
   return `${m[3]}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
@@ -184,10 +266,17 @@ function mapCard(card: any) {
     cliente: fieldMap[F_CLIENTE] || null,
     cnpj: fieldMap[F_CNPJ] || null,
     org_id_pipedrive: fieldMap[F_ORG_ID] || null,
-    unidade: fieldMap[F_UNIDADE] || null,
+    unidade: fieldMap[F_UNIDADE] || fieldMap[F_UNIDADE_START] || null,
     tipo: normalizeTipo(fieldMap[F_TIPO]),
     valor: parseValor(fieldMap[F_VALOR]),
+    mrr_mensal: parseValor(fieldMap[F_HONORARIO_MENSAL]),
+    valor_total_contrato: parseValor(fieldMap[F_VALOR_TOTAL_CONTRATO]),
+    data_venda: parsePipefyDate(fieldMap[F_DATA_VENDA]),
+    // Só data de assinatura de verdade entra aqui. "Data da Venda" fica na
+    // coluna própria: decisão do usuário em 21/09/2026 de não usá-la como
+    // aproximação da assinatura.
     data_assinatura: parsePipefyDate(fieldMap[F_DATA_ASSINATURA] || fieldMap[F_DATA_ASSINATURA_FASE]),
+    _empresa_pipefy_record_id: primeiroConectado(fieldMap[F_EMPRESA]),
     ferramenta_assinatura: fieldMap[F_FERRAMENTA] || null,
     link_documento: fieldMap[F_LINK_DOC] || null,
     status: fieldMap[F_STATUS] || null,
@@ -241,16 +330,29 @@ Deno.serve(async (req: Request) => {
     const empresaIdAtual = new Map(existing.map((e) => [e.pipefy_card_id, e.empresa_id]));
     const idBancoPorPipefyCard = new Map(existing.map((e) => [e.pipefy_card_id, e.id]));
 
-    const empresasResp = await fetch(
-      `${supabaseUrl}/rest/v1/empresas?select=id,pipedrive_id,created_at&pipedrive_id=not.is.null`,
-      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
-    );
-    const empresas: { id: number; pipedrive_id: string; created_at: string }[] = await empresasResp.json();
+    // `empresas` passa de 4 mil linhas, acima do teto de 1000 do PostgREST.
+    // Sem paginar, o mapa nasce com um quarto da base e o vínculo falha em
+    // silêncio para o resto — que é indistinguível de "card sem empresa".
+    const empresas: { id: number; pipedrive_id: string | null; pipefy_record_id: string | null; created_at: string }[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const resp = await fetch(
+        `${supabaseUrl}/rest/v1/empresas?select=id,pipedrive_id,pipefy_record_id,created_at&offset=${offset}&limit=1000`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+      const lote = await resp.json();
+      if (!Array.isArray(lote) || !lote.length) break;
+      empresas.push(...lote);
+      if (lote.length < 1000) break;
+    }
     const empresaPorDeal = new Map<string, typeof empresas>();
+    const empresaPorRecord = new Map<string, number>();
     for (const e of empresas) {
-      const list = empresaPorDeal.get(e.pipedrive_id) ?? [];
-      list.push(e);
-      empresaPorDeal.set(e.pipedrive_id, list);
+      if (e.pipedrive_id) {
+        const list = empresaPorDeal.get(e.pipedrive_id) ?? [];
+        list.push(e);
+        empresaPorDeal.set(e.pipedrive_id, list);
+      }
+      if (e.pipefy_record_id) empresaPorRecord.set(String(e.pipefy_record_id), e.id);
     }
 
     const dealsCache = new Map<string, string[]>();
@@ -260,6 +362,30 @@ Deno.serve(async (req: Request) => {
         row.empresa_id = jaResolvido;
         continue;
       }
+      // Ordem de tentativa, da mais barata e mais forte para a mais cara.
+      // 1) Connector "Empresa": o vínculo explícito com a database canônica,
+      //    sem chamada externa nenhuma.
+      const porRecord = row._empresa_pipefy_record_id
+        ? empresaPorRecord.get(row._empresa_pipefy_record_id)
+        : undefined;
+      if (porRecord) {
+        row.empresa_id = porRecord;
+        empresaIdResolvidos++;
+        continue;
+      }
+      // 2) Deal ID do Start Form, preenchido em 100% dos cards, casado direto
+      //    com `empresas.pipedrive_id`. Também não custa chamada.
+      if (row.pipedrive_deal_id) {
+        const diretos = empresaPorDeal.get(row.pipedrive_deal_id) ?? [];
+        if (diretos.length) {
+          row.empresa_id = [...diretos].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0].id;
+          empresaIdResolvidos++;
+          continue;
+        }
+      }
+      // 3) Só então o caminho antigo, que gasta uma consulta ao Pipedrive por
+      //    organização. `id_organiza_o_pipedrive` mora na fase antiga e hoje
+      //    está quase sempre vazio, então quase nunca chega aqui.
       if (!row.org_id_pipedrive) continue;
       let deals = dealsCache.get(row.org_id_pipedrive);
       if (!deals) {
@@ -286,6 +412,9 @@ Deno.serve(async (req: Request) => {
         contrato_pai_id: row.contrato_pai_id,
         cs_onboarding_card_id: row.cs_onboarding_card_id,
         valor: row.valor,
+        mrr_mensal: row.mrr_mensal,
+        valor_total_contrato: row.valor_total_contrato,
+        data_venda: row.data_venda,
         data_assinatura: row.data_assinatura,
         ferramenta_assinatura: row.ferramenta_assinatura,
         link_documento: row.link_documento,

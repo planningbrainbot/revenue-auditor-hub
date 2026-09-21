@@ -4646,6 +4646,22 @@ export type Database = {
         }
         Relationships: []
       }
+      v_cliente_mrr: {
+        Row: {
+          data_assinatura: string | null
+          data_assinatura_fonte: string | null
+          empresa_id: number | null
+          mrr_fonte: string | null
+          mrr_mensal: number | null
+          mrr_omie: number | null
+          mrr_pipedrive: number | null
+          mrr_pipefy: number | null
+          omie_contratos_ativos: number | null
+          pipedrive_id: string | null
+          unidade: string | null
+        }
+        Relationships: []
+      }
       v_mrr_por_unidade: {
         Row: {
           mrr_total: number | null
