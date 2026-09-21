@@ -221,7 +221,13 @@ export function ClientesBase() {
         ))}
       </nav>
       {view === "contratos" ? (
-        <ContratosClientes statusParam={search.status} unidadeParam={search.unidade} />
+        <ContratosClientes
+          statusParam={search.status}
+          // A aba Empresas guarda a CHAVE da unidade na URL (`monetizacao_unidades.key`),
+          // e a de contratos filtra por nome (`empresas.unidade`). Sem traduzir aqui,
+          // trocar de aba com uma unidade filtrada zerava a lista inteira.
+          unidadeParam={data.units.find((u) => u.key === search.unidade)?.name ?? search.unidade}
+        />
       ) : (
         <>
           <section

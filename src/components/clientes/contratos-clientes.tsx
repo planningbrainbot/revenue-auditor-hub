@@ -436,7 +436,10 @@ export function ContratosClientes({
     const term = q.trim().toLowerCase();
     return visiveis.filter((r) => {
       if (statusFilter && r.status_financeiro !== statusFilter) return false;
-      if (!perms.scopedToOwnUnit && unidade !== ALL && r.unidade !== unidade) return false;
+      // Comparação tolerante a acento e caixa: o nome que chega pela URL pode vir
+      // de outra tabela (`monetizacao_unidades.nome`) e não bater caractere a caractere.
+      if (!perms.scopedToOwnUnit && unidade !== ALL && !unitMatches(unidade, r.unidade))
+        return false;
       if (erpFilter !== ALL && r.erp !== erpFilter) return false;
       if (segmentoFilter !== ALL && r.segmento !== segmentoFilter) return false;
       if (contratoAssinadoFilter !== null) {
