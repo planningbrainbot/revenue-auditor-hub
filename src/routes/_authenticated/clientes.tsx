@@ -2,7 +2,7 @@ import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router"
 import { ClientesBase } from "@/components/clientes/base-unica";
 export const Route = createFileRoute("/_authenticated/clientes")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => ({
-    view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "empresas",
+    view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "monetizacao",
     status: typeof s.status === "string" ? s.status : "",
     unidade: typeof s.unidade === "string" ? s.unidade : "",
     q: typeof s.q === "string" ? s.q : "",

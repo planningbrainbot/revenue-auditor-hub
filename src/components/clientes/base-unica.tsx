@@ -44,10 +44,11 @@ import { Aquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
 
 const views = [
+  // O cockpit abre a base: é onde se decide o que trabalhar. "Empresas" vem logo depois.
+  ["monetizacao", "Cockpit da base"],
   ["empresas", "Empresas"],
   ["contatos", "Contatos"],
   ["negocios", "Negócios"],
-  ["monetizacao", "Oportunidades"],
   ["pendencias", "Validar origem"],
   ["contratos", "Contratos da rede"],
 ];
@@ -67,7 +68,7 @@ export function ClientesBase() {
   const { user } = useAuth();
   const search = useSearch({ from: "/_authenticated/clientes" }),
     navigate = useNavigate({ from: "/clientes" });
-  const view = views.some(([v]) => v === search.view) ? search.view : "empresas";
+  const view = views.some(([v]) => v === search.view) ? search.view : "monetizacao";
   const change = (patch: Record<string, string>) => {
     setPage(1);
     void navigate({ search: { ...search, ...patch }, replace: true });

@@ -166,7 +166,7 @@ export function Aquario({
         <div className="flex items-center gap-3">
           <Fish className="h-6 w-6 text-primary" />
           <div>
-            <h1 className="text-2xl font-semibold">Oportunidades da base</h1>
+            <h1 className="text-2xl font-semibold">Cockpit da base</h1>
             <p className="text-xs text-muted-foreground">
               Base de clientes · carteiras e listas para os sócios
             </p>
@@ -332,9 +332,12 @@ export function Aquario({
                   <button
                     key={u.key}
                     onClick={() => {
+                      // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
+                      if (unit?.key !== u.key) {
+                        setFilters(emptyFilters);
+                        setPicked(new Set());
+                      }
                       setUnit(u);
-                      setFilters(emptyFilters);
-                      setPicked(new Set());
                     }}
                     className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
                   >
@@ -384,7 +387,7 @@ export function Aquario({
         <TabsContent value="recon">
           <ReconAquario accounts={data.accounts} showAccount={setAccount} />
         </TabsContent>
-        <TabsContent value="listas">
+        <TabsContent value="listas" forceMount className={tab === "listas" ? "" : "hidden"}>
           <ListWorkspace
             data={data}
             initial={draft}
@@ -397,7 +400,11 @@ export function Aquario({
         </TabsContent>
       </Tabs>
       <Sheet open={!!unit} onOpenChange={(o) => !o && setUnit(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-[min(1180px,95vw)]">
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-[min(1180px,95vw)]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
@@ -424,9 +431,16 @@ export function Aquario({
             </div>
             {content(unitAccounts, true)}
           </div>
+          {/* Dentro do SheetContent de proposito: como irmao, o fade de saida da ficha devolvia o
+              clique ao overlay da gaveta e fechava a unidade junto, levando a montagem de lista. */}
+          {unit && (
+            <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
+          )}
         </SheetContent>
       </Sheet>
-      <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
+      {!unit && (
+        <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
+      )}
     </main>
   );
 }
@@ -469,7 +483,8 @@ function PortfolioTable({
         ? { status: situacoesIniciais(value as Produto | ""), approach: [] }
         : {}),
     });
-    setPicked(new Set());
+    // Busca so estreita o que ja esta na tela; mexer nela nao e trocar de recorte.
+    if (key !== "query") setPicked(new Set());
     setLimit(50);
   };
   const rows = useMemo(() => filtrarCarteira(accounts, filters, data), [accounts, filters, data]);
