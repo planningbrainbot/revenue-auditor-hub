@@ -31,7 +31,12 @@ import {
   validarOrigemBase,
 } from "@/lib/clientes-base.functions";
 import { passaRefinamento, type Refinamento } from "@/lib/clientes-base";
-import { normal, oferta } from "@/lib/monetizacao/model";
+import {
+  normal,
+  oferta,
+  rotuloSituacaoReceita,
+  situacaoForaDeOferta,
+} from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS, type Conta } from "@/lib/monetizacao/types";
 import { downloadCsv, inputClass, LoadingState, number } from "@/components/monetizacao/common";
 import { AccountDetail } from "@/components/monetizacao/account-detail";
@@ -537,9 +542,21 @@ export function ClientesBase() {
                                   </Badge>
                                 ),
                               )}
-                              {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") && (
-                                <span className="text-xs text-muted-foreground">A qualificar</span>
-                              )}
+                              {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") &&
+                                (situacaoForaDeOferta(a) ? (
+                                  // Empresa fechada não é falta de dado: dizer "a qualificar" manda
+                                  // o operador atrás de informação de um CNPJ que não existe mais.
+                                  <span
+                                    className="text-xs font-medium text-muted-foreground"
+                                    title={a.situacao_receita_fonte ?? undefined}
+                                  >
+                                    Fora das ofertas · {rotuloSituacaoReceita(a)}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    A qualificar
+                                  </span>
+                                ))}
                             </div>
                           )}
                         </td>

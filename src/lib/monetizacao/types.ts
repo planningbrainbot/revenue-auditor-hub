@@ -58,6 +58,12 @@ export interface Conta {
   segment_at?: string | null;
   segment_conflict?: boolean;
   band_conflict?: boolean;
+  // Situação cadastral na Receita. Empresa não ativa sai das ofertas e fica na lista separada.
+  situacao_receita?: "ativa" | "baixada" | "inapta" | "suspensa" | null;
+  situacao_receita_fonte?: string | null;
+  // Teto legal de faturamento anual pelo porte na Receita (R$ mi): ME 0,36 · EPP 4,8. Não é faixa declarada.
+  faturamento_teto?: number | null;
+  faturamento_teto_fonte?: string | null;
   regime_conflict?: boolean;
   old_base: boolean;
   matrix: boolean;
@@ -175,6 +181,9 @@ export interface Revisao {
   band?: string;
   segment?: string;
   regime?: string;
+  // Correção da situação cadastral pelo operador (ex.: inscrição regularizada depois da consulta
+  // em lote). É o único caminho de volta para uma conta barrada pela situação na Receita.
+  situacao_receita?: "ativa" | "baixada" | "inapta" | "suspensa";
   note?: string;
   demand?: string;
 }
