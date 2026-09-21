@@ -35,10 +35,23 @@ const NIVEIS: { valor: NivelNaArea; rotulo: string; ajuda: string }[] = [
 export function AcessosUsuarioDialog({
   userId,
   nome,
+  porta,
   onClose,
 }: {
   userId: string;
   nome: string;
+  /**
+   * A porta do Ops (`public.produto_acesso`), quando quem abre o diálogo pode
+   * mexer nela. Fica aqui, e não numa janela própria, porque tudo que é do
+   * Ops mora num lugar só: primeiro se a pessoa entra, depois o que ela faz
+   * em cada área.
+   */
+  porta?: {
+    tem: boolean;
+    salvando: boolean;
+    erro?: string | null;
+    onDefinir: (conceder: boolean) => void;
+  };
   onClose: () => void;
 }) {
   const getFn = useServerFn(getAcessosDoUsuario);
@@ -55,13 +68,49 @@ export function AcessosUsuarioDialog({
             <h2 className="text-sm font-semibold text-foreground">Acessos de {nome}</h2>
             <p className="text-xs text-muted-foreground">
               Área por área, o que esta pessoa faz além do perfil dela. As unidades e empresas
-              ficam em "Escopo".
+              ficam na coluna "Unidade" da lista.
             </p>
           </div>
           <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-accent" aria-label="Fechar">
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {porta?.erro && (
+          <p className="mx-5 mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {porta.erro}
+          </p>
+        )}
+
+        {porta && (
+          <div className="mx-5 mt-4 flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold text-foreground">
+                {porta.tem ? "Entra no Ops" : "Não entra no Ops"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {porta.tem
+                  ? "Fechar a porta não apaga nada do que está abaixo: reabrir devolve a pessoa como estava."
+                  : "Sem a porta, nada do que estiver marcado abaixo tem efeito."}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (porta.tem && !confirm(`Revogar o acesso de ${nome} ao Ops?`)) return;
+                porta.onDefinir(!porta.tem);
+              }}
+              disabled={porta.salvando}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+                porta.tem
+                  ? "border border-destructive/40 text-destructive hover:bg-destructive/10"
+                  : "bg-primary text-primary-foreground hover:opacity-90",
+              )}
+            >
+              {porta.salvando ? "Salvando..." : porta.tem ? "Revogar acesso" : "Conceder acesso"}
+            </button>
+          </div>
+        )}
 
         {q.isLoading ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">Carregando...</div>

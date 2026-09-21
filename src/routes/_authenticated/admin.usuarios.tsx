@@ -173,7 +173,8 @@ function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [socioUnidade, setSocioUnidade] = useState<string | null>(null);
   const [escopoAlvo, setEscopoAlvo] = useState<{ userId: string; nome: string } | null>(null);
-  const [acessosAlvo, setAcessosAlvo] = useState<{ userId: string; nome: string } | null>(null);
+  // `tem` é a porta do Ops, que o diálogo de Acessos mostra e liga/desliga.
+  const [acessosAlvo, setAcessosAlvo] = useState<{ userId: string; nome: string; tem: boolean } | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [unidadeSel, setUnidadeSel] = useState("");
 
@@ -199,12 +200,12 @@ function UsersPage() {
     };
   }, [email, role, lookupFn]);
 
-  const [opsAlvo, setOpsAlvo] = useState<{ userId: string; nome: string; email: string; tem: boolean } | null>(null);
-
   const portaOpsMut = useMutation({
     mutationFn: (input: { userId: string; conceder: boolean }) => portaOpsFn({ data: input }),
-    onSuccess: () => {
-      setOpsAlvo(null);
+    onSuccess: (res) => {
+      // O diálogo fica aberto: quem acabou de conceder normalmente quer
+      // marcar as áreas em seguida, e fechar aqui obrigaria a reabrir.
+      setAcessosAlvo((a) => (a ? { ...a, tem: res.conceder } : a));
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -553,10 +554,37 @@ function UsersPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {u.role === "socio" || u.role === "socio_regional"
-                      ? (u.unidade ?? <span className="text-amber-600">não vinculada</span>)
-                      : "—"}
+                  {/* Unidade é o escopo: o que a pessoa enxerga nas áreas do
+                      Ops. Editar aqui mesmo evita o botão "Escopo" no fim da
+                      linha, que dizia menos do que a própria coluna. */}
+                  <td className="px-4 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setEscopoAlvo({ userId: u.user_id, nome: u.nome || u.email })}
+                      title="Clique para escolher as unidades e empresas que esta pessoa enxerga"
+                      className="rounded px-1 py-0.5 text-left text-xs text-muted-foreground underline decoration-dotted underline-offset-4 hover:bg-accent hover:text-foreground"
+                    >
+                      {u.escopo.todas ? (
+                        <span className="text-foreground">Todas as unidades</span>
+                      ) : u.escopo.unidades.length === 0 ? (
+                        <span className="text-amber-600">nenhuma unidade</span>
+                      ) : u.escopo.unidades.length === 1 ? (
+                        <span className="text-foreground">{u.escopo.unidades[0]}</span>
+                      ) : (
+                        <span className="text-foreground" title={u.escopo.unidades.join(", ")}>
+                          {u.escopo.unidades[0]} +{u.escopo.unidades.length - 1}
+                        </span>
+                      )}
+                      {(u.role === "socio" || u.role === "socio_regional") && (
+                        <span className="mt-0.5 block text-[10px] normal-case">
+                          {u.unidade ? (
+                            <>sócio de {u.unidade}</>
+                          ) : (
+                            <span className="text-amber-600">sócio não vinculado</span>
+                          )}
+                        </span>
+                      )}
+                    </button>
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-1">
@@ -582,7 +610,7 @@ function UsersPage() {
                             disabled={prod.slug === "growth" && !growthConfigurado}
                             onClick={() => {
                               if (prod.slug === "ops") {
-                                setOpsAlvo({ userId: u.user_id, nome: u.nome || u.email, email: u.email, tem });
+                                setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email, tem });
                                 return;
                               }
                               if (prod.slug === "growth") {
@@ -634,20 +662,10 @@ function UsersPage() {
                         >
                           Editar
                         </button>
-                        <button
-                          onClick={() => setEscopoAlvo({ userId: u.user_id, nome: u.nome || u.email })}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                          title="Quais unidades e empresas esta pessoa enxerga dentro das áreas do papel dela"
-                        >
-                          Escopo
-                        </button>
-                        <button
-                          onClick={() => setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email })}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                          title="Em cada área: admin, sócio, usuário ou sem acesso"
-                        >
-                          Acessos
-                        </button>
+                        {/* "Escopo" e "Acessos" saíram daqui: o primeiro é a
+                            coluna Unidade, o segundo é a pílula Ops. Dois
+                            caminhos para a mesma janela só faziam duvidar se
+                            eram a mesma coisa. */}
                         <button
                           onClick={() => resetMut.mutate({ user_id: u.user_id })}
                           disabled={resetMut.isPending}
@@ -676,72 +694,6 @@ function UsersPage() {
             </tbody>
           </table>
         </div>
-
-        {opsAlvo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-foreground">Acesso ao Ops</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {opsAlvo.nome} · {opsAlvo.email}
-              </p>
-
-              <p className="mt-4 text-sm text-foreground">
-                {opsAlvo.tem
-                  ? "Esta pessoa entra no Ops. O que ela vê lá dentro fica em Acessos (áreas) e Escopo (unidades e empresas)."
-                  : "Esta pessoa não entra no Ops. Conceder abre a porta; as áreas continuam sendo definidas em Acessos."}
-              </p>
-              {opsAlvo.tem && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Revogar só fecha a porta. Áreas, escopo e papel ficam como estão, e reabrir
-                  devolve a pessoa exatamente ao que era.
-                </p>
-              )}
-
-              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
-
-              <div className="mt-6 flex items-center justify-between">
-                <button
-                  onClick={() => {
-                    setOpsAlvo(null);
-                    setAcessosAlvo({ userId: opsAlvo.userId, nome: opsAlvo.nome });
-                  }}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
-                >
-                  Definir áreas
-                </button>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => { setOpsAlvo(null); setError(null); }}
-                    className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
-                  >
-                    Cancelar
-                  </button>
-                  {opsAlvo.tem ? (
-                    <button
-                      onClick={() => {
-                        if (confirm(`Revogar o acesso de ${opsAlvo.email} ao Ops?`)) {
-                          portaOpsMut.mutate({ userId: opsAlvo.userId, conceder: false });
-                        }
-                      }}
-                      disabled={portaOpsMut.isPending}
-                      className="rounded-full border border-destructive/40 px-4 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                    >
-                      {portaOpsMut.isPending ? "Salvando..." : "Revogar acesso"}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => portaOpsMut.mutate({ userId: opsAlvo.userId, conceder: true })}
-                      disabled={portaOpsMut.isPending}
-                      className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                    >
-                      {portaOpsMut.isPending ? "Salvando..." : "Conceder acesso"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {growthAlvo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -846,6 +798,12 @@ function UsersPage() {
           <AcessosUsuarioDialog
             userId={acessosAlvo.userId}
             nome={acessosAlvo.nome}
+            porta={{
+              tem: acessosAlvo.tem,
+              salvando: portaOpsMut.isPending,
+              erro: portaOpsMut.isError ? (portaOpsMut.error as Error)?.message : null,
+              onDefinir: (conceder) => portaOpsMut.mutate({ userId: acessosAlvo.userId, conceder }),
+            }}
             onClose={() => setAcessosAlvo(null)}
           />
         )}

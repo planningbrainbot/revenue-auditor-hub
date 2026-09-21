@@ -129,6 +129,38 @@ export const adminListUsers = createServerFn({ method: "GET" })
       if (s.email && s.unidade) emailToUnidade.set(s.email.trim().toLowerCase(), s.unidade);
     }
 
+    // O ESCOPO de unidades, resumido para caber na coluna "Unidade" — é o que
+    // a pessoa enxerga nas áreas do Ops, e é editado clicando ali mesmo. Não
+    // confundir com a unidade de `socios`, logo acima: aquela é a unidade DA
+    // pessoa (sócio da regional tal), esta é o recorte do que ela vê.
+    // `as any`: `src/integrations/supabase/types.ts` não declara as tabelas de
+    // escopo, como no resto do código que as consulta.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as any;
+    const [escopoRes, unidadesDoUsuarioRes, catalogoRes] = await Promise.all([
+      db.from("usuario_escopo").select("user_id, todas_unidades"),
+      db.from("usuario_unidades").select("user_id, unidade_id"),
+      db.from("unidades").select("id, nome_da_praca"),
+    ]);
+    const nomeDaUnidade = new Map(
+      ((catalogoRes.data ?? []) as { id: number; nome_da_praca: string }[]).map((u) => [
+        u.id,
+        u.nome_da_praca,
+      ]),
+    );
+    const todasDe = new Map(
+      ((escopoRes.data ?? []) as { user_id: string; todas_unidades: boolean }[]).map((e) => [
+        e.user_id,
+        Boolean(e.todas_unidades),
+      ]),
+    );
+    const unidadesDe = new Map<string, string[]>();
+    for (const l of (unidadesDoUsuarioRes.data ?? []) as { user_id: string; unidade_id: number }[]) {
+      const nome = nomeDaUnidade.get(l.unidade_id);
+      if (!nome) continue;
+      unidadesDe.set(l.user_id, [...(unidadesDe.get(l.user_id) ?? []), nome]);
+    }
+
     return (profiles ?? []).map((p) => {
       const userRoles = rolesByUser.get(p.user_id) ?? [];
       const role = pickPrimaryRole(userRoles);
@@ -142,6 +174,10 @@ export const adminListUsers = createServerFn({ method: "GET" })
         role,
         unidade,
         produtos: produtosByUser.get(p.user_id) ?? [],
+        escopo: {
+          todas: todasDe.get(p.user_id) ?? false,
+          unidades: (unidadesDe.get(p.user_id) ?? []).sort((a, b) => a.localeCompare(b, "pt-BR")),
+        },
       };
     });
 
