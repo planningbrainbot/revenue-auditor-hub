@@ -1836,3 +1836,23 @@ Reversão: apagar as validações com esse responsável e as correções geradas
 **Não entrou nesta rodada** (segue na spec): os quatro blocos numa página só (funil / oportunidades por produto / base por unidade / montagem de lista), o fluxo "clicar na unidade → auditar nominalmente → pesquisar → montar lista" como navegação real, e a persistência do rascunho.
 
 **Pendência que a apuração levantou e precisa de decisão:** Recife tem 385 contas e **não aparece em card nenhum** por falta de linha em `ops.monetizacao_unidades`; São Bernardo (454) só aparece por casamento de string. São 839 contas de duas praças reais invisíveis na grade, independentemente do redesign.
+
+## [2026-09-21] Auditoria de segurança do Mikael: o que se confirmou, o que não, e o que foi fechado
+
+**Contexto:** Mikael rodou auditoria no banco único (Growth + Financeiro + Ops) e mandou `RECADO-OPS-FINANCEIRO.md` com quatro achados, pedindo que cada vertical analisasse o que é seu. Verifiquei os quatro no banco antes de aceitar qualquer um.
+
+**Item 2 — rotinas do Ops sem login: CONFIRMADO, e a causa é outra.** O documento atribui a brecha a grants para `anon`. Não é: a execução vinha de **`PUBLIC`** (ACL `=X/postgres`). Revogar de `anon` é no-op — fiz isso primeiro e o teste mostrou `anon=True` depois da revogação. A correção certa é `revoke execute ... from public`. Aplicado em `broker_cac_sync()`, `propagar_cnpj_do_pipefy()`, `propagar_filiais_do_pipefy()` e `reconciliar_contrato_omie(text)`; `service_role` mantido. Conferido pelo efeito, não pela ACL: chamada pela chave pública passou a devolver 401 `permission denied for function`. Nenhuma das quatro é chamada pelo app (grep em `src/`: zero).
+
+**Correção ao documento — a quinta não existe.** `registrar_alteracao_contrato()` retorna `trigger`. PostgREST não expõe função de gatilho e chamada direta é recusada pelo próprio Postgres. Eram quatro, não cinco.
+
+**Correção ao documento — o mecanismo é o schema, não a função.** Medi 207 funções com EXECUTE para `anon` nos três schemas, incluindo escritoras do Financeiro (`fn_promover_stage_para_lancamentos`) e do Growth (`dist_regra_set`). Elas não são alcançáveis porque `anon` **não tem USAGE** em `financeiro` nem em `growth` — testado: os dois devolvem 401 `permission denied for schema`, o Ops devolve 200. O portão é o USAGE do schema. A conclusão dele ("só o Ops está aberto") está certa; a razão, não.
+
+**Item 3 — backup de permissões aberto: CONFIRMADO, com uma ressalva.** `ops._can_antes_20260915` era a única tabela do Ops sem RLS, com SELECT/INSERT/UPDATE/DELETE para `authenticated`. Mas `anon` **não** lia (`has_table_privilege` falso), então era exposição a usuário logado, não anônima. Não apaguei: revoguei os grants e liguei RLS sem policy. 2.624 linhas e 41 usuários preservados.
+
+**Item 4 — grants amplos: CONFIRMADO, número diferente.** Medi 303 tabelas com INSERT para `authenticated` (156 Ops, 97 Financeiro, 50 Growth), não 372 (215/105/52). A diferença provavelmente é contagem por união de INSERT/UPDATE/DELETE ou inclusão de views. O achado se sustenta; o número não bate e vale corrigir antes de virar meta.
+
+**Item 1 — Financeiro:** não é nossa vertical e não toquei.
+
+**Achado novo, que o documento não tem:** `anon` tem **0 tabelas** com SELECT no schema `ops` — a superfície anônima do Ops é só de funções. Isso torna `revoke usage on schema ops from anon` uma opção de baixo risco para fechar o resto de uma vez, em vez de caçar função por função. Não apliquei: fecha também as puras (`base_cnpj`, `base_unidade`) e é decisão que atravessa as três verticais.
+
+**Reversão:** `grant execute on function ops.<nome> to public;` e `alter table ops._can_antes_20260915 disable row level security; grant ... to authenticated;`.
