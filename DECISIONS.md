@@ -1856,3 +1856,17 @@ Reversão: apagar as validações com esse responsável e as correções geradas
 **Achado novo, que o documento não tem:** `anon` tem **0 tabelas** com SELECT no schema `ops` — a superfície anônima do Ops é só de funções. Isso torna `revoke usage on schema ops from anon` uma opção de baixo risco para fechar o resto de uma vez, em vez de caçar função por função. Não apliquei: fecha também as puras (`base_cnpj`, `base_unidade`) e é decisão que atravessa as três verticais.
 
 **Reversão:** `grant execute on function ops.<nome> to public;` e `alter table ops._can_antes_20260915 disable row level security; grant ... to authenticated;`.
+
+## [2026-09-21] A cobertura por unidade vira tabela: a view custava 1,3 s em cada carregamento
+
+**Contexto:** logo depois de publicar o card novo, o dono reclamou que a tela ficou lenta ("Carregando carteira e operação…"). Era regressão minha, introduzida na mesma rodada.
+
+**Medido, não suposto.** `ops.monetizacao_unidade_cobertura` como view custava **1.323 ms de execução** por carregamento, porque depende de `ops.base_conta_cnpjs` — `DISTINCT` + `UNION` com `NOT EXISTS` correlacionado sobre `monetizacao_contas × empresas`, que sozinha leva **2.539 ms**. Para comparação, todo o resto do payload da tela: `monetizacao_deals` 2 ms, `monetizacao_contas` 3 ms, `base_conta_estado` 5 ms, `monetizacao_itens` 3 ms. A view era ~200× a soma do resto.
+
+**Decisão:** a cobertura vira **tabela** (`ops.monetizacao_unidade_cobertura`) alimentada por `ops.monetizacao_cobertura_refresh()`, agendada no pg_cron (`monetizacao-cobertura-10min`, jobid 4). Leitura passou de 1.323 ms para **0,08 ms**. O dado fica no máximo 10 minutos atrás, mesma ordem de defasagem do resto da carteira.
+
+**Não é materialized view de propósito.** Matview ignora RLS — é exatamente o padrão apontado na auditoria de segurança do mesmo dia (relatório derivado que passa por cima da regra da tabela de origem). A tabela tem RLS ligada e policy de leitura para `authenticated`.
+
+**Sem deploy.** Nome e colunas iguais aos da view, então o código do app não mudou: a correção é só de banco.
+
+**Lição para a próxima:** medir o custo de qualquer objeto novo que entre no caminho de carregamento, antes de publicar. `explain (analyze)` na view teria mostrado 1,3 s em dez segundos de trabalho.

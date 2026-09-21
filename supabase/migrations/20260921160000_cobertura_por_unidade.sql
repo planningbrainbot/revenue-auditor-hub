@@ -1,3 +1,7 @@
+-- SUPERSEDED em 21/09 pela migration 20260921190000_cobertura_materializada.sql:
+-- esta versao era VIEW e custava 1,3 s em CADA carregamento da tela, porque depende de
+-- ops.base_conta_cnpjs (DISTINCT + UNION com NOT EXISTS correlacionado, 2,5 s sozinha).
+-- Mantida no historico; o objeto vivo e tabela com refresh por cron.
 -- Cobertura por unidade: o que o card da carteira pode afirmar, e de onde vem.
 -- O card mostrava "N contas" — número que mistura fontes e não responde "tamanho da unidade".
 -- Aqui separamos: CNPJs distintos (empresas), contas conciliadas (unidade de trabalho) e a
