@@ -625,10 +625,7 @@ export function ContratosClientes({
           c = cmpStr(infoOf(a)?.regime_tributario, infoOf(b)?.regime_tributario);
           break;
         case "entrada_contrato_assinado_em":
-          c = cmpStr(
-            assinaturaOf(a),
-            assinaturaOf(b),
-          );
+          c = cmpStr(assinaturaOf(a), assinaturaOf(b));
           break;
         case "closer":
           c = cmpStr(infoOf(a)?.closer, infoOf(b)?.closer);
@@ -662,7 +659,7 @@ export function ContratosClientes({
       <div className="flex items-center gap-3">
         <Building2 className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contratos da rede</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Contratos e churn</h1>
           <p className="text-sm text-muted-foreground">
             Recorte operacional das unidades regionais. Estes números medem contratos e situação
             financeira, não o total da base.
@@ -838,13 +835,7 @@ export function ContratosClientes({
             </span>
             {!loading && (
               <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                MRR total:{" "}
-                {fmtBRL(
-                  filtered.reduce(
-                    (s, r) => s + mrrOf(r),
-                    0,
-                  ),
-                )}
+                MRR total: {fmtBRL(filtered.reduce((s, r) => s + mrrOf(r), 0))}
               </span>
             )}
           </div>

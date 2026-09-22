@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
   SheetContent,
@@ -87,15 +86,27 @@ const LIMITE_LOTE = 300;
 // Valor explícito de "todas as situações": vazio significa a situação padrão do produto.
 const TODAS = "todas";
 const emptyFilters = EMPTY_PORTFOLIO_FILTERS;
+// As seções que antes eram a faixa de abas de dentro do Aquário. Elas subiram para o menu único
+// da Base de clientes: a tela deixa de ter navegação própria e passa a obedecer a de cima.
+export type SecaoAquario = "base" | "produtos" | "gates";
+
 export function Aquario({
   embedded = false,
   accountKeys,
-}: { embedded?: boolean; accountKeys?: Set<string> } = {}) {
+  secao = "base",
+  irPara,
+}: {
+  embedded?: boolean;
+  accountKeys?: Set<string>;
+  secao?: SecaoAquario;
+  irPara?: (s: SecaoAquario) => void;
+} = {}) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
     sync = useServerFn(acionarMonetizacao);
-  const [tab, setTab] = useState("carteiras"),
-    [unit, setUnit] = useState<Unidade | null>(null),
+  // `irPara` é opcional para o Aquário seguir montável fora da casca; sem ele, a seção é fixa.
+  const ir = irPara ?? (() => {});
+  const [unit, setUnit] = useState<Unidade | null>(null),
     [account, setAccount] = useState<Conta | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters),
     [picked, setPicked] = useState<Set<string>>(new Set());
@@ -131,7 +142,7 @@ export function Aquario({
   const startList = (keys: string[], forUnit: Unidade | null, product: Produto) => {
     setDraft({ unit: forUnit, accounts: keys, product });
     setUnit(null);
-    setTab("listas");
+    ir("produtos");
     setPicked(new Set());
   };
   const cella = data.accounts.filter((a) => oferta(a, "cella").status === "elegivel"),
@@ -172,16 +183,22 @@ export function Aquario({
   );
   return (
     <main className={embedded ? "space-y-4" : "mx-auto max-w-[1600px] space-y-4 p-4 md:p-6"}>
+      {/* Embutido na Base de clientes, o cabeçalho próprio era o segundo <h1> da mesma página.
+          O Freshness fica: é o único gatilho de sincronização do CRM nesta tela. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Fish className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold">Cockpit da base</h1>
-            <p className="text-xs text-muted-foreground">
-              Base de clientes · carteiras e listas para os sócios
-            </p>
+        {embedded ? (
+          <span />
+        ) : (
+          <div className="flex items-center gap-3">
+            <Fish className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="text-2xl font-semibold">Base de clientes</h1>
+              <p className="text-xs text-muted-foreground">
+                Base de clientes · carteiras e listas para os sócios
+              </p>
+            </div>
           </div>
-        </div>
+        )}
         <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
       </div>
       <FalhaDeCarga data={data} />
@@ -191,147 +208,140 @@ export function Aquario({
           definir suas carteiras.
         </Notice>
       )}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <Kpi
-          label="Contas na base conciliada"
-          value={number(data.accounts.length)}
-          hint="Uma conta, mesmo com mais de um produto"
-        />
-        <Kpi
-          label="Cella · perfil aderente"
-          value={number(cella.length - cellaSoOmie.length)}
-          hint={
-            cellaSoOmie.length
-              ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
-              : "A partir de R$ 25 mi · fora do Simples"
-          }
-        />
-        <Kpi
-          label="Consultoria · carteira retroativa"
-          value={number(consultBase.length)}
-          hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
-          accent
-        />
-        <Kpi
-          label="Finance · perfil aderente"
-          value={number(finance.length)}
-          hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
-        />
-        <Kpi
-          label="Mais de um produto"
-          value={number(overlap.length)}
-          hint="Contas já incluídas nos produtos ao lado"
-        />
-      </div>
-      <Panel title="Listas potenciais por produto">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            onClick={() => setTab("recon")}
-            className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "recon" ? "border-primary bg-primary/5" : ""}`}
-          >
-            <span className="flex items-center justify-between font-semibold">
-              Recon <ArrowRight className="h-4 w-4" />
-            </span>
-            <p className="mt-2 text-sm">
-              {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
-              {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
-            </p>
-          </button>
-          {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
-            const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
-            const free = eligible.filter(
-              (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
-            );
-            return (
+      {secao === "produtos" && (
+        <>
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            <Kpi
+              label="Contas na base conciliada"
+              value={number(data.accounts.length)}
+              hint="Uma conta, mesmo com mais de um produto"
+            />
+            <Kpi
+              label="Cella · perfil aderente"
+              value={number(cella.length - cellaSoOmie.length)}
+              hint={
+                cellaSoOmie.length
+                  ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
+                  : "A partir de R$ 25 mi · fora do Simples"
+              }
+            />
+            <Kpi
+              label="Consultoria · carteira retroativa"
+              value={number(consultBase.length)}
+              hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
+              accent
+            />
+            <Kpi
+              label="Finance · perfil aderente"
+              value={number(finance.length)}
+              hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
+            />
+            <Kpi
+              label="Mais de um produto"
+              value={number(overlap.length)}
+              hint="Contas já incluídas nos produtos ao lado"
+            />
+          </div>
+          <Panel title="Listas potenciais por produto">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <button
-                key={p}
-                onClick={() => {
-                  setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
-                  setPicked(new Set());
-                  setTab("contas");
-                }}
-                className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "contas" && filters.product === p ? "border-primary bg-primary/5" : ""}`}
+                onClick={() =>
+                  document.getElementById("painel-recon")?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="rounded-lg border p-4 text-left hover:border-primary"
               >
-                <span className="flex items-center justify-between gap-2 font-semibold">
-                  {NOMES[p]}
-                  <span className="flex shrink-0 items-center gap-1">
-                    {p === "consultoria" && consultPending.length > 0 && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                        {consultPending.length} a confirmar
-                      </span>
-                    )}
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
+                <span className="flex items-center justify-between font-semibold">
+                  Recon <ArrowRight className="h-4 w-4" />
                 </span>
-                {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
-                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
-                <p className="my-2 text-3xl font-semibold tabular-nums">
-                  {number(free.length)}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    aptas e disponíveis
-                  </span>
+                <p className="mt-2 text-sm">
+                  {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
+                  {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
                 </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {p === "consultoria"
-                    ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
-                    : `${number(eligible.length)} com perfil aderente`}
-                </p>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {p === "consultoria"
-                    ? "Base Antiga · sem fechamento comercial · contato opcional"
-                    : p === "cella"
-                      ? "A partir de R$ 25 mi · fora do Simples"
-                      : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
                 </p>
               </button>
-            );
-          })}
-        </div>
-        <Button
-          className="mt-3"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setFilters({
-              ...emptyFilters,
-              product: "consultoria",
-              origin: ["antiga"],
-              status: ["qualificar"],
-            });
-            setPicked(new Set());
-            setTab("contas");
-          }}
-        >
-          Conferir regime da base retroativa
-        </Button>
-        <p className="mt-3 text-xs text-muted-foreground">
-          A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
-          preenchido no Pipedrive; contato é opcional.
-        </p>
-      </Panel>
-      <Tabs value={tab} onValueChange={setTab}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="carteiras">Carteiras por unidade</TabsTrigger>
-            <TabsTrigger value="contas">Todas as contas</TabsTrigger>
-            <TabsTrigger value="recon">Recon</TabsTrigger>
-            <TabsTrigger value="listas">
-              Listas para sócios <span className="ml-1 text-xs">{data.lists.length}</span>
-            </TabsTrigger>
-            <TabsTrigger value="gates">Entenda os números</TabsTrigger>
-          </TabsList>
-          <Link
-            to="/monetizacao"
-            search={{ aba: "operacao" }}
-            className="flex items-center gap-1 text-xs font-medium text-primary"
-          >
-            Acompanhar operação <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <TabsContent value="carteiras" className="space-y-4">
+              {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
+                const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
+                const free = eligible.filter(
+                  (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                );
+                return (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      // O cartão aplica o recorte e leva à tabela, que agora mora na seção
+                      // "Base de clientes" do menu único — não a uma aba de dentro desta tela.
+                      setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
+                      setPicked(new Set());
+                      ir("base");
+                    }}
+                    className={`rounded-lg border p-4 text-left hover:border-primary ${filters.product === p ? "border-primary bg-primary/5" : ""}`}
+                  >
+                    <span className="flex items-center justify-between gap-2 font-semibold">
+                      {NOMES[p]}
+                      <span className="flex shrink-0 items-center gap-1">
+                        {p === "consultoria" && consultPending.length > 0 && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                            {consultPending.length} a confirmar
+                          </span>
+                        )}
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </span>
+                    {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
+                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
+                    <p className="my-2 text-3xl font-semibold tabular-nums">
+                      {number(free.length)}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        aptas e disponíveis
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {p === "consultoria"
+                        ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
+                        : `${number(eligible.length)} com perfil aderente`}
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {p === "consultoria"
+                        ? "Base Antiga · sem fechamento comercial · contato opcional"
+                        : p === "cella"
+                          ? "A partir de R$ 25 mi · fora do Simples"
+                          : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <Button
+              className="mt-3"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFilters({
+                  ...emptyFilters,
+                  product: "consultoria",
+                  origin: ["antiga"],
+                  status: ["qualificar"],
+                });
+                setPicked(new Set());
+                ir("base");
+              }}
+            >
+              Conferir regime da base retroativa
+            </Button>
+            <p className="mt-3 text-xs text-muted-foreground">
+              A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
+              preenchido no Pipedrive; contato é opcional.
+            </p>
+          </Panel>
+          <div id="painel-recon">
+            <ReconAquario accounts={data.accounts} showAccount={setAccount} />
+          </div>
+        </>
+      )}
+      {secao === "base" && (
+        <div className="space-y-4">
           <Panel title="Abra a unidade para organizar a apresentação">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {data.units.map((u) => {
@@ -423,26 +433,31 @@ export function Aquario({
             Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
           </Notice>
           <ProcedenciaBase accounts={data.accounts} />
-        </TabsContent>
-        <TabsContent value="contas" className="space-y-4">
           {content(data.accounts)}
-          <ProcedenciaBase accounts={data.accounts} />
-        </TabsContent>
-        <TabsContent value="recon">
-          <ReconAquario accounts={data.accounts} showAccount={setAccount} />
-        </TabsContent>
-        <TabsContent value="listas" forceMount className={tab === "listas" ? "" : "hidden"}>
-          <ListWorkspace
-            data={data}
-            initial={draft}
-            onConsume={() => setDraft(null)}
-            showAccount={setAccount}
-          />
-        </TabsContent>
-        <TabsContent value="gates">
-          <Gates data={data} />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
+      {/* A montagem de lista fica SEMPRE montada e só é escondida por classe: desmontá-la ao
+          trocar de seção jogaria fora o rascunho em andamento, que é trabalho do operador. */}
+      <div className={secao === "produtos" ? "" : "hidden"}>
+        <ListWorkspace
+          data={data}
+          initial={draft}
+          onConsume={() => setDraft(null)}
+          showAccount={setAccount}
+        />
+      </div>
+      {secao === "gates" && <Gates data={data} />}
+      {secao === "base" && (
+        <div className="flex justify-end">
+          <Link
+            to="/monetizacao"
+            search={{ aba: "operacao" }}
+            className="flex items-center gap-1 text-xs font-medium text-primary"
+          >
+            Acompanhar operação <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
       <Sheet open={!!unit} onOpenChange={(o) => !o && setUnit(null)}>
         <SheetContent
           className="w-full overflow-y-auto sm:max-w-[min(1180px,95vw)]"

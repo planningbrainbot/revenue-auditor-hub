@@ -444,10 +444,7 @@ export function ListWorkspace({
             {dirty ? "Alterações não salvas" : statusNames[draft.status]}
           </p>
           {!draft.items.length ? (
-            <Notice>
-              Selecione empresas em Carteiras por unidade ou Todas as contas e clique em Preparar
-              lista.
-            </Notice>
+            <Notice>Selecione empresas em Base de clientes e clique em Preparar lista.</Notice>
           ) : (
             <div className="space-y-3">
               {draft.items.map((i, idx) => {

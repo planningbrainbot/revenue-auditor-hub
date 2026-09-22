@@ -40,18 +40,37 @@ import {
 import { NOMES, PRODUTOS, type Conta } from "@/lib/monetizacao/types";
 import { downloadCsv, inputClass, LoadingState, number } from "@/components/monetizacao/common";
 import { AccountDetail } from "@/components/monetizacao/account-detail";
-import { Aquario } from "@/components/monetizacao/aquario";
+import { Aquario, type SecaoAquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
 
+// UM menu só. Antes eram duas faixas empilhadas: estas seis abas mais as cinco do Aquário por
+// dentro. As do Aquário subiram para cá ("Base de clientes", "Produtos e listas", "Entenda os
+// números") e a tela de baixo perdeu a navegação própria.
+// "Empresas" saiu porque foi promovida: busca por CNPJ, coluna de CNPJ, espelho do Pipefy e as
+// colunas do CSV agora vivem na tabela da carteira. "Negócios" morreu — era um recorte pior do
+// que /monetizacao?aba=operacao já mostra. "Contatos" saiu da faixa e segue alcançável pelo link
+// no rodapé do funil: o dado é único no produto, o lugar é que estava errado.
 const views = [
-  // O cockpit abre a base: é onde se decide o que trabalhar. "Empresas" vem logo depois.
-  ["monetizacao", "Cockpit da base"],
-  ["empresas", "Empresas"],
-  ["contatos", "Contatos"],
-  ["negocios", "Negócios"],
+  ["monetizacao", "Base de clientes"],
+  ["produtos", "Produtos e listas"],
   ["pendencias", "Validar origem"],
-  ["contratos", "Contratos da rede"],
+  ["contratos", "Contratos e churn"],
+  ["gates", "Entenda os números"],
 ];
+// As três views que o Aquário atende, e a seção que cada uma pede.
+const SECOES_AQUARIO: Record<string, SecaoAquario> = {
+  monetizacao: "base",
+  produtos: "produtos",
+  gates: "gates",
+};
+const VIEW_DA_SECAO: Record<SecaoAquario, string> = {
+  base: "monetizacao",
+  produtos: "produtos",
+  gates: "gates",
+};
+// Fora da faixa, mas endereçável: o link no rodapé do funil leva aqui. Sem isso a view cairia
+// no fallback e os contatos ficariam inalcançáveis.
+const viewsOcultas = ["contatos"];
 const originNames: Record<string, string> = {
   nova: "Base nova",
   antiga: "Base antiga",
@@ -68,7 +87,10 @@ export function ClientesBase() {
   const { user } = useAuth();
   const search = useSearch({ from: "/_authenticated/clientes" }),
     navigate = useNavigate({ from: "/clientes" });
-  const view = views.some(([v]) => v === search.view) ? search.view : "monetizacao";
+  const view =
+    views.some(([v]) => v === search.view) || viewsOcultas.includes(search.view)
+      ? search.view
+      : "monetizacao";
   const change = (patch: Record<string, string>) => {
     setPage(1);
     void navigate({ search: { ...search, ...patch }, replace: true });
@@ -142,11 +164,6 @@ export function ClientesBase() {
     currentPage = Math.min(page, pages);
   const contactsRows = (contacts.data || []).filter((c) =>
     c.accounts.some((k) => accountKeys.has(k)),
-  );
-  const deals = data.cards.filter(
-    (d) =>
-      filtered.some((a) => d.org_id !== null && a.orgs.includes(d.org_id)) ||
-      (!search.unidade && !search.origem && !search.q && !search.gate && d.org_id === null),
   );
   const exportRows = () => {
     const records = visible.map((a) => ({
@@ -325,9 +342,21 @@ export function ClientesBase() {
                 ? "Sincronização indisponível"
                 : `${health.data?.pending_changes ?? 0} alterações na fila de envio ao Pipefy`}
             </button>
+            {perms.can("view.contatos") && (
+              <button className="underline" onClick={() => change({ view: "contatos" })}>
+                Ver contatos vinculados
+              </button>
+            )}
           </div>
-          {view === "monetizacao" ? (
-            <Aquario embedded accountKeys={accountKeys} />
+          {SECOES_AQUARIO[view] ? (
+            // Mesma posição no JSX para as tres seções: o Aquario NAO desmonta ao trocar de
+            // entrada do menu, entao filtro, seleção e rascunho de lista sobrevivem à navegação.
+            <Aquario
+              embedded
+              accountKeys={accountKeys}
+              secao={SECOES_AQUARIO[view]}
+              irPara={(s) => change({ view: VIEW_DA_SECAO[s] })}
+            />
           ) : view === "contatos" ? (
             <section className="overflow-hidden rounded-xl border bg-card">
               <div className="border-b p-4 text-sm font-medium">
@@ -383,48 +412,6 @@ export function ClientesBase() {
                   </table>
                 </div>
               )}
-            </section>
-          ) : view === "negocios" ? (
-            <section className="overflow-hidden rounded-xl border bg-card">
-              <div className="border-b p-4 text-sm font-medium">
-                {deals.length} negócios de Monetização · cada card aparece uma vez
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-                    <tr>
-                      {["Negócio", "Produto", "Responsável", "Etapa", "Situação"].map((h) => (
-                        <th key={h} className="p-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deals.map((d) => (
-                      <tr className="border-t" key={d.id}>
-                        <td className="p-3">
-                          <a
-                            href={d.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline"
-                          >
-                            {d.title}
-                          </a>
-                          {!d.org_id && (
-                            <div className="text-xs text-amber-700">Sem empresa vinculada</div>
-                          )}
-                        </td>
-                        <td className="p-3">{NOMES[d.route]}</td>
-                        <td className="p-3">{d.owner}</td>
-                        <td className="p-3">{d.stage}</td>
-                        <td className="p-3">{d.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </section>
           ) : (
             <section className="overflow-hidden rounded-xl border bg-card">
