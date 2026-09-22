@@ -14,6 +14,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
+import { areaDoCaminho, AREAS } from "@/lib/areas";
+import { SemAcessoArea } from "@/components/sem-acesso-area";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -46,7 +48,7 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = Route.useRouteContext();
-  const { primaryRole, unidade, loading } = usePermissions(user.id);
+  const { primaryRole, unidade, loading, temArea } = usePermissions(user.id);
 
   // Garante as sessões do Growth e do Financial para QUALQUER caminho de
   // entrada — senha, Microsoft, redefinição, ou sessão já aberta de antes.
@@ -59,6 +61,18 @@ function AuthenticatedLayout() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
+  // Caminhos com porta própria fora do menu. `/equipe` mora na área `admin`
+  // para o super admin, mas o rodapé da lateral mostra "Minha equipe" a quem
+  // administra uma equipe sem ter a área `admin` — trancar aqui tiraria o
+  // acesso a um link que a pessoa está vendo.
+  const FORA_DO_PORTAO = ["/equipe"];
+
+  const slugDaArea = FORA_DO_PORTAO.includes(pathname) ? null : areaDoCaminho(pathname);
+  const areaBloqueada =
+    !loading && slugDaArea && !temArea(slugDaArea)
+      ? (AREAS.find((a) => a.slug === slugDaArea)?.nome ?? slugDaArea)
+      : null;
 
   if (SEM_MOLDURA.includes(pathname)) {
     // Só o guarda de autenticação (que vive no `beforeLoad` desta rota) e a
@@ -108,7 +122,15 @@ function AuthenticatedLayout() {
             </header>
           </div>
           <main className="flex-1">
-            <Outlet />
+            {/* Portão de área, no layout e não em 56 páginas.
+                O menu já esconde o que a pessoa não pode abrir, mas link
+                direto, favorito e autocomplete do navegador não passam pelo
+                menu: em 22/09/2026 alguém com só Planning People caiu em
+                /rede-overview e viu "Esta página não carregou", que parece
+                defeito do sistema e não falta de acesso.
+                Só opina sobre caminho que está no menu; o resto (admin,
+                /equipe, /inicio) continua com a checagem da própria tela. */}
+            {areaBloqueada ? <SemAcessoArea area={areaBloqueada} /> : <Outlet />}
           </main>
         </div>
       </div>

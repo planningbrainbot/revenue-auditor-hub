@@ -108,6 +108,27 @@ export function partesDoLink(url: string): { to: string; search: Record<string, 
 }
 
 /**
+ * A área que responde por um caminho, segundo o próprio menu.
+ *
+ * Devolve `null` para caminho que não está em área nenhuma (admin, /equipe,
+ * /inicio e afins), e aí o portão do layout não opina: quem manda continua
+ * sendo a checagem da própria página.
+ *
+ * Casa pelo path, ignorando a query, porque o mesmo path serve várias telas
+ * ("/gente?visao=..." é tudo Planning People).
+ */
+export function areaDoCaminho(pathname: string): string | null {
+  for (const area of AREAS) {
+    for (const grupo of area.grupos) {
+      for (const item of grupo.items) {
+        if (item.url.split("?")[0] === pathname) return areaDoItem(area, item);
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * A primeira tela que a pessoa consegue abrir de verdade.
  *
  * Existe porque o redirecionamento pós-login mandava todo mundo que só tem o
