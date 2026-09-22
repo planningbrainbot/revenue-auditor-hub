@@ -2,6 +2,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { usePermissions } from "@/hooks/use-permissions";
+import { partesDoLink, primeiraTelaAcessivel } from "@/lib/areas";
 import { meuAcessoGrowth } from "@/lib/produtos.functions";
 import { lerProdutoPadrao } from "./inicio";
 
@@ -17,11 +18,13 @@ export const Route = createFileRoute("/_authenticated/")({
  * 1. Sócio regional vai direto para o painel da unidade dele, como sempre foi.
  * 2. Quem fixou um produto ("sempre começar por aqui", no /inicio) vai para ele.
  * 3. Quem tem mais de um produto escolhe em /inicio.
- * 4. Quem só tem o Ops vai direto para a visão geral — seletor de uma opção é
- *    pedágio, não porta.
+ * 4. Quem só tem o Ops vai direto para a PRIMEIRA TELA QUE ELE ABRE — seletor
+ *    de uma opção é pedágio, não porta. Era `/rede-overview` fixo, e quem não
+ *    tem a área Rede (o caso de quem só tem Planning People) começava o produto
+ *    numa tela de erro.
  */
 function RootRedirect() {
-  const { can, primaryRole, loading } = usePermissions();
+  const { can, temArea, primaryRole, loading } = usePermissions();
 
   const acessoGrowthFn = useServerFn(meuAcessoGrowth);
   const growth = useQuery({
@@ -47,8 +50,15 @@ function RootRedirect() {
     if (typeof window !== "undefined") window.location.href = "/financeiro";
     return null;
   }
+  const primeira = primeiraTelaAcessivel(temArea, can);
+  const destino = primeira ? partesDoLink(primeira) : null;
+
   if (padrao === "ops") {
-    return <Navigate to="/rede-overview" replace />;
+    return destino ? (
+      <Navigate to={destino.to} search={destino.search} replace />
+    ) : (
+      <Navigate to="/inicio" replace />
+    );
   }
 
   const temOutroProduto = Boolean(growth.data?.temAcesso) || can("view.brain_financeiro");
@@ -56,5 +66,9 @@ function RootRedirect() {
     return <Navigate to="/inicio" replace />;
   }
 
-  return <Navigate to="/rede-overview" replace />;
+  return destino ? (
+    <Navigate to={destino.to} search={destino.search} replace />
+  ) : (
+    <Navigate to="/inicio" replace />
+  );
 }

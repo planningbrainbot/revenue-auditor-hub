@@ -40,6 +40,7 @@ import { digits } from "@/lib/server-utils";
 import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
 import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-permissions";
+import { SemAcessoArea } from "@/components/sem-acesso-area";
 
 // Todo card do Overview segue o mesmo padrão: número-resumo aqui, "ver
 // detalhe" leva pra página dona daquele dado. O Overview nunca duplica a
@@ -57,7 +58,7 @@ function VerDetalheLink({ to, search }: { to: string; search?: Record<string, st
 }
 
 export const Route = createFileRoute("/_authenticated/rede-overview")({
-  component: RedeOverviewPage,
+  component: RedeOverviewGuard,
 });
 
 type ReconcRow = {
@@ -146,6 +147,16 @@ const fromMonthIndex = (idx: number) => {
   const m = (idx % 12) + 1;
   return `${y}-${String(m).padStart(2, "0")}`;
 };
+
+// Quem não tem a área Rede não deve cair na página e ver erro de carregamento:
+// a página consulta dezenas de tabelas que a RLS fecha para ela, e o resultado
+// parecia defeito do sistema. O portão fica antes de qualquer hook de dado.
+function RedeOverviewGuard() {
+  const { temArea, loading } = usePermissions();
+  if (loading) return null;
+  if (!temArea("rede")) return <SemAcessoArea area="Rede" />;
+  return <RedeOverviewPage />;
+}
 
 function RedeOverviewPage() {
   const navigate = useNavigate();
@@ -271,8 +282,7 @@ function RedeOverviewPage() {
   );
 
   const unidades = useMemo(
-    () =>
-      Array.from(new Set(scopedRows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
+    () => Array.from(new Set(scopedRows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
     [scopedRows],
   );
 
@@ -575,7 +585,9 @@ function RedeOverviewPage() {
   const bookingTotalStats = useMemo(() => {
     const atual = bookingByMesArr.filter((m) => inRange(m.mes)).reduce((s, m) => s + m.booking, 0);
     const anterior = bookingByMesArr
-      .filter((m) => m.mes >= periodoAnteriorRange.prevStartYm && m.mes <= periodoAnteriorRange.prevEndYm)
+      .filter(
+        (m) => m.mes >= periodoAnteriorRange.prevStartYm && m.mes <= periodoAnteriorRange.prevEndYm,
+      )
       .reduce((s, m) => s + m.booking, 0);
     return { total: atual, pct: pctVsPrev(atual, anterior) };
   }, [bookingByMesArr, rangeStartYm, rangeEndYm, periodoAnteriorRange]);
@@ -681,7 +693,10 @@ function RedeOverviewPage() {
         })(),
       }));
     if (base.length === 0) return [];
-    const primeiroMes = base.reduce((min, c) => (c.ganhoMes < min ? c.ganhoMes : min), base[0].ganhoMes);
+    const primeiroMes = base.reduce(
+      (min, c) => (c.ganhoMes < min ? c.ganhoMes : min),
+      base[0].ganhoMes,
+    );
     const meses: string[] = [];
     let [y, m] = primeiroMes.split("-").map(Number);
     const [yEnd, mEnd] = mesAtual.split("-").map(Number);
@@ -718,18 +733,22 @@ function RedeOverviewPage() {
     const ativosPorMes = new Map(clientesAtivosSerieChart.map((d) => [d.mes, d.ativos]));
     if (mesesPeriodo.length === 0) return { churnMensalPct: null, lifetimeMeses: null, ltv: null };
     const totalChurn = mesesPeriodo.reduce((s, m) => s + m.churnLogo, 0);
-    const ativosValues = mesesPeriodo
-      .map((m) => ativosPorMes.get(m.mes) ?? 0)
-      .filter((v) => v > 0);
+    const ativosValues = mesesPeriodo.map((m) => ativosPorMes.get(m.mes) ?? 0).filter((v) => v > 0);
     const mediaAtivos =
       ativosValues.length > 0 ? ativosValues.reduce((s, v) => s + v, 0) / ativosValues.length : 0;
-    const churnMensal =
-      mediaAtivos > 0 ? totalChurn / (mediaAtivos * mesesPeriodo.length) : null;
+    const churnMensal = mediaAtivos > 0 ? totalChurn / (mediaAtivos * mesesPeriodo.length) : null;
     const lifetimeMeses = churnMensal != null && churnMensal > 0 ? 1 / churnMensal : null;
     const arpaAtual = clientesAtivos > 0 ? kpis.mrr / clientesAtivos : null;
     const ltv = lifetimeMeses != null && arpaAtual != null ? arpaAtual * lifetimeMeses : null;
     return { churnMensalPct: churnMensal != null ? churnMensal * 100 : null, lifetimeMeses, ltv };
-  }, [crescimentoMensalChart, clientesAtivosSerieChart, rangeStartYm, rangeEndYm, clientesAtivos, kpis.mrr]);
+  }, [
+    crescimentoMensalChart,
+    clientesAtivosSerieChart,
+    rangeStartYm,
+    rangeEndYm,
+    clientesAtivos,
+    kpis.mrr,
+  ]);
 
   // ---- Lifetime real dos concluídos (churn) — tempo de vida efetivo ----
   // Complementar ao `ltvFormulaico` acima (que é uma projeção a partir da taxa
@@ -1021,7 +1040,8 @@ function RedeOverviewPage() {
                 </div>
                 <div>
                   <div className="text-[11px] text-muted-foreground">
-                    Vida útil (concluídos{lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
+                    Vida útil (concluídos
+                    {lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
                   </div>
                   <div className="text-sm font-bold tabular-nums">
                     {lifetimeConcluidos.mediaMeses != null
@@ -1073,7 +1093,10 @@ function RedeOverviewPage() {
                         tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                         tick={{ fontSize: 11 }}
                       />
-                      <Tooltip formatter={(v: number) => fmtBRL(v)} labelFormatter={(l) => `Mês: ${l}`} />
+                      <Tooltip
+                        formatter={(v: number) => fmtBRL(v)}
+                        labelFormatter={(l) => `Mês: ${l}`}
+                      />
                       <Legend />
                       <Bar dataKey="novo" name="Novo (MRR ganho)" fill="hsl(142 71% 45%)" />
                       <Bar dataKey="perdido" name="Perdido (MRR churn)" fill="hsl(0 72% 51%)" />
@@ -1082,9 +1105,9 @@ function RedeOverviewPage() {
                 </div>
                 <div className="mt-1 text-[11px] text-muted-foreground">
                   Perdido = MRR de contratos com churn registrado em `central_tratativas` (mesma
-                  fonte dos outros cards de churn da página). Novo = MRR de contratos ganhos no
-                  mês. Expansão/Contração por contrato ficam de fora até existir uma medição
-                  confiável de receita por contrato mês a mês.
+                  fonte dos outros cards de churn da página). Novo = MRR de contratos ganhos no mês.
+                  Expansão/Contração por contrato ficam de fora até existir uma medição confiável de
+                  receita por contrato mês a mês.
                 </div>
               </Card>
 
@@ -1201,16 +1224,24 @@ function RedeOverviewPage() {
                     layout="vertical"
                     margin={{ left: 8, right: 48 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" horizontal={false} />
-                    <XAxis type="number" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                    <YAxis
-                      type="category"
-                      dataKey="unidade"
-                      width={110}
-                      tick={{ fontSize: 12 }}
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      className="stroke-border/50"
+                      horizontal={false}
                     />
+                    <XAxis
+                      type="number"
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis type="category" dataKey="unidade" width={110} tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(v: number) => fmtBRL(v)} labelFormatter={(l) => `${l}`} />
-                    <Bar dataKey="hunter" name="MRR Hunter" fill="hsl(142 71% 45%)" radius={[0, 4, 4, 0]}>
+                    <Bar
+                      dataKey="hunter"
+                      name="MRR Hunter"
+                      fill="hsl(142 71% 45%)"
+                      radius={[0, 4, 4, 0]}
+                    >
                       <LabelList
                         dataKey="hunter"
                         position="right"
@@ -1227,7 +1258,6 @@ function RedeOverviewPage() {
               </div>
             </Card>
           )}
-
         </TabsContent>
 
         {/* ---- Aba 3: Financeiro — MRR Novo vs. Royalties Recebido + Resumo por Unidade ---- */}
@@ -1390,8 +1420,8 @@ function RedeOverviewPage() {
                       {pctSemUnidade != null ? `, ${fmtPct(pctSemUnidade, 0)} do MRR Hunter` : ""})
                       sem "Unidade de Negócio" preenchida no Pipedrive — ignorados nas colunas
                       Matriz/Hunter acima (decisão de 11/08/2026, não rateados nem mostrados numa
-                      linha "sem unidade"). A coluna Hunter da tabela hoje só mostra a parte que
-                      tem unidade atribuída — o volume real de vendas por sócio é maior. Precisa
+                      linha "sem unidade"). A coluna Hunter da tabela hoje só mostra a parte que tem
+                      unidade atribuída — o volume real de vendas por sócio é maior. Precisa
                       corrigir direto no card do Pipedrive.
                     </div>
                   );

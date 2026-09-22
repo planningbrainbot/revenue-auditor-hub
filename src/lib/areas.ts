@@ -91,6 +91,48 @@ export function areaDoItem(area: Area, item: Item): string {
   return item.area ?? area.slug;
 }
 
+/**
+ * Quebra a URL de um item do menu em path e busca.
+ *
+ * Os itens guardam a URL inteira ("/gente?visao=minha-vez") porque é assim que
+ * o menu foi escrito, mas o roteador quer as duas partes separadas. A lateral
+ * já fazia esse split na mão; aqui vira função, para quem navegar por código
+ * não repetir o truque e não mandar a query junto do path.
+ */
+export function partesDoLink(url: string): { to: string; search: Record<string, string> } {
+  const [caminho, busca] = url.split("?");
+  return {
+    to: caminho,
+    search: busca ? Object.fromEntries(new URLSearchParams(busca)) : {},
+  };
+}
+
+/**
+ * A primeira tela que a pessoa consegue abrir de verdade.
+ *
+ * Existe porque o redirecionamento pós-login mandava todo mundo que só tem o
+ * Ops para `/rede-overview`, sem perguntar se a pessoa tem a área Rede. Quem
+ * tem só Planning People caía numa página que não pode ler e via "Esta página
+ * não carregou" como primeira tela do produto (relatado em 22/09/2026).
+ *
+ * Devolve `null` quando não há nenhuma área, e aí quem chama decide o destino.
+ */
+export function primeiraTelaAcessivel(
+  temArea: (slug: string) => boolean,
+  can: (chave: string) => boolean,
+): string | null {
+  for (const area of AREAS) {
+    for (const grupo of area.grupos) {
+      for (const item of grupo.items) {
+        if (temArea(areaDoItem(area, item)) && (!item.chave || can(item.chave))) {
+          return item.url;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 // As ÁREAS do Ops.
 //
 // O Ops virou muita coisa num lugar só: 35 telas numa lista única, e quem
