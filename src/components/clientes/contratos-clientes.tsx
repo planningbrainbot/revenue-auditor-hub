@@ -90,6 +90,35 @@ type ClienteMrr = {
   data_assinatura: string | null;
 };
 
+// O PostgREST deste projeto tem `max-rows` em 1000 e **ignora `.limit()` acima
+// disso**: pedir 5000 ou 20000 devolve as mesmas 1000 linhas, com HTTP 200 e sem
+// aviso nenhum. Era o que acontecia aqui em 22/09/2026 — a página listava 1000
+// de 3219 clientes de unidade regional, e o "MRR total" do cabeçalho somava só
+// essa fatia. A cascata de MRR (`v_cliente_mrr`, 1120 linhas) também vinha
+// cortada, e os 120 clientes da cauda apareciam sem MRR e sem data de
+// assinatura mesmo tendo os dois no banco.
+//
+// Paginar por `range` é o padrão do resto do app (ver `contatos-cs.functions.ts`).
+// A ordenação por chave única é o que torna a paginação estável — ordenar por
+// `razao_social`, que repete, pularia e duplicaria linhas entre as páginas.
+const PAGE_SIZE = 1000;
+
+async function fetchAll<T>(
+  pagina: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[] }> {
+  const todas: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await pagina(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const lote = data ?? [];
+    todas.push(...lote);
+    if (lote.length < PAGE_SIZE) return { data: todas };
+  }
+}
+
 // Cliente que existe no ERP (Omie) mas ainda não foi reconciliado em `empresas`
 // (sem pipedrive_id/contrato vinculado) — não entra em cards, contagem ou MRR total.
 type OmieMatch = {
@@ -274,21 +303,26 @@ export function ContratosClientes({
     (async () => {
       const [unidadesRes, empRes, contRes, tratRes, cascataRes] = await Promise.all([
         supabase.from("unidades").select("nome_da_praca").eq("tipo", "regional"),
-        supabase
-          .from("empresas")
-          .select(
-            "id,razao_social,titulo,cnpj,uf,unidade,pipedrive_id,fonte_cadastro,status_financeiro,erp,segmento",
-          )
-          .eq("tipo_unidade", "franquia")
-          .order("razao_social", { ascending: true })
-          .limit(5000),
-        supabase
-          .from("contratos")
-          .select(
-            "mrr_mensal,pipedrive_deal_id,status_contrato,unidade,ganho_em,regime_tributario,entrada_contrato_assinado_em,closer",
-          )
-          .eq("status_contrato", "Ativo")
-          .limit(20000),
+        fetchAll((from, to) =>
+          supabase
+            .from("empresas")
+            .select(
+              "id,razao_social,titulo,cnpj,uf,unidade,pipedrive_id,fonte_cadastro,status_financeiro,erp,segmento",
+            )
+            .eq("tipo_unidade", "franquia")
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
+        fetchAll((from, to) =>
+          supabase
+            .from("contratos")
+            .select(
+              "mrr_mensal,pipedrive_deal_id,status_contrato,unidade,ganho_em,regime_tributario,entrada_contrato_assinado_em,closer",
+            )
+            .eq("status_contrato", "Ativo")
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
         supabase
           .from("central_tratativas")
           .select("pipedrive_deal_id")
@@ -299,14 +333,14 @@ export function ContratosClientes({
           .eq("status", "lost")
           .limit(2000),
         // A view já resolve a ordem Omie > Pipefy > Pipedrive por cliente.
-        // `limit` alto porque a base passa de 4 mil empresas e o PostgREST
-        // corta em 1000 por padrão — sem isso o MRR sumiria da cauda da lista
-        // sem erro nenhum.
-        supabase
-          .from("v_cliente_mrr")
-          .select("empresa_id,mrr_mensal,mrr_fonte,data_assinatura")
-          .not("mrr_mensal", "is", null)
-          .limit(20000),
+        fetchAll((from, to) =>
+          supabase
+            .from("v_cliente_mrr")
+            .select("empresa_id,mrr_mensal,mrr_fonte,data_assinatura")
+            .not("mrr_mensal", "is", null)
+            .order("empresa_id", { ascending: true })
+            .range(from, to),
+        ),
       ]);
       if (!mounted) return;
       // Unidades regionais ativas (fonte de verdade: tabela `unidades`, tipo='regional').
@@ -365,11 +399,16 @@ export function ContratosClientes({
     }
     let mounted = true;
     (async () => {
-      const { data } = await supabase
-        .from("contatos")
-        .select("empresa_id")
-        .not("empresa_id", "is", null)
-        .limit(20000);
+      // 2575 contatos vinculados em 22/09/2026, contra o teto de 1000 por
+      // resposta — sem paginar, o balão de contatos sumia da maior parte da lista.
+      const { data } = await fetchAll<{ empresa_id: number | null }>((from, to) =>
+        supabase
+          .from("contatos")
+          .select("empresa_id")
+          .not("empresa_id", "is", null)
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
       if (!mounted) return;
       const counts = new Map<number, number>();
       for (const c of data ?? []) {
