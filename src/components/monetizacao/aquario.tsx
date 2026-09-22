@@ -1,15 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  ArrowRight,
-  CheckCheck,
-  Download,
-  ListPlus,
-  Search,
-  Send,
-  Users,
-} from "lucide-react";
+import { ArrowRight, CheckCheck, Download, ListPlus, Search, Send, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -178,8 +170,8 @@ export function Aquario({
         )}
         {!data.permissions.all_units && !data.units.length && (
           <Notice>
-            Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
-            definir suas carteiras.
+            Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração
+            precisa definir suas carteiras.
           </Notice>
         )}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
@@ -324,12 +316,17 @@ export function Aquario({
                 {data.units.map((u) => {
                   const keys = new Set(u.account_keys);
                   const accounts = data.accounts.filter((a) => keys.has(a.key)),
-                    c = accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+                    c = accounts.filter(
+                      (a) => oferta(a, "consultoria").status === "elegivel",
+                    ).length,
                     pending = accounts.filter(
-                      (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
+                      (a) =>
+                        potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
                     ).length,
                     f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length,
-                    cella_u = accounts.filter((a) => oferta(a, "cella").status === "elegivel").length,
+                    cella_u = accounts.filter(
+                      (a) => oferta(a, "cella").status === "elegivel",
+                    ).length,
                     antigas = accounts.filter((a) => origemBase(a) === "antiga").length,
                     novas = accounts.filter((a) => origemBase(a) === "nova").length,
                     conferir = accounts.filter((a) =>
@@ -350,17 +347,10 @@ export function Aquario({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-semibold">{u.name}</span>
-                        <div className="flex shrink-0 items-center gap-1">
-                          {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
-                            <span
-                              className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning"
-                              title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
-                            >
-                              cobertura parcial
-                            </span>
-                          )}
-                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary-text" />
-                        </div>
+                        {/* O selo "cobertura parcial" saiu daqui em 22/09: lacuna de fonte é
+                          assunto de auditoria, e auditoria mora numa tela só. A procedência
+                          continua na linha abaixo, que é informação, não alerta. */}
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary-text" />
                       </div>
                       {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
                           unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
@@ -1044,9 +1034,7 @@ function PortfolioTable({
                         </span>
                       </p>
                     )}
-                    {a.band_conflict && (
-                      <span className="block text-warning">Fontes divergem</span>
-                    )}
+                    {a.band_conflict && <span className="block text-warning">Fontes divergem</span>}
                   </td>
                   <td className="min-w-36 p-2 align-top text-xs">
                     {a.segment || "Segmento a confirmar"}

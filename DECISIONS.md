@@ -2126,3 +2126,35 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 
 **Status:** implementado na branch pelas tarefas do plano `docs/superpowers/plans/2026-09-23-design-system-v2.md`. Não integrado à `main` nem publicado.
 **Próximos passos:** o Eliezek revisa e integra (`docs/design/PROCESSO.md` §3); depois o codemod roda de novo e a baseline é regravada.
+
+## [2026-09-22] Recife ganha card, e com isso vira a terceira "cobertura parcial"
+
+**Contexto:** 385 contas rotuladas Recife não apareciam em card nenhum. A causa não era dado faltando — as contas já carregam `unidade_id = 13` e a praça já existia em `ops.unidades`. Faltava a linha em `ops.monetizacao_unidades`, que é o que `ops.monetizacao_cobertura_refresh()` percorre para montar a cobertura.
+
+**Decisão:** inserida a linha `('0384bff73f7cfcc0', 13, 'Recife', 'unidade')`. A chave segue a convenção das demais, decifrada por conferência: `sha256(nome)[:16]` — bate em Belém, Curitiba, São Bernardo, Fortaleza, Maceió, Campo Novo, Patos de Minas, São Luís, Sudeste (RJ) e Itaúna.
+
+**Efeito medido, depois do refresh:** Recife entra com **385 contas / 385 CNPJs / 384 no Pipefy / 0 no Omie**, a quinta maior carteira — acima de Belém (360), Sudeste (318) e Fortaleza (260). Total de linhas de cobertura: 13 → 14.
+
+**`unidade_id` preenchido, e isso importa.** O join de `monetizacao_cobertura_refresh()` usa o ramo do `unidade_id` quando ele existe e só cai no casamento por nome quando é nulo. As 385 contas de Recife já têm `13` em `unidade_ids`, então o ramo do id casa todas. Se a linha tivesse entrado com `unidade_id` nulo — como está São Bernardo — o card apareceria mesmo assim, mas por outro caminho. Repetir a inserção para Sorocaba (id 14) ou São Paulo (id 15) exige conferir antes se as contas daquela praça carregam o id; sem isso o card nasce zerado.
+
+**Consequência que não é ganho:** `omie_integrado` fica falso (não há credencial Omie para Recife em `ops.omie_credentials`, que tem 10 e nenhuma dessa praça), então o card nasce com o selo **"cobertura parcial"** — o terceiro, junto de São Bernardo e Fortaleza. A troca é de "invisível" por "visível com ressalva verdadeira", e o aviso só sai quando as três praças tiverem credencial Omie.
+
+**Sem deploy.** É linha de dado; a tabela de cobertura é lida em tempo de execução.
+
+**Reversão:** `delete from ops.monetizacao_unidades where key='0384bff73f7cfcc0'; select ops.monetizacao_cobertura_refresh();`. Backup do estado anterior em `unidades-1344/unidades-backup-20260922.json`.
+
+## [2026-09-22] Os avisos de "cobertura parcial" saem das telas; auditoria passa a morar num lugar só
+
+**Contexto:** ao cadastrar Recife, o card nasceu com o selo âmbar "cobertura parcial" — o terceiro, junto de São Bernardo e Fortaleza, todos pela mesma causa (sem credencial Omie em `ops.omie_credentials`, que tem 10 e nenhuma dessas praças). O dono cortou a discussão: **"não usa esses avisos de cobertura parcial; deixa pra centralizar numa tela só o que precisa de auditar"** — uma tela que outra sessão está montando em paralelo.
+
+**Decisão:** removidos os dois avisos de lacuna de fonte que existiam na interface:
+- o selo âmbar no card de unidade do Aquário (`aquario.tsx`), que disparava com `omie_integrado === false && cnpjs > 0`;
+- a tarja âmbar no topo do Funil (`funil-content.tsx`), que dizia "Faturado e Recebido cobrem apenas unidades com dados no Omie" e disparava com `mrr_contratado > 0 && faturado === 0`.
+
+**O que fica, e por quê.** A linha de procedência do card continua (`catálogo Pipefy 384 · Omie não integrado`). Ela é informação sobre a origem do número, não alerta sobre o que está faltando — o card seguir declarando de onde conhece a carteira era decisão de 21/09 e não foi revogada.
+
+**O princípio, para a próxima vez:** lacuna de fonte é assunto de auditoria, e auditoria mora numa tela só. Aviso espalhado pela interface não vira ação — vira ruído que o usuário aprende a ignorar, e some o sinal junto.
+
+**Verificado:** `tsc --noEmit` dá os mesmos 7 erros antes e depois, nenhum nos arquivos tocados. `AlertTriangle` continua importado em `funil-content.tsx` porque a lista de alertas do rodapé ainda usa.
+
+**Reversão:** os dois trechos removidos estão no diff deste commit; o comentário que ficou no lugar marca a posição exata.
