@@ -2054,3 +2054,26 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 **Perna da BrasilAPI: não rodada.** Sobram 2.382 clientes com CNPJ e sem UF, cerca de 50 minutos por causa do rate limit. Decisão do dono: fica para uma rodada agendada.
 
 **ERP: fica como está**, por decisão do dono. A coluna continua na tela e continua vazia, e o `FIELD_MAP` do `pipefy-sync` continua apontando para `erp`, `regime_tribut_rio`, `e_mail_fiscal` e `telefone_corporativo`, quatro campos que não existem na database do Pipefy. Nada disso quebra nada hoje, mas quem for mexer no sync precisa saber que esses quatro nomes não têm do outro lado.
+
+## [2026-09-22] Receita e Repasses ganha uma porta, e ela responde três perguntas antes de qualquer tabela
+
+**O problema:** a área tinha nove telas e nenhuma abertura. Quem entrava caía no Funil de Receita — uma tela de detalhe — e não sabia o essencial: o mês fechou? a fatura saiu? a unidade pagou? Era a única área grande do Ops sem visão geral, enquanto Rede tem `/rede-overview` desde o começo.
+
+**Decisão:** `/receita-overview`, primeiro item do menu da área (grupo "Visão geral"), o que a torna também a tela pós-login de quem entra pela área — `primeiraTelaAcessivel` escolhe o primeiro item que a pessoa abre.
+
+**A regra que ela obedece, herdada do Overview da Rede:** a abertura nunca duplica a tela de detalhe. Ela mostra número-resumo, pendência e caminho; a apuração cliente a cliente continua em `/unidades/royalties`. A tabela unidade a unidade, que já existe lá, não foi copiada.
+
+**As três pendências são o coração da tela, e vieram de um furo real:** em ago/2026 as 11 unidades fecharam e **4 faturas nunca foram emitidas** (Maceió, Recife, São Bernardo e Sorocaba, R$ 96.377 apurados e não cobrados), e das 7 emitidas 2 estão atrasadas (RJ e Patos, R$ 77.864). Isso só era visível para quem abrisse a apuração e lesse coluna por coluna. Agora é o segundo bloco da abertura.
+
+**Duas réguas convivem na tela e cada bloco diz a sua** — misturá-las é o erro clássico desta área (foi a causa do "o recebimento não bate" de jul/2026, ver a entrada de 20/07):
+
+- **Repasse** (unidade → matriz): `royalties_apuracao`, caixa, com os ajustes manuais da apuração.
+- **Receita da rede** (cliente → unidade): `v_reconciliacao_mensal`, competência, bruto de nota. É a mesma fonte do Funil de Receita, de propósito: duas telas da mesma área não podem discordar do mesmo número.
+
+**Take rate segue a definição do `DATA-RULES.md`:** royalties + CSC sobre a receita apurada, só dos meses fechados. CAC e mídia ficam de fora — são reembolso de custo, não remuneração da matriz. Em ago/26 deu 15,5% sobre R$ 1.586.315.
+
+**Os números vêm dos campos do pai (`royalties_apuracao`), não recalculados dos itens.** Não é descuido: é a mesma fonte que a tela de apuração usa, e uma abertura que discorda da tela de detalhe destrói a confiança nas duas. Conferido no banco para ago/26 e jun/26 — a soma de `royalties_itens.royalties_item` bate com `royalties_valor` do pai.
+
+**Nenhuma chave de permissão nova.** O portão é a área (`receita`), como em `/rede-overview`; dentro dela, cada bloco pergunta a chave da página que ele resume (`view.unidades_rede` para o repasse, `view.contas_receber`/`view.funil_receita` para a receita). Quem só tem um dos lados vê meia tela em vez de erro — a controladoria que acompanha recebimento não precisa da apuração.
+
+**Cor dos gráficos, porque a escolha não foi estética:** a paleta da marca tem cinco slots, mas `--chart-2` (ciano), `--chart-3` (azul) e `--chart-5` (roxo) não se separam o bastante entre si (validado: ΔE 11 em visão normal no tema escuro, abaixo do piso de 15). Por isso o empilhado tem **três** séries — royalties, CSC e outras receitas — e CAC saiu para um gráfico próprio, em vez de virar a quarta fatia de uma pilha que ninguém conseguiria ler. Take rate é gráfico separado: dois eixos y no mesmo gráfico nunca.

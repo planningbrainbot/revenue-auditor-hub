@@ -272,6 +272,14 @@ export const AREAS: Area[] = [
     icone: Coins,
     grupos: [
       {
+        // A área tinha nove telas e nenhuma porta: quem entrava caía no Funil
+        // de Receita sem saber se a apuração do mês tinha fechado, se a fatura
+        // saiu ou se a unidade pagou. Por ser o primeiro item, é também a tela
+        // que `primeiraTelaAcessivel` escolhe depois do login.
+        label: "Visão geral",
+        items: [{ title: "Visão geral", url: "/receita-overview", icon: LayoutDashboard }],
+      },
+      {
         label: "Receita da rede",
         items: [
           {

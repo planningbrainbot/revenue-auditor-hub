@@ -23,6 +23,7 @@ import { Route as AuthenticatedRedeOverviewRouteImport } from './routes/_authent
 import { Route as AuthenticatedRedeLtvRouteImport } from './routes/_authenticated/rede-ltv'
 import { Route as AuthenticatedRedeHeadcountRouteImport } from './routes/_authenticated/rede-headcount'
 import { Route as AuthenticatedRedeRouteImport } from './routes/_authenticated/rede'
+import { Route as AuthenticatedReceitaOverviewRouteImport } from './routes/_authenticated/receita-overview'
 import { Route as AuthenticatedPainelUnidadeRouteImport } from './routes/_authenticated/painel-unidade'
 import { Route as AuthenticatedPainelCsRouteImport } from './routes/_authenticated/painel-cs'
 import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_authenticated/pagamentos-unidades'
@@ -143,6 +144,12 @@ const AuthenticatedRedeRoute = AuthenticatedRedeRouteImport.update({
   path: '/rede',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReceitaOverviewRoute =
+  AuthenticatedReceitaOverviewRouteImport.update({
+    id: '/receita-overview',
+    path: '/receita-overview',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPainelUnidadeRoute =
   AuthenticatedPainelUnidadeRouteImport.update({
     id: '/painel-unidade',
@@ -433,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
+  '/receita-overview': typeof AuthenticatedReceitaOverviewRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -492,6 +500,7 @@ export interface FileRoutesByTo {
   '/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/painel-cs': typeof AuthenticatedPainelCsRoute
   '/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
+  '/receita-overview': typeof AuthenticatedReceitaOverviewRoute
   '/rede': typeof AuthenticatedRedeRoute
   '/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -552,6 +561,7 @@ export interface FileRoutesById {
   '/_authenticated/pagamentos-unidades': typeof AuthenticatedPagamentosUnidadesRoute
   '/_authenticated/painel-cs': typeof AuthenticatedPainelCsRoute
   '/_authenticated/painel-unidade': typeof AuthenticatedPainelUnidadeRoute
+  '/_authenticated/receita-overview': typeof AuthenticatedReceitaOverviewRoute
   '/_authenticated/rede': typeof AuthenticatedRedeRoute
   '/_authenticated/rede-headcount': typeof AuthenticatedRedeHeadcountRoute
   '/_authenticated/rede-ltv': typeof AuthenticatedRedeLtvRoute
@@ -615,6 +625,7 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
+    | '/receita-overview'
     | '/rede'
     | '/rede-headcount'
     | '/rede-ltv'
@@ -674,6 +685,7 @@ export interface FileRouteTypes {
     | '/pagamentos-unidades'
     | '/painel-cs'
     | '/painel-unidade'
+    | '/receita-overview'
     | '/rede'
     | '/rede-headcount'
     | '/rede-ltv'
@@ -733,6 +745,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pagamentos-unidades'
     | '/_authenticated/painel-cs'
     | '/_authenticated/painel-unidade'
+    | '/_authenticated/receita-overview'
     | '/_authenticated/rede'
     | '/_authenticated/rede-headcount'
     | '/_authenticated/rede-ltv'
@@ -868,6 +881,13 @@ declare module '@tanstack/react-router' {
       path: '/rede'
       fullPath: '/rede'
       preLoaderRoute: typeof AuthenticatedRedeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/receita-overview': {
+      id: '/_authenticated/receita-overview'
+      path: '/receita-overview'
+      fullPath: '/receita-overview'
+      preLoaderRoute: typeof AuthenticatedReceitaOverviewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/painel-unidade': {
@@ -1256,6 +1276,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPagamentosUnidadesRoute: typeof AuthenticatedPagamentosUnidadesRoute
   AuthenticatedPainelCsRoute: typeof AuthenticatedPainelCsRoute
   AuthenticatedPainelUnidadeRoute: typeof AuthenticatedPainelUnidadeRoute
+  AuthenticatedReceitaOverviewRoute: typeof AuthenticatedReceitaOverviewRoute
   AuthenticatedRedeRoute: typeof AuthenticatedRedeRoute
   AuthenticatedRedeHeadcountRoute: typeof AuthenticatedRedeHeadcountRoute
   AuthenticatedRedeLtvRoute: typeof AuthenticatedRedeLtvRoute
@@ -1308,6 +1329,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPagamentosUnidadesRoute: AuthenticatedPagamentosUnidadesRoute,
   AuthenticatedPainelCsRoute: AuthenticatedPainelCsRoute,
   AuthenticatedPainelUnidadeRoute: AuthenticatedPainelUnidadeRoute,
+  AuthenticatedReceitaOverviewRoute: AuthenticatedReceitaOverviewRoute,
   AuthenticatedRedeRoute: AuthenticatedRedeRoute,
   AuthenticatedRedeHeadcountRoute: AuthenticatedRedeHeadcountRoute,
   AuthenticatedRedeLtvRoute: AuthenticatedRedeLtvRoute,
