@@ -56,7 +56,6 @@ import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
-import { Route as AuthenticatedUnidadesHistoricoRouteImport } from './routes/_authenticated/unidades.historico'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
@@ -329,12 +328,6 @@ const AuthenticatedUnidadesRoyaltiesRoute =
     path: '/royalties',
     getParentRoute: () => AuthenticatedUnidadesRoute,
   } as any)
-const AuthenticatedUnidadesHistoricoRoute =
-  AuthenticatedUnidadesHistoricoRouteImport.update({
-    id: '/historico',
-    path: '/historico',
-    getParentRoute: () => AuthenticatedUnidadesRoute,
-  } as any)
 const AuthenticatedUnidadesFunilCacRoute =
   AuthenticatedUnidadesFunilCacRouteImport.update({
     id: '/funil-cac',
@@ -461,7 +454,6 @@ export interface FileRoutesByFullPath {
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
-  '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
@@ -520,7 +512,6 @@ export interface FileRoutesByTo {
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
-  '/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
@@ -583,7 +574,6 @@ export interface FileRoutesById {
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
-  '/_authenticated/unidades/historico': typeof AuthenticatedUnidadesHistoricoRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
@@ -646,7 +636,6 @@ export interface FileRouteTypes {
     | '/broker/admin'
     | '/royalties/split'
     | '/unidades/funil-cac'
-    | '/unidades/historico'
     | '/unidades/royalties'
     | '/unidades/split'
     | '/broker/'
@@ -705,7 +694,6 @@ export interface FileRouteTypes {
     | '/broker/admin'
     | '/royalties/split'
     | '/unidades/funil-cac'
-    | '/unidades/historico'
     | '/unidades/royalties'
     | '/unidades/split'
     | '/broker'
@@ -767,7 +755,6 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/admin'
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/funil-cac'
-    | '/_authenticated/unidades/historico'
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
     | '/_authenticated/broker/'
@@ -1114,13 +1101,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUnidadesRoyaltiesRouteImport
       parentRoute: typeof AuthenticatedUnidadesRoute
     }
-    '/_authenticated/unidades/historico': {
-      id: '/_authenticated/unidades/historico'
-      path: '/historico'
-      fullPath: '/unidades/historico'
-      preLoaderRoute: typeof AuthenticatedUnidadesHistoricoRouteImport
-      parentRoute: typeof AuthenticatedUnidadesRoute
-    }
     '/_authenticated/unidades/funil-cac': {
       id: '/_authenticated/unidades/funil-cac'
       path: '/funil-cac'
@@ -1229,7 +1209,6 @@ const AuthenticatedRoyaltiesRouteWithChildren =
 
 interface AuthenticatedUnidadesRouteChildren {
   AuthenticatedUnidadesFunilCacRoute: typeof AuthenticatedUnidadesFunilCacRoute
-  AuthenticatedUnidadesHistoricoRoute: typeof AuthenticatedUnidadesHistoricoRoute
   AuthenticatedUnidadesRoyaltiesRoute: typeof AuthenticatedUnidadesRoyaltiesRoute
   AuthenticatedUnidadesSplitRoute: typeof AuthenticatedUnidadesSplitRoute
   AuthenticatedUnidadesIndexRoute: typeof AuthenticatedUnidadesIndexRoute
@@ -1237,7 +1216,6 @@ interface AuthenticatedUnidadesRouteChildren {
 
 const AuthenticatedUnidadesRouteChildren: AuthenticatedUnidadesRouteChildren = {
   AuthenticatedUnidadesFunilCacRoute: AuthenticatedUnidadesFunilCacRoute,
-  AuthenticatedUnidadesHistoricoRoute: AuthenticatedUnidadesHistoricoRoute,
   AuthenticatedUnidadesRoyaltiesRoute: AuthenticatedUnidadesRoyaltiesRoute,
   AuthenticatedUnidadesSplitRoute: AuthenticatedUnidadesSplitRoute,
   AuthenticatedUnidadesIndexRoute: AuthenticatedUnidadesIndexRoute,

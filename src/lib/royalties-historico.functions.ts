@@ -3,8 +3,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin, digits } from "@/lib/server-utils";
 
 // ============ listRoyaltiesHistoricoRede ============
-// Visão consolidada da rede pra tela `/royalties`: histórico de royalties por
-// cliente (mês a mês, cross-unidade) + evolução mensal do valor apurado.
+// Visão consolidada da rede: histórico de royalties por cliente (mês a mês,
+// cross-unidade) + evolução mensal do valor apurado. A tela dedicada
+// (`/unidades/historico`) foi removida em 22/09/2026 — o consumidor que restou
+// é o gráfico de evolução de royalties do `rede-overview`.
 // Reconstrói o valor apurado direto de `royalties_itens` (em vez de confiar em
 // `royalties_apuracao.royalties_valor`, que pode ficar desatualizado se o item
 // for confirmado depois do fechamento — mesma fórmula de `fecharApuracao`).

@@ -24,7 +24,6 @@ import {
 } from "@/lib/royalties.functions";
 import { listRoyaltiesHistoricoRede } from "@/lib/royalties-historico.functions";
 import { listRoyaltiesProjecaoRede } from "@/lib/royalties-projecao.functions";
-import { listVendasPorUnidadeRede } from "@/lib/royalties-vendas.functions";
 
 // Default error handler — garante que falhas silenciosas sempre virem toast.
 const defaultOnError = (e: unknown) => {
@@ -42,7 +41,8 @@ export function useRoyaltiesUnidades(mes: string) {
 }
 
 // Histórico de royalties por cliente (cross-unidade, todos os meses já
-// apurados) + evolução mensal — alimenta a página `/royalties`.
+// apurados) + evolução mensal. A página que mostrava isso em tabela saiu em
+// 22/09/2026; hoje quem consome é o gráfico de royalties do `rede-overview`.
 export function useRoyaltiesHistoricoRede() {
   const fn = useServerFn(listRoyaltiesHistoricoRede);
   return useQuery({
@@ -56,15 +56,6 @@ export function useRoyaltiesProjecaoRede() {
   const fn = useServerFn(listRoyaltiesProjecaoRede);
   return useQuery({
     queryKey: ["royalties", "projecao-rede"],
-    queryFn: () => fn(),
-    staleTime: 60_000,
-  });
-}
-
-export function useVendasPorUnidadeRede() {
-  const fn = useServerFn(listVendasPorUnidadeRede);
-  return useQuery({
-    queryKey: ["royalties", "vendas-rede"],
     queryFn: () => fn(),
     staleTime: 60_000,
   });

@@ -141,13 +141,6 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
-    key: "view.royalties_historico",
-    label: "Histórico de Royalties",
-    description:
-      "Página /unidades/historico: histórico de royalties por cliente e evolução do valor apurado, rede toda.",
-    group: "Acesso",
-  },
-  {
     key: "view.unidades_rede",
     label: "Regras da Rede e Apuração de Royalties",
     description:

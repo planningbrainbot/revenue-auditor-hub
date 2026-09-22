@@ -297,8 +297,8 @@ export const AREAS: Area[] = [
       {
         // Eram cinco abas dentro de "Receitas Partners". A aba escondia tela
         // dentro de tela: quem não abrisse a página não sabia que Split e
-        // Histórico existiam. Com a lateral por área há espaço para os cinco
-        // destinos aparecerem por nome.
+        // Histórico existiam. Com a lateral por área cada destino aparece por
+        // nome. Sobraram quatro: o Histórico de Royalties saiu em 22/09/2026.
         label: "Repasses das unidades",
         items: [
           {
@@ -310,11 +310,6 @@ export const AREAS: Area[] = [
             title: "Apuração de Royalties",
             url: "/unidades/royalties",
             icon: Coins,
-          },
-          {
-            title: "Histórico de Royalties",
-            url: "/unidades/historico",
-            icon: History,
           },
           {
             title: "Funil de CAC",

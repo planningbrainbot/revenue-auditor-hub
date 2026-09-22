@@ -2077,3 +2077,17 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 **Nenhuma chave de permissão nova.** O portão é a área (`receita`), como em `/rede-overview`; dentro dela, cada bloco pergunta a chave da página que ele resume (`view.unidades_rede` para o repasse, `view.contas_receber`/`view.funil_receita` para a receita). Quem só tem um dos lados vê meia tela em vez de erro — a controladoria que acompanha recebimento não precisa da apuração.
 
 **Cor dos gráficos, porque a escolha não foi estética:** a paleta da marca tem cinco slots, mas `--chart-2` (ciano), `--chart-3` (azul) e `--chart-5` (roxo) não se separam o bastante entre si (validado: ΔE 11 em visão normal no tema escuro, abaixo do piso de 15). Por isso o empilhado tem **três** séries — royalties, CSC e outras receitas — e CAC saiu para um gráfico próprio, em vez de virar a quarta fatia de uma pilha que ninguém conseguiria ler. Take rate é gráfico separado: dois eixos y no mesmo gráfico nunca.
+
+## [2026-09-22] A tela Histórico de Royalties sai, e a série histórica sobrevive nela no gráfico do Overview da Rede
+
+**Decisão do usuário:** apagar `/unidades/historico`. Saem a rota, o conteúdo (`royalties-historico-content.tsx`, tabela cliente x mês da rede toda), o item de menu em "Repasses das unidades" e o link de detalhe do gráfico de royalties no `/rede-overview`.
+
+**O que NÃO sai, e é o ponto que faz a remoção ser barata:** `listRoyaltiesHistoricoRede` fica. Ela não servia só àquela página: o gráfico de evolução de royalties do `/rede-overview` e o cálculo de LTV leem dela (é a função que reconstrói o apurado a partir de `royalties_itens`, em vez de confiar em `royalties_apuracao.royalties_valor`, que envelhece quando o item é confirmado depois do fechamento). Apagar a função junto teria derrubado o Overview em silêncio.
+
+**O que virou dead code de verdade e saiu junto:** `royalties-vendas.functions.ts` e o hook `useVendasPorUnidadeRede`, que tinham um consumidor só, a tabela apagada.
+
+**As duas URLs antigas continuam de pé, como no precedente do CAC (18/09):** `/royalties` e `/unidades?tab=historico` passam a cair na Apuração de Royalties, que é onde o número por mês e por cliente se confere hoje. Link antigo em e-mail e favorito não pode virar 404.
+
+**A chave `view.royalties_historico` sai também, e aqui a decisão é o oposto da tomada com `view.reconciliacao` em 17/09.** Naquele caso a chave ficou porque policies de `contratos` e `contas_receber` liam por ela. Nesta, foi conferido no banco antes de apagar: nenhuma policy de RLS e nenhuma function citam a chave, ela só abria a rota. Some de `ops.area_chaves` (área receita) e de `ops.role_permissions` (papéis admin e diretor) na migration `20260922210000`, com rollback escrito. Deixar chave morta no catálogo polui a tela de acessos com permissão que não guarda nada.
+
+**Dado nenhum foi tocado.** `royalties_apuracao` e `royalties_itens` seguem inteiros: o que saiu foi a leitura em tabela, não a apuração.

@@ -8,9 +8,11 @@ import { RedeContent } from "@/components/page-content/rede-content";
 // links já circularam em e-mail, favorito e notificação, então a URL antiga
 // segue de pé e cai na página nova — mesmo tratamento que rede.tsx e
 // royalties.index.tsx deram às páginas absorvidas na fusão anterior.
+// `historico` caiu em 22/09/2026 junto com a página: manda pra Apuração de
+// Royalties, mesmo destino de /royalties.
 const DESTINO_DA_ABA = {
   royalties: "/unidades/royalties",
-  historico: "/unidades/historico",
+  historico: "/unidades/royalties",
   split: "/unidades/split",
 } as const;
 
