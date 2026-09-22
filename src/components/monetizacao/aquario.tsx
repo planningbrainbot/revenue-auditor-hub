@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertCircle,
   ArrowRight,
   CheckCheck,
+  CheckCircle2,
   Download,
   Fish,
   ListPlus,
@@ -626,9 +628,16 @@ function PortfolioTable({
               downloadCsv("aquario.csv", [
                 [
                   "Empresa",
+                  // As cinco colunas abaixo marcadas existiam só no CSV da aba "Empresas".
+                  // Sem elas, exportar daqui perdia a identidade fiscal e a procedência.
+                  "CNPJ",
                   "Unidade",
                   "Origem da base",
                   "Fonte da origem",
+                  "Origem no Pipefy",
+                  "Omie",
+                  "ECD",
+                  "Próximo passo",
                   "Situação na Receita",
                   "Fonte da situação",
                   "Faturamento anual",
@@ -647,9 +656,18 @@ function PortfolioTable({
                   const e = estado(a);
                   return [
                     a.name,
+                    a.base?.cnpjs.join(" / ") || "",
                     a.unit_label,
                     ORIGENS_BASE[origemBase(a)],
                     a.base_origin?.reason,
+                    a.base?.declared_origin.join(" / ") || "",
+                    a.base?.omie_units.join(" / ") || "",
+                    [...new Set(a.base?.ecd.map((x) => x.year) || [])].join(" / "),
+                    a.base?.needs_source_correction
+                      ? "Corrigir origem no Pipefy"
+                      : a.base?.needs_validation
+                        ? "Validar origem com a unidade"
+                        : "Cadastro conferido",
                     rotuloSituacaoReceita(a) ?? "Sem consulta na Receita",
                     a.situacao_receita_fonte,
                     faturamentoDeclarado(a),
@@ -1006,6 +1024,7 @@ function PortfolioTable({
               <th className="p-2">Faturamento · cadastro / Driva</th>
               <th className="p-2">Segmento / regime</th>
               <th className="p-2">Contato</th>
+              <th className="p-2">Cadastro no Pipefy</th>
             </tr>
           </thead>
           <tbody>
@@ -1028,6 +1047,11 @@ function PortfolioTable({
                     >
                       {a.name}
                     </button>
+                    {/* O CNPJ só existia na aba "Empresas". Sem ele aqui, conferir uma conta
+                        contra Receita, Omie ou Pipefy obrigava a trocar de aba. */}
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {a.base?.cnpjs.length ? a.base.cnpjs.join(" · ") : "CNPJ a refinar"}
+                    </p>
                     <p className="my-1 text-[11px] text-muted-foreground">
                       {a.unit_label ? `${a.unit_label} · ` : ""}
                       <span title={a.base_origin?.reason}>{ORIGENS_BASE[origemBase(a)]}</span>
@@ -1096,6 +1120,12 @@ function PortfolioTable({
                       </p>
                     )}
                   </td>
+                  {/* Procedência do cadastro, que só existia na aba "Empresas": diz se o espelho
+                      do Pipefy foi conferido e quando. Sem isso, a tabela afirma perfil sobre
+                      cadastro que pode estar ausente, sem vínculo ou defasado. */}
+                  <td className="min-w-40 p-2 align-top text-xs">
+                    <EspelhoPipefy account={a} />
+                  </td>
                 </tr>
               );
             })}
@@ -1128,6 +1158,43 @@ const ROTULO_SITUACAO: Record<EstadoProduto["situacao"], string> = {
   review: "A confirmar",
   excluded: "Fora da regra",
 };
+
+// Leitura do espelho do Pipefy, trazida da aba "Empresas" para a tabela da carteira. Traz hora
+// porque a defasagem desta fonte se mede em horas, não em dias — `date` sozinho esconderia isso.
+const leituraEm = (v: string | null | undefined) =>
+  v
+    ? new Date(v).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+    : "Sem leitura confirmada";
+
+function EspelhoPipefy({ account: a }: { account: Conta }) {
+  const b = a.base;
+  const conferido = !b?.needs_source_correction && b?.source_status === "ok";
+  const texto = b?.needs_source_correction
+    ? "Origem a corrigir no Pipefy"
+    : b?.source_status === "ok"
+      ? "Pipefy conferido"
+      : b?.source_status === "absent"
+        ? "Ausente no Pipefy"
+        : b?.source_status === "not_linked"
+          ? "Sem vínculo Pipefy"
+          : b?.synced_at
+            ? "Cadastro com divergências"
+            : "Leitura pendente";
+  const Icone = conferido ? CheckCircle2 : AlertCircle;
+  return (
+    <>
+      <span
+        className={`inline-flex items-center gap-1 ${conferido ? "text-emerald-700" : "text-amber-700"}`}
+      >
+        <Icone className="h-3 w-3 shrink-0" />
+        {texto}
+      </span>
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        {b?.synced_at ? leituraEm(b.synced_at) : `${b?.omie_records || 0} registros Omie`}
+      </p>
+    </>
+  );
+}
 
 function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
   // "Só no Omie" não é um terceiro veredito da régua — a régua aprovou. É de onde a empresa

@@ -314,7 +314,17 @@ export function filtrarCarteira(
   const rows = accounts.filter((a) => {
     if (units && !units.has(a.key)) return false;
     if (f.origin.length && !f.origin.includes(origemBase(a))) return false;
-    if (query && !normal([a.name, a.segment, a.unit_label].join(" ")).includes(query)) return false;
+    // A busca da aba "Empresas" acha por CNPJ e a desta tabela não achava: digitar um CNPJ aqui
+    // devolvia zero, na mesma página em que o campo de cima encontrava. Casa o texto normalizado
+    // e, quando a busca traz 3+ dígitos, o CNPJ cru — `normal` não tira pontuação, então um CNPJ
+    // digitado com ponto e barra só casa por este segundo caminho.
+    if (query) {
+      const digitos = f.query.replace(/\D/g, "");
+      const cnpjs = a.base?.cnpjs || [];
+      const texto = normal([a.name, a.segment, a.unit_label, ...cnpjs].join(" "));
+      const porCnpj = digitos.length >= 3 && cnpjs.some((c) => c.includes(digitos));
+      if (!texto.includes(query) && !porCnpj) return false;
+    }
     if (f.band.length && !f.band.some((b) => atendeFaixa(a, b))) return false;
     if (
       f.drivaBand.length &&
