@@ -295,16 +295,8 @@ export function FunilContent() {
         <Skeleton className="h-32 w-full" />
       ) : (
         <>
-          {/* Aviso de cobertura parcial quando há unidades sem dados Omie */}
-          {rows.some((r) => N(r.mrr_contratado) > 0 && N(r.faturado) === 0) && (
-            <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                Faturado e Recebido cobrem apenas unidades com dados no Omie.
-                Unidades sem Omie aparecem com MRR mas sem faturamento.
-              </span>
-            </div>
-          )}
+          {/* O aviso de cobertura parcial saiu daqui em 22/09, junto com o selo dos cards do
+              Aquário: lacuna de fonte é assunto de auditoria, e auditoria mora numa tela só. */}
           <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
             <FunilCard
               icon={<FileText className="h-4 w-4" />}

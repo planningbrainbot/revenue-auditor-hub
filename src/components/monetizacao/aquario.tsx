@@ -354,17 +354,10 @@ export function Aquario({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold">{u.name}</span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
-                          <span
-                            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
-                            title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
-                          >
-                            cobertura parcial
-                          </span>
-                        )}
-                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
-                      </div>
+                      {/* O selo "cobertura parcial" saiu daqui em 22/09: lacuna de fonte é
+                          assunto de auditoria, e auditoria mora numa tela só. A procedência
+                          continua na linha abaixo, que é informação, não alerta. */}
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" />
                     </div>
                     {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
                         unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
