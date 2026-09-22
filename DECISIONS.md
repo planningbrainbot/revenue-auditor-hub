@@ -2230,3 +2230,24 @@ Respostas às perguntas abertas do estudo `docs/dev_notes/cockpit-navegacao-ux/e
 **4. Os dois cards de "clientes ativos" do Rede Overview passam a declarar a view.** `rede-overview.tsx` tinha dois cards com `title="Ver clientes ativos"` mandando `search: { status: "", unidade: "" }`. Como `clientes.tsx` só escolhe a view de contratos quando `status` é *truthy*, os dois caíam no cockpit de prospecção — dois dos três pontos de entrada externos de `/clientes` erravam o alvo. Agora mandam `view: "contratos"` explicitamente.
 
 **Não se manda `status: "ATIVO"` de propósito.** Naquela tela `ATIVO` quer dizer "pagou nos últimos 90 dias" (`contratos-clientes.tsx`, descrição do próprio status), enquanto o `clientesAtivos` do card é "empresa que não deu churn" — conjuntos diferentes. Mandar o filtro faria o destino mostrar menos do que o número clicado. **Fica registrado como folga conhecida:** o card leva à lista certa, mas o total de lá não bate com o número do card. Fechar isso exige um filtro de "não deu churn" na tela de contratos, que é decisão de dado e não entrou aqui.
+
+## [2026-09-22] A tela de Operação parou de atualizar o CRM: o teto de 8 s do PostgREST contra uma função de 5,2 s
+
+**Sintoma:** o dono reportou a Caixa de Oportunidade parada em "CRM · 21/09, 15:35 · atualização pendente", com a tarja "A atualização falhou; preservamos a última carga concluída. canceling statement due to statement timeout".
+
+**Onde morria, apurado no banco.** `ops.monetizacao_sync` mostrava `status=error`, `measured_at` de 21/09 18:35 e `catalog_at` de **hoje**. Como `monetizacao_intake_ops` é quem grava `catalog_at` e `monetizacao_replace_snapshot` é quem grava `measured_at`, a falha estava entre as duas — e a única chamada pesada de banco ali no meio é `ops.monetizacao_refresh_ops()`. O `collect()` do meio só faz dois SELECT com `limit=1000`, e o erro é do Postgres, não HTTP.
+
+**Medido, não suposto.** `explain (analyze) select ops.monetizacao_refresh_ops()` → **5.243,9 ms** de execução. A função é um laço PL/pgSQL linha a linha sobre as **3.761** contas com `empresa_ids`, com 5 statements por volta (2 selects + 3 updates) — cerca de 19 mil comandos numa chamada só. Do ponto de vista do PostgREST isso é **um** statement, então leva o `statement_timeout` inteiro.
+
+**A causa do teto.** `pg_db_role_setting` dá `statement_timeout=8s` ao **`authenticator`**, que é a role de login do PostgREST, e o `service_role` não tinha override próprio. O `supautils` (carregado em `session_preload_libraries` do `authenticator`) aplica as configurações de role no `SET ROLE`, então o `service_role` herdava os 8 s. Prova por contradição: uma função de 5,2 s nunca estouraria um teto de 120 s — e estourava. Folga real: 1,5×. Qualquer concorrência derrubava, e derrubou 
+por ~22 horas seguidas, a cada 5 minutos.
+
+**Decisão:** `alter role service_role set statement_timeout = '60s';` — 11× de folga sobre os 5,2 s medidos. O `authenticated` **continua em 8 s**: o teto do usuário na tela não foi afrouxado, só o do backend que roda o sync.
+
+**O passo que faltava, e que quase fez o conserto parecer errado:** o `ALTER ROLE` sozinho não teve efeito. O PostgREST guarda as configurações de role em cache; foi preciso `notify pgrst, 'reload config'`. Antes do reload o sync continuou estourando em 8 s; depois dele passou na primeira tentativa.
+
+**Verificado pelo efeito:** `status=ok`, `error=null`, `measured_at=2026-09-22 17:15:21`, e `ops.monetizacao_deals` reescrita às 17:15:25 (176 negócios).
+
+**Reversão:** `alter role service_role reset statement_timeout; notify pgrst, 'reload config';`
+
+**Dívida que fica registrada, e que o teto novo só adia.** `monetizacao_refresh_ops` atualiza as 3.761 contas **incondicionalmente**, com `updated_at=now()`, a cada 5 minutos — 288 vezes por dia, três UPDATE por conta, para dado que quase nunca muda. São ~3,2 milhões de reescritas de linha por dia em `monetizacao_contas` e `monetizacao_detalhes`, com o vacuum correndo atrás. O conserto durável é tornar a função conjuntista (ou ao menos pular o UPDATE quando o `perfil` não mudou), o que levaria os 5,2 s para a casa dos milissegundos. Não foi feito nesta rodada: é cirurgia numa função `SECURITY DEFINER` em produção, e o sintoma do dono já estava resolvido. Enquanto não for feito, o tempo cresce com a base e volta a encostar no teto.
