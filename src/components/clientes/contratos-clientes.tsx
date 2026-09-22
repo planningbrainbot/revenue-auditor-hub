@@ -625,10 +625,7 @@ export function ContratosClientes({
           c = cmpStr(infoOf(a)?.regime_tributario, infoOf(b)?.regime_tributario);
           break;
         case "entrada_contrato_assinado_em":
-          c = cmpStr(
-            assinaturaOf(a),
-            assinaturaOf(b),
-          );
+          c = cmpStr(assinaturaOf(a), assinaturaOf(b));
           break;
         case "closer":
           c = cmpStr(infoOf(a)?.closer, infoOf(b)?.closer);
@@ -661,7 +658,7 @@ export function ContratosClientes({
     <div className="space-y-6 p-6">
       {/* Aba de /clientes, que já tem o PageHeader: o título aqui é de seção. */}
       <Secao
-        titulo="Contratos da rede"
+        titulo="Contratos e churn"
         descricao="Recorte operacional das unidades regionais. Estes números medem contratos e situação financeira, não o total da base."
         className="space-y-6"
       >
@@ -679,9 +676,7 @@ export function ContratosClientes({
               churnFilter === false && "ring-2 ring-offset-2 ring-primary",
             )}
           >
-            <div className="text-xs font-medium uppercase tracking-wide">
-              Clientes Ativos
-            </div>
+            <div className="text-xs font-medium uppercase tracking-wide">Clientes Ativos</div>
             <div className="mt-1 text-3xl font-bold">{churnCounts.ativo}</div>
             <div className="mt-1 text-xs">Sem card de churn em tratativas</div>
           </button>
@@ -832,13 +827,7 @@ export function ContratosClientes({
             </span>
             {!loading && (
               <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                MRR total:{" "}
-                {fmtBRL(
-                  filtered.reduce(
-                    (s, r) => s + mrrOf(r),
-                    0,
-                  ),
-                )}
+                MRR total: {fmtBRL(filtered.reduce((s, r) => s + mrrOf(r), 0))}
               </span>
             )}
           </div>
