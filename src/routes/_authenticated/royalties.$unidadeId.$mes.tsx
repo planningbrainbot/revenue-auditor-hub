@@ -502,6 +502,24 @@ function ApuracaoLoaded({
             <div>
               <div className="text-base font-semibold flex items-center gap-2">
                 {u.nome_da_praca} — <span className="capitalize">{formatMesLabel(mes)}</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className="cursor-help font-normal text-muted-foreground"
+                      >
+                        caixa
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      O mês da apuração é de caixa: conta o que o Omie baixou como recebido dentro
+                      de <span className="capitalize">{formatMesLabel(mes)}</span>, pela data de
+                      pagamento. A competência do título pode ser outro mês. As duas datas estão nas
+                      colunas "Pagamento" e "Competência" das tabelas.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Badge className={badge.cls}>{badge.label}</Badge>
                 {!readOnly && (
                   <TooltipProvider>
@@ -561,6 +579,20 @@ function ApuracaoLoaded({
             <Metric label="Total fatura" value={brl(totalFatura)} highlight />
           </div>
         </div>
+      </div>
+
+      {/* Caixa x competencia e a confusao mais comum nessa tela: o mes do titulo
+          no topo e o mes em que o dinheiro entrou, nao o mes a que a fatura se refere. */}
+      <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          <strong className="text-foreground">Esta apuração é por caixa.</strong> Entra o que o Omie
+          baixou como recebido dentro de{" "}
+          <span className="capitalize">{formatMesLabel(mes)}</span>, pela data de pagamento (coluna{" "}
+          <strong>Pagamento</strong> das tabelas). A <strong>competência</strong>, na coluna ao
+          lado, é o mês a que cada título se refere e pode ser outro, quando o cliente paga em
+          atraso.
+        </span>
       </div>
 
       {isMesEmAndamento(mes) && (
@@ -1673,13 +1705,13 @@ function SecaoGrupo({
                     />
                     <th
                       className="px-3 py-2 text-left"
-                      title="Mês em que o título entrou no Omie como recebido — a apuração filtra por essa data, não pela competência"
+                      title="Caixa: dia em que o título entrou no Omie como recebido. A apuração filtra por essa data, não pela competência."
                     >
                       Pagamento
                     </th>
                     <th
                       className="px-3 py-2 text-left"
-                      title="Competência do(s) título(s) do Omie que geraram o valor ao lado — pode divergir do mês de pagamento em faturas atrasadas"
+                      title="Competência: mês a que o(s) título(s) do Omie se referem. Diverge do mês de pagamento em faturas atrasadas, e não é a data que define a apuração."
                     >
                       Competência
                     </th>
@@ -2059,13 +2091,13 @@ function BaseAntigaTable({
             />
             <th
               className="px-3 py-2 text-left"
-              title="Mês em que o título entrou no Omie como recebido — a apuração filtra por essa data, não pela competência"
+              title="Caixa: dia em que o título entrou no Omie como recebido. A apuração filtra por essa data, não pela competência."
             >
               Pagamento
             </th>
             <th
               className="px-3 py-2 text-left"
-              title="Competência do(s) título(s) do Omie que geraram o valor ao lado — pode divergir do mês de pagamento em faturas atrasadas"
+              title="Competência: mês a que o(s) título(s) do Omie se referem. Diverge do mês de pagamento em faturas atrasadas, e não é a data que define a apuração."
             >
               Competência
             </th>
