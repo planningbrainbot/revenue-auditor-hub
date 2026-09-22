@@ -4,14 +4,7 @@ import { Coins, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
 import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -253,90 +246,95 @@ export function ApuracaoRoyaltiesContent() {
         <div className="text-sm text-muted-foreground">Carregando unidades…</div>
       ) : (
         <Card className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Modelo</TableHead>
-                <TableHead>Apuração</TableHead>
-                <TableHead className="text-right">Royalties</TableHead>
-                <TableHead className="text-right">CSC</TableHead>
-                <TableHead className="text-right">CAC</TableHead>
-                <TableHead className="text-right">Mídia</TableHead>
-                <TableHead className="text-right">Outras</TableHead>
-                <TableHead className="text-right">Total fatura</TableHead>
-                <TableHead>Fatura no Omie</TableHead>
-                <TableHead>Recebimento</TableHead>
-                <TableHead className="text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((u) => {
-                const ap = u.apuracao;
-                const statusKey = ap?.status ?? "nao_iniciada";
-                const badge = STATUS_BADGE[statusKey];
-                const cscModel =
-                  u.csc_percentual_base_antiga != null
-                    ? `${u.csc_percentual_base_antiga}% base antiga`
-                    : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
-                return (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      Royalties {u.royalties_percentual ?? 0}% • {cscModel}
-                    </TableCell>
-                    <TableCell>
-                      {badge ? (
-                        <Badge className={badge.cls}>{badge.label}</Badge>
-                      ) : (
-                        <Badge variant="outline">Não iniciada</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {ap ? brl(ap.royalties_valor ?? 0) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {ap
-                        ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number)
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {ap ? brl(ap.cac_valor ?? 0) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {ap ? brl(ap.outras_receitas ?? 0) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {ap ? brl(ap.total_fatura ?? 0) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <CelulaFatura f={faturaPorUnidade.get(u.id)} />
-                    </TableCell>
-                    <TableCell>
-                      <CelulaRecebimento f={faturaPorUnidade.get(u.id)} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link
-                        to="/royalties/$unidadeId/$mes"
-                        params={{ unidadeId: String(u.id), mes }}
-                      >
-                        <Button size="sm" variant={ap ? "outline" : "default"}>
-                          {ap?.status === "confirmado" || ap?.status === "faturado"
-                            ? "Ver apuração"
-                            : ap
-                              ? "Continuar"
-                              : "Iniciar apuração"}
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          {/* Cabeçalho fixo: a rolagem acontece dentro deste container, não na
+              página, senão o `overflow-auto` do wrapper padrão do Table anula o
+              sticky. Mesmo padrão de contas-receber-view. */}
+          <div className="relative max-h-[calc(100vh-320px)] overflow-auto">
+            <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
+              <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+                <TableRow>
+                  <TableHead className="bg-card">Unidade</TableHead>
+                  <TableHead className="bg-card">Modelo</TableHead>
+                  <TableHead className="bg-card">Apuração</TableHead>
+                  <TableHead className="bg-card text-right">Royalties</TableHead>
+                  <TableHead className="bg-card text-right">CSC</TableHead>
+                  <TableHead className="bg-card text-right">CAC</TableHead>
+                  <TableHead className="bg-card text-right">Mídia</TableHead>
+                  <TableHead className="bg-card text-right">Outras</TableHead>
+                  <TableHead className="bg-card text-right">Total fatura</TableHead>
+                  <TableHead className="bg-card">Fatura no Omie</TableHead>
+                  <TableHead className="bg-card">Recebimento</TableHead>
+                  <TableHead className="bg-card text-right"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((u) => {
+                  const ap = u.apuracao;
+                  const statusKey = ap?.status ?? "nao_iniciada";
+                  const badge = STATUS_BADGE[statusKey];
+                  const cscModel =
+                    u.csc_percentual_base_antiga != null
+                      ? `${u.csc_percentual_base_antiga}% base antiga`
+                      : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        Royalties {u.royalties_percentual ?? 0}% • {cscModel}
+                      </TableCell>
+                      <TableCell>
+                        {badge ? (
+                          <Badge className={badge.cls}>{badge.label}</Badge>
+                        ) : (
+                          <Badge variant="outline">Não iniciada</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ap ? brl(ap.royalties_valor ?? 0) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ap
+                          ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number)
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ap ? brl(ap.cac_valor ?? 0) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ap ? brl(ap.outras_receitas ?? 0) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {ap ? brl(ap.total_fatura ?? 0) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <CelulaFatura f={faturaPorUnidade.get(u.id)} />
+                      </TableCell>
+                      <TableCell>
+                        <CelulaRecebimento f={faturaPorUnidade.get(u.id)} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link
+                          to="/royalties/$unidadeId/$mes"
+                          params={{ unidadeId: String(u.id), mes }}
+                        >
+                          <Button size="sm" variant={ap ? "outline" : "default"}>
+                            {ap?.status === "confirmado" || ap?.status === "faturado"
+                              ? "Ver apuração"
+                              : ap
+                                ? "Continuar"
+                                : "Iniciar apuração"}
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </table>
+          </div>
         </Card>
       )}
     </div>
