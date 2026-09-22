@@ -2251,3 +2251,32 @@ por ~22 horas seguidas, a cada 5 minutos.
 **Reversão:** `alter role service_role reset statement_timeout; notify pgrst, 'reload config';`
 
 **Dívida que fica registrada, e que o teto novo só adia.** `monetizacao_refresh_ops` atualiza as 3.761 contas **incondicionalmente**, com `updated_at=now()`, a cada 5 minutos — 288 vezes por dia, três UPDATE por conta, para dado que quase nunca muda. São ~3,2 milhões de reescritas de linha por dia em `monetizacao_contas` e `monetizacao_detalhes`, com o vacuum correndo atrás. O conserto durável é tornar a função conjuntista (ou ao menos pular o UPDATE quando o `perfil` não mudou), o que levaria os 5,2 s para a casa dos milissegundos. Não foi feito nesta rodada: é cirurgia numa função `SECURITY DEFINER` em produção, e o sintoma do dono já estava resolvido. Enquanto não for feito, o tempo cresce com a base e volta a encostar no teto.
+
+## [2026-09-22] Um menu só: as duas faixas de abas da Base de clientes viram cinco entradas
+
+**Contexto:** o dono olhou a tela depois do deploy e disse "não mudou absolutamente nada no menu como eu tinha pedido". Ele estava certo — a rodada anterior entregou o pré-requisito (levar para a tabela da carteira o que só existia na aba "Empresas") e tratou isso como "o pendente", quando o pendente era a navegação. Erro de escopo de quem executou, não de pedido.
+
+**A causa, provada por commit.** `0b29b44` (17/09) apagou o item "Aquário" do menu lateral (`git show 0b29b44 -- src/lib/areas.ts` tem uma linha de diferença) e embutiu aquela tela em `/clientes` como aba. As cinco abas que eram a navegação **principal** do Aquário viraram segundo nível dentro do primeiro, sem redesenho nenhum. Eram duas faixas, onze entradas, três níveis. É isso que a queixa 3 descrevia.
+
+**Decisão: a faixa de cima passa a ser a única navegação, com cinco entradas.**
+`Base de clientes · Produtos e listas · Validar origem (N) · Contratos e churn · Entenda os números`
+
+O `<Tabs>` de dentro do Aquário **deixa de existir**. O componente recebe `secao` (`base` | `produtos` | `gates`) e `irPara` da casca. Ele renderiza na **mesma posição do JSX** nas três seções, então **não desmonta** ao trocar de entrada: filtro, seleção e rascunho de lista sobrevivem à navegação — o que a faixa de abas Radix não garantia. A montagem de lista continua sempre montada e escondida por classe, porque desmontá-la jogaria fora o rascunho do operador.
+
+**"Carteiras por unidade" e "Todas as contas" foram fundidas.** Eram filtro da mesma tabela, não abas distintas — é a regra do design system da Atlassian citada no estudo (`docs/dev_notes/cockpit-navegacao-ux/estudo.md`): *"Don't use tabs to separate information that users need at the same time, such as filtering data within a single table."* Viraram "Base de clientes": grade de unidades e tabela na mesma seção.
+
+**Recon** desceu para dentro de "Produtos e listas" e o cartão dele rola até o painel, em vez de trocar de aba. Ele não é produto (`PRODUTOS` tem três) e não produz lista — onde ele mora de verdade segue pergunta aberta do estudo.
+
+**Destino de cada aba antiga:**
+- **Empresas** — sai da faixa porque foi **promovida** (decisão do dono, entrada de hoje): busca por CNPJ, coluna de CNPJ, espelho do Pipefy e as cinco colunas do CSV já tinham ido para a tabela da carteira. Sai a aba, não a ferramenta.
+- **Negócios** — **morre**. Era recorte pior do que `/monetizacao?aba=operacao` já mostra. O ramo e o `const deals` foram removidos do código.
+- **Contatos** — sai da faixa e ganha link no rodapé do funil ("Ver contatos vinculados"), guardado por `view.contatos`. A view continua endereçável por `?view=contatos` através de uma lista `viewsOcultas`: sem isso ela cairia no fallback e o dado ficaria inalcançável. É a única tela do Ops que lista nominalmente os contatos vinculados a conta.
+- **Contratos da rede** — vira **"Contratos e churn"** na aba **e no `<h1>` da própria tela**. Renomear só a aba deixaria a queixa 4 ("o que é contratos da rede? me deixou confuso") de pé.
+
+**Cabeçalho duplicado.** Embutido, o Aquário para de renderizar o próprio `<h1>` e subtítulo — eram dois `<h1>` na mesma página. O `Freshness` **fica**, porque é o único gatilho de sincronização do CRM nesta tela (o "Atualizar" de fora só invalida cache). Os dois botões de atualizar continuam existindo: fica registrado como dívida, não foi resolvido aqui.
+
+**Conferido no bundle construído, não no status do deploy:** os cinco rótulos novos aparecem em `.output/public/assets/`, e `Carteiras por unidade`, `Listas para sócios`, `Contratos da rede`, `Cockpit da base` e `negócios de Monetização` não aparecem em asset nenhum.
+
+**Nota de ambiente:** o build local estoura o heap do Node com o padrão; precisa de `NODE_OPTIONS=--max-old-space-size=8192`. Não é erro de código — a Vercel constrói a mesma árvore sem isso.
+
+**O que NÃO entrou, e segue no estudo:** rotas irmãs (`/clientes/produtos`, `/clientes/contratos`) em vez de views na mesma rota; a gaveta da unidade virar rota; `?conta=` na URL; publicar `aquario`/`clients` em `permissions` (`functions.ts`) para a tela poder dizer quando está vazia por RLS; e a chave que guarda "Produtos e listas" — hoje a entrada aparece para todos, a decisão registrada era `view.aquario` com os botões degradando.
