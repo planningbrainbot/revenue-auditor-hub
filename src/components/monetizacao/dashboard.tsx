@@ -33,6 +33,7 @@ import {
   date,
   downloadCsv,
   Field,
+  FalhaDeCarga,
   Freshness,
   inputClass,
   Kpi,
@@ -251,13 +252,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           </Field>
         </div>
       )}
-      {(data.sync_error || !data.measured_at) && (
-        <Notice>
-          {data.sync_error
-            ? "A atualização falhou; preservamos a última carga concluída. " + data.sync_error
-            : "O CRM ainda não teve uma sincronização concluída. Os indicadores serão liberados após a primeira carga."}
-        </Notice>
-      )}
+      <FalhaDeCarga data={data} />
       {data.measured_at && aba === "operacao" && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
