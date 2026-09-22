@@ -8,6 +8,7 @@ import {
 } from "@/lib/gente-lideranca.functions";
 import { listAvaliacao, type AvaliacaoResult } from "@/lib/gente-avaliacao.functions";
 import { listPdi, type PdiResult } from "@/lib/gente-pdi.functions";
+import { listAdocao, type AdocaoRow } from "@/lib/gente-adocao.functions";
 import { GenteView } from "@/components/gente/gente-view";
 import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
 import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
@@ -16,6 +17,14 @@ import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // As quatro visões do Planning People.
 //
@@ -181,6 +190,82 @@ export function VisaoMeuTime() {
   );
 }
 
+// ------------------------------------------------------------------- adoção
+
+// A tabela de quem implanta. Tudo agregado, sem nome dentro, porque quem
+// implanta precisa saber onde a ferramenta pegou e não quem respondeu o quê.
+function Adocao() {
+  const fn = useServerFn(listAdocao);
+  const { data } = useQuery<AdocaoRow[]>({ queryKey: ["gente-adocao"], queryFn: () => fn({}) });
+  if (!data?.length) return null;
+
+  const pct = (parte: number, todo: number) =>
+    todo === 0 ? "—" : `${Math.round((parte / todo) * 100)}%`;
+
+  return (
+    <Card className="p-4">
+      <h3 className="mb-1 font-semibold">Adoção por unidade</h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Onde a ferramenta pegou e onde não saiu do chão. Números agregados, sem nome: quem implanta
+        não precisa saber quem respondeu o quê.
+      </p>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Unidade</TableHead>
+              <TableHead className="text-right">Pessoas</TableHead>
+              <TableHead className="text-right">Com login</TableHead>
+              <TableHead className="text-right">Pulso na semana</TableHead>
+              <TableHead className="text-right">Pulso em 30 dias</TableHead>
+              <TableHead className="text-right">Prioridades</TableHead>
+              <TableHead className="text-right">1:1 em 90 dias</TableHead>
+              <TableHead className="text-right">PDI com meta</TableHead>
+              <TableHead className="text-right">Em ciclo</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((linha) => (
+              <TableRow key={linha.unidadeId}>
+                <TableCell className="font-medium">{linha.unidade}</TableCell>
+                <TableCell className="text-right tabular-nums">{linha.pessoas}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {linha.comLogin === 0 ? <Badge variant="destructive">0</Badge> : linha.comLogin}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {linha.pulsoNaSemana}{" "}
+                  <span className="text-muted-foreground">
+                    ({pct(linha.pulsoNaSemana, linha.pessoas)})
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {linha.pulsoEm30Dias}{" "}
+                  <span className="text-muted-foreground">
+                    ({pct(linha.pulsoEm30Dias, linha.pessoas)})
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {linha.prioridadesNaSemana}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{linha.com1a1Em90Dias}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {linha.comPdiComMeta}{" "}
+                  <span className="text-muted-foreground">de {linha.comPdi}</span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{linha.avaliadosEmCiclo}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Coluna &quot;Com login&quot; é o gargalo conhecido: sem conta no Ops a pessoa não responde
+        nada, por mais que a unidade esteja cadastrada.
+      </p>
+    </Card>
+  );
+}
+
 // --------------------------------------------------------------- Minha unidade
 
 export function VisaoMinhaUnidade() {
@@ -191,6 +276,7 @@ export function VisaoMinhaUnidade() {
         individual, números por unidade para quem não tem. O recorte por unidade é do banco, não
         desta tela.
       </Explicacao>
+      <Adocao />
       <GenteView />
       <GenteClimaTab />
     </div>
