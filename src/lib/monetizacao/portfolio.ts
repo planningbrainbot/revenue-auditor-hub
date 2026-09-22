@@ -19,6 +19,37 @@ export const ORIGENS_BASE = {
 } as const;
 export type OrigemBase = keyof typeof ORIGENS_BASE;
 export const origemBase = (a: Conta): OrigemBase => a.base_origin?.status || "confirmar";
+
+// Procedência: por qual porta a empresa entrou na base. É fato verificável, e responde a uma
+// pergunta mais modesta do que "é cliente?" — que nenhuma flag da base responde sozinha.
+// Medido em 22/09, ao enriquecer faturamento: a HOTELARIA ACCOR está no Pipefy e marcada Base
+// Antiga (é hotel, fornecedor), e a UNIGGEL SEMENTES não está em nenhum dos dois (é cliente, a
+// Planning tem a ECD dela). Qualquer regra que prometa separar cliente de fornecedor sozinha
+// erra nos dois casos. Por isso aqui se declara a porta de entrada, não o veredito.
+export const PROCEDENCIAS = {
+  ecd: "Escrituração contábil na Planning",
+  contrato: "Contrato ganho no Pipedrive",
+  pipefy: "Cadastro no Pipefy da unidade",
+  omie: "Só no cadastro do Omie da unidade",
+} as const;
+export type Procedencia = keyof typeof PROCEDENCIAS;
+export const PROCEDENCIA_EXPLICACAO: Record<Procedencia, string> = {
+  ecd: "A Planning tem a escrituração contábil digital desta empresa. É o vínculo mais forte que a base registra.",
+  contrato: "Há negócio ganho no Pipedrive ligado a esta conta.",
+  pipefy:
+    "A empresa está no catálogo de empresas do Pipefy. O catálogo também recebe fornecedor — estar nele não prova que é cliente.",
+  omie: "A empresa só aparece no ERP Omie da unidade. Esse cadastro inclui quem a unidade paga: o grupo mistura cliente e fornecedor, e só a unidade sabe dizer qual é qual.",
+};
+// Ordem do vínculo mais forte para o mais fraco: a conta é rotulada pela melhor porta que tem.
+export function procedencia(a: Conta): Procedencia {
+  if (a.ecd) return "ecd";
+  if (a.pipedrive_contract) return "contrato";
+  if (a.base?.pipefy_ids.length || a.old_base || a.new_commercial) return "pipefy";
+  return "omie";
+}
+// O grupo que precisa ficar separado na lista de um produto: entrou só pelo ERP da unidade,
+// então a régua do produto aprova sem ninguém nunca ter declarado que é cliente.
+export const soNoOmie = (a: Conta): boolean => procedencia(a) === "omie";
 // A conta retroativa sem regime continua visível para qualificação; não vira apta para envio.
 export const potencialConsultoria = (a: Conta) =>
   baseRetroativaConsultoria(a) && oferta(a, "consultoria").status !== "fora_regra";
@@ -37,6 +68,7 @@ export const SITUACOES = {
   free: "Prontas para enviar · aptas e disponíveis",
   eligible: "Aptas · perfil validado",
   occupied: "Aptas já em trabalho ou reservadas",
+  so_omie: "Aptas pela régua · só no cadastro do Omie da unidade",
   qualificar: "A confirmar · ainda não validadas",
   review: "Dados a confirmar · todas as pendências",
   excluded: "Fora da regra do produto",
@@ -146,7 +178,7 @@ export interface EstadoProduto {
   perfil: Oferta;
   livre: boolean;
   motivoDisponibilidade: string;
-  situacao: "free" | "occupied" | "qualificar" | "review" | "excluded";
+  situacao: "free" | "occupied" | "so_omie" | "qualificar" | "review" | "excluded";
   abordagem: Abordagem[];
   aberto: Negocio | null;
   encerrado: Negocio | null;
@@ -190,11 +222,16 @@ export function estadoProduto(a: Conta, produto: Produto, data: Dados): EstadoPr
   if (!abordagem.length) abordagem.push("nunca");
   const pendente =
     perfil.status === "revisar" && (produto !== "consultoria" || potencialConsultoria(a));
+  // Apta que entrou só pelo ERP da unidade sai da fila de envio e ganha grupo próprio: a régua
+  // do produto não pergunta se a empresa é cliente, e o Omie cadastra também quem a unidade
+  // paga. Sem esta separação, enriquecer faturamento enche a lista de fornecedor grande.
   const situacao =
     perfil.status === "elegivel"
-      ? disp.free
-        ? "free"
-        : "occupied"
+      ? soNoOmie(a)
+        ? "so_omie"
+        : disp.free
+          ? "free"
+          : "occupied"
       : perfil.status === "fora_regra"
         ? "excluded"
         : pendente
@@ -221,8 +258,9 @@ const ORDEM: Record<EstadoProduto["situacao"], number> = {
   free: 0,
   qualificar: 1,
   review: 2,
-  occupied: 3,
-  excluded: 4,
+  so_omie: 3,
+  occupied: 4,
+  excluded: 5,
 };
 
 export function atendeSituacao(a: Conta, produto: Produto, state: string, e: EstadoProduto) {
@@ -233,6 +271,8 @@ export function atendeSituacao(a: Conta, produto: Produto, state: string, e: Est
       return e.situacao === "free";
     case "occupied":
       return e.situacao === "occupied";
+    case "so_omie":
+      return e.situacao === "so_omie";
     case "eligible":
       return e.perfil.status === "elegivel";
     case "qualificar":

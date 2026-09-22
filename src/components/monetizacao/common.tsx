@@ -91,6 +91,57 @@ export function Notice({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+// A mensagem crua do banco não é para o sócio ler. "canceling statement due to statement
+// timeout" apareceu inteira na tela em 22/09, em inglês e minúscula, colada depois de um ponto.
+// Aqui ela vira frase, e o texto técnico continua acessível no title, para quem for investigar.
+const ERROS_CONHECIDOS: [RegExp, string][] = [
+  [/statement timeout/i, "o passo passou do tempo limite no banco"],
+  [/deadlock/i, "duas cargas tentaram escrever ao mesmo tempo"],
+  [/permission denied/i, "a carga não tem permissão para ler uma das fontes"],
+  [/connection|timeout of/i, "a conexão com a fonte caiu no meio da carga"],
+];
+export const motivoLegivel = (erro: string) =>
+  ERROS_CONHECIDOS.find(([re]) => re.test(erro))?.[1] ?? "a carga parou com um erro não previsto";
+
+/** O aviso de carga: diz qual passo caiu, desde quando, e o que continua confiável. */
+export function FalhaDeCarga({ data }: { data: BaseMonetizacao }) {
+  if (!data.sync_error && data.measured_at) return null;
+  if (!data.sync_error)
+    return (
+      <Notice>
+        O CRM ainda não teve uma sincronização concluída. Os indicadores comerciais são liberados
+        depois da primeira carga; a lista de empresas não depende dela.
+      </Notice>
+    );
+  const desde = data.measured_at
+    ? new Date(data.measured_at).toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+  const catalogoOk =
+    !!data.catalog_at &&
+    (!data.measured_at || Date.parse(data.catalog_at) > Date.parse(data.measured_at));
+  return (
+    <Notice>
+      <p>
+        <strong>Os indicadores comerciais estão parados{desde ? ` desde ${desde}` : ""}.</strong> A
+        última tentativa falhou porque{" "}
+        <span title={data.sync_error}>{motivoLegivel(data.sync_error)}</span>. Os números de
+        reuniões, oportunidades e contratos abaixo são dessa última carga concluída, não de agora.
+      </p>
+      {catalogoOk && (
+        <p className="mt-1">
+          A lista de empresas não foi afetada: ela vem de outra carga, que concluiu normalmente.
+        </p>
+      )}
+    </Notice>
+  );
+}
 export function LoadingState({ error, retry }: { error?: Error | null; retry: () => void }) {
   return (
     <div className="p-6">
@@ -116,23 +167,37 @@ export function Freshness({
   refreshing: boolean;
   onRefresh: () => void;
 }) {
-  const stale = !data.measured_at || Date.now() - Date.parse(data.measured_at) > 30 * 60000;
+  // Duas cargas, dois relógios. O catálogo (as empresas) e os indicadores comerciais falham
+  // separado: em 22/09 o catálogo tinha 1 minuto e as métricas, 22 horas, e a barra mostrava só
+  // as métricas — a tela dizia que a base inteira estava parada, o que não era verdade.
+  const idade = (v: string | null) => (v ? Date.now() - Date.parse(v) : Infinity);
+  const quando = (v: string | null) =>
+    v
+      ? new Date(v).toLocaleString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+  const catalogo = quando(data.catalog_at);
+  const metricas = quando(data.measured_at);
+  const metricasVelhas = idade(data.measured_at) > 30 * 60000;
+  const catalogoVelho = idade(data.catalog_at) > 30 * 60000;
+  const stale = metricasVelhas && catalogoVelho;
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <span className={`h-2 w-2 rounded-full ${stale ? "bg-warning" : "bg-success"}`} />
+      <span
+        className={`h-2 w-2 rounded-full ${
+          stale ? "bg-warning" : metricasVelhas || catalogoVelho ? "bg-info" : "bg-success"
+        }`}
+      />
+      <span>Empresas · {catalogo ?? "primeira carga pendente"}</span>
       <span>
-        CRM ·{" "}
-        {data.measured_at
-          ? new Date(data.measured_at).toLocaleString("pt-BR", {
-              timeZone: "America/Sao_Paulo",
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "Primeira sincronização pendente"}
+        Indicadores · {metricas ?? "primeira carga pendente"}
+        {metricasVelhas && metricas ? " (parados)" : ""}
       </span>
-      {stale && <span>· atualização pendente</span>}
       <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing}>
         <RefreshCw className={`mr-1 h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
         {refreshing ? "Atualizando" : "Atualizar"}

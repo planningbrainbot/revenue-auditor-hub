@@ -2158,3 +2158,31 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 **Verificado:** `tsc --noEmit` dá os mesmos 7 erros antes e depois, nenhum nos arquivos tocados. `AlertTriangle` continua importado em `funil-content.tsx` porque a lista de alertas do rodapé ainda usa.
 
 **Reversão:** os dois trechos removidos estão no diff deste commit; o comentário que ficou no lugar marca a posição exata.
+## [2026-09-22] Faturamento da DataStone entra como faixa; procedência vira dimensão da tela
+
+**Contexto:** 3.374 contas ativas de porte Demais estavam sem faixa de faturamento, e em Cella e Finance a faixa é a **última** trava da `oferta()` — quem para antes, no regime ou na situação cadastral, não muda de estado por enriquecimento nenhum. Medido pela régua: 3.410 contas travadas só pela faixa em Cella, 61 em Finance.
+
+**Decisão — o endpoint é o da Consulta, não o do B2B.** `GET /v1/companies/?cnpj=<14 dígitos>` devolve o objeto inteiro em uma chamada. O `POST /b2b/companies/` que constava do plano é busca paginada e devolveria no máximo um `company_id`. Custo medido: **1 crédito B2C por CNPJ novo**, com carência de 24 h por documento (2 chamadas, 1 nova + 1 repetida, saldo caiu exatamente 1). O saldo B2B de 27 créditos descartou o endpoint de lote, que é o que consome essa carteira.
+
+**Decisão — `estimated_revenue` é faixa em texto, e a tradução recusa precisão que a fonte não tem.** Valor real: `"DE R$ 50 MM ATÉ R$ 100 MM"`. A tradução para `FAIXAS` tem duas portas: cabe inteiro numa faixa do app, ou atravessa fronteira do app mas fica inteiro de um lado só do corte de R$ 25 mi (aí grava a faixa que contém o piso, porque Cella e Finance decidem igual). **Atravessar o próprio corte de 25 não passa**: `"DE R$ 10 MM ATÉ R$ 50 MM"` não diz se a empresa é Cella, e fingir que diz é pior que a lacuna. Em 1.921 consultas: 75% viraram faixa, 9% sem estimativa na fonte, 16% atravessando o corte.
+
+**Aplicado:** 1.447 contas receberam `band`, `band_source` e `band_at`. O `band_source` carrega o texto exato do fornecedor (`"DataStone · estimativa DE R$ 50 MM ATÉ R$ 100 MM"`), porque a faixa gravada às vezes tem teto mais apertado que o intervalo original e quem abre a ficha precisa ler a afirmação da fonte, não só a traduzida. Backup dos perfis anteriores em `unidades-1344/band-backup-20260922.json`.
+
+**A descoberta que mudou a tela: a régua do Cella não pergunta se a empresa é cliente.** Ela pede ativa na Receita, fora do Simples e faturamento acima de R$ 25 mi — nada mais. Como **6.162 das 9.992 contas entraram pelo ERP Omie da unidade**, e esse cadastro inclui quem a unidade *paga*, enriquecer faturamento converte contraparte de razão contábil em prospect. Apareceram na fila do Cella: Claro, Magazine Luiza, Amazon, B3, Localiza, Sodexo, Editora Globo, Accor (esta em 5 filiais).
+
+**Hipótese testada e descartada:** "quem só existe no Omie não é cliente" parece um corte objetivo e **erra nos dois sentidos**. A HOTELARIA ACCOR tem cadastro no Pipefy e está marcada Base Antiga — é hotel. A UNIGGEL SEMENTES não tem nem Pipefy nem Pipedrive e é cliente real, com ECD na Planning. Nenhuma flag isolada responde "é cliente?": ECD cobre 404 contas, contrato Pipedrive 731, Base Antiga 2.221.
+
+**Decisão — a tela declara procedência, não veredito.** `procedencia()` em `portfolio.ts` rotula cada conta pela melhor porta que ela tem: ECD → contrato no Pipedrive → cadastro no Pipefy → só Omie. É fato verificável e responde uma pergunta mais modesta do que a base sabe responder. A situação `so_omie` separa, na lista de cada produto, as contas que a régua aprova mas que entraram só pelo ERP; elas saem da contagem de aptas do card e ganham chip azul próprio — nem o verde de "pronta", nem o âmbar de "pendente", porque a régua aprovou e o que está em questão é a origem. Rodapé `ProcedenciaBase`, no molde do `ProcedenciaFooter` da fila do Cella, explica as portas e por que não valem o mesmo.
+
+**Não resolvido:** 881 CNPJs da fila ficaram sem consulta (saldo B2C acabou), 4 falharam por rede, e 349 caíram no caso que atravessa o corte de R$ 25 mi. Esses continuam "a confirmar", que é a resposta honesta.
+## [2026-09-22] A barra de frescor mostrava o relógio errado, e o aviso de falha despejava o Postgres
+
+**Contexto:** print da Caixa de Oportunidade com `CRM · 21/09, 15:35 · atualização pendente` e uma tarja âmbar terminando em `canceling statement due to statement timeout`.
+
+**Medido em `ops.monetizacao_sync`:** `catalog_at` = 22/09 13:29 (um minuto antes do print), `measured_at` = 21/09 15:35, `error` = timeout, `started_at` = 22/09 13:30. São **duas cargas com dois relógios**: o catálogo de empresas concluiu, o passo de métricas estourou o tempo. A barra lia só `measured_at`, então a tela dizia que a base inteira estava parada havia 22 horas — o que não era verdade e desautoriza o resto da tela sem motivo.
+
+**Decisão:** a barra mostra os dois relógios (`Empresas · <data>` e `Indicadores · <data> (parados)`), e o farol fica âmbar só quando as duas cargas estão velhas; azul quando é só uma.
+
+**Decisão — a mensagem do banco não é para o sócio ler.** `FalhaDeCarga` em `common.tsx` diz qual passo caiu, desde quando, e o que continua confiável; `motivoLegivel()` traduz os erros conhecidos (timeout, deadlock, permissão, conexão) e cai num texto genérico honesto para o resto. O texto cru continua no `title`, para quem for investigar. Aquário e Caixa de Oportunidade tinham cópias divergentes desse aviso e passam a usar o mesmo componente.
+
+**Por quê:** erro de fonte tem que aparecer na tela — é a regra do `spec-dash-funil-cella.md`. Mas aparecer não é despejar: um erro em inglês, minúsculo, colado depois de um ponto, não informa ninguém e ensina o usuário a ignorar a tarja âmbar.

@@ -32,6 +32,7 @@ import { ReconAquario } from "./recon";
 import { ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
 import { DirectSend } from "./direct-send";
+import { ProcedenciaBase } from "./procedencia-base";
 import {
   ABORDAGENS,
   EMPTY_PORTFOLIO_FILTERS,
@@ -40,6 +41,8 @@ import {
   ORIGENS_BASE,
   origemBase,
   potencialConsultoria,
+  PROCEDENCIA_EXPLICACAO,
+  soNoOmie,
   situacoesIniciais,
   SITUACOES,
   SITUACOES_RECEITA_FILTRO,
@@ -55,6 +58,7 @@ import { FieldMulti, MultiSelect } from "./multi-select";
 import {
   date,
   downloadCsv,
+  FalhaDeCarga,
   Field,
   Freshness,
   inputClass,
@@ -121,6 +125,10 @@ export function Aquario({
     setPicked(new Set());
   };
   const cella = data.accounts.filter((a) => oferta(a, "cella").status === "elegivel"),
+    // A régua do Cella não pergunta se a empresa é cliente — pede ativa, fora do Simples e
+    // faturamento. Quem entrou só pelo ERP da unidade passa nela sem nunca ter sido declarado
+    // cliente por ninguém, então o cartão mostra o recorte em vez de um total que engana.
+    cellaSoOmie = cella.filter(soNoOmie),
     consult = data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel"),
     consultPool = data.accounts.filter(potencialConsultoria),
     consultPending = consultPool.filter((a) => oferta(a, "consultoria").status === "revisar"),
@@ -162,12 +170,7 @@ export function Aquario({
         acoes={<Freshness data={data} refreshing={refreshing} onRefresh={refresh} />}
         className="space-y-4"
       >
-        {data.sync_error && (
-          <Notice>
-            A atualização do CRM falhou. Os dados exibidos são da última carga concluída.{" "}
-            {data.sync_error}
-          </Notice>
-        )}
+        <FalhaDeCarga data={data} />
         {!data.permissions.all_units && !data.units.length && (
           <Notice>
             Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração
@@ -182,8 +185,12 @@ export function Aquario({
           />
           <Kpi
             label="Cella · perfil aderente"
-            value={number(cella.length)}
-            hint="A partir de R$ 25 mi · fora do Simples"
+            value={number(cella.length - cellaSoOmie.length)}
+            hint={
+              cellaSoOmie.length
+                ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
+                : "A partir de R$ 25 mi · fora do Simples"
+            }
           />
           <Kpi
             label="Consultoria · carteira retroativa"
@@ -406,8 +413,12 @@ export function Aquario({
               As carteiras podem compartilhar contas. Os totais por unidade não devem ser somados.
               Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
             </Notice>
+            <ProcedenciaBase accounts={data.accounts} />
           </TabsContent>
-          <TabsContent value="contas">{content(data.accounts)}</TabsContent>
+          <TabsContent value="contas" className="space-y-4">
+            {content(data.accounts)}
+            <ProcedenciaBase accounts={data.accounts} />
+          </TabsContent>
           <TabsContent value="recon">
             <ReconAquario accounts={data.accounts} showAccount={setAccount} />
           </TabsContent>
@@ -447,7 +458,12 @@ export function Aquario({
                     label={label}
                     value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
                     onClick={() => {
-                      setFilters({ ...emptyFilters, origin: [key as OrigemBase] });
+                      // Este KPI e um filtro de origem, e so isso: partia de `emptyFilters` e
+                      // derrubava junto o produto que o operador tinha acabado de escolher dentro
+                      // da gaveta. Agora faz o mesmo que o seletor de origem da tabela — troca uma
+                      // chave e preserva o resto. A selecao continua sendo limpa porque trocar de
+                      // filtro limpa selecao (decisao de 16/09), igual ao caminho do MultiSelect.
+                      setFilters({ ...filters, origin: [key as OrigemBase] });
                       setPicked(new Set());
                     }}
                   />
@@ -508,9 +524,13 @@ function PortfolioTable({
         ? { status: situacoesIniciais(value as Produto | ""), approach: [] }
         : {}),
     });
-    // Busca so estreita o que ja esta na tela; mexer nela nao e trocar de recorte.
-    if (key !== "query") setPicked(new Set());
-    setLimit(50);
+    // Busca so estreita o que ja esta na tela; mexer nela nao e trocar de recorte. Por isso ela
+    // nao limpa a selecao — e, pela mesma razao, nao pode jogar fora as paginas ja abertas:
+    // digitar uma letra depois de tres "Mostrar mais 50" devolvia a tabela para 50 linhas.
+    if (key !== "query") {
+      setPicked(new Set());
+      setLimit(50);
+    }
   };
   const rows = useMemo(() => filtrarCarteira(accounts, filters, data), [accounts, filters, data]);
   const semSituacao = useMemo(
@@ -522,6 +542,7 @@ function PortfolioTable({
     const n: Record<string, number> = {
       free: 0,
       occupied: 0,
+      so_omie: 0,
       qualificar: 0,
       review: 0,
       excluded: 0,
@@ -562,6 +583,12 @@ function PortfolioTable({
           label: "A confirmar",
           n: contagem.qualificar,
           tone: "text-warning",
+        },
+        {
+          key: "so_omie",
+          label: "Só no Omie da unidade",
+          n: contagem.so_omie,
+          tone: "text-info",
         },
         { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied, tone: "" },
         {
@@ -1088,31 +1115,44 @@ const quando = (v: string) =>
 const ROTULO_SITUACAO: Record<EstadoProduto["situacao"], string> = {
   free: "Apta · pronta para enviar",
   occupied: "Apta · já em trabalho ou reservada",
+  so_omie: "Apta pela régua · só no Omie da unidade",
   qualificar: "A confirmar",
   review: "A confirmar",
   excluded: "Fora da regra",
 };
 
 function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
+  // "Só no Omie" não é um terceiro veredito da régua — a régua aprovou. É de onde a empresa
+  // veio, e por isso tem cor própria (azul), nem o verde do pronto nem o âmbar do pendente.
   const perfil =
-    e.perfil.status === "elegivel"
+    e.situacao === "so_omie"
       ? {
-          label: "Apta · validada",
-          tone: "bg-success/15 text-success",
+          label: "Apta · só no Omie da unidade",
+          tone: "bg-info/15 text-info",
         }
-      : e.perfil.status === "revisar"
-        ? { label: "A confirmar", tone: "bg-warning/15 text-warning" }
-        : { label: "Fora da regra", tone: "bg-muted text-muted-foreground" };
+      : e.perfil.status === "elegivel"
+        ? {
+            label: "Apta · validada",
+            tone: "bg-success/15 text-success",
+          }
+        : e.perfil.status === "revisar"
+          ? { label: "A confirmar", tone: "bg-warning/15 text-warning" }
+          : { label: "Fora da regra", tone: "bg-muted text-muted-foreground" };
   const lista = e.listas[0];
   return (
     <div className="space-y-1 text-xs">
       <span
         className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${perfil.tone}`}
-        title={e.perfil.reason}
+        title={e.situacao === "so_omie" ? PROCEDENCIA_EXPLICACAO.omie : e.perfil.reason}
       >
         {perfil.label}
       </span>
-      {e.perfil.status === "elegivel" ? (
+      {e.situacao === "so_omie" ? (
+        <p className="text-muted-foreground">
+          Entrou pelo ERP da unidade, que também cadastra fornecedor. A unidade precisa dizer se é
+          cliente antes de virar lista.
+        </p>
+      ) : e.perfil.status === "elegivel" ? (
         e.livre ? (
           <p className="font-medium text-success">Pronta para enviar</p>
         ) : (
