@@ -10,10 +10,30 @@ export const KNOWN_PERMISSIONS: {
   description: string;
   group: string;
 }[] = [
-  { key: "view.aquario", label: "Aquário de clientes", description: "Carteiras, perfis de produto e listas para sócios, no escopo autorizado.", group: "Clientes" },
-  { key: "view.monetizacao", label: "Operação e análises de Monetização", description: "Daily, previsão, capacidade e desenvolvimento comercial.", group: "Monetização" },
-  { key: "manage.aquario", label: "Gerir listas e planos", description: "Preparar listas, registrar validações, metas e desenvolvimento.", group: "Monetização" },
-  { key: "send.monetizacao", label: "Enviar oportunidades ao Pipedrive", description: "Somente ofertas selecionadas e validadas, com proteção contra duplicidade.", group: "Monetização" },
+  {
+    key: "view.aquario",
+    label: "Aquário de clientes",
+    description: "Carteiras, perfis de produto e listas para sócios, no escopo autorizado.",
+    group: "Clientes",
+  },
+  {
+    key: "view.monetizacao",
+    label: "Operação e análises de Monetização",
+    description: "Daily, previsão, capacidade e desenvolvimento comercial.",
+    group: "Monetização",
+  },
+  {
+    key: "manage.aquario",
+    label: "Gerir listas e planos",
+    description: "Preparar listas, registrar validações, metas e desenvolvimento.",
+    group: "Monetização",
+  },
+  {
+    key: "send.monetizacao",
+    label: "Enviar oportunidades ao Pipedrive",
+    description: "Somente ofertas selecionadas e validadas, com proteção contra duplicidade.",
+    group: "Monetização",
+  },
   {
     key: "view.hub",
     label: "Acessar Hub inicial",
@@ -109,7 +129,8 @@ export const KNOWN_PERMISSIONS: {
     // policies de RLS de contratos e contas_receber ainda leem can('view.reconciliacao').
     key: "view.reconciliacao",
     label: "Reconciliação",
-    description: "Leitura de contratos e contas a receber (a página foi removida; a chave segue nas regras de acesso).",
+    description:
+      "Leitura de contratos e contas a receber (a página foi removida; a chave segue nas regras de acesso).",
     group: "Acesso",
   },
   {
@@ -296,6 +317,33 @@ export const KNOWN_PERMISSIONS: {
     description:
       "Liga o feedback entre pessoas. Quem lê cada um depende da visibilidade escolhida por quem escreveu.",
     group: "Dados",
+  },
+  {
+    key: "view.gente.lideranca",
+    label: "Gente: pulso, prioridades e cadência",
+    description:
+      "Liga o produto de liderança: como foi a semana, as prioridades combinadas e o atraso de 1:1. Cada um vê o próprio e o do time que lidera.",
+    group: "Dados",
+  },
+  {
+    key: "view.gente.elogios",
+    label: "Gente: mural de elogios",
+    description:
+      "Elogio é público dentro da unidade, ao contrário do feedback. Esta chave liga o mural e o formulário.",
+    group: "Dados",
+  },
+  {
+    key: "view.gente.pdi",
+    label: "Gente: PDI",
+    description:
+      "Plano de desenvolvimento individual. A pessoa e a cadeia de gestores dela; sócio-diretor não lê o PDI do time só por ser dono da unidade.",
+    group: "Dados",
+  },
+  {
+    key: "manage.gente.pdi",
+    label: "Administrar PDI",
+    description: "Abrir e encerrar ciclos de PDI, e ler o plano de toda a rede.",
+    group: "Administração",
   },
   {
     key: "view.contatos",
@@ -604,19 +652,24 @@ export const getMyPermissions = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
-    const [acesso, escopoRes, unidadesRes, empresasRes, unidadeAtual, verComoRes] = await Promise.all([
-      acessoDoUsuario(db, userId),
-      db.from("usuario_escopo").select("todas_unidades, todas_empresas").eq("user_id", userId).maybeSingle(),
-      db.from("usuario_unidades").select("unidade_id").eq("user_id", userId),
-      db.from("usuario_empresas").select("empresa_id").eq("user_id", userId),
-      supabase.rpc("current_user_unidade"),
-      // A simulação de unidade entra AQUI, e não numa consulta à parte, porque
-      // esta resposta é a fonte única do menu, das chaves e do recorte. Em
-      // duas chamadas existe o instante em que o menu já é do sócio e o
-      // recorte ainda é do admin — e é justamente esse instante que faria a
-      // tela mentir sobre o que o sócio vê.
-      db.rpc("ver_como_atual"),
-    ]);
+    const [acesso, escopoRes, unidadesRes, empresasRes, unidadeAtual, verComoRes] =
+      await Promise.all([
+        acessoDoUsuario(db, userId),
+        db
+          .from("usuario_escopo")
+          .select("todas_unidades, todas_empresas")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        db.from("usuario_unidades").select("unidade_id").eq("user_id", userId),
+        db.from("usuario_empresas").select("empresa_id").eq("user_id", userId),
+        supabase.rpc("current_user_unidade"),
+        // A simulação de unidade entra AQUI, e não numa consulta à parte, porque
+        // esta resposta é a fonte única do menu, das chaves e do recorte. Em
+        // duas chamadas existe o instante em que o menu já é do sócio e o
+        // recorte ainda é do admin — e é justamente esse instante que faria a
+        // tela mentir sobre o que o sócio vê.
+        db.rpc("ver_como_atual"),
+      ]);
 
     const escopo: EscopoDoUsuario = {
       // Sem linha em usuario_escopo a pessoa NÃO enxerga a rede toda. O default
@@ -682,9 +735,17 @@ export const listRoleAreas = createServerFn({ method: "GET" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
     const [areasRes, grantsRes, rolesRes, chavesRes] = await Promise.all([
-      db.from("areas").select("slug, nome, descricao, escopo, ordem").eq("ativa", true).order("ordem"),
+      db
+        .from("areas")
+        .select("slug, nome, descricao, escopo, ordem")
+        .eq("ativa", true)
+        .order("ordem"),
       db.from("role_areas").select("role, area, allowed"),
-      db.from("roles").select("key, label, description, is_system").order("is_system", { ascending: false }).order("label"),
+      db
+        .from("roles")
+        .select("key, label, description, is_system")
+        .order("is_system", { ascending: false })
+        .order("label"),
       db.from("area_chaves").select("area, permission_key"),
     ]);
     if (areasRes.error || grantsRes.error || rolesRes.error) {
@@ -693,7 +754,12 @@ export const listRoleAreas = createServerFn({ method: "GET" })
     return {
       areas: (areasRes.data ?? []) as Area[],
       grants: (grantsRes.data ?? []) as { role: string; area: string; allowed: boolean }[],
-      roles: (rolesRes.data ?? []) as { key: string; label: string; description: string; is_system: boolean }[],
+      roles: (rolesRes.data ?? []) as {
+        key: string;
+        label: string;
+        description: string;
+        is_system: boolean;
+      }[],
       chaves: (chavesRes.data ?? []) as { area: string; permission_key: string }[],
       dicionario: KNOWN_PERMISSIONS,
     };
@@ -712,7 +778,12 @@ export const upsertRoleArea = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
     const { error } = await db.from("role_areas").upsert(
-      { role: data.role, area: data.area, allowed: data.allowed, updated_at: new Date().toISOString() },
+      {
+        role: data.role,
+        area: data.area,
+        allowed: data.allowed,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "role,area" },
     );
     if (error) throw new Error("Erro ao salvar a área do papel.");
@@ -728,11 +799,20 @@ export const getEscopoDoUsuario = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
     const [escopo, unidades, empresas, catalogoUnidades, catalogoEmpresas] = await Promise.all([
-      db.from("usuario_escopo").select("todas_unidades, todas_empresas").eq("user_id", data.userId).maybeSingle(),
+      db
+        .from("usuario_escopo")
+        .select("todas_unidades, todas_empresas")
+        .eq("user_id", data.userId)
+        .maybeSingle(),
       db.from("usuario_unidades").select("unidade_id").eq("user_id", data.userId),
       db.from("usuario_empresas").select("empresa_id").eq("user_id", data.userId),
       db.from("unidades").select("id, nome_da_praca").order("nome_da_praca"),
-      db.schema("financeiro").from("empresas").select("id, apelido, nome_fantasia, grupo_apuracao").eq("ativa", true).order("grupo_apuracao"),
+      db
+        .schema("financeiro")
+        .from("empresas")
+        .select("id, apelido, nome_fantasia, grupo_apuracao")
+        .eq("ativa", true)
+        .order("grupo_apuracao"),
     ]);
     return {
       escopo: {
@@ -877,7 +957,9 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
       papeis.length
         ? db.from("role_areas").select("area").in("role", papeis).eq("allowed", true)
         : Promise.resolve({ data: [] }),
-      papeis.length ? db.from("roles").select("key, label").in("key", papeis) : Promise.resolve({ data: [] }),
+      papeis.length
+        ? db.from("roles").select("key, label").in("key", papeis)
+        : Promise.resolve({ data: [] }),
     ]);
     const areasDoPapel = new Set(((pelosPapeis ?? []) as { area: string }[]).map((r) => r.area));
 
@@ -889,19 +971,31 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
       chavesPorArea.set(c.area, l);
     }
     const nivelDelegado = new Map(
-      ((adminsRes.data ?? []) as { area: string; nivel: "admin" | "socio" }[]).map((a) => [a.area, a.nivel]),
+      ((adminsRes.data ?? []) as { area: string; nivel: "admin" | "socio" }[]).map((a) => [
+        a.area,
+        a.nivel,
+      ]),
     );
     const membro = new Set(
-      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[]).filter((m) => m.allowed).map((m) => m.area),
+      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[])
+        .filter((m) => m.allowed)
+        .map((m) => m.area),
     );
     const bloqueada = new Set(
-      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[]).filter((m) => !m.allowed).map((m) => m.area),
+      ((membrosRes.data ?? []) as { area: string; allowed: boolean }[])
+        .filter((m) => !m.allowed)
+        .map((m) => m.area),
     );
     const porPessoa = (porPessoaRes.data ?? []) as { permission_key: string; allowed: boolean }[];
     const liberadas = new Set(porPessoa.filter((p) => p.allowed).map((p) => p.permission_key));
     const negadas = new Set(porPessoa.filter((p) => !p.allowed).map((p) => p.permission_key));
 
-    const areas: AcessoPorArea[] = ((areasRes.data ?? []) as Omit<AcessoPorArea, "pelo_papel" | "nivel" | "paginas" | "liberadas" | "negadas">[]).map((a) => {
+    const areas: AcessoPorArea[] = (
+      (areasRes.data ?? []) as Omit<
+        AcessoPorArea,
+        "pelo_papel" | "nivel" | "paginas" | "liberadas" | "negadas"
+      >[]
+    ).map((a) => {
       const chaves = chavesPorArea.get(a.slug) ?? [];
       return {
         slug: a.slug,
@@ -910,7 +1004,7 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
         pelo_papel: areasDoPapel.has(a.slug),
         nivel: bloqueada.has(a.slug)
           ? "bloqueado"
-          : nivelDelegado.get(a.slug) ?? (membro.has(a.slug) ? "usuario" : "nenhum"),
+          : (nivelDelegado.get(a.slug) ?? (membro.has(a.slug) ? "usuario" : "nenhum")),
         paginas: chaves
           .filter((k) => k.startsWith("view."))
           .map((k) => ({ key: k, label: rotulo.get(k) ?? k }))
@@ -930,14 +1024,19 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
 
 export const salvarAcessoNaArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { userId: string; area: string; nivel: NivelNaArea; paginas?: string[] }) => {
-    const userId = (input?.userId ?? "").trim();
-    const area = (input?.area ?? "").trim();
-    if (!userId || !area) throw new Error("Pessoa e área são obrigatórias.");
-    if (!["nenhum", "bloqueado", "usuario", "socio", "admin"].includes(input?.nivel)) throw new Error("Nível inválido.");
-    const paginas = Array.from(new Set((input?.paginas ?? []).map((p) => p.trim()).filter(Boolean)));
-    return { userId, area, nivel: input.nivel, paginas };
-  })
+  .inputValidator(
+    (input: { userId: string; area: string; nivel: NivelNaArea; paginas?: string[] }) => {
+      const userId = (input?.userId ?? "").trim();
+      const area = (input?.area ?? "").trim();
+      if (!userId || !area) throw new Error("Pessoa e área são obrigatórias.");
+      if (!["nenhum", "bloqueado", "usuario", "socio", "admin"].includes(input?.nivel))
+        throw new Error("Nível inválido.");
+      const paginas = Array.from(
+        new Set((input?.paginas ?? []).map((p) => p.trim()).filter(Boolean)),
+      );
+      return { userId, area, nivel: input.nivel, paginas };
+    },
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -987,13 +1086,23 @@ export const salvarAcessoNaArea = createServerFn({ method: "POST" })
         // Rebaixar: sai da administração e volta como membro com as páginas escolhidas.
         await rpc("acesso_remover_da_area", { _alvo: data.userId, _area: data.area });
         await rpc("acesso_adicionar_na_area", {
-          _alvo: data.userId, _area: data.area, _unidades: [], _chaves: data.paginas,
+          _alvo: data.userId,
+          _area: data.area,
+          _unidades: [],
+          _chaves: data.paginas,
         });
       } else if (membro?.allowed) {
-        await rpc("acesso_definir_paginas", { _alvo: data.userId, _area: data.area, _chaves: data.paginas });
+        await rpc("acesso_definir_paginas", {
+          _alvo: data.userId,
+          _area: data.area,
+          _chaves: data.paginas,
+        });
       } else {
         await rpc("acesso_adicionar_na_area", {
-          _alvo: data.userId, _area: data.area, _unidades: [], _chaves: data.paginas,
+          _alvo: data.userId,
+          _area: data.area,
+          _unidades: [],
+          _chaves: data.paginas,
         });
       }
     } else if (atual || membro?.allowed) {
@@ -1013,20 +1122,23 @@ export const listAdministradoresPorArea = createServerFn({ method: "GET" })
     const db = context.supabase as any;
     const { data: linhas, error } = await db.from("area_admins").select("user_id, area, nivel");
     if (error) throw new Error("Erro ao carregar quem administra as áreas.");
-    const ids = Array.from(new Set(((linhas ?? []) as { user_id: string }[]).map((l) => l.user_id)));
+    const ids = Array.from(
+      new Set(((linhas ?? []) as { user_id: string }[]).map((l) => l.user_id)),
+    );
     const { data: perfis } = ids.length
       ? await db.from("profiles").select("user_id, nome, email").in("user_id", ids)
       : { data: [] };
     const nome = new Map(
-      ((perfis ?? []) as { user_id: string; nome: string | null; email: string | null }[]).map((p) => [
-        p.user_id,
-        p.nome || p.email || p.user_id,
-      ]),
+      ((perfis ?? []) as { user_id: string; nome: string | null; email: string | null }[]).map(
+        (p) => [p.user_id, p.nome || p.email || p.user_id],
+      ),
     );
-    return ((linhas ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[]).map((l) => ({
-      ...l,
-      nome: nome.get(l.user_id) ?? l.user_id,
-    }));
+    return ((linhas ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[]).map(
+      (l) => ({
+        ...l,
+        nome: nome.get(l.user_id) ?? l.user_id,
+      }),
+    );
   });
 
 /**
@@ -1039,22 +1151,38 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
-    const [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes] = await Promise.all([
-      db.from("areas").select("slug, nome, ordem").eq("ativa", true).neq("slug", "admin").order("ordem"),
-      db.from("profiles").select("user_id, nome, email"),
-      db.from("user_roles").select("user_id, role"),
-      db.from("roles").select("key, label"),
-      db.from("role_areas").select("role, area").eq("allowed", true),
-      db.from("area_admins").select("user_id, area, nivel"),
-      db.from("usuario_areas").select("user_id, area, allowed"),
-    ]);
-    for (const r of [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes]) {
+    const [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes] =
+      await Promise.all([
+        db
+          .from("areas")
+          .select("slug, nome, ordem")
+          .eq("ativa", true)
+          .neq("slug", "admin")
+          .order("ordem"),
+        db.from("profiles").select("user_id, nome, email"),
+        db.from("user_roles").select("user_id, role"),
+        db.from("roles").select("key, label"),
+        db.from("role_areas").select("role, area").eq("allowed", true),
+        db.from("area_admins").select("user_id, area, nivel"),
+        db.from("usuario_areas").select("user_id, area, allowed"),
+      ]);
+    for (const r of [
+      areasRes,
+      perfisRes,
+      papeisRes,
+      rotulosRes,
+      roleAreasRes,
+      adminsRes,
+      membrosRes,
+    ]) {
       if (r?.error) {
         console.error("[listNiveisDeAcesso]", r.error);
         throw new Error("Erro ao carregar os níveis de acesso.");
       }
     }
-    const rotulo = new Map(((rotulosRes.data ?? []) as { key: string; label: string }[]).map((r) => [r.key, r.label]));
+    const rotulo = new Map(
+      ((rotulosRes.data ?? []) as { key: string; label: string }[]).map((r) => [r.key, r.label]),
+    );
     const areasDoPapel = new Map<string, Set<string>>();
     for (const r of (roleAreasRes.data ?? []) as { role: string; area: string }[]) {
       const set = areasDoPapel.get(r.role) ?? new Set<string>();
@@ -1066,13 +1194,23 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
       papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), r.role]);
     }
     const delegado = new Map<string, "admin" | "socio" | "usuario" | "bloqueado">();
-    for (const m of (membrosRes.data ?? []) as { user_id: string; area: string; allowed: boolean }[])
+    for (const m of (membrosRes.data ?? []) as {
+      user_id: string;
+      area: string;
+      allowed: boolean;
+    }[])
       delegado.set(`${m.user_id}|${m.area}`, m.allowed ? "usuario" : "bloqueado");
-    for (const a of (adminsRes.data ?? []) as { user_id: string; area: string; nivel: "admin" | "socio" }[])
+    for (const a of (adminsRes.data ?? []) as {
+      user_id: string;
+      area: string;
+      nivel: "admin" | "socio";
+    }[])
       delegado.set(`${a.user_id}|${a.area}`, a.nivel);
 
     const areas = (areasRes.data ?? []) as { slug: string; nome: string }[];
-    const pessoas = ((perfisRes.data ?? []) as { user_id: string; nome: string | null; email: string | null }[])
+    const pessoas = (
+      (perfisRes.data ?? []) as { user_id: string; nome: string | null; email: string | null }[]
+    )
       .map((p) => {
         const papeis = papeisDe.get(p.user_id) ?? [];
         const superAdmin = papeis.includes("admin");
@@ -1088,11 +1226,18 @@ export const listNiveisDeAcesso = createServerFn({ method: "GET" })
               a.slug,
               superAdmin
                 ? "super_admin"
-                : delegado.get(`${p.user_id}|${a.slug}`) ?? (pelosPapeis.has(a.slug) ? "perfil" : "nenhum"),
+                : (delegado.get(`${p.user_id}|${a.slug}`) ??
+                  (pelosPapeis.has(a.slug) ? "perfil" : "nenhum")),
             ]),
-          ) as Record<string, "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "bloqueado" | "nenhum">,
+          ) as Record<
+            string,
+            "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "bloqueado" | "nenhum"
+          >,
         };
       })
-      .sort((x, y) => Number(y.superAdmin) - Number(x.superAdmin) || x.nome.localeCompare(y.nome, "pt-BR"));
+      .sort(
+        (x, y) =>
+          Number(y.superAdmin) - Number(x.superAdmin) || x.nome.localeCompare(y.nome, "pt-BR"),
+      );
     return { areas, pessoas };
   });

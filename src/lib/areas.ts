@@ -11,6 +11,7 @@ import {
   Filter,
   Gauge,
   GitMerge,
+  GraduationCap,
   HeartPulse,
   History,
   KeyRound,
@@ -24,6 +25,7 @@ import {
   ScrollText,
   Send,
   ShieldCheck,
+  Sparkles,
   Split,
   Store,
   Target,
@@ -257,7 +259,7 @@ export const AREAS: Area[] = [
   {
     slug: "people",
     nome: "Planning People",
-    descricao: "Pessoas das unidades: cadastro, 1:1 e feedback.",
+    descricao: "Pessoas das unidades: cadastro, conversas, desenvolvimento, avaliação e clima.",
     icone: UsersRound,
     grupos: [
       {
@@ -270,14 +272,44 @@ export const AREAS: Area[] = [
             icon: CalendarClock,
           },
           {
+            title: "Liderança",
+            url: "/gente?aba=lideranca",
+            icon: HeartPulse,
+          },
+        ],
+      },
+      {
+        label: "Reconhecimento",
+        items: [
+          {
             title: "Feedback",
             url: "/gente?aba=feedback",
             icon: MessageSquarePlus,
           },
           {
+            title: "Elogios",
+            url: "/gente?aba=elogios",
+            icon: Sparkles,
+          },
+        ],
+      },
+      {
+        label: "Desenvolvimento",
+        items: [
+          {
+            title: "Avaliação",
+            url: "/gente?aba=avaliacao",
+            icon: Target,
+          },
+          {
+            title: "PDI",
+            url: "/gente?aba=pdi",
+            icon: GraduationCap,
+          },
+          {
             title: "Clima",
             url: "/gente?aba=clima",
-            icon: HeartPulse,
+            icon: Gauge,
           },
         ],
       },
