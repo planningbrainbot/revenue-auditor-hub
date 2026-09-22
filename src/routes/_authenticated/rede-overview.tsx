@@ -976,7 +976,17 @@ function RedeOverviewPage() {
             </Card>
             <Card
               className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
+              onClick={() => {
+                // `clientes.tsx` só escolhe a view de contratos quando `status` tem valor, e aqui
+                // ele vai vazio: o card prometia "ver clientes ativos" e caía no cockpit de
+                // prospecção. A view passa a ser declarada em vez de inferida do filtro. Não se
+                // manda `status: "ATIVO"` de propósito: lá isso quer dizer "pagou nos últimos
+                // 90 dias", mais estreito que o "não deu churn" contado neste card.
+                navigate({
+                  to: "/clientes",
+                  search: { view: "contratos", status: "", unidade: "" },
+                });
+              }}
               title="Ver clientes ativos"
             >
               <div className="text-xs text-muted-foreground">Qtd Proj. Ativos</div>
@@ -990,7 +1000,17 @@ function RedeOverviewPage() {
             </Card>
             <Card
               className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
+              onClick={() => {
+                // `clientes.tsx` só escolhe a view de contratos quando `status` tem valor, e aqui
+                // ele vai vazio: o card prometia "ver clientes ativos" e caía no cockpit de
+                // prospecção. A view passa a ser declarada em vez de inferida do filtro. Não se
+                // manda `status: "ATIVO"` de propósito: lá isso quer dizer "pagou nos últimos
+                // 90 dias", mais estreito que o "não deu churn" contado neste card.
+                navigate({
+                  to: "/clientes",
+                  search: { view: "contratos", status: "", unidade: "" },
+                });
+              }}
               title="Ver clientes ativos"
             >
               <div className="text-xs text-muted-foreground">Qtd Clientes ativos</div>
