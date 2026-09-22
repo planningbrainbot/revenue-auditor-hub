@@ -2009,3 +2009,36 @@ O `value` de um campo connector é um JSON com os **ids dos registros** ligados 
 **Trava nova:** check `empresas_unidade_nao_e_id`, `NOT VALID`, bloqueia id numérico com 3+ dígitos se passando por nome. As 13 linhas não resolvidas seguem no banco; nenhuma nova entra.
 
 **Card corrigido no Pipefy.** O 1440464579 (GRUPO MAGANHA) passou de `12.900.000,00` para `12.900,00` no honorário mensal, batendo com o total de 154.800,00. A trava de coerência na `v_cliente_mrr` continua como rede.
+
+## [2026-09-22] `/clientes` mostrava 1.000 de 3.219 clientes: o PostgREST corta em 1000 e `.limit()` maior não adianta
+
+**Sintoma relatado:** "muitos ainda continuam vazio nesta página", na aba Contratos de `/clientes`, com colunas ERP, Contrato Assinado em e Vendedor quase todas em "—".
+
+**Achado maior que o sintoma.** O projeto Supabase tem `max-rows = 1000` e o PostgREST **ignora `.limit()` acima disso**: pedir 5000 ou 20000 devolve as mesmas 1000 linhas, HTTP 200, sem erro e sem aviso. Medido na API: `empresas?tipo_unidade=eq.franquia` tem 3.220 linhas e devolve 1.000 com `limit=5000` e com `limit=20000`.
+
+Consequências nesta página, todas silenciosas:
+
+- A lista mostrava **1.000 de 3.219** clientes de unidade regional. Os outros 2.219 não existiam para a tela.
+- O card "MRR total" somava só essa fatia: **R$ 559.999 contra R$ 2.094.936** reais no mesmo recorte. Era 27% do valor.
+- `v_cliente_mrr` (1.120 linhas) também vinha cortada, então ~120 clientes da cauda apareciam sem MRR e sem data de assinatura tendo os dois no banco.
+- O balão de contatos lia 1.000 de 2.575 vínculos.
+
+**Correção:** as quatro consultas da página passam a paginar por `range`, no mesmo padrão de `contatos-cs.functions.ts`, ordenando por chave única (`id`), porque ordenar por `razao_social`, que repete, pula e duplica linhas entre páginas.
+
+**Fica registrado que o mesmo padrão existe em outros ~20 pontos do app** (`.limit(5000)` e `.limit(20000)` em `audit/data-context.tsx`, `painel-cs/*`, `saude-carteira.functions.ts`, `painel-unidade.tsx`, `roas/data-context.tsx`, entre outros). Nenhum foi tocado aqui: cada um muda um número que alguém já leu, e isso é decisão de quem lê, não efeito colateral desta correção.
+
+**As colunas vazias, medidas uma a uma no recorte de 3.219:**
+
+| Coluna | Preenchida | Onde nasce | Por que está vazia |
+|---|---|---|---|
+| ERP | 24 (0,7%) | `empresas.erp`, via `pipefy-sync` | A database `[PTRS-DB-01] Empresas` do Pipefy **não tem campo de ERP**. O `FIELD_MAP` do sync aponta para `erp`, `regime_tribut_rio`, `e_mail_fiscal` e `telefone_corporativo`, e nenhum dos quatro existe na tabela. A coluna nunca vai encher sozinha |
+| Estado (uf) | 119 (3,7%) | `empresas.uf` | 2.819 têm CNPJ e não têm UF. O backfill de 15/07/2026 cobriu só as linhas de `pipedrive_sync` da época. 437 sairiam de graça do `omie_clientes.estado`, 2.382 dependem da BrasilAPI |
+| Regime Tributário | 309 (9,6%) | `contratos`, campo de seleção do Pipedrive | 461 dos 770 contratos ativos têm o dado. O resto está vazio no próprio Pipedrive |
+| Contrato Assinado em | 157 (4,9%) | cascata + `contratos` | Teto conhecido, registrado em 21/09. 238 dos 770 contratos têm data |
+| Vendedor (closer) | 172 (5,3%) | `contratos.closer` | 527 dos 543 contratos sem vendedor estão com "Closer Responsável" vazio no Pipedrive. Os outros 14 são bug nosso, abaixo |
+
+**A causa estrutural das três últimas:** 2.812 das 3.219 empresas não casam com nenhum contrato ativo, porque 2.772 não têm `pipedrive_id`. São a carga do Pipefy de setembro. Coluna que nasce em `contratos` fica vazia para 86% da lista por construção, não por falha de sync.
+
+**Bug corrigido no `pipedrive-contratos-sync`:** `CLOSER_LABELS`, `SDR_LABELS` e `REGIME_LABELS` eram cópias congeladas das opções dos campos de seleção do Pipedrive. Opção criada depois da cópia caía em `labels[id] ?? null`: o deal sincronizava inteiro, sem erro, com a coluna vazia. Três closers estavam nessa situação (Anna Carolina 1046, Gabryelly Morais 1058, Gabriella Oliveira 1126), valendo 14 contratos. O sync passa a ler as opções do `/dealFields` a cada rodada, uma chamada, com os mapas fixos como rede se a chamada falhar.
+
+**Pendente, não decidido:** (1) tirar a coluna ERP da tela ou criar o campo no Pipefy e mandar a rede preencher; (2) rodar o backfill de UF (437 pelo Omie, 2.382 pela BrasilAPI, ~50 min por causa do rate limit); (3) os ~20 outros pontos com o mesmo corte de 1000.
