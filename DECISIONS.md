@@ -1978,3 +1978,34 @@ As três migrations (`60_socios_unidade_id.sql`, `61_revogar_conta_teste_socio_r
 **Escopo de unidade:** `omie_contratos_servico` nasceu no mesmo dia em que 15 tabelas ganharam policy RESTRICTIVE, e ganhou a sua. Não pela coluna `unidade`, que aqui é o nome do aplicativo Omie e não bate com `unidades.nome_da_praca` (Curitiba responde por "Curitiba", "Planning CWB 01" e "Planning CWB 02"), mas pelo CNPJ pertencer a uma empresa que a pessoa já enxerga — herdando o recorte de `empresas` em vez de repetir a regra.
 
 **Agendamento (nuvem, nunca local):** `[Omie] Sync - Contratos de Servico` às 03:30 UTC e `[Pipedrive] Backfill - Data de Contrato Assinado` às 04:10 UTC, ambos no n8n, chamando as Edge Functions como wrapper fino.
+
+## [2026-09-22] `empresas.unidade` guardava id do Pipefy, e Sorocaba inteira estava invisível
+
+**Como apareceu.** Ao explicar por que São Bernardo (465 clientes) e Recife (385) tinham tanto cliente sem MRR, o usuário perguntou de onde saía esse volume. A resposta é `ops.empresas`, com o mesmo filtro da tela (`tipo_unidade = 'franquia'` e `unidade` entre as regionais). Mas a pergunta descobriu duas coisas maiores que a resposta.
+
+**A base triplicou em cinco dias.** `ops.empresas` tinha **1.359** linhas antes de 17/09/2026 e recebeu **2.819** entre 17 e 21/09, chegando a 4.178. Só no dia 18 entraram 2.413. Todas com `fonte_cadastro = 'Pipefy'`, quase todas declaradas `origem_da_base = 'Base Antiga'`, nenhuma com deal. A database "[PTRS-DB-01] Empresas" do Pipefy tem 4.025 registros, então o sync está espelhando e não duplicando (só 14 CNPJs repetidos, 29 linhas). São as carteiras declaradas das unidades, subidas em lote e **ainda não conferidas contra contrato**: das 2.819, apenas 363 aparecem no Omie, 255 com contrato ativo, e 26 têm deal no Pipedrive. Isso corrige o que eu havia escrito na entrada anterior — não é "prospect misturado com cliente", é carteira declarada sem reconciliação.
+
+**O bug: connector gravado como id.** 489 linhas tinham número no lugar do nome da unidade. A causa está em `pipefy-sync`:
+
+```js
+if (col === "unidade" && f.value.startsWith("[")) {
+  const p = JSON.parse(f.value); update[col] = Array.isArray(p) ? p[0] : f.value;
+}
+```
+
+O `value` de um campo connector é um JSON com os **ids dos registros** ligados (`["1448470601"]`), nunca o rótulo. `p[0]` é o id, e `empresas.unidade` é texto livre, então nada reclamava. Linha assim some de todo recorte por unidade: da tela, dos totais e da própria RLS, cuja policy de escopo compara `norm_unidade(unidade)`. **Sorocaba, com 311 clientes, não existia em lugar nenhum do Ops.**
+
+`ops.unidades.pipefy_id` já era o de-para para desfazer isso, e estava preenchido para as unidades antigas. Estava vazio exatamente para Recife, São Bernardo, Sorocaba e as internas — por isso o estrago se concentrava nas unidades novas. O sync agora resolve o id por essa coluna; id sem unidade correspondente é devolvido como veio, de propósito, porque ficar visivelmente errado é melhor que virar nome inventado.
+
+**Ids resolvidos:** `1448470601` = Sorocaba (confirmado pelo usuário), `1436672162` = Goiânia (casa com a `razao_social` registrada em `unidades`). Ficaram 13 linhas sem resolução, com id de registro que não é unidade em `ops.unidades`: Agronegócio (8), ROIT (1), Itaúna (1), Rascunho (1) e `1124` (2), que nem registro do Pipefy é.
+
+**Duas armadilhas no caminho do backfill.**
+
+1. A trigger `sync_empresa_to_pipefy()` recusa escrita direta em campo que pertence ao Pipefy e manda usar a fila de correção. A fila existe para **discordar** do Pipefy, e não era o caso: o connector sempre apontou para a unidade certa, o errado era a leitura deste lado. Por isso o backfill usou a porta que a própria trigger prevê, `set local planning.pipefy_ingest = 'on'` — ingestão corrigida, sem nada para empurrar de volta.
+2. Devolver o nome não bastava: `/clientes` filtra também por `tipo_unidade = 'franquia'`, e as 311 de Sorocaba estavam com esse campo nulo porque quem o derivou na carga casou pelo **nome**, que nelas era um id. São Bernardo e Recife, da mesma carga e com nome legível, saíram com 'franquia'. A migration termina a mesma derivação, com escopo estreito: só a carga do Pipefy, só onde `unidade` já é regional.
+
+**Fica pendente, e não foi tocado:** ~720 linhas sem `tipo_unidade` vindas de `basenps_reconciliacao` (223), `Omie` (203), `pipefy_legado_reconciliado` (150) e `pipedrive_sync` (139), todas anteriores a esta carga. Elas também não aparecem na tela. Mexer nelas aqui seria mudar o que Belém, Rio e Curitiba mostram de carona numa correção de outro assunto.
+
+**Trava nova:** check `empresas_unidade_nao_e_id`, `NOT VALID`, bloqueia id numérico com 3+ dígitos se passando por nome. As 13 linhas não resolvidas seguem no banco; nenhuma nova entra.
+
+**Card corrigido no Pipefy.** O 1440464579 (GRUPO MAGANHA) passou de `12.900.000,00` para `12.900,00` no honorário mensal, batendo com o total de 154.800,00. A trava de coerência na `v_cliente_mrr` continua como rede.
