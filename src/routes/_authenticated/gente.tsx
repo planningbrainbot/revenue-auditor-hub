@@ -46,7 +46,7 @@ const TELAS: { id: Tela; rotulo: string; flag?: keyof ResumoMenuGente }[] = [
   { id: "lideranca", rotulo: "Sentimento e prioridades", flag: "noCadastro" },
   { id: "feedback", rotulo: "Feedback" },
   { id: "elogios", rotulo: "Elogios" },
-  { id: "avaliacao", rotulo: "Avaliação", flag: "emCiclo" },
+  { id: "avaliacao", rotulo: "Avaliação", flag: "verAvaliacao" },
   { id: "pdi", rotulo: "PDI", flag: "temPdi" },
   { id: "cadastro", rotulo: "Cadastro" },
   { id: "clima", rotulo: "Clima", flag: "administra" },

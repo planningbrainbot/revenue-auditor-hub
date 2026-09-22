@@ -27,6 +27,15 @@ export interface ResumoMenuGente {
   noCadastro: boolean;
   lideraAlguem: boolean;
   emCiclo: boolean;
+  /**
+   * Mostra o módulo de avaliação.
+   *
+   * Não basta `emCiclo`: quem CONDUZ o ciclo normalmente não participa dele.
+   * Medido em 22/09/2026 com a pessoa que vai implantar o módulo na rede — ela
+   * administra os três ciclos e tem zero avaliações no próprio nome, então o
+   * item sumiria justamente para quem mais precisa dele.
+   */
+  verAvaliacao: boolean;
   temPdi: boolean;
   /** Conduz ciclo, pesquisa ou PDI: vê os módulos de operação. */
   administra: boolean;
@@ -48,15 +57,18 @@ export const resumoMenuGente = createServerFn({ method: "GET" })
       .maybeSingle();
     const eu = (euRes?.data as { id: number } | null) ?? null;
 
+    const administra =
+      chaves.includes("manage.gente.avaliacao") ||
+      chaves.includes("manage.gente.clima") ||
+      chaves.includes("manage.gente.pdi");
+
     const vazio: ResumoMenuGente = {
       noCadastro: false,
       lideraAlguem: false,
       emCiclo: false,
+      verAvaliacao: chaves.includes("manage.gente.avaliacao"),
       temPdi: false,
-      administra:
-        chaves.includes("manage.gente.avaliacao") ||
-        chaves.includes("manage.gente.clima") ||
-        chaves.includes("manage.gente.pdi"),
+      administra,
       // `data.scope.own_unit_only` é a trava de unidade. Quem não a tem enxerga
       // a rede, e é para essa pessoa que a tabela de adoção existe.
       redeInteira: !chaves.includes("data.scope.own_unit_only"),
@@ -86,6 +98,7 @@ export const resumoMenuGente = createServerFn({ method: "GET" })
       noCadastro: true,
       lideraAlguem: (timeRes?.count ?? 0) > 0,
       emCiclo: (cicloRes?.count ?? 0) > 0,
+      verAvaliacao: (cicloRes?.count ?? 0) > 0 || chaves.includes("manage.gente.avaliacao"),
       temPdi: (pdiRes?.count ?? 0) > 0,
     };
   });

@@ -76,7 +76,14 @@ export type Item = {
    * separa é lidera alguém, está em ciclo, tem PDI. Quem avalia a flag é a
    * lateral, contra `resumoMenuGente`.
    */
-  flag?: "lideraAlguem" | "emCiclo" | "temPdi" | "administra" | "redeInteira" | "noCadastro";
+  flag?:
+    | "lideraAlguem"
+    | "emCiclo"
+    | "verAvaliacao"
+    | "temPdi"
+    | "administra"
+    | "redeInteira"
+    | "noCadastro";
 };
 
 // Os grupos do menu.
@@ -331,8 +338,7 @@ export const AREAS: Area[] = [
   {
     slug: "people",
     nome: "Planning People",
-    descricao:
-      "As pessoas das unidades: cadastro, conversas, desenvolvimento, avaliação e clima.",
+    descricao: "As pessoas das unidades: cadastro, conversas, desenvolvimento, avaliação e clima.",
     icone: UsersRound,
     grupos: [
       // Módulo a módulo na lateral, a pedido de quem vai implantar o produto
@@ -375,7 +381,7 @@ export const AREAS: Area[] = [
             title: "Avaliação",
             url: "/gente?tela=avaliacao",
             icon: Target,
-            flag: "emCiclo",
+            flag: "verAvaliacao",
           },
           { title: "PDI", url: "/gente?tela=pdi", icon: GraduationCap, flag: "temPdi" },
         ],
