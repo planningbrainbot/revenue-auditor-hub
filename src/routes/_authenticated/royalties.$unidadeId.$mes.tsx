@@ -440,6 +440,10 @@ function ApuracaoLoaded({
         razao_social: i.razao_social,
         cnpj: i.cnpj,
         data_ganho: i.data_ganho,
+        // `entrada_contrato_assinado_em` é a data de assinatura já consolidada
+        // em contratos: o card do Pipefy quando existe, senão a entrada no
+        // stage "Contrato Assinado" do Pipedrive.
+        data_assinatura: i.entrada_contrato_assinado_em,
         valor_confirmado: valor,
         royalties_percentual: pct,
         royalties_item: (valor * pct) / 100,

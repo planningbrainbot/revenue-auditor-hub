@@ -11,6 +11,15 @@ function formatCnpj(s: string | null | undefined): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+// Datas vêm do Postgres como 'AAAA-MM-DD' (coluna `date`, sem hora). Passar por
+// `new Date` interpreta como meia-noite UTC e, em UTC-3, imprime o dia anterior.
+// Fatiar a string devolve exatamente o dia que está gravado.
+function formatData(v: string | null | undefined): string {
+  if (!v) return "—";
+  const [y, m, d] = v.slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : v;
+}
+
 const BRL = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString("pt-BR", {
     style: "currency",
@@ -47,6 +56,7 @@ export interface DemonstrativoItem {
   razao_social: string;
   cnpj: string | null;
   data_ganho: string | null;
+  data_assinatura: string | null;
   valor_confirmado: number;
   royalties_percentual: number;
   royalties_item: number;
@@ -158,7 +168,7 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
 
   let cursorY = kpiY + kpiRows.length * kpiRowHeight + 26;
 
-  const itemTable = (title: string, rows: DemonstrativoItem[]) => {
+  const itemTable = (title: string, rows: DemonstrativoItem[], valorLabel: string) => {
     if (rows.length === 0) return;
     if (cursorY > 680) {
       doc.addPage();
@@ -169,22 +179,26 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
     doc.text(title, 40, cursorY);
     autoTable(doc, {
       startY: cursorY + 8,
-      head: [["Cliente", "CNPJ", "Data do ganho", "Valor", "%", "Royalties"]],
+      head: [["Cliente", "CNPJ", "Data do ganho", "Assinatura do contrato", "Valor", "%", valorLabel]],
       body: rows.map((r) => [
         r.razao_social,
         formatCnpj(r.cnpj),
-        r.data_ganho ? new Date(r.data_ganho).toLocaleDateString("pt-BR") : "—",
+        formatData(r.data_ganho),
+        formatData(r.data_assinatura),
         BRL(r.valor_confirmado),
         `${r.royalties_percentual}%`,
         BRL(r.royalties_item),
       ]),
-      styles: { fontSize: 9, cellPadding: 4 },
+      styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: BRAND_GREEN, textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 150 },
-        3: { halign: "right" },
+        0: { cellWidth: 118 },
+        1: { cellWidth: 82 },
+        2: { cellWidth: 54, halign: "center" },
+        3: { cellWidth: 54, halign: "center" },
         4: { halign: "right" },
-        5: { halign: "right" },
+        5: { cellWidth: 30, halign: "right" },
+        6: { halign: "right" },
       },
       margin: { left: 40, right: 40 },
     });
@@ -214,9 +228,9 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
     cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 24;
   }
 
-  itemTable("Clientes — royalties", royalties);
-  itemTable("Clientes — CAC", cac);
-  itemTable("Base antiga — CSC variável", baseAntiga);
+  itemTable("Clientes — royalties", royalties, "Royalties");
+  itemTable("Clientes — CAC", cac, "Total a cobrar");
+  itemTable("Base antiga — CSC variável", baseAntiga, "CSC variável");
 
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageCount = doc.getNumberOfPages();
@@ -371,25 +385,42 @@ function buildResumoSheet(data: DemonstrativoData): WorkSheet {
   return ws;
 }
 
-const ITEM_HEADER = ["Cliente", "CNPJ", "Data do ganho", "Valor (R$)", "%", "Royalties (R$)"];
-const ITEM_MONEY_COLS = new Set([3, 5]);
-const ITEM_PCT_COLS = new Set([4]);
+const ITEM_MONEY_COLS = new Set([4, 6]);
+const ITEM_PCT_COLS = new Set([5]);
 
-function buildItemSheet(rows: DemonstrativoItem[]): WorkSheet {
+function buildItemSheet(rows: DemonstrativoItem[], valorLabel: string): WorkSheet {
+  const ITEM_HEADER = [
+    "Cliente",
+    "CNPJ",
+    "Data do ganho",
+    "Assinatura do contrato",
+    "Valor (R$)",
+    "%",
+    `${valorLabel} (R$)`,
+  ];
   const aoa: (string | number)[][] = [
     ITEM_HEADER,
     ...rows.map((r) => [
       r.razao_social,
       formatCnpj(r.cnpj),
-      r.data_ganho ? new Date(r.data_ganho).toLocaleDateString("pt-BR") : "—",
+      formatData(r.data_ganho),
+      formatData(r.data_assinatura),
       Number(r.valor_confirmado ?? 0),
       Number(r.royalties_percentual ?? 0),
       Number(r.royalties_item ?? 0),
     ]),
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 38 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }];
-  ws["!autofilter"] = { ref: `A1:F${aoa.length}` };
+  ws["!cols"] = [
+    { wch: 38 },
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 10 },
+    { wch: 18 },
+  ];
+  ws["!autofilter"] = { ref: `A1:G${aoa.length}` };
   ws["!views"] = [{ state: "frozen", ySplit: 1 }];
 
   ITEM_HEADER.forEach((_, c) => {
@@ -446,13 +477,13 @@ export function gerarDemonstrativoRoyaltiesXlsx(data: DemonstrativoData) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildResumoSheet(data), "Resumo");
   if (royalties.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(royalties), "Clientes - royalties");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(royalties, "Royalties"), "Clientes - royalties");
   }
   if (cac.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(cac), "Clientes - CAC");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(cac, "Total a cobrar"), "Clientes - CAC");
   }
   if (baseAntiga.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(baseAntiga), "Base antiga - CSC");
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(baseAntiga, "CSC variável"), "Base antiga - CSC");
   }
   if (data.outrasReceitasItens.length > 0) {
     XLSX.utils.book_append_sheet(wb, buildOutrasReceitasSheet(data.outrasReceitasItens), "Outras receitas");
