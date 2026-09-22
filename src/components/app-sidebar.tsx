@@ -59,6 +59,7 @@ import {
 import { ChevronsUpDown, Eye } from "lucide-react";
 import { VerComoDialog } from "@/components/ver-como/ver-como-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { resumoMenuGente, type ResumoMenuGente } from "@/lib/gente-menu.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
@@ -113,8 +114,28 @@ export function AppSidebar() {
   // fronteira do menu e a da confiança não coincidem (a Matriz do broker).
   // Item com `chave` também exige a página: o colaborador de unidade recebe só
   // algumas páginas da área, e o menu não pode oferecer as outras.
+  // Condição de FATO, para o Planning People. A área concede todas as chaves,
+  // então `can()` não separa quem lidera de quem só responde; quem separa é
+  // `resumoMenuGente`. Só busca para quem tem a área, e o resultado vale a
+  // sessão inteira.
+  const temPeople = !loading && temArea("people");
+  const resumoFn = useServerFn(resumoMenuGente);
+  const resumo = useQuery<ResumoMenuGente>({
+    queryKey: ["gente-menu"],
+    queryFn: () => resumoFn({}),
+    enabled: temPeople,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Enquanto o resumo não chega, o item com flag não aparece. Piscar o menu
+  // todo e depois esconder metade é pior do que aparecer um pouco depois.
+  const passaNaFlag = (item: Item) => !item.flag || Boolean(resumo.data?.[item.flag]);
+
   const podeVer = (area: Area, item: Item) =>
-    !loading && temArea(areaDoItem(area, item)) && (!item.chave || can(item.chave));
+    !loading &&
+    temArea(areaDoItem(area, item)) &&
+    (!item.chave || can(item.chave)) &&
+    passaNaFlag(item);
 
   // Área fora do alcance do papel não aparece: nem na lateral, nem no seletor
   // do topo. Antes o corte era por item, e um papel com uma página de oito
@@ -130,8 +151,7 @@ export function AppSidebar() {
   const areasVisiveis = AREAS.filter(
     (a) =>
       !loading &&
-      (temArea(a.slug) ||
-        a.grupos.some((g) => g.items.some((i) => i.area && temArea(i.area)))),
+      (temArea(a.slug) || a.grupos.some((g) => g.items.some((i) => i.area && temArea(i.area)))),
   )
     .map((a) => ({
       ...a,
@@ -311,7 +331,12 @@ export function AppSidebar() {
                 O super admin faz isso pela Administração, logo abaixo. */}
             {mostrarEquipe && (
               <SidebarMenuItem>
-                <SidebarMenuButton asChild size="sm" isActive={pathname === "/equipe"} tooltip="Minha equipe">
+                <SidebarMenuButton
+                  asChild
+                  size="sm"
+                  isActive={pathname === "/equipe"}
+                  tooltip="Minha equipe"
+                >
                   <Link to="/equipe" className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-4 w-4 shrink-0" />
                     <span>Minha equipe</span>

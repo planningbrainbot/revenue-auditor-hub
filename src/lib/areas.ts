@@ -68,6 +68,15 @@ export type Item = {
    * área, então ter a área não basta: o item só aparece com a chave.
    */
   chave?: string;
+  /**
+   * Condição de FATO para o item aparecer, quando permissão não resolve.
+   *
+   * No Planning People a área concede todas as chaves, então `can()` responde
+   * `true` para todo mundo e não separa o colaborador de quem administra. O que
+   * separa é lidera alguém, está em ciclo, tem PDI. Quem avalia a flag é a
+   * lateral, contra `resumoMenuGente`.
+   */
+  flag?: "lideraAlguem" | "emCiclo" | "temPdi" | "administra" | "redeInteira" | "noCadastro";
 };
 
 // Os grupos do menu.
@@ -322,27 +331,65 @@ export const AREAS: Area[] = [
   {
     slug: "people",
     nome: "Planning People",
-    descricao: "As pessoas das unidades, por quem olha: eu, meu time, minha unidade e a rede.",
+    descricao:
+      "As pessoas das unidades: cadastro, conversas, desenvolvimento, avaliação e clima.",
     icone: UsersRound,
     grupos: [
+      // Módulo a módulo na lateral, a pedido de quem vai implantar o produto
+      // na rede (22/09/2026): "assim o usuário entra só no módulo que deseja".
+      //
+      // A diferença para o desenho antigo, que também era por módulo, está em
+      // `flag`: o item só aparece para quem aquele módulo serve. Quem implanta
+      // vê os onze; quem só responde vê meia dúzia. Antes eram oito iguais para
+      // todo mundo, e seis vinham vazios para a maioria.
       {
-        // Um item por VISÃO, não um por módulo. Eram oito itens, um por produto,
-        // e o colaborador via seis que não eram dele.
-        label: "Visões",
+        label: "Minha rotina",
         items: [
-          { title: "Minha vez", url: "/gente?visao=minha-vez", icon: UserCheck },
-          { title: "Meu time", url: "/gente?visao=meu-time", icon: Users },
-          { title: "Minha unidade", url: "/gente?visao=minha-unidade", icon: Store },
-          { title: "Rede", url: "/gente?visao=rede", icon: Activity },
+          { title: "Minha vez", url: "/gente?tela=minha-vez", icon: UserCheck },
+          {
+            title: "Meu time",
+            url: "/gente?tela=meu-time",
+            icon: Users,
+            flag: "lideraAlguem",
+          },
         ],
       },
       {
-        label: "Operação",
+        label: "Conversas",
+        items: [
+          { title: "1:1", url: "/gente?tela=um-a-um", icon: CalendarClock },
+          {
+            title: "Sentimento e prioridades",
+            url: "/gente?tela=lideranca",
+            icon: HeartPulse,
+            flag: "noCadastro",
+          },
+          { title: "Feedback", url: "/gente?tela=feedback", icon: MessageSquarePlus },
+          { title: "Elogios", url: "/gente?tela=elogios", icon: Sparkles },
+        ],
+      },
+      {
+        label: "Desenvolvimento",
         items: [
           {
-            title: "Administração",
-            url: "/gente?visao=admin",
-            icon: UserCog,
+            title: "Avaliação",
+            url: "/gente?tela=avaliacao",
+            icon: Target,
+            flag: "emCiclo",
+          },
+          { title: "PDI", url: "/gente?tela=pdi", icon: GraduationCap, flag: "temPdi" },
+        ],
+      },
+      {
+        label: "A rede",
+        items: [
+          { title: "Cadastro", url: "/gente?tela=cadastro", icon: BookUser },
+          { title: "Clima", url: "/gente?tela=clima", icon: Gauge, flag: "administra" },
+          {
+            title: "Adoção por unidade",
+            url: "/gente?tela=adocao",
+            icon: Activity,
+            flag: "redeInteira",
           },
         ],
       },

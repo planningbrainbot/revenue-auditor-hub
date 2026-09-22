@@ -9,10 +9,8 @@ import {
 import { listAvaliacao, type AvaliacaoResult } from "@/lib/gente-avaliacao.functions";
 import { listPdi, type PdiResult } from "@/lib/gente-pdi.functions";
 import { listAdocao, type AdocaoRow } from "@/lib/gente-adocao.functions";
-import { GenteView } from "@/components/gente/gente-view";
-import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
-import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
-import { GenteLiderancaTab, GenteElogiosTab } from "@/components/gente/gente-lideranca-tab";
+import { GenteUmAUmTab } from "@/components/gente/gente-conversas-tab";
+import { GenteLiderancaTab } from "@/components/gente/gente-lideranca-tab";
 import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
 import { Card } from "@/components/ui/card";
@@ -130,13 +128,13 @@ export function VisaoMinhaVez() {
 
   return (
     <div className="space-y-4">
+      {/* A fila do dia, e só. 1:1, feedback e elogios têm item próprio no
+          menu desde 22/09/2026 e não se repetem aqui: "Minha vez" é o que
+          espera por mim, não um índice de tudo. */}
       <Pendencias itens={itens} vazio="Nada pendente para você agora." />
       <GenteLiderancaTab escopo="eu" />
       <GenteAvaliacaoTab escopo="eu" />
       <GentePdiTab escopo="eu" />
-      <GenteUmAUmTab escopo="eu" />
-      <GenteFeedbackTab />
-      <GenteElogiosTab />
     </div>
   );
 }
@@ -194,7 +192,7 @@ export function VisaoMeuTime() {
 
 // A tabela de quem implanta. Tudo agregado, sem nome dentro, porque quem
 // implanta precisa saber onde a ferramenta pegou e não quem respondeu o quê.
-function Adocao() {
+export function Adocao() {
   const fn = useServerFn(listAdocao);
   const { data } = useQuery<AdocaoRow[]>({ queryKey: ["gente-adocao"], queryFn: () => fn({}) });
   if (!data?.length) return null;
@@ -268,66 +266,6 @@ function Adocao() {
 
 // --------------------------------------------------------------- Minha unidade
 
-export function VisaoMinhaUnidade() {
-  return (
-    <div className="space-y-4">
-      <Explicacao>
-        A unidade inteira, do jeito que a sua permissão permite: nominal para quem tem leitura
-        individual, números por unidade para quem não tem. O recorte por unidade é do banco, não
-        desta tela.
-      </Explicacao>
-      <Adocao />
-      <GenteView />
-      <GenteClimaTab />
-    </div>
-  );
-}
-
 // ----------------------------------------------------------------------- Rede
 
-export function VisaoRede() {
-  return (
-    <div className="space-y-4">
-      <Explicacao>
-        Comparação entre unidades. É a visão da Matriz: headcount, cobertura de gestor e clima lado
-        a lado, para responder se a unidade que entrega tem gente melhor acompanhada ou só tem gente
-        demais.
-      </Explicacao>
-      <GenteView />
-      <GenteClimaTab />
-    </div>
-  );
-}
-
 // -------------------------------------------------------------- Administração
-
-export function VisaoAdmin() {
-  const { avaliacao } = useDados();
-  return (
-    <div className="space-y-4">
-      <Explicacao>
-        Operação do produto: conduzir ciclo, calibrar, liberar devolutiva e montar pesquisa. Some
-        para quem não administra.
-      </Explicacao>
-      <GenteAvaliacaoTab escopo="admin" />
-      <GenteClimaTab />
-      {avaliacao?.podeAdministrar && (
-        <Card className="space-y-2 p-4">
-          <h3 className="font-semibold">O que ainda não tem tela</h3>
-          <p className="text-sm text-muted-foreground">
-            Estas quatro coisas existem no banco e hoje só entram por script. Enquanto não tiverem
-            tela, peça para quem mexe no banco:
-          </p>
-          <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-            <li>
-              criar ciclo de avaliação, competências, tópicos, perguntas abertas e quem avalia quem
-            </li>
-            <li>admitir, desligar e trocar gestor no cadastro</li>
-            <li>tarefas de 1:1 (a tabela existe e tem registro importado)</li>
-            <li>nine box, que hoje aparece como número na calibração e não como quadro</li>
-          </ul>
-        </Card>
-      )}
-    </div>
-  );
-}
