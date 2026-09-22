@@ -259,57 +259,27 @@ export const AREAS: Area[] = [
   {
     slug: "people",
     nome: "Planning People",
-    descricao: "Pessoas das unidades: cadastro, conversas, desenvolvimento, avaliação e clima.",
+    descricao: "As pessoas das unidades, por quem olha: eu, meu time, minha unidade e a rede.",
     icone: UsersRound,
     grupos: [
       {
-        label: "Pessoas",
+        // Um item por VISÃO, não um por módulo. Eram oito itens, um por produto,
+        // e o colaborador via seis que não eram dele.
+        label: "Visões",
         items: [
-          { title: "Cadastro", url: "/gente", icon: Users },
-          {
-            title: "1:1",
-            url: "/gente?aba=um-a-um",
-            icon: CalendarClock,
-          },
-          {
-            title: "Liderança",
-            url: "/gente?aba=lideranca",
-            icon: HeartPulse,
-          },
+          { title: "Minha vez", url: "/gente?visao=minha-vez", icon: UserCheck },
+          { title: "Meu time", url: "/gente?visao=meu-time", icon: Users },
+          { title: "Minha unidade", url: "/gente?visao=minha-unidade", icon: Store },
+          { title: "Rede", url: "/gente?visao=rede", icon: Activity },
         ],
       },
       {
-        label: "Reconhecimento",
+        label: "Operação",
         items: [
           {
-            title: "Feedback",
-            url: "/gente?aba=feedback",
-            icon: MessageSquarePlus,
-          },
-          {
-            title: "Elogios",
-            url: "/gente?aba=elogios",
-            icon: Sparkles,
-          },
-        ],
-      },
-      {
-        label: "Desenvolvimento",
-        items: [
-          {
-            title: "Avaliação",
-            url: "/gente?aba=avaliacao",
-            icon: Target,
-          },
-          {
-            title: "PDI",
-            url: "/gente?aba=pdi",
-            icon: GraduationCap,
-          },
-          {
-            title: "Clima",
-            url: "/gente?aba=clima",
-            icon: Gauge,
+            title: "Administração",
+            url: "/gente?visao=admin",
+            icon: UserCog,
           },
         ],
       },

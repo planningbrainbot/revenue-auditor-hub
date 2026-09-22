@@ -102,7 +102,12 @@ function ultimoPorPessoa(linhas: SentimentoRow[]): SentimentoRow[] {
   return [...porPessoa.values()].sort((a, b) => b.periodoEm.localeCompare(a.periodoEm));
 }
 
-export function GenteLiderancaTab() {
+// Escopo do bloco: a mesma tela serve "Minha vez" (o que eu respondo) e
+// "Meu time" (o que eu acompanho). Sem isso, o colaborador que não lidera
+// ninguém abriria uma tela com três tabelas vazias embaixo do formulário.
+export type Escopo = "eu" | "time" | "tudo";
+
+export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
   const fn = useServerFn(listLideranca);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery<LiderancaResult>({
@@ -166,89 +171,93 @@ export function GenteLiderancaTab() {
   if (!data.minhaPessoaId) return <SemCadastro />;
 
   const atrasados = data.cadencias.filter((c) => c.atrasado);
+  const mostraEu = escopo !== "time";
+  const mostraTime = escopo !== "eu";
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="space-y-3 p-4">
-          <div className="flex items-center gap-2">
-            <HeartPulse className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold">Como foi sua semana?</h3>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Semana de {fmtData(semana)}. Responder de novo corrige a resposta, não cria outra. Seu
-            gestor vê; a unidade não.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {ESCALA_NOVA.map((opcao) => (
-              <Button
-                key={opcao.valor}
-                type="button"
-                size="sm"
-                variant={rate === opcao.valor ? "default" : "outline"}
-                onClick={() => setRate(opcao.valor)}
-              >
-                {opcao.rotulo}
-              </Button>
+      {mostraEu && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="space-y-3 p-4">
+            <div className="flex items-center gap-2">
+              <HeartPulse className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold">Como foi sua semana?</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Semana de {fmtData(semana)}. Responder de novo corrige a resposta, não cria outra. Seu
+              gestor vê; a unidade não.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ESCALA_NOVA.map((opcao) => (
+                <Button
+                  key={opcao.valor}
+                  type="button"
+                  size="sm"
+                  variant={rate === opcao.valor ? "default" : "outline"}
+                  onClick={() => setRate(opcao.valor)}
+                >
+                  {opcao.rotulo}
+                </Button>
+              ))}
+            </div>
+            <Textarea
+              placeholder="Quer dizer alguma coisa? (opcional)"
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              rows={2}
+            />
+            <Button
+              size="sm"
+              onClick={() => gravarSentimento.mutate()}
+              disabled={gravarSentimento.isPending}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Registrar
+            </Button>
+            {data.meusSentimentos.length > 0 && (
+              <div className="pt-2 text-xs text-muted-foreground">
+                Últimas:{" "}
+                {data.meusSentimentos
+                  .slice(0, 6)
+                  .map((s) => `${fmtData(s.periodoEm)} ${rotuloRate(s.rate)}`)
+                  .join(" · ")}
+              </div>
+            )}
+          </Card>
+
+          <Card className="space-y-3 p-4">
+            <div className="flex items-center gap-2">
+              <ListChecks className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold">Minhas prioridades da semana</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              No máximo três. Prioridade é o que fica de fora, não o que entra.
+            </p>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-1">
+                <Label className="text-xs">Prioridade {i + 1}</Label>
+                <Input
+                  value={prioridades[i] ?? ""}
+                  onChange={(e) => {
+                    const copia = [...prioridades];
+                    copia[i] = e.target.value;
+                    setPrioridades(copia);
+                  }}
+                />
+              </div>
             ))}
-          </div>
-          <Textarea
-            placeholder="Quer dizer alguma coisa? (opcional)"
-            value={comentario}
-            onChange={(e) => setComentario(e.target.value)}
-            rows={2}
-          />
-          <Button
-            size="sm"
-            onClick={() => gravarSentimento.mutate()}
-            disabled={gravarSentimento.isPending}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            Registrar
-          </Button>
-          {data.meusSentimentos.length > 0 && (
-            <div className="pt-2 text-xs text-muted-foreground">
-              Últimas:{" "}
-              {data.meusSentimentos
-                .slice(0, 6)
-                .map((s) => `${fmtData(s.periodoEm)} ${rotuloRate(s.rate)}`)
-                .join(" · ")}
-            </div>
-          )}
-        </Card>
+            <Button
+              size="sm"
+              onClick={() => gravarPrioridades.mutate()}
+              disabled={gravarPrioridades.isPending}
+            >
+              Salvar prioridades
+            </Button>
+          </Card>
+        </div>
+      )}
 
-        <Card className="space-y-3 p-4">
-          <div className="flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold">Minhas prioridades da semana</h3>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            No máximo três. Prioridade é o que fica de fora, não o que entra.
-          </p>
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="space-y-1">
-              <Label className="text-xs">Prioridade {i + 1}</Label>
-              <Input
-                value={prioridades[i] ?? ""}
-                onChange={(e) => {
-                  const copia = [...prioridades];
-                  copia[i] = e.target.value;
-                  setPrioridades(copia);
-                }}
-              />
-            </div>
-          ))}
-          <Button
-            size="sm"
-            onClick={() => gravarPrioridades.mutate()}
-            disabled={gravarPrioridades.isPending}
-          >
-            Salvar prioridades
-          </Button>
-        </Card>
-      </div>
-
-      {data.meuTime.length > 0 && (
+      {mostraTime && data.meuTime.length > 0 && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-primary" />
@@ -315,7 +324,7 @@ export function GenteLiderancaTab() {
         </Card>
       )}
 
-      {timeSentimento.length > 0 && (
+      {mostraTime && timeSentimento.length > 0 && (
         <Card className="p-4">
           <h3 className="mb-3 font-semibold">Pulso do time</h3>
           <Table>
@@ -343,7 +352,7 @@ export function GenteLiderancaTab() {
         </Card>
       )}
 
-      {data.prioridadesDoTime.length > 0 && (
+      {mostraTime && data.prioridadesDoTime.length > 0 && (
         <Card className="p-4">
           <h3 className="mb-3 font-semibold">Prioridades do time</h3>
           <Table>

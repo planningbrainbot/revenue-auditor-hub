@@ -1,38 +1,49 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GenteView } from "@/components/gente/gente-view";
-import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
-import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
-import { GenteLiderancaTab, GenteElogiosTab } from "@/components/gente/gente-lideranca-tab";
-import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
-import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
+import {
+  VisaoMinhaVez,
+  VisaoMeuTime,
+  VisaoMinhaUnidade,
+  VisaoRede,
+  VisaoAdmin,
+} from "@/components/gente/gente-visoes";
 
-// A aba vem da URL para o menu poder apontar direto para 1:1 e Feedback, em vez
-// de jogar todo mundo no Cadastro e obrigar a clicar de novo.
-type Aba =
-  "cadastro" | "um-a-um" | "lideranca" | "feedback" | "elogios" | "avaliacao" | "pdi" | "clima";
-const ABAS: Aba[] = [
-  "cadastro",
-  "um-a-um",
-  "lideranca",
-  "feedback",
-  "elogios",
-  "avaliacao",
-  "pdi",
-  "clima",
-];
+// A visão vem da URL para o menu apontar direto, e para dar link no WhatsApp
+// ("abre /gente?visao=meu-time").
+//
+// Organização por QUEM USA, não por módulo. O desenho anterior tinha oito abas,
+// uma por produto (Cadastro, 1:1, Liderança, Feedback, Elogios, Avaliação, PDI,
+// Clima), copiado do Qulture: o colaborador abria oito e seis não eram dele.
+// Aqui são cinco, e cada uma só aparece para quem ela serve.
+type Visao = "minha-vez" | "meu-time" | "minha-unidade" | "rede" | "admin";
+const VISOES: Visao[] = ["minha-vez", "meu-time", "minha-unidade", "rede", "admin"];
+
+// As abas antigas continuam funcionando como link: quem tiver `?aba=clima`
+// salvo cai na visão que hoje mostra clima, em vez de numa página em branco.
+const ABA_ANTIGA: Record<string, Visao> = {
+  cadastro: "minha-unidade",
+  "um-a-um": "meu-time",
+  lideranca: "minha-vez",
+  feedback: "minha-vez",
+  elogios: "minha-vez",
+  avaliacao: "minha-vez",
+  pdi: "minha-vez",
+  clima: "minha-unidade",
+};
 
 export const Route = createFileRoute("/_authenticated/gente")({
-  validateSearch: (busca: Record<string, unknown>): { aba: Aba } => {
-    const bruta = String(busca?.aba ?? "cadastro");
-    return { aba: (ABAS as string[]).includes(bruta) ? (bruta as Aba) : "cadastro" };
+  validateSearch: (busca: Record<string, unknown>): { visao: Visao } => {
+    const bruta = String(busca?.visao ?? "");
+    if ((VISOES as string[]).includes(bruta)) return { visao: bruta as Visao };
+    const antiga = ABA_ANTIGA[String(busca?.aba ?? "")];
+    return { visao: antiga ?? "minha-vez" };
   },
   component: GentePage,
 });
 
 function GentePage() {
-  const { aba } = useSearch({ from: "/_authenticated/gente" });
+  const { visao } = useSearch({ from: "/_authenticated/gente" });
   const navegar = Route.useNavigate();
 
   return (
@@ -42,49 +53,37 @@ function GentePage() {
         <div>
           <h1 className="text-2xl font-bold">Planning People</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastro, conversas, desenvolvimento e avaliação das pessoas das unidades. Cada unidade
-            enxerga só a sua, e dentro dela vale a hierarquia.
+            As pessoas das unidades, vistas de onde você está. Cada unidade enxerga só a sua, e
+            dentro dela vale a hierarquia.
           </p>
         </div>
       </div>
 
       <Tabs
-        value={aba}
-        onValueChange={(v) => navegar({ search: { aba: v as Aba }, replace: true })}
+        value={visao}
+        onValueChange={(v) => navegar({ search: { visao: v as Visao }, replace: true })}
       >
         <TabsList className="flex-wrap">
-          <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
-          <TabsTrigger value="um-a-um">1:1</TabsTrigger>
-          <TabsTrigger value="lideranca">Liderança</TabsTrigger>
-          <TabsTrigger value="feedback">Feedback</TabsTrigger>
-          <TabsTrigger value="elogios">Elogios</TabsTrigger>
-          <TabsTrigger value="avaliacao">Avaliação</TabsTrigger>
-          <TabsTrigger value="pdi">PDI</TabsTrigger>
-          <TabsTrigger value="clima">Clima</TabsTrigger>
+          <TabsTrigger value="minha-vez">Minha vez</TabsTrigger>
+          <TabsTrigger value="meu-time">Meu time</TabsTrigger>
+          <TabsTrigger value="minha-unidade">Minha unidade</TabsTrigger>
+          <TabsTrigger value="rede">Rede</TabsTrigger>
+          <TabsTrigger value="admin">Administração</TabsTrigger>
         </TabsList>
-        <TabsContent value="cadastro" className="mt-4">
-          <GenteView />
+        <TabsContent value="minha-vez" className="mt-4">
+          <VisaoMinhaVez />
         </TabsContent>
-        <TabsContent value="um-a-um" className="mt-4">
-          <GenteUmAUmTab />
+        <TabsContent value="meu-time" className="mt-4">
+          <VisaoMeuTime />
         </TabsContent>
-        <TabsContent value="lideranca" className="mt-4">
-          <GenteLiderancaTab />
+        <TabsContent value="minha-unidade" className="mt-4">
+          <VisaoMinhaUnidade />
         </TabsContent>
-        <TabsContent value="feedback" className="mt-4">
-          <GenteFeedbackTab />
+        <TabsContent value="rede" className="mt-4">
+          <VisaoRede />
         </TabsContent>
-        <TabsContent value="elogios" className="mt-4">
-          <GenteElogiosTab />
-        </TabsContent>
-        <TabsContent value="avaliacao" className="mt-4">
-          <GenteAvaliacaoTab />
-        </TabsContent>
-        <TabsContent value="pdi" className="mt-4">
-          <GentePdiTab />
-        </TabsContent>
-        <TabsContent value="clima" className="mt-4">
-          <GenteClimaTab />
+        <TabsContent value="admin" className="mt-4">
+          <VisaoAdmin />
         </TabsContent>
       </Tabs>
     </div>

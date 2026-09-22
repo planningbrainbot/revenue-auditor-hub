@@ -206,7 +206,10 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
   );
 }
 
-export function GentePdiTab() {
+// "eu" é o meu plano; "time" é o acompanhamento de quem eu lidero.
+export type Escopo = "eu" | "time" | "tudo";
+
+export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
   const fn = useServerFn(listPdi);
   const criarFn = useServerFn(criarPdi);
   const qc = useQueryClient();
@@ -242,8 +245,10 @@ export function GentePdiTab() {
       </Card>
     );
 
-  const meus = data.planos.filter((p) => p.souEu);
-  const doTime = data.planos.filter((p) => !p.souEu);
+  const mostraEu = escopo !== "time";
+  const mostraTime = escopo !== "eu";
+  const meus = mostraEu ? data.planos.filter((p) => p.souEu) : [];
+  const doTime = mostraTime ? data.planos.filter((p) => !p.souEu) : [];
   const cicloAtivo = data.ciclos.find((c) => c.status === "ativo");
 
   return (
@@ -253,7 +258,7 @@ export function GentePdiTab() {
         <h3 className="font-semibold">Plano de desenvolvimento individual</h3>
       </div>
 
-      {meus.length === 0 && cicloAtivo && (
+      {mostraEu && meus.length === 0 && cicloAtivo && (
         <Card className="flex flex-wrap items-center gap-3 p-4">
           <span className="text-sm">
             Você ainda não tem PDI no ciclo <strong>{cicloAtivo.nome}</strong>.
@@ -272,7 +277,7 @@ export function GentePdiTab() {
         />
       ))}
 
-      {data.andamento.length > 0 && (
+      {mostraTime && data.andamento.length > 0 && (
         <Card className="p-4">
           <h3 className="mb-3 font-semibold">Andamento do time</h3>
           <Table>

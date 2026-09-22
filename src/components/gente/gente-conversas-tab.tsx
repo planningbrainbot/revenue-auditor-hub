@@ -64,7 +64,11 @@ function SemCadastro() {
   );
 }
 
-export function GenteUmAUmTab() {
+// "eu" mostra só os 1:1 em que sou liderado; "time" mostra a cobertura, o
+// formulário de registrar e os 1:1 em que sou gestor.
+export type EscopoUmAUm = "eu" | "time" | "tudo";
+
+export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}) {
   const fn = useServerFn(listConversas);
   const salvarFn = useServerFn(salvarUmAUm);
   const qc = useQueryClient();
@@ -120,9 +124,15 @@ export function GenteUmAUmTab() {
   }
   if (!q.data?.minhaPessoaId) return <SemCadastro />;
 
-  const time = q.data.meuTime;
+  const mostraTime = escopo !== "eu";
+  const time = mostraTime ? q.data.meuTime : [];
   const cobertura = q.data.cobertura.filter((c) => c.pessoaId !== q.data?.minhaPessoaId);
-  const conversas = q.data.umAUm;
+  const conversas =
+    escopo === "eu"
+      ? q.data.umAUm.filter((c) => !c.souGestor)
+      : escopo === "time"
+        ? q.data.umAUm.filter((c) => c.souGestor)
+        : q.data.umAUm;
 
   return (
     <div className="space-y-4">

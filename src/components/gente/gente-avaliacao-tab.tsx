@@ -198,7 +198,11 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
   );
 }
 
-export function GenteAvaliacaoTab() {
+// "eu" é a fila do avaliador e o próprio resultado; "admin" é a condução do
+// ciclo. Quem só responde não precisa ver a tabela de calibração da unidade.
+export type Escopo = "eu" | "admin" | "tudo";
+
+export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
   const fn = useServerFn(listAvaliacao);
   const calibrarFn = useServerFn(salvarCalibracao);
   const devolutivaFn = useServerFn(liberarDevolutiva);
@@ -243,136 +247,144 @@ export function GenteAvaliacaoTab() {
       </Card>
     );
 
+  const mostraEu = escopo !== "admin";
+  const mostraAdmin = escopo !== "eu";
   const calibracaoDoCiclo = data.calibracao.filter(
     (c) => !cicloAberto || String(c.cicloId) === cicloAberto,
   );
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Target className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold">Ciclos</h3>
-        </div>
-        {data.ciclos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum ciclo cadastrado.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ciclo</TableHead>
-                <TableHead>Início</TableHead>
-                <TableHead>Situação</TableHead>
-                <TableHead className="text-right">Avaliados</TableHead>
-                <TableHead className="text-right">Avaliações</TableHead>
-                <TableHead className="text-right">Concluídas</TableHead>
-                {data.podeAdministrar && <TableHead className="text-right">Devolutiva</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.ciclos.map((ciclo) => (
-                <TableRow key={ciclo.id}>
-                  <TableCell className="font-medium">{ciclo.nome}</TableCell>
-                  <TableCell>{fmtData(ciclo.periodoInicio)}</TableCell>
-                  <TableCell>
-                    <Badge variant={ciclo.origem === "qulture" ? "outline" : "secondary"}>
-                      {STATUS_LABEL[ciclo.status] ?? ciclo.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">{ciclo.participantes}</TableCell>
-                  <TableCell className="text-right">{ciclo.avaliacoes}</TableCell>
-                  <TableCell className="text-right">{ciclo.concluidas}</TableCell>
-                  {data.podeAdministrar && (
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => liberar.mutate(ciclo.id)}
-                        disabled={liberar.isPending}
-                      >
-                        Liberar
-                      </Button>
+      {mostraAdmin && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Target className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">Ciclos</h3>
+          </div>
+          {data.ciclos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum ciclo cadastrado.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ciclo</TableHead>
+                  <TableHead>Início</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="text-right">Avaliados</TableHead>
+                  <TableHead className="text-right">Avaliações</TableHead>
+                  <TableHead className="text-right">Concluídas</TableHead>
+                  {data.podeAdministrar && <TableHead className="text-right">Devolutiva</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.ciclos.map((ciclo) => (
+                  <TableRow key={ciclo.id}>
+                    <TableCell className="font-medium">{ciclo.nome}</TableCell>
+                    <TableCell>{fmtData(ciclo.periodoInicio)}</TableCell>
+                    <TableCell>
+                      <Badge variant={ciclo.origem === "qulture" ? "outline" : "secondary"}>
+                        {STATUS_LABEL[ciclo.status] ?? ciclo.status}
+                      </Badge>
                     </TableCell>
+                    <TableCell className="text-right">{ciclo.participantes}</TableCell>
+                    <TableCell className="text-right">{ciclo.avaliacoes}</TableCell>
+                    <TableCell className="text-right">{ciclo.concluidas}</TableCell>
+                    {data.podeAdministrar && (
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => liberar.mutate(ciclo.id)}
+                          disabled={liberar.isPending}
+                        >
+                          Liberar
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      )}
+
+      {mostraEu && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">Minha fila de avaliação</h3>
+            {data.fila.length > 0 && <Badge>{data.fila.length}</Badge>}
+          </div>
+          {data.fila.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nada pendente para você responder.</p>
+          ) : (
+            <div className="space-y-3">
+              {data.fila.map((item) => (
+                <div key={item.id} className="space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAbertos({ ...abertos, [item.id]: !abertos[item.id] })}
+                  >
+                    {abertos[item.id] ? "Fechar" : "Responder"} · {item.avaliadoNome ?? NA} ·{" "}
+                    {TIPO_LABEL[item.tipo] ?? item.tipo}
+                  </Button>
+                  {abertos[item.id] && (
+                    <Formulario
+                      item={item}
+                      aoSalvar={() => {
+                        setAbertos({ ...abertos, [item.id]: false });
+                        qc.invalidateQueries({ queryKey: ["gente-avaliacao"] });
+                      }}
+                    />
                   )}
-                </TableRow>
+                </div>
               ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+            </div>
+          )}
+        </Card>
+      )}
 
-      <Card className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <ClipboardCheck className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold">Minha fila de avaliação</h3>
-          {data.fila.length > 0 && <Badge>{data.fila.length}</Badge>}
-        </div>
-        {data.fila.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nada pendente para você responder.</p>
-        ) : (
-          <div className="space-y-3">
-            {data.fila.map((item) => (
-              <div key={item.id} className="space-y-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAbertos({ ...abertos, [item.id]: !abertos[item.id] })}
-                >
-                  {abertos[item.id] ? "Fechar" : "Responder"} · {item.avaliadoNome ?? NA} ·{" "}
-                  {TIPO_LABEL[item.tipo] ?? item.tipo}
-                </Button>
-                {abertos[item.id] && (
-                  <Formulario
-                    item={item}
-                    aoSalvar={() => {
-                      setAbertos({ ...abertos, [item.id]: false });
-                      qc.invalidateQueries({ queryKey: ["gente-avaliacao"] });
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="p-4">
-        <h3 className="mb-3 font-semibold">Meu resultado</h3>
-        {data.meuResultado.length === 0 ? (
-          <div className="flex items-start gap-2 text-sm text-muted-foreground">
-            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              Enquanto a devolutiva não for liberada, a nota existe e não aparece aqui. É o que
-              permite ao seu gestor escrever com calma e ao comitê calibrar antes da conversa.
-            </p>
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ciclo</TableHead>
-                <TableHead>Tópico</TableHead>
-                <TableHead>Competência</TableHead>
-                <TableHead className="text-right">Média</TableHead>
-                <TableHead className="text-right">Respostas</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.meuResultado.map((linha, i) => (
-                <TableRow key={`${linha.cicloId}-${linha.competencia}-${i}`}>
-                  <TableCell>{linha.cicloNome}</TableCell>
-                  <TableCell>{linha.topico ?? NA}</TableCell>
-                  <TableCell className="font-medium">{linha.competencia}</TableCell>
-                  <TableCell className="text-right">{fmtNota(linha.media)}</TableCell>
-                  <TableCell className="text-right">{linha.respostas}</TableCell>
+      {mostraEu && (
+        <Card className="p-4">
+          <h3 className="mb-3 font-semibold">Meu resultado</h3>
+          {data.meuResultado.length === 0 ? (
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Enquanto a devolutiva não for liberada, a nota existe e não aparece aqui. É o que
+                permite ao seu gestor escrever com calma e ao comitê calibrar antes da conversa.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ciclo</TableHead>
+                  <TableHead>Tópico</TableHead>
+                  <TableHead>Competência</TableHead>
+                  <TableHead className="text-right">Média</TableHead>
+                  <TableHead className="text-right">Respostas</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {data.meuResultado.map((linha, i) => (
+                  <TableRow key={`${linha.cicloId}-${linha.competencia}-${i}`}>
+                    <TableCell>{linha.cicloNome}</TableCell>
+                    <TableCell>{linha.topico ?? NA}</TableCell>
+                    <TableCell className="font-medium">{linha.competencia}</TableCell>
+                    <TableCell className="text-right">{fmtNota(linha.media)}</TableCell>
+                    <TableCell className="text-right">{linha.respostas}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      )}
 
-      {data.podeAdministrar && (
+      {mostraAdmin && data.podeAdministrar && (
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Grid3X3 className="h-4 w-4 text-primary" />
