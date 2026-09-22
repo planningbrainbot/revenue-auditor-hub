@@ -2042,3 +2042,15 @@ Consequências nesta página, todas silenciosas:
 **Bug corrigido no `pipedrive-contratos-sync`:** `CLOSER_LABELS`, `SDR_LABELS` e `REGIME_LABELS` eram cópias congeladas das opções dos campos de seleção do Pipedrive. Opção criada depois da cópia caía em `labels[id] ?? null`: o deal sincronizava inteiro, sem erro, com a coluna vazia. Três closers estavam nessa situação (Anna Carolina 1046, Gabryelly Morais 1058, Gabriella Oliveira 1126), valendo 14 contratos. O sync passa a ler as opções do `/dealFields` a cada rodada, uma chamada, com os mapas fixos como rede se a chamada falhar.
 
 **Pendente, não decidido:** (1) tirar a coluna ERP da tela ou criar o campo no Pipefy e mandar a rede preencher; (2) rodar o backfill de UF (437 pelo Omie, 2.382 pela BrasilAPI, ~50 min por causa do rate limit); (3) os ~20 outros pontos com o mesmo corte de 1000.
+
+## [2026-09-22] O que foi executado da entrada anterior, e o que ficou escolhido
+
+**Publicado.** Front: commit `290da62`, deploy `dpl_5u1whqE1y4LrUFs13eLqDSYABLxH` pela CLI (o webhook Git→Vercel segue parado), READY em produção com o apex `planningbrain.com.br` no alias. Edge Function `pipedrive-contratos-sync` na versão 18, rodada uma vez: 655 deals, 655 contratos, 17s. Contratos ativos com vendedor subiram de 224 para 238, exatamente os 14 previstos, com Anna Carolina (4), Gabryelly Morais (5) e Gabriella Oliveira (5).
+
+**Backfill de UF, perna do Omie feita.** 573 linhas de `empresas.uf` preenchidas a partir de `omie_clientes.estado`, casando por CNPJ, só onde `uf` estava nulo. No recorte de `/clientes` a coluna Estado foi de 119 para 556 de 3.219 (3,7% → 17,3%). Conferência antes de gravar: nas 251 linhas em que os dois lados já tinham UF, 246 concordam e 5 divergem (Omie traz o endereço do cadastro no ERP, a BrasilAPI traz a sede fiscal). Nenhuma das divergentes foi sobrescrita.
+
+Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no check `empresas_unidade_nao_e_id` criado ontem, porque `unidade` nela ainda é `1436672193`. É uma das 13 linhas sem resolução daquela correção, não um efeito deste backfill.
+
+**Perna da BrasilAPI: não rodada.** Sobram 2.382 clientes com CNPJ e sem UF, cerca de 50 minutos por causa do rate limit. Decisão do dono: fica para uma rodada agendada.
+
+**ERP: fica como está**, por decisão do dono. A coluna continua na tela e continua vazia, e o `FIELD_MAP` do `pipefy-sync` continua apontando para `erp`, `regime_tribut_rio`, `e_mail_fiscal` e `telefone_corporativo`, quatro campos que não existem na database do Pipefy. Nada disso quebra nada hoje, mas quem for mexer no sync precisa saber que esses quatro nomes não têm do outro lado.
