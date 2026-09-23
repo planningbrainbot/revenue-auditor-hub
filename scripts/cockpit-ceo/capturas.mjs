@@ -246,14 +246,19 @@ const cli = await avaliar(`(() => {
 })()`);
 conferir(
   "Frente Clientes mostra as quatro definições com sobreposição",
-  cli.existe && cli.linhas === 4 && /Em pelo menos uma/.test(cli.texto) && /Em todas/.test(cli.texto),
+  cli.existe &&
+    cli.linhas === 4 &&
+    /Em pelo menos uma/.test(cli.texto) &&
+    /Em todas/.test(cli.texto),
   JSON.stringify({ linhas: cli.linhas }),
 );
 conferir(
   "Penetração se declara ganho no CRM e a fonte se identifica como sintética",
   /ganho no CRM/.test(cli.texto) && /não é consumo/.test(cli.texto) && /SINTÉTICO/.test(cli.texto),
 );
-await avaliar(`document.querySelector('[aria-label="Clientes ativos por definição"]').scrollIntoView()`);
+await avaliar(
+  `document.querySelector('[aria-label="Clientes ativos por definição"]').scrollIntoView()`,
+);
 await espera(600);
 await foto("09-clientes-ativos-definicoes");
 
