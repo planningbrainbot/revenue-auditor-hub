@@ -123,12 +123,19 @@ await cdp("Runtime.enable");
 const gravadas = [];
 for (const [tema, modo] of Object.entries(TEMAS)) {
   const { identifier } = await cdp("Page.addScriptToEvaluateOnNewDocument", {
-    source: `try { localStorage.setItem("pb:tema", "${modo}"); } catch {}`,
+    // O cookie vence o localStorage no script de tema da casa, e o app regrava o cookie: os dois.
+    source: `try { document.cookie = "pb_tema=${modo}; path=/"; localStorage.setItem("pb:tema", "${modo}"); } catch {}`,
   });
   for (const [vista, busca] of VISTAS) {
     await cdp("Emulation.setDeviceMetricsOverride", { width: LARGURA, height: ALTURA, deviceScaleFactor: 1, mobile: false });
     await cdp("Page.navigate", { url: base + busca });
-    await esperar(2500);
+    // Espera o conteúdo, não um tempo fixo: na primeira carga o Vite ainda otimiza dependências.
+    for (let i = 0; i < 60 && !(await avaliar("!!document.querySelector('main h1')")); i++)
+      await esperar(500);
+    await esperar(1200);
+    // O tema tem de ser o pedido: a foto de "claro" com a página escura já enganou uma vez.
+    const escuro = await avaliar("document.documentElement.classList.contains('dark')");
+    if (escuro !== (modo === "escuro")) throw new Error(`${tema}/${vista}: tema aplicado não bate`);
     await foto(`${tema}-${vista}-viewport.png`);
     const altura = Math.min(await avaliar("document.documentElement.scrollHeight"), 12000);
     await foto(`${tema}-${vista}-pagina.png`, altura);

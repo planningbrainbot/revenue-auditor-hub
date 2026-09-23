@@ -2,12 +2,12 @@
 
 **Dono de produto:** Pedro Luca   **Usuário:** CEO (Pedro Araújo)   **Dono do código:** Pedro Luca (tela) · Eliezek (casca, área, publicação)   **Data:** 23/09/2026
 
-Estado: **rascunho para aprovação do Pedro.** Nada da tela muda antes do "aprovado".
+Estado: **aprovado pelo Pedro em 23/09/2026** (frentes na lateral, pergunta do título e correção dos destinos).
 
 Base: piloto `feat/cockpit-ceo-piloto` (rodadas 1 e 2, relatório `docs/dev_notes/cockpit-ceo-piloto/relatorio-rodada-2.md`), PRD do cockpit e as entradas de 22/09 do `DECISIONS.md`. Regras de cálculo, consultas, `portas.ts`, RLS e homologação **não mudam** nesta etapa: o contrato descreve o que já existe e como ele passa a ser mostrado.
 
 ## Propósito
-- **Pergunta que responde (vira o `<h1>`, N1):** "Estamos no plano para o bilhão, o que mudou e o que é decisão minha?" *(proposta; a pergunta final é do Pedro)*
+- **Pergunta que responde (vira o `<h1>`, N1):** "Estamos no plano para o bilhão, o que mudou e o que é decisão minha?" *(aprovada pelo Pedro em 23/09)*
 - **Público:** CEO e sócios da matriz. Hoje só o papel `admin` tem a área `cockpit_ceo`.
 - **Decisão ou ação que provoca:** escolher uma das até três decisões da primeira dobra e abrir a tela dona para agir. O cockpit não executa nada (N10).
 - **Métrica de sucesso da tela:** o CEO responde às cinco perguntas do PRD em até um minuto, sem abrir outra tela: status contra o plano, o que mudou, de onde vem o crescimento, o que ameaça e o que ele decide. Todo número abre a composição e a tela dona.
@@ -18,8 +18,8 @@ Base: piloto `feat/cockpit-ceo-piloto` (rodadas 1 e 2, relatório `docs/dev_note
 - **Área própria "Cockpit do CEO"**, com card na tela `/inicio` ("Onde você quer entrar?"). Não entra em Estratégia & Execução. Isso resolve a pendência 5.1 do `PRODUCT.md`.
 - **Rota final:** `/cockpit-ceo`. O `/piloto/cockpit-ceo` continua como preview sintético, só em desenvolvimento (`notFound` em produção sem `VITE_COCKPIT_PILOTO=1`).
 
-## Menu da área (proposta para aprovação · N6)
-Hoje as seis frentes são abas dentro da página (`?frente=`), o que a N6 proíbe: aba que troca de assunto não é filtro. Proposta: as frentes viram itens da lateral da área, como Monetização faz com `?aba=`, e a página deixa de desenhar abas.
+## Menu da área (aprovado em 23/09 · N6)
+No piloto as seis frentes eram abas dentro da página (`?frente=`), o que a N6 proíbe: aba que troca de assunto não é filtro. As frentes viraram itens da lateral da área, como Monetização faz com `?aba=`, e a página deixou de desenhar abas.
 
 | Item do menu (`titulo` = rótulo) | URL | O que mostra |
 |---|---|---|
@@ -31,7 +31,6 @@ Hoje as seis frentes são abas dentro da página (`?frente=`), o que a N6 proíb
 | Retenção e entrega | `/cockpit-ceo?frente=retencao` | coortes de retenção por mês de ganho + perguntas |
 | Capital e evidências | `/cockpit-ceo?frente=capital` | exportação da matriz de evidências + perguntas |
 
-Alternativa (se preferir não mexer na lateral): uma página só, com as frentes empilhadas em `Secao` na rolagem. Fica longa (seis painéis) e perde o link direto por frente.
 
 ## Números da primeira dobra (Visão executiva)
 | Número (rótulo exato) | Definição | Unidade de contagem | Fonte e régua | Frescor | Drill-down (destino) | O destino bate? |
@@ -41,14 +40,14 @@ Alternativa (se preferir não mexer na lateral): uma página só, com as frentes
 | Oportunidades validadas | negócios com evento de validação no período | negócio | idem | idem | idem | não, e a tela avisa |
 | Leads trabalhados | negócios com evento de início de trabalho no período | negócio | idem | idem | idem | não, e a tela avisa |
 | Receita prevista em oportunidades abertas | soma do campo de receita prevista dos negócios abertos já validados; negócio sem valor ou com moeda divergente fica fora e é contado à parte | reais | campo do CRM, valor declarado pelo comercial (não é faturamento nem recebimento) | idem | Temporal e previsão (`/monetizacao?aba=temporal`) | não, e a tela avisa |
-| Contas prontas para trabalhar | contas da Base elegíveis e livres em pelo menos um produto; aptas que só existem no Omie e aptas já em trabalho ficam fora e aparecem na composição | conta | régua de oferta da Base (`oferta`, `estadoProduto`), cadastro conciliado | hora do catálogo da Base | Produtos e listas (`/clientes?view=produtos`) *(hoje aponta para "Base de clientes"; corrigir)* | não, e a tela avisa |
+| Contas prontas para trabalhar | contas da Base elegíveis e livres em pelo menos um produto; aptas que só existem no Omie e aptas já em trabalho ficam fora e aparecem na composição | conta | régua de oferta da Base (`oferta`, `estadoProduto`), cadastro conciliado | hora do catálogo da Base | Produtos e listas (`/clientes?view=produtos`) *(corrigido em 23/09; antes apontava para "Base de clientes")* | não, e a tela avisa |
 
 Seis cards na primeira dobra, até três decisões (N12). Cada card tem `procedencia` e `abrir`. Nenhum mostra 0 no lugar de dado ausente (N4).
 
 ## Números das frentes
 | Painel | Números | Unidade | Fonte e régua | Destino | Bate? |
 |---|---|---|---|---|---|
-| Trajetória (Receita) | média mensal dos meses fechados contíguos, múltiplo necessário até R$ 83,3 mi/mês, 12 meses fechados, crescimento anual necessário (só com 12 meses) — por leitura: **grupo** e **rede**, nunca somadas | reais | grupo: `fn_faturamento_mensal`; rede: apuração de royalties confirmada (`receita_base + receita_base_antiga`); mês corrente e mês parcial na fonte fora | `/financeiro` (grupo), Apuração de Royalties `/unidades/royalties` (rede) *(hoje aponta `/royalties`, redirect silencioso; corrigir)* | não, e a tela avisa |
+| Trajetória (Receita) | média mensal dos meses fechados contíguos, múltiplo necessário até R$ 83,3 mi/mês, 12 meses fechados, crescimento anual necessário (só com 12 meses) — por leitura: **grupo** e **rede**, nunca somadas | reais | grupo: `fn_faturamento_mensal`; rede: apuração de royalties confirmada (`receita_base + receita_base_antiga`); mês corrente e mês parcial na fonte fora | `/financeiro` (grupo), Apuração de Royalties `/unidades/royalties` (rede) *(corrigido em 23/09; antes apontava `/royalties`)* | não, e a tela avisa |
 | Clientes ativos (Clientes) | CNPJs por definição candidata (contrato no Omie · pagou em 90 dias · cadastro · MRR > 0), contas na Base, sem conta, sobreposição par a par, união e interseção; penetração por produto **ganha no CRM** | CNPJ, conta, % | `omie_contratos_servico`, `contas_receber`, `qb_clientes_ativos`, `v_cliente_mrr`; penetração pelo vínculo de organização da Monetização | Contratos e churn `/clientes?view=contratos` | não, e a tela avisa (cada definição é uma régua diferente) |
 | Eventos por dia (Comercial) | leads trabalhados, reuniões marcadas, reuniões realizadas por dia do período | evento | CRM | Operação diária | não, e a tela avisa |
 | Rede por unidade (Rede) | faturamento, participação, royalties + CSC, royalties sobre faturamento, maior unidade, três maiores, HHI — na janela de meses completos | reais, % | apuração de royalties confirmada, centavo por apuração | Apuração de Royalties `/unidades/royalties` | sim (mesma apuração), exceto recebido, que não entra |
@@ -106,11 +105,9 @@ Período inválido volta para o mês atual com aviso (já é assim).
 - Brain Financeiro (`/financeiro`).
 
 ## Pendências (a decidir, não inventadas)
-1. Pergunta final do `<h1>` — Pedro.
-2. Frentes como itens da lateral (proposta acima) ou empilhadas — Pedro.
-3. Perímetro da meta de R$ 1 bi — CEO + Pedro (pendência 5.12).
-4. Qual definição de cliente ativo vale em cada contexto — Pedro + Eliezek (pendência 5.3).
-5. Liberar a área para o CEO, se ele não for `admin` — Pedro + Eliezek.
+1. Perímetro da meta de R$ 1 bi — CEO + Pedro (pendência 5.12).
+2. Qual definição de cliente ativo vale em cada contexto — Pedro + Eliezek (pendência 5.3).
+3. Liberar a área para o CEO, se ele não for `admin` — Pedro + Eliezek.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
