@@ -2069,6 +2069,148 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 
 **ERP: fica como está**, por decisão do dono. A coluna continua na tela e continua vazia, e o `FIELD_MAP` do `pipefy-sync` continua apontando para `erp`, `regime_tribut_rio`, `e_mail_fiscal` e `telefone_corporativo`, quatro campos que não existem na database do Pipefy. Nada disso quebra nada hoje, mas quem for mexer no sync precisa saber que esses quatro nomes não têm do outro lado.
 
+## [2026-09-22] Outras receitas da apuração: o que repete, o que se digita todo mês e o que saiu
+
+**Contexto:** `criarApuracao` copia todas as linhas de `royalties_outras_receitas_itens` da apuração anterior da unidade, para não redigitar a lista. A cópia é cega, e isso produziu três problemas na virada de agosto: o valor do Pipedrive derivou (R$ 335,36 na maioria, R$ 335,00 em Belém e Patos, sem ninguém notar até a conciliação); o Qculture, cujo valor oscila com o número de assentos entre R$ 430,94 e R$ 1.896,18, seria repetido com o valor do mês anterior; e o Power BI continuaria sendo cobrado depois de descontinuado.
+
+**Decisão do dono:** Pipedrive e Panda Pé são recorrentes com valor fixo (R$ 335,36 e R$ 85,00); Qculture tem de ser preenchido mês a mês; Power BI não será mais cobrado.
+
+**Implementação:** tabela `ops.royalties_outras_receitas_politica` (chave, nome canônico, regex sobre `ops.cac_nome_chave(nome)`, modo `fixo`/`mensal`/`descontinuado`, valor) e a função `ops.royalties_aplicar_politica_outras(apuracao_id)`, chamada por `criarApuracao` logo depois da cópia. Fixa assume o valor do catálogo, mensal nasce zerada, descontinuada é removida.
+
+**Por que política e não catálogo de recorrentes:** trocar a cópia por um catálogo faria Customer Success, Gente & Gestão e CEFIS pararem de aparecer, porque não estão em catálogo nenhum — regressão silenciosa que só apareceria na competência seguinte. A cópia continua sendo a regra; a tabela é só a exceção das quatro linhas com regra própria.
+
+**Duas travas:** a função só mexe em `rascunho`, então competência confirmada ou faturada é intocável — foi o que protegeu agosto, já cobrado; e é idempotente, dá para rodar de novo à mão se a chamada falhar depois da apuração criada.
+
+**O casamento é por regex porque os nomes foram digitados à mão e divergem:** "Pipedrive"/"Pipe drive", "Panda Pé"/"Panda pé", "Qculture Rocks"/"Qulture.rocks"/"Qulture rocks", "Acesso Power BI"/"Acesso ao Power BI". A política também normaliza o nome, o que encerra o espalhamento. Cuidado com o padrão do Qculture: `^q(c|u)lture` **não** casa "qculture" — depois do `qc` vem "ulture", não "lture"; o certo é `^qc?ulture`.
+
+**Aberto:** Panda Pé não existe hoje em Patos de Minas, Rio de Janeiro, São Bernardo, Recife e Sorocaba. A política normaliza o que existe, não acrescenta linha faltante — se essas unidades devem pagar, alguém tem de lançar a primeira vez.
+
+## [2026-09-22] Planning People fecha o escopo contra o Qulture, e quatro armadilhas de RLS no caminho
+
+**Contexto:** o dono entregou os dois tokens da API do Qulture.Rocks e liberou escopo completo. Antes de construir, o inventário da conta (24117) foi lido por inteiro, e ele reordenou a fila do projeto.
+
+**O que a conta tem de verdade:** 1.237 pulsos de sentimento respondidos por 129 pessoas; 6.733 grupos de prioridade, 360 preenchidos, por 61 pessoas; 127 1:1 com 35 tarefas; 3 ciclos de avaliação com 981 notas e 138 discursivas; 215 PDIs num ciclo, com 32 metas e 54 ações; 3 pesquisas de clima. **Zero** nine box, OKR, times e cargos formais.
+
+**Decisão que isso forçou:** o que a rede mais usa lá é justamente o que o Planning People não tinha. Sentimento e prioridades nunca estiveram no plano de 14/09, e entraram na frente do resto. Uso manda mais que valor percebido.
+
+**Mudança de escopo, dita com todas as letras:** **PDI entrou**, depois de estar explicitamente fora desde 14/09 ("depois do ciclo rodar uma vez"). A razão não é preferência, é que existem 215 planos e 86 linhas de conteúdo escritas por gente da rede, que morrem no dia do cancelamento.
+
+**O que não vem do Qulture, e por quê:** a anotação de 1:1 (`note`) é recusada pela API **mesmo para o token de admin** — vêm o encontro, a pauta e as tarefas, não o conteúdo da conversa; e a resposta individual de clima não tem onde encostar, porque o nosso modelo é anônimo de verdade (sem `pessoa_id` na resposta).
+
+**Quatro armadilhas, todas encontradas por teste e não por revisão:**
+
+1. **Paginação sem `page-last`.** `/surveys/{id}/answers` não manda o cabeçalho de última página. A primeira extração trouxe 100 respostas em vez de 804, com HTTP 200 e sem erro. A parada correta é por página curta.
+2. **View não herda RLS.** Escrevi três views supondo que herdavam; em Postgres a view roda com os direitos do dono e `security_invoker` está desligado em todo o Ops. O gate foi para dentro de cada uma, como as migrations 53 e 54 já faziam.
+3. **`for all` concede SELECT, e PERMISSIVE soma por OR.** As policies de escrita das migrations 69 a 72 liberavam leitura de tabela. Medido em sessão simulada do sócio regional de Belém, que **não tem** `view.gente.lideranca` nem `view.gente.pdi`: ele lia 14 sentimentos, 19 prioridades e 3 PDIs. Nada saía da unidade, mas a chave que liga o módulo não estava valendo. Migration 75 separa em INSERT, UPDATE e DELETE.
+4. **`can()` não lê `role_permissions` desde 15/09.** As chaves novas foram para lá, no formato antigo, e valiam `false` até para o admin — as abas novas apareceriam vazias para todo mundo. Migration 76 registra as quatro em `area_chaves`, área `people`.
+
+**Recursão de policy:** `gente_elogios` lia `gente_elogio_destinatarios` e vice-versa, e o Postgres parava com "infinite recursion detected in policy". Quebrado com `sou_destinatario_do_elogio()`, SECURITY DEFINER com `search_path` fixo, que responde uma pergunta fechada sobre o próprio usuário e não devolve linha.
+
+**Teste de isolamento em produção**, sessão simulada do sócio regional de Belém: 68 pessoas de 215, e `array_agg(distinct unidade_id)` devolve `{3}` em sentimento, prioridade, PDI, avaliação e elogio. Nenhuma outra unidade aparece em tabela nenhuma.
+
+**Consequência de governança que fica registrada, não resolvida:** a área `people` concede todas as chaves dela, inclusive `manage.gente.pdi` e `manage.gente.avaliacao`. Ou seja, o sócio regional que tem a área lê nota nominal e PDI nominal **da própria unidade**. É coerente com a decisão de 15/09 ("a área libera tudo, o escopo restringe"), mas é diferente do que a decisão de 14/09 previa para nota de desempenho. Se a intenção for outra, o caminho é tirar a chave de `area_chaves` e dá-la por usuário.
+
+Banco nas migrations 69 a 76 do repo do wiki. Telas no commit `b9259ab`.
+
+## [2026-09-22] Planning People deixa de ser organizado por módulo e passa a ser organizado por quem usa
+
+**Sintoma relatado pelo dono:** "está um pouco bagunçado ainda", e a lista das quatro visões que ele queria: Matriz, sócio da unidade, líderes por área, colaboradores.
+
+**A causa.** A tela tinha oito abas, uma por produto: Cadastro, 1:1, Liderança, Feedback, Elogios, Avaliação, PDI e Clima. Esse é o desenho do Qulture, e nós o copiamos sem perguntar para quem cada aba serve. O efeito prático numa rede de 215 pessoas, das quais 196 são liderados e só 52 lideram alguém: **o colaborador abria oito abas e seis não eram dele**, e a que era dele estava em terceiro lugar.
+
+**Decisão:** cinco visões no lugar das oito abas, e o menu passa a ter um item por visão.
+
+| Visão | Para quem | O que responde |
+|---|---|---|
+| Minha vez | todo mundo | o que espera por mim agora |
+| Meu time | quem tem liderado | quem do meu time precisa de mim |
+| Minha unidade | sócio e RH da unidade | como está a unidade inteira |
+| Rede | Matriz | como as unidades se comparam |
+| Administração | quem tem `manage.gente.*` | conduzir ciclo, calibrar, montar pesquisa |
+
+**O que muda no código:** nada de regra. Os componentes que já existiam ganharam uma prop de escopo (`eu`, `time`, `admin`, `tudo`) e o mesmo módulo aparece em visões diferentes com recorte diferente — pulso de sentimento é formulário em "Minha vez" e tabela em "Meu time"; avaliação é fila em "Minha vez" e calibração em "Administração". Quem recorta linha continua sendo a RLS.
+
+**O que cada visão ganhou de novo:** um cartão de pendências no topo, que lê do mesmo cache dos blocos abaixo e por isso não custa requisição. Em "Minha vez": pulso da semana em branco, prioridades em branco, avaliações esperando resposta, ação de PDI vencida. Em "Meu time": 1:1 atrasado, pessoa sem cadência combinada, quem não respondeu o pulso da semana, PDI sem meta.
+
+**Compatibilidade:** os links antigos (`?aba=clima`, `?aba=um-a-um`) continuam funcionando e caem na visão equivalente, em vez de abrir uma página em branco para quem tinha o link salvo.
+
+**Decisão de governança que isso deixa visível, e que não mudou:** "Administração" só aparece para quem tem `manage.gente.*`, mas a área `people` concede essas chaves junto com o resto. Ou seja, hoje o sócio regional com a área enxerga a visão de Administração da própria unidade. Se a intenção for reservar isso ao RH, o caminho continua sendo tirar a chave de `area_chaves` e dar por usuário.
+
+## [2026-09-22] Quem implanta o Planning People vê adoção agregada, não o conteúdo de quem responde
+
+**Pergunta do dono:** a Heloísa vai implantar o Planning People nas unidades e precisa ver tudo; que acesso falta liberar para ela?
+
+**Medido antes de responder, na sessão dela:** não falta nenhuma. Ela tem as **15 de 15** chaves da área `people`, `usuario_escopo.todas_unidades = true`, e o papel `gente_gestao` é exclusivo dela e concede exatamente essa área. Na prática enxerga as 215 pessoas, os 3 ciclos, as 178 avaliações, os 214 PDIs, as 3 pesquisas e o agregado das 4 unidades.
+
+**O que ela não enxergava, e por quê.** Sentimento (1 de 1.061), prioridades (0 de 360), feedback (0 de 26) e 1:1 (9 de 112). Nenhum desses é permissão desmarcada: os quatro seguem **hierarquia**, e as policies não têm ramo de `manage.*`, pela decisão de 14/09 (quem administra o cadastro não lê a conversa entre um coordenador e um analista).
+
+**Decisão do dono, entre três opções apresentadas:** fica **só o agregado**. Ela acompanha cobertura e adesão por unidade e não lê o humor nem a conversa de ninguém. O que decidiu foi a promessa que a própria tela faz a quem responde o pulso, "seu gestor vê; a unidade não": abrir a leitura nominal obrigaria a mudar esse texto, e uma ferramenta de clima que as pessoas acham rastreável produz nota alta e informação zero.
+
+**O que foi entregue no lugar:** `v_gente_adocao_por_unidade` (migration 77) e a tabela de adoção nas visões Minha unidade e Rede. Pessoas, com login, pulso na semana e em 30 dias, prioridades, 1:1 em 90 dias, PDI com meta e avaliados em ciclo, por unidade, sem nome dentro. Usa `view.gente.agregado`, que ela já tinha, então não precisou mexer em policy nenhuma.
+
+**Armadilha de SQL que quase passou:** a primeira versão da view contava `count(b.id)` com seis LEFT JOIN embaixo e Belém apareceu com 276 pessoas em vez de 68. Número inflado por fan-out é traiçoeiro porque continua plausível. Corrigido com `count(distinct)`.
+
+**O retrato que a view revelou, e que é o trabalho real de implantação:** das 210 pessoas com unidade, **1 tem login no Ops**. Rio de Janeiro, Curitiba e Patos de Minas estão com zero. Sem conta, ninguém responde nada, por mais que a unidade esteja cadastrada e as permissões estejam certas.
+
+## [2026-09-22] Quem não tem a área caía numa tela de erro, e o redirecionamento pós-login era a causa
+
+**Relatado com print:** a Heloísa, que tem só Planning People, abria o produto e via "Esta página não carregou" em `/rede-overview`. Não era bug da página: era acesso negado se apresentando como defeito do sistema.
+
+**Duas causas, as duas corrigidas.**
+
+1. **O redirecionamento pós-login mandava para `/rede-overview` fixo.** A regra era "quem só tem o Ops vai direto para a visão geral", e ela nunca perguntava se a pessoa tem a área Rede. Agora manda para `primeiraTelaAcessivel()`, que percorre o menu e devolve o primeiro item que a pessoa realmente abre. Para ela, `/gente?visao=minha-vez`.
+
+2. **54 das 56 rotas autenticadas não tinham portão de área.** O menu esconde o que a pessoa não pode abrir, mas link direto, favorito e autocomplete do navegador não passam pelo menu. O portão agora vive no layout (`_authenticated/route.tsx`) e usa o próprio menu como mapa (`areaDoCaminho`), então não há 56 checagens para manter em dia. Ele só opina sobre caminho que está no menu: `/admin/*`, `/inicio` e afins seguem com a checagem da própria tela.
+
+**A exceção que a conferência achou antes de subir:** `/equipe` mora na área `admin` em `areas.ts`, mas o rodapé da lateral mostra "Minha equipe" a quem administra equipe **sem** ter a área `admin`. Trancar ali tiraria acesso a um link que a pessoa está vendo. Ficou numa lista explícita de caminhos com porta própria.
+
+**Conferido papel por papel contra `role_areas` antes de subir**, simulando o portão sobre os 39 caminhos do menu: nenhuma rota que hoje abre passou a negar. `socio_regional` continua com `/painel-unidade`, `/broker` e `/gente`; `/meus-royalties` continua atrás de `minha_unidade_financeiro`, que é o que o menu já fazia pelo `item.area`.
+
+**O que a pessoa vê no lugar do erro:** um cartão que diz de qual área é a página, que o acesso dela não inclui, e um botão para a primeira tela que ela abre (`SemAcessoArea`, reaproveitável).
+
+## [2026-09-22] Módulos voltam para a lateral, mas filtrados por pessoa
+
+**Feedback da Heloísa**, que vai implantar o módulo na rede: "não era melhor deixar separada os módulos no lado esquerdo? Igual o da QR? Assim o usuário entra só no módulo que deseja."
+
+**Ela está certa sobre um custo real da versão anterior.** Com as quatro visões, chegar num módulo específico era entrar na visão e rolar a página. Dois cliques e uma rolagem para o que devia ser um clique.
+
+**Duas coisas ficaram registradas para quem ler isto depois:**
+
+- **Ela é o caso atípico do produto.** Usa os oito módulos; os outros 214 usam de um a três. O motivo de os módulos terem saído do menu em primeiro lugar foi o colaborador, que via oito itens e seis não eram dele. A opinião dela está certa para ela e não se generaliza sozinha.
+- **"Igual o QR" não vem com prova.** A navegação por módulo é a do Qulture, e a adoção medida lá é 24% de ativos em 60 dias, com 2 dos 12 sócios-diretores usando. Não é evidência de que o menu seja a causa, mas também não é recomendação.
+
+**Decisão do dono:** módulos separados na lateral, cada item aparecendo só para quem aquele módulo serve.
+
+**O detalhe que faz isso funcionar, e que não é óbvio:** o filtro **não pode ser por permissão**. Desde 15/09/2026 a área concede todas as chaves dela, então `can()` responde `true` para qualquer pessoa com a área e não separa o colaborador de quem administra. O filtro é por **fato**, em `resumoMenuGente`: tem cadastro, lidera alguém, está em ciclo, tem PDI, administra, enxerga a rede inteira. Quem implanta vê os onze itens; quem só responde vê meia dúzia.
+
+**Erro que a conferência pegou antes de subir:** a condição do módulo de avaliação era "está em ciclo", e **quem conduz o ciclo normalmente não participa dele**. Medido com a própria Heloísa: administra os três ciclos e tem zero avaliações no próprio nome, então o item sumiria justamente para quem mais precisa. Virou `verAvaliacao`: participa do ciclo ou tem `manage.gente.avaliacao`.
+
+**O que sobreviveu da versão por visões:** "Minha vez" e "Meu time" continuam, como atalho da fila do dia. "Minha vez" emagreceu, porque 1:1, feedback e elogios agora têm item próprio e não se repetem ali.
+
+**Compatibilidade:** links dos dois formatos anteriores (`?visao=` e `?aba=`) continuam caindo na tela equivalente. Este arquivo já é o terceiro desenho de navegação do módulo em um dia, e os três formatos de link funcionam.
+
+## [2026-09-22] "Ver como" chega ao banco, e a simulação passa a ser somente leitura
+
+**O sintoma:** com "ver como o sócio de Maceió" ligado, `/broker` respondia "Seu usuário ainda não está vinculado a uma unidade". A tela não tem defeito, ela está dizendo a verdade sobre o `auth.uid()` real.
+
+**A causa é a fronteira que a simulação de 18/09 desenhou de propósito.** Ela troca áreas, chaves e unidade do recorte no front, e não encosta no banco. Isso bastou enquanto toda tela do sócio recortava no cliente, com `scopedToOwnUnit && unidade` em memória. O broker é a primeira que recorta dentro da view: `v_broker_meu_saldo` tem `u.id in (select minhas_unidades())`, e `ops.minhas_unidades()` lê `usuario_unidades` pelo uid do super admin, que não tem unidade nenhuma. Zero linhas viram `semVinculo` em `carregarBrokerUnidade`.
+
+**Decisão do dono:** consertar em `minhas_unidades()`, não nas views do broker. Todo o broker passa por ela (as 7 views da unidade e os RPCs de autoatendimento, que fazem `select ... minhas_unidades() into alvo`), e um resolvedor próprio do broker deixaria a próxima tela que recortasse no banco com o mesmo sintoma. `current_user_unidade()` e `unidades_do_usuario()` foram junto, porque três funções respondendo à mesma pergunta com respostas diferentes é pior do que qualquer uma das duas respostas.
+
+**A simulação substitui o vínculo real, não soma.** Vestir Maceió e continuar vendo a própria unidade não seria a visão de ninguém. Na prática o super admin não tem linha em `usuario_unidades`, mas a regra vale para o dia em que tiver.
+
+**O que essa mudança cobra, e a trava que veio junto.** `minhas_unidades()` também decide em nome de quem a reserva gasta saldo. Sem mais nada, "Reservar" durante a simulação queimaria CashBrain de Maceió de verdade, assinado pelo super admin, e o extrato da unidade ganharia uma linha que ninguém da unidade pediu. Por isso a escrita no broker é recusada enquanto a simulação está ligada: gatilho `ver_como_somente_leitura` em `broker_movimentos`, `broker_oportunidades`, `broker_faturas` e `broker_precificacoes`.
+
+**No gatilho e não dentro de cada RPC**, porque reservar, liberar, precificar e pedir fatura são quatro funções hoje e nada garante que sejam quatro amanhã, e porque o gatilho pega também a escrita feita direto na tabela pelo PostgREST. Nível de statement, para recusar antes de o Postgres decidir o que ia mexer. O `broker-sync-fila` não é atingido: entra com service_role, `auth.uid()` é nulo.
+
+**O front não depende do erro para se comportar:** `BrokerUnidadeView` lê `verComo` e desabilita reservar, precificar, liberar, comprar crédito e cancelar fatura. O motivo está escrito na tela, não só no `title` do botão, que o Chrome não abre em botão desabilitado.
+
+**O que continua valendo da decisão de 18/09:** a identidade não é simulada. `auth.uid()` segue sendo o super admin e o log de acessos continua dizendo quem é. O que mudou é a resposta a "de qual unidade eu sou".
+
+**Limite conhecido:** as telas cujo recorte é RLS e não `minhas_unidades()` continuam mostrando a rede inteira durante a simulação, porque `usuario_escopo.todas_unidades` do super admin segue verdadeiro. Das 155 policies, 4 isolam por unidade.
+
+**Arquivos:** `supabase/migrations/20260922190000_ver_como_alcanca_o_banco.sql`, rollback em `supabase/rollback/`, e `src/components/broker/broker-unidade-view.tsx`.
+
 ## [2026-09-22] Receita e Repasses ganha uma porta, e ela responde três perguntas antes de qualquer tabela
 
 **O problema:** a área tinha nove telas e nenhuma abertura. Quem entrava caía no Funil de Receita — uma tela de detalhe — e não sabia o essencial: o mês fechou? a fatura saiu? a unidade pagou? Era a única área grande do Ops sem visão geral, enquanto Rede tem `/rede-overview` desde o começo.
@@ -2418,3 +2560,23 @@ Deploy `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`: CLI da conta `planningbrainbot-4862`,
 - rollback: promover `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`.
 
 **Em aberto:** ameaças que repetem decisões (plano sem alocação; contas que podem ser fornecedor) e o rótulo longo da receita prevista.
+
+## [2026-09-23] A aba CAC mostrava Maceió para quem simulava Fortaleza, e o conserto foi no `can()`
+
+**O que o dono viu:** simulando o sócio de Fortaleza, o `/broker` dizia COBRADO R$ 103.818 e A PAGAR R$ 78.361, enquanto o Funil de CAC dava outro número para a mesma unidade. Não era divergência entre as telas: aqueles três valores são **de Maceió**, ao centavo. Fortaleza tem R$ 17.230,63 cobrados e R$ 0,63 a pagar, e esse cobrado bate exatamente com o "Já cobrado" do funil.
+
+**A causa é a porta de admin no escopo da view:** `v_broker_cac_saldo` filtra por `ops.can('view.broker_admin') or ops.can('view.broker') and u.id in (select ops.minhas_unidades())`. A migration da véspera fez a simulação valer em `minhas_unidades()`, mas quem simula continua sendo super admin no banco, então a primeira condição já resolvia e a view devolvia as 8 unidades. O componente pegava `[0]`, que era Maceió. O mesmo valia para o extrato (93 linhas de 5 unidades, incluindo a verba de mídia de Patos de Minas) e para a fila (33 de 4).
+
+**Decisão do dono:** consertar em `ops.can()`, não nas quatro views. Durante a simulação, `can()` responde pelas chaves do papel vestido, via a nova `ops.papel_tem_chave(papel, chave)`. Três razões: a porta de admin é padrão da casa e emendar quatro views deixaria a quinta nascer furada; o front já troca as chaves pelas do papel simulado desde 18/09, então o banco estava discordando da tela sobre quem era a pessoa; e assim as 31 policies que perguntam `data.scope.own_unit_only` passam a valer também, porque simular é sempre simular UMA unidade.
+
+**O enxerto vai em `can()` e nunca em `can_user(uid, key)`.** `can()` pergunta "eu posso", e durante a simulação o "eu" é o papel vestido. `can_user` pergunta "fulano pode", que é o que as telas de administração usam para montar o acesso de terceiros: simular não pode mudar a resposta sobre outra pessoa.
+
+**Medido depois de aplicar.** Sem simulação: `view.broker_admin` verdadeiro, 8 linhas em `v_broker_cac_saldo`, nada mudou. Simulando Fortaleza: `view.broker` verdadeiro, `view.broker_admin` falso, `view.unidades_rede` falso, `data.scope.own_unit_only` verdadeiro, e as views de saldo, extrato e fila passam a devolver uma unidade só, com o a pagar em R$ 0,63.
+
+**Custo aceito:** enquanto a simulação está ligada, o super admin perde as chaves de admin na plataforma inteira, em todas as abas. É o ponto da feature. Nenhuma trava depende de `can()` para sair: `ver_como_encerrar()` só confere `auth.uid()`.
+
+**Rede de segurança no servidor:** `carregarBrokerUnidade` passou a escolher a linha de CAC pela unidade de `v_broker_meu_saldo` (que não tem porta de admin) em vez de pegar `[0]`. Se alguém reabrir a porta, a tela erra para vazia e não para a unidade errada.
+
+**E os três números que pareciam brigar, que na verdade respondem perguntas diferentes:** "Já cobrado" no funil e COBRADO no broker são o mesmo (R$ 17.230,63). "A cobrar" no funil (R$ 45.703,44) é o que tem card aberto e ainda não entrou, menos o churn. A fila de CAC do broker (R$ 43.952,00 em 9 clientes) é o atribuído que ainda não virou cobrança, e fica fora do saldo por decisão de 16/09.
+
+**Arquivos:** `supabase/migrations/20260923160000_ver_como_fecha_porta_de_admin.sql`, rollback em `supabase/rollback/`, e `src/lib/broker.functions.ts`.
