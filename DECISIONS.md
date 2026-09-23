@@ -2383,3 +2383,24 @@ Deploy `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`: CLI da conta `planningbrainbot-4862`,
 **Sem migration nova:** a área `cockpit_ceo` já estava aplicada, só para `admin`.
 
 **Pendências:** liberar a área para o CEO se ele não for `admin`, e as duas lacunas de acesso da rodada 2 (funções SECURITY DEFINER do `financeiro`, `ops.qb_clientes_ativos` sem `security_invoker`), que continuam com os donos.
+
+## [2026-09-23] Cockpit do CEO: Visão executiva refeita na anatomia do arquétipo (adendo)
+
+**Contexto:** publicada, a Visão executiva foi reprovada pelo dono: "sem hierarquia de texto, sem definição de limites, não sei nem onde clicar primeiro". A causa foi de composição, não do design system. Os componentes do DS v2 estavam lá, mas a página não seguia a anatomia de `ARQUETIPOS.md` §1:
+- decisões e ameaças eram parágrafos soltos no fundo da página;
+- havia duas tabelas, que o arquétipo proíbe;
+- cada cartão tinha 3 a 4 linhas de nota cinza.
+
+**Decisão:**
+- **Cartões:** o `KpiCard` leva uma nota curta ("Depende de…", "Anterior N", ritmo da meta quando não há valor). Meta anual, capacidade e média necessária ficam na composição.
+- **Decisões e ameaças:** viram listas com borda, uma linha por item, com selo, título, detalhe e ação.
+- **Tabelas:** "O que mudou" sai, porque repetia os cartões. "De onde vem o crescimento" vira gráfico de demanda por produto, com destino em Produtos e listas.
+
+**Regra para as próximas telas:** usar os componentes não basta. Compare a captura com a do arquétipo na vitrine (`docs/design/capturas/depois/*-arquetipos.png`) antes de dar a tela por pronta.
+
+**Publicado:**
+- PR #18 na `main` (`b1cf6ab`);
+- deploy `dpl_7xGY3GwDgzReFs8bd5eoCXZEff22` pela CLI, com `planningbrain.com.br` apontando para ele;
+- rollback: promover `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`.
+
+**Em aberto:** ameaças que repetem decisões (plano sem alocação; contas que podem ser fornecedor) e o rótulo longo da receita prevista.
