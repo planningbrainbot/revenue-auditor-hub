@@ -902,7 +902,7 @@ test("Preview sintético mostra as quatro definições de cliente ativo com sobr
   assert.equal(qb.semContaBase, 4);
   assert.equal(qb.contasBase, f.monetizacao.dados.accounts.length);
   assert.equal(c.clientes.sobreposicao.length, 6);
-  assert.equal(c.clientes.penetracaoEstado, "disponivel");
+  assert.equal(c.clientes.penetracaoEstado, "parcial");
   assert.ok(
     qb.penetracao.some((p) => p.contas > 0),
     "a fixture tem negócio ganho",

@@ -65,3 +65,17 @@ test("Sem janela de meses completos, nada de participação inventada", () => {
   assert.equal(r.top1, null);
   assert.equal(r.hhi, null);
 });
+
+test("Royalties ausentes numa apuração não viram R$ 0: a unidade fica sem royalties na janela", () => {
+  const apuracoes = [
+    ap(1, "2026-08-01", 600, 60),
+    { ...ap(2, "2026-08-01", 300, 30), royalties_valor: null },
+    ap(3, "2026-08-01", 100, 10),
+  ];
+  const leitura = montarLeituraRede({ acesso: true, unidades, apuracoes });
+  const r = resumirRedeUnidades(leitura, resumirLeitura(leitura, HOJE));
+  const dois = r.linhas.find((l) => l.unidade === "Unidade Dois");
+  assert.equal(dois.royaltiesCsc, null);
+  assert.equal(dois.takeRate, null);
+  assert.equal(r.linhas.find((l) => l.unidade === "Unidade Um").royaltiesCsc, 60);
+});

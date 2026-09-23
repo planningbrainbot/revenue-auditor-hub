@@ -117,7 +117,9 @@ export function Frentes({
         {frente === "clientes" && (cockpit.clientes || cockpit.clientesAviso) && (
           <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
         )}
-        {frente === "rede" && <RedeUnidades rede={cockpit.rede} />}
+        {frente === "rede" && (cockpit.rede || cockpit.trajetoriaAviso) && (
+          <RedeUnidades rede={cockpit.rede} aviso={cockpit.trajetoriaAviso} />
+        )}
         {frente === "retencao" && (cockpit.coortes || cockpit.coortesAviso) && (
           <CoortesRetencao coortes={cockpit.coortes} aviso={cockpit.coortesAviso} />
         )}

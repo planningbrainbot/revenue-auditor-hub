@@ -44,17 +44,29 @@ export function resumirRedeUnidades(leitura: LeituraReceita, resumo: ResumoLeitu
   const fat = new Map<string, number>();
   for (const l of leitura.linhas)
     if (dentro(l.mes)) fat.set(l.chave, (fat.get(l.chave) ?? 0) + Math.round(l.valor * 100));
-  const roy = new Map<string, number>();
+  // null = alguma apuração da unidade na janela veio sem royalties: a soma da unidade é desconhecida.
+  const roy = new Map<string, number | null>();
   for (const c of leitura.complementos ?? [])
-    if (dentro(c.mes)) roy.set(c.chave, (roy.get(c.chave) ?? 0) + Math.round(c.royaltiesCsc * 100));
+    if (dentro(c.mes)) {
+      const antes = roy.has(c.chave) ? roy.get(c.chave)! : 0;
+      roy.set(
+        c.chave,
+        antes === null || c.royaltiesCsc === null ? null : antes + Math.round(c.royaltiesCsc * 100),
+      );
+    }
   const totalCent = [...fat.values()].reduce((s, v) => s + v, 0);
+  const royaltiesDa = (u: string) => {
+    const v = roy.has(u) ? roy.get(u)! : 0;
+    return v === null ? null : v / 100;
+  };
   const linhas = [...fat]
     .map(([unidade, c]) => ({
       unidade,
       faturamento: c / 100,
       participacao: totalCent ? c / totalCent : 0,
-      royaltiesCsc: leitura.complementos ? (roy.get(unidade) ?? 0) / 100 : null,
-      takeRate: leitura.complementos && c ? (roy.get(unidade) ?? 0) / c : null,
+      royaltiesCsc: leitura.complementos ? royaltiesDa(unidade) : null,
+      takeRate:
+        leitura.complementos && c && royaltiesDa(unidade) !== null ? roy.get(unidade)! / c : null,
     }))
     .sort((a, b) => b.faturamento - a.faturamento);
   const soma = (n: number) => linhas.slice(0, n).reduce((s, l) => s + l.participacao, 0);

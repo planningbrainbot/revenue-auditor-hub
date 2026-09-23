@@ -48,6 +48,14 @@ export function CoortesRetencao({
                 <tr key={l.mes} className="border-b last:border-0">
                   <td className="py-1 pr-2 text-left">
                     {mesBr(l.mes)}
+                    {l.antesDoRegistro && (
+                      <span
+                        className="ml-1 text-muted-foreground"
+                        title="Começa antes do registro de churn: nenhum mês medido"
+                      >
+                        ·sem registro
+                      </span>
+                    )}
                     {l.recente && (
                       <span
                         className="ml-1 text-muted-foreground"

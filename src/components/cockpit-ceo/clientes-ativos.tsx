@@ -32,6 +32,15 @@ export function ClientesAtivos({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-xs">
               <thead className="text-left text-muted-foreground">
+                <tr>
+                  <th colSpan={4} />
+                  <th colSpan={PRODUTOS.length} className="pt-1 text-right font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      Ganho no CRM (pipe de Monetização)
+                      <EstadoBadge estado={clientes.penetracaoEstado} />
+                    </span>
+                  </th>
+                </tr>
                 <tr className="border-b">
                   <th className="py-1.5 pr-2 font-medium">Definição</th>
                   <th className="py-1.5 text-right font-medium">CNPJs</th>

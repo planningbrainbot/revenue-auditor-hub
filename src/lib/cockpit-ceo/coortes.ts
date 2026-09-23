@@ -8,7 +8,11 @@
 // Regras de honestidade:
 //   · o denominador não muda com o tempo; só churn datado reduz os meses seguintes;
 //   · mês corrente e meses futuros ficam vazios, nunca 100%;
-//   · mês anterior ao início do registro de churn fica vazio — ausência de registro não é retenção;
+//   · coorte que começa antes do início do registro de churn fica vazia inteira — o churn dos meses
+//     sem registro não existe na fonte, e nenhum mês dela pode ser lido como retenção;
+//   · a coorte do mês em andamento não aparece: o denominador ainda cresce;
+//   · unidade regional casa pela regra da casa (contém o nome da praça, sem acento nem caixa), e
+//     o que fica de fora é contado por tipo (sem unidade, unidade interna, outro rótulo);
 //   · churn sem data não entra em mês nenhum e deixa a coorte parcial (a retenção real é menor);
 //   · coorte com menos de 90 dias ainda pode mudar: o sync remove negócio que deixa de ser ganho.
 import type { Estado } from "./contrato.ts";
@@ -34,6 +38,8 @@ export interface LinhaCoorte {
   retidos: (number | null)[];
   churnsSemData: number;
   recente: boolean;
+  /** Coorte anterior ao início do registro de churn: nenhuma célula é medida. */
+  antesDoRegistro: boolean;
 }
 
 export interface Coortes {
@@ -43,6 +49,7 @@ export interface Coortes {
   linhas: LinhaCoorte[];
   foraDaOrigem: { origem: string; contratos: number }[];
   foraDeRegional: number;
+  foraPorUnidade: { semUnidade: number; internas: number; outros: number };
   churnsSemContrato: number;
   churnsAntesDoGanho: number;
   avisos: string[];
@@ -65,12 +72,24 @@ export function montarCoortes(e: {
   contratos: ContratoCoorte[];
   churns: ChurnCoorte[];
   regionais: string[];
+  /** Unidades internas (cadastro), só para classificar o que fica fora. */
+  internas?: string[];
   hoje: string;
   horizonte?: number;
   meses?: number;
 }): Coortes {
   const horizonte = e.horizonte ?? 12;
-  const regionais = new Set(e.regionais);
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .trim();
+  // Mesma regra do SQL da casa: `c.unidade ilike '%' || u.nome_da_praca || '%'`.
+  const casa = (unidade: string, nomes: string[]) => nomes.some((n) => n && unidade.includes(n));
+  const regionais = e.regionais.map(norm).filter(Boolean);
+  const internas = (e.internas ?? []).map(norm).filter(Boolean);
+  const foraPorUnidade = { semUnidade: 0, internas: 0, outros: 0 };
   const mesAtual = e.hoje.slice(0, 7);
   const ultimoFechado = somaMeses(mesAtual, -1);
   const d90 = new Date(`${e.hoje}T12:00:00Z`);
@@ -83,8 +102,12 @@ export function montarCoortes(e: {
   const ganho = new Map<string, string>();
   for (const c of e.contratos) {
     if (!c.deal || !/^\d{4}-\d{2}-\d{2}/.test(c.ganho_em)) continue;
-    if (!regionais.has(c.unidade ?? "")) {
+    const u = norm(c.unidade ?? "");
+    if (!u || !casa(u, regionais)) {
       foraDeRegional++;
+      if (!u) foraPorUnidade.semUnidade++;
+      else if (casa(u, internas)) foraPorUnidade.internas++;
+      else foraPorUnidade.outros++;
       continue;
     }
     if (c.origem !== ORIGEM_VENDAS) {
@@ -114,7 +137,7 @@ export function montarCoortes(e: {
   const porMes = new Map<string, string[]>();
   for (const [deal, data] of ganho) {
     const m = data.slice(0, 7);
-    if (m > mesAtual) continue;
+    if (m > ultimoFechado) continue;
     porMes.set(m, [...(porMes.get(m) ?? []), deal]);
   }
   const meses = [...porMes.keys()].sort().slice(-(e.meses ?? 15));
@@ -138,10 +161,10 @@ export function montarCoortes(e: {
       }
       saidas.push(m);
     }
+    const antesDoRegistro = !inicioRegistroChurn || mes < inicioRegistroChurn;
     const retidos = Array.from({ length: horizonte + 1 }, (_, k) => {
       const t = somaMeses(mes, k);
-      if (t > ultimoFechado) return null;
-      if (!inicioRegistroChurn || t < inicioRegistroChurn) return null;
+      if (t > ultimoFechado || antesDoRegistro) return null;
       return deals.length - saidas.filter((s) => s <= t).length;
     });
     return {
@@ -150,6 +173,7 @@ export function montarCoortes(e: {
       retidos,
       churnsSemData: semData,
       recente: mes >= corteRecente,
+      antesDoRegistro,
     };
   });
 
@@ -158,7 +182,7 @@ export function montarCoortes(e: {
   ];
   if (inicioRegistroChurn)
     avisos.push(
-      `O registro de churn com data começa em ${mesBr(inicioRegistroChurn)}: meses anteriores ficam vazios, não 100%.`,
+      `O registro de churn com data começa em ${mesBr(inicioRegistroChurn)}: coortes anteriores ficam vazias inteiras, não 100%.`,
     );
   else avisos.push("Nenhum churn com data registrado: nenhuma célula pode ser medida.");
   const semData = linhas.reduce((s, l) => s + l.churnsSemData, 0);
@@ -166,6 +190,11 @@ export function montarCoortes(e: {
     avisos.push(
       `${semData} ${semData === 1 ? "churn sem data não entra" : "churns sem data não entram"} em mês nenhum: nas coortes marcadas, a retenção real é menor que a mostrada.`,
     );
+  if (foraDeRegional)
+    avisos.push(
+      `Fora da coorte da rede: ${foraDeRegional} contratos — ${foraPorUnidade.semUnidade} sem unidade, ${foraPorUnidade.internas} de unidades internas, ${foraPorUnidade.outros} com outro rótulo (matriz ou unidade fora do cadastro regional).`,
+    );
+  avisos.push("A coorte do mês em andamento não aparece: o denominador ainda está crescendo.");
   if (foraOrigem.size)
     avisos.push(
       `Fora da coorte por origem: ${[...foraOrigem].map(([o, n]) => `${o} (${n})`).join(", ")} — lote de outro pipe, com data de ganho que não é a da venda.`,
@@ -188,7 +217,9 @@ export function montarCoortes(e: {
     ? "nao_apurado"
     : !temCelula
       ? "nao_apurado"
-      : semData || linhas.some((l) => l.recente) || linhas.some((l) => l.retidos[0] === null)
+      : semData ||
+          linhas.some((l) => l.recente || l.antesDoRegistro) ||
+          linhas.some((l) => l.retidos[0] === null)
         ? "parcial"
         : "disponivel";
   return {
@@ -198,6 +229,7 @@ export function montarCoortes(e: {
     linhas,
     foraDaOrigem: [...foraOrigem].map(([origem, contratos]) => ({ origem, contratos })),
     foraDeRegional,
+    foraPorUnidade,
     churnsSemContrato,
     churnsAntesDoGanho,
     avisos,

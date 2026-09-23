@@ -107,3 +107,10 @@ test("Registro sem documento torna a definição parcial; CNPJ em mais de uma co
   assert.equal(r.definicoes[0].contasBase, 3);
   assert.ok(r.avisos.some((x) => /1 CNPJ está em mais de uma conta/.test(x)));
 });
+
+test("Penetração ganha no CRM é parcial por construção: o pipe não guarda consumo anterior a ele", () => {
+  const r = resumirClientes([montarDefinicao("contrato_omie", [c(1)])], contas, negocios, {
+    acessoNegocios: true,
+  });
+  assert.equal(r.penetracaoEstado, "parcial");
+});

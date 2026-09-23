@@ -21,8 +21,22 @@ import { EstadoBadge, valorCurto } from "./estado";
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 const vezes = (x: number) => `${x.toFixed(1).replace(".", ",")}×`;
 
+const proximoMes = (m: string) =>
+  new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 1)).toISOString().slice(0, 7);
+
 function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
-  const dados = serie.map((s) => ({ ...s, rotulo: mesBr(s.mes) }));
+  // Mês sem dado na fonte vira coluna vazia: fechar o eixo esconderia a lacuna.
+  const porMes = new Map(serie.map((s) => [s.mes, s]));
+  const dados: { mes: string; rotulo: string; valor: number | null; parcial: boolean }[] = [];
+  for (let m = serie[0]?.mes; m && m <= serie.at(-1)!.mes; m = proximoMes(m)) {
+    const s = porMes.get(m);
+    dados.push({
+      mes: m,
+      rotulo: mesBr(m),
+      valor: s ? s.valor : null,
+      parcial: s?.parcial ?? false,
+    });
+  }
   return (
     <div className="h-40">
       <ResponsiveContainer width="100%" height="100%">
@@ -35,8 +49,10 @@ function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
             tickFormatter={(v: number) => valorCurto(v, "reais")}
           />
           <Tooltip
-            formatter={(v: number, _n, p) => [
-              formatarNumero(v, "reais") + (p?.payload?.parcial ? " (parcial)" : ""),
+            formatter={(v, _n, p) => [
+              typeof v !== "number"
+                ? "sem dado na fonte"
+                : formatarNumero(v, "reais") + (p?.payload?.parcial ? " (parcial)" : ""),
               "Faturamento",
             ]}
             contentStyle={{

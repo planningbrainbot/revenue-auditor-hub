@@ -37,7 +37,7 @@ const [contratos, churns, regionais] = await Promise.all([
     `${comoAdmin} select pipedrive_deal_id, data_churn from ops.central_tratativas where status = 'lost'`,
     ro,
   ),
-  consultar(`${comoAdmin} select nome_da_praca from ops.unidades where tipo = 'regional'`, ro),
+  consultar(`${comoAdmin} select nome_da_praca, tipo from ops.unidades`, ro),
 ]);
 const coortes = montarCoortes({
   contratos: contratos.map((c) => ({
@@ -49,14 +49,16 @@ const coortes = montarCoortes({
   churns: churns
     .filter((c) => c.pipedrive_deal_id !== null)
     .map((c) => ({ deal: String(c.pipedrive_deal_id), data_churn: c.data_churn })),
-  regionais: regionais.map((u) => u.nome_da_praca),
+  regionais: regionais.filter((u) => u.tipo === "regional").map((u) => u.nome_da_praca),
+  internas: regionais.filter((u) => u.tipo === "interna").map((u) => u.nome_da_praca),
   hoje,
 });
 
 const sqlCoortes = await consultar(
   `with universo as (
      select c.pipedrive_deal_id deal, min(c.ganho_em) ganho
-       from ops.contratos c join ops.unidades u on u.nome_da_praca = c.unidade and u.tipo = 'regional'
+       -- Regra da casa (migrations 20260825/20260826), independente da regra em TS.
+       from ops.contratos c join ops.unidades u on c.unidade ilike '%' || u.nome_da_praca || '%' and u.tipo = 'regional'
       where c.pipedrive_deal_id is not null and c.origem_pipeline = 'inside_sales'
       group by 1),
    churn as (
@@ -81,6 +83,15 @@ const somaMeses = (m, n) =>
     .toISOString()
     .slice(0, 7);
 const divergencias = [];
+// As mesmas coortes dos dois lados: meses fechados, as 15 mais recentes.
+const ultimoFechado = somaMeses(hoje.slice(0, 7), -1);
+const mesesSql = sqlCoortes
+  .map((x) => x.coorte)
+  .filter((m) => m <= ultimoFechado)
+  .slice(-15);
+const mesesTs = coortes.linhas.map((l) => l.mes);
+if (JSON.stringify(mesesSql) !== JSON.stringify(mesesTs))
+  divergencias.push({ campo: "coortes", cockpit: mesesTs, sql: mesesSql });
 for (const l of coortes.linhas) {
   const s = sqlCoortes.find((x) => x.coorte === l.mes);
   if (!s || s.denominador !== l.denominador) {
@@ -169,6 +180,7 @@ const saida = {
     linhas: coortes.linhas,
     fora_da_origem: coortes.foraDaOrigem,
     fora_de_regional: coortes.foraDeRegional,
+    fora_por_unidade: coortes.foraPorUnidade,
     churns_sem_contrato: coortes.churnsSemContrato,
     churns_antes_do_ganho: coortes.churnsAntesDoGanho,
     divergencias,

@@ -4,6 +4,7 @@ import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start";
 import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
 import { LoadingState, Panel } from "@/components/monetizacao/common";
+import { useAuth } from "@/hooks/use-auth";
 import { useMonetizacao } from "@/hooks/use-monetizacao";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -60,9 +61,12 @@ function Pagina() {
 
 /** Leituras de faturamento, uma vez por sessão de tela; sem retry automático. */
 function useReceita() {
+  const { user } = useAuth();
   const fn = useServerFn(carregarReceitaCockpit);
   const q = useQuery({
-    queryKey: ["cockpit-ceo", "receita"],
+    // Por pessoa, como useMonetizacao: o cache não passa de um usuário para o próximo na mesma aba.
+    queryKey: ["cockpit-ceo", "receita", user?.id],
+    enabled: !!user?.id,
     queryFn: () => fn(),
     staleTime: 10 * 60_000,
     retry: false,
@@ -72,9 +76,11 @@ function useReceita() {
 
 /** Definições de cliente ativo; os CNPJs ficam só na memória da tela. Sem retry automático. */
 function useClientesAtivos() {
+  const { user } = useAuth();
   const fn = useServerFn(carregarClientesAtivosCockpit);
   const q = useQuery({
-    queryKey: ["cockpit-ceo", "clientes-ativos"],
+    queryKey: ["cockpit-ceo", "clientes-ativos", user?.id],
+    enabled: !!user?.id,
     queryFn: () => fn(),
     staleTime: 10 * 60_000,
     retry: false,
@@ -84,9 +90,11 @@ function useClientesAtivos() {
 
 /** Coortes de retenção já agregadas no servidor. Sem retry automático. */
 function useRetencao() {
+  const { user } = useAuth();
   const fn = useServerFn(carregarRetencaoCockpit);
   const q = useQuery({
-    queryKey: ["cockpit-ceo", "retencao"],
+    queryKey: ["cockpit-ceo", "retencao", user?.id],
+    enabled: !!user?.id,
     queryFn: () => fn(),
     staleTime: 10 * 60_000,
     retry: false,

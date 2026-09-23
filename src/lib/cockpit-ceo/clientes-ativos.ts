@@ -170,8 +170,10 @@ export function resumirClientes(
       new Set(conta.orgs.flatMap((o) => [...(ganhosDaOrg.get(o) ?? [])])),
     );
 
+  // Com acesso, a penetração é parcial por construção: o pipe de Monetização é recente e não guarda
+  // o consumo anterior a ele.
   const penetracaoEstado: Estado =
-    !contas || !acesso.acessoNegocios ? "acesso_insuficiente" : "disponivel";
+    !contas || !acesso.acessoNegocios ? "acesso_insuficiente" : "parcial";
   if (!contas) avisos.push("Sem a carga da Base de clientes, os CNPJs não são casados com contas.");
   else if (!acesso.acessoNegocios)
     avisos.push(

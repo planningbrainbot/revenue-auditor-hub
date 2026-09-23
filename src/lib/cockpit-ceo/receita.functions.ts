@@ -5,6 +5,9 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes";
 import type { ApuracaoRede, UnidadeRede } from "./receita-fontes";
 import type { LeituraReceita } from "./receita";
+import { todasAsPaginas } from "./paginar";
+import { FONTES_REDE, fontesSemAcesso, motivoSemAcesso } from "./portas";
+import type { AcessoMin } from "./portas";
 
 // Leituras candidatas do faturamento para a trajetória de R$ 1 bi. Somente leitura, com a sessão
 // da pessoa: nenhuma service role, nenhum dado que a tela de origem não mostraria a ela.
@@ -15,7 +18,8 @@ import type { LeituraReceita } from "./receita";
 // `financeiro.lancamentos` — e escopo de todas as empresas, que é o que o Financeiro exige para o
 // consolidado. Do payload só sai agregado mensal; linha de cliente não deixa o servidor.
 //
-// Rede: apuração de royalties pela RLS da própria tabela, e só para quem enxerga todas as unidades.
+// Rede: apuração de royalties, só para quem enxerga todas as unidades e passa na porta da tabela
+// (portas.ts); em cima disso vale a RLS. Leitura paginada, até o mês corrente.
 
 const JANELA_MESES = 24;
 
@@ -76,34 +80,51 @@ async function lerGrupo(db: any, todasEmpresas: boolean, de: string, ate: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function lerRede(db: any, todasUnidades: boolean, de: string) {
+async function lerRede(
+  db: any,
+  acesso: AcessoMin,
+  todasUnidades: boolean,
+  de: string,
+  ate: string,
+) {
+  const sem = (motivo: string) =>
+    montarLeituraRede({ acesso: false, motivo, unidades: [], apuracoes: [] });
   if (!todasUnidades)
-    return montarLeituraRede({
-      acesso: false,
-      motivo: "A leitura da rede exige ver todas as unidades; seu escopo é por unidade.",
-      unidades: [],
-      apuracoes: [],
-    });
-  const [u, a] = await Promise.all([
-    db.from("unidades").select("id, nome_da_praca, tipo, data_inauguracao"),
-    db
-      .from("royalties_apuracao")
-      .select(
-        "unidade_id, mes_referencia, status, receita_base, receita_base_antiga, royalties_valor, csc_valor_fixo, csc_base_antiga_valor",
-      )
-      .gte("mes_referencia", de)
-      .order("mes_referencia")
-      .order("unidade_id")
-      .range(0, 4999),
-  ]);
-  if (u.error || a.error)
+    return sem("A leitura da rede exige ver todas as unidades; seu escopo é por unidade.");
+  const faltam = fontesSemAcesso(FONTES_REDE, acesso);
+  if (faltam.length) return sem(`Sem leitura da rede: ${motivoSemAcesso(faltam)}.`);
+  let u: Record<string, unknown>[];
+  let a: Record<string, unknown>[];
+  try {
+    [u, a] = await Promise.all([
+      todasAsPaginas((i, f) =>
+        db
+          .from("unidades")
+          .select("id, nome_da_praca, tipo, data_inauguracao")
+          .order("id")
+          .range(i, f),
+      ),
+      todasAsPaginas((i, f) =>
+        db
+          .from("royalties_apuracao")
+          .select(
+            "id, unidade_id, mes_referencia, status, receita_base, receita_base_antiga, royalties_valor, csc_valor_fixo, csc_base_antiga_valor",
+          )
+          .gte("mes_referencia", de)
+          .lte("mes_referencia", ate)
+          .order("id")
+          .range(i, f),
+      ),
+    ]);
+  } catch (e) {
     return montarLeituraRede({
       acesso: true,
-      erro: falha("apuração de royalties", u.error ?? a.error),
+      erro: falha("apuração de royalties", e),
       unidades: [],
       apuracoes: [],
     });
-  const apuracoes = ((a.data ?? []) as Record<string, unknown>[]).map((x): ApuracaoRede => ({
+  }
+  const apuracoes = a.map((x): ApuracaoRede => ({
     unidade_id: Number(x.unidade_id),
     mes: String(x.mes_referencia),
     status: String(x.status),
@@ -113,22 +134,7 @@ async function lerRede(db: any, todasUnidades: boolean, de: string) {
     csc_valor_fixo: x.csc_valor_fixo as number | null,
     csc_base_antiga_valor: x.csc_base_antiga_valor as number | null,
   }));
-  if (apuracoes.length >= 5000)
-    return montarLeituraRede({
-      acesso: true,
-      erro: "a apuração passou do limite de 5.000 linhas por leitura",
-      unidades: [],
-      apuracoes: [],
-    });
-  // Apuração existe para a rede inteira; sem nenhuma confirmada visível, é a RLS dizendo não.
-  if (!apuracoes.some((x) => x.status === "confirmado"))
-    return montarLeituraRede({
-      acesso: false,
-      motivo: "Nenhuma apuração de royalties confirmada é visível para a sua conta.",
-      unidades: [],
-      apuracoes: [],
-    });
-  const unidades = ((u.data ?? []) as Record<string, unknown>[]).map((x): UnidadeRede => ({
+  const unidades = u.map((x): UnidadeRede => ({
     id: Number(x.id),
     nome: String(x.nome_da_praca ?? `Unidade ${x.id}`),
     tipo: (x.tipo as string | null) ?? null,
@@ -153,12 +159,24 @@ export const carregarReceitaCockpit = createServerFn({ method: "GET" })
     ]);
     if (!acesso.areas.includes("cockpit_ceo"))
       throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
+    const lidoEm = new Date().toISOString();
+    // Sem ler o escopo não dá para saber se a pessoa vê o todo: falha, não "escopo por empresa".
+    if (escopo?.error) {
+      const erro = falha("escopo de acesso", escopo.error);
+      return {
+        lidoEm,
+        leituras: [
+          montarLeituraGrupo({ acesso: true, erro, faturamento: null }),
+          montarLeituraRede({ acesso: true, erro, unidades: [], apuracoes: [] }),
+        ],
+      };
+    }
     const hoje = hojeSaoPaulo();
     const de = inicioDaJanela(hoje);
     const ate = `${hoje.slice(0, 7)}-01`;
     const [grupo, rede] = await Promise.all([
       lerGrupo(db, Boolean(escopo?.data?.todas_empresas), de, ate),
-      lerRede(db, Boolean(escopo?.data?.todas_unidades), de),
+      lerRede(db, acesso, Boolean(escopo?.data?.todas_unidades), de, ate),
     ]);
-    return { leituras: [grupo, rede], lidoEm: new Date().toISOString() };
+    return { leituras: [grupo, rede], lidoEm };
   });

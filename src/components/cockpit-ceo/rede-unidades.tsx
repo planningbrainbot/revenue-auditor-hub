@@ -8,57 +8,82 @@ import { EstadoBadge } from "./estado";
 
 const pct = (x: number | null) => (x === null ? "—" : `${(x * 100).toFixed(1).replace(".", ",")}%`);
 
-export function RedeUnidades({ rede }: { rede: Rede | null }) {
-  if (!rede) return null;
-  const j = rede.janela;
+export function RedeUnidades({ rede, aviso }: { rede: Rede | null; aviso: string | null }) {
+  const j = rede?.janela ?? null;
+  // Sem janela, quem explica é o estado: falta de acesso ou fonte fora do ar não é "falta de dado".
+  const semJanela = !rede
+    ? null
+    : rede.estado === "acesso_insuficiente" || rede.estado === "fonte_indisponivel"
+      ? (rede.notas[0] ?? "Sem leitura da apuração de royalties.")
+      : "Sem janela de meses completos na apuração de royalties.";
   return (
     <section className="space-y-3 rounded-lg border p-3" aria-label="Rede por unidade">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold">Faturamento, repasse e concentração por unidade</h3>
-          <EstadoBadge estado={rede.estado} />
+          {rede && <EstadoBadge estado={rede.estado} />}
         </div>
         <p className="text-xs text-muted-foreground">
           {j
             ? `Apuração de royalties confirmada, ${mesBr(j.de)} a ${mesBr(j.ate)} (${j.meses} ${j.meses === 1 ? "mês completo" : "meses completos"}). Mês com unidade inaugurada sem apuração fica fora. Vale para a rede inteira.`
-            : "Sem janela de meses completos na apuração de royalties."}
+            : (semJanela ?? aviso)}
         </p>
       </header>
-      {rede.linhas.length > 0 && (
+      {!rede ? null : (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-xs tabular-nums">
-              <thead className="text-muted-foreground">
-                <tr className="border-b">
-                  <th className="py-1.5 text-left font-medium">Unidade</th>
-                  <th className="py-1.5 text-right font-medium">Faturamento</th>
-                  <th className="py-1.5 text-right font-medium">Participação</th>
-                  <th className="py-1.5 text-right font-medium">Royalties + CSC</th>
-                  <th className="py-1.5 text-right font-medium">Sobre o faturamento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rede.linhas.map((l) => (
-                  <tr key={l.unidade} className="border-b last:border-0">
-                    <td className="py-1.5 text-left">{l.unidade}</td>
-                    <td className="py-1.5 text-right">{formatarNumero(l.faturamento, "reais")}</td>
-                    <td className="py-1.5 text-right">{pct(l.participacao)}</td>
-                    <td className="py-1.5 text-right">{formatarNumero(l.royaltiesCsc, "reais")}</td>
-                    <td className="py-1.5 text-right">{pct(l.takeRate)}</td>
-                  </tr>
+          {rede.linhas.length > 0 && (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-xs tabular-nums">
+                  <thead className="text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="py-1.5 text-left font-medium">Unidade</th>
+                      <th className="py-1.5 text-right font-medium">Faturamento</th>
+                      <th className="py-1.5 text-right font-medium">Participação</th>
+                      <th className="py-1.5 text-right font-medium">Royalties + CSC</th>
+                      <th className="py-1.5 text-right font-medium">Sobre o faturamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rede.linhas.map((l) => (
+                      <tr key={l.unidade} className="border-b last:border-0">
+                        <td className="py-1.5 text-left">{l.unidade}</td>
+                        <td className="py-1.5 text-right">
+                          {formatarNumero(l.faturamento, "reais")}
+                        </td>
+                        <td className="py-1.5 text-right">{pct(l.participacao)}</td>
+                        <td className="py-1.5 text-right">
+                          {formatarNumero(l.royaltiesCsc, "reais")}
+                        </td>
+                        <td className="py-1.5 text-right">{pct(l.takeRate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs">
+                Maior unidade: <strong>{pct(rede.top1)}</strong> · três maiores:{" "}
+                <strong>{pct(rede.top3)}</strong> · índice de concentração (HHI):{" "}
+                <strong>{rede.hhi === null ? "—" : rede.hhi.toFixed(2).replace(".", ",")}</strong>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · participações somam {pct(rede.somaParticipacoes)}
+                </span>
+              </p>
+            </>
+          )}
+          {j && rede.notas.length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground">
+                Cobertura e ressalvas ({rede.notas.length})
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-muted-foreground">
+                {rede.notas.map((n) => (
+                  <li key={n}>{n}</li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs">
-            Maior unidade: <strong>{pct(rede.top1)}</strong> · três maiores:{" "}
-            <strong>{pct(rede.top3)}</strong> · índice de concentração (HHI):{" "}
-            <strong>{rede.hhi === null ? "—" : rede.hhi.toFixed(2).replace(".", ",")}</strong>
-            <span className="text-muted-foreground">
-              {" "}
-              · participações somam {pct(rede.somaParticipacoes)}
-            </span>
-          </p>
+              </ul>
+            </details>
+          )}
         </>
       )}
       <p className="text-[11px] text-muted-foreground">

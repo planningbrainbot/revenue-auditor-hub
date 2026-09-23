@@ -268,7 +268,7 @@ export function montarLeituraRede(entrada: {
     mesDe(u.inauguracao) ?? primeiraApuracao.get(u.id) ?? null;
 
   const centavos = new Map<string, number>(); // "mes|unidade" → centavos
-  const royCent = new Map<string, number>();
+  const royCent = new Map<string, number | null>();
   const temRoyalties = confirmadas.some((a) => a.royalties_valor !== undefined);
   const apuradas = new Map<string, Set<number>>();
   for (const a of confirmadas) {
@@ -277,14 +277,20 @@ export function montarLeituraRede(entrada: {
     const k = `${m}|${a.unidade_id}`;
     centavos.set(k, (centavos.get(k) ?? 0) + v);
     // Mesma soma de `roy_csc` da RPC de indicadores do trimestre (migration 20260826140000).
-    if (temRoyalties)
+    // Royalties ausentes numa apuração confirmada não viram R$ 0: a unidade fica sem royalties no mês.
+    if (temRoyalties) {
+      const roy = numero(a.royalties_valor);
+      const antes = royCent.has(k) ? royCent.get(k)! : 0;
       royCent.set(
         k,
-        (royCent.get(k) ?? 0) +
-          cent(numero(a.royalties_valor) ?? 0) +
-          cent(numero(a.csc_valor_fixo) ?? 0) +
-          cent(numero(a.csc_base_antiga_valor) ?? 0),
+        roy === null || antes === null
+          ? null
+          : antes +
+              cent(roy) +
+              cent(numero(a.csc_valor_fixo) ?? 0) +
+              cent(numero(a.csc_base_antiga_valor) ?? 0),
       );
+    }
     if (!apuradas.has(m)) apuradas.set(m, new Set());
     apuradas.get(m)!.add(a.unidade_id);
   }
@@ -324,7 +330,11 @@ export function montarLeituraRede(entrada: {
   const complementos = temRoyalties
     ? [...royCent].map(([k, c]) => {
         const [mes, id] = k.split("|");
-        return { mes, chave: regionais.get(Number(id))!.nome, royaltiesCsc: c / 100 };
+        return {
+          mes,
+          chave: regionais.get(Number(id))!.nome,
+          royaltiesCsc: c === null ? null : c / 100,
+        };
       })
     : undefined;
   return {

@@ -2,6 +2,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matrizDeEvidencias } from "@/lib/cockpit-ceo/evidencias";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
+import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 
 // Baixa a matriz de evidências (CSV). Gerada no navegador a partir do catálogo e dos estados; não
 // passa por servidor e não leva dado de cliente.
@@ -14,9 +15,12 @@ export function ExportarEvidencias({ cockpit }: { cockpit: Cockpit }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `matriz-evidencias-cockpit-${agora.slice(0, 10)}${cockpit.sintetico ? "-sintetico" : ""}.csv`;
+    // Data de São Paulo no nome; o link entra no documento (Firefox) e a URL só é liberada depois.
+    a.download = `matriz-evidencias-cockpit-${hojeSaoPaulo()}${cockpit.sintetico ? "-sintetico" : ""}.csv`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
