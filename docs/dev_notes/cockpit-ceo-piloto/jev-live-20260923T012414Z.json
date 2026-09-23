@@ -1,0 +1,88 @@
+{
+  "quando": "2026-09-23T01:24:14.075Z",
+  "endpoint": "https://openrouter.ai/api/alpha/decisions",
+  "textoFicticio": "Olá! Na Empresa Exemplo Alfa precisamos entender se a revisão tributária se aplica ao nosso caso. Já temos contador e gostaria de conversar com um especialista antes de decidir. Vocês conseguem explicar o serviço?",
+  "perguntas": {
+    "intencao": {
+      "type": "choice",
+      "instructions": "Qual é a intenção principal expressa na mensagem em `mensagem`?",
+      "criteria": {
+        "conhecer": "Quer entender o serviço antes de avaliar a compra.",
+        "proposta": "Pede proposta comercial para avaliar a contratação.",
+        "suporte": "Pede ajuda com problema em produto ou serviço já contratado.",
+        "outro": "Expressa outra intenção.",
+        "insuficiente": "Não há informação suficiente para identificar a intenção."
+      }
+    },
+    "interesse": {
+      "type": "score",
+      "instructions": "Qual a força da intenção comercial explicitamente demonstrada na mensagem em `mensagem`? Não estime chance de fechamento nem aderência tributária.",
+      "criteria": [
+        "Não expressa interesse em comprar.",
+        "Interesse exploratório em conhecer o serviço.",
+        "Pedido concreto de proposta ou contratação."
+      ]
+    },
+    "pessoa": {
+      "type": "noul",
+      "instructions": "A mensagem em `mensagem` pede explicitamente conversa ou contato com uma pessoa?",
+      "criteria": {
+        "true": "Pede conversa, reunião, ligação ou contato com alguém.",
+        "false": "Não pede contato com uma pessoa."
+      }
+    }
+  },
+  "resultado": {
+    "estado": "ok",
+    "idChamada": "c8373082-9203-4c6a-8b55-94ef169e9584",
+    "exemplo": "email-exploratorio",
+    "taxonomia": "piloto-email-v1",
+    "modeloSolicitado": "typesafe/jev-1.13",
+    "modeloRetornado": "typesafe/jev-1.13-20260917",
+    "provedor": "TypeSafe",
+    "idFornecedor": "gen-dec-1790126654-QGoMIlXDcR1dnUBk55kW",
+    "latenciaMs": 873,
+    "custoUsd": 0.000025368,
+    "tokens": {
+      "entrada": 604,
+      "saida": 97
+    },
+    "respostas": {
+      "intencao": {
+        "type": "choice",
+        "choice": "conhecer",
+        "confidence": 1,
+        "probabilities": {
+          "proposta": 0,
+          "insuficiente": 0,
+          "outro": 0,
+          "conhecer": 1,
+          "suporte": 0
+        }
+      },
+      "interesse": {
+        "type": "score",
+        "score": 1,
+        "confidence": 1,
+        "probabilities": {
+          "0": 0,
+          "1": 1,
+          "2": 0
+        }
+      },
+      "pessoa": {
+        "type": "noul",
+        "noul": 0.92
+      }
+    },
+    "orcamento": {
+      "tentativas": 1,
+      "restantes": 9,
+      "custoConhecidoUsd": 0.000025368,
+      "custoDesconhecido": false,
+      "bloqueado": false,
+      "motivo": null
+    }
+  },
+  "ledger": "docs/dev_notes/cockpit-ceo-piloto/jev-chamadas.jsonl"
+}
