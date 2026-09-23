@@ -72,7 +72,11 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
                   name="pergunta-ceo"
                   className="mt-1"
                   checked={pergunta === id}
-                  onChange={() => setPergunta(id)}
+                  onChange={() => {
+                    // A sugestão anterior é de outra pergunta: não fica na tela ao lado desta.
+                    setPergunta(id);
+                    m.reset();
+                  }}
                 />
                 <span>{PERGUNTAS_CEO_FICTICIAS[id]}</span>
               </label>
@@ -87,11 +91,13 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
               {m.isPending ? "Consultando Jev…" : "Encaminhar com Jev"}
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              {!st.data
-                ? "Conferindo o piloto…"
-                : !st.data.ativo
-                  ? "Jev desligado neste servidor."
-                  : `${orcamento?.tentativas ?? 0} de 10 requisições usadas · custo informado US$ ${decimal(orcamento?.custoConhecidoUsd ?? 0, 6)}${orcamento?.custoDesconhecido ? " · há chamada sem custo informado" : ""} · chave ${st.data.chaveCadastrada ? "cadastrada" : "NÃO cadastrada"}`}
+              {st.isError
+                ? "Não foi possível conferir o estado do piloto no servidor."
+                : !st.data
+                  ? "Conferindo o piloto…"
+                  : !st.data.ativo
+                    ? "Jev desligado neste servidor."
+                    : `${orcamento?.tentativas ?? 0} de 10 requisições usadas · custo informado US$ ${decimal(orcamento?.custoConhecidoUsd ?? 0, 6)}${orcamento?.custoDesconhecido ? " · há chamada sem custo informado" : ""} · chave ${st.data.chaveCadastrada ? "cadastrada" : "NÃO cadastrada"}`}
             </span>
           </div>
           {orcamento?.bloqueado && (
@@ -122,6 +128,11 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
                   Sugestão de IA · não é dado verificado
                 </p>
+                {m.variables && (
+                  <p className="mt-1 text-muted-foreground">
+                    Pergunta encaminhada: {PERGUNTAS_CEO_FICTICIAS[m.variables]}
+                  </p>
+                )}
                 <p className="mt-1 text-sm font-medium">
                   Frente sugerida: {ROTULO_OPCAO[frente.choice] ?? frente.choice}
                 </p>

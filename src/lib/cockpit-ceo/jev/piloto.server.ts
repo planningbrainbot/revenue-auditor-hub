@@ -2,7 +2,7 @@
 //
 // Só funciona com COCKPIT_JEV_PILOTO=1 e fora de produção. Aceita apenas os exemplos fictícios
 // fixos de contrato.ts: nenhum texto livre, nenhum dado do banco.
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { criarLedgerArquivo, decidirJev, obterChaveKeychain } from "./adaptador.server.ts";
 import type { FalhaJev, ResultadoJev } from "./adaptador.server.ts";
 import {
@@ -13,9 +13,12 @@ import {
 } from "./contrato.ts";
 import type { IdPerguntaCeo, RegistroChamada, ResumoOrcamento } from "./contrato.ts";
 
+// Caminho fixo, relativo a este arquivo: rodar o script de outro diretório (ou com outra variável
+// de ambiente) não pode abrir um ledger novo e, com ele, outras 10 chamadas.
 export const caminhoLedger = () =>
-  process.env.COCKPIT_JEV_LEDGER ||
-  join(process.cwd(), "docs/dev_notes/cockpit-ceo-piloto/jev-chamadas.jsonl");
+  fileURLToPath(
+    new URL("../../../../docs/dev_notes/cockpit-ceo-piloto/jev-chamadas.jsonl", import.meta.url),
+  );
 
 const desativado = (): FalhaJev => ({
   estado: "desativado",
@@ -47,7 +50,7 @@ export interface StatusJev {
   chaveCadastrada: boolean;
   orcamento: ResumoOrcamento | null;
   /** Desfechos sem texto analisado: id opaco, exemplo, modelo, duração, custo e respostas. */
-  chamadas: Omit<RegistroChamada, "tokens">[];
+  chamadas: Omit<RegistroChamada, "tokens" | "formato">[];
 }
 
 export async function statusPiloto(): Promise<StatusJev> {
@@ -61,6 +64,6 @@ export async function statusPiloto(): Promise<StatusJev> {
     orcamento: resumirOrcamento(registros),
     chamadas: registros
       .filter((r) => r.estado !== "reservada")
-      .map(({ tokens: _tokens, ...r }) => r),
+      .map(({ tokens: _tokens, formato: _formato, ...r }) => r),
   };
 }

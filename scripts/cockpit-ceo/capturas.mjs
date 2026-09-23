@@ -149,6 +149,23 @@ await espera(900);
 const depoisVoltar = await avaliar(`({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`);
 conferir("Voltar do navegador fecha a composição", !depoisVoltar.aberta && !depoisVoltar.search.includes("indicador"), JSON.stringify(depoisVoltar));
 
+// Fechar pelo X desempilha a entrada da composição: o "voltar" seguinte sai da tela.
+await abrir("/piloto/cockpit-ceo?periodo=ano");
+await abrir("/piloto/cockpit-ceo");
+await avaliar(`document.querySelector('[aria-label="Contratos ganhos no CRM: abrir composição"]').click()`);
+await espera(800);
+await avaliar(`[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close/.test(b.textContent))?.click()`);
+await espera(800);
+const aposX = await avaliar(`({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`);
+await avaliar("history.back()");
+await espera(1200);
+const aposVoltar = await avaliar("location.search");
+conferir(
+  "Fechar no X e depois voltar sai da tela num clique só",
+  !aposX.aberta && !aposX.search.includes("indicador") && aposVoltar.includes("periodo=ano"),
+  JSON.stringify({ aposX, aposVoltar }),
+);
+
 // Filtros persistem na URL e todos os componentes respondem ao recorte.
 await abrir("/piloto/cockpit-ceo?periodo=mes_anterior&perimetro=ex-norte&frente=comercial");
 const recorte = await avaliar(`(() => ({

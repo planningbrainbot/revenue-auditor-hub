@@ -16,6 +16,8 @@ import { appendFile, mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   ErroJev,
+  extrairCusto,
+  formatoDaResposta,
   JEV_ENDPOINT,
   JEV_MODELO,
   KEYCHAIN,
@@ -122,6 +124,8 @@ export async function decidirJev(
     const relogio = setTimeout(() => controle.abort(), deps.timeoutMs ?? 20_000);
     let desfecho: RegistroChamada;
     let resultado: Omit<ResultadoJev, "orcamento"> | null = null;
+    // Corpo já lido e interpretado, para não perder o custo quando a resposta sai do contrato.
+    let corpoLido: unknown = undefined;
     try {
       const resp = await transporte(JEV_ENDPOINT, {
         method: "POST",
@@ -152,6 +156,7 @@ export async function decidirJev(
         } catch {
           throw new ErroJev("resposta_invalida", "Resposta não é JSON.");
         }
+        corpoLido = corpo;
         const v = validarResposta(corpo, pedido.questions);
         desfecho = {
           ...base,
@@ -182,6 +187,9 @@ export async function decidirJev(
       }
     } catch (e) {
       const erro = e as Error & { codigo?: string };
+      // Resposta fora do contrato mas com custo informado: o custo é fato, e sem ele o orçamento
+      // travaria por "custo desconhecido" uma chamada que o fornecedor já declarou.
+      const custo = corpoLido === undefined ? null : extrairCusto(corpoLido);
       desfecho = {
         ...base,
         estado: "falha",
@@ -192,8 +200,9 @@ export async function decidirJev(
               ? erro.codigo
               : "conexao_falhou",
         latenciaMs: Math.round(performance.now() - inicio),
-        custoUsd: null,
-        custoDesconhecido: true,
+        custoUsd: custo,
+        custoDesconhecido: custo === null,
+        ...(corpoLido === undefined ? {} : { formato: formatoDaResposta(corpoLido) }),
       };
     } finally {
       clearTimeout(relogio);

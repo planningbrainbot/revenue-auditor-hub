@@ -16,13 +16,32 @@ export function mensagemDeErro(erro: unknown): string {
   return texto || "A carga de Base e Monetização falhou por um motivo não identificado.";
 }
 
+export interface AcessoCockpit {
+  /** view.aquario ou view.clientes: lê a carteira. */
+  acessoBase: boolean;
+  /** view.aquario ou view.monetizacao: lê os negócios (RLS de ops.monetizacao_deals). */
+  acessoNegocios: boolean;
+}
+
+/** Pessoa com a área do cockpit mas sem nenhuma chave de Base ou Monetização: nem carrega. */
+export function fonteSemAcesso(hoje: string, agora: string): FonteCockpit {
+  return {
+    sintetico: false,
+    hoje,
+    agora,
+    acessoBase: false,
+    acessoNegocios: false,
+    monetizacao: { estado: "sem_acesso", erro: null, dados: null },
+  };
+}
+
 export function fonteDoBrain(
   q: { data?: BaseMonetizacao; error?: unknown; isLoading: boolean },
-  acessoBase: boolean,
+  acesso: AcessoCockpit,
   hoje: string,
   agora: string,
 ): FonteCockpit {
-  const comum = { sintetico: false, hoje, agora, acessoBase };
+  const comum = { sintetico: false, hoje, agora, ...acesso };
   if (q.error)
     return {
       ...comum,

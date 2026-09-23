@@ -140,13 +140,16 @@ export function formatarValor(i: Pick<Indicador, "valor" | "unidade">): string {
   return formatarNumero(i.valor, i.unidade);
 }
 
-/** Soma das linhas marcadas; `null` se alguma parcela for desconhecida. */
+/**
+ * Soma das linhas marcadas; `null` se alguma parcela for desconhecida. Em centavos inteiros, como
+ * `receitaSomada()`: somar reais em ponto flutuante dava 600,5999… contra um total de 600,60.
+ */
 export function somaDaComposicao(i: Pick<Indicador, "composicao">): number | null {
-  let total = 0;
+  let centavos = 0;
   for (const l of i.composicao) {
     if (!l.soma) continue;
     if (l.valor === null) return null;
-    total += l.valor;
+    centavos += Math.round(l.valor * 100);
   }
-  return total;
+  return centavos / 100;
 }

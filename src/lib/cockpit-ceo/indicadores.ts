@@ -7,7 +7,7 @@
 //
 // Funções puras: o mesmo recorte e a mesma fotografia devolvem os mesmos números, que é o que
 // permite o clique no número conferir com a composição.
-import { operacao, receitaSomada, uteis } from "../monetizacao/model.ts";
+import { LIMITE_CARGA_PARADA_MS, operacao, receitaSomada, uteis } from "../monetizacao/model.ts";
 import { estadoProduto } from "../monetizacao/portfolio.ts";
 import { NOMES, PRODUTOS } from "../monetizacao/types.ts";
 import type { BaseMonetizacao, Conta, Metrica, Plano, Produto } from "../monetizacao/types";
@@ -32,8 +32,14 @@ export interface FonteCockpit {
   agora: string;
   /** A pessoa pode ler a Base de clientes (view.aquario ou view.clientes). */
   acessoBase: boolean;
+  /**
+   * A pessoa pode ler os negócios (view.aquario ou view.monetizacao, pela RLS de
+   * ops.monetizacao_deals). Sem eles a disponibilidade de uma conta não pode ser conferida.
+   */
+  acessoNegocios: boolean;
   monetizacao: {
-    estado: "ok" | "erro" | "carregando";
+    /** `sem_acesso`: nenhuma chave de Base ou Monetização; a carga nem é montada. */
+    estado: "ok" | "erro" | "carregando" | "sem_acesso";
     erro: string | null;
     dados: BaseMonetizacao | null;
   };
@@ -111,8 +117,17 @@ const FONTE_BASE =
 
 type EstadoFonte = { estado: Estado; dataDado: string | null; nota: string | null };
 
+const SEM_ACESSO: EstadoFonte = {
+  estado: "acesso_insuficiente",
+  dataDado: null,
+  nota: "Seu acesso não inclui Base de clientes nem Monetização. Sem permissão não é o mesmo que nenhum registro.",
+};
+const parada = (f: FonteCockpit, quando: string) =>
+  Date.parse(f.agora) - Date.parse(quando) > LIMITE_CARGA_PARADA_MS;
+
 function estadoComercial(f: FonteCockpit): EstadoFonte {
   const m = f.monetizacao;
+  if (m.estado === "sem_acesso") return SEM_ACESSO;
   if (m.estado === "carregando")
     return { estado: "fonte_indisponivel", dataDado: null, nota: "Carga em andamento." };
   if (m.estado === "erro" || !m.dados)
@@ -134,8 +149,8 @@ function estadoComercial(f: FonteCockpit): EstadoFonte {
       dataDado: null,
       nota: "O CRM ainda não teve uma carga de indicadores concluída.",
     };
-  const velho = Date.parse(f.agora) - Date.parse(d.measured_at) > 24 * 3_600_000;
-  if (d.sync_error || velho)
+  // Mesmo limite da barra de frescor da Monetização: carga com mais de 30 minutos está parada.
+  if (d.sync_error || parada(f, d.measured_at))
     return {
       estado: "parcial",
       dataDado: d.measured_at,
@@ -146,6 +161,7 @@ function estadoComercial(f: FonteCockpit): EstadoFonte {
 
 function estadoBase(f: FonteCockpit): EstadoFonte {
   const m = f.monetizacao;
+  if (m.estado === "sem_acesso") return SEM_ACESSO;
   if (m.estado !== "ok" || !m.dados)
     return {
       estado: "fonte_indisponivel",
@@ -164,6 +180,18 @@ function estadoBase(f: FonteCockpit): EstadoFonte {
       estado: "fonte_indisponivel",
       dataDado: null,
       nota: "Catálogo da base sem carga concluída.",
+    };
+  if (!f.acessoNegocios)
+    return {
+      estado: "acesso_insuficiente",
+      dataDado: null,
+      nota: "A disponibilidade de uma conta depende dos negócios do CRM, que seu acesso não lê (view.aquario ou view.monetizacao). Sem eles toda conta apta pareceria livre.",
+    };
+  if (parada(f, m.dados.catalog_at))
+    return {
+      estado: "parcial",
+      dataDado: m.dados.catalog_at,
+      nota: `Catálogo da base parado desde ${dataHora(m.dados.catalog_at)}. O número vale até essa data.`,
     };
   return { estado: "disponivel", dataDado: m.dados.catalog_at, nota: null };
 }
@@ -186,18 +214,36 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     unidade = undefined;
   }
   const perimetroRotulo = unidade ? unidade.name : "Rede inteira no seu escopo";
+  const chavesDaUnidade = new Set(unidade?.account_keys ?? []);
   const contas: Conta[] = dados
     ? unidade
-      ? dados.accounts.filter((a) => unidade!.account_keys.includes(a.key))
+      ? dados.accounts.filter((a) => chavesDaUnidade.has(a.key))
       : dados.accounts
     : [];
+  const chavesComUnidade = new Set(unidades.flatMap((u) => u.account_keys));
   const orgsDaBase = new Set((dados?.accounts ?? []).flatMap((a) => a.orgs));
+  const orgsComUnidade = new Set(
+    (dados?.accounts ?? []).filter((a) => chavesComUnidade.has(a.key)).flatMap((a) => a.orgs),
+  );
   const orgsDoPerimetro = new Set(contas.flatMap((a) => a.orgs));
   const todos = dados?.cards ?? [];
   const negocios = unidade
     ? todos.filter((c) => c.org_id !== null && orgsDoPerimetro.has(c.org_id))
     : todos;
+  // O que um recorte por unidade não alcança: negócio sem conta e negócio de conta sem unidade.
   const semConta = todos.filter((c) => c.org_id === null || !orgsDaBase.has(c.org_id));
+  const semUnidade = todos.filter(
+    (c) => c.org_id !== null && orgsDaBase.has(c.org_id) && !orgsComUnidade.has(c.org_id),
+  );
+  const foraDoRecorte = (sc: number, su: number, verbo: string) => {
+    const partes = [
+      sc ? plural(sc, "negócio sem conta vinculada", "negócios sem conta vinculada") : null,
+      su ? plural(su, "negócio de conta sem unidade", "negócios de contas sem unidade") : null,
+    ].filter(Boolean);
+    return partes.length
+      ? `${partes.join(" e ")} ${verbo} e ficaram fora do recorte por unidade.`
+      : null;
+  };
 
   const p = recorte.periodo;
   const filtros = [
@@ -225,6 +271,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     ? operacao(negocios, { ...filtro, from: anterior.de, to: anterior.ate })
     : null;
   const opSemConta = unidade && temNumero(comercial.estado) ? operacao(semConta, filtro) : null;
+  const opSemUnidade = unidade && temNumero(comercial.estado) ? operacao(semUnidade, filtro) : null;
   const mes = mesDoPeriodo(p);
   const planosDoMes: Plano[] = mes ? (dados?.plans ?? []).filter((pl) => pl.month === mes.mes) : [];
 
@@ -324,12 +371,13 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       : [];
     const notas: string[] = [];
     if (comercial.nota) notas.push(comercial.nota);
-    if (opSemConta) {
-      const fora = opSemConta.rows[m].length;
-      if (fora)
-        notas.push(
-          `${plural(fora, "negócio sem conta vinculada teve", "negócios sem conta vinculada tiveram")} este evento no período e ficou fora do recorte por unidade.`,
-        );
+    if (opSemConta && opSemUnidade) {
+      const fora = foraDoRecorte(
+        opSemConta.rows[m].length,
+        opSemUnidade.rows[m].length,
+        "tiveram este evento no período",
+      );
+      if (fora) notas.push(fora);
     }
     notas.push("Cada negócio conta uma vez; o produto é o atual do negócio.");
     return {
@@ -392,7 +440,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   );
 
   // ── Receita prevista declarada no CRM ─────────────────────────────────
-  const abertosValidados = negocios.filter((c) => c.status === "open" && c.validated_at);
+  const abertoValidado = (c: (typeof todos)[number]) => c.status === "open" && !!c.validated_at;
+  const abertosValidados = negocios.filter(abertoValidado);
   const soma = temNumero(comercial.estado) ? receitaSomada(abertosValidados) : null;
   const porProdutoReceita = (prod: Produto | "sem_produto") =>
     receitaSomada(abertosValidados.filter((c) => c.route === prod));
@@ -461,6 +510,13 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     composicao: receitaComposicao,
     notaComposicao: [
       comercial.nota,
+      unidade && soma
+        ? foraDoRecorte(
+            semConta.filter(abertoValidado).length,
+            semUnidade.filter(abertoValidado).length,
+            "estão abertos e validados",
+          )
+        : null,
       "Fotografia de agora: o período filtrado não se aplica. Nulo não vira zero; moedas diferentes não são somadas.",
       "Pipeline, capacidade e contratos firmes podem conter os mesmos negócios: não somar com outras previsões.",
     ]
@@ -637,7 +693,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       trabalhados: op ? op.rows.started.filter((c) => c.route === prod).length : null,
       validadas: op ? op.rows.validated.filter((c) => c.route === prod).length : null,
       ganhos: op ? op.rows.signed.filter((c) => c.route === prod).length : null,
-      receitaPrevista: r && r.known ? r.total : null,
+      // Sem negócio aberto validado no produto é zero de verdade; traço só quando há negócio sem valor.
+      receitaPrevista: !r ? null : r.known ? r.total : r.missing ? null : 0,
       semReceita: r ? r.missing : null,
       contasProntas: prod === "sem_produto" || !baseComNumero ? null : prontasPor(prod),
     };
@@ -654,7 +711,12 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       indicador: "contratos-ganhos",
     });
   const ritmo = contratos.comparacoes.find((c) => c.rotulo === "Ritmo esperado da meta");
-  if (ritmo?.referencia != null && contratos.valor != null && contratos.valor < ritmo.referencia)
+  if (
+    comercial.estado === "disponivel" &&
+    ritmo?.referencia != null &&
+    contratos.valor != null &&
+    contratos.valor < ritmo.referencia
+  )
     ameacas.push({
       id: "ritmo-contratos",
       titulo: "Contratos ganhos abaixo do ritmo da meta",

@@ -37,7 +37,8 @@ por disciplina do agente, não por barreira técnica. Restrições que segui:
 - Leitura fora de `app/` restrita a `../briefing`, `../superpowers`, aos arquivos do iniciador e ao
   canário sintético.
 - Rede usada apenas para: `registry.npmjs.org` (instalação pelo lockfile), documentação oficial
-  (openrouter.ai, docs.typesafe.ai) e a API de Decisions do OpenRouter com texto fictício.
+  (openrouter.ai, docs.typesafe.ai) e, só depois de a chave ser cadastrada, a API de Decisions do
+  OpenRouter com texto fictício — toda chamada passa pelo ledger `jev-chamadas.jsonl`.
 - Preview roda com Supabase apontado para endereço local morto: não há como tocar o banco único.
 
 Para uma execução prolongada sem supervisão, o isolamento precisa voltar a ser técnico (runner com

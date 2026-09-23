@@ -211,7 +211,7 @@ function negocio(
   };
 }
 
-export function baseSintetica(hoje: string): BaseMonetizacao {
+export function baseSintetica(hoje: string, medidoEm = hoje + "T11:00:00.000Z"): BaseMonetizacao {
   const r = gerador(20260922);
   const accounts = Array.from({ length: 72 }, (_, k) => conta(k + 1));
   const cards: Negocio[] = [];
@@ -351,8 +351,8 @@ export function baseSintetica(hoje: string): BaseMonetizacao {
       plano(mesAnterior, { cella: 30, consultoria: 40, finance: 20 }),
     ],
     records: [],
-    measured_at: hoje + "T11:00:00.000Z",
-    catalog_at: hoje + "T11:00:00.000Z",
+    measured_at: medidoEm,
+    catalog_at: medidoEm,
     sync_status: "ok",
     sync_error: null,
     stages: [
@@ -370,6 +370,12 @@ export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
     hoje,
     agora,
     acessoBase: true,
-    monetizacao: { estado: "ok", erro: null, dados: baseSintetica(hoje) },
+    acessoNegocios: true,
+    // Carga "de dez minutos atrás" em relação a quem abre o preview, para não parecer parada.
+    monetizacao: {
+      estado: "ok",
+      erro: null,
+      dados: baseSintetica(hoje, new Date(Date.parse(agora) - 10 * 60_000).toISOString()),
+    },
   };
 }

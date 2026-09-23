@@ -131,7 +131,8 @@ export function validarBusca(s: Record<string, unknown>): BuscaCockpit {
   const perimetro = texto(s.perimetro);
   const frente = texto(s.frente);
   return {
-    periodo: periodo in PRESETS ? periodo : "",
+    // Valor desconhecido passa adiante: `resolverPeriodo` volta ao mês atual e diz por quê.
+    periodo,
     de: texto(s.de, 10),
     ate: texto(s.ate, 10),
     perimetro: perimetro === "rede" ? "" : perimetro,

@@ -29,6 +29,9 @@ export const normal = (v: string | null | undefined) =>
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .trim();
+// Carga com mais de 30 minutos é "parada": o sync roda a cada 5. Regra da barra de frescor da
+// Monetização, também usada pelo Cockpit do CEO para marcar número parcial.
+export const LIMITE_CARGA_PARADA_MS = 30 * 60_000;
 export const hoje = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",

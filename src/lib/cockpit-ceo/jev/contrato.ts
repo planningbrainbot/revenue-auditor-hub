@@ -221,7 +221,10 @@ export function validarResposta(
   const respostas: Record<string, RespostaJev> = {};
   for (const [nome, q] of Object.entries(perguntas)) {
     const a = answers[nome];
-    if (!a || a.type !== q.type) throw invalida(`${nome}: resposta ausente ou de outro tipo.`);
+    // A referência documenta `type` em cada resposta; se ele faltar, vale o tipo da pergunta. Se
+    // vier diferente, a resposta não é desta pergunta.
+    if (!a || typeof a !== "object" || (a.type !== undefined && a.type !== q.type))
+      throw invalida(`${nome}: resposta ausente ou de outro tipo.`);
     if (q.type === "choice") {
       const opcoes = Object.keys(q.criteria);
       if (typeof a.choice !== "string" || !opcoes.includes(a.choice))
@@ -257,10 +260,33 @@ export function validarResposta(
     provedor: (r.provider as string | undefined) ?? null,
     idFornecedor: typeof r.id === "string" ? r.id : null,
     respostas,
-    // Custo ausente, negativo ou não numérico é "não informado", nunca zero.
-    custoUsd: noIntervalo(usage.cost, 0, Number.MAX_VALUE) ? (usage.cost as number) : null,
+    custoUsd: extrairCusto(raw),
     tokens: { entrada: inteiro(usage.input_tokens), saida: inteiro(usage.output_tokens) },
   };
+}
+
+/** Custo informado em `usage.cost`. Ausente, negativo ou não numérico é "não informado", nunca zero. */
+export function extrairCusto(raw: unknown): number | null {
+  const usage = (raw as { usage?: { cost?: unknown } } | null)?.usage;
+  return noIntervalo(usage?.cost, 0, Number.MAX_VALUE) ? (usage!.cost as number) : null;
+}
+
+/**
+ * O formato de uma resposta, sem nenhum valor: chaves e tipos, até três níveis. Serve para ajustar
+ * a validação se o fornecedor mudar o contrato, sem gravar texto nem escolha no ledger.
+ */
+export function formatoDaResposta(v: unknown, nivel = 0): unknown {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return nivel >= 3 ? "array" : [formatoDaResposta(v[0], nivel + 1)];
+  if (typeof v === "object")
+    return nivel >= 3
+      ? "object"
+      : Object.fromEntries(
+          Object.entries(v as Record<string, unknown>)
+            .slice(0, 30)
+            .map(([k, x]) => [k.slice(0, 40), formatoDaResposta(x, nivel + 1)]),
+        );
+  return typeof v;
 }
 
 // ── Orçamento do piloto ──────────────────────────────────────────────────
@@ -280,6 +306,8 @@ export interface RegistroChamada {
   custoDesconhecido?: boolean;
   tokens?: { entrada: number | null; saida: number | null };
   respostas?: Record<string, RespostaJev>;
+  /** Só quando a resposta veio fora do contrato: chaves e tipos, sem valores. */
+  formato?: unknown;
 }
 
 export interface ResumoOrcamento {

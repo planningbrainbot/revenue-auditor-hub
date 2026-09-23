@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { caminhoLedger } from "../src/lib/cockpit-ceo/jev/piloto.server.ts";
 import {
   JEV_ENDPOINT,
   JEV_MODELO,
@@ -312,4 +314,45 @@ test("Jev só liga no piloto, fora de produção", () => {
   assert.equal(pilotoJevAtivo({ COCKPIT_JEV_PILOTO: "1", NODE_ENV: "development" }), true);
   assert.equal(pilotoJevAtivo({ COCKPIT_JEV_PILOTO: "1", NODE_ENV: "production" }), false);
   assert.equal(pilotoJevAtivo({ NODE_ENV: "development" }), false);
+});
+
+test("Resposta sem o campo type, no resto conforme, é aceita pelo tipo da pergunta", () => {
+  const r = respostaEmail();
+  for (const a of Object.values(r.answers)) delete a.type;
+  const v = validarResposta(r, payloadTesteEmail().questions);
+  assert.equal(v.respostas.intencao.type, "choice");
+  assert.equal(v.respostas.pessoa.noul, 0.93);
+});
+
+test("Resposta fora do contrato mas com custo informado guarda o custo e não trava o orçamento à toa", async () => {
+  const r = respostaEmail(0.00003);
+  r.answers.intencao.choice = "outra_coisa";
+  const t = transporteCom(r);
+  const d = deps(t);
+  const f = await decidirJev(payloadTesteEmail(), d);
+  assert.equal(f.estado, "falha");
+  assert.equal(f.codigo, "resposta_invalida");
+  const desfecho = (await d.ledger.ler()).find((x) => x.estado === "falha");
+  assert.equal(desfecho.custoUsd, 0.00003);
+  assert.equal(desfecho.custoDesconhecido, false);
+  assert.ok(desfecho.formato, "guarda o formato da resposta para diagnóstico");
+  assert.ok(!JSON.stringify(desfecho.formato).includes("outra_coisa"), "formato sem valores");
+  assert.equal(resumirOrcamento(await d.ledger.ler()).bloqueado, false);
+});
+
+test("Ledger do piloto tem caminho fixo, independente do diretório de execução", () => {
+  const esperado = fileURLToPath(
+    new URL("../docs/dev_notes/cockpit-ceo-piloto/jev-chamadas.jsonl", import.meta.url),
+  );
+  const antes = process.cwd();
+  const dir = mkdtempSync(join(tmpdir(), "jev-cwd-"));
+  try {
+    process.chdir(dir);
+    process.env.COCKPIT_JEV_LEDGER = join(dir, "outro.jsonl");
+    assert.equal(caminhoLedger(), esperado);
+  } finally {
+    process.chdir(antes);
+    delete process.env.COCKPIT_JEV_LEDGER;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

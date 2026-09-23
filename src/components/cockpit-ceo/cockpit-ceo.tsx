@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, inputClass, Notice, Panel } from "@/components/monetizacao/common";
@@ -122,8 +123,21 @@ export function CockpitCeo({
   topo?: ReactNode;
   jev?: (irParaFrente: (f: Frente) => void) => ReactNode;
 }) {
+  const router = useRouter();
   const aberto = cockpit.indicadores.find((i) => i.id === busca.indicador) ?? null;
-  const abrir = (id: string) => aoMudar({ indicador: id });
+  // Abrir um número empilha uma entrada no histórico. Fechar pelo X desempilha a mesma entrada,
+  // em vez de trocar por outra: senão o "voltar" do navegador precisaria de dois cliques.
+  const empilhado = useRef(false);
+  const abrir = (id: string) => {
+    empilhado.current = true;
+    aoMudar({ indicador: id });
+  };
+  const fechar = () => {
+    if (empilhado.current) {
+      empilhado.current = false;
+      router.history.back();
+    } else aoMudar({ indicador: "" });
+  };
   const frente: Frente = busca.frente || "comercial";
   const irParaFrente = (f: Frente) => {
     aoMudar({ frente: f });
@@ -320,11 +334,7 @@ export function CockpitCeo({
         onAbrirIndicador={abrir}
       />
 
-      <ComposicaoIndicador
-        indicador={aberto}
-        onFechar={() => aoMudar({ indicador: "" })}
-        preview={preview}
-      />
+      <ComposicaoIndicador indicador={aberto} onFechar={fechar} preview={preview} />
     </main>
   );
 }

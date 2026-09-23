@@ -340,8 +340,8 @@ function dados(changes = {}) {
       ),
     ],
     plans: [],
-    measured_at: "2026-09-22T14:00:00Z",
-    catalog_at: "2026-09-22T13:59:00Z",
+    measured_at: "2026-09-22T14:50:00Z",
+    catalog_at: "2026-09-22T14:49:00Z",
     sync_status: "ok",
     sync_error: null,
     permissions: { view: true, manage: false, send: false, all_units: true },
@@ -353,6 +353,7 @@ const fonteOk = (d = dados(), extra = {}) => ({
   hoje: "2026-09-22",
   agora: "2026-09-22T15:00:00Z",
   acessoBase: true,
+  acessoNegocios: true,
   monetizacao: { estado: "ok", erro: null, dados: d },
   ...extra,
 });
@@ -598,7 +599,7 @@ test("Adaptador do Brain separa carregando, erro e carga concluída", () => {
   const d = baseSintetica("2026-09-22");
   const ok = fonteDoBrain(
     { data: d, error: null, isLoading: false },
-    true,
+    { acessoBase: true, acessoNegocios: true },
     "2026-09-22",
     "2026-09-22T15:00:00Z",
   );
@@ -606,14 +607,14 @@ test("Adaptador do Brain separa carregando, erro e carga concluída", () => {
   assert.equal(ok.sintetico, false);
   const carregando = fonteDoBrain(
     { data: undefined, error: null, isLoading: true },
-    true,
+    { acessoBase: true, acessoNegocios: true },
     "2026-09-22",
     "x",
   );
   assert.equal(carregando.monetizacao.estado, "carregando");
   const erro = fonteDoBrain(
     { data: d, error: new Error("A base mudou durante a consulta."), isLoading: false },
-    true,
+    { acessoBase: true, acessoNegocios: true },
     "2026-09-22",
     "x",
   );
@@ -622,7 +623,7 @@ test("Adaptador do Brain separa carregando, erro e carga concluída", () => {
   assert.match(erro.monetizacao.erro, /mudou durante a consulta/);
   const sessao = fonteDoBrain(
     { data: undefined, error: new Error("Unauthorized: Invalid token"), isLoading: false },
-    true,
+    { acessoBase: true, acessoNegocios: true },
     "2026-09-22",
     "x",
   );
@@ -660,4 +661,90 @@ test("Ritmo esperado diz se é da meta de contratos ou da capacidade de leads", 
   assert.ok(rotulos("contratos-ganhos").includes("Ritmo esperado da meta"));
   assert.ok(rotulos("leads-trabalhados").includes("Ritmo esperado da capacidade"));
   assert.ok(!rotulos("leads-trabalhados").includes("Ritmo esperado da meta"));
+});
+
+// ── Correções da revisão final ───────────────────────────────────────────────
+import { fonteSemAcesso } from "../src/lib/cockpit-ceo/adaptador-brain.ts";
+
+test("Soma da composição em reais confere com o total, sem erro de ponto flutuante", () => {
+  const linhas = [100.1, 200.2, 300.3].map((valor) => ({ valor, soma: true }));
+  assert.equal(somaDaComposicao({ composicao: linhas }), 600.6);
+});
+
+test("Dado com mais de 30 minutos é parcial, como na barra de frescor da Monetização", () => {
+  const velho = dados({ measured_at: "2026-09-22T14:20:00Z", catalog_at: "2026-09-22T14:20:00Z" });
+  const plano = {
+    month: "2026-09",
+    owner_id: 1,
+    owner_name: "Pessoa",
+    capacity: 90,
+    meetings_capacity: 40,
+    target_contracts: 6,
+    daily_target: 4,
+    allocation: { cella: 0, consultoria: 0, finance: 0 },
+    rates: { cella: null, consultoria: null, finance: null },
+  };
+  velho.plans = [plano];
+  const c = montarCockpit(fonteOk(velho), recorte());
+  assert.equal(ind(c, "contratos-ganhos").estado, "parcial");
+  assert.equal(ind(c, "contas-prontas").estado, "parcial");
+  assert.ok(
+    !c.ameacas.some((a) => a.id === "ritmo-contratos"),
+    "dado parado não acusa ritmo contra hoje",
+  );
+  const fresco = montarCockpit(fonteOk(), recorte());
+  assert.equal(ind(fresco, "contratos-ganhos").estado, "disponivel");
+});
+
+test("Perímetro de unidade declara também negócio de conta sem unidade, inclusive na receita", () => {
+  const contaE = conta("E", { orgs: [103] });
+  const n6 = negocio(
+    6,
+    "finance",
+    { validated: [ev("2026-09-15")] },
+    { validated_at: "2026-09-15", revenue: receita(500, 150, 350), org_id: 103 },
+  );
+  const d = dados();
+  d.accounts = [...d.accounts, contaE];
+  d.cards = [...d.cards, n6];
+  const c = montarCockpit(fonteOk(d), recorte({}, "u1"));
+  const val = ind(c, "oportunidades-validadas");
+  assert.match(val.notaComposicao, /1 negócio sem conta vinculada/);
+  assert.match(val.notaComposicao, /1 negócio de conta sem unidade/);
+  const rec = ind(c, "receita-prevista-aberta");
+  assert.match(rec.notaComposicao, /fora do recorte por unidade/);
+});
+
+test("Produto sem negócio aberto validado mostra zero; só o desconhecido mostra traço", () => {
+  const c = montarCockpit(fonteOk(), recorte());
+  const linha = (p) => c.porProduto.find((l) => l.produto === p);
+  assert.equal(linha("consultoria").receitaPrevista, 0);
+  assert.equal(linha("finance").receitaPrevista, null, "só negócio sem valor declarado");
+  assert.equal(linha("cella").receitaPrevista, 1000);
+});
+
+test("Período desconhecido na URL cai no mês atual e avisa", () => {
+  assert.equal(validarBusca({ periodo: "semestre" }).periodo, "semestre");
+  const r = resolverPeriodo(validarBusca({ periodo: "semestre" }), "2026-09-22");
+  assert.equal(r.preset, "mes");
+  assert.ok(r.aviso);
+});
+
+test("Sem leitura de negócios, contas prontas não se afirmam: disponibilidade depende deles", () => {
+  const c = montarCockpit(fonteOk(dados(), { acessoNegocios: false }), recorte());
+  assert.equal(ind(c, "contas-prontas").estado, "acesso_insuficiente");
+  assert.equal(ind(c, "contas-prontas").valor, null);
+});
+
+test("Sem nenhuma chave de Base ou Monetização a resposta é acesso insuficiente, não fonte fora", () => {
+  const c = montarCockpit(fonteSemAcesso("2026-09-22", "2026-09-22T15:00:00Z"), recorte());
+  for (const i of c.indicadores.filter((x) => x.id !== "meta-bilhao")) {
+    assert.equal(i.estado, "acesso_insuficiente", i.id);
+    assert.equal(i.valor, null, i.id);
+  }
+});
+
+test("Fonte sintética nasce fresca em relação ao relógio de quem abre o preview", () => {
+  const c = montarCockpit(fonteSintetica("2026-09-22", "2026-09-23T02:30:00Z"), recorte());
+  assert.equal(ind(c, "contratos-ganhos").estado, "disponivel");
 });

@@ -1,11 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
 import { LoadingState, Panel } from "@/components/monetizacao/common";
 import { useMonetizacao } from "@/hooks/use-monetizacao";
 import { usePermissions } from "@/hooks/use-permissions";
-import { fonteDoBrain } from "@/lib/cockpit-ceo/adaptador-brain";
+import { fonteDoBrain, fonteSemAcesso } from "@/lib/cockpit-ceo/adaptador-brain";
+import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
+import type { FonteCockpit } from "@/lib/cockpit-ceo/indicadores";
 import { buscaDaUrl, resolverPeriodo, validarBusca } from "@/lib/cockpit-ceo/periodo";
 import type { BuscaUrl } from "@/lib/cockpit-ceo/periodo";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
@@ -14,7 +16,8 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 //
 // A área `cockpit_ceo` decide se a página abre; a carga só é montada depois disso, então quem não
 // tem a área não dispara consulta nenhuma. Os dados vêm da mesma carga de Base e Monetização, com
-// as permissões e a RLS que já valem lá: o cockpit não abre dado novo para ninguém.
+// as permissões e a RLS que já valem lá: o cockpit não abre dado novo para ninguém. Quem tem a área
+// mas nenhuma chave de Base ou Monetização vê "acesso insuficiente", sem disparar a carga.
 export const Route = createFileRoute("/_authenticated/cockpit-ceo")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => buscaDaUrl(s),
   component: Pagina,
@@ -34,24 +37,55 @@ function Pagina() {
         </Panel>
       </div>
     );
-  return <CockpitReal acessoBase={perms.can("view.aquario") || perms.can("view.clientes")} />;
+  const acesso: AcessoCockpit = {
+    acessoBase: perms.can("view.aquario") || perms.can("view.clientes"),
+    acessoNegocios: perms.can("view.aquario") || perms.can("view.monetizacao"),
+  };
+  // A carga exige ao menos uma dessas chaves (carregarMonetizacao); sem elas, nem se tenta.
+  return acesso.acessoBase || acesso.acessoNegocios ? <ComCarga acesso={acesso} /> : <SemCarga />;
 }
 
-function CockpitReal({ acessoBase }: { acessoBase: boolean }) {
+/** Relógio por minuto: uma aba aberta precisa perceber quando a carga passa a estar parada. */
+function useAgora() {
+  const [agora, setAgora] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(new Date().toISOString()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return agora;
+}
+
+function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
+  const q = useMonetizacao();
+  const agora = useAgora();
+  const hoje = hojeSaoPaulo();
+  const fonte = useMemo(
+    () => fonteDoBrain(q, acesso, hoje, agora),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [q.data, q.error, q.isLoading, acesso.acessoBase, acesso.acessoNegocios, hoje, agora],
+  );
+  if (fonte.monetizacao.estado === "carregando")
+    return <LoadingState retry={() => void q.refetch()} />;
+  return <Tela fonte={fonte} hoje={hoje} />;
+}
+
+function SemCarga() {
+  const agora = useAgora();
+  const hoje = hojeSaoPaulo();
+  const fonte = useMemo(() => fonteSemAcesso(hoje, agora), [hoje, agora]);
+  return <Tela fonte={fonte} hoje={hoje} />;
+}
+
+function Tela({ fonte, hoje }: { fonte: FonteCockpit; hoje: string }) {
   const busca = validarBusca(Route.useSearch());
   const navigate = Route.useNavigate();
-  const q = useMonetizacao();
-  const hoje = hojeSaoPaulo();
   const periodo = useMemo(
     () => resolverPeriodo({ periodo: busca.periodo, de: busca.de, ate: busca.ate }, hoje),
     [busca.periodo, busca.de, busca.ate, hoje],
   );
-  const fonte = fonteDoBrain(q, acessoBase, hoje, new Date().toISOString());
   const cockpit = useMemo(
     () => montarCockpit(fonte, { periodo, perimetro: busca.perimetro }),
-    // A fonte muda quando a consulta muda; `agora` não deve refazer o cálculo a cada render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q.data, q.error, q.isLoading, acessoBase, periodo, busca.perimetro],
+    [fonte, periodo, busca.perimetro],
   );
   const aoMudar: MudarBusca = (parcial) =>
     navigate({
@@ -59,7 +93,5 @@ function CockpitReal({ acessoBase }: { acessoBase: boolean }) {
       // Abrir um número empilha no histórico: o "voltar" do navegador fecha a composição.
       replace: !parcial.indicador,
     });
-  if (fonte.monetizacao.estado === "carregando")
-    return <LoadingState retry={() => void q.refetch()} />;
   return <CockpitCeo cockpit={cockpit} busca={busca} periodo={periodo} aoMudar={aoMudar} />;
 }
