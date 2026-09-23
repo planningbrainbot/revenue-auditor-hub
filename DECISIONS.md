@@ -2681,3 +2681,56 @@ consulta por navegação.
 **Pendente:** teste ponta a ponta com uma conta de verdade (gerar, entrar com a
 senha, conferir que o portão leva a `/redefinir-senha` e que depois de trocar a
 navegação libera). Não feito porque mexe em senha de gente real em produção.
+
+## [2026-09-23] Permissões por área: a matriz vira leitura e a concessão passa a ser um papel por vez
+
+**Contexto:** o dono abriu `/admin/permissoes` e disse que "tem muitos perfis e
+opções e fica fácil se perder na hora de liberar acesso por perfil". Medido no
+banco antes de desenhar, em 23/09/2026:
+
+- 14 áreas ativas x 12 papéis com grant = **168 caixinhas na tela**, das quais
+  **37 marcadas**. 78% da grade é vazio para varrer.
+- 25 pessoas no total, e **8 papéis com duas pessoas ou menos**. A coluna
+  `financeiro` move 8 pessoas, a `head` move 1, e as duas caixinhas eram
+  visualmente idênticas.
+- 3 pessoas têm dois papéis (o acesso é a união), o que a matriz não mostrava.
+- A linha de área tinha 4 parágrafos (nome, contagem de chaves, descrição,
+  "Administra:"), o que empurrava as caixinhas da coluna 12 para longe do
+  cabeçalho, numa tabela que rola na horizontal.
+- Cada caixinha gravava no `onChange`, sem confirmação e sem desfazer.
+
+**Achado de quebra:** o papel `socio` tem 1 pessoa, 4 negações explícitas
+(`rede`, `clientes`, `receita`, `people`) e **nenhum grant**. Essa pessoa não
+abre nada, e o papel aparecia como um card igual aos que funcionam. Não é
+consequência desta mudança, é o sintoma que ela torna visível.
+
+**Decisão: separar leitura de escrita.** A matriz continua, agora com papel na
+linha e área na coluna (o esboço do arquétipo Configuração de
+`docs/design/ARQUETIPOS.md` §5), ordenada por quanta gente cada papel carrega, e
+é **só leitura**. A concessão sai da grade e vai para um painel lateral de um
+papel por vez, que cabe o que a célula não cabia:
+
+1. quem são as pessoas do papel, nominalmente, antes de qualquer clique;
+2. as áreas agrupadas por escopo, com a descrição e quantas permissões carregam;
+3. "Comparar com" outro papel, e um botão que copia as áreas dele;
+4. o efeito em palavras no rodapé ("Passa a ver: Receita e Repasses. Afeta 8
+   pessoas.") e `AlertDialog` quando a mudança **tira** área de alguém;
+5. nada grava até o Salvar, que manda só as áreas que mudaram.
+
+`upsertRoleArea` (uma caixinha por chamada) foi substituída por
+`salvarAreasDoPapel` (um papel, as áreas que mudaram). Mandar só o diff é de
+propósito: gravar a linha inteira reescreveria `updated_at` de áreas intocadas e
+apagaria o rastro de quando cada concessão aconteceu.
+
+**O que a tela perdeu de lugar, não de existência:** "Quem administra cada área"
+saiu de dentro das linhas da matriz e virou uma seção própria embaixo.
+
+**Modelo de dados: nada mudou.** `ops.role_areas`, `ops.area_chaves` e
+`ops.can()` continuam iguais. Sem migration.
+
+**Pendências, oferecidas e não feitas nesta rodada:** a busca reversa ("quem vê a
+página X?", que é a pergunta que as pessoas fazem de verdade, já que ninguém sabe
+de cor em que área cada página mora) e a visão de acesso efetivo por pessoa, que
+é o único lugar onde as 3 pessoas com dois papéis ficariam legíveis. E a pergunta
+de negócio que o número levanta: 12 papéis para 25 pessoas, 8 deles com duas
+pessoas ou menos, provavelmente é papel demais.

@@ -727,7 +727,7 @@ export const listRoleAreas = createServerFn({ method: "GET" })
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
-    const [areasRes, grantsRes, rolesRes, chavesRes] = await Promise.all([
+    const [areasRes, grantsRes, rolesRes, chavesRes, papeisRes, perfisRes] = await Promise.all([
       db
         .from("areas")
         .select("slug, nome, descricao, escopo, ordem")
@@ -740,10 +740,25 @@ export const listRoleAreas = createServerFn({ method: "GET" })
         .order("is_system", { ascending: false })
         .order("label"),
       db.from("area_chaves").select("area, permission_key"),
+      // Quem carrega cada papel. Sem isto a tela pede para marcar uma caixinha
+      // sem dizer quantas pessoas ela move: a coluna `financeiro` mexe em 8 e a
+      // `head` em 1, e as duas tinham exatamente a mesma aparência.
+      db.from("user_roles").select("user_id, role"),
+      db.from("profiles").select("user_id, nome, email"),
     ]);
     if (areasRes.error || grantsRes.error || rolesRes.error) {
       throw new Error("Erro ao carregar as áreas.");
     }
+
+    const nome = new Map(
+      (
+        (perfisRes?.data ?? []) as { user_id: string; nome: string | null; email: string | null }[]
+      ).map((p) => [p.user_id, p.nome || p.email || "Sem nome"]),
+    );
+    const pessoas = ((papeisRes?.data ?? []) as { user_id: string; role: string }[])
+      .map((r) => ({ role: r.role, userId: r.user_id, nome: nome.get(r.user_id) ?? "Sem nome" }))
+      .sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR"));
+
     return {
       areas: (areasRes.data ?? []) as Area[],
       grants: (grantsRes.data ?? []) as { role: string; area: string; allowed: boolean }[],
@@ -754,33 +769,51 @@ export const listRoleAreas = createServerFn({ method: "GET" })
         is_system: boolean;
       }[],
       chaves: (chavesRes.data ?? []) as { area: string; permission_key: string }[],
+      pessoas,
       dicionario: KNOWN_PERMISSIONS,
     };
   });
 
-export const upsertRoleArea = createServerFn({ method: "POST" })
+/**
+ * Grava as áreas de UM papel de uma vez.
+ *
+ * Substituiu o upsert por caixinha em 23/09/2026. A tela antiga salvava a cada
+ * clique, sem confirmação e sem desfazer, o que fazia um clique errado numa
+ * grade de 14 x 12 virar acesso concedido antes de alguém ler o que aconteceu.
+ * Agora a tela acumula, mostra o efeito em palavras ("8 pessoas passam a ver
+ * Receita e Repasses") e manda tudo junto.
+ *
+ * Só chegam as áreas que MUDARAM: gravar a linha inteira do papel a cada
+ * salvamento reescreveria `updated_at` de áreas intocadas e apagaria o rastro
+ * de quando cada concessão aconteceu de verdade.
+ */
+export const salvarAreasDoPapel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { role: AppRole; area: string; allowed: boolean }) => {
+  .inputValidator((input: { role: AppRole; mudancas: { area: string; allowed: boolean }[] }) => {
     const role = (input?.role ?? "").trim();
     if (!role) throw new Error("Papel inválido.");
-    if (!input?.area) throw new Error("Área inválida.");
-    return { role, area: input.area, allowed: !!input.allowed };
+    const mudancas = (input?.mudancas ?? [])
+      .map((m) => ({ area: (m?.area ?? "").trim(), allowed: !!m?.allowed }))
+      .filter((m) => m.area);
+    if (!mudancas.length) throw new Error("Nenhuma mudança para salvar.");
+    return { role, mudancas };
   })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
+    const agora = new Date().toISOString();
     const { error } = await db.from("role_areas").upsert(
-      {
+      data.mudancas.map((m) => ({
         role: data.role,
-        area: data.area,
-        allowed: data.allowed,
-        updated_at: new Date().toISOString(),
-      },
+        area: m.area,
+        allowed: m.allowed,
+        updated_at: agora,
+      })),
       { onConflict: "role,area" },
     );
-    if (error) throw new Error("Erro ao salvar a área do papel.");
-    return { ok: true };
+    if (error) throw new Error("Erro ao salvar as áreas do papel.");
+    return { ok: true, gravadas: data.mudancas.length };
   });
 
 /** Nível 2: o que este usuário enxerga dentro das áreas que o papel abriu. */
