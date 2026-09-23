@@ -42,6 +42,18 @@ O "depois" completo, com os cinco arquétipos montados (Visão geral da Rede, Fi
 - número que abre o registro;
 - procedência ao lado do número.
 
+## Cards de KPI das telas reais
+
+17 dos 25 componentes locais de KPI passaram a desenhar com o `KpiCard` (adaptadores que mantêm a API antiga, commit `713e935`). Eles são usados em Receita, Auditoria de faturamento, Comissões, Contas a receber, Broker, People, Indicadores do trimestre, Monetização (32 usos), ROAS, Funil e Painel da unidade. Os cards escritos direto na tela também foram trocados em Rede › Overview, Fila Cella e Painel CS. O sinal de cor de cada card foi mantido como tom, sempre com ícone e palavra (V7).
+
+Ficam de fora 8 componentes, com o motivo registrado:
+- **Drawers estreitos:** precisam de uma variante compacta.
+- **Alertas:** o componente é o alarme em si.
+- **Linhas de resumo da apuração:** não são cards.
+
 ## O que a camada base não resolve sozinha
 
-Os cards de KPI escritos localmente em cada tela (20 componentes e cerca de 70 blocos inline) mudam de fonte e cor, mas continuam com o desenho antigo até serem trocados pelo `KpiCard`. O mesmo vale para as perguntas de cada tela (N1) e o drill-down (N2): isso é migração por módulo, na ordem de `PROCESSO.md` §6, porque depende do contrato aprovado pelo dono.
+Três coisas são migração por módulo, na ordem de `PROCESSO.md` §6, porque dependem do contrato aprovado pelo dono:
+- **A pergunta de cada tela (N1):** as telas estão marcadas com `TODO(design)`.
+- **O drill-down conferido (N2).**
+- **Os zeros que aparecem no lugar de "sem dado" (N4):** a T12 listou esses casos em Rede › Overview e Painel CS. Corrigi-los muda lógica, e isso fica com o dono.
