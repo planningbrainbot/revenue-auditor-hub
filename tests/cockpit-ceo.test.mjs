@@ -350,3 +350,58 @@ test("Receita prevista soma o declarado, separa o faltante e não chama de fatur
   assert.match(i.definicao, /não é faturamento/);
   assert.equal(i.periodo, null);
 });
+
+// ── Task 5: fonte sintética e adaptador do Brain ─────────────────────────────
+import { baseSintetica, fonteSintetica } from "../src/lib/cockpit-ceo/fixture-sintetica.ts";
+import { fonteDoBrain } from "../src/lib/cockpit-ceo/adaptador-brain.ts";
+
+test("Fonte sintética é determinística e se identifica em cada nome", () => {
+  const a = baseSintetica("2026-09-22");
+  assert.deepEqual(a, baseSintetica("2026-09-22"));
+  assert.ok(a.accounts.length >= 40);
+  for (const c of a.accounts) assert.match(c.name, /^Empresa Sintética \d{3}$/);
+  for (const u of a.units) assert.match(u.name, /^Unidade Exemplo /);
+  for (const n of a.cards) assert.match(n.title, /^Negócio sintético /);
+  assert.ok(a.cards.every((n) => n.url === "#sintetico"), "nenhum link para o CRM real");
+});
+
+test("Cockpit sobre a fonte sintética marca tudo como sintético e exercita as regras", () => {
+  const c = montarCockpit(fonteSintetica("2026-09-22", "2026-09-22T15:00:00Z"), recorte());
+  assert.equal(c.sintetico, true);
+  assert.ok(c.avisos.some((a) => /sintéticos/.test(a)));
+  for (const i of c.indicadores) assert.equal(i.sintetico, true, i.id);
+  const prontas = ind(c, "contas-prontas");
+  assert.ok(prontas.composicao.find((l) => l.chave === "sobreposicao").valor > 0, "há sobreposição");
+  assert.ok(prontas.composicao.find((l) => l.chave === "so_omie").valor > 0, "há contas só no Omie");
+  assert.ok(ind(c, "contratos-ganhos").valor > 0);
+  assert.equal(ind(c, "receita-prevista-aberta").estado, "parcial");
+  assert.ok(c.decisoes.some((d) => d.id === "alocar-plano"));
+  assert.ok(c.serieDiaria.length === 22);
+  assert.ok(c.perimetros.length >= 3);
+  // Outro dia gera outro calendário, sem mês fixo.
+  const marco = montarCockpit(fonteSintetica("2027-03-05", "2027-03-05T15:00:00Z"), {
+    periodo: resolverPeriodo({}, "2027-03-05"),
+    perimetro: "",
+  });
+  assert.ok(ind(marco, "leads-trabalhados").valor > 0);
+});
+
+test("Adaptador do Brain separa carregando, erro e carga concluída", () => {
+  const d = baseSintetica("2026-09-22");
+  const ok = fonteDoBrain({ data: d, error: null, isLoading: false }, true, "2026-09-22", "2026-09-22T15:00:00Z");
+  assert.equal(ok.monetizacao.estado, "ok");
+  assert.equal(ok.sintetico, false);
+  const carregando = fonteDoBrain({ data: undefined, error: null, isLoading: true }, true, "2026-09-22", "x");
+  assert.equal(carregando.monetizacao.estado, "carregando");
+  const erro = fonteDoBrain(
+    { data: d, error: new Error("A base mudou durante a consulta."), isLoading: false },
+    true,
+    "2026-09-22",
+    "x",
+  );
+  assert.equal(erro.monetizacao.estado, "erro", "erro não se esconde atrás da carga anterior");
+  assert.equal(erro.monetizacao.dados, null);
+  assert.match(erro.monetizacao.erro, /mudou durante a consulta/);
+  const sessao = fonteDoBrain({ data: undefined, error: new Error("Unauthorized: Invalid token"), isLoading: false }, true, "2026-09-22", "x");
+  assert.match(sessao.monetizacao.erro, /sessão/i);
+});
