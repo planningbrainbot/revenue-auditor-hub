@@ -1,0 +1,940 @@
+{
+  "quando": "2026-09-23T02:43:55.497Z",
+  "endpoint": "https://openrouter.ai/api/alpha/decisions",
+  "taxonomia": "cockpit-ceo-roteamento-v1",
+  "limites": {
+    "tentativas": 50,
+    "custoUsd": 0.1
+  },
+  "orcamento": {
+    "tentativas": 40,
+    "restantes": 10,
+    "custoConhecidoUsd": 0.0011523540000000002,
+    "custoDesconhecido": false,
+    "bloqueado": false,
+    "motivo": null
+  },
+  "casos": [
+    {
+      "id": "c01",
+      "classe": "clara",
+      "texto": "Quanto faturamos nos últimos doze meses e quanto falta para chegar ao bilhão?",
+      "aceitas": [
+        "receita"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c01",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 1,
+        "pedeDado": 0.98,
+        "latenciaMs": 838,
+        "custoUsd": 0.000029106,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "c02",
+      "classe": "clara",
+      "texto": "Qual foi o faturamento consolidado do grupo em julho comparado com junho?",
+      "aceitas": [
+        "receita"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c02",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 1,
+        "pedeDado": 0.98,
+        "latenciaMs": 411,
+        "custoUsd": 0.000029064,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "c03",
+      "classe": "clara",
+      "texto": "De qual produto veio o maior incremento de receita neste trimestre?",
+      "aceitas": [
+        "receita"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c03",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.98,
+        "pedeDado": 0.96,
+        "latenciaMs": 327,
+        "custoUsd": 0.00002877,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "c04",
+      "classe": "clara",
+      "texto": "Quantos clientes ativos temos hoje, contando cada empresa uma vez só?",
+      "aceitas": [
+        "clientes"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c04",
+        "estado": "ok",
+        "escolha": "clientes",
+        "confianca": 1,
+        "pedeDado": 0.99,
+        "latenciaMs": 325,
+        "custoUsd": 0.000028896,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "c05",
+      "classe": "clara",
+      "texto": "Quantas empresas da base já contrataram Consultoria e também Finance?",
+      "aceitas": [
+        "clientes"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c05",
+        "estado": "ok",
+        "escolha": "clientes",
+        "confianca": 0.9,
+        "pedeDado": 0.98,
+        "latenciaMs": 330,
+        "custoUsd": 0.00002898,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "c06",
+      "classe": "clara",
+      "texto": "Onde há contas prontas para oferecer o produto de crédito agora?",
+      "aceitas": [
+        "clientes",
+        "comercial"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c06",
+        "estado": "ok",
+        "escolha": "clientes",
+        "confianca": 0.82,
+        "pedeDado": 0.61,
+        "latenciaMs": 349,
+        "custoUsd": 0.000028854,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "c07",
+      "classe": "clara",
+      "texto": "Quantos leads o comercial trabalhou esta semana e quantas reuniões saíram deles?",
+      "aceitas": [
+        "comercial"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c07",
+        "estado": "ok",
+        "escolha": "comercial",
+        "confianca": 1,
+        "pedeDado": 0.98,
+        "latenciaMs": 357,
+        "custoUsd": 0.000029106,
+        "baseline": "comercial"
+      }
+    },
+    {
+      "id": "c08",
+      "classe": "clara",
+      "texto": "Qual vendedor está convertendo melhor as oportunidades validadas em contrato?",
+      "aceitas": [
+        "comercial"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c08",
+        "estado": "ok",
+        "escolha": "comercial",
+        "confianca": 1,
+        "pedeDado": 0.87,
+        "latenciaMs": 374,
+        "custoUsd": 0.000028896,
+        "baseline": "comercial"
+      }
+    },
+    {
+      "id": "c09",
+      "classe": "clara",
+      "texto": "O funil de Monetização está andando ou os negócios estão parados em negociação?",
+      "aceitas": [
+        "comercial"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c09",
+        "estado": "ok",
+        "escolha": "comercial",
+        "confianca": 0.89,
+        "pedeDado": 0.34,
+        "latenciaMs": 301,
+        "custoUsd": 0.000029106,
+        "baseline": "comercial"
+      }
+    },
+    {
+      "id": "c10",
+      "classe": "clara",
+      "texto": "Quais unidades cresceram o faturamento com margem nos últimos meses?",
+      "aceitas": [
+        "rede"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c10",
+        "estado": "ok",
+        "escolha": "rede",
+        "confianca": 1,
+        "pedeDado": 0.95,
+        "latenciaMs": 295,
+        "custoUsd": 0.00002898,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "c11",
+      "classe": "clara",
+      "texto": "Os sócios das unidades estão satisfeitos com o apoio da matriz?",
+      "aceitas": [
+        "rede"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c11",
+        "estado": "ok",
+        "escolha": "rede",
+        "confianca": 1,
+        "pedeDado": 0.09,
+        "latenciaMs": 321,
+        "custoUsd": 0.00002898,
+        "baseline": "rede"
+      }
+    },
+    {
+      "id": "c12",
+      "classe": "clara",
+      "texto": "Quanto cada unidade pagou de royalties no último trimestre?",
+      "aceitas": [
+        "rede"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c12",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.25,
+        "pedeDado": 0.98,
+        "latenciaMs": 285,
+        "custoUsd": 0.00002877,
+        "baseline": "rede"
+      }
+    },
+    {
+      "id": "c13",
+      "classe": "clara",
+      "texto": "Dos clientes que entraram no ano passado, quantos ainda estão com a gente?",
+      "aceitas": [
+        "retencao"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c13",
+        "estado": "ok",
+        "escolha": "retencao",
+        "confianca": 0.98,
+        "pedeDado": 0.98,
+        "latenciaMs": 328,
+        "custoUsd": 0.00002898,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "c14",
+      "classe": "clara",
+      "texto": "Qual foi o churn de clientes por mês de entrada?",
+      "aceitas": [
+        "retencao"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c14",
+        "estado": "ok",
+        "escolha": "retencao",
+        "confianca": 0.97,
+        "pedeDado": 0.98,
+        "latenciaMs": 299,
+        "custoUsd": 0.000028728,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "c15",
+      "classe": "clara",
+      "texto": "Quais empresas poderíamos adquirir e quanto capital isso exigiria?",
+      "aceitas": [
+        "capital"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c15",
+        "estado": "ok",
+        "escolha": "capital",
+        "confianca": 0.74,
+        "pedeDado": 0.36,
+        "latenciaMs": 345,
+        "custoUsd": 0.000028938,
+        "baseline": "capital"
+      }
+    },
+    {
+      "id": "c16",
+      "classe": "clara",
+      "texto": "Conseguimos reproduzir as demonstrações consolidadas para a diligência de um investidor?",
+      "aceitas": [
+        "capital"
+      ],
+      "pedeDado": true,
+      "resultado": {
+        "id": "c16",
+        "estado": "ok",
+        "escolha": "capital",
+        "confianca": 1,
+        "pedeDado": 0.56,
+        "latenciaMs": 351,
+        "custoUsd": 0.000029442,
+        "baseline": "capital"
+      }
+    },
+    {
+      "id": "a01",
+      "classe": "ambigua",
+      "texto": "Como estamos?",
+      "aceitas": [
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a01",
+        "estado": "ok",
+        "escolha": "insuficiente",
+        "confianca": 0.95,
+        "pedeDado": 0.1,
+        "latenciaMs": 323,
+        "custoUsd": 0.000028392,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "a02",
+      "classe": "ambigua",
+      "texto": "E a Consultoria, está indo bem?",
+      "aceitas": [
+        "comercial",
+        "receita",
+        "clientes"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a02",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.64,
+        "pedeDado": 0.19,
+        "latenciaMs": 311,
+        "custoUsd": 0.000028686,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "a03",
+      "classe": "ambigua",
+      "texto": "O que aconteceu com a unidade do Sul este mês?",
+      "aceitas": [
+        "rede",
+        "insuficiente",
+        "receita"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a03",
+        "estado": "ok",
+        "escolha": "rede",
+        "confianca": 0.51,
+        "pedeDado": 0.64,
+        "latenciaMs": 330,
+        "custoUsd": 0.000028728,
+        "baseline": "rede"
+      }
+    },
+    {
+      "id": "a04",
+      "classe": "ambigua",
+      "texto": "Vale a pena acelerar o Finance?",
+      "aceitas": [
+        "comercial",
+        "clientes",
+        "receita"
+      ],
+      "pedeDado": false,
+      "resultado": {
+        "id": "a04",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.22,
+        "pedeDado": 0.04,
+        "latenciaMs": 309,
+        "custoUsd": 0.000028644,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "a05",
+      "classe": "ambigua",
+      "texto": "Os números do mês fecham?",
+      "aceitas": [
+        "receita",
+        "capital",
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a05",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.22,
+        "pedeDado": 0.58,
+        "latenciaMs": 335,
+        "custoUsd": 0.00002856,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "a06",
+      "classe": "ambigua",
+      "texto": "Quem está puxando a meta para baixo?",
+      "aceitas": [
+        "comercial",
+        "receita",
+        "rede"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a06",
+        "estado": "ok",
+        "escolha": "insuficiente",
+        "confianca": 0.34,
+        "pedeDado": 0.15,
+        "latenciaMs": 308,
+        "custoUsd": 0.000028644,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "a07",
+      "classe": "ambigua",
+      "texto": "Temos estrutura para crescer sem perder qualidade na entrega?",
+      "aceitas": [
+        "retencao",
+        "clientes"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a07",
+        "estado": "ok",
+        "escolha": "retencao",
+        "confianca": 0.99,
+        "pedeDado": 0.21,
+        "latenciaMs": 391,
+        "custoUsd": 0.000028728,
+        "baseline": "retencao"
+      }
+    },
+    {
+      "id": "a08",
+      "classe": "ambigua",
+      "texto": "Quanto vale a empresa hoje?",
+      "aceitas": [
+        "capital",
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a08",
+        "estado": "ok",
+        "escolha": "capital",
+        "confianca": 0.69,
+        "pedeDado": 0.93,
+        "latenciaMs": 304,
+        "custoUsd": 0.00002856,
+        "baseline": "capital"
+      }
+    },
+    {
+      "id": "a09",
+      "classe": "ambigua",
+      "texto": "Me mostra os números.",
+      "aceitas": [
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a09",
+        "estado": "ok",
+        "escolha": "insuficiente",
+        "confianca": 0.96,
+        "pedeDado": 0.96,
+        "latenciaMs": 288,
+        "custoUsd": 0.000028476,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "a10",
+      "classe": "ambigua",
+      "texto": "A rede está saudável?",
+      "aceitas": [
+        "rede"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "a10",
+        "estado": "ok",
+        "escolha": "rede",
+        "confianca": 0.94,
+        "pedeDado": 0.51,
+        "latenciaMs": 332,
+        "custoUsd": 0.000028476,
+        "baseline": "rede"
+      }
+    },
+    {
+      "id": "x01",
+      "classe": "contraditoria",
+      "texto": "Quantos clientes cancelaram, sem olhar para cancelamento, só para vendas novas?",
+      "aceitas": [
+        "comercial",
+        "retencao",
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x01",
+        "estado": "ok",
+        "escolha": "comercial",
+        "confianca": 0.48,
+        "pedeDado": 0.97,
+        "latenciaMs": 326,
+        "custoUsd": 0.000029106,
+        "baseline": "retencao"
+      }
+    },
+    {
+      "id": "x02",
+      "classe": "contraditoria",
+      "texto": "Quero o faturamento das unidades, mas sem contar nenhuma unidade.",
+      "aceitas": [
+        "insuficiente",
+        "rede",
+        "receita"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x02",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.79,
+        "pedeDado": 0.88,
+        "latenciaMs": 329,
+        "custoUsd": 0.000028896,
+        "baseline": "rede"
+      }
+    },
+    {
+      "id": "x03",
+      "classe": "contraditoria",
+      "texto": "Qual a retenção do produto que ainda não lançamos?",
+      "aceitas": [
+        "insuficiente",
+        "retencao"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x03",
+        "estado": "ok",
+        "escolha": "retencao",
+        "confianca": 0.37,
+        "pedeDado": 0.92,
+        "latenciaMs": 289,
+        "custoUsd": 0.000028854,
+        "baseline": "retencao"
+      }
+    },
+    {
+      "id": "x04",
+      "classe": "contraditoria",
+      "texto": "Mostre o crescimento de receita sem usar nenhum dado de faturamento.",
+      "aceitas": [
+        "insuficiente",
+        "receita"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x04",
+        "estado": "ok",
+        "escolha": "receita",
+        "confianca": 0.32,
+        "pedeDado": 0.68,
+        "latenciaMs": 307,
+        "custoUsd": 0.000028896,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "x05",
+      "classe": "contraditoria",
+      "texto": "Quais leads viraram clientes antes mesmo de serem prospectados?",
+      "aceitas": [
+        "comercial",
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x05",
+        "estado": "ok",
+        "escolha": "comercial",
+        "confianca": 0.88,
+        "pedeDado": 0.91,
+        "latenciaMs": 296,
+        "custoUsd": 0.000028854,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "x06",
+      "classe": "contraditoria",
+      "texto": "Quero saber quem saiu da base no mês que vem.",
+      "aceitas": [
+        "retencao",
+        "insuficiente"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "x06",
+        "estado": "ok",
+        "escolha": "retencao",
+        "confianca": 0.85,
+        "pedeDado": 0.86,
+        "latenciaMs": 346,
+        "custoUsd": 0.00002877,
+        "baseline": "clientes"
+      }
+    },
+    {
+      "id": "f01",
+      "classe": "fora_de_escopo",
+      "texto": "Onde fazemos a festa de fim de ano do time?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f01",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.99,
+        "pedeDado": 0.3,
+        "latenciaMs": 295,
+        "custoUsd": 0.000028812,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f02",
+      "classe": "fora_de_escopo",
+      "texto": "Qual a previsão do tempo para amanhã?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f02",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 1,
+        "pedeDado": 0.9,
+        "latenciaMs": 317,
+        "custoUsd": 0.000028602,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f03",
+      "classe": "fora_de_escopo",
+      "texto": "Escreva um poema sobre contabilidade.",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f03",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.99,
+        "pedeDado": 0.02,
+        "latenciaMs": 292,
+        "custoUsd": 0.000028686,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f04",
+      "classe": "fora_de_escopo",
+      "texto": "Quem ganhou o jogo de futebol ontem?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f04",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.98,
+        "pedeDado": 0.92,
+        "latenciaMs": 298,
+        "custoUsd": 0.000028602,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f05",
+      "classe": "fora_de_escopo",
+      "texto": "Como faço para trocar a senha do meu e-mail?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f05",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 1,
+        "pedeDado": 0.05,
+        "latenciaMs": 301,
+        "custoUsd": 0.000028728,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f06",
+      "classe": "fora_de_escopo",
+      "texto": "Qual o melhor livro de liderança para ler nas férias?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f06",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.99,
+        "pedeDado": 0.03,
+        "latenciaMs": 302,
+        "custoUsd": 0.000028728,
+        "baseline": "fora_de_escopo"
+      }
+    },
+    {
+      "id": "f07",
+      "classe": "fora_de_escopo",
+      "texto": "Como se diz faturamento em inglês?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f07",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.52,
+        "pedeDado": 0.16,
+        "latenciaMs": 302,
+        "custoUsd": 0.000028644,
+        "baseline": "receita"
+      }
+    },
+    {
+      "id": "f08",
+      "classe": "fora_de_escopo",
+      "texto": "Quanto custa uma passagem para Lisboa em dezembro?",
+      "aceitas": [
+        "fora_de_escopo"
+      ],
+      "pedeDado": null,
+      "resultado": {
+        "id": "f08",
+        "estado": "ok",
+        "escolha": "fora_de_escopo",
+        "confianca": 0.77,
+        "pedeDado": 0.97,
+        "latenciaMs": 364,
+        "custoUsd": 0.000028686,
+        "baseline": "fora_de_escopo"
+      }
+    }
+  ],
+  "metricas": {
+    "casos": 40,
+    "respondidos": 40,
+    "falhas": 0,
+    "jev": {
+      "geral": {
+        "n": 40,
+        "acertos": 38,
+        "taxa": 0.95
+      },
+      "porClasse": {
+        "clara": {
+          "n": 16,
+          "acertos": 15,
+          "taxa": 0.9375
+        },
+        "ambigua": {
+          "n": 10,
+          "acertos": 9,
+          "taxa": 0.9
+        },
+        "contraditoria": {
+          "n": 6,
+          "acertos": 6,
+          "taxa": 1
+        },
+        "fora_de_escopo": {
+          "n": 8,
+          "acertos": 8,
+          "taxa": 1
+        }
+      }
+    },
+    "baseline": {
+      "geral": {
+        "n": 40,
+        "acertos": 29,
+        "taxa": 0.725
+      },
+      "porClasse": {
+        "clara": {
+          "n": 16,
+          "acertos": 13,
+          "taxa": 0.8125
+        },
+        "ambigua": {
+          "n": 10,
+          "acertos": 5,
+          "taxa": 0.5
+        },
+        "contraditoria": {
+          "n": 6,
+          "acertos": 4,
+          "taxa": 0.6666666666666666
+        },
+        "fora_de_escopo": {
+          "n": 8,
+          "acertos": 7,
+          "taxa": 0.875
+        }
+      }
+    },
+    "confusao": {
+      "receita": {
+        "receita": 4
+      },
+      "clientes": {
+        "clientes": 3
+      },
+      "comercial": {
+        "comercial": 5,
+        "receita": 2,
+        "insuficiente": 1
+      },
+      "rede": {
+        "rede": 4,
+        "fora_de_escopo": 1
+      },
+      "retencao": {
+        "retencao": 4
+      },
+      "capital": {
+        "capital": 3
+      },
+      "insuficiente": {
+        "insuficiente": 2,
+        "receita": 2,
+        "retencao": 1
+      },
+      "fora_de_escopo": {
+        "fora_de_escopo": 8
+      }
+    },
+    "pedeDado": {
+      "n": 17,
+      "acertos": 14,
+      "taxa": 0.8235294117647058
+    },
+    "calibracao": [
+      {
+        "faixa": "0,00–0,50",
+        "n": 7,
+        "confiancaMedia": 0.3142857142857142,
+        "acertos": 5,
+        "taxa": 0.7142857142857143
+      },
+      {
+        "faixa": "0,50–0,70",
+        "n": 4,
+        "confiancaMedia": 0.59,
+        "acertos": 4,
+        "taxa": 1
+      },
+      {
+        "faixa": "0,70–0,90",
+        "n": 7,
+        "confiancaMedia": 0.8200000000000001,
+        "acertos": 7,
+        "taxa": 1
+      },
+      {
+        "faixa": "0,90–1,00",
+        "n": 22,
+        "confiancaMedia": 0.9827272727272726,
+        "acertos": 22,
+        "taxa": 1
+      }
+    ],
+    "erroCalibracao": 0.1520000000000001,
+    "latencia": {
+      "p50": 321,
+      "p95": 391
+    },
+    "custo": {
+      "totalUsd": 0.001152354,
+      "comCusto": 40,
+      "semCusto": 0,
+      "porMilUsd": 0.028808849999999997
+    }
+  }
+}

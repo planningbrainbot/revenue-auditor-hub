@@ -26,6 +26,7 @@ import {
   pilotoJevAtivo,
   resumirOrcamento,
 } from "../../src/lib/cockpit-ceo/jev/contrato.ts";
+import { hoje as hojeSaoPaulo } from "../../src/lib/monetizacao/model.ts";
 
 process.env.COCKPIT_JEV_PILOTO ??= "1";
 if (!pilotoJevAtivo(process.env)) throw new Error("Jev fora do piloto autorizado.");
@@ -104,7 +105,8 @@ const orcamento = resumirOrcamento(await ledger.ler(), LIMITES_AVALIACAO);
 const quando = new Date().toISOString();
 const pasta = fileURLToPath(new URL("../../docs/dev_notes/cockpit-ceo-piloto/", import.meta.url));
 mkdirSync(pasta, { recursive: true });
-const arquivo = `${pasta}jev-avaliacao-${quando.slice(0, 10)}.json`;
+// Data de São Paulo no nome, como os demais registros da homologação.
+const arquivo = `${pasta}jev-avaliacao-${hojeSaoPaulo()}.json`;
 writeFileSync(
   arquivo,
   JSON.stringify(
