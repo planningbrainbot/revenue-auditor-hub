@@ -20,6 +20,7 @@ import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./rec
 import type { ApuracaoRede } from "./receita-fontes.ts";
 import type { LeituraReceita } from "./receita.ts";
 import { montarDefinicao } from "./clientes-ativos.ts";
+import { montarCoortes } from "./coortes.ts";
 
 const UNIDADES = [
   ["ex-norte", "Unidade Exemplo Norte"],
@@ -510,6 +511,51 @@ export function clientesSinteticos(contas: Conta[]): NonNullable<FonteCockpit["c
   };
 }
 
+/**
+ * Coortes SINTÉTICAS: contratos ganhos por mês nas unidades de exemplo e churns datados, com um
+ * churn sem data e um lote de outra origem, para a tela mostrar esses casos.
+ */
+export function retencaoSintetica(hoje: string): NonNullable<FonteCockpit["retencao"]> {
+  const meses = mesesAte(hoje, 12).map((m) => m.slice(0, 7));
+  const r = gerador(90);
+  const contratos = meses.flatMap((mes, i) =>
+    Array.from({ length: 6 + (i % 4) }, (_, j) => ({
+      deal: `sint-${i}-${j}`,
+      ganho_em: `${mes}-${String(5 + j).padStart(2, "0")}`,
+      unidade: UNIDADES[j % UNIDADES.length][1] as string,
+      origem: "inside_sales",
+    })),
+  );
+  contratos.push({
+    deal: "sint-lote",
+    ganho_em: `${meses[10]}-01`,
+    unidade: UNIDADES[0][1],
+    origem: "socios",
+  });
+  const churns = contratos
+    .filter((c) => c.origem === "inside_sales" && r() < 0.12)
+    .map((c, i) => {
+      const saida = new Date(`${c.ganho_em}T12:00:00Z`);
+      saida.setUTCDate(saida.getUTCDate() + 30 + Math.floor(r() * 150));
+      return { deal: c.deal, data_churn: i === 0 ? null : saida.toISOString().slice(0, 10) };
+    });
+  const coortes = montarCoortes({
+    contratos,
+    churns,
+    regionais: UNIDADES.map(([, nome]) => nome),
+    hoje,
+  });
+  return {
+    estado: "ok",
+    erro: null,
+    resposta: {
+      estado: "ok",
+      coortes: { ...coortes, avisos: ["Coortes SINTÉTICAS do preview.", ...coortes.avisos] },
+      lidoEm: `${hoje}T11:00:00.000Z`,
+    },
+  };
+}
+
 export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
   // Carga "de dez minutos atrás" em relação a quem abre o preview, para não parecer parada.
   const dados = baseSintetica(hoje, new Date(Date.parse(agora) - 10 * 60_000).toISOString());
@@ -522,5 +568,6 @@ export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
     monetizacao: { estado: "ok", erro: null, dados },
     receita: { estado: "ok", erro: null, leituras: receitaSintetica(hoje) },
     clientesAtivos: clientesSinteticos(dados.accounts),
+    retencao: retencaoSintetica(hoje),
   };
 }

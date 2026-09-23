@@ -204,6 +204,10 @@ export interface ApuracaoRede {
   status: string;
   receita_base: number | string | null;
   receita_base_antiga: number | string | null;
+  /** Royalties + CSC (a soma que a apuração cobra da unidade, sem mídia). Opcionais. */
+  royalties_valor?: number | string | null;
+  csc_valor_fixo?: number | string | null;
+  csc_base_antiga_valor?: number | string | null;
 }
 
 const DESTINO_REDE: Destino = {
@@ -264,12 +268,23 @@ export function montarLeituraRede(entrada: {
     mesDe(u.inauguracao) ?? primeiraApuracao.get(u.id) ?? null;
 
   const centavos = new Map<string, number>(); // "mes|unidade" → centavos
+  const royCent = new Map<string, number>();
+  const temRoyalties = confirmadas.some((a) => a.royalties_valor !== undefined);
   const apuradas = new Map<string, Set<number>>();
   for (const a of confirmadas) {
     const m = mesDe(a.mes)!;
     const v = cent(numero(a.receita_base) ?? 0) + cent(numero(a.receita_base_antiga) ?? 0);
     const k = `${m}|${a.unidade_id}`;
     centavos.set(k, (centavos.get(k) ?? 0) + v);
+    // Mesma soma de `roy_csc` da RPC de indicadores do trimestre (migration 20260826140000).
+    if (temRoyalties)
+      royCent.set(
+        k,
+        (royCent.get(k) ?? 0) +
+          cent(numero(a.royalties_valor) ?? 0) +
+          cent(numero(a.csc_valor_fixo) ?? 0) +
+          cent(numero(a.csc_base_antiga_valor) ?? 0),
+      );
     if (!apuradas.has(m)) apuradas.set(m, new Set());
     apuradas.get(m)!.add(a.unidade_id);
   }
@@ -306,6 +321,12 @@ export function montarLeituraRede(entrada: {
       `${plural(rascunhos, "apuração em rascunho não entra", "apurações em rascunho não entram")} até ser confirmada.`,
     );
   if (!confirmadas.length) cobertura.push("Nenhuma apuração confirmada visível para a sua conta.");
+  const complementos = temRoyalties
+    ? [...royCent].map(([k, c]) => {
+        const [mes, id] = k.split("|");
+        return { mes, chave: regionais.get(Number(id))!.nome, royaltiesCsc: c / 100 };
+      })
+    : undefined;
   return {
     ...BASE_REDE,
     estado: "disponivel",
@@ -314,5 +335,6 @@ export function montarLeituraRede(entrada: {
     cobertura,
     parciaisFonte,
     notasPorMes,
+    ...(complementos ? { complementos } : {}),
   };
 }

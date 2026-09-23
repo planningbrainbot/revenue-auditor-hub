@@ -37,6 +37,8 @@ export interface LeituraReceita {
   parciaisFonte?: string[];
   /** Observação da fonte para o mês (cobertura, ausência declarada). Só texto de sistema. */
   notasPorMes?: Record<string, string>;
+  /** Só a rede: royalties + CSC devidos à matriz por unidade e mês, da mesma apuração. */
+  complementos?: { mes: string; chave: string; royaltiesCsc: number }[];
 }
 
 export interface ResumoLeitura {

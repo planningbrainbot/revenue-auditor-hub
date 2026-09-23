@@ -10,6 +10,7 @@ import type { BaseMonetizacao } from "../monetizacao/types";
 import type { FonteCockpit } from "./indicadores.ts";
 import type { LeituraReceita } from "./receita.ts";
 import type { DefinicaoCliente } from "./clientes-ativos.ts";
+import type { RespostaRetencao } from "./coortes.ts";
 
 export function mensagemDeErro(
   erro: unknown,
@@ -90,4 +91,20 @@ export function clientesDaCarga(q: {
     };
   if (q.isLoading || !q.data) return { estado: "carregando", erro: null, definicoes: [] };
   return { estado: "ok", erro: null, definicoes: q.data.definicoes };
+}
+
+/** Estado das coortes (carregarRetencaoCockpit); "sem número" vem na própria resposta. */
+export function retencaoDaCarga(q: {
+  data?: RespostaRetencao;
+  error?: unknown;
+  isLoading: boolean;
+}): NonNullable<FonteCockpit["retencao"]> {
+  if (q.error)
+    return {
+      estado: "erro",
+      erro: mensagemDeErro(q.error, "A carga das coortes de retenção falhou."),
+      resposta: null,
+    };
+  if (q.isLoading || !q.data) return { estado: "carregando", erro: null, resposta: null };
+  return { estado: "ok", erro: null, resposta: q.data };
 }

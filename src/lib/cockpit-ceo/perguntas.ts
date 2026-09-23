@@ -229,11 +229,13 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     id: "N2",
     frente: "rede",
     texto: "O sócio da unidade está satisfeito?",
-    fonte: "Pesquisa própria dos sócios, separada do NPS de clientes (ainda inexistente).",
+    fonte:
+      "Pesquisa do comitê de sócios existe e recebe respostas pelo formulário público, mas não tem política de leitura: nenhum papel lê pelo app.",
     responsavel: "Relacionamento com unidades",
-    cobertura: "depende_dado",
+    cobertura: "depende_decisao",
     aceite: "Público, período, amostra e não respondentes visíveis; cobertura baixa sinalizada.",
-    pendencia: "Instrumento de pesquisa dos sócios.",
+    pendencia:
+      "Decidir quem lê a pesquisa e criar a política de leitura; definir público e período para medir cobertura.",
     indicadores: [],
     roadmap: ["F08"],
     exigencia: 9,
@@ -242,7 +244,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     id: "N3",
     frente: "rede",
     texto: "Como estão repasses e concentração por unidade?",
-    fonte: "Apuração de royalties existe; reconciliação por perímetro não comprovada.",
+    fonte:
+      "Apuração de royalties confirmada por unidade (faturamento, royalties + CSC, concentração); recebido por unidade ainda sem régua confiável.",
     responsavel: "Controladoria",
     cobertura: "depende_dado",
     aceite:
@@ -255,11 +258,13 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     id: "T1",
     frente: "retencao",
     texto: "Quem permanece, expande ou sai, por coorte?",
-    fonte: "Datas de início e fim e eventos históricos; carteira atual não é histórico.",
+    fonte:
+      "Contratos ganhos no pipeline de vendas × churn datado da Central de Tratativas; o registro de churn com data é recente.",
     responsavel: "CS + Financeiro",
     cobertura: "depende_dado",
     aceite: "Denominador fixo da coorte; buraco no histórico não vira retenção zero.",
-    pendencia: "Histórico de início/fim por cliente e produto.",
+    pendencia:
+      "Datar todo churn e registrar início/fim por cliente e produto; expansão e contração ainda não têm fonte.",
     indicadores: [],
     roadmap: ["F06"],
     exigencia: 4,

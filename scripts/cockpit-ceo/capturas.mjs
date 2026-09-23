@@ -262,6 +262,43 @@ await avaliar(
 await espera(600);
 await foto("09-clientes-ativos-definicoes");
 
+// Rede por unidade, coortes de retenção e exportação da matriz de evidências.
+await abrir("/piloto/cockpit-ceo?frente=rede");
+const redeU = await avaliar(`(() => {
+  const s = document.querySelector('[aria-label="Rede por unidade"]');
+  return { texto: s?.innerText || "", linhas: s ? s.querySelectorAll("tbody tr").length : 0 };
+})()`);
+conferir(
+  "Frente Rede mostra unidades com participação e concentração",
+  redeU.linhas === 4 && /três maiores/.test(redeU.texto) && /somam 100,0%/.test(redeU.texto),
+  JSON.stringify({ linhas: redeU.linhas }),
+);
+await avaliar(`document.querySelector('[aria-label="Rede por unidade"]').scrollIntoView()`);
+await espera(400);
+await foto("10-rede-por-unidade");
+await abrir("/piloto/cockpit-ceo?frente=retencao");
+const coortesU = await avaliar(`(() => {
+  const s = document.querySelector('[aria-label="Coortes de retenção"]');
+  const celulas = s ? [...s.querySelectorAll("tbody td")].map((td) => td.textContent) : [];
+  return { texto: s?.innerText || "", linhas: s ? s.querySelectorAll("tbody tr").length : 0,
+           vazias: celulas.filter((c) => c === "").length, cem: celulas.filter((c) => c === "100%").length };
+})()`);
+conferir(
+  "Frente Retenção mostra coortes com células vazias para meses não medidos",
+  coortesU.linhas > 0 && coortesU.vazias > 0 && /não 100%/.test(coortesU.texto),
+  JSON.stringify({ linhas: coortesU.linhas, vazias: coortesU.vazias }),
+);
+await avaliar(`document.querySelector('[aria-label="Coortes de retenção"]').scrollIntoView()`);
+await espera(400);
+await foto("11-coortes-retencao");
+await abrir("/piloto/cockpit-ceo?frente=capital");
+conferir(
+  "Frente Capital oferece a exportação da matriz de evidências",
+  await avaliar(
+    `[...document.querySelectorAll("button")].some((b) => /Exportar CSV/.test(b.textContent))`,
+  ),
+);
+
 // Composição de um indicador não apurado: diz o que falta e quem responde.
 await abrir("/piloto/cockpit-ceo?indicador=meta-bilhao");
 const meta = await avaliar(`document.querySelector('[role=dialog]')?.innerText || ''`);

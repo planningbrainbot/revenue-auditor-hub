@@ -1,0 +1,441 @@
+{
+  "quando": "2026-09-23T02:39:40.936Z",
+  "hoje": "2026-09-22",
+  "fonte": "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
+  "coortes": {
+    "estado": "parcial",
+    "inicio_registro_churn": "2025-06",
+    "linhas": [
+      {
+        "mes": "2025-07",
+        "denominador": 10,
+        "retidos": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2025-08",
+        "denominador": 10,
+        "retidos": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2025-09",
+        "denominador": 10,
+        "retidos": [
+          9,
+          9,
+          9,
+          8,
+          8,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          7,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2025-10",
+        "denominador": 8,
+        "retidos": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          6,
+          6,
+          6,
+          5,
+          5,
+          5,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2025-11",
+        "denominador": 10,
+        "retidos": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          9,
+          9,
+          9,
+          9,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2025-12",
+        "denominador": 9,
+        "retidos": [
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          9,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-01",
+        "denominador": 14,
+        "retidos": [
+          14,
+          13,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-02",
+        "denominador": 18,
+        "retidos": [
+          17,
+          17,
+          16,
+          15,
+          15,
+          15,
+          15,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-03",
+        "denominador": 15,
+        "retidos": [
+          15,
+          15,
+          15,
+          14,
+          14,
+          13,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-04",
+        "denominador": 10,
+        "retidos": [
+          10,
+          10,
+          10,
+          10,
+          10,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-05",
+        "denominador": 18,
+        "retidos": [
+          18,
+          18,
+          17,
+          17,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": false
+      },
+      {
+        "mes": "2026-06",
+        "denominador": 28,
+        "retidos": [
+          28,
+          28,
+          28,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": true
+      },
+      {
+        "mes": "2026-07",
+        "denominador": 43,
+        "retidos": [
+          42,
+          42,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": true
+      },
+      {
+        "mes": "2026-08",
+        "denominador": 48,
+        "retidos": [
+          48,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": true
+      },
+      {
+        "mes": "2026-09",
+        "denominador": 41,
+        "retidos": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "churnsSemData": 0,
+        "recente": true
+      }
+    ],
+    "fora_da_origem": [
+      {
+        "origem": "socios",
+        "contratos": 119
+      }
+    ],
+    "fora_de_regional": 338,
+    "churns_sem_contrato": 1,
+    "churns_antes_do_ganho": 0,
+    "divergencias": [],
+    "confere": true
+  },
+  "rede": {
+    "estado": "parcial",
+    "janela": {
+      "de": "2026-06",
+      "ate": "2026-08",
+      "meses": 3
+    },
+    "unidades": [
+      {
+        "posicao": 1,
+        "faturamento": 1814426.6,
+        "participacao": 0.43322737644188475,
+        "royalties_csc": 210890.92,
+        "take_rate": 0.11623006408746432,
+        "confere": true
+      },
+      {
+        "posicao": 2,
+        "faturamento": 629138.66,
+        "participacao": 0.1502183064831407,
+        "royalties_csc": 42219.24,
+        "take_rate": 0.06710641498330432,
+        "confere": true
+      },
+      {
+        "posicao": 3,
+        "faturamento": 613734.74,
+        "participacao": 0.14654034020524295,
+        "royalties_csc": 81824.09,
+        "take_rate": 0.1333215877595588,
+        "confere": true
+      },
+      {
+        "posicao": 4,
+        "faturamento": 597574.41,
+        "participacao": 0.14268176727187928,
+        "royalties_csc": 107805.96,
+        "take_rate": 0.1804059179843394,
+        "confere": true
+      },
+      {
+        "posicao": 5,
+        "faturamento": 189540.5,
+        "participacao": 0.04525624433883578,
+        "royalties_csc": 33366.64,
+        "take_rate": 0.1760396326906387,
+        "confere": true
+      },
+      {
+        "posicao": 6,
+        "faturamento": 170050.62,
+        "participacao": 0.040602680739422525,
+        "royalties_csc": 46761.63,
+        "take_rate": 0.2749865304813355,
+        "confere": true
+      },
+      {
+        "posicao": 7,
+        "faturamento": 96278.81,
+        "participacao": 0.022988318327810394,
+        "royalties_csc": 38381.16,
+        "take_rate": 0.3986459741245244,
+        "confere": true
+      },
+      {
+        "posicao": 8,
+        "faturamento": 52036.04,
+        "participacao": 0.012424551695629338,
+        "royalties_csc": 32441.28,
+        "take_rate": 0.6234386782699067,
+        "confere": true
+      },
+      {
+        "posicao": 9,
+        "faturamento": 25382,
+        "participacao": 0.0060604144961542775,
+        "royalties_csc": 15000,
+        "take_rate": 0.5909699787250807,
+        "confere": true
+      },
+      {
+        "posicao": 10,
+        "faturamento": 0,
+        "participacao": 0,
+        "royalties_csc": 5000,
+        "take_rate": null,
+        "confere": true
+      },
+      {
+        "posicao": 11,
+        "faturamento": 0,
+        "participacao": 0,
+        "royalties_csc": 5000,
+        "take_rate": null,
+        "confere": true
+      }
+    ],
+    "top1": 0.43322737644188475,
+    "top3": 0.7299860231302684,
+    "hhi": 0.2564999235438035,
+    "soma_participacoes": 1,
+    "unidades_no_sql": 11,
+    "confere": true
+  }
+}

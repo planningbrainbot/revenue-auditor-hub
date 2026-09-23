@@ -88,7 +88,9 @@ async function lerRede(db: any, todasUnidades: boolean, de: string) {
     db.from("unidades").select("id, nome_da_praca, tipo, data_inauguracao"),
     db
       .from("royalties_apuracao")
-      .select("unidade_id, mes_referencia, status, receita_base, receita_base_antiga")
+      .select(
+        "unidade_id, mes_referencia, status, receita_base, receita_base_antiga, royalties_valor, csc_valor_fixo, csc_base_antiga_valor",
+      )
       .gte("mes_referencia", de)
       .order("mes_referencia")
       .order("unidade_id")
@@ -107,6 +109,9 @@ async function lerRede(db: any, todasUnidades: boolean, de: string) {
     status: String(x.status),
     receita_base: x.receita_base as number | null,
     receita_base_antiga: x.receita_base_antiga as number | null,
+    royalties_valor: x.royalties_valor as number | null,
+    csc_valor_fixo: x.csc_valor_fixo as number | null,
+    csc_base_antiga_valor: x.csc_base_antiga_valor as number | null,
   }));
   if (apuracoes.length >= 5000)
     return montarLeituraRede({

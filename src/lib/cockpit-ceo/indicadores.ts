@@ -24,6 +24,9 @@ import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, META_ANUAL, mesBr, resumirLeitura } 
 import type { LeituraReceita, ResumoLeitura } from "./receita.ts";
 import { resumirClientes } from "./clientes-ativos.ts";
 import type { DefinicaoCliente, ResumoClientes } from "./clientes-ativos.ts";
+import type { Coortes, RespostaRetencao } from "./coortes.ts";
+import { resumirRedeUnidades } from "./rede.ts";
+import type { RedeUnidades } from "./rede.ts";
 import { dataBr, mesDoPeriodo, periodoAnterior } from "./periodo.ts";
 import type { Periodo } from "./periodo.ts";
 
@@ -63,6 +66,12 @@ export interface FonteCockpit {
      * real os CNPJs vêm de `conta.base.cnpjs`, da Base de clientes.
      */
     cnpjsPorConta?: Record<string, string[]>;
+  };
+  /** Coortes de retenção já agregadas no servidor. Ausente = não carregada. */
+  retencao?: {
+    estado: "ok" | "erro" | "carregando";
+    erro: string | null;
+    resposta: RespostaRetencao | null;
   };
 }
 
@@ -123,6 +132,10 @@ export interface Cockpit {
   /** Clientes ativos por definição candidata, com sobreposição e penetração ganha no CRM. */
   clientes: ResumoClientes | null;
   clientesAviso: string | null;
+  coortes: Coortes | null;
+  coortesAviso: string | null;
+  /** Rede por unidade na janela de meses completos da leitura "rede". */
+  rede: RedeUnidades | null;
   avisos: string[];
 }
 
@@ -946,6 +959,22 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
           ? (ca.erro ?? "A carga das definições de cliente ativo falhou.")
           : null;
 
+  // ── Retenção por coorte e rede por unidade ─────────────────────────────
+  const rt = fonte.retencao;
+  const coortes = rt?.resposta?.estado === "ok" ? rt.resposta.coortes : null;
+  const coortesAviso = !rt
+    ? null
+    : rt.estado === "carregando"
+      ? "Coortes de retenção em carga."
+      : rt.estado === "erro"
+        ? (rt.erro ?? "A carga das coortes falhou.")
+        : rt.resposta && rt.resposta.estado !== "ok"
+          ? rt.resposta.motivo
+          : null;
+  const iRede = r?.estado === "ok" ? r.leituras.findIndex((l) => l.id === "rede") : -1;
+  const rede =
+    iRede >= 0 && trajetoria ? resumirRedeUnidades(r!.leituras[iRede], trajetoria[iRede]) : null;
+
   return {
     sintetico,
     universo: partes.join(" · "),
@@ -962,6 +991,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     trajetoriaAviso,
     clientes,
     clientesAviso,
+    coortes,
+    coortesAviso,
+    rede,
     serieDiaria: op
       ? op.series.map((s) => ({
           date: s.date,

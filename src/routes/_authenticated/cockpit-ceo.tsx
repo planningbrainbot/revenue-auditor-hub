@@ -11,7 +11,9 @@ import {
   fonteDoBrain,
   fonteSemAcesso,
   receitaDaCarga,
+  retencaoDaCarga,
 } from "@/lib/cockpit-ceo/adaptador-brain";
+import { carregarRetencaoCockpit } from "@/lib/cockpit-ceo/retencao.functions";
 import { carregarClientesAtivosCockpit } from "@/lib/cockpit-ceo/clientes-ativos.functions";
 import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
@@ -80,6 +82,18 @@ function useClientesAtivos() {
   return useMemo(() => clientesDaCarga(q), [q.data, q.error, q.isLoading]);
 }
 
+/** Coortes de retenção já agregadas no servidor. Sem retry automático. */
+function useRetencao() {
+  const fn = useServerFn(carregarRetencaoCockpit);
+  const q = useQuery({
+    queryKey: ["cockpit-ceo", "retencao"],
+    queryFn: () => fn(),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  return useMemo(() => retencaoDaCarga(q), [q.data, q.error, q.isLoading]);
+}
+
 /** Relógio por minuto: uma aba aberta precisa perceber quando a carga passa a estar parada. */
 function useAgora() {
   const [agora, setAgora] = useState(() => new Date().toISOString());
@@ -94,10 +108,11 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
   const q = useMonetizacao();
   const receita = useReceita();
   const clientesAtivos = useClientesAtivos();
+  const retencao = useRetencao();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => ({ ...fonteDoBrain(q, acesso, hoje, agora), receita, clientesAtivos }),
+    () => ({ ...fonteDoBrain(q, acesso, hoje, agora), receita, clientesAtivos, retencao }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       q.data,
@@ -109,6 +124,7 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
       agora,
       receita,
       clientesAtivos,
+      retencao,
     ],
   );
   if (fonte.monetizacao.estado === "carregando")
@@ -120,11 +136,12 @@ function SemCarga() {
   const receita = useReceita();
   // Sem as chaves da Base o servidor devolve cada definição como "acesso insuficiente", sem ler fonte.
   const clientesAtivos = useClientesAtivos();
+  const retencao = useRetencao();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => ({ ...fonteSemAcesso(hoje, agora), receita, clientesAtivos }),
-    [hoje, agora, receita, clientesAtivos],
+    () => ({ ...fonteSemAcesso(hoje, agora), receita, clientesAtivos, retencao }),
+    [hoje, agora, receita, clientesAtivos, retencao],
   );
   return <Tela fonte={fonte} hoje={hoje} />;
 }
