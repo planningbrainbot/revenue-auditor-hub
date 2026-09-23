@@ -25,7 +25,9 @@ Antes de tocar em qualquer arquivo de `src/routes/` ou `src/components/`:
 | `ARQUETIPOS.md` | os cinco tipos de página, anatomia e rotas de cada um |
 | `CONTRATO-DE-TELA.md` | template e três exemplos preenchidos |
 | `DESIGN.md` | sistema visual e regras verificáveis (V) |
+| `PROCESSO.md` | quem decide o quê (Pedro, Mika, Eliezek), como integrar esta branch, fluxo de toda tela nova, ordem de migração |
 | `REFERENCIAS.md` | fontes externas curadas e a lista "não use" |
+| `contratos/` | contratos aprovados, um por rota (`<rota>.md`) |
 | `diagnostico/` | os cinco relatórios de 23/09/2026 que fundamentam tudo acima |
 | `capturas/` | antes/depois da vitrine e da casca |
 | `medicoes.md` | contagens do `design:lint` (baseline e atual) |
