@@ -21,7 +21,7 @@ A mudança entra pela camada base: tokens, primitivos do shadcn, casca e `AppShe
 | Abas | pílula cinza | sublinhado verde de 2px | as 17+ telas com abas |
 | Estados | 82 "Carregando…" soltos; sem estado vazio nem de erro | `Carregando` com esqueleto, `EstadoVazio` com total, `EstadoErro`, `EstadoSemAcesso`; KPI nunca mostra 0 no lugar de "não apurado" | todas as telas migradas |
 
-Diff em `src/`: 155 arquivos, +5.598 / −1.886 linhas, sem mudança de lógica, query ou permissão (revisão final em `docs/design/diagnostico/`).
+Diff em `src/`: 173 arquivos, +6.166 / −2.456 linhas, sem mudança de lógica, query ou permissão (revisão final em `docs/design/diagnostico/`).
 
 ## Capturas
 
