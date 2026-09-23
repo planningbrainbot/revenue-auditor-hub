@@ -3,8 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Mesma paleta "oliva" da aba FCx — intencional, replica a identidade visual
 // do relatório original da contadora (planilha Financeiro Partners).
-const OLIVE = "#6b7c3a";
-const OLIVE_BG = "#e8edcc";
+// Oliva do relatório impresso da controladoria não tem token; na tela o
+// cabeçalho usa texto e superfície do tema, para funcionar no escuro.
+const OLIVE = "var(--foreground)";
+const OLIVE_BG = "var(--muted)";
 
 interface DreRow {
   bloco: string;
@@ -138,7 +140,7 @@ export function DreRealizadaView() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="bg-white border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
+        <div className="bg-card border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
           <p className="text-danger font-bold">Erro ao carregar dados</p>
           <p className="text-muted-foreground text-sm">{error}</p>
         </div>
@@ -171,7 +173,7 @@ export function DreRealizadaView() {
       </div>
 
       <div className="space-y-0">
-        <div className="bg-white rounded-t-2xl border border-border px-6 py-5">
+        <div className="bg-card rounded-t-2xl border border-border px-6 py-5">
           <div className="flex items-center gap-6">
             <div>
               <div className="text-4xl font-black text-foreground leading-none tracking-tight">DRE</div>
@@ -247,11 +249,11 @@ export function DreRealizadaView() {
                 <tr className="border-t-2 border-border font-bold" style={{ background: OLIVE_BG }}>
                   <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Total Geral</td>
                   {meses.map((mes) => (
-                    <td key={mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: (grandTotalPorMes[mes] ?? 0) >= 0 ? "#166534" : "#991b1b" }}>
+                    <td key={mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: (grandTotalPorMes[mes] ?? 0) >= 0 ? "var(--success)" : "var(--danger)" }}>
                       {fmtN(grandTotalPorMes[mes] ?? 0)}
                     </td>
                   ))}
-                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "#166534" : "#991b1b" }}>
+                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "var(--success)" : "var(--danger)" }}>
                     {fmtN(grandTotalGeral)}
                   </td>
                 </tr>

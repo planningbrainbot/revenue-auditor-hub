@@ -67,7 +67,9 @@ const PASTAS_DS = ["src/components/ui/", "src/components/planning/", "src/lib/pl
 const ehDS = (rel) => PASTAS_DS.some((p) => rel.startsWith(p)) || rel === "src/styles.css";
 const LIVRE_DE_COR_CRUA = ["src/components/ui/", "src/components/planning/"];
 const CASCA = new Set(["src/components/app-sidebar.tsx", "src/components/app-shell.tsx", "src/routes/_authenticated/route.tsx"]);
-const HEX_OK = new Set(["src/components/planning-logo.tsx"]);
+// Hex legítimo: logo da casa, e o logo da Microsoft no botão "Entrar com Microsoft"
+// (auth.tsx), que tem de sair nas cores oficiais de terceiro, não nas nossas.
+const HEX_OK = new Set(["src/components/planning-logo.tsx", "src/routes/auth.tsx"]);
 const IGNORADOS = new Set(["src/routeTree.gen.ts"]);
 // A vitrine reproduz de propósito o "antes" (cor crua, fonte de 9–10px) para a
 // captura comparativa (plano T1). Só V2–V4 ficam de fora; o resto vale nela.
@@ -99,7 +101,9 @@ const RE_SEM_TOKEN = classeDeCor(SEM_TOKEN);
 const RE_FONTE = /(^|[\s"'`{(,])((?:[^\s:"'`]+:)*)(!?)text-\[(\d+(?:\.\d+)?)(px|rem)\](?=[\s"'`}),]|$)/g;
 const RE_HSL_VAR = /hsl\(\s*var\(/g;
 // Seletor de atributo ([stroke='#ccc'] no chart.tsx do shadcn) casa a cor padrão do Recharts; não pinta nada.
-const RE_HEX = /(?<![\w&/]|=['"])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/g;
+// A exclusão vale só dentro de colchete: até 23/09 ela pegava qualquer `="#`, e
+// `fill="#f59e0b"` em JSX (27 casos, a forma mais comum de pintar série) passava calado.
+const RE_HEX = /(?<![\w&/]|\[[\w-]+=['"])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/g;
 const RE_CONFIRM = /(?:\bwindow\.|(?<![\w$.]))confirm\s*\(/g;
 const RE_AREA = /var\(--area-/g;
 const RE_GRADIENTE = /linear-gradient\(/g;

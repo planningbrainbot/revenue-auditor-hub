@@ -18,6 +18,7 @@ import { buildSchedule, statusLabel, formatMonthLabel } from "./payment-schedule
 import { useData } from "./data-context";
 import { calcCliente } from "./matriz-calc";
 import { cn } from "@/lib/utils";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 interface Props {
   registro: AuditRegistro | null;
@@ -40,7 +41,7 @@ function StatCard({
     default: "bg-card",
     emerald: "bg-success-soft border-success/40",
     red: "bg-danger-soft border-danger/40",
-    indigo: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900",
+    indigo: "bg-info-soft border-info/30",
   };
   return (
     <div className={cn("rounded-lg border p-3 shadow-sm", tones[tone])}>
@@ -143,13 +144,13 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                         Recebido: r.received,
                       }))}
                     >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis dataKey="mes" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={50} />
-                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                      <Tooltip formatter={(v: number) => brl(v)} />
-                      <Legend />
-                      <Bar dataKey="Esperado" fill="#94a3b8" />
-                      <Bar dataKey="Recebido" fill="#10b981" />
+                      <CartesianGrid {...gradeProps} />
+                      <XAxis {...eixoProps} dataKey="mes" angle={-30} textAnchor="end" height={50} />
+                      <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                      <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                      <Legend {...legendaProps} />
+                      <Bar dataKey="Esperado" fill={COR_NEUTRA} />
+                      <Bar dataKey="Recebido" fill={CORES_SERIE[0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -238,8 +239,8 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                       {matriz.cacMes ? `1º pag.: ${formatMonthLabel(matriz.cacMes)}` : "ainda não pago"}
                     </div>
                   </div>
-                  <div className="rounded-md border bg-indigo-50 p-2 dark:bg-indigo-950/40">
-                    <div className="text-xs uppercase text-indigo-800 dark:text-indigo-200">Royalties total</div>
+                  <div className="rounded-md border bg-info-soft p-2">
+                    <div className="text-xs uppercase text-info">Royalties total</div>
                     <div className="text-base font-bold">{brl(matriz.totalRoyalties)}</div>
                     <div className="text-xs text-muted-foreground">
                       {matriz.royaltiesPorMes.length} parcelas
@@ -266,7 +267,7 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                           <tr key={rm.month} className="border-t">
                             <td className="px-2 py-1">{formatMonthLabel(rm.month)}</td>
                             <td className="px-2 py-1 text-right whitespace-nowrap">{brl(rm.valorPago)}</td>
-                            <td className="px-2 py-1 text-right whitespace-nowrap font-semibold text-indigo-700 dark:text-indigo-300">
+                            <td className="px-2 py-1 text-right whitespace-nowrap font-semibold text-info">
                               {brl(rm.royalties)}
                             </td>
                           </tr>

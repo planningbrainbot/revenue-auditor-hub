@@ -25,6 +25,9 @@ function getPhase(i: number): string {
   ][i] ?? '';
 }
 
+/** Fundo do HTML exportado (igual a --bg abaixo); a prévia em iframe usa o mesmo para não piscar. */
+export const FUNDO_APRESENTACAO = "#080808";
+
 export function generatePresentationHTML(d: ReformaTributariaData): string {
   const first = d.years[0];
   const last = d.years[d.years.length - 1];

@@ -19,7 +19,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { DEFAULT_DATA, parseReformaTributariaXlsx, type ReformaTributariaData } from '@/components/reforma-tributaria/xlsx-parser';
-import { generatePresentationHTML } from '@/components/reforma-tributaria/html-generator';
+import { FUNDO_APRESENTACAO, generatePresentationHTML } from '@/components/reforma-tributaria/html-generator';
 import { PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute('/_authenticated/reforma-tributaria')({
@@ -599,7 +599,8 @@ function ReformaTributariaPage() {
           <iframe
             ref={iframeRef}
             srcDoc={htmlContent}
-            className="w-full h-full border-0 bg-[#080808]"
+            className="w-full h-full border-0"
+            style={{ background: FUNDO_APRESENTACAO }}
             title="Preview da apresentação"
             sandbox="allow-scripts"
           />

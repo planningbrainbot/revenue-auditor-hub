@@ -14,6 +14,7 @@ import { brl, num } from "@/components/audit/format";
 import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, type UnidadeMesAgg } from "./calculations";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
 
 function fmtBRL(v: number) {
   return brl(v);
@@ -282,20 +283,19 @@ export function OverviewTab() {
         <div className="h-72 w-full">
           <ResponsiveContainer>
             <BarChart data={barData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="mes" fontSize={11} />
-              <YAxis fontSize={11} tickFormatter={(v) => num(v)} />
-              <Tooltip formatter={(v: number) => brl(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="mes" />
+              <YAxis {...eixoProps} tickFormatter={(v) => num(v)} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+              <Legend {...legendaProps} />
               <ReferenceLine
                 y={invMensalFixo}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                label={{ value: "Break-even", fill: "#ef4444", fontSize: 11 }}
+                {...linhaMetaProps}
+                label={{ value: "Break-even", fill: "var(--muted-foreground)", fontSize: 12 }}
               />
-              <Bar dataKey="investimento" fill="#f97316" name="Investimento" />
-              <Bar dataKey="mrr" fill="#10b981" name="MRR captado" />
-              <Bar dataKey="royalties" fill="#60a5fa" name="Royalties do mês" />
+              <Bar dataKey="investimento" fill={CORES_SERIE[0]} name="Investimento" />
+              <Bar dataKey="mrr" fill={CORES_SERIE[1]} name="MRR captado" />
+              <Bar dataKey="royalties" fill={CORES_SERIE[2]} name="Royalties do mês" />
             </BarChart>
           </ResponsiveContainer>
         </div>

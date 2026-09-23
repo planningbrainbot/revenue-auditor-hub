@@ -26,6 +26,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { ImportRepassesDialog } from "./import-repasses-dialog";
 import type { TipoRepasse } from "@/lib/repasses.functions";
 import { toast } from "sonner";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 interface Props {
   tipo: TipoRepasse;
@@ -103,8 +104,9 @@ export function DeParaMensalTab({ tipo }: Props) {
   }, [units, monthsList, recebidos, tipo]);
 
   const titulo = tipo === "royalties" ? "Royalties" : "CAC";
-  const corPrev = tipo === "royalties" ? "#6366f1" : "#f59e0b";
-  const corReceb = "#10b981";
+  // Previsto é referência (neutro); recebido é a série (DESIGN §5).
+  const corPrev = COR_NEUTRA;
+  const corReceb = CORES_SERIE[0];
 
   function statusCls(prev: number, receb: number) {
     if (prev === 0 && receb === 0) return "text-muted-foreground";
@@ -171,11 +173,11 @@ export function DeParaMensalTab({ tipo }: Props) {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-              <Tooltip formatter={(v: number) => brl(v)} />
-              <Legend />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="label" angle={-30} textAnchor="end" height={60} />
+              <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+              <Legend {...legendaProps} />
               <Bar dataKey="Previsto" fill={corPrev} />
               <Bar dataKey="Recebido" fill={corReceb} />
             </BarChart>

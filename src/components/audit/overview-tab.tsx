@@ -20,17 +20,19 @@ import { ClientDetailDrawer } from "./client-detail-drawer";
 import { useState } from "react";
 import type { AuditRegistro } from "@/lib/audit-types";
 import { OrigemBadge, groupByOrigem } from "./origem-badge";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
+// Esta pizza é de status de pagamento: aqui a cor é o próprio status.
 const PAG_COLORS: Record<string, string> = {
-  adimplente: "#10b981",
-  inadimplente: "#ef4444",
-  recente: "#f59e0b",
-  sem_dados: "#94a3b8",
+  adimplente: "var(--success)",
+  inadimplente: "var(--danger)",
+  recente: "var(--warning)",
+  sem_dados: COR_NEUTRA,
 };
 
 const TIPO_COLORS: Record<string, string> = {
-  Recorrente: "#6366f1",
-  "Avulso (On-Time)": "#d946ef",
+  Recorrente: CORES_SERIE[0],
+  "Avulso (On-Time)": CORES_SERIE[1],
 };
 
 const DIAS_BUCKETS: { label: string; test: (d: number) => boolean }[] = [
@@ -183,13 +185,13 @@ export function OverviewTab() {
         <ChartCard title="Clientes por cidade (Top 12)">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={cidadeData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="cidade" tick={{ fontSize: 11 }} angle={-25} textAnchor="end" height={70} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="total" name="Total" fill="#6366f1" />
-              <Bar dataKey="pagaram" name="Pagaram" fill="#10b981" />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="cidade" angle={-25} textAnchor="end" height={70} />
+              <YAxis {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
+              <Bar dataKey="total" name="Total" fill={CORES_SERIE[0]} />
+              <Bar dataKey="pagaram" name="Pagaram" fill={CORES_SERIE[1]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -199,11 +201,11 @@ export function OverviewTab() {
             <PieChart>
               <Pie data={pagData} dataKey="value" nameKey="name" outerRadius={100} label>
                 {pagData.map((entry) => (
-                  <Cell key={entry.name} fill={PAG_COLORS[entry.name] ?? "#94a3b8"} />
+                  <Cell key={entry.name} fill={PAG_COLORS[entry.name] ?? COR_NEUTRA} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -211,11 +213,11 @@ export function OverviewTab() {
         <ChartCard title="Dias até o 1º pagamento">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={diasData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" name="Clientes" fill="#6366f1" />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="label" />
+              <YAxis {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Bar dataKey="count" name="Clientes" fill={CORES_SERIE[0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -227,11 +229,11 @@ export function OverviewTab() {
                 <PieChart>
                   <Pie data={tipoData} dataKey="count" nameKey="name" outerRadius={70} label>
                     {tipoData.map((entry) => (
-                      <Cell key={entry.name} fill={TIPO_COLORS[entry.name] ?? "#94a3b8"} />
+                      <Cell key={entry.name} fill={TIPO_COLORS[entry.name] ?? COR_NEUTRA} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip {...tooltipProps} />
+                  <Legend {...legendaProps} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

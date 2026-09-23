@@ -38,7 +38,7 @@ import {
 import { useNps } from "@/hooks/use-nps";
 import type { NpsRow } from "@/lib/nps.functions";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { useTheme } from "@/hooks/use-theme";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 
 const ALL = "__all__";
 
@@ -89,18 +89,16 @@ function csatRatings(r: NpsRow): number[] {
     .filter((n) => Number.isFinite(n) && n >= 0 && n <= 10);
 }
 
-// fill com hsl() em volta de var(--x) não resolve em produção (bug observado:
-// barras saindo pretas; as variáveis são hex, então o hsl() fica inválido) — resolvemos a cor em
-// JS a partir do tema ativo em vez de depender do var() dentro do atributo.
-const NPS_FILL = { claro: "#00c38b", escuro: "#3ce7ad" };
-const CSAT_FILL = { claro: "#0e5e8a", escuro: "#2f91bd" };
+// fill com hsl() em volta de var(--x) saía preto (as variáveis são hex). var(--x)
+// puro resolve e troca junto com o tema; o CSAT tem token próprio em styles.css.
+const NPS_FILL = CORES_SERIE[0];
+const CSAT_FILL = "var(--chart-csat)";
 
 export function NpsPainelTab() {
   const { data, isLoading, error } = useNps();
   const perms = usePermissions();
-  const { theme } = useTheme();
-  const npsFill = NPS_FILL[theme];
-  const csatFill = CSAT_FILL[theme];
+  const npsFill = NPS_FILL;
+  const csatFill = CSAT_FILL;
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
     // Mesmo padrão de tratativas-tab.tsx: só restringe por unidade quando o
@@ -210,9 +208,9 @@ export function NpsPainelTab() {
               x={x + width / 2}
               y={y - 20}
               textAnchor="middle"
-              fontSize={11}
+              fontSize={12}
               fontWeight={600}
-              fill={positivo ? "#0d7a4f" : "#b91c1c"}
+              fill={positivo ? "var(--success)" : "var(--danger)"}
             >
               {positivo ? "▲" : "▼"} {positivo ? "+" : ""}{delta}%
             </text>
@@ -271,9 +269,9 @@ export function NpsPainelTab() {
 
   const distribuicaoCategoria = useMemo(
     () => [
-      { name: "Promotores", value: kpis.promotores, fill: "hsl(142 71% 45%)" },
-      { name: "Neutros", value: kpis.neutros, fill: "hsl(38 92% 50%)" },
-      { name: "Detratores", value: kpis.detratores, fill: "hsl(0 84% 60%)" },
+      { name: "Promotores", value: kpis.promotores, fill: "var(--success)" },
+      { name: "Neutros", value: kpis.neutros, fill: "var(--warning)" },
+      { name: "Detratores", value: kpis.detratores, fill: "var(--danger)" },
     ],
     [kpis],
   );
@@ -290,7 +288,7 @@ export function NpsPainelTab() {
     return Array.from(map.entries()).map(([nota, qtd]) => ({
       nota: String(nota),
       qtd,
-      fill: nota >= 9 ? "hsl(142 71% 45%)" : nota >= 7 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)",
+      fill: nota >= 9 ? "var(--success)" : nota >= 7 ? "var(--warning)" : "var(--danger)",
     }));
   }, [respondidas]);
 
@@ -551,10 +549,10 @@ export function NpsPainelTab() {
                       <div className="h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={evolucaoMensal} margin={{ top: 34 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
-                            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                            <YAxis domain={[-100, 100]} tick={{ fontSize: 11 }} width={36} />
-                            <Tooltip formatter={(v: number) => [v, "NPS"]} />
+                            <CartesianGrid {...gradeProps} />
+                            <XAxis {...eixoProps} dataKey="mes" />
+                            <YAxis {...eixoProps} domain={[-100, 100]} width={36} />
+                            <Tooltip {...tooltipProps} formatter={(v: number) => [v, "NPS"]} />
                             <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[2, 2, 0, 0]} maxBarSize={44}>
                               <LabelList content={renderDeltaLabel(evolucaoMensal, "nps")} />
                             </Bar>
@@ -565,10 +563,10 @@ export function NpsPainelTab() {
                       <div className="h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={npsPorSegmento} layout="vertical" margin={{ left: 70 }}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                            <XAxis type="number" domain={[-100, 100]} tick={{ fontSize: 11 }} />
-                            <YAxis type="category" dataKey="segmento" width={70} tick={{ fontSize: 11 }} />
-                            <Tooltip formatter={(v: number) => [v, "NPS"]} />
+                            <CartesianGrid {...gradeProps} />
+                            <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                            <YAxis {...eixoProps} type="category" dataKey="segmento" width={70} />
+                            <Tooltip {...tooltipProps} formatter={(v: number) => [v, "NPS"]} />
                             <Bar dataKey="nps" name="NPS" fill={npsFill} radius={[0, 2, 2, 0]} maxBarSize={18} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -601,10 +599,10 @@ export function NpsPainelTab() {
                       <div className="h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={evolucaoCsatMensal} margin={{ top: 34 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/50" />
-                            <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                            <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={36} />
-                            <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
+                            <CartesianGrid {...gradeProps} />
+                            <XAxis {...eixoProps} dataKey="mes" />
+                            <YAxis {...eixoProps} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={36} />
+                            <Tooltip {...tooltipProps} formatter={(v: number) => [`${v}%`, "CSAT"]} />
                             <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[2, 2, 0, 0]} maxBarSize={44}>
                               <LabelList content={renderDeltaLabel(evolucaoCsatMensal, "csat", "%")} />
                             </Bar>
@@ -615,10 +613,10 @@ export function NpsPainelTab() {
                       <div className="h-[180px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={csatPorSegmento} layout="vertical" margin={{ left: 70 }}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                            <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-                            <YAxis type="category" dataKey="segmento" width={70} tick={{ fontSize: 11 }} />
-                            <Tooltip formatter={(v: number) => [`${v}%`, "CSAT"]} />
+                            <CartesianGrid {...gradeProps} />
+                            <XAxis {...eixoProps} type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                            <YAxis {...eixoProps} type="category" dataKey="segmento" width={70} />
+                            <Tooltip {...tooltipProps} formatter={(v: number) => [`${v}%`, "CSAT"]} />
                             <Bar dataKey="csat" name="CSAT" fill={csatFill} radius={[0, 2, 2, 0]} maxBarSize={18} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -655,7 +653,7 @@ export function NpsPainelTab() {
                         <Cell key={i} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip {...tooltipProps} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -666,10 +664,10 @@ export function NpsPainelTab() {
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={distribuicaoNota}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="nota" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis {...eixoProps} dataKey="nota" />
+                    <YAxis {...eixoProps} allowDecimals={false} />
+                    <Tooltip {...tooltipProps} />
                     <Bar dataKey="qtd" name="Respostas">
                       {distribuicaoNota.map((entry, i) => (
                         <Cell key={i} fill={entry.fill} />
@@ -712,10 +710,10 @@ export function NpsPainelTab() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={npsPorUnidade} layout="vertical" margin={{ left: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis type="number" domain={[-100, 100]} />
-                    <YAxis type="category" dataKey="unidade" width={110} />
-                    <Tooltip />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                    <YAxis {...eixoProps} type="category" dataKey="unidade" width={110} />
+                    <Tooltip {...tooltipProps} />
                     <Bar dataKey="nps" name="NPS" fill={npsFill} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -727,10 +725,10 @@ export function NpsPainelTab() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={npsPorSegmento} layout="vertical" margin={{ left: 60 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis type="number" domain={[-100, 100]} />
-                    <YAxis type="category" dataKey="segmento" width={110} />
-                    <Tooltip />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                    <YAxis {...eixoProps} type="category" dataKey="segmento" width={110} />
+                    <Tooltip {...tooltipProps} />
                     <Bar dataKey="nps" name="NPS" fill={npsFill} />
                   </BarChart>
                 </ResponsiveContainer>

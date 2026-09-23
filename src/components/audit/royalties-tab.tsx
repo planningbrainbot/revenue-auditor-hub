@@ -22,6 +22,7 @@ import {
   type UnidadeAggregate,
 } from "./matriz-calc";
 import { UnitDetailDrawer } from "./unit-detail-drawer";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 export function RoyaltiesTab() {
   const { registros, cnpjToUnidade, unidadesByName } = useData();
@@ -93,11 +94,11 @@ export function RoyaltiesTab() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlySeries}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                <Tooltip formatter={(v: number) => brl(v)} />
-                <Bar dataKey="value" name="Royalties" fill="#6366f1" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis {...eixoProps} dataKey="label" angle={-30} textAnchor="end" height={60} />
+                <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                <Bar dataKey="value" name="Royalties" fill={CORES_SERIE[0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -108,12 +109,12 @@ export function RoyaltiesTab() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topUnits} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                <YAxis dataKey="nome" type="category" tick={{ fontSize: 11 }} width={110} />
-                <Tooltip formatter={(v: number) => brl(v)} />
-                <Legend />
-                <Bar dataKey="value" name="Royalties" fill="#6366f1" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis {...eixoProps} type="number" tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                <YAxis {...eixoProps} dataKey="nome" type="category" width={110} />
+                <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                <Legend {...legendaProps} />
+                <Bar dataKey="value" name="Royalties" fill={CORES_SERIE[0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -153,7 +154,7 @@ export function RoyaltiesTab() {
                     <td className="px-3 py-2 font-medium">{u.nome}</td>
                     <td className="px-3 py-2 text-right">{(u.pctRoyalties * 100).toFixed(1)}%</td>
                     <td className="px-3 py-2 text-right">{contribuintes}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-indigo-700 dark:text-indigo-300 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right font-semibold text-info whitespace-nowrap">
                       {brl(u.royaltiesAcumulado)}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">{brl(mesAtual)}</td>

@@ -25,7 +25,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { CORES_SERIE } from "@/lib/planning/grafico";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -97,10 +97,10 @@ const TIPO_DESCRICAO: Record<TipoKey, string> = {
 };
 
 const TIPO_COLOR: Record<TipoKey, string> = {
-  Auditoria: "#6366f1",
-  "Contas Perdidas": "#f59e0b",
-  "Solicitações Comerciais": "#10b981",
-  "Reforma Tributária": "#8b5cf6",
+  Auditoria: CORES_SERIE[0],
+  "Contas Perdidas": CORES_SERIE[1],
+  "Solicitações Comerciais": CORES_SERIE[2],
+  "Reforma Tributária": CORES_SERIE[3],
 };
 
 const TIPO_ICON: Record<TipoKey, typeof ClipboardCheck> = {
@@ -760,9 +760,9 @@ function PorFaseChart({ rows }: { rows: Auditoria[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={porFase} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
-            <Tooltip />
+            <XAxis {...eixoProps} type="number" allowDecimals={false} />
+            <YAxis {...eixoProps} type="category" dataKey="name" width={160} />
+            <Tooltip {...tooltipProps} />
             <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -837,9 +837,9 @@ function ProjetosPorTipo({ rows }: { rows: Auditoria[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={150} />
-            <Tooltip />
+            <XAxis {...eixoProps} type="number" allowDecimals={false} />
+            <YAxis {...eixoProps} type="category" dataKey="name" width={150} />
+            <Tooltip {...tooltipProps} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {data.map((d) => (<Cell key={d.name} fill={d.color} />))}
             </Bar>
@@ -888,10 +888,10 @@ function FinalizadasPorMes({ rows }: { rows: Auditoria[] }) {
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ left: 0, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
-              <Tooltip />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="name" />
+              <YAxis {...eixoProps} type="number" allowDecimals={false} width={32} />
+              <Tooltip {...tooltipProps} />
               <Bar dataKey="value" name="Finalizadas" fill={CORES_SERIE[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

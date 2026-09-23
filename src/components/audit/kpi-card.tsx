@@ -10,13 +10,15 @@ interface KpiCardProps {
   highlight?: boolean;
 }
 
+// Tons por papel (DESIGN §3–4). Os nomes antigos ficam para não mexer nos chamadores:
+// emerald = positivo, red = erro, orange = atenção, indigo = informação, purple = neutro.
 const tones: Record<NonNullable<KpiCardProps["tone"]>, string> = {
   default: "bg-card text-card-foreground",
-  indigo: "bg-indigo-50 text-indigo-900 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-100 dark:border-indigo-900",
-  emerald: "bg-emerald-50 text-emerald-900 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-100 dark:border-emerald-900",
-  red: "bg-red-50 text-red-900 border-red-200 dark:bg-red-950 dark:text-red-100 dark:border-red-900",
-  orange: "bg-orange-50 text-orange-900 border-orange-200 dark:bg-orange-950 dark:text-orange-100 dark:border-orange-900",
-  purple: "bg-purple-50 text-purple-900 border-purple-200 dark:bg-purple-950 dark:text-purple-100 dark:border-purple-900",
+  indigo: "border-info/30 bg-info-soft text-info",
+  emerald: "border-success/30 bg-success-soft text-success",
+  red: "border-danger/30 bg-danger-soft text-danger",
+  orange: "border-warning/30 bg-warning-soft text-warning",
+  purple: "bg-muted text-foreground",
 };
 
 export function KpiCard({ label, value, sub, help, tone = "default", highlight }: KpiCardProps) {
@@ -26,7 +28,7 @@ export function KpiCard({ label, value, sub, help, tone = "default", highlight }
       className={cn(
         "rounded-lg border p-4 shadow-sm transition-shadow",
         tones[tone],
-        highlight && "ring-2 ring-indigo-400 dark:ring-indigo-500",
+        highlight && "ring-2 ring-primary",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -37,7 +39,7 @@ export function KpiCard({ label, value, sub, help, tone = "default", highlight }
             aria-label="O que significa?"
             title="O que significa?"
             onClick={() => setShowHelp((s) => !s)}
-            className="shrink-0 rounded-full border border-current/30 px-1.5 text-[10px] font-bold opacity-60 hover:opacity-100"
+            className="shrink-0 rounded-full border border-current/30 px-1.5 text-xs font-bold opacity-60 hover:opacity-100"
           >
             ?
           </button>

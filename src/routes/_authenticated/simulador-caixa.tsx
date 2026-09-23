@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 export const Route = createFileRoute("/_authenticated/simulador-caixa")({
   head: () => ({
@@ -38,7 +39,8 @@ const DEFAULTS = { investimento: 185_687, roas: 1.1, royalties: 9 };
 
 // Fixed ROAS values for parallel scenario comparison
 const SCENARIO_ROAS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-const SCENARIO_COLORS = ["#ef4444", "#f97316", "#6366f1", "#0ea5e9", "#10b981", "#8b5cf6"];
+// Seis cenários de ROAS = as seis cores de série na ordem da marca (DESIGN §5).
+const SCENARIO_COLORS = CORES_SERIE;
 
 function fmt(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -337,9 +339,10 @@ function SimuladorCaixa() {
                         </linearGradient>
                       ))}
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="mes" tickFormatter={(v) => "M" + v} tick={{ fontSize: 12 }} />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis {...eixoProps} dataKey="mes" tickFormatter={(v) => "M" + v} />
                     <YAxis
+                      {...eixoProps}
                       tickFormatter={(v) =>
                         Math.abs(v) >= 1000 ? Math.round(v / 1000) + "k" : String(v)
                       }
@@ -349,9 +352,10 @@ function SimuladorCaixa() {
                       y={0}
                       stroke="var(--foreground)"
                       strokeWidth={1.5}
-                      label={{ value: "Break-even", position: "insideTopRight", fontSize: 11 }}
+                      label={{ value: "Break-even", position: "insideTopRight", fontSize: 12 }}
                     />
                     <Tooltip
+                      {...tooltipProps}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const mes = (payload[0]?.payload as { mes: number }).mes;
@@ -385,27 +389,28 @@ function SimuladorCaixa() {
                         />
                       );
                     })}
-                    <Legend />
+                    <Legend {...legendaProps} />
                   </AreaChart>
                 ) : (
                   <AreaChart data={main.data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gradPos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        <stop offset="5%" stopColor={CORES_SERIE[0]} stopOpacity={0.35} />
+                        <stop offset="95%" stopColor={CORES_SERIE[0]} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gradNeg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        <stop offset="5%" stopColor={COR_NEGATIVO} stopOpacity={0.35} />
+                        <stop offset="95%" stopColor={COR_NEGATIVO} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gradRoy" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        <stop offset="5%" stopColor={CORES_SERIE[1]} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={CORES_SERIE[1]} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="mes" tickFormatter={(v) => "M" + v} tick={{ fontSize: 12 }} />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis {...eixoProps} dataKey="mes" tickFormatter={(v) => "M" + v} />
                     <YAxis
+                      {...eixoProps}
                       tickFormatter={(v) =>
                         Math.abs(v) >= 1000 ? Math.round(v / 1000) + "k" : String(v)
                       }
@@ -413,6 +418,7 @@ function SimuladorCaixa() {
                     />
                     <ReferenceLine y={0} stroke="var(--foreground)" strokeWidth={1} />
                     <Tooltip
+                      {...tooltipProps}
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
                         const h = payload[0]?.payload as MonthRow;
@@ -425,7 +431,7 @@ function SimuladorCaixa() {
                             </div>
                             <div>
                               Royalties:{" "}
-                              <strong className="text-indigo-500">{fmt(h.entradaRoyalties)}</strong>
+                              <strong className="text-info">{fmt(h.entradaRoyalties)}</strong>
                             </div>
                             <div>
                               Saída Mídia:{" "}
@@ -449,7 +455,7 @@ function SimuladorCaixa() {
                       type="monotone"
                       dataKey="entradaRoas"
                       name="Mensalidade"
-                      stroke="#10b981"
+                      stroke={CORES_SERIE[0]}
                       strokeWidth={2}
                       fill="url(#gradPos)"
                       isAnimationActive={false}
@@ -458,7 +464,7 @@ function SimuladorCaixa() {
                       type="monotone"
                       dataKey="entradaRoyalties"
                       name="Royalties"
-                      stroke="#6366f1"
+                      stroke={CORES_SERIE[1]}
                       strokeWidth={2}
                       fill="url(#gradRoy)"
                       isAnimationActive={false}
@@ -467,12 +473,12 @@ function SimuladorCaixa() {
                       type="monotone"
                       dataKey="saida"
                       name="Saída Mídia"
-                      stroke="#ef4444"
+                      stroke={COR_NEGATIVO}
                       strokeWidth={2}
                       fill="url(#gradNeg)"
                       isAnimationActive={false}
                     />
-                    <Legend />
+                    <Legend {...legendaProps} />
                   </AreaChart>
                 )}
               </ResponsiveContainer>
@@ -568,7 +574,7 @@ function SimuladorCaixa() {
                   <tr key={row.mes} className={cn("border-b", row.mes % 2 === 0 && "bg-muted/20")}>
                     <td className="py-1 font-medium">M{row.mes}</td>
                     <td className="py-1 text-right text-success">{fmt(row.entradaRoas)}</td>
-                    <td className="py-1 text-right text-indigo-500">{fmt(row.entradaRoyalties)}</td>
+                    <td className="py-1 text-right text-info">{fmt(row.entradaRoyalties)}</td>
                     <td className="py-1 text-right text-destructive">−{fmt(row.saida)}</td>
                     <td
                       className={cn(

@@ -176,7 +176,7 @@ export function ImportRepassesDialog({ open, onClose, tipo, unidadesConhecidas }
                     {rows.map((r, i) => {
                       const escolha = overrides[i] ?? r.unidadeMatch ?? "";
                       return (
-                        <tr key={i} className={"border-t " + (!escolha ? "bg-rose-50 dark:bg-rose-950/30" : "")}>
+                        <tr key={i} className={"border-t " + (!escolha ? "bg-danger-soft" : "")}>
                           <td className="px-3 py-1.5">{r.unidadeArquivo}</td>
                           <td className="px-3 py-1.5">
                             <select
@@ -198,7 +198,7 @@ export function ImportRepassesDialog({ open, onClose, tipo, unidadesConhecidas }
                 </table>
               </div>
               {naoCasadas > 0 && (
-                <div className="flex items-center gap-2 border-t bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                <div className="flex items-center gap-2 border-t bg-warning-soft px-3 py-2 text-xs text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Linhas sem correspondência serão ignoradas. Selecione uma unidade ou deixe como "ignorar".
                 </div>

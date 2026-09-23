@@ -327,7 +327,7 @@ export function ListWorkspace({
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {l.items.length} ofertas · {statusNames[l.status]}
                 </span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {l.unidade_nome} · {date(l.updated_at)}
                 </span>
               </button>
@@ -513,7 +513,7 @@ export function ListWorkspace({
                               </option>
                             ))}
                           </select>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {a.situacao_receita_fonte || "Consulta em lote da Receita"}. Marque
                             &quot;Ativa&quot; só com a inscrição regularizada conferida — é o que
                             libera a conta para oferta.
@@ -535,7 +535,7 @@ export function ListWorkspace({
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <p
                         className={
-                          r?.status === "elegivel" ? "text-muted-foreground" : "text-amber-600"
+                          r?.status === "elegivel" ? "text-muted-foreground" : "text-warning"
                         }
                       >
                         {r?.reason}{" "}
@@ -555,7 +555,7 @@ export function ListWorkspace({
                           ) : (
                             <span>{statusNames[savedItem.status]}</span>
                           )}
-                          {savedItem.reason && <p className="text-amber-600">{savedItem.reason}</p>}
+                          {savedItem.reason && <p className="text-warning">{savedItem.reason}</p>}
                           {savedItem.status === "sent" && data.permissions.send && (
                             <Button
                               size="sm"
@@ -637,7 +637,7 @@ export function ListWorkspace({
                 fechamento pelo comercial e fora do Simples.
               </label>
               {issues.length > 0 && (
-                <details className="text-xs text-amber-600">
+                <details className="text-xs text-warning">
                   <summary>{issues.length} pendência(s) antes da validação</summary>
                   <ul className="mt-2 space-y-1">
                     {issues.map((s, i) => (
@@ -659,7 +659,7 @@ export function ListWorkspace({
                 <CheckCheck className="mr-2 h-4 w-4" />
                 Registrar validação
               </Button>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Este registro é opcional e não bloqueia o envio direto. As regras do produto e os
                 dados da oportunidade são conferidos no envio.
               </p>

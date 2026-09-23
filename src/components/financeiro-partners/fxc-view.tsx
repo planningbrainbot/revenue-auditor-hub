@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { fetchFxcData, FxcData, FxcRecord, buildDre, DRE_GRUPOS } from "@/data/fxcData";
 
-const OLIVE    = "#6b7c3a";
-const OLIVE_BG = "#e8edcc";
+// Oliva do relatório impresso da controladoria não tem token; na tela o
+// cabeçalho usa texto e superfície do tema, para funcionar no escuro.
+const OLIVE = "var(--foreground)";
+const OLIVE_BG = "var(--muted)";
 
 const RECEITAS_DIRETAS_KEYS = ["csc_expansao", "royalties", "outras_rx_exp", "csc_trafego", "nao_classif", "devolucoes"];
 const LUCRO_BRUTO_KEYS = [...RECEITAS_DIRETAS_KEYS, "outras_receitas", "repasses", "impostos", "folha", "desp_pessoal"];
@@ -70,7 +72,7 @@ export function FxcView() {
   if (error || !data) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="bg-white border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
+        <div className="bg-card border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
           <p className="text-danger font-bold">Erro ao carregar dados</p>
           <p className="text-muted-foreground text-sm">{error ?? "Dados não encontrados"}</p>
           <button onClick={() => window.location.reload()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">
@@ -109,21 +111,21 @@ export function FxcView() {
         const variation = lastMes.saldo_final - lastMes.saldo_inicial;
         return (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo em Caixa — {lastMes.label}/{lastMes.mes.slice(0,4)}</p>
-              <p className="text-3xl font-black mt-1" style={{ color: lastMes.saldo_final < 5000 ? "#991b1b" : lastMes.saldo_final < 20000 ? "#b45309" : "#166534" }}>
+              <p className="text-3xl font-black mt-1" style={{ color: lastMes.saldo_final < 5000 ? "var(--danger)" : lastMes.saldo_final < 20000 ? "var(--warning)" : "var(--success)" }}>
                 {fmtN(lastMes.saldo_final)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">conta corrente Partners</p>
             </div>
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo Inicial — {lastMes.label}</p>
               <p className="text-3xl font-black mt-1 text-foreground">{fmtN(lastMes.saldo_inicial)}</p>
               <p className="text-xs text-muted-foreground mt-1">abertura do período</p>
             </div>
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resultado — {lastMes.label}</p>
-              <p className="text-3xl font-black mt-1" style={{ color: variation >= 0 ? "#166534" : "#991b1b" }}>
+              <p className="text-3xl font-black mt-1" style={{ color: variation >= 0 ? "var(--success)" : "var(--danger)" }}>
                 {variation >= 0 ? "+" : ""}{fmtN(variation)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">variação de caixa no mês</p>
@@ -136,12 +138,12 @@ export function FxcView() {
       <div className="space-y-0">
 
         {/* Header */}
-        <div className="bg-white rounded-t-2xl border border-border px-6 py-5">
+        <div className="bg-card rounded-t-2xl border border-border px-6 py-5">
           <div className="flex items-center gap-6">
             <div>
               <div className="text-4xl font-black text-foreground leading-none tracking-tight">FCx</div>
-              <div className="text-xs font-semibold mt-0.5" style={{ color: "#5db89a" }}>Fluxo de Caixa Realizado</div>
-              <div className="text-xs font-bold tracking-widest mt-0.5" style={{ color: "#5db89a" }}>CONTROLADORIA</div>
+              <div className="text-xs font-semibold mt-0.5" style={{ color: "var(--primary-text)" }}>Fluxo de Caixa Realizado</div>
+              <div className="text-xs font-bold tracking-widest mt-0.5" style={{ color: "var(--primary-text)" }}>CONTROLADORIA</div>
             </div>
             <div className="flex-1 rounded-lg px-5 py-3" style={{ background: OLIVE_BG }}>
               <h2 className="text-sm font-bold" style={{ color: OLIVE }}>Relatório: Fluxo de Caixa (FCx — Realizado)</h2>
@@ -254,7 +256,7 @@ export function FxcView() {
                       ))}
 
                       {isLastReceitaDireta && (
-                        <tr className="border-t-2 border-info/40" style={{ background: "#eff6ff" }}>
+                        <tr className="border-t-2 border-info/40" style={{ background: "var(--info-soft)" }}>
                           <td className="py-2.5 px-5 text-xs font-black uppercase tracking-wide text-info">(=) Receitas Diretas</td>
                           {receitasDiretasPorMes.map(({ mes, value }) => (
                             <td key={mes} className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-info" : "text-danger"}`}>{fmtN(value)}</td>
@@ -264,7 +266,7 @@ export function FxcView() {
                       )}
 
                       {isLastCustoDireto && (
-                        <tr className="border-t-2 border-success/40" style={{ background: "#f0fdf4" }}>
+                        <tr className="border-t-2 border-success/40" style={{ background: "var(--success-soft)" }}>
                           <td className="py-3 px-5 text-xs font-black uppercase tracking-wide text-success">(=) LUCRO BRUTO</td>
                           {lucroBrutoPorMes.map(({ mes, value }) => (
                             <td key={mes} className={`py-3 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-success" : "text-danger"}`}>{fmtN(value)}</td>
@@ -279,11 +281,11 @@ export function FxcView() {
                 <tr className="border-t-2 border-border font-bold" style={{ background: OLIVE_BG }}>
                   <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Grand Total</td>
                   {dre.map((m) => (
-                    <td key={m.mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: m.grand_total >= 0 ? "#166534" : "#991b1b" }}>
+                    <td key={m.mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: m.grand_total >= 0 ? "var(--success)" : "var(--danger)" }}>
                       {fmtN(m.grand_total)}
                     </td>
                   ))}
-                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "#166534" : "#991b1b" }}>
+                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "var(--success)" : "var(--danger)" }}>
                     {fmtN(grandTotalGeral)}
                   </td>
                 </tr>

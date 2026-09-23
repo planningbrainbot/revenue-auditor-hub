@@ -37,6 +37,7 @@ import {
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { isUnidadeDaRede } from "@/lib/unidades-rede";
 import { cn } from "@/lib/utils";
+import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 type Tratativa = {
   id: number;
@@ -442,13 +443,13 @@ export function TratativasTab() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porUnidade}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="unidade" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="perdidos" stackId="a" fill="#ef4444" name="Perdidos" />
-                <Bar dataKey="recuperados" stackId="a" fill="#10b981" name="Recuperados" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis {...eixoProps} dataKey="unidade" interval={0} angle={-15} textAnchor="end" height={60} />
+                <YAxis {...eixoProps} />
+                <Tooltip {...tooltipProps} />
+                <Legend {...legendaProps} />
+                <Bar dataKey="perdidos" stackId="a" fill={COR_NEGATIVO} name="Perdidos" />
+                <Bar dataKey="recuperados" stackId="a" fill={CORES_SERIE[0]} name="Recuperados" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -463,17 +464,18 @@ export function TratativasTab() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mrrPerdidoPorMes}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="mes" tickFormatter={fmtMesLabel} tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtMoney(v)} width={90} />
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis {...eixoProps} dataKey="mes" tickFormatter={fmtMesLabel} />
+                  <YAxis {...eixoProps} tickFormatter={(v) => fmtMoney(v)} width={90} />
                   <Tooltip
+                    {...tooltipProps}
                     labelFormatter={(v) => fmtMesLabel(String(v))}
                     formatter={(value: number, name, item) => [
                       fmtMoney(value),
                       `MRR perdido (${item?.payload?.qtd ?? 0} caso(s))`,
                     ]}
                   />
-                  <Bar dataKey="mrr" fill="#ef4444" name="MRR perdido" />
+                  <Bar dataKey="mrr" fill={COR_NEGATIVO} name="MRR perdido" />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -13,9 +13,10 @@ import { brl } from "@/components/audit/format";
 import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, unidadesNaoMapeadas, type UnidadeMesAgg, type Modelo } from "./calculations";
+import { eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 
 const GROUPS: { key: Modelo; label: string; color: string }[] = [
-  { key: "verba", label: "Regionais Verba", color: "bg-indigo-50 dark:bg-indigo-950/40" },
+  { key: "verba", label: "Regionais Verba", color: "bg-info-soft" },
   { key: "absorcao", label: "Regionais Absorção / CAC", color: "bg-warning-soft" },
   { key: "interna", label: "BUs Internas", color: "bg-muted" },
 ];
@@ -30,11 +31,11 @@ function paybackTone(d: number | null): string {
 }
 
 function paybackBarColor(d: number) {
-  if (d <= 30) return "#10b981";
-  if (d <= 90) return "#22c55e";
-  if (d <= 180) return "#f59e0b";
-  if (d <= 360) return "#f97316";
-  return "#ef4444";
+  if (d <= 30) return "var(--success)";
+  if (d <= 90) return "var(--success)";
+  if (d <= 180) return "var(--warning)";
+  if (d <= 360) return "var(--warning)";
+  return "var(--danger)";
 }
 
 export function ByUnitTab() {
@@ -149,10 +150,10 @@ export function ByUnitTab() {
         <div style={{ height: Math.max(220, chartData.length * 38) }} className="w-full">
           <ResponsiveContainer>
             <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, bottom: 5, left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis type="number" fontSize={11} tickFormatter={(v) => `${v}d`} />
-              <YAxis dataKey="unidade" type="category" fontSize={11} width={120} />
-              <Tooltip formatter={(v: number) => `${v} dias`} />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} type="number" tickFormatter={(v) => `${v}d`} />
+              <YAxis {...eixoProps} dataKey="unidade" type="category" width={120} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => `${v} dias`} />
               <Bar dataKey="payback" name="Payback (dias)">
                 {chartData.map((d, i) => (
                   <Cell key={i} fill={paybackBarColor(d.payback)} />
@@ -202,7 +203,7 @@ function GroupRows({
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                r.modelo === "verba" && "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
+                r.modelo === "verba" && "bg-info-soft text-info",
                 r.modelo === "absorcao" && "bg-warning-soft text-warning",
                 r.modelo === "interna" && "bg-muted text-foreground",
               )}

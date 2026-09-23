@@ -43,6 +43,14 @@ import {
   Panel,
 } from "./common";
 import { PageHeader } from "@/components/planning";
+import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  linhaMetaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
 
 export const ABAS = [
   "operacao",
@@ -379,33 +387,43 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   data={view.series}
                   margin={{ top: 15, right: 4, bottom: 0, left: -20 }}
                 >
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={18} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis {...eixoProps} dataKey="label" minTickGap={18} />
+                  <YAxis {...eixoProps} allowDecimals={false} />
                   <YAxis
+                    {...eixoProps}
                     yAxisId="ratio"
                     orientation="right"
-                    tick={{ fontSize: 10 }}
                     unit="%"
                     domain={[0, "auto"]}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                  <Tooltip {...tooltipProps} />
+                  <Legend {...legendaProps} />
+                  <Bar
+                    dataKey="started"
+                    name="Trabalhados"
+                    fill={CORES_SERIE[0]}
+                    radius={[2, 2, 0, 0]}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="started" name="Trabalhados" fill="#03784A" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="scheduled" name="Marcadas" fill="#22ae7a" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="meeting" name="Realizadas" fill="#8bcab0" radius={[2, 2, 0, 0]} />
+                  <Bar
+                    dataKey="scheduled"
+                    name="Marcadas"
+                    fill={CORES_SERIE[0]}
+                    fillOpacity={0.65}
+                    radius={[2, 2, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="meeting"
+                    name="Realizadas"
+                    fill={CORES_SERIE[0]}
+                    fillOpacity={0.35}
+                    radius={[2, 2, 0, 0]}
+                  />
                   <Line
                     yAxisId="ratio"
                     dataKey="conversion"
                     name="Marcadas / trabalhados"
-                    stroke="#d97b29"
+                    stroke={CORES_SERIE[3]}
                     dot={false}
                     strokeWidth={2}
                     connectNulls={false}
@@ -413,9 +431,12 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   {plan?.daily_target ? (
                     <ReferenceLine
                       y={plan.daily_target}
-                      stroke="#b77b1e"
-                      strokeDasharray="4 3"
-                      label={{ value: `meta ${plan.daily_target}/dia`, fontSize: 10 }}
+                      {...linhaMetaProps}
+                      label={{
+                        value: `meta ${plan.daily_target}/dia`,
+                        fontSize: 12,
+                        fill: "var(--muted-foreground)",
+                      }}
                     />
                   ) : null}
                 </ComposedChart>
