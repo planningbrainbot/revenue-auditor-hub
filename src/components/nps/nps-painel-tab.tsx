@@ -89,8 +89,8 @@ function csatRatings(r: NpsRow): number[] {
     .filter((n) => Number.isFinite(n) && n >= 0 && n <= 10);
 }
 
-// fill="hsl(var(--x))" como atributo SVG puro não resolve de forma confiável
-// em produção (bug observado: barras saindo pretas) — resolvemos a cor em
+// fill com hsl() em volta de var(--x) não resolve em produção (bug observado:
+// barras saindo pretas; as variáveis são hex, então o hsl() fica inválido) — resolvemos a cor em
 // JS a partir do tema ativo em vez de depender do var() dentro do atributo.
 const NPS_FILL = { claro: "#00c38b", escuro: "#3ce7ad" };
 const CSAT_FILL = { claro: "#0e5e8a", escuro: "#2f91bd" };

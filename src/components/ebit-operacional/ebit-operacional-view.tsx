@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import {
   syncVendasServicos,
   syncCustoOperacional,
@@ -34,7 +35,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const NA = "—";
-const COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#ef4444"];
 
 type VendaRow = {
   pipefy_card_id: string;
@@ -214,11 +214,7 @@ export function EbitOperacionalView() {
               <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
               <Tooltip />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {funil.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Bar>
+              <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

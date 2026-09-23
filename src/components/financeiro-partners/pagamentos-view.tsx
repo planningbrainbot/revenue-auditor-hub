@@ -488,7 +488,7 @@ export function PagamentosView() {
         </div>
         <div className="relative max-h-[calc(100vh-420px)] overflow-auto">
           <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
               <TableRow>
                 <TableHead className="bg-card">Mês</TableHead>
                 <TableHead className="bg-card">Unidade</TableHead>

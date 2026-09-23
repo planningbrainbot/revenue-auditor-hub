@@ -251,7 +251,7 @@ export function ApuracaoRoyaltiesContent() {
               sticky. Mesmo padrão de contas-receber-view. */}
           <div className="relative max-h-[calc(100vh-320px)] overflow-auto">
             <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
-              <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+              <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
                 <TableRow>
                   <TableHead className="bg-card">Unidade</TableHead>
                   <TableHead className="bg-card">Modelo</TableHead>

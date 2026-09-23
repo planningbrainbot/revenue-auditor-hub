@@ -850,7 +850,7 @@ export function ContratosClientes({
           </div>
           <div className="max-h-[calc(100vh-360px)] overflow-auto">
             <Table>
-              <TableHeader className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm shadow-[inset_0_-1px_0_hsl(var(--border))]">
+              <TableHeader className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm shadow-[inset_0_-1px_0_var(--border)]">
                 <TableRow>
                   {(
                     [

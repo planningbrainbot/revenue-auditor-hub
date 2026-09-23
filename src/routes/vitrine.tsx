@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -73,9 +74,10 @@ import { aplicarTema } from "@/lib/tema-compartilhado";
  * especial ficou de fora porque o `useTheme` dele grava a preferência e
  * reaplica o tema salvo, o que desfaria o `?tema=claro`.
  *
- * Esta primeira versão mostra os componentes COMO ESTÃO em eea3d90, inclusive
- * os defeitos (gráfico com `hsl(var(--…))` sobre variável hex, fonte de 9–11px,
- * cor crua de status), para a foto "antes" registrar o ponto de partida.
+ * A primeira versão mostrava os componentes COMO ESTAVAM em eea3d90, inclusive
+ * os defeitos (gráfico com hsl() em volta de variável hex, fonte de 9–11px,
+ * cor crua de status), e a foto "antes" registrou isso. Desde o T3 os gráficos
+ * usam o tema de src/lib/planning/grafico.ts; o resto muda nas tarefas seguintes.
  *
  * `?tema=claro` tira a classe `dark` do <html> sem gravar preferência.
  * As seções têm âncora (#casca, #controles, #dados, #graficos, #estados) e o
@@ -540,9 +542,9 @@ const SERIE = [
 
 const POR_UNIDADE = UNIDADES.map((u, i) => ({ unidade: u.unidade, ltv: 61000 - i * 4300 }));
 
-// Cópia fiel de rede-ltv.tsx, INCLUSIVE o `hsl(var(--primary))`: desde que os
-// tokens viraram hex, isso é cor inválida e a série sai no preto padrão do SVG.
-// A foto "antes" precisa mostrar o defeito.
+// Mesmos gráficos de rede-ltv.tsx, agora com o tema único de gráfico. Os dois
+// eixos Y continuam porque a tela real ainda os tem (DESIGN.md §5 regra 4 é
+// dívida da tela, não do tema).
 function SecaoGraficos() {
   return (
     <Secao id="graficos" titulo="Gráficos (estilo de rede-ltv.tsx)">
@@ -552,27 +554,27 @@ function SecaoGraficos() {
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={SERIE}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
                 <YAxis
                   yAxisId="left"
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  tick={{ fontSize: 11 }}
+                  {...eixoProps}
                 />
                 <YAxis
                   yAxisId="right"
                   orientation="right"
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  tick={{ fontSize: 11 }}
+                  {...eixoProps}
                 />
-                <Tooltip formatter={(v: number) => fmtBRL(v)} />
-                <Legend />
+                <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+                <Legend {...legendaProps} />
                 <Line
                   yAxisId="left"
                   type="monotone"
                   dataKey="ltv"
                   name="LTV"
-                  stroke="hsl(var(--primary))"
+                  stroke={CORES_SERIE[0]}
                   strokeWidth={2}
                   dot={false}
                   isAnimationActive={false}
@@ -582,7 +584,7 @@ function SecaoGraficos() {
                   type="monotone"
                   dataKey="cac"
                   name="CAC"
-                  stroke="hsl(0 84% 60%)"
+                  stroke={CORES_SERIE[1]}
                   strokeWidth={2}
                   dot={false}
                   isAnimationActive={false}
@@ -596,15 +598,15 @@ function SecaoGraficos() {
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={SERIE}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => fmtBRL(v)} />
-                <Legend />
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} {...eixoProps} />
+                <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+                <Legend {...legendaProps} />
                 <Bar
                   dataKey="arpa"
                   name="ARPA"
-                  fill="hsl(var(--primary) / 0.7)"
+                  fill={CORES_SERIE[0]} fillOpacity={0.7}
                   isAnimationActive={false}
                 />
               </BarChart>
@@ -617,15 +619,15 @@ function SecaoGraficos() {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={POR_UNIDADE} layout="vertical" margin={{ left: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+              <CartesianGrid {...gradeProps} vertical horizontal={false} />
               <XAxis
                 type="number"
                 tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 11 }}
+                {...eixoProps}
               />
-              <YAxis type="category" dataKey="unidade" width={80} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => fmtBRL(v)} />
-              <Bar dataKey="ltv" name="LTV" fill="hsl(var(--primary))" isAnimationActive={false} />
+              <YAxis type="category" dataKey="unidade" width={80} {...eixoProps} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+              <Bar dataKey="ltv" name="LTV" fill={CORES_SERIE[0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

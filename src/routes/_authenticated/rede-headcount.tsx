@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 import { Users, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -235,16 +236,16 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedChart}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v?.toFixed(1)}%`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number, name: string) =>
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v?.toFixed(1)}%`} {...eixoProps} />
+                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
                   name === "Turnover %" ? fmtPct(v) : v
                 } />
-                <Legend />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill="hsl(var(--primary) / 0.7)" />
-                <Line yAxisId="right" type="monotone" dataKey="turnover" name="Turnover %" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={false} />
+                <Legend {...legendaProps} />
+                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.7} />
+                <Line yAxisId="right" type="monotone" dataKey="turnover" name="Turnover %" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -256,13 +257,13 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byMes}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="admissoes" name="Admissões" fill="hsl(142 71% 45%)" />
-                <Bar dataKey="demissoes" name="Demissões" fill="hsl(0 84% 60%)" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis allowDecimals={false} {...eixoProps} />
+                <Tooltip {...tooltipProps} />
+                <Legend {...legendaProps} />
+                <Bar dataKey="admissoes" name="Admissões" fill={CORES_SERIE[0]} />
+                <Bar dataKey="demissoes" name="Demissões" fill={CORES_SERIE[1]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -274,16 +275,16 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedChart}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number, name: string) =>
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
                   name === "Receita/HC" ? fmtBRL(v) : v
                 } />
-                <Legend />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill="hsl(var(--primary) / 0.4)" />
-                <Line yAxisId="right" type="monotone" dataKey="receitaPerHead" name="Receita/HC" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} />
+                <Legend {...legendaProps} />
+                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.4} />
+                <Line yAxisId="right" type="monotone" dataKey="receitaPerHead" name="Receita/HC" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

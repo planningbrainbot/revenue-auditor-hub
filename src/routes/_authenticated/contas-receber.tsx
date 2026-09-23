@@ -47,6 +47,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 const ALL = "__all__";
 
@@ -471,17 +472,17 @@ function ContasReceberPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={Math.max(220, inadimplenciaUnidade.length * 32)}>
                   <BarChart data={inadimplenciaUnidade} layout="vertical" margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-                    <YAxis type="category" dataKey="unidade" stroke="hsl(var(--muted-foreground))" fontSize={12} width={90} />
+                    <CartesianGrid {...gradeProps} vertical horizontal={false} />
+                    <XAxis type="number" {...eixoProps} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                    <YAxis type="category" dataKey="unidade" {...eixoProps} width={90} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
+                      {...tooltipProps}
                       formatter={(value: number, _name, item) => [
                         `${value.toFixed(1)}% (${brl(item?.payload?.atrasado ?? 0)})`,
                         "Em atraso",
                       ]}
                     />
-                    <Bar dataKey="pct" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="pct" fill={COR_NEGATIVO} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -496,17 +497,17 @@ function ContasReceberPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={evolucaoMensal} margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => brl(v).replace("R$", "")} />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="mes" {...eixoProps} />
+                    <YAxis {...eixoProps} tickFormatter={(v) => brl(v).replace("R$", "")} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
+                      {...tooltipProps}
                       formatter={(value: number) => brl(value)}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="recebido" name="Recebido" stroke="hsl(var(--chart-2, 142 71% 45%))" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="aVencer" name="A vencer" stroke="hsl(var(--chart-4, 38 92% 50%))" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="atrasado" name="Em atraso" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
+                    <Legend {...legendaProps} />
+                    <Line type="monotone" dataKey="recebido" name="Recebido" stroke={CORES_SERIE[0]} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="aVencer" name="A vencer" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="atrasado" name="Em atraso" stroke={COR_NEGATIVO} strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -523,7 +524,7 @@ function ContasReceberPage() {
             </div>
             <div className="relative max-h-[calc(100vh-340px)] overflow-auto">
               <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
                   <TableRow>
                     <TableHead className="bg-card">Status</TableHead>
                     <TableHead className="bg-card">Documento</TableHead>

@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import { BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,15 +53,9 @@ const fmtMes = (m: string | null | undefined) => {
   return `${mo}/${y?.slice(2)}`;
 };
 
-const UNIT_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(142 71% 45%)",
-  "hsl(38 92% 50%)",
-  "hsl(0 84% 60%)",
-  "hsl(271 81% 56%)",
-  "hsl(199 89% 48%)",
-  "hsl(328 86% 56%)",
-];
+// TODO(design): com mais de 6 unidades a cor repete; DESIGN.md §5 pede
+// facetas ou "Outros" — decisão de produto, não de cor.
+const UNIT_COLORS: readonly string[] = CORES_SERIE;
 
 type MetricKey = "receita" | "mrr" | "clientes" | "arpa" | "crescimento" | "cac" | "nps";
 

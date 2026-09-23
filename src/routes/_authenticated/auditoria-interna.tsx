@@ -25,6 +25,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,6 @@ const NA = "—";
 const FASES_CONCLUIDAS = new Set(["Projeto Concluído", "Reforma Tributária Concluida", "Solicitações Comerciais"]);
 // Fase que caracteriza uma auditoria efetivamente realizada (pipe 307181077).
 const FASE_AUDITORIA_REALIZADA = "Projeto Concluído";
-const FASE_COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444"];
 
 // Valor do campo "Tipo de Projeto" no Pipefy -> como apresentamos na tela e
 // qual o objetivo de negócio de cada tipo (ver pipe 307181077, campo
@@ -762,9 +762,7 @@ function PorFaseChart({ rows }: { rows: Auditoria[] }) {
             <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
             <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
             <Tooltip />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-              {porFase.map((_, i) => (<Cell key={i} fill={FASE_COLORS[i % FASE_COLORS.length]} />))}
-            </Bar>
+            <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -893,7 +891,7 @@ function FinalizadasPorMes({ rows }: { rows: Auditoria[] }) {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
               <Tooltip />
-              <Bar dataKey="value" name="Finalizadas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" name="Finalizadas" fill={CORES_SERIE[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

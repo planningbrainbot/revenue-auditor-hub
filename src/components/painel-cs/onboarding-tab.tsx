@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,6 @@ type OnboardingCard = {
 
 const NA = "—";
 const DIAS_ALERTA_GARGALO = 7; // card parado há mais de 7 dias na fase atual entra na lista de atenção
-const COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444", "#0ea5e9", "#84cc16"];
 
 function fmtDate(s: string | null) {
   if (!s) return NA;
@@ -199,11 +199,7 @@ export function OnboardingTab() {
               <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={220} />
               <Tooltip />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {funil.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Bar>
+              <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

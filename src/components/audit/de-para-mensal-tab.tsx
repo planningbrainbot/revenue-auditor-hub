@@ -192,7 +192,7 @@ export function DeParaMensalTab({ tipo }: Props) {
         </div>
         <div className="max-h-[calc(100vh-460px)] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-card uppercase text-muted-foreground shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <thead className="sticky top-0 z-10 bg-card uppercase text-muted-foreground shadow-[inset_0_-1px_0_var(--border)]">
               <tr>
                 <th className="bg-card px-3 py-2 text-left">Unidade</th>
                 {monthsList.map((ym) => (

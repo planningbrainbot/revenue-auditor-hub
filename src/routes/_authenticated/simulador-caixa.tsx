@@ -347,7 +347,7 @@ function SimuladorCaixa() {
                     />
                     <ReferenceLine
                       y={0}
-                      stroke="hsl(var(--foreground))"
+                      stroke="var(--foreground)"
                       strokeWidth={1.5}
                       label={{ value: "Break-even", position: "insideTopRight", fontSize: 11 }}
                     />
@@ -411,7 +411,7 @@ function SimuladorCaixa() {
                       }
                       tick={{ fontSize: 12 }}
                     />
-                    <ReferenceLine y={0} stroke="hsl(var(--foreground))" strokeWidth={1} />
+                    <ReferenceLine y={0} stroke="var(--foreground)" strokeWidth={1} />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (!active || !payload?.length) return null;
