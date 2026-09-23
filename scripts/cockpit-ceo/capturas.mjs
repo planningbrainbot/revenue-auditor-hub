@@ -59,7 +59,9 @@ ws.addEventListener("message", (m) => {
     if (u.protocol.startsWith("http")) hosts.set(u.host, (hosts.get(u.host) || 0) + 1);
   }
   if (msg.method === "Runtime.exceptionThrown")
-    erros.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
+    erros.push(
+      msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text,
+    );
   if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error")
     erros.push(msg.params.args.map((a) => a.value ?? a.description).join(" "));
   eventos.push(msg.method);
@@ -71,8 +73,13 @@ const cdp = (method, params = {}) =>
     ws.send(JSON.stringify({ id, method, params }));
   });
 const avaliar = async (expressao) =>
-  (await cdp("Runtime.evaluate", { expression: expressao, returnByValue: true, awaitPromise: true }))
-    .result.value;
+  (
+    await cdp("Runtime.evaluate", {
+      expression: expressao,
+      returnByValue: true,
+      awaitPromise: true,
+    })
+  ).result.value;
 
 await cdp("Page.enable");
 await cdp("Network.enable");
@@ -130,33 +137,57 @@ const dobra = await avaliar(`(() => {
     sintetico: /dados sintéticos/i.test(document.body.innerText),
   };
 })()`);
-conferir("Seis indicadores na primeira dobra (1440×900)", dobra.cards === 6 && dobra.cardsNaDobra === 6, JSON.stringify(dobra));
+conferir(
+  "Seis indicadores na primeira dobra (1440×900)",
+  dobra.cards === 6 && dobra.cardsNaDobra === 6,
+  JSON.stringify(dobra),
+);
 conferir("Até três decisões", dobra.decisoes > 0 && dobra.decisoes <= 3, `${dobra.decisoes}`);
 conferir("Sem rolagem horizontal", !dobra.rolagemHorizontal);
 conferir("Selo de dados sintéticos visível", dobra.sintetico);
 await foto("02-pagina-inteira", { inteira: true });
 
 // Número → composição → retorno.
-await avaliar(`document.querySelector('[aria-label="Contas prontas para trabalhar: abrir composição"]').click()`);
+await avaliar(
+  `document.querySelector('[aria-label="Contas prontas para trabalhar: abrir composição"]').click()`,
+);
 await espera(900);
 const url1 = await avaliar("location.search");
-const folha = await avaliar(`(() => { const d = document.querySelector('[role=dialog]'); return d ? d.innerText : null })()`);
-conferir("Clique no número abre a composição e grava na URL", url1.includes("indicador=contas-prontas") && !!folha, url1);
+const folha = await avaliar(
+  `(() => { const d = document.querySelector('[role=dialog]'); return d ? d.innerText : null })()`,
+);
+conferir(
+  "Clique no número abre a composição e grava na URL",
+  url1.includes("indicador=contas-prontas") && !!folha,
+  url1,
+);
 conferir("Composição reconstrói o número (∑ ✓)", !!folha && folha.includes("✓"));
 await foto("03-composicao-contas-prontas");
 await avaliar("history.back()");
 await espera(900);
-const depoisVoltar = await avaliar(`({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`);
-conferir("Voltar do navegador fecha a composição", !depoisVoltar.aberta && !depoisVoltar.search.includes("indicador"), JSON.stringify(depoisVoltar));
+const depoisVoltar = await avaliar(
+  `({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`,
+);
+conferir(
+  "Voltar do navegador fecha a composição",
+  !depoisVoltar.aberta && !depoisVoltar.search.includes("indicador"),
+  JSON.stringify(depoisVoltar),
+);
 
 // Fechar pelo X desempilha a entrada da composição: o "voltar" seguinte sai da tela.
 await abrir("/piloto/cockpit-ceo?periodo=ano");
 await abrir("/piloto/cockpit-ceo");
-await avaliar(`document.querySelector('[aria-label="Contratos ganhos no CRM: abrir composição"]').click()`);
+await avaliar(
+  `document.querySelector('[aria-label="Contratos ganhos no CRM: abrir composição"]').click()`,
+);
 await espera(800);
-await avaliar(`[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close/.test(b.textContent))?.click()`);
+await avaliar(
+  `[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close/.test(b.textContent))?.click()`,
+);
 await espera(800);
-const aposX = await avaliar(`({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`);
+const aposX = await avaliar(
+  `({ search: location.search, aberta: !!document.querySelector('[role=dialog]') })`,
+);
 await avaliar("history.back()");
 await espera(1200);
 const aposVoltar = await avaliar("location.search");
@@ -173,7 +204,11 @@ const recorte = await avaliar(`(() => ({
   perimetro: document.querySelector('select')?.value,
   grafico: !!document.querySelector('figure svg'),
 }))()`);
-conferir("Período e perímetro vêm da URL", recorte.perimetro === "ex-norte" && /Unidade Exemplo Norte/.test(recorte.universo || ""), JSON.stringify(recorte));
+conferir(
+  "Período e perímetro vêm da URL",
+  recorte.perimetro === "ex-norte" && /Unidade Exemplo Norte/.test(recorte.universo || ""),
+  JSON.stringify(recorte),
+);
 conferir("Frente comercial mostra o gráfico diário", recorte.grafico);
 await avaliar("document.getElementById('frentes').scrollIntoView()");
 await espera(600);
@@ -182,19 +217,27 @@ await foto("04-frente-comercial-grafico-diario");
 // Composição de um indicador não apurado: diz o que falta e quem responde.
 await abrir("/piloto/cockpit-ceo?indicador=meta-bilhao");
 const meta = await avaliar(`document.querySelector('[role=dialog]')?.innerText || ''`);
-conferir("Meta de R$ 1 bi aparece como não apurada com responsável", /Não apurado/.test(meta) && /CEO \+ CFO/.test(meta));
+conferir(
+  "Meta de R$ 1 bi aparece como não apurada com responsável",
+  /Não apurado/.test(meta) && /CEO \+ CFO/.test(meta),
+);
 await foto("05-composicao-meta-nao-apurada");
 
 // Período inválido na URL não derruba a página.
 await abrir("/piloto/cockpit-ceo?periodo=personalizado&de=2026-02-30&ate=2026-03-10");
-const invalido = await avaliar(`document.body.innerText.includes('Período personalizado inválido')`);
+const invalido = await avaliar(
+  `document.body.innerText.includes('Período personalizado inválido')`,
+);
 conferir("Período inválido cai no mês atual com aviso", invalido);
 
 // Tela estreita, para conferir que nada vaza da largura.
 await janela(1280, 800);
 await abrir("/piloto/cockpit-ceo");
 await foto("06-notebook-1280x800");
-conferir("Sem rolagem horizontal em 1280", !(await avaliar("document.documentElement.scrollWidth > innerWidth")));
+conferir(
+  "Sem rolagem horizontal em 1280",
+  !(await avaliar("document.documentElement.scrollWidth > innerWidth")),
+);
 
 const externos = [...hosts.keys()].filter((h) => !h.startsWith("127.0.0.1"));
 conferir(
@@ -215,8 +258,13 @@ if (preexistentes.length)
     detalhe: "hydration mismatch em data-theme; não é do cockpit",
   });
 
-writeFileSync(join(SAIDA, "relatorio.json"), JSON.stringify({ base: BASE, relatorio, hosts: Object.fromEntries(hosts), erros }, null, 2) + "\n");
-for (const r of relatorio) console.log(`${r.ok ? "ok  " : "FALHA"} ${r.nome}${r.ok ? "" : " — " + r.detalhe}`);
+writeFileSync(
+  join(SAIDA, "relatorio.json"),
+  JSON.stringify({ base: BASE, relatorio, hosts: Object.fromEntries(hosts), erros }, null, 2) +
+    "\n",
+);
+for (const r of relatorio)
+  console.log(`${r.ok ? "ok  " : "FALHA"} ${r.nome}${r.ok ? "" : " — " + r.detalhe}`);
 ws.close();
 chrome.kill();
 rmSync(perfil, { recursive: true, force: true });

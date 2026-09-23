@@ -748,3 +748,27 @@ test("Fonte sintética nasce fresca em relação ao relógio de quem abre o prev
   const c = montarCockpit(fonteSintetica("2026-09-22", "2026-09-23T02:30:00Z"), recorte());
   assert.equal(ind(c, "contratos-ganhos").estado, "disponivel");
 });
+
+// ── Rodada 2: homologação com dado real ──────────────────────────────────────
+test("Sem histórico antes do período comparável, a comparação não vira zero", () => {
+  const anterior = (c) =>
+    ind(c, "contratos-ganhos").comparacoes.find((x) => x.rotulo.startsWith("Período anterior"));
+  // Primeiro evento da fixture: 20/08. O mês atual compara com 10/08–31/08: cobertura parcial.
+  const parcial = anterior(montarCockpit(fonteOk(dados()), recorte()));
+  assert.equal(parcial.estado, "parcial");
+  assert.equal(parcial.referencia, 1);
+  assert.match(parcial.nota, /a partir de 20\/08\/2026/);
+  // Com um evento antigo, o período anterior fica coberto por inteiro.
+  const d1 = dados();
+  d1.cards = [...d1.cards, negocio(7, "cella", { loaded: [ev("2026-07-01")] }, { org_id: 997 })];
+  assert.equal(anterior(montarCockpit(fonteOk(d1), recorte())).estado, "disponivel");
+  // Sem nenhum evento antes do período, não há comparação: nem zero, nem ameaça de queda.
+  const d2 = dados();
+  d2.cards = d2.cards.filter((c) => c.id !== 2 && c.id !== 4);
+  const c2 = montarCockpit(fonteOk(d2), recorte());
+  const semHistorico = anterior(c2);
+  assert.equal(semHistorico.estado, "nao_apurado");
+  assert.equal(semHistorico.referencia, null);
+  assert.match(semHistorico.nota, /eventos a partir de/);
+  assert.ok(!c2.ameacas.some((a) => a.id === "validadas-em-queda"));
+});

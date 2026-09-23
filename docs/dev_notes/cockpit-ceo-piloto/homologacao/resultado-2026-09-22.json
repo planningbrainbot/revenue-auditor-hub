@@ -1,0 +1,648 @@
+{
+  "quando": "2026-09-23T01:49:42.419Z",
+  "hoje": "2026-09-22",
+  "fonte": "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura",
+  "carga": {
+    "contas": 10304,
+    "semCatalogo": 0,
+    "negocios": 176,
+    "unidades": 14,
+    "measured_at": "2026-09-23T01:45:05.577Z",
+    "catalog_at": "2026-09-23T01:48:01.188Z",
+    "sync_status": "ok",
+    "sync_error": false
+  },
+  "recortes": {
+    "mes_rede": {
+      "periodo": {
+        "de": "2026-09-01",
+        "ate": "2026-09-22"
+      },
+      "perimetro": "Rede inteira no seu escopo",
+      "universo": "Rede inteira no seu escopo · 01/09/2026 a 22/09/2026 · 10304 contas conciliadas · 176 negócios do pipe de Monetização · Financeiro fora deste recorte",
+      "indicadores": {
+        "meta-bilhao": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [
+            {
+              "rotulo": "Meta anual",
+              "referencia": 1000000000,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {},
+          "dataDado": null
+        },
+        "contratos-ganhos": {
+          "estado": "disponivel",
+          "valor": 1,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Meta do mês",
+              "referencia": 8,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Ritmo esperado da meta",
+              "referencia": 5.8,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 1,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "oportunidades-validadas": {
+          "estado": "disponivel",
+          "valor": 29,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 6,
+            "produto:cella": 23,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "leads-trabalhados": {
+          "estado": "disponivel",
+          "valor": 111,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Capacidade do mês",
+              "referencia": 120,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Ritmo esperado da capacidade",
+              "referencia": 87.3,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 15,
+            "produto:finance": 45,
+            "produto:cella": 51,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "receita-prevista-aberta": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [],
+          "composicao": {
+            "produto:finance": null,
+            "produto:cella": null,
+            "partners": 0,
+            "unidade": 0,
+            "conhecidos": 0,
+            "faltante": 28
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "contas-prontas": {
+          "estado": "disponivel",
+          "valor": 2540,
+          "comparacoes": [],
+          "composicao": {
+            "produto:consultoria": 2329,
+            "produto:finance": 132,
+            "produto:cella": 316,
+            "um_produto": 2303,
+            "varios_produtos": 237,
+            "sobreposicao": 237,
+            "so_omie": 249,
+            "ocupadas": 81
+          },
+          "dataDado": "2026-09-23T01:48:01.188Z"
+        }
+      },
+      "decisoes": [
+        "perimetro-meta",
+        "alocar-plano",
+        "contas-so-omie"
+      ],
+      "ameacas": [
+        "ritmo-contratos",
+        "plano-sem-alocacao",
+        "receita-incompleta",
+        "aptas-so-omie"
+      ],
+      "avisos": []
+    },
+    "mes_anterior_rede": {
+      "periodo": {
+        "de": "2026-08-01",
+        "ate": "2026-08-31"
+      },
+      "perimetro": "Rede inteira no seu escopo",
+      "universo": "Rede inteira no seu escopo · 01/08/2026 a 31/08/2026 · 10304 contas conciliadas · 176 negócios do pipe de Monetização · Financeiro fora deste recorte",
+      "indicadores": {
+        "meta-bilhao": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [
+            {
+              "rotulo": "Meta anual",
+              "referencia": 1000000000,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {},
+          "dataDado": null
+        },
+        "contratos-ganhos": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (01/07/2026 a 31/07/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Meta do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "oportunidades-validadas": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (01/07/2026 a 31/07/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "leads-trabalhados": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (01/07/2026 a 31/07/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Capacidade do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "receita-prevista-aberta": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [],
+          "composicao": {
+            "produto:finance": null,
+            "produto:cella": null,
+            "partners": 0,
+            "unidade": 0,
+            "conhecidos": 0,
+            "faltante": 28
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "contas-prontas": {
+          "estado": "disponivel",
+          "valor": 2540,
+          "comparacoes": [],
+          "composicao": {
+            "produto:consultoria": 2329,
+            "produto:finance": 132,
+            "produto:cella": 316,
+            "um_produto": 2303,
+            "varios_produtos": 237,
+            "sobreposicao": 237,
+            "so_omie": 249,
+            "ocupadas": 81
+          },
+          "dataDado": "2026-09-23T01:48:01.188Z"
+        }
+      },
+      "decisoes": [
+        "perimetro-meta",
+        "alocar-plano",
+        "contas-so-omie"
+      ],
+      "ameacas": [
+        "plano-sem-alocacao",
+        "receita-incompleta",
+        "aptas-so-omie"
+      ],
+      "avisos": []
+    },
+    "trimestre_rede": {
+      "periodo": {
+        "de": "2026-07-01",
+        "ate": "2026-09-22"
+      },
+      "perimetro": "Rede inteira no seu escopo",
+      "universo": "Rede inteira no seu escopo · 01/07/2026 a 22/09/2026 · 10304 contas conciliadas · 176 negócios do pipe de Monetização · Financeiro fora deste recorte",
+      "indicadores": {
+        "meta-bilhao": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [
+            {
+              "rotulo": "Meta anual",
+              "referencia": 1000000000,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {},
+          "dataDado": null
+        },
+        "contratos-ganhos": {
+          "estado": "disponivel",
+          "valor": 1,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (08/04/2026 a 30/06/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Meta do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 1,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "oportunidades-validadas": {
+          "estado": "disponivel",
+          "valor": 29,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (08/04/2026 a 30/06/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 6,
+            "produto:cella": 23,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "leads-trabalhados": {
+          "estado": "disponivel",
+          "valor": 111,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (08/04/2026 a 30/06/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Capacidade do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 15,
+            "produto:finance": 45,
+            "produto:cella": 51,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "receita-prevista-aberta": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [],
+          "composicao": {
+            "produto:finance": null,
+            "produto:cella": null,
+            "partners": 0,
+            "unidade": 0,
+            "conhecidos": 0,
+            "faltante": 28
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "contas-prontas": {
+          "estado": "disponivel",
+          "valor": 2540,
+          "comparacoes": [],
+          "composicao": {
+            "produto:consultoria": 2329,
+            "produto:finance": 132,
+            "produto:cella": 316,
+            "um_produto": 2303,
+            "varios_produtos": 237,
+            "sobreposicao": 237,
+            "so_omie": 249,
+            "ocupadas": 81
+          },
+          "dataDado": "2026-09-23T01:48:01.188Z"
+        }
+      },
+      "decisoes": [
+        "perimetro-meta",
+        "alocar-plano",
+        "contas-so-omie"
+      ],
+      "ameacas": [
+        "plano-sem-alocacao",
+        "receita-incompleta",
+        "aptas-so-omie"
+      ],
+      "avisos": []
+    },
+    "mes_maior_unidade": {
+      "periodo": {
+        "de": "2026-09-01",
+        "ate": "2026-09-22"
+      },
+      "perimetro": "Goiânia",
+      "universo": "Goiânia · 01/09/2026 a 22/09/2026 · 3110 contas conciliadas · 2 negócios do pipe de Monetização · Financeiro fora deste recorte",
+      "indicadores": {
+        "meta-bilhao": {
+          "estado": "nao_apurado",
+          "valor": null,
+          "comparacoes": [
+            {
+              "rotulo": "Meta anual",
+              "referencia": 1000000000,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {},
+          "dataDado": null
+        },
+        "contratos-ganhos": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Meta do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "oportunidades-validadas": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "leads-trabalhados": {
+          "estado": "disponivel",
+          "valor": 1,
+          "comparacoes": [
+            {
+              "rotulo": "Período anterior (10/08/2026 a 31/08/2026)",
+              "referencia": 0,
+              "estado": "disponivel"
+            },
+            {
+              "rotulo": "Capacidade do mês",
+              "referencia": null,
+              "estado": "nao_apurado"
+            }
+          ],
+          "composicao": {
+            "produto:consultoria": 1,
+            "produto:finance": 0,
+            "produto:cella": 0,
+            "produto:sem_produto": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "receita-prevista-aberta": {
+          "estado": "disponivel",
+          "valor": 0,
+          "comparacoes": [],
+          "composicao": {
+            "partners": 0,
+            "unidade": 0,
+            "conhecidos": 0,
+            "faltante": 0
+          },
+          "dataDado": "2026-09-23T01:45:05.577Z"
+        },
+        "contas-prontas": {
+          "estado": "disponivel",
+          "valor": 4,
+          "comparacoes": [],
+          "composicao": {
+            "produto:consultoria": 0,
+            "produto:finance": 1,
+            "produto:cella": 3,
+            "um_produto": 4,
+            "varios_produtos": 0,
+            "sobreposicao": 0,
+            "so_omie": 232,
+            "ocupadas": 0
+          },
+          "dataDado": "2026-09-23T01:48:01.188Z"
+        }
+      },
+      "decisoes": [
+        "perimetro-meta",
+        "alocar-plano",
+        "contas-so-omie"
+      ],
+      "ameacas": [
+        "plano-sem-alocacao",
+        "aptas-so-omie"
+      ],
+      "avisos": []
+    }
+  },
+  "conferencias": {
+    "eventos": {
+      "mes_rede": {
+        "leads-trabalhados": {
+          "cockpit": 111,
+          "sql": 111,
+          "confere": true,
+          "divergencias": []
+        },
+        "oportunidades-validadas": {
+          "cockpit": 29,
+          "sql": 29,
+          "confere": true,
+          "divergencias": []
+        },
+        "contratos-ganhos": {
+          "cockpit": 1,
+          "sql": 1,
+          "confere": true,
+          "divergencias": []
+        }
+      },
+      "mes_anterior_rede": {
+        "leads-trabalhados": {
+          "cockpit": 0,
+          "sql": 0,
+          "confere": true,
+          "divergencias": []
+        },
+        "oportunidades-validadas": {
+          "cockpit": 0,
+          "sql": 0,
+          "confere": true,
+          "divergencias": []
+        },
+        "contratos-ganhos": {
+          "cockpit": 0,
+          "sql": 0,
+          "confere": true,
+          "divergencias": []
+        }
+      },
+      "trimestre_rede": {
+        "leads-trabalhados": {
+          "cockpit": 111,
+          "sql": 111,
+          "confere": true,
+          "divergencias": []
+        },
+        "oportunidades-validadas": {
+          "cockpit": 29,
+          "sql": 29,
+          "confere": true,
+          "divergencias": []
+        },
+        "contratos-ganhos": {
+          "cockpit": 1,
+          "sql": 1,
+          "confere": true,
+          "divergencias": []
+        }
+      }
+    },
+    "receita": {
+      "cockpit": {
+        "valor": null,
+        "conhecidos": 0,
+        "faltantes": 28
+      },
+      "sql": {
+        "valor": 0,
+        "conhecidos": 0,
+        "faltantes": 28
+      },
+      "confere": true
+    },
+    "elegibilidade": {
+      "consultoria": {
+        "ambos": 2329,
+        "so_ts": 0,
+        "so_sql": 0,
+        "nenhum": 7975
+      },
+      "finance": {
+        "ambos": 171,
+        "so_ts": 0,
+        "so_sql": 0,
+        "nenhum": 10133
+      },
+      "cella": {
+        "ambos": 607,
+        "so_ts": 0,
+        "so_sql": 0,
+        "nenhum": 9697
+      }
+    }
+  },
+  "operacaoAoAbrir": {
+    "filtro": "mês corrente, responsável padrão da tela de Operação",
+    "leads_trabalhados": 109,
+    "oportunidades_validadas": 29,
+    "contratos_ganhos": 1
+  },
+  "tempos": {
+    "tabelas_monetizacao": 5010,
+    "contas": 29704,
+    "catalogo": 38963,
+    "calculo_4_recortes_ms": 134,
+    "paridade_elegibilidade_ms": 116083,
+    "total_ms": 194812
+  }
+}

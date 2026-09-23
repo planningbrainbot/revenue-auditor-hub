@@ -1,0 +1,60 @@
+{
+  "quando": "2026-09-23T01:55:16.947Z",
+  "resultado": [
+    {
+      "perfil": "super admin",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": true,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": true,
+      "cockpit_mostraria": {
+        "comerciais": "números",
+        "contas_prontas": "números"
+      },
+      "coerencia": "ok"
+    },
+    {
+      "perfil": "sócio regional",
+      "chaves": {
+        "aquario": false,
+        "monetizacao": false,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 0,
+        "contas_visiveis": 360,
+        "manifesto": {
+          "contas_no_manifesto": 360
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok"
+    },
+    {
+      "perfil": "conta sem papel",
+      "chaves": {
+        "aquario": false,
+        "monetizacao": false,
+        "clientes": false
+      },
+      "rls": {
+        "negocios_visiveis": 0,
+        "contas_visiveis": 0,
+        "manifesto": null
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok"
+    }
+  ]
+}

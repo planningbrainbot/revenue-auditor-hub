@@ -284,12 +284,34 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       "A Operação abre no mês corrente e com o responsável padrão dela. Ajuste período e responsável lá para conferir este número; o cockpit conta a frente inteira.",
   };
 
+  // O espelho do CRM só tem história a partir do primeiro evento registrado. Período anterior que
+  // cai antes dele não é "zero": é ausência de histórico (medido em 22/09: a frente começa em
+  // setembro/2026, e o mês anterior dava 0 em tudo, o que a tela leria como crescimento).
+  const primeiroEvento = todos.reduce<string | null>((min, c) => {
+    for (const lista of Object.values(c.events ?? {}))
+      for (const e of lista) if (e?.date && (!min || e.date < min)) min = e.date;
+    return min;
+  }, null);
+
   function comparacaoAnterior(m: Metrica): Comparacao {
+    const rotulo = `Período anterior (${dataBr(anterior.de)} a ${dataBr(anterior.ate)})`;
+    if (!primeiroEvento || anterior.ate < primeiroEvento)
+      return {
+        rotulo,
+        referencia: null,
+        estado: "nao_apurado",
+        nota: primeiroEvento
+          ? `A frente só tem eventos a partir de ${dataBr(primeiroEvento)}; não há período anterior comparável.`
+          : "A frente ainda não tem eventos registrados; não há período anterior comparável.",
+      };
+    const parcial = anterior.de < primeiroEvento;
     return {
-      rotulo: `Período anterior (${dataBr(anterior.de)} a ${dataBr(anterior.ate)})`,
+      rotulo,
       referencia: opAnterior ? opAnterior.rows[m].length : null,
-      estado: comercial.estado,
-      nota: "Mesmo número de dias, imediatamente antes. Comparação de eventos, não de coorte.",
+      estado: parcial ? "parcial" : comercial.estado,
+      nota: parcial
+        ? `O período anterior só tem eventos a partir de ${dataBr(primeiroEvento)}: comparação parcial.`
+        : "Mesmo número de dias, imediatamente antes. Comparação de eventos, não de coorte.",
     };
   }
 
@@ -745,7 +767,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       gravidade: "media",
       indicador: "receita-prevista-aberta",
     });
-  const validAnterior = validadas.comparacoes[0]?.referencia;
+  const compValidadas = validadas.comparacoes[0];
+  const validAnterior = compValidadas?.estado === "disponivel" ? compValidadas.referencia : null;
   if (validadas.valor != null && validAnterior != null && validadas.valor < validAnterior)
     ameacas.push({
       id: "validadas-em-queda",
