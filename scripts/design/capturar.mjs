@@ -7,7 +7,8 @@
  * Grava em docs/design/capturas/<rotulo>/:
  *   <tema>-viewport.png   1440×900, o que a pessoa vê ao abrir
  *   <tema>-pagina.png     página inteira, 1440 de largura
- *   <tema>-<secao>.png    recorte de cada seção (#casca, #controles, …)
+ *   <tema>-<secao>.png    recorte de cada seção (#casca, #controles, …,
+ *                         #planning, #arquetipos)
  *
  * Como funciona: sobe `vite dev` numa porta livre, espera /vitrine responder
  * 200, abre o Chrome headless e fala com ele pelo DevTools Protocol, e no fim
@@ -30,7 +31,7 @@ import { fileURLToPath } from "node:url";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const LARGURA = 1440;
 const ALTURA = 900;
-const SECOES = ["casca", "controles", "dados", "graficos", "estados"];
+const SECOES = ["casca", "controles", "dados", "graficos", "estados", "planning", "arquetipos"];
 const TEMAS = ["escuro", "claro"];
 
 const rotulo = process.argv[2];
@@ -220,7 +221,7 @@ async function main() {
     // última seção, as fontes do Google e um respiro para o Recharts medir.
     const pronto = await avaliar(`(async () => {
       const fim = Date.now() + 30000;
-      while (!document.querySelector('[data-vitrine-secao="estados"]')) {
+      while (!document.querySelector('[data-vitrine-secao=${JSON.stringify(SECOES.at(-1))}]')) {
         if (Date.now() > fim) return false;
         await new Promise(r => setTimeout(r, 200));
       }
