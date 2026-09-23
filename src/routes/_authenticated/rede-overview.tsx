@@ -41,7 +41,7 @@ import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
 import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
-import { Carregando, PageHeader } from "@/components/planning";
+import { Carregando, KpiCard, KpiGrade, PageHeader } from "@/components/planning";
 
 // Todo card do Overview segue o mesmo padrão: número-resumo aqui, "ver
 // detalhe" leva pra página dona daquele dado. O Overview nunca duplica a
@@ -973,90 +973,102 @@ function RedeOverviewPage() {
 
         {/* ---- Aba 1: Visão Geral — mesmo layout do mockup de referência ---- */}
         <TabsContent value="geral" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Receita Total</div>
-              <div className="mt-1 text-xl font-bold">{fmtBRL(receitaTotalStats.total)}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {receitaTotalStats.pct != null
-                  ? `${receitaTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(receitaTotalStats.pct))} vs. período anterior`
-                  : "sem base de comparação"}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">Recebido no período</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Booking Total</div>
-              <div className="mt-1 text-xl font-bold">{fmtBRL(bookingTotalStats.total)}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {bookingTotalStats.pct != null
-                  ? `${bookingTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(bookingTotalStats.pct))} vs. período anterior`
-                  : "sem base de comparação"}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">MRR novo × 12 meses</div>
-            </Card>
-            <Card
-              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
-              title="Ver clientes ativos"
-            >
-              <div className="text-xs text-muted-foreground">Qtd Proj. Ativos</div>
-              <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">= Clientes Ativos</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Receita Média Cliente</div>
-              <div className="mt-1 text-xl font-bold">{arpa != null ? fmtBRL(arpa) : "—"}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">MRR ÷ clientes ativos</div>
-            </Card>
-            <Card
-              className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-              onClick={() => navigate({ to: "/clientes", search: { status: "", unidade: "" } })}
-              title="Ver clientes ativos"
-            >
-              <div className="text-xs text-muted-foreground">Qtd Clientes ativos</div>
-              <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Lifetime (LTV)</div>
-              <div className="mt-1 text-xl font-bold">
-                {ltvFormulaico.ltv != null ? fmtBRL(ltvFormulaico.ltv) : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                ARPA ÷ churn mensal
-                {ltvFormulaico.churnMensalPct != null
-                  ? ` (${fmtPct(ltvFormulaico.churnMensalPct)} a.m., período selecionado)`
-                  : ""}
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-muted-foreground">Vida útil (projetada)</div>
-                  <div className="text-sm font-bold tabular-nums">
-                    {ltvFormulaico.lifetimeMeses != null
-                      ? `${ltvFormulaico.lifetimeMeses.toFixed(1)} meses`
-                      : "—"}
+          {/* Mesmos seis números e textos de antes, no KpiCard do design system.
+              A comparação com o período anterior vira `delta` (seta em degrau,
+              cor pelo sentido); "—" de valor nulo vira "não apurado" (N4). Os
+              dois cards de clientes abrem /clientes pelo card inteiro (N2). */}
+          <KpiGrade colunas={6}>
+            <KpiCard
+              rotulo="Receita Total"
+              valor={fmtBRL(receitaTotalStats.total)}
+              delta={
+                receitaTotalStats.pct != null
+                  ? { valor: receitaTotalStats.pct, rotulo: "vs. período anterior" }
+                  : undefined
+              }
+              nota={
+                receitaTotalStats.pct != null
+                  ? "Recebido no período"
+                  : "sem base de comparação · Recebido no período"
+              }
+            />
+            <KpiCard
+              rotulo="Booking Total"
+              valor={fmtBRL(bookingTotalStats.total)}
+              delta={
+                bookingTotalStats.pct != null
+                  ? { valor: bookingTotalStats.pct, rotulo: "vs. período anterior" }
+                  : undefined
+              }
+              nota={
+                bookingTotalStats.pct != null
+                  ? "MRR novo × 12 meses"
+                  : "sem base de comparação · MRR novo × 12 meses"
+              }
+            />
+            <KpiCard
+              rotulo="Qtd Proj. Ativos"
+              valor={clientesAtivos}
+              nota="= Clientes Ativos"
+              abrir={{
+                onClick: () => navigate({ to: "/clientes", search: { status: "", unidade: "" } }),
+                rotulo: "Ver clientes ativos",
+              }}
+            />
+            <KpiCard
+              rotulo="Receita Média Cliente"
+              valor={arpa != null ? fmtBRL(arpa) : "—"}
+              estado={arpa != null ? "ok" : "nao-apurado"}
+              nota="MRR ÷ clientes ativos"
+            />
+            <KpiCard
+              rotulo="Qtd Clientes ativos"
+              valor={clientesAtivos}
+              nota={totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
+              abrir={{
+                onClick: () => navigate({ to: "/clientes", search: { status: "", unidade: "" } }),
+                rotulo: "Ver clientes ativos",
+              }}
+            />
+            <KpiCard
+              rotulo="Lifetime (LTV)"
+              valor={ltvFormulaico.ltv != null ? fmtBRL(ltvFormulaico.ltv) : "—"}
+              estado={ltvFormulaico.ltv != null ? "ok" : "nao-apurado"}
+              nota={
+                <>
+                  ARPA ÷ churn mensal
+                  {ltvFormulaico.churnMensalPct != null
+                    ? ` (${fmtPct(ltvFormulaico.churnMensalPct)} a.m., período selecionado)`
+                    : ""}
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-xs">Vida útil (projetada)</div>
+                      <div className="num text-sm font-bold text-foreground">
+                        {ltvFormulaico.lifetimeMeses != null
+                          ? `${ltvFormulaico.lifetimeMeses.toFixed(1)} meses`
+                          : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs">
+                        Vida útil (concluídos
+                        {lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
+                      </div>
+                      <div className="num text-sm font-bold text-foreground">
+                        {lifetimeConcluidos.mediaMeses != null
+                          ? `${lifetimeConcluidos.mediaMeses.toFixed(1)} meses`
+                          : "—"}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    Vida útil (concluídos
-                    {lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
+                  <div className="mt-1 text-xs">
+                    Projetada = 1 ÷ churn mensal (estimativa). Concluídos = tempo real de vida de
+                    quem já deu churn (1ª compra até a data de churn).
                   </div>
-                  <div className="text-sm font-bold tabular-nums">
-                    {lifetimeConcluidos.mediaMeses != null
-                      ? `${lifetimeConcluidos.mediaMeses.toFixed(1)} meses`
-                      : "—"}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Projetada = 1 ÷ churn mensal (estimativa). Concluídos = tempo real de vida de quem
-                já deu churn (1ª compra até a data de churn).
-              </div>
-            </Card>
-          </div>
+                </>
+              }
+            />
+          </KpiGrade>
 
           {!loading && byMes.length > 0 && (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -1201,19 +1213,16 @@ function RedeOverviewPage() {
 
         {/* ---- Aba 2: Vendas & Unidades — Matriz/Hunter, MRR, ranking por unidade ---- */}
         <TabsContent value="vendas" className="space-y-4">
-          <Card
-            className="max-w-xs p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
-            onClick={() => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } })}
-            title="Ver contratos ativos"
-          >
-            <div className="text-xs text-muted-foreground">MRR</div>
-            <div className="mt-1 text-xl font-bold">{fmtBRL(kpis.mrr)}</div>
-            {kpis.receita > 0 && (
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido
-              </div>
-            )}
-          </Card>
+          <KpiCard
+            rotulo="MRR"
+            valor={fmtBRL(kpis.mrr)}
+            nota={kpis.receita > 0 ? `${fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido` : undefined}
+            abrir={{
+              onClick: () => navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } }),
+              rotulo: "Ver contratos ativos",
+            }}
+            className="max-w-xs"
+          />
 
           {!loading && rankingHunterData.length > 0 && (
             <Card className="p-4">
@@ -1433,40 +1442,33 @@ function RedeOverviewPage() {
 
         {/* ---- Aba 4: Qualidade & CS — NPS, Saúde da Carteira, Churn, Auditoria ---- */}
         <TabsContent value="qualidade" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Churn Receita</div>
-              <div className="mt-1 text-xl font-bold text-warning">
-                {churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {fmtBRL(churnStats.churnedMrr)} em MRR perdido
-              </div>
-              <VerDetalheLink to="/painel-cs" />
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Churn Logo</div>
-              <div className="mt-1 text-xl font-bold text-warning">
-                {churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {churnStats.churnedCount} cliente{churnStats.churnedCount === 1 ? "" : "s"} perdido
-                {churnStats.churnedCount === 1 ? "" : "s"}
-              </div>
-              <VerDetalheLink to="/painel-cs" />
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Carteira Saudável</div>
-              <div
-                className={`mt-1 text-xl font-bold ${saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "text-success" : "text-warning"}`}
-              >
-                {saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {saudeStats.risco} em risco de {saudeStats.total}
-              </div>
-              <VerDetalheLink to="/painel-cs" />
-            </Card>
+          {/* O "Ver detalhe" que ficava no rodapé vira o card inteiro abrindo
+              /painel-cs (N2). A cor verde/âmbar do número sai: o limiar de 70%
+              não estava escrito em lugar nenhum e cor sozinha não é status (V7).
+              A auditoria fiscal segue em Card próprio: são dois valores lado a
+              lado, e o KpiCard tem um número só. */}
+          <KpiGrade colunas={4}>
+            <KpiCard
+              rotulo="Churn Receita"
+              valor={churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
+              estado={churnStats.churnReceitaPct != null ? "ok" : "nao-apurado"}
+              nota={`${fmtBRL(churnStats.churnedMrr)} em MRR perdido`}
+              abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
+            />
+            <KpiCard
+              rotulo="Churn Logo"
+              valor={churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
+              estado={churnStats.churnLogoPct != null ? "ok" : "nao-apurado"}
+              nota={`${churnStats.churnedCount} cliente${churnStats.churnedCount === 1 ? "" : "s"} perdido${churnStats.churnedCount === 1 ? "" : "s"}`}
+              abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
+            />
+            <KpiCard
+              rotulo="Carteira Saudável"
+              valor={saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
+              estado={saudeStats.pctSaudavel != null ? "ok" : "nao-apurado"}
+              nota={`${saudeStats.risco} em risco de ${saudeStats.total}`}
+              abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
+            />
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Auditoria Interna (fiscal)</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1485,7 +1487,7 @@ function RedeOverviewPage() {
               </div>
               <VerDetalheLink to="/auditoria-interna" />
             </Card>
-          </div>
+          </KpiGrade>
         </TabsContent>
       </Tabs>
     </div>

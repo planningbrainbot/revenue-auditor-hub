@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
-import { PageHeader } from "@/components/planning";
+import { PageHeader, KpiCard as KpiCardPlanning } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -317,28 +317,18 @@ export function ContasReceberView() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` era só o fundo do card; cor sozinha não é status (V7), então
+// fica aceito e ignorado, e o sentido mora no rótulo e na nota.
 function KpiCard({
   label,
   value,
   hint,
-  tone,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  const toneMap = {
-    amber: "border-warning/40 bg-warning-soft",
-    red: "border-danger/40 bg-danger-soft",
-    emerald: "border-success/40 bg-success-soft",
-    slate: "border-border bg-muted",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>
-      <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} />;
 }

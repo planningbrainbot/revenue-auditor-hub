@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/planning";
 
 const NA = "—";
 
@@ -104,6 +105,10 @@ function maturacao(fim: string): { madura: boolean; dias: number } {
   return { madura: dias >= 60, dias };
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). `NA` é o "—" que os formatadores devolvem para null: vira o estado
+// "não apurado" em vez de um traço que parece número (N4). O alerta segue
+// com ícone e palavra (V7), na linha de nota.
 function CardKPI({
   label,
   valor,
@@ -116,19 +121,24 @@ function CardKPI({
   alerta?: string;
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        {alerta ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={alerta} />
-        ) : null}
-      </div>
-      <p className={cn("mt-2 text-2xl font-bold", valor === NA && "text-muted-foreground")}>
-        {valor}
-      </p>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-      {alerta ? <p className="mt-1 text-xs text-warning">{alerta}</p> : null}
-    </Card>
+    <KpiCard
+      rotulo={label}
+      valor={valor}
+      estado={valor === NA ? "nao-apurado" : "ok"}
+      nota={
+        hint || alerta ? (
+          <>
+            {hint}
+            {alerta ? (
+              <span className={cn("flex items-start gap-1 text-warning", hint && "mt-1")}>
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                {alerta}
+              </span>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    />
   );
 }
 

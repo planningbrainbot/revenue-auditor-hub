@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { KpiCard as KpiCardPlanning } from "@/components/planning";
 
 interface KpiCardProps {
   label: string;
@@ -10,48 +10,41 @@ interface KpiCardProps {
   highlight?: boolean;
 }
 
-// Tons por papel (DESIGN §3–4). Os nomes antigos ficam para não mexer nos chamadores:
-// emerald = positivo, red = erro, orange = atenção, indigo = informação, purple = neutro.
-const tones: Record<NonNullable<KpiCardProps["tone"]>, string> = {
-  default: "bg-card text-card-foreground",
-  indigo: "border-info/30 bg-info-soft text-info",
-  emerald: "border-success/30 bg-success-soft text-success",
-  red: "border-danger/30 bg-danger-soft text-danger",
-  orange: "border-warning/30 bg-warning-soft text-warning",
-  purple: "bg-muted text-foreground",
-};
-
-export function KpiCard({ label, value, sub, help, tone = "default", highlight }: KpiCardProps) {
+/**
+ * Adaptador: mantém a assinatura antiga para não mexer nos chamadores e
+ * desenha com o KpiCard do design system (DESIGN §1.6, "uma decisão, um
+ * lugar"). O `tone` é aceito e ignorado de propósito: o fundo colorido era a
+ * única marca de status e cor sozinha não diz nada (V7); o card é neutro e o
+ * significado fica no rótulo e na nota.
+ */
+export function KpiCard({ label, value, sub, help, highlight }: KpiCardProps) {
   const [showHelp, setShowHelp] = useState(false);
-  return (
-    <div
-      className={cn(
-        "rounded-lg border p-4 shadow-sm transition-shadow",
-        tones[tone],
-        highlight && "ring-2 ring-primary",
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-xs font-medium uppercase tracking-wide opacity-80">{label}</div>
+  const nota =
+    sub || help ? (
+      <>
+        {sub}
         {help && (
-          <button
-            type="button"
-            aria-label="O que significa?"
-            title="O que significa?"
-            onClick={() => setShowHelp((s) => !s)}
-            className="shrink-0 rounded-full border border-current/30 px-1.5 text-xs font-bold opacity-60 hover:opacity-100"
-          >
-            ?
-          </button>
+          <>
+            {sub && " · "}
+            <button
+              type="button"
+              aria-expanded={showHelp}
+              onClick={() => setShowHelp((s) => !s)}
+              className="rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              O que significa?
+            </button>
+            {showHelp && <span className="mt-1 block leading-snug text-foreground">{help}</span>}
+          </>
         )}
-      </div>
-      <div className="mt-2 text-2xl font-bold">{value}</div>
-      {sub && <div className="mt-1 text-xs opacity-75">{sub}</div>}
-      {showHelp && help && (
-        <div className="mt-2 rounded-md border border-current/20 bg-background/70 p-2 text-xs leading-snug opacity-90">
-          {help}
-        </div>
-      )}
-    </div>
+      </>
+    ) : undefined;
+  return (
+    <KpiCardPlanning
+      rotulo={label}
+      valor={value}
+      nota={nota}
+      className={highlight ? "ring-2 ring-primary" : undefined}
+    />
   );
 }

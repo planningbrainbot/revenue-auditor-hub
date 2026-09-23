@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
-import { PageHeader } from "@/components/planning";
+import { PageHeader, KpiCard as KpiCardPlanning } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -582,12 +582,13 @@ function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: s
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O ícone ao lado do rótulo e o fundo por `tone` saem: o card de número
+// do Brain é neutro e só com rótulo (cor sozinha não é status, V7).
 function KpiCard({
-  icon: Icon,
   label,
   value,
   hint,
-  tone,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -595,20 +596,5 @@ function KpiCard({
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  const toneMap = {
-    amber: "border-warning/40 bg-warning-soft",
-    red: "border-danger/40 bg-danger-soft",
-    emerald: "border-success/40 bg-success-soft",
-    slate: "border-border bg-muted",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>
-      <div className="flex items-center gap-1.5 text-xs font-medium uppercase text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} />;
 }

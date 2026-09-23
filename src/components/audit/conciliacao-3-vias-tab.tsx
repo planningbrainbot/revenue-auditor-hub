@@ -6,6 +6,7 @@ import { buildReconciliation, daysSince, type Bucket, type GrupoFilialLink, type
 import { brl, date, num } from "./format";
 import { unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
+import { KpiCard as KpiCardPlanning } from "@/components/planning";
 
 
 type SubTab = "vendido_sem_faturar" | "faturado_sem_crm" | "cadastro_orfao" | "matriz";
@@ -225,9 +226,10 @@ export function Conciliacao3ViasTab() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). Ícone e fundo por `tone` saem: o card de número é neutro e só com
+// rótulo, e cor sozinha não é status (V7).
 function KpiCard({
-  tone,
-  icon,
   label,
   value,
   hint,
@@ -238,21 +240,7 @@ function KpiCard({
   value: string;
   hint: string;
 }) {
-  const map = {
-    orange: "border-warning/40 bg-warning-soft text-warning",
-    sky: "border-info/40 bg-info-soft text-info",
-    slate: "border-border bg-muted text-foreground",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${map[tone]}`}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 text-3xl font-bold">{value}</div>
-      <div className="mt-1 text-xs opacity-80">{hint}</div>
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} />;
 }
 
 function ReconTable({

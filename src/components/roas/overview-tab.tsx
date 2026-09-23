@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, type UnidadeMesAgg } from "./calculations";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
+import { KpiCard } from "@/components/planning";
 
 function fmtBRL(v: number) {
   return brl(v);
@@ -93,32 +94,20 @@ function computeKpis(aggs: UnidadeMesAgg[]): Kpis {
   return { invTotal, verba, bolso, mrrTotal, mrrRegionais, mrrBUs, roas, gap, cacRecebido, saldo, royaltiesNovos, mesesParaCobrir };
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` pintava só o número; cor sozinha não é status (V7), então
+// fica aceito e ignorado.
 function Card({
   label,
   value,
   sub,
-  tone,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "emerald" | "red" | "amber" | "neutral";
 }) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-success"
-      : tone === "red"
-        ? "text-danger"
-        : tone === "amber"
-          ? "text-warning"
-          : "text-foreground";
-  return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 text-2xl font-bold", toneClass)}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  );
+  return <KpiCard rotulo={label} valor={value} nota={sub} />;
 }
 
 export function OverviewTab() {

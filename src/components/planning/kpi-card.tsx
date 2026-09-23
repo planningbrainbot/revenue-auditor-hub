@@ -29,6 +29,16 @@ export type KpiCardProps = {
   rotulo: string;
   valor: ReactNode;
   unidade?: string;
+  /**
+   * Contexto do número, abaixo do valor: a régua ("MRR ÷ clientes ativos"), a
+   * contagem de apoio ("de 57 cadastrados") ou um desdobramento curto. Existe
+   * porque os 20 cards locais que este substitui quase todos tinham essa
+   * linha; sem ela, migrar apagava informação. Continua em "não apurado" e
+   * "fonte indisponível", onde costuma ser o porquê ("sem mídia no período");
+   * some só em "sem acesso", porque nota com número vazaria o que o cadeado
+   * esconde.
+   */
+  nota?: ReactNode;
   /** Variação em % (12 = +12%). `rotulo` completa a frase: "vs ago". */
   delta?: { valor: number; rotulo?: string; sentido?: "maior-melhor" | "menor-melhor" };
   /**
@@ -51,6 +61,7 @@ export function KpiCard({
   rotulo,
   valor,
   unidade,
+  nota,
   delta,
   meta,
   estado = "ok",
@@ -60,6 +71,8 @@ export function KpiCard({
   className,
 }: KpiCardProps) {
   const mostraValor = estado === "ok" || estado === "parcial";
+  // `sub && …` dos cards antigos: string vazia e false também não ocupam linha.
+  const temNota = nota !== undefined && nota !== null && nota !== false && nota !== "";
   // Sem acesso não abre nada: o destino também estaria fechado.
   const clicavel = !!abrir && (!!abrir.href || !!abrir.onClick) && estado !== "sem-acesso";
 
@@ -105,6 +118,10 @@ export function KpiCard({
           <Ausencia estado={estado} />
         )}
       </div>
+
+      {estado !== "sem-acesso" && temNota && (
+        <div className="mt-1 text-[13px] leading-snug text-muted-foreground">{nota}</div>
+      )}
 
       {mostraValor && (delta || meta) && (
         <div className="mt-2 space-y-2">

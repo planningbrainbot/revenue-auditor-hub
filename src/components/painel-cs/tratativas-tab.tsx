@@ -38,6 +38,7 @@ import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { isUnidadeDaRede } from "@/lib/unidades-rede";
 import { cn } from "@/lib/utils";
 import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { KpiCard, KpiGrade } from "@/components/planning";
 
 type Tratativa = {
   id: number;
@@ -347,47 +348,31 @@ export function TratativasTab() {
         </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Total</div>
-          <div className="text-2xl font-bold">{kpis.total}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Em aberto</div>
-          <div className="text-2xl font-bold">{kpis.abertos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Perdidos</div>
-          <div className="text-2xl font-bold text-destructive">{kpis.perdidos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Recuperados</div>
-          <div className="text-2xl font-bold text-success">{kpis.recuperados}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">MRR perdido</div>
-          <div className="text-xl font-bold text-destructive">{fmtMoney(kpis.mrrPerdido)}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de recuperação</div>
-          <div className="text-2xl font-bold">{kpis.taxaRecuperacao.toFixed(1)}%</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de churn (blended)</div>
-          <div className="text-2xl font-bold text-destructive">{kpis.taxaChurnBlended.toFixed(1)}%</div>
-          <div className="text-xs text-muted-foreground">
-            {kpis.churnBlendedNum} churn / {kpis.churnBlendedDenom} ativos (base nova)
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Tempo médio até churn</div>
-          <div className="text-xl font-bold">{fmtTenure(kpis.tenureMedioDias)}</div>
-          <div className="text-xs text-muted-foreground">
-            {kpis.tenureAmostra > 0 ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn` : "sem dados suficientes"}
-          </div>
-        </Card>
-      </div>
+      {/* KPIs — oito números em duas linhas de quatro: a grade do design system
+          vai até seis por linha, e oito cards de 30px numa só não cabem. As
+          cores de perdido/recuperado saem: o rótulo já diz o que é (V7). */}
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="Total" valor={kpis.total} />
+        <KpiCard rotulo="Em aberto" valor={kpis.abertos} />
+        <KpiCard rotulo="Perdidos" valor={kpis.perdidos} />
+        <KpiCard rotulo="Recuperados" valor={kpis.recuperados} />
+        <KpiCard rotulo="MRR perdido" valor={fmtMoney(kpis.mrrPerdido)} />
+        <KpiCard rotulo="Taxa de recuperação" valor={`${kpis.taxaRecuperacao.toFixed(1)}%`} />
+        <KpiCard
+          rotulo="Taxa de churn (blended)"
+          valor={`${kpis.taxaChurnBlended.toFixed(1)}%`}
+          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova)`}
+        />
+        <KpiCard
+          rotulo="Tempo médio até churn"
+          valor={fmtTenure(kpis.tenureMedioDias)}
+          nota={
+            kpis.tenureAmostra > 0
+              ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn`
+              : "sem dados suficientes"
+          }
+        />
+      </KpiGrade>
 
       {/* Filtros */}
       <Card className="p-4">

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
 import { csv, oferta } from "@/lib/monetizacao/model";
+import { KpiCard } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -52,12 +53,15 @@ export function Panel({
     </section>
   );
 }
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). Com `onClick` o card inteiro abre o detalhe (N2); `accent` pintava o
+// número de verde e fica aceito e ignorado: destaque por cor em um card da
+// grade faz os vizinhos parecerem piores sem dizer por quê.
 export function Kpi({
   label,
   value,
   hint,
   onClick,
-  accent,
 }: {
   label: string;
   value: ReactNode;
@@ -65,26 +69,13 @@ export function Kpi({
   onClick?: () => void;
   accent?: boolean;
 }) {
-  const content = (
-    <>
-      <span className="block text-xs font-medium text-muted-foreground">{label}</span>
-      <span
-        className={`my-2 block text-3xl font-semibold tabular-nums ${accent ? "text-primary" : ""}`}
-      >
-        {value}
-      </span>
-      <span className="block text-xs text-muted-foreground">{hint}</span>
-    </>
-  );
-  return onClick ? (
-    <button
-      onClick={onClick}
-      className="rounded-xl border bg-card p-4 text-left transition hover:border-primary focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {content}
-    </button>
-  ) : (
-    <div className="rounded-xl border bg-card p-4">{content}</div>
+  return (
+    <KpiCard
+      rotulo={label}
+      valor={value}
+      nota={hint}
+      abrir={onClick ? { onClick } : undefined}
+    />
   );
 }
 export function Notice({ children }: { children: ReactNode }) {

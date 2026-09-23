@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import type { SaudeClienteRow, CategoriaFinanceira, Semaforo } from "@/lib/saude-carteira.functions";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
+import { KpiCard, KpiGrade } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -154,32 +155,15 @@ export function SaudeCarteiraTab() {
   return (
     <div className="space-y-4">
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Carteira ativa</div>
-          <div className="mt-1 text-2xl font-semibold">{kpis.total}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Saudável</div>
-          <div className="mt-1 text-2xl font-semibold text-success">{kpis.saudavel}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Atenção</div>
-          <div className="mt-1 text-2xl font-semibold text-warning">{kpis.atencao}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Risco</div>
-          <div className="mt-1 text-2xl font-semibold text-danger">{kpis.risco}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Sem medição</div>
-          <div className="mt-1 text-2xl font-semibold text-muted-foreground">{kpis.semMedicao}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">MRR em atenção/risco</div>
-          <div className="mt-1 text-2xl font-semibold">{fmtBRL(kpis.mrrEmRisco)}</div>
-        </Card>
-      </div>
+      {/* A cor do semáforo sai do número: o rótulo já diz a faixa (V7). */}
+      <KpiGrade colunas={6}>
+        <KpiCard rotulo="Carteira ativa" valor={kpis.total} />
+        <KpiCard rotulo="Saudável" valor={kpis.saudavel} />
+        <KpiCard rotulo="Atenção" valor={kpis.atencao} />
+        <KpiCard rotulo="Risco" valor={kpis.risco} />
+        <KpiCard rotulo="Sem medição" valor={kpis.semMedicao} />
+        <KpiCard rotulo="MRR em atenção/risco" valor={fmtBRL(kpis.mrrEmRisco)} />
+      </KpiGrade>
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando saúde da carteira…</Card>}
       {error && <Card className="p-6 text-sm text-danger">Erro ao carregar dados.</Card>}

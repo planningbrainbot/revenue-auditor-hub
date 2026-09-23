@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { cn } from "@/lib/utils";
+import { KpiCard, KpiGrade } from "@/components/planning";
 
 type CardHistoryEntry = { fase: string | null; entrou_em: string | null; saiu_em: string | null };
 
@@ -164,30 +165,22 @@ export function OnboardingTab() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Clientes em onboarding</div>
-          <div className="text-2xl font-bold">{kpis.ativos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Onboardings concluídos</div>
-          <div className="text-2xl font-bold text-success">{kpis.concluidos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Gargalos (parado ≥ {DIAS_ALERTA_GARGALO}d na fase)</div>
-          <div className={cn("text-2xl font-bold", kpis.gargalos > 0 && "text-destructive")}>{kpis.gargalos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Tempo médio de ciclo</div>
-          {kpis.temDadosDeCiclo ? (
-            <div className="text-2xl font-bold">{kpis.cicloMedio}d</div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Hourglass className="h-3.5 w-3.5" /> Aguardando 1º fechamento
-            </div>
-          )}
-        </Card>
-      </div>
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="Clientes em onboarding" valor={kpis.ativos} />
+        <KpiCard rotulo="Onboardings concluídos" valor={kpis.concluidos} />
+        <KpiCard
+          rotulo={`Gargalos (parado ≥ ${DIAS_ALERTA_GARGALO}d na fase)`}
+          valor={kpis.gargalos}
+        />
+        {/* Sem nenhum ciclo fechado o tempo médio não existe ainda: "não
+            apurado", com o porquê na nota, e não um 0d (N4). */}
+        <KpiCard
+          rotulo="Tempo médio de ciclo"
+          valor={kpis.temDadosDeCiclo ? `${kpis.cicloMedio}d` : "—"}
+          estado={kpis.temDadosDeCiclo ? "ok" : "nao-apurado"}
+          nota={kpis.temDadosDeCiclo ? undefined : "Aguardando 1º fechamento"}
+        />
+      </KpiGrade>
 
       {/* Funil */}
       <Card className="p-4">

@@ -4,6 +4,7 @@ import { useData } from "./data-context";
 import { brl } from "./format";
 import type { AuditRegistro } from "@/lib/audit-types";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/planning";
 
 const UNIDADES_COM_OMIE = new Set(["Belém", "Campo Novo", "Curitiba", "Rio de Janeiro"]);
 
@@ -251,20 +252,9 @@ function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean 
   );
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
-  return (
-    <div className="rounded-lg border bg-card p-3 shadow-sm">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-1 text-xl font-semibold",
-          tone === "ok" && "text-success",
-          tone === "warn" && "text-warning",
-        )}
-      >
-        {value}
-      </div>
-      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  );
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` pintava só o número de verde/âmbar; cor sozinha não é status
+// (V7), então fica aceito e ignorado, e o sentido mora no rótulo e na nota.
+function Kpi({ label, value, sub }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
+  return <KpiCard rotulo={label} valor={value} nota={sub} />;
 }

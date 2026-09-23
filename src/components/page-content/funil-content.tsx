@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { FunilGapClientesDialog } from "@/components/funil-gap-clientes-dialog";
+import { KpiCard } from "@/components/planning";
 
 type FunilRow = {
   mes: string | null;
@@ -72,25 +73,22 @@ const TONE_BADGE: Record<string, string> = {
   slate: "bg-muted text-foreground",
 };
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). `source` era um selo solto e vira a procedência do número (N3); o
+// fundo por `tone` sai porque a cor da conversão já está na seta entre os
+// cards. "—" é conversão sem MRR contratado: não apurada, não zero (N4).
 function FunilCard({
-  icon, label, value, sub, tone = "slate", source,
+  label, value, sub, source,
 }: { icon: React.ReactNode; label: string; value: string; sub: string; tone?: string; source?: string }) {
   return (
-    <div className={cn("flex-1 rounded-lg border p-4 shadow-sm", TONE_BG[tone])}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          {icon}
-          {label}
-        </div>
-        {source && (
-          <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            {source}
-          </span>
-        )}
-      </div>
-      <div className="mt-2 text-2xl font-bold">{value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-    </div>
+    <KpiCard
+      rotulo={label}
+      valor={value}
+      estado={value === "—" ? "nao-apurado" : "ok"}
+      nota={sub}
+      procedencia={source ? { fonte: source } : undefined}
+      className="flex-1"
+    />
   );
 }
 

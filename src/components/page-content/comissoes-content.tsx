@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { DataProvider, BaseFilterSelect, RefreshButton, useData } from "@/components/audit/data-context";
 import { brl, date, num } from "@/components/audit/format";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/planning";
 
 const PIPEDRIVE_DEAL_URL = "https://grupoplanning.pipedrive.com/deal/";
 
@@ -183,21 +184,11 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
-  return (
-    <div className="rounded-lg border bg-card p-3 shadow-sm">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-1 text-xl font-semibold",
-          tone === "ok" && "text-success",
-          tone === "warn" && "text-warning",
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` pintava só o número; cor sozinha não é status (V7), então
+// fica aceito e ignorado.
+function Kpi({ label, value }: { label: string; value: string; tone?: "ok" | "warn" }) {
+  return <KpiCard rotulo={label} valor={value} />;
 }
 
 export function ComissoesContent() {
