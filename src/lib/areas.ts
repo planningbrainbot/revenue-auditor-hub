@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Coins,
+  Compass,
   FileBarChart2,
   Filter,
   Gauge,
@@ -182,6 +183,24 @@ export function primeiraTelaAcessivel(
 // e comissões) não tem equivalente lá, então migrou para Receita e Repasses,
 // que já é a área de dinheiro dentro do Ops.
 export const AREAS: Area[] = [
+  {
+    // Cockpit do CEO (piloto de 22/09/2026). Área própria porque o PRD o põe no seletor de módulos
+    // e porque a fronteira de confiança é outra: ver a Base não dá visão consolidada da empresa.
+    // A área ainda NÃO existe em `ops.areas` — a proposta está em
+    // supabase/proposals/20260922120000_cockpit_ceo_area.sql e não foi aplicada — então hoje o
+    // item não aparece para ninguém. Ao integrar com a main, avaliar se ele mora dentro de
+    // "Estratégia & Execução" (área de 21/09), que não existe neste checkout.
+    slug: "cockpit_ceo",
+    nome: "Cockpit do CEO",
+    descricao: "Plano, crescimento, ameaças e decisões, com a composição de cada número.",
+    icone: Compass,
+    grupos: [
+      {
+        label: "Cockpit do CEO",
+        items: [{ title: "Visão executiva", url: "/cockpit-ceo", icon: LayoutDashboard }],
+      },
+    ],
+  },
   {
     slug: "rede",
     descricao: "Como a rede está indo: overview, IDU, indicadores e realizado.",

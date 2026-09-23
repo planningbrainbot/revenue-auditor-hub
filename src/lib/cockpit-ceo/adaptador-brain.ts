@@ -24,7 +24,10 @@ export function fonteDoBrain(
 ): FonteCockpit {
   const comum = { sintetico: false, hoje, agora, acessoBase };
   if (q.error)
-    return { ...comum, monetizacao: { estado: "erro", erro: mensagemDeErro(q.error), dados: null } };
+    return {
+      ...comum,
+      monetizacao: { estado: "erro", erro: mensagemDeErro(q.error), dados: null },
+    };
   if (q.isLoading || !q.data)
     return { ...comum, monetizacao: { estado: "carregando", erro: null, dados: null } };
   return { ...comum, monetizacao: { estado: "ok", erro: null, dados: q.data } };

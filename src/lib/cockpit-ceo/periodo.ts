@@ -38,7 +38,9 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const somaDias = (d: string, n: number) =>
   new Date(Date.parse(d + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
 const ultimoDia = (mes: string) =>
-  new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0))
+    .toISOString()
+    .slice(0, 10);
 export const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 function montar(preset: PresetPeriodo, de: string, ate: string): Periodo {
@@ -58,7 +60,10 @@ export function resolverPeriodo(
       return padrao;
     case "mes_anterior": {
       const fimAnterior = somaDias(mes + "-01", -1);
-      return { ...montar("mes_anterior", fimAnterior.slice(0, 7) + "-01", fimAnterior), aviso: null };
+      return {
+        ...montar("mes_anterior", fimAnterior.slice(0, 7) + "-01", fimAnterior),
+        aviso: null,
+      };
     }
     case "trimestre": {
       const inicio = `${hoje.slice(0, 4)}-${String(Math.floor((Number(hoje.slice(5, 7)) - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
@@ -72,7 +77,8 @@ export function resolverPeriodo(
       let aviso: string | null = null;
       if (ISO.test(ate) && ate > hoje) {
         ate = hoje;
-        aviso = "O período terminava depois de hoje e foi encerrado hoje: não há realizado no futuro.";
+        aviso =
+          "O período terminava depois de hoje e foi encerrado hoje: não há realizado no futuro.";
       }
       try {
         if (!ISO.test(de) || de > hoje) throw new Error();
@@ -99,10 +105,24 @@ export function periodoAnterior(p: { de: string; ate: string }): { de: string; a
 }
 
 /** O plano de Monetização é mensal: só se compara a um período que começa no dia 1 de um mês. */
-export function mesDoPeriodo(p: { de: string; ate: string }): { mes: string; completo: boolean } | null {
+export function mesDoPeriodo(p: {
+  de: string;
+  ate: string;
+}): { mes: string; completo: boolean } | null {
   const mes = p.de.slice(0, 7);
   if (!p.de.endsWith("-01") || p.ate.slice(0, 7) !== mes) return null;
   return { mes, completo: p.ate === ultimoDia(mes) };
+}
+
+/** O que vai na URL: só os campos preenchidos, para o endereço compartilhado ficar legível. */
+export type BuscaUrl = Partial<BuscaCockpit>;
+
+/**
+ * `validateSearch` das rotas do cockpit. Campo vazio não vai para a URL: se fosse, o router
+ * redirecionaria toda visita para `?periodo=&de=&...`. A página normaliza com `validarBusca`.
+ */
+export function buscaDaUrl(s: Record<string, unknown>): BuscaUrl {
+  return Object.fromEntries(Object.entries(validarBusca(s)).filter(([, v]) => v)) as BuscaUrl;
 }
 
 export function validarBusca(s: Record<string, unknown>): BuscaCockpit {

@@ -5,7 +5,16 @@
 // link aponta para o CRM real, e as quantidades não copiam fotografias dos documentos.
 //
 // Determinística: mesmo `hoje`, mesma base. As datas andam com `hoje`, então não existe mês fixo.
-import type { BaseMonetizacao, Conta, Metrica, Movimento, Negocio, Plano, Produto, Receita } from "../monetizacao/types";
+import type {
+  BaseMonetizacao,
+  Conta,
+  Metrica,
+  Movimento,
+  Negocio,
+  Plano,
+  Produto,
+  Receita,
+} from "../monetizacao/types";
 import type { FonteCockpit } from "./indicadores.ts";
 
 const UNIDADES = [
@@ -41,9 +50,27 @@ const brl = (amount: number | null) => ({
 });
 function receita(total: number | null): Receita {
   if (total === null)
-    return { total: brl(null), partners: brl(null), unit: brl(null), sum: null, difference: null, status: "missing", basis: "sintético", unit_name: null };
+    return {
+      total: brl(null),
+      partners: brl(null),
+      unit: brl(null),
+      sum: null,
+      difference: null,
+      status: "missing",
+      basis: "sintético",
+      unit_name: null,
+    };
   const partners = Math.round(total * 0.3);
-  return { total: brl(total), partners: brl(partners), unit: brl(total - partners), sum: total, difference: 0, status: "ok", basis: "sintético", unit_name: null };
+  return {
+    total: brl(total),
+    partners: brl(partners),
+    unit: brl(total - partners),
+    sum: total,
+    difference: 0,
+    status: "ok",
+    basis: "sintético",
+    unit_name: null,
+  };
 }
 
 function conta(i: number): Conta {
@@ -69,8 +96,18 @@ function conta(i: number): Conta {
     finance: { status: "revisar", reason: "" },
     ecd: false,
     base_origin: retroativa
-      ? { status: "antiga", reason: "Origem sintética: base antiga da unidade.", source: "Fonte sintética", commercial: false }
-      : { status: "nova", reason: "Origem sintética: base nova.", source: "Fonte sintética", commercial: false },
+      ? {
+          status: "antiga",
+          reason: "Origem sintética: base antiga da unidade.",
+          source: "Fonte sintética",
+          commercial: false,
+        }
+      : {
+          status: "nova",
+          reason: "Origem sintética: base nova.",
+          source: "Fonte sintética",
+          commercial: false,
+        },
   };
   if (retroativa) {
     c.band = "R$ 4,8 milhões até R$ 10 milhões";
@@ -219,14 +256,67 @@ export function baseSintetica(hoje: string): BaseMonetizacao {
     );
   }
   // Casos fixos, para a tela sempre ter o que mostrar no mês corrente, qualquer que seja o dia.
-  const fixo = (id: number, idx: number, route: Produto, passos: Partial<Record<Metrica, string>>, status: "open" | "won", valor: number | null) =>
+  const fixo = (
+    id: number,
+    idx: number,
+    route: Produto,
+    passos: Partial<Record<Metrica, string>>,
+    status: "open" | "won",
+    valor: number | null,
+  ) =>
     cards.push(
-      negocio(id, hoje, { orgId: 5000 + idx, org: accounts[idx - 1].name, route, criado: somaDias(hoje, -40), passos, status, valor }),
+      negocio(id, hoje, {
+        orgId: 5000 + idx,
+        org: accounts[idx - 1].name,
+        route,
+        criado: somaDias(hoje, -40),
+        passos,
+        status,
+        valor,
+      }),
     );
-  fixo(901, 10, "consultoria", { started: somaDias(hoje, -30), meeting: somaDias(hoje, -20), validated: somaDias(hoje, -15), signed: hoje }, "won", 96_000);
-  fixo(902, 22, "finance", { started: somaDias(hoje, -25), meeting: somaDias(hoje, -12), validated: somaDias(hoje, -8), signed: hoje }, "won", 60_000);
-  fixo(903, 15, "cella", { started: somaDias(hoje, -9), meeting: somaDias(hoje, -4), validated: hoje }, "open", null);
-  fixo(904, 31, "finance", { started: somaDias(hoje, -7), meeting: somaDias(hoje, -2), validated: hoje }, "open", 84_000);
+  fixo(
+    901,
+    10,
+    "consultoria",
+    {
+      started: somaDias(hoje, -30),
+      meeting: somaDias(hoje, -20),
+      validated: somaDias(hoje, -15),
+      signed: hoje,
+    },
+    "won",
+    96_000,
+  );
+  fixo(
+    902,
+    22,
+    "finance",
+    {
+      started: somaDias(hoje, -25),
+      meeting: somaDias(hoje, -12),
+      validated: somaDias(hoje, -8),
+      signed: hoje,
+    },
+    "won",
+    60_000,
+  );
+  fixo(
+    903,
+    15,
+    "cella",
+    { started: somaDias(hoje, -9), meeting: somaDias(hoje, -4), validated: hoje },
+    "open",
+    null,
+  );
+  fixo(
+    904,
+    31,
+    "finance",
+    { started: somaDias(hoje, -7), meeting: somaDias(hoje, -2), validated: hoje },
+    "open",
+    84_000,
+  );
   fixo(905, 40, "consultoria", { started: hoje }, "open", null);
 
   const mes = hoje.slice(0, 7);

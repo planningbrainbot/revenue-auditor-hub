@@ -9,10 +9,7 @@
 import type { Frente, IdIndicador } from "./contrato.ts";
 
 export type Cobertura =
-  | "verificada"
-  | "implementada_nao_homologada"
-  | "depende_dado"
-  | "depende_decisao";
+  "verificada" | "implementada_nao_homologada" | "depende_dado" | "depende_decisao";
 
 export const COBERTURAS: Record<Cobertura, string> = {
   verificada: "Respondida com dado conferido",
@@ -59,7 +56,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Faturamento de 12 meses conciliado do perímetro aprovado (ainda inexistente).",
     responsavel: "CEO + CFO",
     cobertura: "depende_decisao",
-    aceite: "Perímetro, ano-alvo e faturamento atual definidos; ponte de crescimento reconcilia com o Financeiro.",
+    aceite:
+      "Perímetro, ano-alvo e faturamento atual definidos; ponte de crescimento reconcilia com o Financeiro.",
     pendencia: "Definir perímetro e ano-alvo da meta; homologar a fonte de faturamento.",
     indicadores: ["meta-bilhao"],
     roadmap: ["F11", "F02"],
@@ -71,7 +69,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Brain Financeiro e Omie, sem conciliação por perímetro.",
     responsavel: "Controladoria / CFO",
     cobertura: "depende_dado",
-    aceite: "Faturado e recebido do recorte fecham com a fonte financeira, com transferências internas eliminadas.",
+    aceite:
+      "Faturado e recebido do recorte fecham com a fonte financeira, com transferências internas eliminadas.",
     pendencia: "Conciliar contrato → faturamento → recebimento por entidade (F02).",
     indicadores: [],
     roadmap: ["F02", "F07"],
@@ -83,7 +82,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Contrato → item de produto → faturamento → recebimento (F02).",
     responsavel: "Financeiro + Departamento de Receitas",
     cobertura: "depende_dado",
-    aceite: "Receita do recorte piloto classificada por produto e cliente; sem produto fica em 'não classificado'.",
+    aceite:
+      "Receita do recorte piloto classificada por produto e cliente; sem produto fica em 'não classificado'.",
     pendencia: "Vínculo produto ↔ contrato ↔ entidade faturadora.",
     indicadores: [],
     roadmap: ["F02", "F01", "F07"],
@@ -96,8 +96,10 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Receita prevista declarada no CRM em oportunidades validadas abertas (Monetização).",
     responsavel: "Departamento de Receitas",
     cobertura: "implementada_nao_homologada",
-    aceite: "Soma confere com os negócios do recorte; faltantes e moedas divergentes aparecem à parte.",
-    pendencia: "Homologar com a carga real; ligar ao faturamento realizado (F02) antes de projetar contribuição à meta.",
+    aceite:
+      "Soma confere com os negócios do recorte; faltantes e moedas divergentes aparecem à parte.",
+    pendencia:
+      "Homologar com a carga real; ligar ao faturamento realizado (F02) antes de projetar contribuição à meta.",
     indicadores: ["receita-prevista-aberta"],
     roadmap: ["F11"],
   },
@@ -118,10 +120,12 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     id: "C1",
     frente: "clientes",
     texto: "Quantos clientes temos de verdade?",
-    fonte: "Nenhuma flag da base responde sozinha; procedência declara a porta de entrada, não o veredito.",
+    fonte:
+      "Nenhuma flag da base responde sozinha; procedência declara a porta de entrada, não o veredito.",
     responsavel: "CEO + Departamento de Receitas",
     cobertura: "depende_decisao",
-    aceite: "Definição de cliente ativo por contexto aprovada e aplicada com denominador explícito.",
+    aceite:
+      "Definição de cliente ativo por contexto aprovada e aplicada com denominador explícito.",
     pendencia: "Decidir o que é cliente ativo (contrato vigente, faturamento, ECD) por contexto.",
     indicadores: [],
     roadmap: ["F01"],
@@ -133,7 +137,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Base de clientes: regra de elegibilidade de cada produto e disponibilidade no CRM.",
     responsavel: "Departamento de Receitas",
     cobertura: "implementada_nao_homologada",
-    aceite: "Contas únicas batem com a Base de clientes no mesmo recorte; sobreposição não duplica conta.",
+    aceite:
+      "Contas únicas batem com a Base de clientes no mesmo recorte; sobreposição não duplica conta.",
     pendencia: "Homologar com a carga real da Base de clientes.",
     indicadores: ["contas-prontas"],
     roadmap: ["F03"],
@@ -145,7 +150,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Matriz cliente × vertical com ativação (ainda inexistente).",
     responsavel: "Donos das verticais + Departamento de Receitas",
     cobertura: "depende_decisao",
-    aceite: "Dois denominadores explícitos: clientes ativos e elegíveis à vertical; ganho no CRM não conta como consumo.",
+    aceite:
+      "Dois denominadores explícitos: clientes ativos e elegíveis à vertical; ganho no CRM não conta como consumo.",
     pendencia: "Definição de cliente ativo e sinal de ativação na entrega.",
     indicadores: [],
     roadmap: ["F03"],
@@ -158,7 +164,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Monetização: eventos de ganho no CRM e plano mensal cadastrado.",
     responsavel: "Comercial + Departamento de Receitas",
     cobertura: "implementada_nao_homologada",
-    aceite: "Contagem igual à da Operação no mesmo período e responsável; ganho no CRM não é recebimento.",
+    aceite:
+      "Contagem igual à da Operação no mesmo período e responsável; ganho no CRM não é recebimento.",
     pendencia: "Homologar com a carga real; a Operação abre com filtro próprio.",
     indicadores: ["contratos-ganhos"],
     roadmap: ["F05", "F11"],
@@ -182,7 +189,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Monetização por produto; unidade só via conta vinculada ao negócio.",
     responsavel: "Comercial + Departamento de Receitas",
     cobertura: "implementada_nao_homologada",
-    aceite: "Composição por produto soma o total; negócio sem conta vinculada aparece à parte no recorte por unidade.",
+    aceite:
+      "Composição por produto soma o total; negócio sem conta vinculada aparece à parte no recorte por unidade.",
     pendencia: "Unidade do negócio no CRM ainda não é campo confiável; hoje vem da conta.",
     indicadores: ["oportunidades-validadas", "contratos-ganhos"],
     roadmap: ["F05"],
@@ -194,7 +202,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Trilha lead → roteamento → aceite → contrato por unidade (ainda inexistente).",
     responsavel: "Comercial / Expansão",
     cobertura: "depende_dado",
-    aceite: "Mudança de dono atual não reescreve o autor do evento; agregado confere com eventos únicos.",
+    aceite:
+      "Mudança de dono atual não reescreve o autor do evento; agregado confere com eventos únicos.",
     pendencia: "Registrar roteamento e unidade de destino no evento.",
     indicadores: [],
     roadmap: ["F05"],
@@ -233,7 +242,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Apuração de royalties existe; reconciliação por perímetro não comprovada.",
     responsavel: "Controladoria",
     cobertura: "depende_dado",
-    aceite: "Repasse por unidade fecha com a apuração confirmada; mês em rascunho não conta como realizado.",
+    aceite:
+      "Repasse por unidade fecha com a apuração confirmada; mês em rascunho não conta como realizado.",
     pendencia: "Definir o perímetro de receita da rede e conciliar com o Financeiro.",
     indicadores: [],
     roadmap: ["F07", "F02"],
@@ -270,7 +280,8 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     fonte: "Cadastro de alvos e cenários, separados do realizado.",
     responsavel: "CEO + CFO",
     cobertura: "depende_decisao",
-    aceite: "Cenário distingue preço indicativo, negociação e compromisso; sinergia não vira receita realizada.",
+    aceite:
+      "Cenário distingue preço indicativo, negociação e compromisso; sinergia não vira receita realizada.",
     pendencia: "Mandato de aquisição e acesso restrito ao módulo.",
     indicadores: [],
     roadmap: ["F10", "F11"],

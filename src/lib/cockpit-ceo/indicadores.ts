@@ -150,7 +150,8 @@ function estadoBase(f: FonteCockpit): EstadoFonte {
     return {
       estado: "fonte_indisponivel",
       dataDado: null,
-      nota: m.estado === "carregando" ? "Carga em andamento." : (m.erro ?? "A carga da Base falhou."),
+      nota:
+        m.estado === "carregando" ? "Carga em andamento." : (m.erro ?? "A carga da Base falhou."),
     };
   if (!f.acessoBase)
     return {
@@ -159,7 +160,11 @@ function estadoBase(f: FonteCockpit): EstadoFonte {
       nota: "Seu acesso não inclui a Base de clientes. Sem permissão não é o mesmo que nenhuma conta.",
     };
   if (!m.dados.catalog_at)
-    return { estado: "fonte_indisponivel", dataDado: null, nota: "Catálogo da base sem carga concluída." };
+    return {
+      estado: "fonte_indisponivel",
+      dataDado: null,
+      nota: "Catálogo da base sem carga concluída.",
+    };
   return { estado: "disponivel", dataDado: m.dados.catalog_at, nota: null };
 }
 
@@ -170,7 +175,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   if (fonte.sintetico)
     avisos.push("Dados sintéticos do piloto: nenhum número desta tela descreve o negócio real.");
   const dados = fonte.monetizacao.estado === "ok" ? fonte.monetizacao.dados : null;
-  if (fonte.monetizacao.estado === "erro" && fonte.monetizacao.erro) avisos.push(fonte.monetizacao.erro);
+  if (fonte.monetizacao.estado === "erro" && fonte.monetizacao.erro)
+    avisos.push(fonte.monetizacao.erro);
 
   // ── Perímetro ──────────────────────────────────────────────────────────
   const unidades = dados?.units ?? [];
@@ -188,7 +194,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const orgsDaBase = new Set((dados?.accounts ?? []).flatMap((a) => a.orgs));
   const orgsDoPerimetro = new Set(contas.flatMap((a) => a.orgs));
   const todos = dados?.cards ?? [];
-  const negocios = unidade ? todos.filter((c) => c.org_id !== null && orgsDoPerimetro.has(c.org_id)) : todos;
+  const negocios = unidade
+    ? todos.filter((c) => c.org_id !== null && orgsDoPerimetro.has(c.org_id))
+    : todos;
   const semConta = todos.filter((c) => c.org_id === null || !orgsDaBase.has(c.org_id));
 
   const p = recorte.periodo;
@@ -238,7 +246,12 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     };
   }
 
-  function comparacaoPlano(rotulo: string, valorDoPlano: (pl: Plano) => number, unidadeDoPlano: string): Comparacao[] {
+  function comparacaoPlano(
+    rotulo: string,
+    valorDoPlano: (pl: Plano) => number,
+    unidadeDoPlano: string,
+    ritmo: { rotulo: string; nota: string },
+  ): Comparacao[] {
     if (unidade)
       return [
         {
@@ -276,15 +289,17 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       },
     ];
     if (!mes.completo) {
-      const fimDoMes = new Date(Date.UTC(Number(mes.mes.slice(0, 4)), Number(mes.mes.slice(5, 7)), 0))
+      const fimDoMes = new Date(
+        Date.UTC(Number(mes.mes.slice(0, 4)), Number(mes.mes.slice(5, 7)), 0),
+      )
         .toISOString()
         .slice(0, 10);
       const esperado = (total * uteis(p.de, p.ate)) / Math.max(1, uteis(p.de, fimDoMes));
       saida.push({
-        rotulo: "Ritmo esperado até a data",
+        rotulo: ritmo.rotulo,
         referencia: Math.round(esperado * 10) / 10,
         estado: "disponivel",
-        nota: "Meta do mês proporcional aos dias úteis decorridos. É conta sobre a meta, não previsão.",
+        nota: ritmo.nota,
       });
     }
     return saida;
@@ -351,7 +366,10 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     "Contratos ganhos no CRM",
     "Negócios do pipe de Monetização marcados como ganhos no período (data do ganho no fuso de São Paulo). Ganho no CRM não é contrato assinado nem receita recebida.",
     "E1",
-    comparacaoPlano("Meta do mês", (pl) => pl.target_contracts, "Meta de contratos."),
+    comparacaoPlano("Meta do mês", (pl) => pl.target_contracts, "Meta de contratos.", {
+      rotulo: "Ritmo esperado da meta",
+      nota: "Meta do mês proporcional aos dias úteis decorridos. É conta sobre a meta, não previsão.",
+    }),
   );
   const validadas = indicadorDeEvento(
     "oportunidades-validadas",
@@ -367,7 +385,10 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     "Leads trabalhados",
     "Negócios com primeiro trabalho registrado no período, atribuído ao ator do evento.",
     "E2",
-    comparacaoPlano("Capacidade do mês", (pl) => pl.capacity, "Capacidade de leads."),
+    comparacaoPlano("Capacidade do mês", (pl) => pl.capacity, "Capacidade de leads.", {
+      rotulo: "Ritmo esperado da capacidade",
+      nota: "Capacidade do mês proporcional aos dias úteis decorridos. É conta sobre o plano, não previsão.",
+    }),
   );
 
   // ── Receita prevista declarada no CRM ─────────────────────────────────
@@ -394,7 +415,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
                   rotulo: `${NOMES[prod]} · declarado`,
                   valor: r.total,
                   soma: true,
-                  observacao: r.missing ? `${plural(r.missing, "negócio", "negócios")} sem valor` : undefined,
+                  observacao: r.missing
+                    ? `${plural(r.missing, "negócio", "negócios")} sem valor`
+                    : undefined,
                 }
               : {
                   chave: "produto:" + prod,
@@ -406,8 +429,18 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
         }),
         { chave: "partners", rotulo: "Parcela Partners declarada", valor: soma.partners },
         { chave: "unidade", rotulo: "Parcela da unidade declarada", valor: soma.unit },
-        { chave: "conhecidos", rotulo: "Negócios com valor declarado", valor: soma.known },
-        { chave: "faltante", rotulo: "Negócios sem valor ou com moeda divergente", valor: soma.missing },
+        {
+          chave: "conhecidos",
+          rotulo: "Negócios com valor declarado",
+          valor: soma.known,
+          unidade: "negócios",
+        },
+        {
+          chave: "faltante",
+          rotulo: "Negócios sem valor ou com moeda divergente",
+          valor: soma.missing,
+          unidade: "negócios",
+        },
       ]
     : [];
   const receita: Indicador = {
@@ -455,10 +488,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const estados = baseComNumero
     ? contas.map((a) => ({
         a,
-        e: Object.fromEntries(PRODUTOS.map((prod) => [prod, estadoProduto(a, prod, dados!)])) as Record<
-          Produto,
-          ReturnType<typeof estadoProduto>
-        >,
+        e: Object.fromEntries(
+          PRODUTOS.map((prod) => [prod, estadoProduto(a, prod, dados!)]),
+        ) as Record<Produto, ReturnType<typeof estadoProduto>>,
       }))
     : [];
   const prontasPor = (prod: Produto) => estados.filter((x) => x.e[prod].situacao === "free").length;
@@ -467,7 +499,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const unicas = estados.filter((x) => qtdProntas(x) > 0).length;
   const sobrepostas = estados.filter((x) => qtdProntas(x) > 1).length;
   // `so_omie` já é a situação de quem a régua aprova e só entrou pelo ERP (soNoOmie).
-  const soOmie = estados.filter((x) => PRODUTOS.some((prod) => x.e[prod].situacao === "so_omie")).length;
+  const soOmie = estados.filter((x) =>
+    PRODUTOS.some((prod) => x.e[prod].situacao === "so_omie"),
+  ).length;
   const ocupadas = estados.filter(
     (x) => qtdProntas(x) === 0 && PRODUTOS.some((prod) => x.e[prod].situacao === "occupied"),
   ).length;
@@ -494,8 +528,18 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
             rotulo: `${NOMES[prod]} · prontas`,
             valor: prontasPor(prod),
           })),
-          { chave: "um_produto", rotulo: "Contas prontas em um produto", valor: unicas - sobrepostas, soma: true },
-          { chave: "varios_produtos", rotulo: "Contas prontas em dois ou mais produtos", valor: sobrepostas, soma: true },
+          {
+            chave: "um_produto",
+            rotulo: "Contas prontas em um produto",
+            valor: unicas - sobrepostas,
+            soma: true,
+          },
+          {
+            chave: "varios_produtos",
+            rotulo: "Contas prontas em dois ou mais produtos",
+            valor: sobrepostas,
+            soma: true,
+          },
           { chave: "sobreposicao", rotulo: "Sobreposição (contam uma vez)", valor: sobrepostas },
           {
             chave: "so_omie",
@@ -503,7 +547,11 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
             valor: soOmie,
             observacao: "O ERP da unidade também cadastra fornecedores.",
           },
-          { chave: "ocupadas", rotulo: "Aptas já em trabalho ou reservadas (fora da conta)", valor: ocupadas },
+          {
+            chave: "ocupadas",
+            rotulo: "Aptas já em trabalho ou reservadas (fora da conta)",
+            valor: ocupadas,
+          },
         ]
       : [],
     notaComposicao: [
@@ -523,7 +571,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       rotulo: "Abrir Base de clientes",
       mesmoRecorte: false,
       observacao:
-        "A Base recebe a unidade; o produto e a situação \"Prontas para enviar\" se escolhem lá, com a mesma régua.",
+        'A Base recebe a unidade; o produto e a situação "Prontas para enviar" se escolhem lá, com a mesma régua.',
     },
     lacuna:
       base.estado === "acesso_insuficiente"
@@ -568,7 +616,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       externo: true,
       rotulo: "Abrir Brain Financeiro",
       mesmoRecorte: false,
-      observacao: "O Financeiro mostra DRE e caixa por empresa do grupo; não é o faturamento do perímetro da meta.",
+      observacao:
+        "O Financeiro mostra DRE e caixa por empresa do grupo; não é o faturamento do perímetro da meta.",
     },
     lacuna: {
       oQueFalta: "Perímetro, ano-alvo e faturamento de 12 meses conciliado.",
@@ -604,7 +653,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       gravidade: "alta",
       indicador: "contratos-ganhos",
     });
-  const ritmo = contratos.comparacoes.find((c) => c.rotulo === "Ritmo esperado até a data");
+  const ritmo = contratos.comparacoes.find((c) => c.rotulo === "Ritmo esperado da meta");
   if (ritmo?.referencia != null && contratos.valor != null && contratos.valor < ritmo.referencia)
     ameacas.push({
       id: "ritmo-contratos",
@@ -621,7 +670,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     ameacas.push({
       id: "plano-sem-alocacao",
       titulo: "Plano do mês sem alocação por produto",
-      detalhe: "A capacidade está cadastrada, mas nenhum lead foi alocado a Cella, Consultoria ou Finance: não há previsão por produto.",
+      detalhe:
+        "A capacidade está cadastrada, mas nenhum lead foi alocado a Cella, Consultoria ou Finance: não há previsão por produto.",
       gravidade: "media",
       indicador: "leads-trabalhados",
     });
@@ -656,7 +706,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     {
       id: "perimetro-meta",
       titulo: "Definir perímetro e ano-alvo da meta de R$ 1 bi",
-      porque: "Sem eles não existe gap para a meta, e o cockpit não pode dizer se estamos no plano.",
+      porque:
+        "Sem eles não existe gap para a meta, e o cockpit não pode dizer se estamos no plano.",
       responsavel: "CEO + CFO",
       destino: null,
     },
@@ -701,13 +752,14 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
             search: { view: "monetizacao" },
             rotulo: "Abrir Base de clientes",
             mesmoRecorte: false,
-            observacao: "Na Base, filtre a situação \"só no cadastro do Omie\" em cada produto.",
+            observacao: 'Na Base, filtre a situação "só no cadastro do Omie" em cada produto.',
           },
         }
       : {
           id: "cliente-ativo",
           titulo: "Definir o que é cliente ativo",
-          porque: "Sem essa definição, \"quantos clientes temos\" não tem resposta, e penetração por vertical não tem denominador.",
+          porque:
+            'Sem essa definição, "quantos clientes temos" não tem resposta, e penetração por vertical não tem denominador.',
           responsavel: "CEO + Departamento de Receitas",
           destino: null,
         },
@@ -715,7 +767,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
 
   // ── Universo medido ────────────────────────────────────────────────────
   const partes = [perimetroRotulo, p.rotulo];
-  if (dados && baseComNumero) partes.push(`${plural(contas.length, "conta conciliada", "contas conciliadas")}`);
+  if (dados && baseComNumero)
+    partes.push(`${plural(contas.length, "conta conciliada", "contas conciliadas")}`);
   if (op) partes.push(`${plural(negocios.length, "negócio", "negócios")} do pipe de Monetização`);
   partes.push("Financeiro fora deste recorte");
 

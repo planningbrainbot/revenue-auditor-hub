@@ -38,11 +38,7 @@ export const FRENTES: Record<Frente, { titulo: string; pergunta: string }> = {
 export const ORDEM_FRENTES = Object.keys(FRENTES) as Frente[];
 
 export type Estado =
-  | "disponivel"
-  | "parcial"
-  | "nao_apurado"
-  | "fonte_indisponivel"
-  | "acesso_insuficiente";
+  "disponivel" | "parcial" | "nao_apurado" | "fonte_indisponivel" | "acesso_insuficiente";
 
 export const ESTADOS: Record<Estado, string> = {
   disponivel: "Disponível",
@@ -71,6 +67,8 @@ export interface LinhaComposicao {
   valor: number | null;
   /** A linha entra na soma que reconstrói o número principal. */
   soma?: boolean;
+  /** Quando a linha conta outra coisa que o indicador (ex.: negócios dentro de uma soma em reais). */
+  unidade?: UnidadeContagem;
   observacao?: string;
 }
 
@@ -125,14 +123,15 @@ export interface Indicador {
   sintetico: boolean;
 }
 
-const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+// Contagens são inteiras; o decimal só aparece em referência calculada (ritmo esperado da meta).
+const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 /** Nunca devolve "0" para ausência: `null` é "—", e o estado explica o porquê. */
 export function formatarNumero(valor: number | null, unidade: UnidadeContagem): string {
   if (valor === null || !Number.isFinite(valor)) return "—";
-  if (unidade === "reais") return reais.format(valor).replace(/ /g, " ");
+  if (unidade === "reais") return reais.format(valor).replace(/\u00a0/g, " ");
   if (unidade === "percentual") return `${decimal.format(valor)}%`;
   return inteiro.format(valor);
 }
