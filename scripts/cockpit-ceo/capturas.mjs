@@ -214,6 +214,30 @@ await avaliar("document.getElementById('frentes').scrollIntoView()");
 await espera(600);
 await foto("04-frente-comercial-grafico-diario");
 
+// Trajetória para R$ 1 bi: leituras candidatas lado a lado, sem soma, com mês parcial fora.
+await abrir("/piloto/cockpit-ceo?frente=receita");
+const traj = await avaliar(`(() => {
+  const s = document.querySelector('[aria-label="Trajetória para a meta"]');
+  return {
+    existe: !!s,
+    texto: s?.innerText || "",
+    cartoes: s ? s.querySelectorAll("article").length : 0,
+    graficos: s ? s.querySelectorAll("svg.recharts-surface").length : 0,
+  };
+})()`);
+conferir(
+  "Frente Receita mostra as duas leituras candidatas com série",
+  traj.existe && traj.cartoes === 2 && traj.graficos === 2,
+  JSON.stringify({ cartoes: traj.cartoes, graficos: traj.graficos }),
+);
+conferir(
+  "Trajetória diz que as leituras não se somam, usa 2030 e se identifica como sintética",
+  /não se somam/.test(traj.texto) && /2030/.test(traj.texto) && /SINTÉTICO/.test(traj.texto),
+);
+await avaliar(`document.querySelector('[aria-label="Trajetória para a meta"]').scrollIntoView()`);
+await espera(600);
+await foto("07-trajetoria-bilhao-candidatas");
+
 // Composição de um indicador não apurado: diz o que falta e quem responde.
 await abrir("/piloto/cockpit-ceo?indicador=meta-bilhao");
 const meta = await avaliar(`document.querySelector('[role=dialog]')?.innerText || ''`);
@@ -266,6 +290,10 @@ writeFileSync(
 for (const r of relatorio)
   console.log(`${r.ok ? "ok  " : "FALHA"} ${r.nome}${r.ok ? "" : " — " + r.detalhe}`);
 ws.close();
-chrome.kill();
-rmSync(perfil, { recursive: true, force: true });
+// O Chrome ainda grava no perfil depois do kill: espera a saída e tenta a limpeza de novo.
+await new Promise((r) => {
+  chrome.once("exit", r);
+  chrome.kill();
+});
+rmSync(perfil, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 process.exit(relatorio.every((r) => r.ok) ? 0 : 1);

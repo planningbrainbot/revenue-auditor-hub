@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
 import { LoadingState, Panel } from "@/components/monetizacao/common";
 import { useMonetizacao } from "@/hooks/use-monetizacao";
 import { usePermissions } from "@/hooks/use-permissions";
-import { fonteDoBrain, fonteSemAcesso } from "@/lib/cockpit-ceo/adaptador-brain";
+import { fonteDoBrain, fonteSemAcesso, receitaDaCarga } from "@/lib/cockpit-ceo/adaptador-brain";
 import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
+import { carregarReceitaCockpit } from "@/lib/cockpit-ceo/receita.functions";
 import type { FonteCockpit } from "@/lib/cockpit-ceo/indicadores";
 import { buscaDaUrl, resolverPeriodo, validarBusca } from "@/lib/cockpit-ceo/periodo";
 import type { BuscaUrl } from "@/lib/cockpit-ceo/periodo";
@@ -18,6 +21,8 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 // tem a área não dispara consulta nenhuma. Os dados vêm da mesma carga de Base e Monetização, com
 // as permissões e a RLS que já valem lá: o cockpit não abre dado novo para ninguém. Quem tem a área
 // mas nenhuma chave de Base ou Monetização vê "acesso insuficiente", sem disparar a carga.
+// As leituras de faturamento (trajetória para R$ 1 bi) têm carga própria: o servidor confere a
+// porta de cada uma (Financeiro; todas as unidades) e devolve "acesso insuficiente" por leitura.
 export const Route = createFileRoute("/_authenticated/cockpit-ceo")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => buscaDaUrl(s),
   component: Pagina,
@@ -45,6 +50,18 @@ function Pagina() {
   return acesso.acessoBase || acesso.acessoNegocios ? <ComCarga acesso={acesso} /> : <SemCarga />;
 }
 
+/** Leituras de faturamento, uma vez por sessão de tela; sem retry automático. */
+function useReceita() {
+  const fn = useServerFn(carregarReceitaCockpit);
+  const q = useQuery({
+    queryKey: ["cockpit-ceo", "receita"],
+    queryFn: () => fn(),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  return useMemo(() => receitaDaCarga(q), [q.data, q.error, q.isLoading]);
+}
+
 /** Relógio por minuto: uma aba aberta precisa perceber quando a carga passa a estar parada. */
 function useAgora() {
   const [agora, setAgora] = useState(() => new Date().toISOString());
@@ -57,12 +74,13 @@ function useAgora() {
 
 function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
   const q = useMonetizacao();
+  const receita = useReceita();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => fonteDoBrain(q, acesso, hoje, agora),
+    () => ({ ...fonteDoBrain(q, acesso, hoje, agora), receita }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q.data, q.error, q.isLoading, acesso.acessoBase, acesso.acessoNegocios, hoje, agora],
+    [q.data, q.error, q.isLoading, acesso.acessoBase, acesso.acessoNegocios, hoje, agora, receita],
   );
   if (fonte.monetizacao.estado === "carregando")
     return <LoadingState retry={() => void q.refetch()} />;
@@ -70,9 +88,13 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
 }
 
 function SemCarga() {
+  const receita = useReceita();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
-  const fonte = useMemo(() => fonteSemAcesso(hoje, agora), [hoje, agora]);
+  const fonte = useMemo(
+    () => ({ ...fonteSemAcesso(hoje, agora), receita }),
+    [hoje, agora, receita],
+  );
   return <Tela fonte={fonte} hoje={hoje} />;
 }
 

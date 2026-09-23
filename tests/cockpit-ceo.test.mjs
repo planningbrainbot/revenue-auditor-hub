@@ -772,3 +772,123 @@ test("Sem histórico antes do período comparável, a comparação não vira zer
   assert.match(semHistorico.nota, /eventos a partir de/);
   assert.ok(!c2.ameacas.some((a) => a.id === "validadas-em-queda"));
 });
+
+test("Meta de R$ 1 bi mostra as leituras candidatas sem escolher perímetro nem calcular gap", () => {
+  const destino = {
+    rota: "/financeiro",
+    search: {},
+    rotulo: "x",
+    mesmoRecorte: false,
+    observacao: "",
+  };
+  const linhas = (valor, desde, n) =>
+    Array.from({ length: n }, (_, i) => ({
+      mes: new Date(Date.UTC(Number(desde.slice(0, 4)), Number(desde.slice(5, 7)) - 1 + i, 1))
+        .toISOString()
+        .slice(0, 7),
+      chave: "X",
+      valor,
+    }));
+  const receita = {
+    estado: "ok",
+    erro: null,
+    leituras: [
+      {
+        id: "grupo",
+        titulo: "Empresas do grupo",
+        definicao: "d",
+        fonte: "f",
+        estado: "disponivel",
+        nota: null,
+        linhas: linhas(10_000_000, "2026-01", 8),
+        cobertura: [],
+        destino,
+      },
+      {
+        id: "rede",
+        titulo: "Faturamento da rede",
+        definicao: "d",
+        fonte: "f",
+        estado: "disponivel",
+        nota: null,
+        linhas: linhas(1_500_000, "2025-01", 20),
+        cobertura: [],
+        destino,
+      },
+    ],
+  };
+  const c = montarCockpit(fonteOk(dados(), { receita }), recorte());
+  const meta = ind(c, "meta-bilhao");
+  assert.equal(meta.estado, "nao_apurado");
+  assert.equal(meta.valor, null);
+  assert.ok(meta.composicao.some((l) => l.chave === "leitura:grupo" && l.valor === 10_000_000));
+  assert.ok(meta.composicao.some((l) => l.chave === "leitura:rede" && l.valor === 1_500_000));
+  assert.ok(!meta.composicao.some((l) => l.soma), "leituras não se somam");
+  const necessaria = meta.comparacoes.find((x) => /necessária em 2030/.test(x.rotulo));
+  assert.equal(Math.round(necessaria.referencia), 83_333_333);
+  assert.match(meta.notaComposicao, /não se somam/);
+  assert.equal(c.trajetoria.length, 2);
+  assert.equal(montarCockpit(fonteOk(), recorte()).trajetoria, null);
+});
+
+test("Sem acesso ao Financeiro, a leitura do grupo fica em acesso insuficiente e sem número", () => {
+  const destino = {
+    rota: "/financeiro",
+    search: {},
+    rotulo: "x",
+    mesmoRecorte: false,
+    observacao: "",
+  };
+  const receita = {
+    estado: "ok",
+    erro: null,
+    leituras: [
+      {
+        id: "grupo",
+        titulo: "Empresas do grupo",
+        definicao: "d",
+        fonte: "f",
+        estado: "acesso_insuficiente",
+        nota: "Sua conta não tem acesso ao Brain Financeiro.",
+        linhas: [],
+        cobertura: [],
+        destino,
+      },
+    ],
+  };
+  const c = montarCockpit(fonteOk(dados(), { receita }), recorte());
+  const [g] = c.trajetoria;
+  assert.equal(g.estado, "acesso_insuficiente");
+  assert.equal(g.fechados, null);
+  assert.equal(g.multiploNecessario, null);
+  const linha = ind(c, "meta-bilhao").composicao.find((l) => l.chave === "leitura:grupo");
+  assert.equal(linha.valor, null, "nunca R$ 0");
+  assert.match(linha.observacao, /não tem acesso/);
+});
+
+test("Preview sintético traz as duas leituras candidatas, identificadas e com mês parcial da rede", () => {
+  const f = fonteSintetica("2026-09-22", "2026-09-22T12:00:00.000Z");
+  assert.equal(f.receita.estado, "ok");
+  assert.deepEqual(
+    f.receita.leituras.map((l) => l.id),
+    ["grupo", "rede"],
+  );
+  assert.ok(f.receita.leituras.every((l) => l.fonte.startsWith("SINTÉTICO")));
+  const rede = f.receita.leituras[1];
+  assert.equal(rede.parciaisFonte.length, 1);
+  assert.match(rede.notasPorMes[rede.parciaisFonte[0]], /Unidade Exemplo Leste/);
+  const c = montarCockpit(f, recorte());
+  assert.ok(c.trajetoria.every((t) => t.fechados && t.fechados.meses > 0));
+});
+
+test("Carga das leituras de faturamento: erro não vira leitura vazia 'ok'", async () => {
+  const { receitaDaCarga } = await import("../src/lib/cockpit-ceo/adaptador-brain.ts");
+  assert.equal(receitaDaCarga({ isLoading: true }).estado, "carregando");
+  const e = receitaDaCarga({ isLoading: false, error: new Error("") });
+  assert.equal(e.estado, "erro");
+  assert.match(e.erro, /faturamento/);
+  assert.equal(receitaDaCarga({ isLoading: false, data: { leituras: [] } }).estado, "ok");
+  const c = montarCockpit(fonteOk(dados(), { receita: e }), recorte());
+  assert.equal(c.trajetoria, null);
+  assert.match(c.trajetoriaAviso, /faturamento/);
+});

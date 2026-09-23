@@ -20,6 +20,8 @@ import type {
   LinhaComposicao,
 } from "./contrato.ts";
 import { PERGUNTAS } from "./perguntas.ts";
+import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, META_ANUAL, mesBr, resumirLeitura } from "./receita.ts";
+import type { LeituraReceita, ResumoLeitura } from "./receita.ts";
 import { dataBr, mesDoPeriodo, periodoAnterior } from "./periodo.ts";
 import type { Periodo } from "./periodo.ts";
 
@@ -42,6 +44,12 @@ export interface FonteCockpit {
     estado: "ok" | "erro" | "carregando" | "sem_acesso";
     erro: string | null;
     dados: BaseMonetizacao | null;
+  };
+  /** Leituras candidatas de faturamento para a meta (grupo, rede). Ausente = não carregada. */
+  receita?: {
+    estado: "ok" | "erro" | "carregando" | "sem_acesso";
+    erro: string | null;
+    leituras: LeituraReceita[];
   };
 }
 
@@ -96,6 +104,9 @@ export interface Cockpit {
   ameacas: Ameaca[];
   porProduto: LinhaProduto[];
   serieDiaria: PontoDiario[] | null;
+  /** Trajetória para R$ 1 bi em 2030 por leitura candidata; null quando a fonte não foi carregada. */
+  trajetoria: ResumoLeitura[] | null;
+  trajetoriaAviso: string | null;
   avisos: string[];
 }
 
@@ -662,32 +673,67 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   };
 
   // ── Meta de R$ 1 bi ───────────────────────────────────────────────────
+  const r = fonte.receita;
+  const trajetoria =
+    r && r.estado === "ok" ? r.leituras.map((l) => resumirLeitura(l, fonte.hoje)) : null;
+  const trajetoriaAviso = !r
+    ? null
+    : r.estado === "carregando"
+      ? "Leituras de faturamento em carga."
+      : r.estado === "sem_acesso"
+        ? "Seu acesso não alcança nenhuma leitura de faturamento (Faturamento do Financeiro ou apuração de royalties)."
+        : r.estado === "erro"
+          ? (r.erro ?? "A carga das leituras de faturamento falhou.")
+          : null;
   const meta: Indicador = {
     ...comum,
     id: "meta-bilhao",
     frente: "receita",
     pergunta: pergunta("R1"),
     titulo: "Faturamento anual × meta de R$ 1 bi",
-    definicao:
-      "Faturamento anual a terceiros das entidades do perímetro aprovado, comparado à meta de R$ 1 bilhão por ano. Não é valuation, volume transacionado, faturamento da rede nem receita Partners.",
+    definicao: `Faturamento anual a terceiros do perímetro que o CEO aprovar, comparado à meta de R$ 1 bilhão no ano de ${ANO_ALVO}. Não é valuation, volume transacionado nem receita Partners isolada.`,
     unidade: "reais",
     periodo: null,
-    perimetro: "Perímetro da meta ainda não definido",
-    fonte: "Nenhuma fonte homologada de faturamento consolidado",
+    perimetro: "Perímetro a decidir entre as leituras candidatas",
+    fonte: trajetoria
+      ? "Leituras candidatas: Faturamento do Brain Financeiro (empresas do grupo) e apuração de royalties (rede)"
+      : "Leituras candidatas não carregadas",
     dataDado: null,
     estado: "nao_apurado",
     valor: null,
     comparacoes: [
       {
-        rotulo: "Meta anual",
-        referencia: 1_000_000_000,
+        rotulo: `Meta anual (${ANO_ALVO})`,
+        referencia: META_ANUAL,
         estado: "disponivel",
-        nota: "Meta informada pelo CEO. Ano-alvo não definido: não há data para o gap.",
+        nota: `Meta informada pelo CEO; ano-alvo ${ANO_ALVO} definido em 22/09/2026.`,
+      },
+      {
+        rotulo: `Média mensal necessária em ${ANO_ALVO}`,
+        referencia: MEDIA_MENSAL_NECESSARIA,
+        estado: "disponivel",
+        nota: "R$ 1 bi dividido por 12 meses. Não transforma receita pontual em recorrente.",
       },
     ],
-    composicao: [],
-    notaComposicao:
-      "Sem perímetro e sem faturamento conciliado não existe gap calculável. Os valores que circularam em documentos anteriores são fotografias históricas e não entram aqui.",
+    composicao: (trajetoria ?? []).map((t) => ({
+      chave: "leitura:" + t.id,
+      rotulo: t.fechados
+        ? `${t.titulo} · média mensal (${mesBr(t.fechados.de)} a ${mesBr(t.fechados.ate)})`
+        : `${t.titulo} · sem meses fechados`,
+      valor: t.fechados ? t.fechados.media : null,
+      observacao: t.fechados
+        ? `${t.fechados.meses} meses fechados${t.multiploNecessario ? ` · precisa de ${t.multiploNecessario.toFixed(1).replace(".", ",")}× a média atual` : ""}${t.crescimentoAnualNecessario !== null ? ` · crescimento de ${(t.crescimentoAnualNecessario * 100).toFixed(0)}% ao ano até ${ANO_ALVO}` : ""}`
+        : t.notas[0],
+    })),
+    notaComposicao: [
+      trajetoriaAviso,
+      trajetoria
+        ? "Cada linha é uma leitura candidata do perímetro. Elas não se somam: royalties pagos pelas unidades são receita da matriz no grupo e parte do faturamento da rede."
+        : null,
+      "Sem perímetro escolhido não existe gap único. Os valores que circularam em documentos anteriores são fotografias históricas e não entram aqui.",
+    ]
+      .filter(Boolean)
+      .join(" "),
     destino: {
       rota: "/financeiro",
       search: {},
@@ -698,9 +744,10 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
         "O Financeiro mostra DRE e caixa por empresa do grupo; não é o faturamento do perímetro da meta.",
     },
     lacuna: {
-      oQueFalta: "Perímetro, ano-alvo e faturamento de 12 meses conciliado.",
+      oQueFalta:
+        "Escolher o perímetro entre as leituras candidatas (decisão adiada pelo CEO em 22/09) e conciliar 12 meses de faturamento.",
       responsavel: "CEO + CFO",
-      acao: "Definir perímetro e ano-alvo; homologar a fonte de faturamento (F02, F11).",
+      acao: "Escolher o perímetro; completar o histórico do grupo antes de jan/2026; homologar o fechamento mensal (F02, F11).",
     },
   };
 
@@ -790,9 +837,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const decisoes: Decisao[] = [
     {
       id: "perimetro-meta",
-      titulo: "Definir perímetro e ano-alvo da meta de R$ 1 bi",
-      porque:
-        "Sem eles não existe gap para a meta, e o cockpit não pode dizer se estamos no plano.",
+      titulo: "Escolher o perímetro da meta de R$ 1 bi",
+      porque: `O ano-alvo é ${ANO_ALVO}; sem perímetro não existe gap único, e o cockpit mostra as leituras candidatas lado a lado.`,
       responsavel: "CEO + CFO",
       destino: null,
     },
@@ -869,6 +915,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     decisoes: decisoes.slice(0, 3),
     ameacas,
     porProduto,
+    trajetoria,
+    trajetoriaAviso,
     serieDiaria: op
       ? op.series.map((s) => ({
           date: s.date,

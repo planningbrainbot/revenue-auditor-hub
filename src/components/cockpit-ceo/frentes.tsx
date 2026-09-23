@@ -13,6 +13,7 @@ import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
 import { perguntasDaFrente } from "@/lib/cockpit-ceo/perguntas";
 import { CoberturaBadge, EstadoBadge } from "./estado";
+import { Trajetoria } from "./trajetoria";
 
 function GraficoDiario({ serie }: { serie: NonNullable<Cockpit["serieDiaria"]> }) {
   return (
@@ -64,11 +65,13 @@ export function Frentes({
   frente,
   onFrente,
   onAbrirIndicador,
+  preview,
 }: {
   cockpit: Cockpit;
   frente: Frente;
   onFrente: (f: Frente) => void;
   onAbrirIndicador: (id: string) => void;
+  preview: boolean;
 }) {
   const perguntas = perguntasDaFrente(frente);
   const comNumero = (f: Frente) =>
@@ -100,6 +103,13 @@ export function Frentes({
           {FRENTES[frente].pergunta} O número ao lado da frente diz quantas perguntas já têm cálculo
           implementado (ainda não homologado); as demais mostram o que falta e quem responde.
         </p>
+        {frente === "receita" && (cockpit.trajetoria || cockpit.trajetoriaAviso) && (
+          <Trajetoria
+            trajetoria={cockpit.trajetoria}
+            aviso={cockpit.trajetoriaAviso}
+            preview={preview}
+          />
+        )}
         {frente === "comercial" && cockpit.serieDiaria && (
           <GraficoDiario serie={cockpit.serieDiaria} />
         )}

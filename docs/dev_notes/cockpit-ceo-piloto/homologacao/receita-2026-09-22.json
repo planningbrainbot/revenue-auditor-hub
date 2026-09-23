@@ -1,0 +1,320 @@
+{
+  "quando": "2026-09-23T02:18:09.178Z",
+  "hoje": "2026-09-22",
+  "janela": {
+    "de": "2024-10-01",
+    "ate": "2026-09-01"
+  },
+  "fonte": "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
+  "porta_super_admin": {
+    "tem_financeiro": true,
+    "todas_empresas": true,
+    "todas_unidades": true,
+    "area": true
+  },
+  "grupo": {
+    "estado_leitura": "disponivel",
+    "parciais_fonte": [
+      "2026-08"
+    ],
+    "resumo": {
+      "id": "grupo",
+      "titulo": "Empresas do grupo",
+      "definicao": "Faturamento consolidado das empresas do grupo como a tela de Faturamento do Brain Financeiro mostra: receita bruta de vendas (DRE 1.1) por mês de competência da emissão, sem nota cancelada e sem as exclusões da controladoria.",
+      "fonte": "Brain Financeiro · Faturamento (fn_faturamento_mensal)",
+      "estado": "parcial",
+      "historicoDesde": "2026-01",
+      "serie": [
+        {
+          "mes": "2026-01",
+          "valor": 6028585.58,
+          "parcial": false
+        },
+        {
+          "mes": "2026-02",
+          "valor": 5421692.98,
+          "parcial": false
+        },
+        {
+          "mes": "2026-03",
+          "valor": 5990308.92,
+          "parcial": false
+        },
+        {
+          "mes": "2026-04",
+          "valor": 6078586,
+          "parcial": false
+        },
+        {
+          "mes": "2026-05",
+          "valor": 4971696.19,
+          "parcial": false
+        },
+        {
+          "mes": "2026-06",
+          "valor": 6370699.8,
+          "parcial": false
+        },
+        {
+          "mes": "2026-07",
+          "valor": 5982224.16,
+          "parcial": false
+        },
+        {
+          "mes": "2026-08",
+          "valor": 6890014.46,
+          "parcial": true
+        }
+      ],
+      "fechados": {
+        "de": "2026-01",
+        "ate": "2026-07",
+        "meses": 7,
+        "soma": 40843793.63,
+        "media": 5834827.661428572
+      },
+      "doze": null,
+      "multiploNecessario": 14.282055643941742,
+      "crescimentoAnualNecessario": null,
+      "anosAteAlvo": 4.416666666666667,
+      "notas": 5,
+      "meses_com_nota": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08"
+      ],
+      "chaves_na_janela": 1
+    },
+    "conferencia": {
+      "confere": true,
+      "meses": [
+        {
+          "mes": "2026-01",
+          "cockpit": 6028585.58,
+          "sql": 6028585.58,
+          "confere": true
+        },
+        {
+          "mes": "2026-02",
+          "cockpit": 5421692.98,
+          "sql": 5421692.98,
+          "confere": true
+        },
+        {
+          "mes": "2026-03",
+          "cockpit": 5990308.92,
+          "sql": 5990308.92,
+          "confere": true
+        },
+        {
+          "mes": "2026-04",
+          "cockpit": 6078586,
+          "sql": 6078586,
+          "confere": true
+        },
+        {
+          "mes": "2026-05",
+          "cockpit": 4971696.19,
+          "sql": 4971696.19,
+          "confere": true
+        },
+        {
+          "mes": "2026-06",
+          "cockpit": 6370699.8,
+          "sql": 6370699.8,
+          "confere": true
+        },
+        {
+          "mes": "2026-07",
+          "cockpit": 5982224.16,
+          "sql": 5982224.16,
+          "confere": true
+        },
+        {
+          "mes": "2026-08",
+          "cockpit": 6890014.46,
+          "sql": 6890014.46,
+          "confere": true
+        }
+      ]
+    },
+    "soma_crua_lancamentos_1_1": {
+      "2026-01": 11911674.87,
+      "2026-02": 11082085.99,
+      "2026-03": 11607193.08,
+      "2026-04": 11743815.86,
+      "2026-05": 10755052.88,
+      "2026-06": 12532708.66,
+      "2026-07": 9423479.88,
+      "2026-08": 6998280.25
+    }
+  },
+  "rede": {
+    "estado_leitura": "disponivel",
+    "parciais_fonte": [
+      "2025-12",
+      "2026-04",
+      "2026-05"
+    ],
+    "resumo": {
+      "id": "rede",
+      "titulo": "Rede de unidades",
+      "definicao": "Faturamento das unidades regionais pela apuração de royalties confirmada (receita da base nova + base antiga), a régua que a unidade assina. É o faturamento das unidades com os clientes delas, não receita do grupo.",
+      "fonte": "Apuração de royalties (ops.royalties_apuracao, status confirmado)",
+      "estado": "parcial",
+      "historicoDesde": "2025-12",
+      "serie": [
+        {
+          "mes": "2025-12",
+          "valor": 580958.32,
+          "parcial": true
+        },
+        {
+          "mes": "2026-01",
+          "valor": 683954.2,
+          "parcial": false
+        },
+        {
+          "mes": "2026-02",
+          "valor": 906512.56,
+          "parcial": false
+        },
+        {
+          "mes": "2026-03",
+          "valor": 1040555.24,
+          "parcial": false
+        },
+        {
+          "mes": "2026-04",
+          "valor": 1099036.57,
+          "parcial": true
+        },
+        {
+          "mes": "2026-05",
+          "valor": 889878.73,
+          "parcial": true
+        },
+        {
+          "mes": "2026-06",
+          "valor": 1246298.9,
+          "parcial": false
+        },
+        {
+          "mes": "2026-07",
+          "valor": 1290741.8,
+          "parcial": false
+        },
+        {
+          "mes": "2026-08",
+          "valor": 1651121.68,
+          "parcial": false
+        }
+      ],
+      "fechados": {
+        "de": "2026-06",
+        "ate": "2026-08",
+        "meses": 3,
+        "soma": 4188162.38,
+        "media": 1396054.1266666667
+      },
+      "doze": null,
+      "multiploNecessario": 59.692050430957735,
+      "crescimentoAnualNecessario": null,
+      "anosAteAlvo": 4.333333333333333,
+      "notas": 3,
+      "meses_com_nota": [
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08"
+      ],
+      "chaves_na_janela": 11
+    },
+    "conferencia": {
+      "confere": true,
+      "meses": [
+        {
+          "mes": "2025-12",
+          "cockpit": 580958.32,
+          "sql": 580958.32,
+          "confere": true
+        },
+        {
+          "mes": "2026-01",
+          "cockpit": 683954.2,
+          "sql": 683954.2,
+          "confere": true
+        },
+        {
+          "mes": "2026-02",
+          "cockpit": 906512.56,
+          "sql": 906512.56,
+          "confere": true
+        },
+        {
+          "mes": "2026-03",
+          "cockpit": 1040555.24,
+          "sql": 1040555.24,
+          "confere": true
+        },
+        {
+          "mes": "2026-04",
+          "cockpit": 1099036.57,
+          "sql": 1099036.57,
+          "confere": true
+        },
+        {
+          "mes": "2026-05",
+          "cockpit": 889878.73,
+          "sql": 889878.73,
+          "confere": true
+        },
+        {
+          "mes": "2026-06",
+          "cockpit": 1246298.9,
+          "sql": 1246298.9,
+          "confere": true
+        },
+        {
+          "mes": "2026-07",
+          "cockpit": 1290741.8,
+          "sql": 1290741.8,
+          "confere": true
+        },
+        {
+          "mes": "2026-08",
+          "cockpit": 1651121.68,
+          "sql": 1651121.68,
+          "confere": true
+        }
+      ]
+    },
+    "parciais_sql": [
+      "2025-12",
+      "2026-04",
+      "2026-05"
+    ],
+    "parciais_conferem": true
+  },
+  "porta_socio_regional_sem_financeiro": {
+    "tem_financeiro": false,
+    "lancamentos_pela_rls": 0,
+    "funcao_devolve_receita": true,
+    "cockpit_mostraria": "acesso_insuficiente"
+  },
+  "tempos": {
+    "faturamento_ms": 2261,
+    "grupo_sql_ms": 2076,
+    "rede_ms": 1482
+  }
+}

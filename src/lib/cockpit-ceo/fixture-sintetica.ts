@@ -16,6 +16,9 @@ import type {
   Receita,
 } from "../monetizacao/types";
 import type { FonteCockpit } from "./indicadores.ts";
+import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes.ts";
+import type { ApuracaoRede } from "./receita-fontes.ts";
+import type { LeituraReceita } from "./receita.ts";
 
 const UNIDADES = [
   ["ex-norte", "Unidade Exemplo Norte"],
@@ -364,6 +367,107 @@ export function baseSintetica(hoje: string, medidoEm = hoje + "T11:00:00.000Z"):
   };
 }
 
+/** Primeiro dia de cada um dos `n` meses que terminam no mês de `hoje`. */
+function mesesAte(hoje: string, n: number): string[] {
+  const ano = Number(hoje.slice(0, 4));
+  const mes = Number(hoje.slice(5, 7)) - 1;
+  return Array.from({ length: n }, (_, i) =>
+    new Date(Date.UTC(ano, mes - (n - 1 - i), 1)).toISOString().slice(0, 10),
+  );
+}
+
+/**
+ * Leituras candidatas de faturamento, SINTÉTICAS, montadas pelos mesmos construtores da carga real.
+ * Mostram de propósito um mês marcado parcial pela fonte, uma unidade inaugurada sem apuração e uma
+ * unidade sem data de inauguração.
+ */
+export function receitaSintetica(hoje: string): LeituraReceita[] {
+  const meses = mesesAte(hoje, 10);
+  const r = gerador(2030);
+  const serie = meses.map((competencia, i) => ({
+    competencia,
+    receita: Math.round((3_000_000 + i * 60_000 + r() * 150_000) * 100) / 100,
+    parcial: i === meses.length - 1,
+  }));
+  const totalCent = serie.reduce((t, x) => t + Math.round(x.receita * 100), 0);
+  const antes = mesesAte(meses[0], 2)[0];
+  const grupo = montarLeituraGrupo({
+    acesso: true,
+    faturamento: extrairFaturamento({
+      definicao: "Série sintética do preview.",
+      escopo: { recortes_excluidos: ["recorte-exemplo"] },
+      serie,
+      meses: serie.map((x) => ({
+        competencia: x.competencia,
+        parcial: x.parcial,
+        motivo: x.parcial ? "Mês em curso (sintético)." : "Fechamento sintético.",
+        sem_cobertura: false,
+      })),
+      meses_fora_da_cobertura: [antes],
+      totais: { receita_total_escopo: totalCent / 100 },
+      excluido_pelos_recortes: { receita: 120_000 },
+      excluido_do_faturamento: { receita: 0 },
+    }),
+  });
+
+  const unidades = [
+    {
+      id: 101,
+      nome: "Unidade Exemplo Norte",
+      tipo: "regional",
+      inauguracao: "2023-01-01",
+      base: 450_000,
+      desde: 0,
+    },
+    {
+      id: 102,
+      nome: "Unidade Exemplo Sul",
+      tipo: "regional",
+      inauguracao: "2024-03-01",
+      base: 380_000,
+      desde: 0,
+    },
+    // Inaugurada no mês 5 e apurada só a partir do 6: o mês 5 fica parcial.
+    {
+      id: 103,
+      nome: "Unidade Exemplo Leste",
+      tipo: "regional",
+      inauguracao: meses[5],
+      base: 120_000,
+      desde: 6,
+    },
+    // Sem data de inauguração no cadastro: conta a partir da primeira apuração.
+    {
+      id: 104,
+      nome: "Unidade Exemplo Oeste",
+      tipo: "regional",
+      inauguracao: null,
+      base: 60_000,
+      desde: 8,
+    },
+  ];
+  const apuracoes: ApuracaoRede[] = [];
+  meses.forEach((mes, i) => {
+    const corrente = i === meses.length - 1;
+    for (const u of unidades) {
+      if (i < u.desde) continue;
+      apuracoes.push({
+        unidade_id: u.id,
+        mes,
+        status: corrente ? "rascunho" : "confirmado",
+        receita_base: corrente ? 0 : Math.round(u.base * (1 + i * 0.02 + r() * 0.05)),
+        receita_base_antiga: corrente ? 0 : Math.round(u.base * 0.1),
+      });
+    }
+  });
+  const rede = montarLeituraRede({
+    acesso: true,
+    unidades: unidades.map(({ id, nome, tipo, inauguracao }) => ({ id, nome, tipo, inauguracao })),
+    apuracoes,
+  });
+  return [grupo, rede].map((l) => ({ ...l, fonte: `SINTÉTICO · ${l.fonte}` }));
+}
+
 export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
   return {
     sintetico: true,
@@ -377,5 +481,6 @@ export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
       erro: null,
       dados: baseSintetica(hoje, new Date(Date.parse(agora) - 10 * 60_000).toISOString()),
     },
+    receita: { estado: "ok", erro: null, leituras: receitaSintetica(hoje) },
   };
 }

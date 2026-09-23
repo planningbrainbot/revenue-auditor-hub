@@ -53,12 +53,14 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     id: "R1",
     frente: "receita",
     texto: "Qual é nossa trajetória para R$ 1 bi de faturamento anual?",
-    fonte: "Faturamento de 12 meses conciliado do perímetro aprovado (ainda inexistente).",
+    fonte:
+      "Leituras candidatas: Faturamento do Brain Financeiro (grupo) e apuração de royalties (rede); 12 meses fechados ainda não existem.",
     responsavel: "CEO + CFO",
     cobertura: "depende_decisao",
     aceite:
       "Perímetro, ano-alvo e faturamento atual definidos; ponte de crescimento reconcilia com o Financeiro.",
-    pendencia: "Definir perímetro e ano-alvo da meta; homologar a fonte de faturamento.",
+    pendencia:
+      "Escolher o perímetro entre as leituras candidatas (ano-alvo 2030 definido em 22/09); fechar 12 meses de histórico.",
     indicadores: ["meta-bilhao"],
     roadmap: ["F11", "F02"],
   },

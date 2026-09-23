@@ -332,6 +332,7 @@ export function CockpitCeo({
         frente={frente}
         onFrente={(f) => aoMudar({ frente: f })}
         onAbrirIndicador={abrir}
+        preview={preview}
       />
 
       <ComposicaoIndicador indicador={aberto} onFechar={fechar} preview={preview} />

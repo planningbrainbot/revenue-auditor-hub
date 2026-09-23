@@ -8,12 +8,35 @@
 // fonte está indisponível em vez de mostrar números antigos como se fossem atuais.
 import type { BaseMonetizacao } from "../monetizacao/types";
 import type { FonteCockpit } from "./indicadores.ts";
+import type { LeituraReceita } from "./receita.ts";
 
-export function mensagemDeErro(erro: unknown): string {
+export function mensagemDeErro(
+  erro: unknown,
+  padrao = "A carga de Base e Monetização falhou por um motivo não identificado.",
+): string {
   const texto = erro instanceof Error ? erro.message : typeof erro === "string" ? erro : "";
   if (/unauthorized|jwt|token/i.test(texto))
     return "A sessão não foi reconhecida pelo servidor. Entre novamente para carregar os números.";
-  return texto || "A carga de Base e Monetização falhou por um motivo não identificado.";
+  return texto || padrao;
+}
+
+/**
+ * Estado das leituras de faturamento (carregarReceitaCockpit). Cada leitura já traz o próprio
+ * estado de acesso; aqui só se decide se a chamada inteira respondeu.
+ */
+export function receitaDaCarga(q: {
+  data?: { leituras: LeituraReceita[] };
+  error?: unknown;
+  isLoading: boolean;
+}): NonNullable<FonteCockpit["receita"]> {
+  if (q.error)
+    return {
+      estado: "erro",
+      erro: mensagemDeErro(q.error, "A carga das leituras de faturamento falhou."),
+      leituras: [],
+    };
+  if (q.isLoading || !q.data) return { estado: "carregando", erro: null, leituras: [] };
+  return { estado: "ok", erro: null, leituras: q.data.leituras };
 }
 
 export interface AcessoCockpit {
