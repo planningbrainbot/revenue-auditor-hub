@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   TrendingUp,
@@ -56,13 +56,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronsUpDown, Eye } from "lucide-react";
+import { ChevronsUpDown, Eye, type LucideIcon } from "lucide-react";
 import { VerComoDialog } from "@/components/ver-como/ver-como-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { resumoMenuGente, type ResumoMenuGente } from "@/lib/gente-menu.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
+import { AnelArea, Filete } from "@/components/planning";
+import { corDaArea } from "@/lib/planning/cores-area";
 
 // Mesmo domínio, de propósito. O apex serve `/growth` e `/financeiro` por
 // rewrite dentro deste mesmo projeto da Vercel, então trocar de produto não
@@ -213,8 +215,14 @@ export function AppSidebar() {
   });
   const mostrarFinanceiro = produtos.data?.financeiro ?? false;
 
+  // O filete do item ativo (ui/sidebar.tsx) pinta com `--area-atual`. Vai num
+  // invólucro `contents` e não no <Sidebar> porque no celular a lateral abre
+  // num Sheet em portal, fora da árvore do layout, e não herdaria a variável.
+  const estiloArea = { "--area-atual": corDaArea(areaAtual?.slug) } as CSSProperties;
+
   return (
     <Sidebar collapsible="icon">
+      <div className="contents" style={estiloArea}>
       {/* Seletor de FRENTE no cabeçalho, não em lista fixa.
           Antes eram três níveis empilhados na mesma coluna: produto, área e
           página. O primeiro nível custava espaço permanente para uma escolha
@@ -224,15 +232,21 @@ export function AppSidebar() {
           da leitura. */}
       <SidebarHeader className="border-b p-0">
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent">
-            <PlanningLogo className="h-6 w-auto shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {areaAtual?.nome ?? "Planning Brain"}
+          {/* Duas linhas: o logo não cabe na mesma linha do anel e de um nome
+              como "Receita e Repasses" em 256px sem cortar o nome. Recolhida,
+              a lateral fica só com o anel, que é o que identifica a área. */}
+          <DropdownMenuTrigger className="flex w-full flex-col gap-2 px-3 py-3 text-left outline-none transition-colors duration-[120ms] ease-out hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+            <PlanningLogo className="h-5 w-auto shrink-0 self-start group-data-[collapsible=icon]:hidden" />
+            <span className="flex w-full min-w-0 items-center gap-2 group-data-[collapsible=icon]:justify-center">
+              {areaAtual && <AnelArea area={areaAtual.slug} icone={areaAtual.icone as LucideIcon} tamanho="sm" />}
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
+                {areaAtual?.nome ?? "Planning Brain"}
+              </span>
+              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
             </span>
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60">
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Planning Brain
             </DropdownMenuLabel>
             {areasDoSeletor.map((a) => (
@@ -242,10 +256,11 @@ export function AppSidebar() {
                   onClick={() => setAreaEscolhida(a.slug)}
                   className="flex items-center gap-2"
                 >
-                  <a.icone className="h-4 w-4 shrink-0" />
+                  <AnelArea area={a.slug} icone={a.icone as LucideIcon} tamanho="sm" />
                   <span className="flex-1">{a.nome}</span>
                   {a.slug === areaAtual?.slug && (
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Filete area={a.slug} className="h-3.5" />
                       aqui
                     </span>
                   )}
@@ -267,7 +282,7 @@ export function AppSidebar() {
                 >
                   <Eye className="h-4 w-4 shrink-0" />
                   <span className="flex-1">Minha Unidade</span>
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     ver como
                   </span>
                 </DropdownMenuItem>
@@ -365,11 +380,12 @@ export function AppSidebar() {
             )}
           </SidebarMenu>
         ) : (
-          <div className="px-2 py-1 text-[10px] text-muted-foreground">
+          <div className="truncate px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
             {areaAtual?.nome ?? "Planning Brain"}
           </div>
         )}
       </SidebarFooter>
+      </div>
     </Sidebar>
   );
 }

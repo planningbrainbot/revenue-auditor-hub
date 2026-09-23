@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
   Plus,
   Search,
   TrendingUp,
+  type LucideIcon,
 } from "lucide-react";
 import {
   Bar,
@@ -97,7 +98,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { SLUGS_AREA, iconeDaArea, nomeDaArea } from "@/lib/planning/cores-area";
+import { SLUGS_AREA, corDaArea, iconeDaArea, nomeDaArea } from "@/lib/planning/cores-area";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { COR_NEGATIVO, linhaMetaProps } from "@/lib/planning/grafico";
 
@@ -190,7 +191,8 @@ function Secao({ id, titulo, children }: { id: string; titulo: string; children:
 
 // Réplica da lateral: mesmas classes de app-sidebar.tsx, sem permissão nem
 // query. A de verdade só mostra a área da rota; aqui cada área ganha uma
-// coluna, para todos os itens aparecerem na mesma foto.
+// coluna, para todos os itens aparecerem na mesma foto. `--area-atual` fica no
+// invólucro, como na casca, e é dela que o filete do item ativo tira a cor.
 function LateralReplica({
   area,
   ativo,
@@ -207,12 +209,16 @@ function LateralReplica({
   return (
     <div
       className={`flex shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground ${className}`}
+      style={{ "--area-atual": corDaArea(area.slug) } as CSSProperties}
     >
       <SidebarHeader className="border-b p-0">
-        <div className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
-          <img src={logo} alt="Planning" className="h-6 w-auto shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{area.nome}</span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="flex w-full flex-col gap-2 px-3 py-3 text-left">
+          <img src={logo} alt="Planning" className="h-5 w-auto shrink-0 self-start" />
+          <span className="flex w-full min-w-0 items-center gap-2">
+            <AnelArea area={area.slug} icone={area.icone as LucideIcon} tamanho="sm" />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{area.nome}</span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -237,34 +243,79 @@ function LateralReplica({
         ))}
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
-        <div className="px-2 py-1 text-[10px] text-muted-foreground">{area.nome}</div>
+        <div className="truncate px-2 py-1 text-xs text-muted-foreground">{area.nome}</div>
       </SidebarFooter>
+    </div>
+  );
+}
+
+// O seletor aberto, como o DropdownMenuContent da lateral o desenha: anel por
+// área e a atual marcada com filete + "aqui".
+function SeletorReplica({ atual }: { atual: string }) {
+  return (
+    <div className="w-64 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+      <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Planning Brain
+      </div>
+      {AREAS.filter((a) => a.slug !== "admin").map((a) => (
+        <div
+          key={a.slug}
+          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+        >
+          <AnelArea area={a.slug} icone={a.icone as LucideIcon} tamanho="sm" />
+          <span className="flex-1">{a.nome}</span>
+          {a.slug === atual && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Filete area={a.slug} className="h-3.5" />
+              aqui
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
 function SecaoCasca({ tema }: { tema: string }) {
   const rede = AREAS[0];
+  const ativo = "/rede-ltv";
+  const itemAtivo = rede.grupos.flatMap((g) => g.items).find((i) => i.url === ativo);
   return (
     <Secao id="casca" titulo="Casca: lateral, cabeçalho e AppShell">
       {/* O SidebarProvider é flex em linha; o wrapper em coluna segura o layout. */}
       <SidebarProvider className="min-h-0">
         <div className="w-full space-y-4">
-          <div className="flex h-[640px] w-full overflow-hidden rounded-lg border">
-            <LateralReplica area={rede} ativo="/rede-ltv" tema={tema} />
-            <div className="flex min-w-0 flex-1 flex-col bg-background">
-              {/* Cabeçalho do _authenticated/route.tsx */}
-              <header className="flex h-[60px] items-center gap-3 border-b bg-card px-4">
+          <div
+            className="flex h-[640px] w-full overflow-hidden rounded-lg border"
+            style={{ "--area-atual": corDaArea(rede.slug) } as CSSProperties}
+          >
+            <LateralReplica area={rede} ativo={ativo} tema={tema} />
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+              {/* Cabeçalho do _authenticated/route.tsx: trilha à esquerda. */}
+              <header className="flex h-[60px] shrink-0 items-center gap-3 border-b bg-card px-4">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-md">
                   <PanelLeft className="h-4 w-4" />
                 </span>
-                <div className="min-w-0 flex-1" />
+                <nav aria-label="Onde você está" className="min-w-0 flex-1">
+                  <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+                    <li className="flex shrink-0 items-center gap-2 text-muted-foreground">
+                      <Filete className="h-4" />
+                      {rede.nome}
+                    </li>
+                    <li aria-hidden className="text-muted-foreground">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </li>
+                    <li className="min-w-0 truncate font-medium text-foreground">
+                      {itemAtivo?.title}
+                    </li>
+                  </ol>
+                </nav>
                 <div className="flex items-center gap-2">
-                  <div className="hidden flex-col items-end text-right md:flex">
+                  <div className="hidden flex-col items-end gap-1 text-right md:flex">
                     <span className="text-xs text-muted-foreground">socio@planning.com.br</span>
-                    <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
+                    <span className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium leading-4 text-foreground">
                       Sócio
-                      <span className="rounded bg-primary/15 px-1 py-px text-primary">
+                      <span className="rounded-full bg-primary/15 px-1.5 text-primary-text">
                         Campinas
                       </span>
                     </span>
@@ -275,67 +326,102 @@ function SecaoCasca({ tema }: { tema: string }) {
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-full">
                     <Moon className="h-4 w-4" />
                   </span>
-                  <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground">
+                  <Button type="button" variant="outline" size="sm">
                     Sair
-                  </span>
+                  </Button>
                 </div>
               </header>
-              {/* AppShell: ValidationBanner + título + DataFreshnessBar */}
-              <div className="sticky top-0 z-30 border-b border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-                <div className="flex items-start gap-2 px-4 py-2 text-xs sm:text-sm">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>
-                    <span className="font-semibold">Dados em validação:</span> as informações desta
-                    página ainda estão sendo conferidas e podem não estar 100% corretas.
-                  </p>
+              {/* AppShell: ValidationBanner + PageHeader + DataFreshnessBar */}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="sticky top-0 z-30 border-b border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                  <div className="flex items-start gap-2 px-4 py-2 text-xs sm:text-sm">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      <span className="font-semibold">Dados em validação:</span> as informações
+                      desta página ainda estão sendo conferidas e podem não estar 100% corretas.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 border-b bg-card/50 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <h1 className="truncate text-sm font-semibold text-foreground sm:text-base">
-                    LTV Estimado — Gestão da Rede
-                  </h1>
-                  <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                    Valor do tempo de vida estimado por cliente
-                  </p>
+                <div className="border-b px-4 pt-6">
+                  <PageHeader
+                    area={rede.slug}
+                    titulo={itemAtivo?.title ?? "LTV Estimado"}
+                    descricao="Valor do tempo de vida estimado por cliente"
+                    acoes={
+                      <Button size="sm" variant="outline">
+                        <Download className="h-4 w-4" />
+                        Exportar
+                      </Button>
+                    }
+                    className="border-b-0"
+                  />
                 </div>
-                <Button size="sm" variant="outline">
-                  Exportar
-                </Button>
-              </div>
-              <div className="flex items-center gap-3 border-b border-border/40 bg-muted/20 px-4 py-1">
-                <Clock className="h-3 w-3 shrink-0 text-muted-foreground/50" />
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
-                  {[
-                    ["Omie", "dados de 22 de set. de 26"],
-                    ["Pipedrive", "sync 23 de set. de 26"],
-                    ["Tratativas", "manual 19 de set. de 26"],
-                  ].map(([rotulo, data]) => (
-                    <span key={rotulo} className="inline-flex items-center gap-1">
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/80">
-                        {rotulo}
+                <div className="flex items-center gap-3 border-b border-border/40 bg-muted/20 px-4 py-1">
+                  <Clock className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+                    {[
+                      ["Omie", "dados de 22 de set. de 26"],
+                      ["Pipedrive", "sync 23 de set. de 26"],
+                      ["Tratativas", "manual 19 de set. de 26"],
+                    ].map(([rotulo, data]) => (
+                      <span key={rotulo} className="inline-flex items-center gap-1">
+                        <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground/80">
+                          {rotulo}
+                        </span>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span className="text-xs text-muted-foreground">{data}</span>
                       </span>
-                      <span className="text-muted-foreground/40">·</span>
-                      <span className="text-[10px] text-muted-foreground">{data}</span>
-                    </span>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+                <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
+                  <KpiGrade colunas={3}>
+                    <KpiCard
+                      rotulo="LTV médio"
+                      valor="R$ 48,2 mil"
+                      delta={{ valor: 3.1, rotulo: "vs ago" }}
+                      procedencia={{ fonte: "Omie · Pipedrive", atualizadoEm: "2026-09-23T07:40:00" }}
+                      abrir={{ href: "#casca", rotulo: "Abrir contas" }}
+                    />
+                    <KpiCard
+                      rotulo="Ticket médio"
+                      valor="R$ 1.840"
+                      unidade="/mês"
+                      procedencia={{ fonte: "Omie", atualizadoEm: "2026-09-22" }}
+                    />
+                    <KpiCard
+                      rotulo="Vida média"
+                      valor="26,2"
+                      unidade="meses"
+                      estado="nao-apurado"
+                      procedencia={{ fonte: "Central de Tratativas", atualizadoEm: null }}
+                    />
+                  </KpiGrade>
                 </div>
               </div>
-              <div className="space-y-4 p-4 md:p-6">
-                <KpisComoHoje />
-                <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>
-              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-start gap-6">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Seletor de área aberto:</p>
+              <SeletorReplica atual={rede.slug} />
             </div>
           </div>
 
           <p className="text-sm text-muted-foreground">
             Todas as áreas de <code className="font-mono">lib/areas.ts</code>, sem corte de
-            permissão:
+            permissão, com o primeiro item de cada uma ativo:
           </p>
           <div className="grid grid-cols-4 items-start gap-3">
             {AREAS.map((a) => (
               <div key={a.slug} className="overflow-hidden rounded-lg border">
-                <LateralReplica area={a} tema={tema} className="w-full border-r-0" />
+                <LateralReplica
+                  area={a}
+                  ativo={a.grupos[0].items[0].url}
+                  tema={tema}
+                  className="w-full border-r-0"
+                />
               </div>
             ))}
           </div>

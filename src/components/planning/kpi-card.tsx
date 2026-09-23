@@ -122,11 +122,12 @@ export function KpiCard({
       )}
 
       {procedencia && (
+        // Quebra em até duas linhas em vez de cortar numa só: cortada, a linha
+        // mostrava "atualizado em 23…" e escondia justo a data (N3).
         <Procedencia
-          compacta
           fonte={procedencia.fonte}
           atualizadoEm={procedencia.atualizadoEm}
-          className="mt-auto pt-3"
+          className="mt-auto items-start pt-3 [&>svg]:mt-px [&>span:last-child]:line-clamp-2"
         />
       )}
     </>
