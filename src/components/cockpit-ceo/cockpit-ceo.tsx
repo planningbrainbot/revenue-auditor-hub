@@ -149,6 +149,8 @@ function VisaoExecutiva({
   jev?: ReactNode;
 }) {
   const eventos = cockpit.indicadores.filter((i) => i.periodo !== null && i.comparacoes.length);
+  // O cartão com cadeado não abre nem mostra nota (não vaza número): o motivo fica aqui embaixo.
+  const semAcesso = cockpit.indicadores.filter((i) => i.estado === "acesso_insuficiente");
   return (
     <>
       <KpiGrade colunas={6}>
@@ -156,6 +158,18 @@ function VisaoExecutiva({
           <KpiCard key={i.id} {...cartaoDoIndicador(i, () => abrir(i.id))} />
         ))}
       </KpiGrade>
+      {semAcesso.length > 0 && (
+        <ul aria-label="Números sem acesso" className="space-y-1 text-sm text-muted-foreground">
+          {semAcesso.map((i) => (
+            <li key={i.id}>
+              <span className="font-medium text-foreground">{i.titulo}:</span>{" "}
+              {i.lacuna
+                ? `falta ${i.lacuna.oQueFalta.replace(/^./, (c) => c.toLowerCase())} Quem concede: ${i.lacuna.responsavel}.`
+                : "seu acesso não lê a fonte deste número."}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Secao
         titulo="O que pede atenção?"

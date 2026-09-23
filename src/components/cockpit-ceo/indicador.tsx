@@ -32,9 +32,11 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
   const meta = utilizaveis.find(ehMeta);
   const outras = utilizaveis.filter((c) => c !== anterior && c !== meta);
 
-  // Variação só com base diferente de zero: de 0 para 3 não é "+∞%", é nota.
+  // Variação só com base diferente de zero (de 0 para 3 não é "+∞%", é nota) e com o período
+  // anterior inteiro: janela que começa antes do primeiro evento do CRM não serve de base.
+  const anteriorInteiro = anterior?.estado === "disponivel";
   const delta =
-    anterior && i.valor !== null && anterior.referencia
+    anterior && anteriorInteiro && i.valor !== null && anterior.referencia
       ? {
           valor: ((i.valor - anterior.referencia) / anterior.referencia) * 100,
           rotulo: "vs período anterior",
@@ -50,7 +52,13 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
   const notas: string[] = [];
   if (i.valor === null && i.lacuna) notas.push(`Depende de: ${i.lacuna.responsavel}`);
   // A base da variação fica escrita: "+1.100%" sem "anterior 1" engana.
-  if (anterior) notas.push(`Anterior ${valorCurto(anterior.referencia, i.unidade)}`);
+  if (anterior)
+    notas.push(
+      `Anterior ${valorCurto(anterior.referencia, i.unidade)}${anteriorInteiro ? "" : " (parcial)"}`,
+    );
+  // Sem valor à vista o KpiCard esconde `meta`: o ritmo da meta passa para a nota.
+  const mostraValor = estado === "ok" || estado === "parcial";
+  if (meta && !mostraValor) notas.push(curto(meta, i));
   // Sem valor apurado o KpiCard não mostra `meta`: a meta anual fica na nota.
   notas.push(...outras.filter((c) => c !== metaAnual || i.valor === null).map((c) => curto(c, i)));
   if (!notas.length) notas.push(i.periodo ? "Sem comparação disponível" : "Fotografia de agora");

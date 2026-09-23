@@ -25,6 +25,8 @@ import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
 import { carregarReceitaCockpit } from "@/lib/cockpit-ceo/receita.functions";
 import type { FonteCockpit } from "@/lib/cockpit-ceo/indicadores";
+import { FRENTES } from "@/lib/cockpit-ceo/contrato";
+import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import { buscaDaUrl, resolverPeriodo, validarBusca } from "@/lib/cockpit-ceo/periodo";
 import type { BuscaUrl } from "@/lib/cockpit-ceo/periodo";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
@@ -39,7 +41,12 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 // porta de cada uma (Financeiro; todas as unidades) e devolve "acesso insuficiente" por leitura.
 export const Route = createFileRoute("/_authenticated/cockpit-ceo")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => buscaDaUrl(s),
-  head: () => ({ meta: [{ title: "Visão executiva · Planning Brain" }] }),
+  // O título da aba acompanha o item da lateral e o <h1> (N1).
+  head: ({ match }) => {
+    const f = (match.search as BuscaUrl).frente;
+    const titulo = f && f in FRENTES ? FRENTES[f as Frente].titulo : "Visão executiva";
+    return { meta: [{ title: `${titulo} · Planning Brain` }] };
+  },
   component: Pagina,
 });
 
@@ -189,7 +196,8 @@ function Tela({ fonte, hoje }: { fonte: FonteCockpit; hoje: string }) {
     navigate({
       search: (s: BuscaUrl) => buscaDaUrl({ ...s, ...parcial }),
       // Abrir um número empilha no histórico: o "voltar" do navegador fecha a composição.
-      replace: !parcial.indicador,
+      // Trocar de frente também empilha: o "voltar" do navegador desfaz a troca.
+      replace: !parcial.indicador && parcial.frente === undefined,
     });
   return <CockpitCeo cockpit={cockpit} busca={busca} periodo={periodo} aoMudar={aoMudar} />;
 }

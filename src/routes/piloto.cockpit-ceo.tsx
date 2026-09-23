@@ -45,7 +45,8 @@ function Pagina() {
   const aoMudar: MudarBusca = (parcial) =>
     navigate({
       search: (s: BuscaUrl) => buscaDaUrl({ ...s, ...parcial }),
-      replace: !parcial.indicador,
+      // Trocar de frente também empilha: o "voltar" do navegador desfaz a troca.
+      replace: !parcial.indicador && parcial.frente === undefined,
     });
   return (
     <div className="min-h-screen bg-background">

@@ -914,7 +914,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
             search: { view: "produtos" },
             rotulo: "Abrir Produtos e listas",
             mesmoRecorte: false,
-            observacao: 'Em Produtos e listas, filtre a situação "só no Omie da unidade" em cada produto.',
+            observacao:
+              'Em Produtos e listas, filtre a situação "Só no cadastro do Omie da unidade" em cada produto.',
           },
         }
       : {
