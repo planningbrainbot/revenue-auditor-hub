@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   Table,
   TableBody,
@@ -183,12 +184,25 @@ function Kpi({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: st
 
 export function BrokerUnidadeView() {
   const qc = useQueryClient();
+  // Durante "ver como", o banco devolve os dados da unidade vestida e recusa
+  // qualquer escrita (gatilho `ver_como_somente_leitura`). O botão precisa
+  // saber disso antes de o erro voltar: prometer reserva e entregar 42501 é
+  // pior do que dizer de cara que a visão é de leitura.
+  const { verComo } = usePermissions();
+  const simulando = !!verComo?.ativo;
+  const motivoSimulacao = `Você está vendo como ${verComo?.unidade ?? "outra unidade"}. A visão é só de leitura.`;
   const carregar = useServerFn(carregarBrokerUnidade);
   const fnReservar = useServerFn(reservarParaMinhaUnidade);
   const fnLiberar = useServerFn(liberarMinhaReserva);
 
   const { data, isLoading, error } = useQuery<BrokerUnidadeData>({
-    queryKey: ["broker-unidade"],
+    // A unidade simulada entra na chave porque ela muda a resposta do servidor.
+    // Sem isso, entrar ou sair de "ver como" reaproveita por 30s (o staleTime
+    // global) a resposta da identidade anterior, e quem estava parado no /broker
+    // quando ligou a simulação continua lendo "sem vínculo" sem nada refazer a
+    // busca. `recarregar` segue funcionando: invalidar pelo prefixo alcança
+    // todas as chaves que começam com ele.
+    queryKey: ["broker-unidade", verComo?.unidade_id ?? null],
     queryFn: () => carregar(),
   });
 
@@ -295,11 +309,22 @@ export function BrokerUnidadeView() {
     );
 
   const s = data.saldo;
+  const cacSaldo = data.cacSaldo;
+  // Saldo negativo é crédito da unidade: ela pagou mais do que foi cobrada.
+  const cacDevendo = (cacSaldo?.a_pagar ?? 0) > 0;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline">{s?.nome ?? "Minha unidade"}</Badge>
+        {/* O `title` do botão desabilitado não abre no Chrome, então o motivo
+            precisa estar escrito na tela. */}
+        {simulando ? (
+          <span className="text-xs text-muted-foreground">
+            Visão de leitura: reservar, precificar e comprar crédito ficam desligados enquanto você
+            vê como {verComo?.unidade}.
+          </span>
+        ) : null}
         <Button variant="outline" size="sm" className="ml-auto" onClick={recarregar}>
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Atualizar
         </Button>
@@ -330,6 +355,10 @@ export function BrokerUnidadeView() {
           <TabsTrigger value="minhas">Minhas reservas ({minhas.length})</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
           <TabsTrigger value="financeiro">Faturas e pagamentos</TabsTrigger>
+          {/* Unidade que não paga CAC não tem linha em v_broker_cac_saldo: a aba
+              nem aparece, em vez de mostrar uma tela de zeros que afirmaria que
+              ela deve nada quando na verdade a régua não se aplica a ela. */}
+          {cacSaldo ? <TabsTrigger value="cac">CAC</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="vitrine" className="mt-3 space-y-3">
@@ -373,7 +402,12 @@ export function BrokerUnidadeView() {
                       )}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => setConfirmando(o)}>
+                  <Button
+                    size="sm"
+                    disabled={simulando}
+                    title={simulando ? motivoSimulacao : undefined}
+                    onClick={() => setConfirmando(o)}
+                  >
                     <ShoppingCart className="mr-1.5 h-3.5 w-3.5" /> Reservar
                   </Button>
                 </div>
@@ -418,13 +452,20 @@ export function BrokerUnidadeView() {
                   </div>
                   <div className="flex gap-1">
                     {o.preco_cb === null ? (
-                      <Button size="sm" onClick={() => setPrecificando(o)}>
+                      <Button
+                        size="sm"
+                        disabled={simulando}
+                        title={simulando ? motivoSimulacao : undefined}
+                        onClick={() => setPrecificando(o)}
+                      >
                         <Tag className="mr-1.5 h-3.5 w-3.5" /> Precificar
                       </Button>
                     ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={simulando}
+                      title={simulando ? motivoSimulacao : undefined}
                       onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
                     >
                       Liberar
@@ -545,7 +586,11 @@ export function BrokerUnidadeView() {
                 pedir a fatura ainda não muda o seu disponível.
               </p>
             </div>
-            <Button onClick={() => setComprando(true)}>
+            <Button
+              disabled={simulando}
+              title={simulando ? motivoSimulacao : undefined}
+              onClick={() => setComprando(true)}
+            >
               <Wallet className="mr-1.5 h-4 w-4" /> Comprar crédito
             </Button>
           </Card>
@@ -630,6 +675,8 @@ export function BrokerUnidadeView() {
                             <Button
                               size="sm"
                               variant="ghost"
+                              disabled={simulando}
+                              title={simulando ? motivoSimulacao : undefined}
                               onClick={() => mCancelar.mutate({ fatura_id: f.id })}
                             >
                               Cancelar
@@ -692,6 +739,125 @@ export function BrokerUnidadeView() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* CAC pós-pago. Moeda diferente do aquário: aqui é real, não CashBrain. */}
+        {cacSaldo ? (
+          <TabsContent value="cac" className="mt-3 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Kpi
+                rotulo="Cobrado"
+                valor={brl(cacSaldo.cobrado)}
+                nota="clientes entregues pela matriz"
+              />
+              <Kpi rotulo="Pago" valor={brl(cacSaldo.pago)} nota="baixas registradas" />
+              <Card className="p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {cacDevendo ? "A pagar" : "A seu favor"}
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 text-2xl font-bold tabular-nums",
+                    cacDevendo ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  {brl(Math.abs(cacSaldo.a_pagar))}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {cacDevendo
+                    ? "cobrado menos o que já entrou"
+                    : "você pagou mais do que foi cobrado"}
+                </p>
+              </Card>
+            </div>
+
+            <Card className="flex gap-3 p-4">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Cada linha de cobrança nasce de um cliente que a matriz entregou. Os pagamentos vêm
+                das baixas na conta da Partners. Clientes já atribuídos mas ainda não cobrados ficam
+                na lista de baixo e <strong>não entram neste saldo</strong>.
+              </p>
+            </Card>
+
+            <Card className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Quando</TableHead>
+                    <TableHead>Movimento</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.cacExtrato.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {dataCurta(m.criado_em)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={m.tipo === "pagamento" ? "default" : "secondary"}>
+                          {m.tipo === "pagamento" ? "pagamento" : "cobrança"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{m.cliente ?? m.observacao ?? NA}</TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums",
+                          m.tipo === "pagamento" && "text-emerald-600 dark:text-emerald-400",
+                        )}
+                      >
+                        {m.tipo === "pagamento" ? "−" : ""}
+                        {brl(m.valor_cb)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {data.cacExtrato.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        Nenhuma cobrança de CAC lançada ainda.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {data.cacFila.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Ainda não cobrados{" "}
+                  <span className="font-normal text-muted-foreground">
+                    · {data.cacFila.length} cliente(s) ·{" "}
+                    {brl(data.cacFila.reduce((t, r) => t + (r.valor ?? 0), 0))}
+                  </span>
+                </p>
+                <Card className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Competência</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.cacFila.map((r) => (
+                        <TableRow key={`${r.unidade_id}-${r.cliente}-${r.mes_referencia}`}>
+                          <TableCell>{r.cliente ?? NA}</TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
+                            {dataCurta(r.mes_referencia)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{brl(r.valor)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            ) : null}
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <Dialog

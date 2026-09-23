@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, Lock, Unlock } from "lucide-react";
+import { RefreshCw, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   carregarBrokerAdmin,
@@ -178,6 +178,25 @@ export function BrokerAdminView() {
     [data?.unidades],
   );
 
+  const pendenciaPorUnidade = useMemo(
+    () => new Map((data?.cacPendencia ?? []).map((p) => [p.unidade_id, p])),
+    [data?.cacPendencia],
+  );
+
+  const cacTotais = useMemo(() => {
+    const rs = data?.cacSaldos ?? [];
+    // "A receber" soma só quem deve. Crédito de unidade que pagou a mais é outra
+    // conversa e abatê-lo aqui esconderia dívida atrás de crédito alheio.
+    const devedoras = rs.filter((r) => r.a_pagar > 0);
+    return {
+      cobrado: rs.reduce((t, r) => t + r.cobrado, 0),
+      pago: rs.reduce((t, r) => t + r.pago, 0),
+      aPagar: devedoras.reduce((t, r) => t + r.a_pagar, 0),
+      devedoras: devedoras.length,
+      semNota: (data?.cacPendencia ?? []).reduce((t, p) => t + Math.max(p.sem_nota, 0), 0),
+    };
+  }, [data?.cacSaldos, data?.cacPendencia]);
+
   const resumo = useMemo(() => {
     const o = data?.oportunidades ?? [];
     const por = (s: string) => o.filter((x) => x.status === s);
@@ -265,6 +284,7 @@ export function BrokerAdminView() {
           <TabsTrigger value="extrato">Extrato</TabsTrigger>
           <TabsTrigger value="multiplicador">Multiplicador</TabsTrigger>
           <TabsTrigger value="faturas">Faturas</TabsTrigger>
+          <TabsTrigger value="cac">CAC</TabsTrigger>
         </TabsList>
 
         <TabsContent value="fila" className="mt-3">
@@ -532,6 +552,138 @@ export function BrokerAdminView() {
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Nenhuma fatura pedida ainda.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* CAC pós-pago das unidades. Moeda é real, não CashBrain: o aquário é
+            pré-pago e este saldo é dívida já contraída. */}
+        <TabsContent value="cac" className="mt-3 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi rotulo="Cobrado" valor={brl(cacTotais.cobrado)} nota="na rede" />
+            <Kpi rotulo="Recebido" valor={brl(cacTotais.pago)} nota="baixas na conta da Partners" />
+            <Kpi
+              rotulo="A receber"
+              valor={brl(cacTotais.aPagar)}
+              nota={`${cacTotais.devedoras} unidade(s) devendo`}
+            />
+            <Kpi
+              rotulo="Cobrado sem nota"
+              valor={brl(cacTotais.semNota)}
+              nota="pendente de emissão"
+            />
+          </div>
+
+          {cacTotais.semNota > 0 ? (
+            <Card className="flex gap-3 border-amber-500/40 p-4">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm">
+                <strong>{brl(cacTotais.semNota)}</strong> foram cobrados no pipe e não têm nota
+                emitida no Omie. Isso não é inadimplência da unidade: é emissão que ainda não
+                aconteceu, e ninguém vai pagar o que não foi pedido.
+              </p>
+            </Card>
+          ) : null}
+
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="text-right">Cobrado</TableHead>
+                  <TableHead className="text-right">Recebido</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead className="text-right">Já tem nota</TableHead>
+                  <TableHead className="text-right">Sem nota</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.cacSaldos.map((r) => {
+                  const p = pendenciaPorUnidade.get(r.unidade_id);
+                  const devendo = r.a_pagar > 0;
+                  return (
+                    <TableRow key={r.unidade_id}>
+                      <TableCell className="font-medium">{r.nome ?? r.unidade_id}</TableCell>
+                      <TableCell className="text-right tabular-nums">{brl(r.cobrado)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{brl(r.pago)}</TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums",
+                          devendo ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+                        )}
+                      >
+                        {devendo ? "" : "−"}
+                        {brl(Math.abs(r.a_pagar))}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {brl(p?.ja_tem_nota ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {(p?.sem_nota ?? 0) > 0 ? (
+                          <span className="font-medium text-amber-600 dark:text-amber-400">
+                            {brl(p?.sem_nota)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{NA}</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {data.cacSaldos.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      Nenhuma unidade paga CAC hoje.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </Card>
+
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Quando</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Movimento</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.cacExtrato.slice(0, 120).map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {dataCurta(m.criado_em)}
+                    </TableCell>
+                    <TableCell>{m.nome ?? m.unidade_id}</TableCell>
+                    <TableCell>
+                      <Badge variant={m.tipo === "pagamento" ? "default" : "secondary"}>
+                        {m.tipo === "pagamento" ? "pagamento" : "cobrança"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{m.cliente ?? m.observacao ?? NA}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums",
+                        m.tipo === "pagamento" && "text-emerald-600 dark:text-emerald-400",
+                      )}
+                    >
+                      {m.tipo === "pagamento" ? "−" : ""}
+                      {brl(m.valor_cb)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {data.cacExtrato.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Nenhum lançamento de CAC.
                     </TableCell>
                   </TableRow>
                 ) : null}

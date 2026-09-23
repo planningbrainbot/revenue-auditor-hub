@@ -51,6 +51,55 @@ export type MovimentoRow = {
   criado_por: string | null;
 };
 
+/**
+ * CAC pós-pago. O extrato do broker guarda duas moedas na mesma tabela: o
+ * CashBrain do aquário (pré-pago, `origem` nula) e o CAC que a unidade já deve
+ * (`origem` começando em `cac_`). As views separam as duas — misturar faria a
+ * unidade ler CAC como saldo gasto no aquário.
+ *
+ * Aqui o valor é real, não CB: formatar com `brl`, nunca com `cb`.
+ */
+export type CacSaldoRow = {
+  unidade_id: number;
+  nome: string | null;
+  cobrado: number;
+  pago: number;
+  abatido: number;
+  a_pagar: number;
+};
+
+export type CacMovimentoRow = {
+  id: number;
+  unidade_id: number;
+  nome: string | null;
+  tipo: string;
+  valor_cb: number;
+  cliente: string | null;
+  mes_ref: string | null;
+  origem: string | null;
+  referencia: string | null;
+  observacao: string | null;
+  criado_em: string;
+};
+
+export type CacFilaRow = {
+  unidade_id: number;
+  nome: string | null;
+  cliente: string | null;
+  valor: number | null;
+  mes_referencia: string | null;
+  status_parcela_1: string | null;
+  status_parcela_2: string | null;
+};
+
+export type CacPendenciaRow = {
+  unidade_id: number;
+  nome: string | null;
+  a_pagar: number;
+  ja_tem_nota: number;
+  sem_nota: number;
+};
+
 export type MultiplicadorRow = {
   id: number;
   mes: string;
@@ -72,6 +121,9 @@ export type BrokerAdminData = {
   faturas: FaturaRow[];
   podeOperar: boolean;
   bloqueioPorSaldo: boolean;
+  cacSaldos: CacSaldoRow[];
+  cacPendencia: CacPendenciaRow[];
+  cacExtrato: CacMovimentoRow[];
 };
 
 async function assertCan(supabase: any, chave: string, recado: string) {
@@ -97,33 +149,50 @@ export const carregarBrokerAdmin = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker_admin", "você não tem acesso ao Broker da matriz.");
 
-    const [opor, saldos, movs, mults, unids, cfg, fats] = await Promise.all([
-      sb
-        .from("broker_oportunidades")
-        .select(
-          "id,pipedrive_deal_id,titulo,empresa,segmento,unidade_origem,estagio_pipedrive," +
-            "mrr_precificado,multiplicador,preco_cb,status,reservado_por,reservado_em,entrou_em",
-        )
-        .order("entrou_em", { ascending: false }),
-      sb
-        .from("broker_saldo")
-        .select("unidade_id,nome:nome_da_praca,creditado,bloqueado,investido,disponivel")
-        .order("nome_da_praca"),
-      sb
-        .from("broker_movimentos")
-        .select(
-          "id,unidade_id,tipo,valor_cb,oportunidade_id,mes_ref,observacao,criado_em,criado_por",
-        )
-        .order("criado_em", { ascending: false })
-        .limit(200),
-      sb
-        .from("broker_multiplicador")
-        .select("id,mes,unidade_id,midia,time_cm,new_mrr,apurado,aplicado,observacao")
-        .order("mes", { ascending: false }),
-      sb.from("unidades").select("id,nome:nome_da_praca").order("nome_da_praca"),
-      sb.rpc("broker_config_ativo", { _chave: "bloqueio_por_saldo", _unidade_id: null }),
-      sb.from("broker_faturas").select("*").order("pedida_em", { ascending: false }).limit(200),
-    ]);
+    const [opor, saldos, movs, mults, unids, cfg, fats, cacSaldos, cacPend, cacExtrato] =
+      await Promise.all([
+        sb
+          .from("broker_oportunidades")
+          .select(
+            "id,pipedrive_deal_id,titulo,empresa,segmento,unidade_origem,estagio_pipedrive," +
+              "mrr_precificado,multiplicador,preco_cb,status,reservado_por,reservado_em,entrou_em",
+          )
+          .order("entrou_em", { ascending: false }),
+        sb
+          .from("broker_saldo")
+          .select("unidade_id,nome:nome_da_praca,creditado,bloqueado,investido,disponivel")
+          .order("nome_da_praca"),
+        sb
+          .from("broker_movimentos")
+          .select(
+            "id,unidade_id,tipo,valor_cb,oportunidade_id,mes_ref,observacao,criado_em,criado_por",
+          )
+          .order("criado_em", { ascending: false })
+          .limit(200),
+        sb
+          .from("broker_multiplicador")
+          .select("id,mes,unidade_id,midia,time_cm,new_mrr,apurado,aplicado,observacao")
+          .order("mes", { ascending: false }),
+        sb.from("unidades").select("id,nome:nome_da_praca").order("nome_da_praca"),
+        sb.rpc("broker_config_ativo", { _chave: "bloqueio_por_saldo", _unidade_id: null }),
+        sb.from("broker_faturas").select("*").order("pedida_em", { ascending: false }).limit(200),
+        sb
+          .from("v_broker_cac_saldo")
+          .select("unidade_id,nome:nome_da_praca,cobrado,pago,abatido,a_pagar")
+          .order("a_pagar", { ascending: false }),
+        sb
+          .from("v_broker_cac_pendencia_emissao")
+          .select("unidade_id,nome:nome_da_praca,a_pagar,ja_tem_nota,sem_nota")
+          .order("sem_nota", { ascending: false }),
+        sb
+          .from("v_broker_cac_extrato")
+          .select(
+            "id,unidade_id,nome:nome_da_praca,tipo,valor_cb,cliente,mes_ref," +
+              "origem,referencia,observacao,criado_em",
+          )
+          .order("criado_em", { ascending: false })
+          .limit(400),
+      ]);
 
     for (const r of [opor, saldos, movs, mults, unids]) {
       if (r.error) throw new Error(r.error.message);
@@ -138,6 +207,9 @@ export const carregarBrokerAdmin = createServerFn({ method: "GET" })
       faturas: fats.data ?? [],
       podeOperar: await can(sb, "manage.broker"),
       bloqueioPorSaldo: cfg?.data === true,
+      cacSaldos: cacSaldos?.data ?? [],
+      cacPendencia: cacPend?.data ?? [],
+      cacExtrato: cacExtrato?.data ?? [],
     };
   });
 
@@ -334,6 +406,9 @@ export type BrokerUnidadeData = {
   faturas: FaturaRow[];
   instrucoesPagamento: string | null;
   semVinculo: boolean;
+  cacSaldo: CacSaldoRow | null;
+  cacExtrato: CacMovimentoRow[];
+  cacFila: CacFilaRow[];
 };
 
 export const carregarBrokerUnidade = createServerFn({ method: "GET" })
@@ -342,28 +417,60 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     await assertCan(sb, "view.broker", "você não tem acesso ao Broker.");
 
-    const [fila, extrato, saldo, faturas, instr, hist] = await Promise.all([
-      sb.from("v_broker_fila").select("*").order("entrou_em", { ascending: false }),
-      sb.from("v_broker_extrato").select("*").order("criado_em", { ascending: false }).limit(100),
-      sb
-        .from("v_broker_meu_saldo")
-        .select(
-          "unidade_id,nome:nome_da_praca,credito_recebido,credito_comprado," +
-            "creditado,bloqueado,investido,disponivel",
-        ),
-      sb.from("v_broker_minhas_faturas").select("*").order("pedida_em", { ascending: false }),
-      sb.rpc("broker_instrucoes_pagamento"),
-      sb
-        .from("v_broker_historico_preco")
-        .select("*")
-        .order("criado_em", { ascending: false })
-        .limit(300),
-    ]);
+    const [fila, extrato, saldo, faturas, instr, hist, cacSaldo, cacExtrato, cacFila] =
+      await Promise.all([
+        sb.from("v_broker_fila").select("*").order("entrou_em", { ascending: false }),
+        sb.from("v_broker_extrato").select("*").order("criado_em", { ascending: false }).limit(100),
+        sb
+          .from("v_broker_meu_saldo")
+          .select(
+            "unidade_id,nome:nome_da_praca,credito_recebido,credito_comprado," +
+              "creditado,bloqueado,investido,disponivel",
+          ),
+        sb.from("v_broker_minhas_faturas").select("*").order("pedida_em", { ascending: false }),
+        sb.rpc("broker_instrucoes_pagamento"),
+        sb
+          .from("v_broker_historico_preco")
+          .select("*")
+          .order("criado_em", { ascending: false })
+          .limit(300),
+        sb
+          .from("v_broker_cac_saldo")
+          .select("unidade_id,nome:nome_da_praca,cobrado,pago,abatido,a_pagar"),
+        sb
+          .from("v_broker_cac_extrato")
+          .select(
+            "id,unidade_id,nome:nome_da_praca,tipo,valor_cb,cliente,mes_ref," +
+              "origem,referencia,observacao,criado_em",
+          )
+          .order("criado_em", { ascending: false })
+          .limit(300),
+        sb
+          .from("v_broker_cac_fila")
+          .select(
+            "unidade_id,nome:nome_da_praca,cliente,valor,mes_referencia," +
+              "status_parcela_1,status_parcela_2",
+          )
+          .order("valor", { ascending: false }),
+      ]);
     for (const r of [fila, extrato, saldo, faturas]) if (r.error) throw new Error(r.error.message);
 
-    // Sem linha de saldo = usuário sem unidade vinculada em socios.user_id.
-    // A tela precisa dizer isso em vez de mostrar zero, que seria uma afirmação.
+    // Sem linha de saldo = usuário sem unidade, porque `v_broker_meu_saldo`
+    // filtra por `ops.minhas_unidades()`, que lê `ops.usuario_unidades` (ou a
+    // unidade vestida, quando há "ver como" ativo). A tela precisa dizer isso
+    // em vez de mostrar zero, que seria uma afirmação.
     const linhas = saldo.data ?? [];
+    // A unidade desta tela. `v_broker_meu_saldo` não tem porta de admin, então
+    // ela já vem sozinha, e é por ela que o CAC é escolhido.
+    const minhaUnidade = linhas[0]?.unidade_id ?? null;
+    // Rede de segurança: as views de CAC TÊM porta de admin, e quem a
+    // atravessa recebe as 8 unidades. Desde 23/09 a simulação fecha essa porta
+    // no banco (migration `20260923160000_ver_como_fecha_porta_de_admin`), mas
+    // pegar `[0]` aqui foi o que fez a aba CAC de Fortaleza mostrar os R$ 78 mil
+    // de Maceió. Escolher pela unidade não deixa esse erro voltar em silêncio
+    // se alguém abrir a porta de novo.
+    const daMinhaUnidade = <T extends { unidade_id: number }>(linhas: T[] | null | undefined) =>
+      minhaUnidade === null ? [] : (linhas ?? []).filter((r) => r.unidade_id === minhaUnidade);
     return {
       fila: fila.data ?? [],
       historicoPreco: hist.data ?? [],
@@ -372,6 +479,11 @@ export const carregarBrokerUnidade = createServerFn({ method: "GET" })
       faturas: faturas.data ?? [],
       instrucoesPagamento: (instr?.data as string | null) ?? null,
       semVinculo: linhas.length === 0,
+      // Unidade que não paga CAC não tem linha em v_broker_cac_saldo, e a aba
+      // some. Erro aqui não derruba a tela do aquário, que é o assunto principal.
+      cacSaldo: daMinhaUnidade<CacSaldoRow>(cacSaldo?.data)[0] ?? null,
+      cacExtrato: daMinhaUnidade<CacMovimentoRow>(cacExtrato?.data),
+      cacFila: daMinhaUnidade<CacFilaRow>(cacFila?.data),
     };
   });
 
