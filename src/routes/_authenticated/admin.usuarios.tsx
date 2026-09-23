@@ -8,6 +8,7 @@ import {
   adminDefinirPortaOps,
   adminDeleteUser,
   adminEnviarRedefinicaoSenha,
+  adminGerarSenhaProvisoria,
   adminGrantGrowthAccess,
   adminListGrowthAccess,
   adminListUsers,
@@ -89,6 +90,7 @@ function UsersPage() {
   const emailStatusFn = useServerFn(adminAccessEmailStatus);
   const createFn = useServerFn(adminCreateUser);
   const resetFn = useServerFn(adminEnviarRedefinicaoSenha);
+  const senhaProvisoriaFn = useServerFn(adminGerarSenhaProvisoria);
   const deleteFn = useServerFn(adminDeleteUser);
   const updateFn = useServerFn(adminUpdateUser);
   const lookupFn = useServerFn(getSocioUnidadeByEmail);
@@ -151,7 +153,21 @@ function UsersPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("diretor");
-  const [credential, setCredential] = useState<{ email: string; password: string; unidade?: string | null } | null>(null);
+  const [credential, setCredential] = useState<{
+    email: string;
+    password: string;
+    unidade?: string | null;
+    /** Senha gerada para uma conta que já existe, que a pessoa terá de trocar. */
+    provisoria?: boolean;
+  } | null>(null);
+  // Alvo do diálogo de senha. `modo` é o que o admin escolheu ali: link por
+  // e-mail (não mexe na senha atual) ou senha provisória em tela.
+  const [senhaAlvo, setSenhaAlvo] = useState<{
+    userId: string;
+    nome: string;
+    email: string;
+    modo: "link" | "provisoria";
+  } | null>(null);
   const [acesso, setAcesso] = useState<{
     modo: "convite" | "reset";
     email: string;
@@ -253,15 +269,35 @@ function UsersPage() {
 
   const resetMut = useMutation({
     mutationFn: ({ user_id }: { user_id: string }) => resetFn({ data: { user_id } }),
-    onSuccess: (res) =>
+    onSuccess: (res) => {
+      setCredential(null);
+      setSenhaAlvo(null);
+      setError(null);
       setAcesso({
         modo: "reset",
         email: res.email,
         link: res.link,
         enviado: res.emailEnviado,
         erro: res.emailErro,
-      }),
+      });
+      mostrarResultadoNoTopo();
+    },
     onError: (e) => setError(e instanceof Error ? e.message : "Erro ao enviar a redefinição de senha"),
+  });
+
+  const senhaProvisoriaMut = useMutation({
+    mutationFn: ({ user_id }: { user_id: string }) => senhaProvisoriaFn({ data: { user_id } }),
+    onSuccess: (res) => {
+      // Os dois painéis nunca aparecem juntos: são dois caminhos para a mesma
+      // pergunta ("como essa pessoa entra?"), e ver os dois faria duvidar de
+      // qual valeu.
+      setAcesso(null);
+      setSenhaAlvo(null);
+      setError(null);
+      setCredential({ email: res.email, password: res.senha, provisoria: true });
+      mostrarResultadoNoTopo();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao gerar a senha provisória"),
   });
 
   const deleteMut = useMutation({
@@ -307,6 +343,15 @@ function UsersPage() {
     });
   }
 
+  /**
+   * Os dois painéis de resultado (link enviado, senha gerada) moram no topo da
+   * página, e o botão que os dispara está numa linha da tabela que pode estar
+   * na altura do rodapé. Sem isto, gerar uma senha parece não ter feito nada.
+   */
+  function mostrarResultadoNoTopo() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function copyLink() {
     if (acesso?.link) navigator.clipboard?.writeText(acesso.link);
   }
@@ -327,8 +372,9 @@ function UsersPage() {
           <h2 className="text-sm font-semibold">Emails de acesso</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Convites e redefinições saem como Planning Brain · noreply@planningbrain.com.br. Para
-            uma conta existente, use “Enviar redefinição” na linha do usuário. A pessoa define a
-            própria senha pelo link recebido.
+            uma conta existente, use “Senha” na linha do usuário: de lá sai o link por e-mail, com a
+            pessoa definindo a própria senha, ou uma senha provisória em tela, para quando ela não
+            acessa o e-mail.
           </p>
           <p className="mt-2 text-xs text-muted-foreground" role="status">
             {emailStatus.isError
@@ -406,10 +452,18 @@ function UsersPage() {
           <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">Credenciais geradas</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {credential.provisoria ? "Senha provisória gerada" : "Credenciais geradas"}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Copie e envie para o usuário por um canal seguro. Esta senha só aparece uma vez.
                 </p>
+                {credential.provisoria && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    A senha anterior já não vale. No próximo acesso, a pessoa é levada a cadastrar a
+                    dela antes de usar o Ops.
+                  </p>
+                )}
                 <div className="mt-3 rounded-lg bg-background px-3 py-2 font-mono text-sm">
                   <div><span className="text-muted-foreground">Email:</span> {credential.email}</div>
                   <div><span className="text-muted-foreground">Senha:</span> {credential.password}</div>
@@ -710,13 +764,23 @@ function UsersPage() {
                             coluna Unidade, o segundo é a pílula Ops. Dois
                             caminhos para a mesma janela só faziam duvidar se
                             eram a mesma coisa. */}
+                        {/* Um botão para os dois caminhos de senha. Dois botões
+                            na linha obrigariam a escolher entre eles sem ver a
+                            diferença, que é justamente o que o diálogo explica:
+                            o link não toca na senha atual, a provisória troca. */}
                         <button
-                          onClick={() => resetMut.mutate({ user_id: u.user_id })}
-                          disabled={resetMut.isPending}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent disabled:opacity-50"
-                          title="Envia um e-mail com link para a pessoa cadastrar uma nova senha"
+                          onClick={() =>
+                            setSenhaAlvo({
+                              userId: u.user_id,
+                              nome: u.nome || u.email || "",
+                              email: u.email || "",
+                              modo: "link",
+                            })
+                          }
+                          title="Enviar link de redefinição ou gerar uma senha provisória"
+                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
                         >
-                          {resetMut.isPending ? "Enviando..." : "Enviar redefinição"}
+                          Senha
                         </button>
                         {u.user_id !== user?.id && (
                           <button
@@ -738,6 +802,92 @@ function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {senhaAlvo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
+              <h2 className="text-lg font-semibold text-foreground">Senha de acesso</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {senhaAlvo.nome} · {senhaAlvo.email}
+              </p>
+
+              <div className="mt-5 space-y-3">
+                <label className="flex cursor-pointer gap-3 rounded-lg border border-input p-3 hover:bg-accent">
+                  <input
+                    type="radio"
+                    name="modo-senha"
+                    className="mt-0.5"
+                    checked={senhaAlvo.modo === "link"}
+                    onChange={() => setSenhaAlvo({ ...senhaAlvo, modo: "link" })}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">
+                      Enviar link por e-mail
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      A pessoa cadastra a própria senha. A senha atual continua valendo até ela
+                      fazer isso. Link de uso único, válido por 24 horas.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  className={`flex gap-3 rounded-lg border border-input p-3 ${
+                    senhaAlvo.userId === user?.id ? "opacity-50" : "cursor-pointer hover:bg-accent"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modo-senha"
+                    className="mt-0.5"
+                    disabled={senhaAlvo.userId === user?.id}
+                    checked={senhaAlvo.modo === "provisoria"}
+                    onChange={() => setSenhaAlvo({ ...senhaAlvo, modo: "provisoria" })}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">
+                      Gerar senha provisória
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {senhaAlvo.userId === user?.id
+                        ? "Não vale para a sua própria conta: use “Esqueci minha senha” na tela de login."
+                        : "A senha aparece aqui para você copiar e mandar. A senha atual para de valer na hora, e no próximo acesso a pessoa é obrigada a cadastrar a dela."}
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+
+              <div className="mt-6 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setSenhaAlvo(null);
+                    setError(null);
+                  }}
+                  className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() =>
+                    senhaAlvo.modo === "provisoria"
+                      ? senhaProvisoriaMut.mutate({ user_id: senhaAlvo.userId })
+                      : resetMut.mutate({ user_id: senhaAlvo.userId })
+                  }
+                  disabled={resetMut.isPending || senhaProvisoriaMut.isPending}
+                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {resetMut.isPending || senhaProvisoriaMut.isPending
+                    ? "Aplicando..."
+                    : senhaAlvo.modo === "provisoria"
+                      ? "Gerar senha"
+                      : "Enviar link"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {growthAlvo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -778,7 +928,7 @@ function UsersPage() {
                     banco e outro login. Desde a migração de 18/09/2026 a conta
                     é a mesma: digitar uma senha nesta tela trocaria também a
                     senha do Ops e do Financeiro, sem avisar. Para trocar senha
-                    existe "Enviar redefinição", na linha da pessoa. */}
+                    existe o botão "Senha", na linha da pessoa. */}
                 <p className="text-xs text-muted-foreground">
                   Mesma conta do Ops e do Financeiro. Aqui se define só o que a pessoa é dentro
                   do Growth.

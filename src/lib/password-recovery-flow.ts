@@ -7,8 +7,15 @@ type RecoveryAuth = Pick<
 >;
 export type RecoveryResult = { ok: true } | { ok: false; expired?: boolean; message: string };
 
+/**
+ * De onde vem a prova de identidade: o link (ou o código) do e-mail, ou a
+ * sessão já aberta de quem entrou com uma senha provisória e é obrigado a
+ * trocá-la antes de usar o Ops.
+ */
+export type PasswordFlowSource = RecoveryLink | { kind: "sessao" };
+
 /** Mantém a identidade confirmada para poder corrigir a senha sem reutilizar o OTP. */
-export function createPasswordRecoveryFlow(auth: RecoveryAuth, link: RecoveryLink) {
+export function createPasswordRecoveryFlow(auth: RecoveryAuth, link: PasswordFlowSource) {
   let verifiedUser: string | null = null;
   let pending = false;
   return {
@@ -18,6 +25,21 @@ export function createPasswordRecoveryFlow(auth: RecoveryAuth, link: RecoveryLin
       if (password.length < 6) return { ok: false, message: "Use pelo menos 6 caracteres." };
       pending = true;
       try {
+        if (!verifiedUser && link.kind === "sessao") {
+          // Senha provisória: a identidade já está provada pela sessão que a
+          // pessoa abriu com a senha que o admin passou na mão. Não há OTP para
+          // verificar, e pedir um e-mail aqui seria voltar ao problema que a
+          // senha em tela resolve (a pessoa não acessa o e-mail).
+          const { data, error } = await auth.getUser();
+          if (error || !data.user) {
+            return {
+              ok: false,
+              expired: true,
+              message: "Sua sessão expirou. Entre de novo com a senha provisória para continuar.",
+            };
+          }
+          verifiedUser = data.user.id;
+        }
         if (!verifiedUser) {
           const result = code
             ? await auth.verifyOtp({
