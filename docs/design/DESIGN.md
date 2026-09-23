@@ -34,7 +34,7 @@ Fonte: `diagnostico/design-system-planning.md` §1.2 (arquivos `.ase` + `brand-d
 | Cinza claro | `#CDCDCD` | Cool Gray 2 C | referência de neutro |
 | Branco | `#FFFFFF` | — | base do tema claro |
 
-Vermelho **não é cor da marca**. `danger` (`#ff6b6b` / `#c62a2f`) é a única exceção, e só para erro.
+Vermelho **não é cor da marca**. `danger` (`#ff6b6b` / `#b5262b`) é a única exceção, e só para erro.
 
 **A marca é "preto sobre vivo".** Verde, ciano e lima dão menos de 2:1 sobre branco (verde 1,7; ciano 2,0; lima 1,4). Consequência: no tema claro essas cores **nunca** são texto, ícone, link ou borda; texto na cor da marca usa `primary-text` (`#007a4f`).
 
@@ -82,14 +82,14 @@ Tema escuro é o padrão; claro usa os mesmos nomes. Contraste calculado em 23/0
 | `primary` | `#0ae18c` | `#0ae18c` | texto `#04110b` sobre ele: 11,2 | só preenchimento |
 | `primary-text` | `#0ae18c` | `#007a4f` | 10,8 / **5,4** | link, texto na cor da marca |
 | `ring` | `#0ae18c` | `#007a4f` | 10,8 / 5,4 | foco, 2px sólido + offset |
-| `success` (+`-soft`) | `#3ef0a8` | `#00794e` | 12,6 / 5,5 | positivo |
-| `warning` (+`-soft`) | `#ff9a5c` | `#b54400` | 8,9 / 5,5 | atenção (laranja da marca) |
-| `danger` (+`-soft`) | `#ff6b6b` | `#c62a2f` | 6,7 / 5,6 | erro, negativo |
-| `info` (+`-soft`) | `#5ad8ff` | `#0074a0` | 11,2 / 5,2 | informação (ciano da marca) |
+| `success` (+`-soft`) | `#3ef0a8` | `#006e47` | 12,6 / 6,3 (5,6 sobre o soft) | positivo |
+| `warning` (+`-soft`) | `#ff9a5c` | `#a63e00` | 8,9 / 6,3 (5,6 sobre o soft) | atenção (laranja da marca) |
+| `danger` (+`-soft`) | `#ff6b6b` | `#b5262b` | 6,7 / 6,4 (5,6 sobre o soft) | erro, negativo |
+| `info` (+`-soft`) | `#5ad8ff` | `#00678e` | 11,2 / 6,3 (5,6 sobre o soft) | informação (ciano da marca) |
 
 Regras:
 - `border` não serve de limite de controle (1,3:1). Input, select e checkbox usam `input`.
-- Status sobre `*-soft` precisa de ≥4,5:1 para texto; conferir no T2 quando os `*-soft` forem fixados.
+- Status sobre `*-soft` precisa de ≥4,5:1 para texto. No claro os textos foram escurecidos em 23/09 até ~5,6:1 sobre o `*-soft` (revisão final, D1), e texto de status não leva opacidade (V20). Contas no comentário de `src/styles.css`.
 - Classes cruas `emerald|green|red|rose|amber|yellow|orange|sky|cyan|blue|slate|gray|zinc|neutral-*` são proibidas fora de `components/ui` e `components/planning` (spec §2.4).
 
 ### 3.1 Cor de área
@@ -276,5 +276,7 @@ Fonte: spec §2.5.
 | V17 | Gradiente da marca só no logo e na casca | `grep "linear-gradient"` fora de `styles.css` e logo = 0 |
 | V18 | `lang="pt-BR"`, 404 e erro em português | revisão de `__root.tsx` |
 | V19 | Todo `toast()` tem `<Toaster/>` montado no root | `grep "<Toaster"` em `__root.tsx` ≥ 1 |
+| V20 | Texto em cor de status (`success`/`warning`/`danger`/`info`/`primary-text`) nunca leva opacidade (`text-X/NN`, nem `opacity-*` no elemento ou no pai): o par sobre `*-soft` tem ~5,6:1 de folga e 80% já o derruba para ~3,5:1 | lint (erro) pega `text-X/NN`; `opacity-*` no pai fica na revisão |
+| V21 | `text-primary` não é cor de texto (1,73:1 no claro): texto e link na cor da marca usam `text-primary-text`; `text-primary-foreground` é o texto sobre o preenchimento verde | lint (erro) fora de `components/ui` |
 
 Violação nova em arquivo tocado bloqueia o PR. Violação antiga em arquivo não tocado entra na contagem de `docs/design/medicoes.md` e cai pelo codemod (T7), não por correção manual espalhada.

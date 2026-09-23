@@ -54,7 +54,7 @@ function Pendencias({ itens, vazio }: { itens: Pendencia[]; vazio: string }) {
   return (
     <Card className="space-y-2 p-4">
       <div className="flex items-center gap-2">
-        <AlertCircle className="h-4 w-4 text-primary" />
+        <AlertCircle className="h-4 w-4 text-primary-text" />
         <h3 className="font-semibold">
           O que espera por você
           <Badge variant="secondary" className="ml-2">

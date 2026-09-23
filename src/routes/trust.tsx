@@ -110,7 +110,7 @@ function TrustPage() {
       </div>
 
       <footer className="mt-12 border-t border-border pt-6 text-sm">
-        <Link to="/" className="text-primary hover:underline">
+        <Link to="/" className="text-primary-text hover:underline">
           ← Back to app
         </Link>
       </footer>

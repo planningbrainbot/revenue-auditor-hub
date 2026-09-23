@@ -208,7 +208,7 @@ export function ClientesBase() {
           <button
             key={key}
             onClick={() => change({ view: key })}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${view === key ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {label}
             {key === "pendencias" && (
@@ -364,7 +364,7 @@ export function ClientesBase() {
                               .map((k) => (
                                 <button
                                   key={k}
-                                  className="block text-left text-primary underline"
+                                  className="block text-left text-primary-text underline"
                                   onClick={() =>
                                     setDetail(data.accounts.find((a) => a.key === k) || null)
                                   }
@@ -404,7 +404,7 @@ export function ClientesBase() {
                             href={d.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-primary underline"
+                            className="text-primary-text underline"
                           >
                             {d.title}
                           </a>
@@ -466,7 +466,7 @@ export function ClientesBase() {
                       <tr className="border-t hover:bg-muted/20" key={a.key}>
                         <td className="max-w-xs px-4 py-3">
                           <button
-                            className="text-left font-medium hover:text-primary hover:underline"
+                            className="text-left font-medium hover:text-primary-text hover:underline"
                             onClick={() => setDetail(a)}
                           >
                             {a.name}

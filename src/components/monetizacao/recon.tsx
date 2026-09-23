@@ -286,7 +286,7 @@ export function ReconAquario({
                   </td>
                   <td className="p-3">
                     <button
-                      className="text-left font-medium text-primary underline-offset-2 hover:underline"
+                      className="text-left font-medium text-primary-text underline-offset-2 hover:underline"
                       onClick={() => showAccount(a)}
                     >
                       {a.name}
@@ -319,7 +319,7 @@ export function ReconAquario({
                     <span
                       className={
                         ofertaRecon(a).status === "elegivel"
-                          ? "text-xs text-primary"
+                          ? "text-xs text-primary-text"
                           : "text-xs text-muted-foreground"
                       }
                     >

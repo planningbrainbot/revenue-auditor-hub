@@ -210,7 +210,7 @@ export function IduView() {
 
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 border-b px-4 py-3">
-          <Trophy className="h-4 w-4 text-primary" />
+          <Trophy className="h-4 w-4 text-primary-text" />
           <h2 className="text-sm font-semibold">Ranking da rede</h2>
           <span className="text-xs text-muted-foreground">
             a nota mede quanto do combinado foi entregue, não o tamanho da unidade

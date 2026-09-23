@@ -167,10 +167,11 @@ export function OnboardingTab() {
       {/* KPIs */}
       <KpiGrade colunas={4}>
         <KpiCard rotulo="Clientes em onboarding" valor={kpis.ativos} />
-        <KpiCard rotulo="Onboardings concluídos" valor={kpis.concluidos} />
+        <KpiCard rotulo="Onboardings concluídos" valor={kpis.concluidos} tom="sucesso" />
         <KpiCard
           rotulo={`Gargalos (parado ≥ ${DIAS_ALERTA_GARGALO}d na fase)`}
           valor={kpis.gargalos}
+          tom={kpis.gargalos > 0 ? "perigo" : undefined}
         />
         {/* Sem nenhum ciclo fechado o tempo médio não existe ainda: "não
             apurado", com o porquê na nota, e não um 0d (N4). */}

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, type UnidadeMesAgg } from "./calculations";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
-import { KpiCard } from "@/components/planning";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 function fmtBRL(v: number) {
   return brl(v);
@@ -95,9 +95,11 @@ function computeKpis(aggs: UnidadeMesAgg[]): Kpis {
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` pintava só o número; cor sozinha não é status (V7), então
-// fica aceito e ignorado.
+// §1.6). O `tone` pintava o número e vira o `tom` do KpiCard (emerald →
+// sucesso, red → perigo, amber → atenção, neutral → neutro), com ícone de
+// status junto da cor (V7).
 function Card({
+  tone,
   label,
   value,
   sub,
@@ -107,7 +109,7 @@ function Card({
   sub?: string;
   tone?: "emerald" | "red" | "amber" | "neutral";
 }) {
-  return <KpiCard rotulo={label} valor={value} nota={sub} />;
+  return <KpiCard rotulo={label} valor={value} nota={sub} tom={tomDoLegado(tone)} />;
 }
 
 export function OverviewTab() {

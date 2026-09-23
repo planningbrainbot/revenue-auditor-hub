@@ -51,7 +51,7 @@ function VerDetalheLink({ to, search }: { to: string; search?: Record<string, st
     <Link
       to={to}
       search={search}
-      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline"
     >
       Ver detalhe <ArrowRight className="h-3 w-3" />
     </Link>
@@ -1443,8 +1443,9 @@ function RedeOverviewPage() {
         {/* ---- Aba 4: Qualidade & CS — NPS, Saúde da Carteira, Churn, Auditoria ---- */}
         <TabsContent value="qualidade" className="space-y-4">
           {/* O "Ver detalhe" que ficava no rodapé vira o card inteiro abrindo
-              /painel-cs (N2). A cor verde/âmbar do número sai: o limiar de 70%
-              não estava escrito em lugar nenhum e cor sozinha não é status (V7).
+              /painel-cs (N2). A cor do número fica como tom do KpiCard, com ícone
+              de status junto (V7): churn em atenção; carteira saudável em
+              sucesso a partir de 70%, atenção abaixo (o limiar de antes).
               A auditoria fiscal segue em Card próprio: são dois valores lado a
               lado, e o KpiCard tem um número só. */}
           <KpiGrade colunas={4}>
@@ -1453,12 +1454,14 @@ function RedeOverviewPage() {
               valor={churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
               estado={churnStats.churnReceitaPct != null ? "ok" : "nao-apurado"}
               nota={`${fmtBRL(churnStats.churnedMrr)} em MRR perdido`}
+              tom="atencao"
               abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
             />
             <KpiCard
               rotulo="Churn Logo"
               valor={churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
               estado={churnStats.churnLogoPct != null ? "ok" : "nao-apurado"}
+              tom="atencao"
               nota={`${churnStats.churnedCount} cliente${churnStats.churnedCount === 1 ? "" : "s"} perdido${churnStats.churnedCount === 1 ? "" : "s"}`}
               abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
             />
@@ -1467,6 +1470,7 @@ function RedeOverviewPage() {
               valor={saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
               estado={saudeStats.pctSaudavel != null ? "ok" : "nao-apurado"}
               nota={`${saudeStats.risco} em risco de ${saudeStats.total}`}
+              tom={saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "sucesso" : "atencao"}
               abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
             />
             <Card className="p-4">

@@ -254,7 +254,7 @@ export function OverviewTab() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-danger">
             Inadimplentes ({inadOrdered.length})
-            <span className="ml-2 text-xs font-normal text-danger/80">
+            <span className="ml-2 text-xs font-normal text-danger">
               · Nova {num(inadGroups.nova.length)} · Antiga {num(inadGroups.antiga.length)} · s/cad {num(inadGroups.semCadastro.length)}
             </span>
           </h3>

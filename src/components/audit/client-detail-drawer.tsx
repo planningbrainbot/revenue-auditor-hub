@@ -180,7 +180,7 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                             "border-t",
                             r.status === "aberto" && "bg-danger-soft/60",
                             r.status === "parcial" && "bg-warning-soft/60",
-                            r.isFuture && "opacity-60",
+                            r.isFuture && "text-muted-foreground",
                           )}
                         >
                           <td className="px-3 py-2 font-medium">{formatMonthLabel(r.month)}</td>

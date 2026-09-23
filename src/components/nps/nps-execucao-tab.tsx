@@ -1038,7 +1038,7 @@ export function NpsExecucaoTab() {
                           href={selected.gravacaoUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-primary underline underline-offset-2"
+                          className="text-xs text-primary-text underline underline-offset-2"
                         >
                           ouvir/baixar gravação
                         </a>

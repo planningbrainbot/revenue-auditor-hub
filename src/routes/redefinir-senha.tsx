@@ -218,7 +218,7 @@ function ResetPasswordPage() {
                 {error}
               </p>
             )}
-            <Link to="/auth" className="block text-center text-sm text-primary">
+            <Link to="/auth" className="block text-center text-sm text-primary-text">
               Voltar para o login
             </Link>
           </form>

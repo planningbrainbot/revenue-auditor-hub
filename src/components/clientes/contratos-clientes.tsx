@@ -679,11 +679,11 @@ export function ContratosClientes({
               churnFilter === false && "ring-2 ring-offset-2 ring-primary",
             )}
           >
-            <div className="text-xs font-medium uppercase tracking-wide opacity-80">
+            <div className="text-xs font-medium uppercase tracking-wide">
               Clientes Ativos
             </div>
             <div className="mt-1 text-3xl font-bold">{churnCounts.ativo}</div>
-            <div className="mt-1 text-xs opacity-75">Sem card de churn em tratativas</div>
+            <div className="mt-1 text-xs">Sem card de churn em tratativas</div>
           </button>
           <button
             type="button"
@@ -697,9 +697,9 @@ export function ContratosClientes({
               churnFilter === true && "ring-2 ring-offset-2 ring-primary",
             )}
           >
-            <div className="text-xs font-medium uppercase tracking-wide opacity-80">Churn</div>
+            <div className="text-xs font-medium uppercase tracking-wide">Churn</div>
             <div className="mt-1 text-3xl font-bold">{churnCounts.churn}</div>
-            <div className="mt-1 text-xs opacity-75">Card "Perdido" em tratativas</div>
+            <div className="mt-1 text-xs">Card "Perdido" em tratativas</div>
           </button>
         </div>
 
@@ -891,7 +891,7 @@ export function ContratosClientes({
                           <Icon
                             className={cn(
                               "h-3.5 w-3.5",
-                              active ? "text-primary" : "text-muted-foreground/60",
+                              active ? "text-primary-text" : "text-muted-foreground/60",
                             )}
                           />
                         </button>
@@ -985,7 +985,7 @@ export function ContratosClientes({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-primary-text hover:underline"
                           >
                             {r.pipedrive_id}
                             <ExternalLink className="h-3 w-3" />

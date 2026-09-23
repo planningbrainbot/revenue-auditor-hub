@@ -39,7 +39,7 @@ const CELULA: Record<Nivel, { texto: string; classe: string }> = {
   super_admin: { texto: "total", classe: "bg-primary text-primary-foreground" },
   admin: { texto: "admin", classe: "bg-primary/80 text-primary-foreground" },
   socio: { texto: "sócio", classe: "bg-primary/25 text-foreground" },
-  usuario: { texto: "usuário", classe: "bg-primary/10 text-primary" },
+  usuario: { texto: "usuário", classe: "bg-primary/10 text-primary-text" },
   perfil: { texto: "perfil", classe: "border border-border text-muted-foreground" },
   bloqueado: { texto: "bloqueada", classe: "bg-destructive/10 text-destructive" },
   nenhum: { texto: "", classe: "" },
@@ -65,7 +65,7 @@ function NiveisPage() {
     >
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
           <div className="text-muted-foreground">
             <p>
               <strong className="text-foreground">total</strong> super admin ·{" "}

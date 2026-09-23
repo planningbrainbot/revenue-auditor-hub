@@ -198,7 +198,7 @@ function InicioPage() {
               }
             }}
           >
-            <p.Icone className="h-6 w-6 text-primary" />
+            <p.Icone className="h-6 w-6 text-primary-text" />
             <div>
               <h2 className="text-base font-semibold text-foreground">{p.nome}</h2>
               <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{p.descricao}</p>

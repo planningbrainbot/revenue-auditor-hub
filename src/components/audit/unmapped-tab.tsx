@@ -142,7 +142,7 @@ export function UnmappedTab() {
         <div className="rounded-lg border border-warning/40 bg-warning-soft p-4 shadow-sm">
           <div className="text-xs font-medium uppercase text-warning">Vendas sem recebimento localizado</div>
           <div className="mt-1 text-3xl font-bold text-warning">{num(stats.deal_sem_planning)}</div>
-          <div className="text-xs text-warning/80">
+          <div className="text-xs text-warning">
             Vendas fechadas no CRM (Pipedrive) que não foram encontradas no Planning. Investigar: contrato não cadastrado, CNPJ divergente ou duplicidade.
           </div>
         </div>

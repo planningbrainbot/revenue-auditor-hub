@@ -264,7 +264,7 @@ function OperacaoPage() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <div className="flex items-center gap-3">
-        <Building2 className="h-6 w-6 text-primary" />
+        <Building2 className="h-6 w-6 text-primary-text" />
         <div>
           <h1 className="text-2xl font-bold">Operação por Unidade</h1>
           <p className="text-sm text-muted-foreground">

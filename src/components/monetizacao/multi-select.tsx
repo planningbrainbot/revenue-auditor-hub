@@ -58,7 +58,7 @@ export function MultiSelect({
           <span className={`truncate ${value.length ? "" : "text-foreground/80"}`}>{summary}</span>
           <span className="flex shrink-0 items-center gap-1">
             {value.length > 1 && (
-              <span className="rounded bg-primary/15 px-1.5 text-xs font-semibold text-primary">
+              <span className="rounded bg-primary/15 px-1.5 text-xs font-semibold text-primary-text">
                 {value.length}
               </span>
             )}
@@ -124,7 +124,7 @@ export function MultiSelect({
           >
             Limpar
           </button>
-          <button type="button" className="font-medium text-primary" onClick={() => setOpen(false)}>
+          <button type="button" className="font-medium text-primary-text" onClick={() => setOpen(false)}>
             Concluir
           </button>
         </div>

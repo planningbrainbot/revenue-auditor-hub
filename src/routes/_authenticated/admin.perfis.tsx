@@ -94,7 +94,7 @@ function ProfilesPage() {
     <AppShell title="Perfis de usuário" subtitle="Cada perfil é um modelo: abre um conjunto de áreas para quem o recebe">
       <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <Info className="mt-0.5 h-5 w-5 text-primary" />
+          <Info className="mt-0.5 h-5 w-5 text-primary-text" />
           <div className="flex-1 text-sm text-foreground">
             <p className="font-semibold">Como funciona</p>
             <p className="mt-1 text-muted-foreground">

@@ -41,7 +41,7 @@ function Shell({
             aria-label={`Filtrar e ordenar por ${titulo}`}
             className={cn(
               "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-muted",
-              (ativo || dirOrdem) && "bg-primary/10 text-primary",
+              (ativo || dirOrdem) && "bg-primary/10 text-primary-text",
             )}
           >
             {dirOrdem === "asc" ? (

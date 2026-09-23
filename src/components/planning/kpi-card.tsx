@@ -1,6 +1,15 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { CircleDashed, Lock, Unplug } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+  Info,
+  Lock,
+  Unplug,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { partesDoLink } from "@/lib/areas";
 import { corDaArea } from "@/lib/planning/cores-area";
@@ -22,8 +31,59 @@ import { StatusBadge } from "./status-badge";
  *   link ou botão, ganha o filete da área e diz "Abrir registros →". Sem
  *   `abrir`, nem borda nem cursor mudam, para não prometer um clique que não
  *   existe.
+ * - Tom de negócio opcional (`tom`): quando o número em si é bom ou ruim
+ *   ("Perdidos", "Risco", saúde abaixo da régua), o valor sai na cor do tom,
+ *   com ícone de status ao lado e filete lateral fixo no tom. Cor nunca
+ *   sozinha (V7): o ícone acompanha sempre, e a palavra vem em `tomRotulo`
+ *   (ou, sem ela, só para leitor de tela). Neutro não é tom: não passe nada.
+ * - HTML válido na variante clicável: dentro de `<a>`/`<button>` só há
+ *   `<span>` (com `block`/`flex`), porque os dois só aceitam conteúdo de frase.
  */
 export type EstadoKpi = "ok" | "parcial" | "nao-apurado" | "indisponivel" | "sem-acesso";
+
+export type TomKpi = "sucesso" | "atencao" | "perigo" | "info";
+
+const TONS: Record<TomKpi, { texto: string; filete: string; icone: LucideIcon; palavra: string }> = {
+  sucesso: { texto: "text-success", filete: "bg-success", icone: CheckCircle2, palavra: "positivo" },
+  atencao: { texto: "text-warning", filete: "bg-warning", icone: AlertTriangle, palavra: "atenção" },
+  perigo: { texto: "text-danger", filete: "bg-danger", icone: AlertOctagon, palavra: "crítico" },
+  info: { texto: "text-info", filete: "bg-info", icone: Info, palavra: "informação" },
+};
+
+/**
+ * Traduz o `tone`/`accent` dos cards locais antigos para o tom do KpiCard,
+ * preservando o sentido: verde → sucesso, vermelho → perigo, âmbar/laranja →
+ * atenção, azul/índigo/ciano → info. Neutro, cinza, roxo e o que não for
+ * reconhecido → sem tom (card neutro).
+ */
+export function tomDoLegado(tone: string | boolean | null | undefined): TomKpi | undefined {
+  if (tone === true) return "sucesso";
+  switch (tone) {
+    case "emerald":
+    case "green":
+    case "ok":
+    case "sucesso":
+      return "sucesso";
+    case "red":
+    case "danger":
+    case "destructive":
+    case "perigo":
+      return "perigo";
+    case "amber":
+    case "orange":
+    case "warn":
+    case "warning":
+    case "atencao":
+      return "atencao";
+    case "indigo":
+    case "sky":
+    case "blue":
+    case "info":
+      return "info";
+    default:
+      return undefined;
+  }
+}
 
 export type KpiCardProps = {
   rotulo: string;
@@ -52,6 +112,14 @@ export type KpiCardProps = {
   abrir?: { href?: string; onClick?: () => void; rotulo?: string };
   /** Cor do filete no hover. Sem ela, a área da página (`--area-atual`). */
   area?: string;
+  /**
+   * Tom de negócio do número: pinta o valor, põe o ícone do tom ao lado e fixa
+   * o filete lateral na cor do tom (no lugar do filete de área do hover).
+   * Só vale com o valor à mostra (`ok`/`parcial`). Sem tom = neutro.
+   */
+  tom?: TomKpi;
+  /** Palavra ao lado do ícone do tom ("em risco", "acima da meta"). Sem ela, o ícone vai só com texto para leitor de tela. */
+  tomRotulo?: string;
   className?: string;
 };
 
@@ -68,9 +136,12 @@ export function KpiCard({
   procedencia,
   abrir,
   area,
+  tom,
+  tomRotulo,
   className,
 }: KpiCardProps) {
   const mostraValor = estado === "ok" || estado === "parcial";
+  const t = tom && mostraValor ? TONS[tom] : undefined;
   // `sub && …` dos cards antigos: string vazia e false também não ocupam linha.
   const temNota = nota !== undefined && nota !== null && nota !== false && nota !== "";
   // Sem acesso não abre nada: o destino também estaria fechado.
@@ -84,14 +155,19 @@ export function KpiCard({
 
   const conteudo = (
     <>
-      {clicavel && (
-        <span
-          aria-hidden
-          className="absolute inset-y-3 left-0 w-[3px] rounded-r-full bg-[var(--filete)] opacity-0 transition-opacity duration-[120ms] ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
-        />
+      {t ? (
+        // Filete fixo no tom: o sinal do número se lê de longe, sem hover.
+        <span aria-hidden className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", t.filete)} />
+      ) : (
+        clicavel && (
+          <span
+            aria-hidden
+            className="absolute inset-y-3 left-0 w-[3px] rounded-r-full bg-[var(--filete)] opacity-0 transition-opacity duration-[120ms] ease-out group-hover:opacity-100 group-focus-visible:opacity-100"
+          />
+        )
       )}
 
-      <div className="flex min-h-5 items-start justify-between gap-2">
+      <span className="flex min-h-5 items-start justify-between gap-2">
         <span className="text-xs font-semibold uppercase leading-5 tracking-wider text-muted-foreground">
           {rotulo}
         </span>
@@ -102,30 +178,31 @@ export function KpiCard({
             {abrir?.rotulo ?? "Abrir registros"} →
           </span>
         )}
-      </div>
+      </span>
 
-      <div className="mt-2 flex min-h-9 items-baseline gap-1.5">
+      <span className="mt-2 flex min-h-9 flex-wrap items-baseline gap-x-1.5">
         {mostraValor ? (
           <>
-            <span className="num text-[30px] font-bold leading-9 tracking-tight text-foreground">
+            <span className={cn("num text-[30px] font-bold leading-9 tracking-tight", t ? t.texto : "text-foreground")}>
               {valor}
             </span>
             {unidade && (
               <span className="text-sm font-medium text-muted-foreground">{unidade}</span>
             )}
+            {t && <SinalTom tom={tom!} rotulo={tomRotulo} />}
           </>
         ) : (
           <Ausencia estado={estado} />
         )}
-      </div>
+      </span>
 
       {estado !== "sem-acesso" && temNota && (
-        <div className="mt-1 text-[13px] leading-snug text-muted-foreground">{nota}</div>
+        <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">{nota}</span>
       )}
 
       {mostraValor && (delta || meta) && (
-        <div className="mt-2 space-y-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+        <span className="mt-2 block space-y-2">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
             {delta && <Delta {...delta} />}
             {meta && (
               <span className="num text-muted-foreground">
@@ -133,9 +210,9 @@ export function KpiCard({
                 {progresso !== undefined && ` · ${NUM.format(progresso * 100)}%`}
               </span>
             )}
-          </div>
+          </span>
           {progresso !== undefined && <BarraMeta progresso={progresso} />}
-        </div>
+        </span>
       )}
 
       {procedencia && (
@@ -144,6 +221,7 @@ export function KpiCard({
         <Procedencia
           fonte={procedencia.fonte}
           atualizadoEm={procedencia.atualizadoEm}
+          como="span"
           className="mt-auto items-start pt-3 [&>svg]:mt-px [&>span:last-child]:line-clamp-2"
         />
       )}
@@ -213,22 +291,36 @@ function Delta({
   );
 }
 
+function SinalTom({ tom, rotulo }: { tom: TomKpi; rotulo?: string }) {
+  const { texto, icone: Icone, palavra } = TONS[tom];
+  return (
+    <span className={cn("inline-flex items-center gap-1 self-center text-[13px] font-medium", texto)}>
+      <Icone className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+      {rotulo ? rotulo : <span className="sr-only">{palavra}</span>}
+    </span>
+  );
+}
+
 function BarraMeta({ progresso }: { progresso: number }) {
   const pct = Math.max(0, Math.min(1, progresso)) * 100;
+  const real = NUM.format(progresso * 100);
   return (
-    <div
-      className="h-1 w-full overflow-hidden rounded-full bg-muted"
+    // aria-valuenow fica em 0–100 (fora disso o leitor de tela se perde);
+    // meta superada aparece com o percentual real no valuetext.
+    <span
+      className="block h-1 w-full overflow-hidden rounded-full bg-muted"
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(progresso * 100)}
+      aria-valuenow={Math.round(pct)}
+      aria-valuetext={`${real}% da meta`}
       aria-label="Realizado da meta"
     >
-      <div
-        className={cn("h-full rounded-full", progresso >= 1 ? "bg-success" : "bg-primary-text")}
+      <span
+        className={cn("block h-full rounded-full", progresso >= 1 ? "bg-success" : "bg-primary-text")}
         style={{ width: `${pct}%` }}
       />
-    </div>
+    </span>
   );
 }
 

@@ -13,6 +13,7 @@ export function Procedencia({
   atualizadoEm,
   regua,
   compacta,
+  como = "p",
   className,
 }: {
   fonte: string;
@@ -20,6 +21,8 @@ export function Procedencia({
   regua?: string;
   /** Linha de uma altura só, cortada com reticências (rodapé de KpiCard). */
   compacta?: boolean;
+  /** `span` dentro de `<button>`/`<a>`, que só aceitam conteúdo de frase (KpiCard). */
+  como?: "p" | "span";
   className?: string;
 }) {
   const quando = formatarQuando(atualizadoEm);
@@ -27,8 +30,9 @@ export function Procedencia({
   if (regua) partes.push(`régua ${regua}`);
   const texto = partes.join(" · ");
 
+  const Tag = como;
   return (
-    <p
+    <Tag
       className={cn(
         "flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground",
         compacta && "whitespace-nowrap",
@@ -41,7 +45,7 @@ export function Procedencia({
         <span className="sr-only">Fonte: </span>
         {texto}
       </span>
-    </p>
+    </Tag>
   );
 }
 

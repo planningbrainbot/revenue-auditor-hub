@@ -350,17 +350,19 @@ export function TratativasTab() {
 
       {/* KPIs — oito números em duas linhas de quatro: a grade do design system
           vai até seis por linha, e oito cards de 30px numa só não cabem. As
-          cores de perdido/recuperado saem: o rótulo já diz o que é (V7). */}
+          cores de perdido/recuperado ficam como tom do KpiCard, com ícone de status
+          junto da cor (V7). */}
       <KpiGrade colunas={4}>
         <KpiCard rotulo="Total" valor={kpis.total} />
         <KpiCard rotulo="Em aberto" valor={kpis.abertos} />
-        <KpiCard rotulo="Perdidos" valor={kpis.perdidos} />
-        <KpiCard rotulo="Recuperados" valor={kpis.recuperados} />
-        <KpiCard rotulo="MRR perdido" valor={fmtMoney(kpis.mrrPerdido)} />
+        <KpiCard rotulo="Perdidos" valor={kpis.perdidos} tom="perigo" />
+        <KpiCard rotulo="Recuperados" valor={kpis.recuperados} tom="sucesso" />
+        <KpiCard rotulo="MRR perdido" valor={fmtMoney(kpis.mrrPerdido)} tom="perigo" />
         <KpiCard rotulo="Taxa de recuperação" valor={`${kpis.taxaRecuperacao.toFixed(1)}%`} />
         <KpiCard
           rotulo="Taxa de churn (blended)"
           valor={`${kpis.taxaChurnBlended.toFixed(1)}%`}
+          tom="perigo"
           nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova)`}
         />
         <KpiCard

@@ -112,7 +112,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           Seu acesso permite consultar o Aquário. A área de Monetização é habilitada pela
           administração da plataforma.
         </Notice>
-        <Link to="/aquario" className="text-primary underline">
+        <Link to="/aquario" className="text-primary-text underline">
           Abrir Aquário
         </Link>
       </div>
@@ -177,12 +177,12 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
             aria-selected={aba === a}
             onClick={() => setAba(a)}
             key={a}
-            className={`shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium ${aba === a ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium ${aba === a ? "border-primary text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {labels[a]}
           </button>
         ))}
-        <Link to="/aquario" className="ml-auto shrink-0 px-3 py-2.5 text-xs text-primary">
+        <Link to="/aquario" className="ml-auto shrink-0 px-3 py-2.5 text-xs text-primary-text">
           Clientes → Aquário ↗
         </Link>
       </div>
@@ -475,7 +475,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                       {METRICAS.map((m) => (
                         <td key={m.key} className="text-right">
                           <button
-                            className="font-semibold tabular-nums text-primary underline underline-offset-2"
+                            className="font-semibold tabular-nums text-primary-text underline underline-offset-2"
                             onClick={() =>
                               setDetail({
                                 title: `${NOMES[p.product]} · ${m.label}`,
@@ -588,7 +588,7 @@ function DealDetails({
                       href={c.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-primary underline"
+                      className="text-primary-text underline"
                     >
                       {c.title}
                     </a>

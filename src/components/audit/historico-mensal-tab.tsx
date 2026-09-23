@@ -4,7 +4,7 @@ import { useData } from "./data-context";
 import { brl } from "./format";
 import type { AuditRegistro } from "@/lib/audit-types";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "@/components/planning";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 const UNIDADES_COM_OMIE = new Set(["Belém", "Campo Novo", "Curitiba", "Rio de Janeiro"]);
 
@@ -253,8 +253,8 @@ function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean 
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` pintava só o número de verde/âmbar; cor sozinha não é status
-// (V7), então fica aceito e ignorado, e o sentido mora no rótulo e na nota.
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
-  return <KpiCard rotulo={label} valor={value} nota={sub} />;
+// §1.6). O `tone` pintava o número de verde/âmbar e vira o `tom` do KpiCard
+// (ok → sucesso, warn → atenção), com ícone de status junto da cor (V7).
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
+  return <KpiCard rotulo={label} valor={value} nota={sub} tom={tomDoLegado(tone)} />;
 }

@@ -360,7 +360,7 @@ export function AccountDetail({
                   {negociosDaConta(account, cards).map((c) => (
                     <li key={c.id} className="flex flex-wrap justify-between gap-1 text-sm">
                       <a
-                        className="text-primary underline"
+                        className="text-primary-text underline"
                         href={c.url}
                         target="_blank"
                         rel="noreferrer"

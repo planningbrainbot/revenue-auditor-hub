@@ -38,31 +38,38 @@
  *   As variáveis são hex: use `var(--chart-n)` direto, sem embrulhar em hsl.
  *
  * - Tipografia: Bw Glenn Sans é a fonte da marca, mas os .woff2 ainda não
- *   existem (pendência do Mika); o @font-face fica pronto e o navegador cai
- *   para Fira Sans, a mais próxima na prancha oficial. Números em
+ *   existem (pendência do Mika); o @font-face só procura a fonte instalada
+ *   (local) e o navegador cai para Fira Sans, a mais próxima na prancha oficial. Números em
  *   `tabular-nums` para as colunas alinharem.
  *
  * - Raio e movimento: base 10px (controle 8, card 12, sheet 16); 120ms no
  *   hover, 200ms na entrada, ease-out, e nada disso com reduced-motion.
  */
 
+/* Bw Glenn Sans só por `local()`: usa a fonte se estiver instalada na máquina
+ * e não pede arquivo nenhum ao servidor. Antes o `src` apontava para
+ * /fonts/*.woff2, que não existe, e cada sessão fazia três requisições 404
+ * antes de cair para Fira Sans (revisão final, M2).
+ * Quando os .woff2 chegarem (pendência com o Mika), acrescente
+ * url(/fonts/...) format("woff2") depois dos local() e ponha os arquivos em
+ * public/fonts. */
 @font-face {
   font-family: "Bw Glenn Sans";
-  src: url("/fonts/BwGlennSans-Regular.woff2") format("woff2");
+  src: local("Bw Glenn Sans"), local("Bw Glenn Sans Regular"), local("BwGlennSans-Regular");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Bw Glenn Sans";
-  src: url("/fonts/BwGlennSans-Bold.woff2") format("woff2");
+  src: local("Bw Glenn Sans Bold"), local("BwGlennSans-Bold");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Bw Glenn Sans";
-  src: url("/fonts/BwGlennSans-Black.woff2") format("woff2");
+  src: local("Bw Glenn Sans Black"), local("BwGlennSans-Black");
   font-weight: 900;
   font-style: normal;
   font-display: swap;
@@ -160,20 +167,29 @@
   --muted-foreground: #4f606b; /* 6,5:1 */
   --accent: #e2f8ee;
   --accent-foreground: #007a4f;
-  --destructive: #c62a2f;
+  --destructive: #b5262b; /* = danger */
   --destructive-foreground: #ffffff;
   --border: #dde4e9;
   --input: #7d8b94; /* 3,5:1, borda de controle */
   --ring: #007a4f;
 
-  --success: #00794e; /* 5,5:1 */
-  --success-soft: #ebf4f1; /* texto success sobre ele: 4,9:1 */
-  --warning: #b54400; /* 5,5:1 */
-  --warning-soft: #f9f0eb; /* 4,9:1 */
-  --danger: #c62a2f; /* 5,6:1 */
-  --danger-soft: #faeeee; /* 4,9:1 */
-  --info: #0074a0; /* 5,2:1 */
-  --info-soft: #ebf4f7; /* 4,7:1 */
+  /* Texto de status escurecido em 23/09/2026 (revisão final, D1): os pares
+   * sobre *-soft estavam em 4,7–4,9:1, sem folga, e qualquer opacidade os
+   * derrubava abaixo de AA. Mesmo matiz (canais sRGB escalados), agora
+   * ≥5,6:1 sobre o *-soft. WCAG 2.1, contra *-soft / card #fff / background:
+   *   success #00794e → #006e47: 5,64 / 6,32 / 5,88 (antes 4,87 sobre o soft)
+   *   warning #b54400 → #a63e00: 5,65 / 6,34 / 5,90 (antes 4,93)
+   *   danger  #c62a2f → #b5262b: 5,65 / 6,41 / 5,96 (antes 4,91)
+   *   info    #0074a0 → #00678e: 5,65 / 6,30 / 5,87 (antes 4,70)
+   * Texto de status nunca leva opacidade (V20). */
+  --success: #006e47;
+  --success-soft: #ebf4f1;
+  --warning: #a63e00;
+  --warning-soft: #f9f0eb;
+  --danger: #b5262b;
+  --danger-soft: #faeeee;
+  --info: #00678e;
+  --info-soft: #ebf4f7;
 
   /* Variantes escurecidas no mesmo matiz até ≥3:1 sobre branco. */
   --area-rede: #009bcb; /* ciano, 3,2:1 */

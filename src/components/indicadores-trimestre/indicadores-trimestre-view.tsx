@@ -250,7 +250,7 @@ export function IndicadoresTrimestreView() {
               className={cn(
                 "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
                 selecionada?.unidade === r.unidade
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-primary/10 text-primary-text"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >

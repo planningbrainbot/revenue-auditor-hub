@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KpiCard as KpiCardPlanning } from "@/components/planning";
+import { KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 interface KpiCardProps {
   label: string;
@@ -13,11 +13,12 @@ interface KpiCardProps {
 /**
  * Adaptador: mantém a assinatura antiga para não mexer nos chamadores e
  * desenha com o KpiCard do design system (DESIGN §1.6, "uma decisão, um
- * lugar"). O `tone` é aceito e ignorado de propósito: o fundo colorido era a
- * única marca de status e cor sozinha não diz nada (V7); o card é neutro e o
- * significado fica no rótulo e na nota.
+ * lugar"). O `tone` vira o `tom` do KpiCard (valor na cor, ícone de status e
+ * filete lateral): emerald → sucesso, red → perigo, orange → atenção,
+ * indigo → info; default e purple ficam neutros. O fundo colorido sai: cor
+ * sozinha não é status (V7), mas o sinal tem de continuar lá.
  */
-export function KpiCard({ label, value, sub, help, highlight }: KpiCardProps) {
+export function KpiCard({ label, value, sub, help, tone, highlight }: KpiCardProps) {
   const [showHelp, setShowHelp] = useState(false);
   const nota =
     sub || help ? (
@@ -44,6 +45,7 @@ export function KpiCard({ label, value, sub, help, highlight }: KpiCardProps) {
       rotulo={label}
       valor={value}
       nota={nota}
+      tom={tomDoLegado(tone)}
       className={highlight ? "ring-2 ring-primary" : undefined}
     />
   );

@@ -972,6 +972,8 @@ function SecaoPlanning() {
           <KpiCard
             rotulo="Inadimplência"
             valor="R$ 18,9 mil"
+            tom="perigo"
+            tomRotulo="acima do limite"
             delta={{ valor: 6.5, rotulo: "vs ago", sentido: "menor-melhor" }}
             procedencia={{ fonte: "Omie", atualizadoEm: AGORA }}
             abrir={{ href: "#planning" }}
@@ -1293,6 +1295,7 @@ function VisaoGeral() {
           rotulo="Churn do mês"
           valor="0,9"
           unidade="%"
+          tom="sucesso"
           delta={{ valor: -12, rotulo: "vs ago", sentido: "menor-melhor" }}
           meta={{ valor: "≤ 1,0 %", progresso: 1 }}
           procedencia={{ fonte: "Tratativas", atualizadoEm: "2026-09-22" }}
@@ -1537,6 +1540,8 @@ function FilaDeTrabalho() {
         <KpiCard
           rotulo="Propostas no mês (KR3)"
           valor={1}
+          tom="atencao"
+          tomRotulo="abaixo do ritmo"
           unidade="propostas"
           meta={{ valor: 5 }}
           procedencia={{ fonte: "Pipedrive", atualizadoEm: AGORA }}

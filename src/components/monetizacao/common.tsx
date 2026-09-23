@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
 import { csv, oferta } from "@/lib/monetizacao/model";
-import { KpiCard } from "@/components/planning";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -55,13 +55,14 @@ export function Panel({
 }
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
 // §1.6). Com `onClick` o card inteiro abre o detalhe (N2); `accent` pintava o
-// número de verde e fica aceito e ignorado: destaque por cor em um card da
-// grade faz os vizinhos parecerem piores sem dizer por quê.
+// número de verde (o número "bom" da grade: aptas, conversão) e vira o tom
+// `sucesso` do KpiCard, com ícone de status junto da cor (V7).
 export function Kpi({
   label,
   value,
   hint,
   onClick,
+  accent,
 }: {
   label: string;
   value: ReactNode;
@@ -75,6 +76,7 @@ export function Kpi({
       valor={value}
       nota={hint}
       abrir={onClick ? { onClick } : undefined}
+      tom={tomDoLegado(accent)}
     />
   );
 }

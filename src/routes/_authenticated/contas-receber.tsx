@@ -48,7 +48,7 @@ import {
   YAxis,
 } from "recharts";
 import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { PageHeader, KpiCard as KpiCardPlanning } from "@/components/planning";
+import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -587,9 +587,11 @@ function ContasReceberPage() {
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` era só o fundo do card; cor sozinha não é status (V7), então
-// fica aceito e ignorado, e o sentido mora no rótulo e na nota.
+// §1.6). O `tone` era o fundo do card e vira o `tom` do KpiCard (amber →
+// atenção, red → perigo, emerald → sucesso, slate → neutro): valor na cor,
+// ícone de status e filete, nunca cor sozinha (V7).
 function KpiCard({
+  tone,
   label,
   value,
   hint,
@@ -599,5 +601,5 @@ function KpiCard({
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} />;
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }

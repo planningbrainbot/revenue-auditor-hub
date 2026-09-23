@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { DataProvider, BaseFilterSelect, RefreshButton, useData } from "@/components/audit/data-context";
 import { brl, date, num } from "@/components/audit/format";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "@/components/planning";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 const PIPEDRIVE_DEAL_URL = "https://grupoplanning.pipedrive.com/deal/";
 
@@ -135,7 +135,7 @@ function ComissoesTable() {
                     href={`${PIPEDRIVE_DEAL_URL}${r.deal_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
                   >
                     {r.deal_id} <ExternalLink className="h-3 w-3" />
                   </a>
@@ -185,10 +185,10 @@ function Th({ children }: { children: React.ReactNode }) {
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` pintava só o número; cor sozinha não é status (V7), então
-// fica aceito e ignorado.
-function Kpi({ label, value }: { label: string; value: string; tone?: "ok" | "warn" }) {
-  return <KpiCard rotulo={label} valor={value} />;
+// §1.6). O `tone` pintava o número e vira o `tom` do KpiCard (ok → sucesso,
+// warn → atenção), com ícone de status junto da cor (V7).
+function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
+  return <KpiCard rotulo={label} valor={value} tom={tomDoLegado(tone)} />;
 }
 
 export function ComissoesContent() {

@@ -47,7 +47,7 @@ export function FilaHigieneBar({
             className={cn(
               "rounded-md border px-2 py-1 text-xs transition-colors",
               ativo
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary/10 text-primary-text"
                 : "border-border hover:bg-muted disabled:cursor-default disabled:opacity-60",
               valor ? "font-medium" : "text-muted-foreground",
             )}

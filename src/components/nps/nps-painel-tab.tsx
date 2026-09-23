@@ -820,7 +820,7 @@ export function NpsPainelTab() {
                             href={`https://app.pipefy.com/open-cards/${r.pipefy_card_id}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs text-primary underline underline-offset-2"
+                            className="text-xs text-primary-text underline underline-offset-2"
                           >
                             ver card
                           </a>

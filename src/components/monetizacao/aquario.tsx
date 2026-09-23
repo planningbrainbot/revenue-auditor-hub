@@ -313,7 +313,7 @@ export function Aquario({
             <Link
               to="/monetizacao"
               search={{ aba: "operacao" }}
-              className="flex items-center gap-1 text-xs font-medium text-primary"
+              className="flex items-center gap-1 text-xs font-medium text-primary-text"
             >
               Acompanhar operação <ArrowRight className="h-3 w-3" />
             </Link>
@@ -359,7 +359,7 @@ export function Aquario({
                               cobertura parcial
                             </span>
                           )}
-                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary-text" />
                         </div>
                       </div>
                       {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
@@ -397,7 +397,7 @@ export function Aquario({
                         )}
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                        <span className="text-primary">{c} aptas em Consultoria</span>
+                        <span className="text-primary-text">{c} aptas em Consultoria</span>
                         {pending > 0 && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
                             {pending} a confirmar
@@ -441,7 +441,7 @@ export function Aquario({
           >
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
+                <Users className="h-5 w-5 text-primary-text" />
                 {unit?.name}
               </SheetTitle>
               <SheetDescription>
@@ -1000,7 +1000,7 @@ function PortfolioTable({
                   </td>
                   <td className="min-w-52 p-2 align-top">
                     <button
-                      className="text-left font-medium hover:text-primary hover:underline"
+                      className="text-left font-medium hover:text-primary-text hover:underline"
                       onClick={() => showAccount(a)}
                     >
                       {a.name}
@@ -1140,7 +1140,7 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
           href={e.aberto.url}
           target="_blank"
           rel="noreferrer"
-          className="block font-medium text-primary hover:underline"
+          className="block font-medium text-primary-text hover:underline"
         >
           No Pipedrive · {e.aberto.stage} · {e.aberto.owner}
         </a>

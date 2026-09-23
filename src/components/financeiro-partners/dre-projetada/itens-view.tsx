@@ -193,7 +193,7 @@ export function ItensView({
                     <div className="flex items-center gap-1.5">
                       <span>{item.nome}</span>
                       {badge && (
-                        <span className="text-xs px-1 rounded bg-primary/10 text-primary tabular-nums" title="% Partners">
+                        <span className="text-xs px-1 rounded bg-primary/10 text-primary-text tabular-nums" title="% Partners">
                           {badge}
                         </span>
                       )}

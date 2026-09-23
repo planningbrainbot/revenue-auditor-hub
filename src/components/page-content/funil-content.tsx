@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { FunilGapClientesDialog } from "@/components/funil-gap-clientes-dialog";
-import { KpiCard } from "@/components/planning";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 type FunilRow = {
   mes: string | null;
@@ -75,10 +75,11 @@ const TONE_BADGE: Record<string, string> = {
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
 // §1.6). `source` era um selo solto e vira a procedência do número (N3); o
-// fundo por `tone` sai porque a cor da conversão já está na seta entre os
-// cards. "—" é conversão sem MRR contratado: não apurada, não zero (N4).
+// fundo por `tone` vira o `tom` do KpiCard (emerald → sucesso, amber →
+// atenção, red → perigo, slate → neutro), com ícone de status junto da cor
+// (V7). "—" é conversão sem MRR contratado: não apurada, não zero (N4).
 function FunilCard({
-  label, value, sub, source,
+  label, value, sub, source, tone,
 }: { icon: React.ReactNode; label: string; value: string; sub: string; tone?: string; source?: string }) {
   return (
     <KpiCard
@@ -87,6 +88,7 @@ function FunilCard({
       estado={value === "—" ? "nao-apurado" : "ok"}
       nota={sub}
       procedencia={source ? { fonte: source } : undefined}
+      tom={tomDoLegado(tone)}
       className="flex-1"
     />
   );
@@ -128,7 +130,7 @@ function CellLink({ to, search, className, children }: {
     <Link
       to={to}
       search={search}
-      className={cn("underline-offset-2 hover:underline hover:text-primary", className)}
+      className={cn("underline-offset-2 hover:underline hover:text-primary-text", className)}
     >
       {children}
     </Link>
@@ -399,7 +401,7 @@ export function FunilContent() {
                       ) : gapF > 0 ? (
                         <button
                           type="button"
-                          className="underline-offset-2 hover:underline hover:text-primary"
+                          className="underline-offset-2 hover:underline hover:text-primary-text"
                           onClick={() => setGapDialog({ unidade: unidadeStr, mes, gap: gapF })}
                         >
                           {brl(gapF)}

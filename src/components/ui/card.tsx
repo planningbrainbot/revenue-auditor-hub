@@ -8,6 +8,15 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
    * `input` e acende o filete de 3px na cor da área (spec §2.5): o card DIZ que
    * abre. Card sem `interativo` não reage a hover — nem sombra, nem cursor.
    * A área vem de `--area-atual`, definida pela casca; fora dela, verde.
+   *
+   * Só dá o VISUAL (cursor, filete, anel de foco). O Card continua `<div>`,
+   * sem `tabIndex` nem `role`: sozinho não recebe foco nem responde a Enter.
+   * Quem usa `interativo` tem de dar o comportamento: envolver num `<Link>` /
+   * `<a>` / `<button>` (aí o foco é do envoltório, e o anel do card só acende
+   * se o envoltório repassar `focus-visible`), ou passar `role="button"`,
+   * `tabIndex={0}`, `onClick` e `onKeyDown` para Enter/Espaço. Não há
+   * `asChild` aqui. Para card de número, prefira o `KpiCard` com `abrir`, que
+   * já vira link ou botão.
    */
   interativo?: boolean;
 }

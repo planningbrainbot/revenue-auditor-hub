@@ -56,6 +56,8 @@ const REGRAS = {
   V17: { nivel: "AVISO", titulo: "linear-gradient fora de styles.css e do logo: gradiente da marca só no logo e na casca" },
   V18: { nivel: "ERRO", titulo: '__root.tsx sem lang="pt-BR"' },
   V19: { nivel: "ERRO", titulo: "__root.tsx sem <Toaster/>: toast() não aparece" },
+  V20: { nivel: "ERRO", titulo: "texto de status com opacidade (text-success/80…): cai abaixo de AA sobre *-soft; use o token cheio ou muted-foreground" },
+  V21: { nivel: "ERRO", titulo: "text-primary como texto (1,7:1 no claro) fora de components/ui; use text-primary-text" },
 };
 const IDS = Object.keys(REGRAS);
 const ERROS = IDS.filter((id) => REGRAS[id].nivel === "ERRO");
@@ -72,7 +74,7 @@ const CASCA = new Set(["src/components/app-sidebar.tsx", "src/components/app-she
 const HEX_OK = new Set(["src/components/planning-logo.tsx", "src/routes/auth.tsx"]);
 const IGNORADOS = new Set(["src/routeTree.gen.ts"]);
 // A vitrine reproduz de propósito o "antes" (cor crua, fonte de 9–10px) para a
-// captura comparativa (plano T1). Só V2–V4 ficam de fora; o resto vale nela.
+// captura comparativa (plano T1). Só V2–V4 e V21 ficam de fora; o resto vale nela.
 const ANTES_DE_PROPOSITO = new Set(["src/routes/vitrine.tsx"]);
 // Arquivo que imprime cor (PDF, planilha, HTML exportado/e-mail): mesma lista do codemod.
 const IMPRESSO = [
@@ -107,6 +109,12 @@ const RE_HEX = /(?<![\w&/]|\[[\w-]+=['"])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a
 const RE_CONFIRM = /(?:\bwindow\.|(?<![\w$.]))confirm\s*\(/g;
 const RE_AREA = /var\(--area-/g;
 const RE_GRADIENTE = /linear-gradient\(/g;
+// V20: o par status/*-soft tem folga de ~5,6:1; 80% de opacidade já o leva a
+// ~3,5:1 (revisão final, D1). `opacity-*` num pai não dá para ver linha a linha;
+// esse caso fica na revisão.
+const RE_STATUS_OPACO = /(?<![\w-])((?:[^\s:"'`]+:)*)text-(success|warning|danger|info|primary-text)\/(\d+|\[[^\]\s]+\])/g;
+// V21: `text-primary` sem sufixo é o verde vivo como texto (1,73:1 sobre branco).
+const RE_TEXT_PRIMARY = /(?<![\w-])((?:[^\s:"'`]+:)*)text-primary(?![\w-])/g;
 const RE_ICONE = /from\s+["'](react-icons[^"']*|@heroicons\/[^"']*|@radix-ui\/react-icons|@tabler\/icons[^"']*|phosphor-react|@phosphor-icons\/[^"']*)["']/g;
 
 const pequena = (num, unid) => (unid === "rem" ? parseFloat(num) * 16 : parseFloat(num)) < 12;
@@ -206,6 +214,8 @@ function analisar(rel, texto, caminho) {
     for (const m of l.matchAll(RE_CONFIRM)) add("V6", n, l.slice(m.index, m.index + 60));
     if (!areaOk) for (const m of l.matchAll(RE_AREA)) add("V13", n, l.slice(m.index, m.index + 40));
     for (const m of l.matchAll(RE_ICONE)) add("V15", n, m[0]);
+    for (const m of l.matchAll(RE_STATUS_OPACO)) add("V20", n, m[0]);
+    if (tsx && !rel.startsWith("src/components/ui/") && !antes) for (const m of l.matchAll(RE_TEXT_PRIMARY)) add("V21", n, m[0]);
     if (!HEX_OK.has(rel)) for (const m of l.matchAll(RE_GRADIENTE)) add("V17", n, l.slice(m.index, m.index + 40));
   });
 
@@ -349,7 +359,7 @@ function atualizarMedicoes(commit, global) {
   const secao = [
     titulo,
     "",
-    "Gerada por `npm run design:lint -- --baseline`, que também regrava `docs/design/lint-baseline.json` (a catraca). Contagem no `src/` inteiro do commit indicado (a árvore commitada, não o que está sem commit), uma linha por gravação. Regras de ERRO: V1–V4, V16, V18, V19; o resto é aviso. IDs de `DESIGN.md` §10; `V3-matiz` é a parte de V3 sem token equivalente (indigo/purple/violet/fuchsia/pink). V2 conta só `.tsx`, fora de comentário, de seletor de atributo e da allowlist; por isso é menor que o \"hex\" do codemod, que conta `.ts` também. A vitrine fica fora de V2–V4 porque reproduz o \"antes\" de propósito.",
+    "Gerada por `npm run design:lint -- --baseline`, que também regrava `docs/design/lint-baseline.json` (a catraca). Contagem no `src/` inteiro do commit indicado (a árvore commitada, não o que está sem commit), uma linha por gravação. Regras de ERRO: V1–V4, V16, V18–V21; o resto é aviso. IDs de `DESIGN.md` §10; `V3-matiz` é a parte de V3 sem token equivalente (indigo/purple/violet/fuchsia/pink). V2 conta só `.tsx`, fora de comentário, de seletor de atributo e da allowlist; por isso é menor que o \"hex\" do codemod, que conta `.ts` também. A vitrine fica fora de V2–V4 e V21 porque reproduz o \"antes\" de propósito.",
     "",
     cab,
     sep,

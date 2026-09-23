@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
-import { PageHeader, KpiCard as KpiCardPlanning } from "@/components/planning";
+import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -583,9 +583,11 @@ function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: s
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O ícone ao lado do rótulo e o fundo por `tone` saem: o card de número
-// do Brain é neutro e só com rótulo (cor sozinha não é status, V7).
+// §1.6). O ícone ao lado do rótulo sai; o `tone` vira o `tom` do KpiCard
+// (amber → atenção, red → perigo, emerald → sucesso, slate → neutro), com
+// ícone de status junto da cor (V7).
 function KpiCard({
+  tone,
   label,
   value,
   hint,
@@ -596,5 +598,5 @@ function KpiCard({
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} />;
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }

@@ -216,7 +216,7 @@ function AuthPage() {
             <button
               type="button"
               onClick={backToLogin}
-              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+              className="text-sm font-medium text-primary-text underline-offset-2 hover:underline"
             >
               Voltar para o login
             </button>

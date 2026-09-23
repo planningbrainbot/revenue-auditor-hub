@@ -48,10 +48,17 @@ export function slugVisual(slug: string | null | undefined): SlugArea | null {
   return null;
 }
 
-/** `var(--area-<slug>)`; sem área conhecida, o neutro de texto secundário. */
+/**
+ * `var(--area-<slug>)`; sem área conhecida, o verde da marca (`--primary`).
+ * Até a revisão final (M4) o fallback era `--muted-foreground`: como a casca
+ * sempre define `--area-atual` com o que esta função devolve, o
+ * `var(--area-atual, var(--primary))` dos componentes nunca caía no verde, e
+ * em /admin, /equipe e outras telas fora de área o filete saía cinza.
+ * Administração tem cor própria (`--area-admin`), então não depende disto.
+ */
 export function corDaArea(slug: string | null | undefined): string {
   const s = slugVisual(slug);
-  return s ? `var(--area-${s})` : "var(--muted-foreground)";
+  return s ? `var(--area-${s})` : "var(--primary)";
 }
 
 export function nomeDaArea(slug: string | null | undefined): string | null {

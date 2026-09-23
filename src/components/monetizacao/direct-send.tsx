@@ -192,7 +192,7 @@ export function DirectSend({
               </p>
               {available?.deal && (
                 <a
-                  className="mt-2 block text-xs text-primary underline"
+                  className="mt-2 block text-xs text-primary-text underline"
                   href={available.deal.url}
                   target="_blank"
                   rel="noreferrer"
@@ -210,7 +210,7 @@ export function DirectSend({
                     type="button"
                     disabled={busy || !!saved}
                     onClick={() => setProduct(p)}
-                    className="mt-2 mr-3 text-xs text-primary underline disabled:opacity-50"
+                    className="mt-2 mr-3 text-xs text-primary-text underline disabled:opacity-50"
                   >
                     Conferir para {NOMES[p]}
                   </button>
@@ -243,7 +243,7 @@ export function DirectSend({
                   : r.reason || "Conferir envio na lista salva"}
                 {r.deal_id && (
                   <a
-                    className="ml-2 text-primary underline"
+                    className="ml-2 text-primary-text underline"
                     target="_blank"
                     rel="noreferrer"
                     href={`https://grupoplanning.pipedrive.com/deal/${r.deal_id}`}

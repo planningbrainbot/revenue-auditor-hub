@@ -124,7 +124,7 @@ function PermissionsPage() {
     >
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
           <div className="flex-1 space-y-1 text-sm">
             <p className="font-semibold">Como funciona</p>
             <p className="text-muted-foreground">
@@ -269,7 +269,7 @@ function PermissionsPage() {
               Unidades da rede e empresas do grupo são filtro <strong>por pessoa</strong>, não por
               papel: dois analistas com o mesmo papel podem cuidar de unidades diferentes. Isso se
               edita em{" "}
-              <a href="/admin/usuarios" className="font-medium text-primary hover:underline">
+              <a href="/admin/usuarios" className="font-medium text-primary-text hover:underline">
                 Usuários
               </a>
               .

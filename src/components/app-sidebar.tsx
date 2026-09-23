@@ -235,7 +235,10 @@ export function AppSidebar() {
           {/* Duas linhas: o logo não cabe na mesma linha do anel e de um nome
               como "Receita e Repasses" em 256px sem cortar o nome. Recolhida,
               a lateral fica só com o anel, que é o que identifica a área. */}
-          <DropdownMenuTrigger className="flex w-full flex-col gap-2 px-3 py-3 text-left outline-none transition-colors duration-[120ms] ease-out hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+          <DropdownMenuTrigger
+            // Recolhida, só o anel (aria-hidden) aparece: sem isto o botão ficaria sem nome (M3).
+            aria-label={`Trocar de área. Atual: ${areaAtual?.nome ?? "Planning Brain"}`}
+            className="flex w-full flex-col gap-2 px-3 py-3 text-left outline-none transition-colors duration-[120ms] ease-out hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <PlanningLogo className="h-5 w-auto shrink-0 self-start group-data-[collapsible=icon]:hidden" />
             <span className="flex w-full min-w-0 items-center gap-2 group-data-[collapsible=icon]:justify-center">
               {areaAtual && <AnelArea area={areaAtual.slug} icone={areaAtual.icone as LucideIcon} tamanho="sm" />}

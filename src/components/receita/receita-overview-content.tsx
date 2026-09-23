@@ -213,7 +213,7 @@ function CardPendencia({
           <Link
             to={destino.to}
             search={destino.search}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline"
           >
             Resolver <ArrowRight className="h-3 w-3" />
           </Link>
@@ -672,7 +672,7 @@ export function ReceitaOverviewContent() {
               </div>
               <Link
                 to="/funil-receita"
-                className="shrink-0 text-xs font-medium text-primary hover:underline"
+                className="shrink-0 text-xs font-medium text-primary-text hover:underline"
               >
                 Ver o funil
               </Link>
@@ -714,7 +714,7 @@ export function ReceitaOverviewContent() {
                   search={destino.search}
                   className="flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors hover:border-primary/50 hover:bg-accent"
                 >
-                  <item.icon className="h-4 w-4 shrink-0 text-primary" />
+                  <item.icon className="h-4 w-4 shrink-0 text-primary-text" />
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{item.title}</div>
                     <div className="truncate text-xs text-muted-foreground">{item.grupo}</div>

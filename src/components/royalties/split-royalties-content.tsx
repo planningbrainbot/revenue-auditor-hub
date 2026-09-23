@@ -207,7 +207,7 @@ export function SplitRoyaltiesContent() {
         {/* Tudo que o split ja capturou, dentro e fora do caixa. Cancelado
             continua fora: nao vira dinheiro. */}
         <Card className="flex items-center gap-3 border-primary/40 p-4">
-          <Sigma className="h-5 w-5 shrink-0 text-primary" />
+          <Sigma className="h-5 w-5 shrink-0 text-primary-text" />
           <div>
             <div className="text-xs text-muted-foreground">Total retido</div>
             <div className="text-xl font-semibold">{fmtBRL(total)}</div>

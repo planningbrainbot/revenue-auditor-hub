@@ -155,12 +155,13 @@ export function SaudeCarteiraTab() {
   return (
     <div className="space-y-4">
       {/* KPIs */}
-      {/* A cor do semáforo sai do número: o rótulo já diz a faixa (V7). */}
+      {/* O semáforo fica no número (tom do KpiCard), com ícone de status junto
+          da cor (V7); "Sem medição" e os totais são neutros. */}
       <KpiGrade colunas={6}>
         <KpiCard rotulo="Carteira ativa" valor={kpis.total} />
-        <KpiCard rotulo="Saudável" valor={kpis.saudavel} />
-        <KpiCard rotulo="Atenção" valor={kpis.atencao} />
-        <KpiCard rotulo="Risco" valor={kpis.risco} />
+        <KpiCard rotulo="Saudável" valor={kpis.saudavel} tom="sucesso" />
+        <KpiCard rotulo="Atenção" valor={kpis.atencao} tom="atencao" />
+        <KpiCard rotulo="Risco" valor={kpis.risco} tom="perigo" />
         <KpiCard rotulo="Sem medição" valor={kpis.semMedicao} />
         <KpiCard rotulo="MRR em atenção/risco" valor={fmtBRL(kpis.mrrEmRisco)} />
       </KpiGrade>

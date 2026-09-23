@@ -120,7 +120,7 @@ export function AcessosUsuarioDialog({
           </div>
         ) : q.data?.superAdmin ? (
           <div className="flex items-start gap-3 px-5 py-6">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
             <p className="text-sm text-foreground">
               Esta pessoa é <strong>super admin</strong> e tem acesso total. Isso vem do perfil
               Super admin, e não se altera por aqui.
@@ -212,7 +212,7 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
               </span>
             ) : (
               area.pelo_papel && (
-                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase text-primary">
+                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase text-primary-text">
                   área inteira pelo perfil
                 </span>
               )
@@ -292,7 +292,7 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
       {mut.isError && (
         <p className="mt-2 text-xs text-destructive">{(mut.error as Error)?.message ?? "Erro ao salvar."}</p>
       )}
-      {aviso && <p className="mt-2 text-xs text-primary">{aviso}</p>}
+      {aviso && <p className="mt-2 text-xs text-primary-text">{aviso}</p>}
     </li>
   );
 }

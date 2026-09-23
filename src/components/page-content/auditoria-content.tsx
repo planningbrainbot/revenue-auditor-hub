@@ -30,7 +30,7 @@ export function AuditoriaContent() {
                 className={cn(
                   "rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors",
                   tab === t.key
-                    ? "border-primary text-primary"
+                    ? "border-primary text-primary-text"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >

@@ -136,7 +136,7 @@ export function FilaTabela({
                     <Icon
                       className={cn(
                         "h-3.5 w-3.5",
-                        active ? "text-primary" : "text-muted-foreground/60",
+                        active ? "text-primary-text" : "text-muted-foreground/60",
                       )}
                     />
                   </button>

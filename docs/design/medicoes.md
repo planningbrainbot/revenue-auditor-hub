@@ -71,9 +71,10 @@ Idempotente: a segunda execução sobre o resultado relata 0 arquivos alterados.
 
 ## Lint — contagens
 
-Gerada por `npm run design:lint -- --baseline`, que também regrava `docs/design/lint-baseline.json` (a catraca). Contagem no `src/` inteiro do commit indicado (a árvore commitada, não o que está sem commit), uma linha por gravação. Regras de ERRO: V1–V4, V16, V18, V19; o resto é aviso. IDs de `DESIGN.md` §10; `V3-matiz` é a parte de V3 sem token equivalente (indigo/purple/violet/fuchsia/pink). V2 conta só `.tsx`, fora de comentário, de seletor de atributo e da allowlist; por isso é menor que o "hex" do codemod, que conta `.ts` também. A vitrine fica fora de V2–V4 porque reproduz o "antes" de propósito.
+Gerada por `npm run design:lint -- --baseline`, que também regrava `docs/design/lint-baseline.json` (a catraca). Contagem no `src/` inteiro do commit indicado (a árvore commitada, não o que está sem commit), uma linha por gravação. Regras de ERRO: V1–V4, V16, V18–V21; o resto é aviso. IDs de `DESIGN.md` §10; `V3-matiz` é a parte de V3 sem token equivalente (indigo/purple/violet/fuchsia/pink). V2 conta só `.tsx`, fora de comentário, de seletor de atributo e da allowlist; por isso é menor que o "hex" do codemod, que conta `.ts` também. A vitrine fica fora de V2–V4 e V21 porque reproduz o "antes" de propósito.
 
-| Data | Commit | V1 | V2 | V3 | V4 | V5 | V6 | V3-matiz | V13 | V15 | V16 | V17 | V18 | V19 |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Data | Commit | V1 | V2 | V3 | V4 | V5 | V6 | V3-matiz | V13 | V15 | V16 | V17 | V18 | V19 | V20 | V21 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 2026-09-23 | `a4bd23e` | 0 | 75 | 27 | 4 | 24 | 20 | 124 | 0 | 0 | 0 | 6 | 0 | 0 |
 | 2026-09-23 | T11 (pai `86eb236`) | 0 | 0 | 0 | 0 | 3 | 20 | 78 | 0 | 0 | 0 | 6 | 0 | 0 |
+| 2026-09-23 | `3360bfa` | 0 | 0 | 0 | 0 | 3 | 20 | 78 | 0 | 0 | 0 | 6 | 0 | 0 | 0 | 0 |

@@ -429,12 +429,12 @@ export function ListWorkspace({
                     <div className="mb-3 flex items-start justify-between gap-2">
                       <div>
                         <button
-                          className="text-left text-sm font-semibold hover:text-primary hover:underline"
+                          className="text-left text-sm font-semibold hover:text-primary-text hover:underline"
                           onClick={() => a && showAccount(a)}
                         >
                           {a?.name || "Conta fora do escopo"}
                         </button>
-                        <span className="ml-2 text-xs font-medium text-primary">
+                        <span className="ml-2 text-xs font-medium text-primary-text">
                           {NOMES[i.product]}
                         </span>
                         {a && (
@@ -545,7 +545,7 @@ export function ListWorkspace({
                         <div>
                           {savedItem.deal_id ? (
                             <a
-                              className="text-primary underline"
+                              className="text-primary-text underline"
                               href={`https://grupoplanning.pipedrive.com/deal/${savedItem.deal_id}`}
                               target="_blank"
                               rel="noreferrer"

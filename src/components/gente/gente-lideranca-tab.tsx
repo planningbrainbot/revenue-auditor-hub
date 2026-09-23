@@ -180,7 +180,7 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="space-y-3 p-4">
             <div className="flex items-center gap-2">
-              <HeartPulse className="h-4 w-4 text-primary" />
+              <HeartPulse className="h-4 w-4 text-primary-text" />
               <h3 className="font-semibold">Como foi sua semana?</h3>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -227,7 +227,7 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
 
           <Card className="space-y-3 p-4">
             <div className="flex items-center gap-2">
-              <ListChecks className="h-4 w-4 text-primary" />
+              <ListChecks className="h-4 w-4 text-primary-text" />
               <h3 className="font-semibold">Minhas prioridades da semana</h3>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -260,7 +260,7 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
       {mostraTime && data.meuTime.length > 0 && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-primary" />
+            <CalendarClock className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Cadência de 1:1 com meu time</h3>
             {atrasados.length > 0 && (
               <Badge variant="destructive">{atrasados.length} atrasado(s)</Badge>
@@ -411,7 +411,7 @@ export function GenteElogiosTab() {
     <div className="space-y-4">
       <Card className="space-y-3 p-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="h-4 w-4 text-primary-text" />
           <h3 className="font-semibold">Elogiar alguém</h3>
         </div>
         <p className="text-xs text-muted-foreground">

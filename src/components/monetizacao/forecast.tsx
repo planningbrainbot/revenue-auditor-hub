@@ -169,7 +169,7 @@ export function Forecast({
                         "—"
                       ) : (
                         <button
-                          className="text-primary underline"
+                          className="text-primary-text underline"
                           onClick={() => show(label, selected.actual!.rows[key])}
                         >
                           {real}
@@ -215,7 +215,7 @@ export function Forecast({
                     <td>{p.actual?.signed ?? "—"}</td>
                     <td>
                       <button
-                        className="text-primary underline"
+                        className="text-primary-text underline"
                         onClick={() =>
                           show(
                             `${NOMES[p.product]} · data prevista em ${selected.month}`,
@@ -241,7 +241,7 @@ export function Forecast({
         <Link
           to="/monetizacao"
           search={{ aba: "capacidade" }}
-          className="mt-3 inline-block text-sm text-primary underline"
+          className="mt-3 inline-block text-sm text-primary-text underline"
         >
           Ajustar a alocação e as hipóteses por produto →
         </Link>
