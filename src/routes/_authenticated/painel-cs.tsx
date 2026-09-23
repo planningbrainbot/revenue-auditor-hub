@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTab } from "@/components/painel-cs/onboarding-tab";
-import { SaudeCarteiraTab } from "@/components/painel-cs/saude-carteira-tab";
 import { TratativasTab } from "@/components/painel-cs/tratativas-tab";
 import { PageHeader } from "@/components/planning";
 
@@ -15,21 +14,17 @@ function PainelCsPage() {
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
         titulo="CS"
-        descricao="Onboarding, saúde da carteira e tratativas — visão única do relacionamento com o cliente"
+        descricao="Onboarding e tratativas — visão única do relacionamento com o cliente"
       />
 
       <Tabs defaultValue="onboarding" className="w-full">
         <TabsList>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
-          <TabsTrigger value="saude-carteira">Saúde da Carteira</TabsTrigger>
           <TabsTrigger value="tratativas">Tratativas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="onboarding">
           <OnboardingTab />
-        </TabsContent>
-        <TabsContent value="saude-carteira">
-          <SaudeCarteiraTab />
         </TabsContent>
         <TabsContent value="tratativas">
           <TratativasTab />

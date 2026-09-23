@@ -8,7 +8,7 @@ export const PAGE_DEFS: { key: string; label: string }[] = [
   { key: "/unidades", label: "Repasses das unidades (Regras, Royalties, Histórico e Split)" },
   { key: "/meus-royalties", label: "Meus Royalties (Sócio Regional)" },
   { key: "/financeiro-partners", label: "Financeiro Partners (FCx · DRE · Receitas · Despesas)" },
-  { key: "/painel-cs", label: "CS (Onboarding, Saúde da Carteira, Tratativas, NPS)" },
+  { key: "/painel-cs", label: "CS (Onboarding, Tratativas, NPS)" },
   { key: "/ebit-operacional", label: "EBIT Operacional (Custo x Venda de Serviços)" },
   { key: "/admin/usuarios", label: "Admin · Usuários" },
   { key: "/admin/permissoes", label: "Admin · Permissões" },

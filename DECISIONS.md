@@ -2734,3 +2734,24 @@ de cor em que área cada página mora) e a visão de acesso efetivo por pessoa, 
 é o único lugar onde as 3 pessoas com dois papéis ficariam legíveis. E a pergunta
 de negócio que o número levanta: 12 papéis para 25 pessoas, 8 deles com duas
 pessoas ou menos, provavelmente é papel demais.
+
+## [2026-09-23] Saúde da Carteira sai do Ops: o acompanhamento passa a ser o IDU
+
+**Contexto:** o pilar financeiro do Customer Health Score (entrada de
+2026-07-21) deixou de ser usado. O acompanhamento das unidades passa a ser
+feito pelo IDU (Pacto Trimestral).
+
+**O que saiu:**
+- a aba "Saúde da Carteira" de `/painel-cs` (ficam Onboarding e Tratativas);
+- o card "Carteira Saudável" da aba Qualidade & CS de `/rede-overview` (a grade
+  passa de 4 para 3 colunas);
+- `src/components/painel-cs/saude-carteira-tab.tsx`,
+  `src/hooks/use-saude-carteira.ts` e `src/lib/saude-carteira.functions.ts`,
+  que só serviam a essas duas telas. O código continua no histórico do git;
+- a menção nas descrições de `view.painel_cs` e na lista de validação de
+  páginas.
+
+**O que ficou de propósito:** o bloco "Saúde da carteira" em
+`/auditoria-interna` é outra coisa (achado fiscal por unidade sobre o
+faturamento auditado), só divide o nome. A permissão `view.saude_carteira` já
+estava morta desde a unificação de 2026-07-22. Sem migration.

@@ -161,10 +161,17 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.minhas_auditorias",
+    label: "Auditorias da unidade",
+    description:
+      "Resultado das auditorias fiscais da própria unidade (oportunidades e contingências), na área Minha Unidade.",
+    group: "Acesso",
+  },
+  {
     key: "view.painel_cs",
     label: "Acessar CS",
     description:
-      "Página unificada de CS — Onboarding (pipe Pipefy), Saúde da Carteira e Tratativas.",
+      "Página unificada de CS — Onboarding (pipe Pipefy) e Tratativas.",
     group: "Acesso",
   },
   {

@@ -38,7 +38,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { digits } from "@/lib/server-utils";
 import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
-import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { Carregando, KpiCard, KpiGrade, PageHeader } from "@/components/planning";
@@ -187,7 +186,6 @@ function RedeOverviewPage() {
   const perms = usePermissions();
 
   const { data: royaltiesData, error: royaltiesError } = useRoyaltiesHistoricoRede();
-  const { data: saudeData } = useSaudeCarteira();
 
   // Sócio (data.scope.own_unit_only) vê só a própria unidade nesta página —
   // decisão de 11/08/2026 (reverte a permissividade anterior de "ranking sem
@@ -368,21 +366,6 @@ function RedeOverviewPage() {
     const churnReceitaPct = baseReceita > 0 ? (churnedMrr / baseReceita) * 100 : null;
     return { churnedCount, churnedMrr, churnLogoPct, churnReceitaPct };
   }, [totalClientes, clientesAtivos, churnFiltrado, kpis.mrr]);
-
-  // ---- Saúde da carteira (resumo — detalhe fica em /painel-cs) ----
-  const saudeStats = useMemo(() => {
-    const rows = (saudeData?.rows ?? []).filter(
-      (r) =>
-        (unidadeFilter === ALL || r.unidade === unidadeFilter) &&
-        !r.churn &&
-        r.semaforo != null &&
-        r.semaforo !== "sem_medicao",
-    );
-    const saudavel = rows.filter((r) => r.semaforo === "saudavel").length;
-    const risco = rows.filter((r) => r.semaforo === "risco").length;
-    const pctSaudavel = rows.length > 0 ? (saudavel / rows.length) * 100 : null;
-    return { pctSaudavel, risco, total: rows.length };
-  }, [saudeData, unidadeFilter]);
 
   // ---- Auditoria Interna: oportunidades/contingências fiscais por unidade ----
   // Pipe Pipefy "Auditoria Interna" (307181077) → tabela auditorias_internas,
@@ -1442,15 +1425,15 @@ function RedeOverviewPage() {
           )}
         </TabsContent>
 
-        {/* ---- Aba 4: Qualidade & CS — NPS, Saúde da Carteira, Churn, Auditoria ---- */}
+        {/* ---- Aba 4: Qualidade & CS — NPS, Churn, Auditoria ---- */}
         <TabsContent value="qualidade" className="space-y-4">
           {/* O "Ver detalhe" que ficava no rodapé vira o card inteiro abrindo
               /painel-cs (N2). A cor do número fica como tom do KpiCard, com ícone
-              de status junto (V7): churn em atenção; carteira saudável em
-              sucesso a partir de 70%, atenção abaixo (o limiar de antes).
+              de status junto (V7): churn em atenção. O card "Carteira Saudável"
+              saiu em 23/09/26: a saúde da carteira deu lugar ao IDU.
               A auditoria fiscal segue em Card próprio: são dois valores lado a
               lado, e o KpiCard tem um número só. */}
-          <KpiGrade colunas={4}>
+          <KpiGrade colunas={3}>
             <KpiCard
               rotulo="Churn Receita"
               valor={churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
@@ -1465,14 +1448,6 @@ function RedeOverviewPage() {
               estado={churnStats.churnLogoPct != null ? "ok" : "nao-apurado"}
               tom="atencao"
               nota={`${churnStats.churnedCount} cliente${churnStats.churnedCount === 1 ? "" : "s"} perdido${churnStats.churnedCount === 1 ? "" : "s"}`}
-              abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
-            />
-            <KpiCard
-              rotulo="Carteira Saudável"
-              valor={saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
-              estado={saudeStats.pctSaudavel != null ? "ok" : "nao-apurado"}
-              nota={`${saudeStats.risco} em risco de ${saudeStats.total}`}
-              tom={saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "sucesso" : "atencao"}
               abrir={{ href: "/painel-cs", rotulo: "Ver detalhe" }}
             />
             <Card className="p-4">
