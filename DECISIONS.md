@@ -2368,3 +2368,18 @@ O `<Tabs>` de dentro do Aquário **deixa de existir**. O componente recebe `seca
 Mantido de propósito: os itens da lateral são URLs fixas e não carregam período nem perímetro, o mesmo comportamento dos itens da Monetização.
 
 **Status:** branch `feat/cockpit-ceo-ds-20260923`. `node --test` 187/187, `tsc` com os mesmos 7 erros anteriores, `design:lint` RESULTADO ok (0 erros), verificação por CDP do preview 23/23, capturas antes/depois em `docs/design/capturas/cockpit-ceo/` (comparativo em `comparativo.md`). **Não publicado.** Para publicar: merge na ordem da pilha e deploy pela CLI no projeto `ops-brain` (time `planning17`), a cargo do Eliezek.
+
+## [2026-09-23] Cockpit do CEO publicado (adendo à entrada anterior)
+
+**Publicação autorizada pelo dono** ("pode publicar e executar"). A produção estava em `5efc3b1`, a mesma base da pilha, então o deploy novo contém tudo o que já estava no ar. Os PRs #14 (DS v2), #15 (filtros multisseleção) e #16 (Cockpit do CEO) entraram na `main` nessa ordem, com merge commit para não duplicar commits entre PRs empilhados. A `main` ficou em `24d271d`.
+
+Deploy `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`: CLI da conta `planningbrainbot-4862`, projeto `ops-brain`, time `planning17`, feito de um worktree limpo nesse commit. Status READY, e `planningbrain.com.br` aponta para ele. Rollback: promover `dpl_37VN7ZpzgXjm6HSEdj6fd9GAKN7M` (`5efc3b1`).
+
+**Conferido em produção:**
+- `/piloto/cockpit-ceo` e `/vitrine` compilam `beforeLoad: throw notFound()`, e o navegador mostra "Página não encontrada";
+- `/cockpit-ceo` tem o título "Visão executiva · Planning Brain";
+- o bundle não tem chave da OpenRouter nem `COCKPIT_JEV`.
+
+**Sem migration nova:** a área `cockpit_ceo` já estava aplicada, só para `admin`.
+
+**Pendências:** liberar a área para o CEO se ele não for `admin`, e as duas lacunas de acesso da rodada 2 (funções SECURITY DEFINER do `financeiro`, `ops.qb_clientes_ativos` sem `security_invoker`), que continuam com os donos.
