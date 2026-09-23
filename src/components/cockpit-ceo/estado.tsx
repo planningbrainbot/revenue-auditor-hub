@@ -63,6 +63,6 @@ const compacto = new Intl.NumberFormat("pt-BR", {
 /** No cartão, reais grandes em forma curta; a composição mostra o valor inteiro. */
 export function valorCurto(valor: number | null, unidade: UnidadeContagem): string {
   if (valor !== null && unidade === "reais" && Math.abs(valor) >= 100_000)
-    return compacto.format(valor).replace(/ /g, " ");
+    return compacto.format(valor).replace(/\u00a0/g, " ");
   return formatarNumero(valor, unidade);
 }

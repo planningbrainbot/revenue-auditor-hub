@@ -13,8 +13,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KpiCard, KpiGrade, PageHeader, Secao, StatusBadge } from "@/components/planning";
-import { FRENTES, ORDEM_FRENTES, formatarNumero } from "@/lib/cockpit-ceo/contrato";
-import type { Frente } from "@/lib/cockpit-ceo/contrato";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { FRENTES, ORDEM_FRENTES } from "@/lib/cockpit-ceo/contrato";
+import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
+import type { Destino, Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
 import { perguntasDaFrente } from "@/lib/cockpit-ceo/perguntas";
 import { PRESETS } from "@/lib/cockpit-ceo/periodo";
@@ -125,8 +142,6 @@ function Filtros({
   );
 }
 
-const sinal = (n: number) => (n > 0 ? `+${n}` : String(n));
-
 /** Aviso de leitura (período inválido, recorte): informação, não alarme permanente (N9). */
 function Aviso({ children }: { children: ReactNode }) {
   return (
@@ -136,6 +151,38 @@ function Aviso({ children }: { children: ReactNode }) {
     </p>
   );
 }
+
+/** Linha de uma lista da Visão geral: selo, o que é, detalhe em uma linha e a ação à direita. */
+function Linha({
+  selo,
+  titulo,
+  detalhe,
+  acao,
+}: {
+  selo: ReactNode;
+  titulo: string;
+  detalhe?: ReactNode;
+  acao?: ReactNode;
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+      <div className="w-24 shrink-0">{selo}</div>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{titulo}</p>
+        {detalhe && <p className="text-sm text-muted-foreground">{detalhe}</p>}
+      </div>
+      {acao && <div className="shrink-0">{acao}</div>}
+    </li>
+  );
+}
+
+const DESTINO_PRODUTOS: Destino = {
+  rota: "/clientes",
+  search: { view: "produtos" },
+  rotulo: "Abrir Produtos e listas",
+  mesmoRecorte: false,
+  observacao: "Produtos e listas mostra as contas por produto, sem o período do cockpit.",
+};
 
 function VisaoExecutiva({
   cockpit,
@@ -148,9 +195,9 @@ function VisaoExecutiva({
   preview: boolean;
   jev?: ReactNode;
 }) {
-  const eventos = cockpit.indicadores.filter((i) => i.periodo !== null && i.comparacoes.length);
   // O cartão com cadeado não abre nem mostra nota (não vaza número): o motivo fica aqui embaixo.
   const semAcesso = cockpit.indicadores.filter((i) => i.estado === "acesso_insuficiente");
+  const produtos = cockpit.porProduto.filter((l) => l.produto !== "sem_produto");
   return (
     <>
       <KpiGrade colunas={6}>
@@ -159,160 +206,114 @@ function VisaoExecutiva({
         ))}
       </KpiGrade>
       {semAcesso.length > 0 && (
-        <ul aria-label="Números sem acesso" className="space-y-1 text-sm text-muted-foreground">
-          {semAcesso.map((i) => (
-            <li key={i.id}>
-              <span className="font-medium text-foreground">{i.titulo}:</span>{" "}
-              {i.lacuna
-                ? `falta ${i.lacuna.oQueFalta.replace(/^./, (c) => c.toLowerCase())} Quem concede: ${i.lacuna.responsavel}.`
-                : "seu acesso não lê a fonte deste número."}
-            </li>
-          ))}
-        </ul>
+        <Aviso>
+          <ul aria-label="Números sem acesso" className="space-y-1">
+            {semAcesso.map((i) => (
+              <li key={i.id}>
+                <span className="font-medium">{i.titulo}:</span>{" "}
+                {i.lacuna
+                  ? `falta ${i.lacuna.oQueFalta.replace(/^./, (c) => c.toLowerCase())} Quem concede: ${i.lacuna.responsavel}.`
+                  : "seu acesso não lê a fonte deste número."}
+              </li>
+            ))}
+          </ul>
+        </Aviso>
       )}
 
       <Secao
-        titulo="O que pede atenção?"
-        descricao="Decisões saem de regras fixas sobre os números acima, não de IA."
+        titulo="O que é decisão sua?"
+        descricao="Até três, por regra fixa sobre os números acima. Cada uma abre a tela que resolve."
       >
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <ol className="space-y-4" aria-label="Decisões">
-            {cockpit.decisoes.map((d, n) => (
-              <li key={d.id} className="space-y-1">
-                <p className="font-semibold">
-                  {n + 1}. {d.titulo}
-                </p>
-                <p className="text-sm text-muted-foreground">{d.porque}</p>
-                <p className="text-sm">
-                  <span className="text-muted-foreground">Quem decide: </span>
-                  {d.responsavel}
-                </p>
-                {d.destino && <BotaoDestino destino={d.destino} preview={preview} compacto />}
-              </li>
+        <ol aria-label="Decisões" className="divide-y rounded-xl border bg-card">
+          {cockpit.decisoes.map((d) => (
+            <Linha
+              key={d.id}
+              selo={<StatusBadge tom="info">Decisão</StatusBadge>}
+              titulo={d.titulo}
+              detalhe={
+                <>
+                  {d.porque} <span className="text-foreground">Quem decide: {d.responsavel}.</span>
+                </>
+              }
+              acao={d.destino && <BotaoDestino destino={d.destino} preview={preview} compacto />}
+            />
+          ))}
+        </ol>
+      </Secao>
+
+      <Secao
+        titulo="O que ameaça o resultado?"
+        descricao="Regras fixas, não IA. Clique para ver o número por trás."
+      >
+        {cockpit.ameacas.length ? (
+          <ul className="divide-y rounded-xl border bg-card">
+            {cockpit.ameacas.map((a) => (
+              <Linha
+                key={a.id}
+                selo={
+                  <StatusBadge tom={a.gravidade === "alta" ? "perigo" : "atencao"}>
+                    {a.gravidade === "alta" ? "Alta" : "Média"}
+                  </StatusBadge>
+                }
+                titulo={a.titulo}
+                detalhe={a.detalhe}
+                acao={
+                  a.indicador && (
+                    <Button variant="outline" size="sm" onClick={() => abrir(a.indicador!)}>
+                      Ver número
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Button>
+                  )
+                }
+              />
             ))}
-          </ol>
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">O que ameaça o resultado</p>
-            {cockpit.ameacas.length ? (
-              <ul className="space-y-3">
-                {cockpit.ameacas.map((a) => (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      className="space-y-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
-                      disabled={!a.indicador}
-                      onClick={() => a.indicador && abrir(a.indicador)}
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        <StatusBadge tom={a.gravidade === "alta" ? "perigo" : "atencao"}>
-                          {a.gravidade === "alta" ? "Alta" : "Média"}
-                        </StatusBadge>
-                        <span className="text-sm font-medium">{a.titulo}</span>
-                      </span>
-                      <span className="block text-sm text-muted-foreground">{a.detalhe}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma regra de ameaça disparou com os números disponíveis. Isso não cobre o que
-                ainda não é apurado.
-              </p>
-            )}
-          </div>
-        </div>
-        {preview && (
-          <p className="mt-4 text-xs text-muted-foreground">
-            No preview, os destinos não abrem: exigem login e dados reais.
+          </ul>
+        ) : (
+          <p className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+            Nenhuma regra de ameaça disparou com os números disponíveis. Isso não cobre o que ainda
+            não é apurado.
           </p>
         )}
       </Secao>
+      {preview && (
+        <p className="text-xs text-muted-foreground">
+          No preview, os destinos não abrem: exigem login e dados reais.
+        </p>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Secao
-          titulo="O que mudou no período?"
-          descricao="Mesmo número de dias, imediatamente antes. Eventos, não coorte: não somar etapas como funil."
-        >
-          {eventos.length ? (
-            <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr>
-                  <th className="pb-2 text-left font-medium">Evento</th>
-                  <th className="pb-2 text-right font-medium">Agora</th>
-                  <th className="pb-2 text-right font-medium">Anterior</th>
-                  <th className="pb-2 text-right font-medium">Variação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eventos.map((i) => {
-                  const ant = i.comparacoes[0]?.referencia ?? null;
-                  return (
-                    <tr key={i.id} className="border-t">
-                      <td className="py-2">
-                        <button
-                          type="button"
-                          className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => abrir(i.id)}
-                        >
-                          {i.titulo}
-                        </button>
-                      </td>
-                      <td className="num py-2 text-right">{formatarNumero(i.valor, i.unidade)}</td>
-                      <td className="num py-2 text-right">{formatarNumero(ant, i.unidade)}</td>
-                      <td className="num py-2 text-right">
-                        {i.valor !== null && ant !== null ? sinal(i.valor - ant) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem eventos comparáveis neste recorte.</p>
-          )}
-        </Secao>
-
-        <Secao
-          titulo="De onde vem o crescimento?"
-          descricao="Demanda por produto, não faturamento: a ponte de receita até a meta ainda não é apurada."
-        >
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr>
-                <th className="pb-2 text-left font-medium">Produto</th>
-                <th className="pb-2 text-right font-medium">Validadas</th>
-                <th className="pb-2 text-right font-medium">Ganhos</th>
-                <th className="pb-2 text-right font-medium">Receita prevista</th>
-                <th className="pb-2 text-right font-medium">Prontas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cockpit.porProduto.map((l) => (
-                <tr key={l.produto} className="border-t">
-                  <td className="py-2">{l.rotulo}</td>
-                  <td className="num py-2 text-right">{formatarNumero(l.validadas, "negócios")}</td>
-                  <td className="num py-2 text-right">{formatarNumero(l.ganhos, "negócios")}</td>
-                  <td
-                    className="num py-2 text-right"
-                    title={l.semReceita ? `${l.semReceita} sem valor declarado` : undefined}
-                  >
-                    {formatarNumero(l.receitaPrevista, "reais")}
-                    {l.semReceita ? "*" : ""}
-                  </td>
-                  <td className="num py-2 text-right">
-                    {formatarNumero(l.contasProntas, "contas")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-2 text-xs text-muted-foreground">
-            * há negócio sem receita declarada. Prontas contam contas; uma conta pode estar em mais
-            de um produto.
-          </p>
-        </Secao>
-      </div>
+      <Secao
+        titulo="Em qual produto está a demanda?"
+        descricao="Negócios do pipe de Monetização no período. Demanda, não faturamento."
+        acoes={<BotaoDestino destino={DESTINO_PRODUTOS} preview={preview} compacto />}
+      >
+        <div className="h-56 rounded-xl border bg-card p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={produtos}
+              layout="vertical"
+              margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
+            >
+              <CartesianGrid {...gradeProps} horizontal={false} vertical />
+              <XAxis type="number" allowDecimals={false} {...eixoProps} />
+              <YAxis type="category" dataKey="rotulo" width={96} {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
+              <Bar
+                isAnimationActive={false}
+                dataKey="validadas"
+                name="Oportunidades validadas"
+                fill={CORES_SERIE[0]}
+              />
+              <Bar
+                isAnimationActive={false}
+                dataKey="ganhos"
+                name="Contratos ganhos"
+                fill={CORES_SERIE[1]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Secao>
 
       {jev}
 
