@@ -22,6 +22,8 @@ import type {
 import { PERGUNTAS } from "./perguntas.ts";
 import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, META_ANUAL, mesBr, resumirLeitura } from "./receita.ts";
 import type { LeituraReceita, ResumoLeitura } from "./receita.ts";
+import { resumirClientes } from "./clientes-ativos.ts";
+import type { DefinicaoCliente, ResumoClientes } from "./clientes-ativos.ts";
 import { dataBr, mesDoPeriodo, periodoAnterior } from "./periodo.ts";
 import type { Periodo } from "./periodo.ts";
 
@@ -50,6 +52,17 @@ export interface FonteCockpit {
     estado: "ok" | "erro" | "carregando" | "sem_acesso";
     erro: string | null;
     leituras: LeituraReceita[];
+  };
+  /** Definições candidatas de cliente ativo (CNPJs por definição). Ausente = não carregada. */
+  clientesAtivos?: {
+    estado: "ok" | "erro" | "carregando" | "sem_acesso";
+    erro: string | null;
+    definicoes: DefinicaoCliente[];
+    /**
+     * Só a fonte sintética preenche: vínculo conta → CNPJ sem inventar uma Base completa. Na carga
+     * real os CNPJs vêm de `conta.base.cnpjs`, da Base de clientes.
+     */
+    cnpjsPorConta?: Record<string, string[]>;
   };
 }
 
@@ -107,6 +120,9 @@ export interface Cockpit {
   /** Trajetória para R$ 1 bi em 2030 por leitura candidata; null quando a fonte não foi carregada. */
   trajetoria: ResumoLeitura[] | null;
   trajetoriaAviso: string | null;
+  /** Clientes ativos por definição candidata, com sobreposição e penetração ganha no CRM. */
+  clientes: ResumoClientes | null;
+  clientesAviso: string | null;
   avisos: string[];
 }
 
@@ -903,6 +919,33 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   if (op) partes.push(`${plural(negocios.length, "negócio", "negócios")} do pipe de Monetização`);
   partes.push("Financeiro fora deste recorte");
 
+  // ── Clientes ativos: definições candidatas, rede inteira ──────────────
+  const ca = fonte.clientesAtivos;
+  const clientes =
+    ca && ca.estado === "ok"
+      ? resumirClientes(
+          ca.definicoes,
+          fonte.acessoBase && dados
+            ? dados.accounts.map((a) => ({
+                key: a.key,
+                orgs: a.orgs,
+                cnpjs: ca.cnpjsPorConta?.[a.key] ?? a.base?.cnpjs ?? [],
+              }))
+            : null,
+          fonte.acessoNegocios && dados ? dados.cards : [],
+          { acessoNegocios: fonte.acessoNegocios && !!dados },
+        )
+      : null;
+  const clientesAviso = !ca
+    ? null
+    : ca.estado === "carregando"
+      ? "Definições de cliente ativo em carga."
+      : ca.estado === "sem_acesso"
+        ? "Seu acesso não alcança as fontes de cliente ativo."
+        : ca.estado === "erro"
+          ? (ca.erro ?? "A carga das definições de cliente ativo falhou.")
+          : null;
+
   return {
     sintetico,
     universo: partes.join(" · "),
@@ -917,6 +960,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     porProduto,
     trajetoria,
     trajetoriaAviso,
+    clientes,
+    clientesAviso,
     serieDiaria: op
       ? op.series.map((s) => ({
           date: s.date,

@@ -9,6 +9,7 @@
 import type { BaseMonetizacao } from "../monetizacao/types";
 import type { FonteCockpit } from "./indicadores.ts";
 import type { LeituraReceita } from "./receita.ts";
+import type { DefinicaoCliente } from "./clientes-ativos.ts";
 
 export function mensagemDeErro(
   erro: unknown,
@@ -73,4 +74,20 @@ export function fonteDoBrain(
   if (q.isLoading || !q.data)
     return { ...comum, monetizacao: { estado: "carregando", erro: null, dados: null } };
   return { ...comum, monetizacao: { estado: "ok", erro: null, dados: q.data } };
+}
+
+/** Estado das definições de cliente ativo (carregarClientesAtivosCockpit). */
+export function clientesDaCarga(q: {
+  data?: { definicoes: DefinicaoCliente[] };
+  error?: unknown;
+  isLoading: boolean;
+}): NonNullable<FonteCockpit["clientesAtivos"]> {
+  if (q.error)
+    return {
+      estado: "erro",
+      erro: mensagemDeErro(q.error, "A carga das definições de cliente ativo falhou."),
+      definicoes: [],
+    };
+  if (q.isLoading || !q.data) return { estado: "carregando", erro: null, definicoes: [] };
+  return { estado: "ok", erro: null, definicoes: q.data.definicoes };
 }

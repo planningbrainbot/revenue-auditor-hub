@@ -892,3 +892,21 @@ test("Carga das leituras de faturamento: erro não vira leitura vazia 'ok'", asy
   assert.equal(c.trajetoria, null);
   assert.match(c.trajetoriaAviso, /faturamento/);
 });
+
+test("Preview sintético mostra as quatro definições de cliente ativo com sobreposição e penetração", () => {
+  const f = fonteSintetica("2026-09-22", "2026-09-22T12:00:00.000Z");
+  const c = montarCockpit(f, recorte());
+  assert.equal(c.clientes.definicoes.length, 4);
+  assert.ok(c.clientes.definicoes.every((d) => d.fonte.startsWith("SINTÉTICO")));
+  const qb = c.clientes.definicoes.find((d) => d.id === "qb_ativos");
+  assert.equal(qb.semContaBase, 4);
+  assert.equal(qb.contasBase, f.monetizacao.dados.accounts.length);
+  assert.equal(c.clientes.sobreposicao.length, 6);
+  assert.equal(c.clientes.penetracaoEstado, "disponivel");
+  assert.ok(
+    qb.penetracao.some((p) => p.contas > 0),
+    "a fixture tem negócio ganho",
+  );
+  const sem = montarCockpit(fonteSemAcesso("2026-09-22", "2026-09-22T12:00:00.000Z"), recorte());
+  assert.equal(sem.clientes, null);
+});

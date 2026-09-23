@@ -19,6 +19,7 @@ import type { FonteCockpit } from "./indicadores.ts";
 import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes.ts";
 import type { ApuracaoRede } from "./receita-fontes.ts";
 import type { LeituraReceita } from "./receita.ts";
+import { montarDefinicao } from "./clientes-ativos.ts";
 
 const UNIDADES = [
   ["ex-norte", "Unidade Exemplo Norte"],
@@ -468,19 +469,58 @@ export function receitaSintetica(hoje: string): LeituraReceita[] {
   return [grupo, rede].map((l) => ({ ...l, fonte: `SINTÉTICO · ${l.fonte}` }));
 }
 
+/**
+ * Definições de cliente ativo SINTÉTICAS sobre as contas sintéticas. CNPJ fictício ("99" + número),
+ * que não valida dígito verificador; alguns documentos sem conta na Base e alguns CPFs, para a tela
+ * mostrar esses casos.
+ */
+export function clientesSinteticos(contas: Conta[]): NonNullable<FonteCockpit["clientesAtivos"]> {
+  const cnpj = (i: number) => "99" + String(i).padStart(12, "0");
+  const cnpjsPorConta = Object.fromEntries(contas.map((a, i) => [a.key, [cnpj(i)]]));
+  const de = (f: (i: number) => boolean, extras: (string | null)[] = []) => [
+    ...contas
+      .map((_, i) => i)
+      .filter(f)
+      .map(cnpj),
+    ...extras,
+  ];
+  const semConta = [cnpj(9001), cnpj(9002), cnpj(9003)];
+  return {
+    estado: "ok",
+    erro: null,
+    cnpjsPorConta,
+    definicoes: [
+      montarDefinicao(
+        "contrato_omie",
+        de((i) => i % 5 !== 0),
+      ),
+      montarDefinicao(
+        "recebeu_90d",
+        de((i) => i % 4 !== 1, [...semConta, "123.456.789-01"]),
+      ),
+      montarDefinicao(
+        "qb_ativos",
+        de(() => true, [...semConta, cnpj(9004), null]),
+      ),
+      montarDefinicao(
+        "mrr_positivo",
+        de((i) => i % 5 !== 0 && i % 7 !== 3),
+      ),
+    ].map((d) => ({ ...d, fonte: `SINTÉTICO · ${d.fonte}` })),
+  };
+}
+
 export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
+  // Carga "de dez minutos atrás" em relação a quem abre o preview, para não parecer parada.
+  const dados = baseSintetica(hoje, new Date(Date.parse(agora) - 10 * 60_000).toISOString());
   return {
     sintetico: true,
     hoje,
     agora,
     acessoBase: true,
     acessoNegocios: true,
-    // Carga "de dez minutos atrás" em relação a quem abre o preview, para não parecer parada.
-    monetizacao: {
-      estado: "ok",
-      erro: null,
-      dados: baseSintetica(hoje, new Date(Date.parse(agora) - 10 * 60_000).toISOString()),
-    },
+    monetizacao: { estado: "ok", erro: null, dados },
     receita: { estado: "ok", erro: null, leituras: receitaSintetica(hoje) },
+    clientesAtivos: clientesSinteticos(dados.accounts),
   };
 }

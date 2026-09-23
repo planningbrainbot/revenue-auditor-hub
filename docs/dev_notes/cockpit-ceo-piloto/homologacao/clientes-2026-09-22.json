@@ -1,0 +1,191 @@
+{
+  "quando": "2026-09-23T02:28:41.100Z",
+  "hoje": "2026-09-22",
+  "desde90": "2026-06-24",
+  "fonte": "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
+  "definicoes": [
+    {
+      "id": "contrato_omie",
+      "cnpjs": {
+        "cockpit": 566,
+        "sql": 566
+      },
+      "contas_base": {
+        "cockpit": 565,
+        "sql": 565
+      },
+      "sem_conta": {
+        "cockpit": 4,
+        "sql": 4
+      },
+      "penetracao": {
+        "cockpit": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 1
+        },
+        "sql": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 1
+        }
+      },
+      "fora_do_formato": 9,
+      "sem_documento": 0,
+      "confere": true
+    },
+    {
+      "id": "recebeu_90d",
+      "cnpjs": {
+        "cockpit": 560,
+        "sql": 560
+      },
+      "contas_base": {
+        "cockpit": 557,
+        "sql": 557
+      },
+      "sem_conta": {
+        "cockpit": 3,
+        "sql": 3
+      },
+      "penetracao": {
+        "cockpit": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        },
+        "sql": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        }
+      },
+      "fora_do_formato": 46,
+      "sem_documento": 0,
+      "confere": true
+    },
+    {
+      "id": "qb_ativos",
+      "cnpjs": {
+        "cockpit": 650,
+        "sql": 650
+      },
+      "contas_base": {
+        "cockpit": 654,
+        "sql": 654
+      },
+      "sem_conta": {
+        "cockpit": 1,
+        "sql": 1
+      },
+      "penetracao": {
+        "cockpit": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        },
+        "sql": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        }
+      },
+      "fora_do_formato": 19,
+      "sem_documento": 555,
+      "confere": true
+    },
+    {
+      "id": "mrr_positivo",
+      "cnpjs": {
+        "cockpit": 546,
+        "sql": 546
+      },
+      "contas_base": {
+        "cockpit": 550,
+        "sql": 550
+      },
+      "sem_conta": {
+        "cockpit": 1,
+        "sql": 1
+      },
+      "penetracao": {
+        "cockpit": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        },
+        "sql": {
+          "consultoria": 0,
+          "finance": 0,
+          "cella": 0
+        }
+      },
+      "fora_do_formato": 3,
+      "sem_documento": 491,
+      "confere": true
+    }
+  ],
+  "sobreposicao": [
+    {
+      "par": "contrato_omie|recebeu_90d",
+      "cockpit": 469,
+      "sql": 469,
+      "confere": true
+    },
+    {
+      "par": "contrato_omie|qb_ativos",
+      "cockpit": 444,
+      "sql": 444,
+      "confere": true
+    },
+    {
+      "par": "contrato_omie|mrr_positivo",
+      "cockpit": 464,
+      "sql": 464,
+      "confere": true
+    },
+    {
+      "par": "recebeu_90d|qb_ativos",
+      "cockpit": 480,
+      "sql": 480,
+      "confere": true
+    },
+    {
+      "par": "recebeu_90d|mrr_positivo",
+      "cockpit": 422,
+      "sql": 422,
+      "confere": true
+    },
+    {
+      "par": "qb_ativos|mrr_positivo",
+      "cockpit": 524,
+      "sql": 524,
+      "confere": true
+    }
+  ],
+  "uniao": {
+    "cockpit": 797,
+    "sql": 797
+  },
+  "em_todas": {
+    "cockpit": 412,
+    "sql": 412
+  },
+  "negocios_ganhos": 2,
+  "avisos": [
+    "Penetração é ganho no CRM (negócio ganho no pipe de Monetização do produto); não é consumo, contrato assinado nem receita. O pipe tem 2 negócios ganhos visíveis para você: quem já consumia o produto antes dele não aparece aqui."
+  ],
+  "confere": true,
+  "tempos": {
+    "leitura_contrato_omie_ms": 1585,
+    "leitura_recebeu_90d_ms": 1442,
+    "leitura_qb_ativos_ms": 1282,
+    "leitura_mrr_positivo_ms": 1445,
+    "carga_base_ms": 68915,
+    "carga": {
+      "tabelas_monetizacao": 1893,
+      "contas": 27052,
+      "catalogo": 39903
+    }
+  }
+}

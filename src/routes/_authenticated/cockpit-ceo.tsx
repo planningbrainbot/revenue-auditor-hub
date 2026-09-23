@@ -6,7 +6,13 @@ import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ce
 import { LoadingState, Panel } from "@/components/monetizacao/common";
 import { useMonetizacao } from "@/hooks/use-monetizacao";
 import { usePermissions } from "@/hooks/use-permissions";
-import { fonteDoBrain, fonteSemAcesso, receitaDaCarga } from "@/lib/cockpit-ceo/adaptador-brain";
+import {
+  clientesDaCarga,
+  fonteDoBrain,
+  fonteSemAcesso,
+  receitaDaCarga,
+} from "@/lib/cockpit-ceo/adaptador-brain";
+import { carregarClientesAtivosCockpit } from "@/lib/cockpit-ceo/clientes-ativos.functions";
 import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
 import { carregarReceitaCockpit } from "@/lib/cockpit-ceo/receita.functions";
@@ -62,6 +68,18 @@ function useReceita() {
   return useMemo(() => receitaDaCarga(q), [q.data, q.error, q.isLoading]);
 }
 
+/** Definições de cliente ativo; os CNPJs ficam só na memória da tela. Sem retry automático. */
+function useClientesAtivos() {
+  const fn = useServerFn(carregarClientesAtivosCockpit);
+  const q = useQuery({
+    queryKey: ["cockpit-ceo", "clientes-ativos"],
+    queryFn: () => fn(),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  return useMemo(() => clientesDaCarga(q), [q.data, q.error, q.isLoading]);
+}
+
 /** Relógio por minuto: uma aba aberta precisa perceber quando a carga passa a estar parada. */
 function useAgora() {
   const [agora, setAgora] = useState(() => new Date().toISOString());
@@ -75,12 +93,23 @@ function useAgora() {
 function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
   const q = useMonetizacao();
   const receita = useReceita();
+  const clientesAtivos = useClientesAtivos();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => ({ ...fonteDoBrain(q, acesso, hoje, agora), receita }),
+    () => ({ ...fonteDoBrain(q, acesso, hoje, agora), receita, clientesAtivos }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q.data, q.error, q.isLoading, acesso.acessoBase, acesso.acessoNegocios, hoje, agora, receita],
+    [
+      q.data,
+      q.error,
+      q.isLoading,
+      acesso.acessoBase,
+      acesso.acessoNegocios,
+      hoje,
+      agora,
+      receita,
+      clientesAtivos,
+    ],
   );
   if (fonte.monetizacao.estado === "carregando")
     return <LoadingState retry={() => void q.refetch()} />;
@@ -89,11 +118,13 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
 
 function SemCarga() {
   const receita = useReceita();
+  // Sem as chaves da Base o servidor devolve cada definição como "acesso insuficiente", sem ler fonte.
+  const clientesAtivos = useClientesAtivos();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => ({ ...fonteSemAcesso(hoje, agora), receita }),
-    [hoje, agora, receita],
+    () => ({ ...fonteSemAcesso(hoje, agora), receita, clientesAtivos }),
+    [hoje, agora, receita, clientesAtivos],
   );
   return <Tela fonte={fonte} hoje={hoje} />;
 }

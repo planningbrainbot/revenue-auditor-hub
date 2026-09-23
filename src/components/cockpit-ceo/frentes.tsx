@@ -13,6 +13,7 @@ import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
 import { perguntasDaFrente } from "@/lib/cockpit-ceo/perguntas";
 import { CoberturaBadge, EstadoBadge } from "./estado";
+import { ClientesAtivos } from "./clientes-ativos";
 import { Trajetoria } from "./trajetoria";
 
 function GraficoDiario({ serie }: { serie: NonNullable<Cockpit["serieDiaria"]> }) {
@@ -109,6 +110,9 @@ export function Frentes({
             aviso={cockpit.trajetoriaAviso}
             preview={preview}
           />
+        )}
+        {frente === "clientes" && (cockpit.clientes || cockpit.clientesAviso) && (
+          <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
         )}
         {frente === "comercial" && cockpit.serieDiaria && (
           <GraficoDiario serie={cockpit.serieDiaria} />

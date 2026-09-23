@@ -198,7 +198,8 @@ const saida = {
   quando: new Date().toISOString(),
   hoje,
   janela: { de, ate },
-  fonte: "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
+  fonte:
+    "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
   porta_super_admin: porta,
   grupo: {
     estado_leitura: grupo.estado,

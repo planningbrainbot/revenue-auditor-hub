@@ -123,12 +123,13 @@ export const PERGUNTAS: PerguntaCatalogo[] = [
     frente: "clientes",
     texto: "Quantos clientes temos de verdade?",
     fonte:
-      "Nenhuma flag da base responde sozinha; procedência declara a porta de entrada, não o veredito.",
+      "Quatro definições candidatas lado a lado (contrato no Omie, pagou em 90 dias, cadastro, MRR), por CNPJ e com sobreposição; nenhuma escolhida.",
     responsavel: "CEO + Departamento de Receitas",
     cobertura: "depende_decisao",
     aceite:
       "Definição de cliente ativo por contexto aprovada e aplicada com denominador explícito.",
-    pendencia: "Decidir o que é cliente ativo (contrato vigente, faturamento, ECD) por contexto.",
+    pendencia:
+      "Escolher, por contexto, qual definição candidata vale; completar CNPJ das empresas sem documento no cadastro.",
     indicadores: [],
     roadmap: ["F01"],
   },

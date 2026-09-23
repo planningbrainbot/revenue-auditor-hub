@@ -238,6 +238,25 @@ await avaliar(`document.querySelector('[aria-label="Trajetória para a meta"]').
 await espera(600);
 await foto("07-trajetoria-bilhao-candidatas");
 
+// Clientes ativos: quatro definições lado a lado, com sobreposição e penetração ganha no CRM.
+await abrir("/piloto/cockpit-ceo?frente=clientes");
+const cli = await avaliar(`(() => {
+  const s = document.querySelector('[aria-label="Clientes ativos por definição"]');
+  return { existe: !!s, texto: s?.innerText || "", linhas: s ? s.querySelectorAll("tbody tr").length : 0 };
+})()`);
+conferir(
+  "Frente Clientes mostra as quatro definições com sobreposição",
+  cli.existe && cli.linhas === 4 && /Em pelo menos uma/.test(cli.texto) && /Em todas/.test(cli.texto),
+  JSON.stringify({ linhas: cli.linhas }),
+);
+conferir(
+  "Penetração se declara ganho no CRM e a fonte se identifica como sintética",
+  /ganho no CRM/.test(cli.texto) && /não é consumo/.test(cli.texto) && /SINTÉTICO/.test(cli.texto),
+);
+await avaliar(`document.querySelector('[aria-label="Clientes ativos por definição"]').scrollIntoView()`);
+await espera(600);
+await foto("09-clientes-ativos-definicoes");
+
 // Composição de um indicador não apurado: diz o que falta e quem responde.
 await abrir("/piloto/cockpit-ceo?indicador=meta-bilhao");
 const meta = await avaliar(`document.querySelector('[role=dialog]')?.innerText || ''`);
