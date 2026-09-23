@@ -28,7 +28,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -116,9 +115,7 @@ function NotaIa({
           {quando ? dataCurta(quando) : ""} · {aberto ? "esconder" : "ler"}
         </span>
       </button>
-      <p className="mt-1 text-xs text-warning">
-        Gerado por IA — confira antes de usar.
-      </p>
+      <p className="mt-1 text-xs text-warning">Gerado por IA — confira antes de usar.</p>
       {aberto ? (
         <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{corpo}</p>
       ) : null}
@@ -182,7 +179,16 @@ function Kpi({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: st
   return <KpiCard rotulo={rotulo} valor={valor} nota={nota} />;
 }
 
-export function BrokerUnidadeView() {
+/**
+ * Cada seção é uma página do menu do Broker. Até 23/09/2026 eram abas desta
+ * tela; viraram rotas porque o Broker ganhou menu próprio no seletor de
+ * produtos (NAVEGACAO.md N6: nada de aba que troca de assunto). A carga e as
+ * ações continuam aqui, numa view só, para as cinco páginas lerem a mesma
+ * query e uma reserva feita numa aparecer na outra sem nova busca.
+ */
+export type SecaoBroker = "oportunidades" | "reservas" | "movimentacoes" | "faturas" | "cac";
+
+export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
   const qc = useQueryClient();
   // Durante "ver como", o banco devolve os dados da unidade vestida e recusa
   // qualquer escrita (gatilho `ver_como_somente_leitura`). O botão precisa
@@ -330,44 +336,45 @@ export function BrokerUnidadeView() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Disponível</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums">{cb(s?.disponivel)}</p>
-          <div className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
-            <p className="flex justify-between gap-2">
-              <span>Crédito recebido</span>
-              <span className="tabular-nums">{cb(s?.credito_recebido)}</span>
-            </p>
-            <p className="flex justify-between gap-2">
-              <span>Crédito comprado</span>
-              <span className="tabular-nums">{cb(s?.credito_comprado)}</span>
-            </p>
-          </div>
-        </Card>
-        <Kpi rotulo="Reservado" valor={cb(s?.bloqueado)} nota={`${minhas.length} cliente(s)`} />
-        <Kpi rotulo="Investido" valor={cb(s?.investido)} nota={`${compradas.length} fechado(s)`} />
-      </div>
-
-      <Tabs defaultValue="vitrine">
-        <TabsList>
-          <TabsTrigger value="vitrine">Disponíveis ({disponiveis.length})</TabsTrigger>
-          <TabsTrigger value="minhas">Minhas reservas ({minhas.length})</TabsTrigger>
-          <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
-          <TabsTrigger value="financeiro">Faturas e pagamentos</TabsTrigger>
-          {/* Unidade que não paga CAC não tem linha em v_broker_cac_saldo: a aba
-              nem aparece, em vez de mostrar uma tela de zeros que afirmaria que
-              ela deve nada quando na verdade a régua não se aplica a ela. */}
-          {cacSaldo ? <TabsTrigger value="cac">CAC</TabsTrigger> : null}
-        </TabsList>
-
-        <TabsContent value="vitrine" className="mt-3 space-y-3">
-          <Input
-            placeholder="Buscar por empresa ou segmento"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="max-w-sm"
+      {/* O saldo só aparece onde o crédito é gasto. Movimentações já é o extrato. */}
+      {secao === "oportunidades" || secao === "reservas" ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Card className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Disponível</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{cb(s?.disponivel)}</p>
+            <div className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
+              <p className="flex justify-between gap-2">
+                <span>Crédito recebido</span>
+                <span className="tabular-nums">{cb(s?.credito_recebido)}</span>
+              </p>
+              <p className="flex justify-between gap-2">
+                <span>Crédito comprado</span>
+                <span className="tabular-nums">{cb(s?.credito_comprado)}</span>
+              </p>
+            </div>
+          </Card>
+          <Kpi rotulo="Reservado" valor={cb(s?.bloqueado)} nota={`${minhas.length} cliente(s)`} />
+          <Kpi
+            rotulo="Investido"
+            valor={cb(s?.investido)}
+            nota={`${compradas.length} fechado(s)`}
           />
+        </div>
+      ) : null}
+
+      {secao === "oportunidades" ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              placeholder="Buscar por empresa ou segmento"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="max-w-sm"
+            />
+            <span className="text-sm text-muted-foreground">
+              {disponiveis.length} cliente(s) disponível(is)
+            </span>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {disponiveis.map((o) => (
               <Card key={o.id} className="flex flex-col gap-3 p-4">
@@ -419,12 +426,16 @@ export function BrokerUnidadeView() {
               </p>
             ) : null}
           </div>
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="minhas" className="mt-3 space-y-4">
+      {secao === "reservas" ? (
+        <div className="space-y-4">
           {minhas.length === 0 ? (
             <p className="text-sm text-muted-foreground">Você não tem cliente reservado.</p>
-          ) : null}
+          ) : (
+            <p className="text-sm text-muted-foreground">{minhas.length} cliente(s) reservado(s)</p>
+          )}
 
           {minhas.map((o) => {
             const p = prazo(o.precificar_ate);
@@ -540,44 +551,47 @@ export function BrokerUnidadeView() {
               </Card>
             </div>
           ) : null}
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="movimentacoes" className="mt-3">
-          <Card className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>Movimento</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Observação</TableHead>
+      {secao === "movimentacoes" ? (
+        <Card className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Quando</TableHead>
+                <TableHead>Movimento</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Observação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.extrato.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {dataCurta(m.criado_em)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{m.tipo}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{cb(m.valor_cb)}</TableCell>
+                  <TableCell className="text-muted-foreground">{m.observacao ?? NA}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.extrato.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {dataCurta(m.criado_em)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{m.tipo}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{cb(m.valor_cb)}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.observacao ?? NA}</TableCell>
-                  </TableRow>
-                ))}
-                {data.extrato.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      Nenhum movimento ainda.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-        <TabsContent value="financeiro" className="mt-3 space-y-4">
+              ))}
+              {data.extrato.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    Nenhum movimento ainda.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : null}
+
+      {secao === "faturas" ? (
+        <div className="space-y-4">
           <Card className="flex flex-wrap items-center gap-3 p-4">
             <div className="min-w-0 flex-1">
               <p className="font-medium">Comprar CashBrain</p>
@@ -637,10 +651,8 @@ export function BrokerUnidadeView() {
                         <Badge
                           variant="secondary"
                           className={cn(
-                            f.status === "paga" &&
-                              "bg-success/10 text-success",
-                            f.status === "aberta" &&
-                              "bg-warning/10 text-warning",
+                            f.status === "paga" && "bg-success/10 text-success",
+                            f.status === "aberta" && "bg-warning/10 text-warning",
                           )}
                         >
                           {f.status}
@@ -738,127 +750,140 @@ export function BrokerUnidadeView() {
               </Table>
             </Card>
           </div>
-        </TabsContent>
+        </div>
+      ) : null}
 
-        {/* CAC pós-pago. Moeda diferente do aquário: aqui é real, não CashBrain. */}
-        {cacSaldo ? (
-          <TabsContent value="cac" className="mt-3 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Kpi
-                rotulo="Cobrado"
-                valor={brl(cacSaldo.cobrado)}
-                nota="clientes entregues pela matriz"
-              />
-              <Kpi rotulo="Pago" valor={brl(cacSaldo.pago)} nota="baixas registradas" />
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {cacDevendo ? "A pagar" : "A seu favor"}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-2xl font-bold tabular-nums",
-                    cacDevendo ? "text-destructive" : "text-success",
-                  )}
-                >
-                  {brl(Math.abs(cacSaldo.a_pagar))}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {cacDevendo
-                    ? "cobrado menos o que já entrou"
-                    : "você pagou mais do que foi cobrado"}
-                </p>
-              </Card>
-            </div>
-
-            <Card className="flex gap-3 p-4">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Cada linha de cobrança nasce de um cliente que a matriz entregou. Os pagamentos vêm
-                das baixas na conta da Partners. Clientes já atribuídos mas ainda não cobrados ficam
-                na lista de baixo e <strong>não entram neste saldo</strong>.
+      {/* CAC pós-pago. Moeda diferente do aquário: aqui é real, não CashBrain.
+          Unidade que não paga CAC não tem linha em v_broker_cac_saldo. O item de
+          menu aparece para todas (a lateral não sabe disso sem consultar), então a
+          página diz que a régua não se aplica, em vez de mostrar zeros que
+          afirmariam que a unidade não deve nada. */}
+      {secao === "cac" && !cacSaldo ? (
+        <Card className="flex gap-3 p-4">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            A régua de CAC não se aplica à sua unidade. Ela vale para unidades que recebem clientes
+            entregues pela matriz com cobrança de CAC pós-paga.
+          </p>
+        </Card>
+      ) : null}
+      {secao === "cac" && cacSaldo ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Kpi
+              rotulo="Cobrado"
+              valor={brl(cacSaldo.cobrado)}
+              nota="clientes entregues pela matriz"
+            />
+            <Kpi rotulo="Pago" valor={brl(cacSaldo.pago)} nota="baixas registradas" />
+            <Card className="p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                {cacDevendo ? "A pagar" : "A seu favor"}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 text-2xl font-bold tabular-nums",
+                  cacDevendo ? "text-destructive" : "text-success",
+                )}
+              >
+                {brl(Math.abs(cacSaldo.a_pagar))}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {cacDevendo
+                  ? "cobrado menos o que já entrou"
+                  : "você pagou mais do que foi cobrado"}
               </p>
             </Card>
+          </div>
 
-            <Card className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Quando</TableHead>
-                    <TableHead>Movimento</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+          <Card className="flex gap-3 p-4">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Cada linha de cobrança nasce de um cliente que a matriz entregou. Os pagamentos vêm
+              das baixas na conta da Partners. Clientes já atribuídos mas ainda não cobrados ficam
+              na lista de baixo e <strong>não entram neste saldo</strong>.
+            </p>
+          </Card>
+
+          <Card className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Quando</TableHead>
+                  <TableHead>Movimento</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.cacExtrato.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {dataCurta(m.criado_em)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={m.tipo === "pagamento" ? "default" : "secondary"}>
+                        {m.tipo === "pagamento" ? "pagamento" : "cobrança"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{m.cliente ?? m.observacao ?? NA}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums",
+                        m.tipo === "pagamento" && "text-success",
+                      )}
+                    >
+                      {m.tipo === "pagamento" ? "−" : ""}
+                      {brl(m.valor_cb)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.cacExtrato.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {dataCurta(m.criado_em)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={m.tipo === "pagamento" ? "default" : "secondary"}>
-                          {m.tipo === "pagamento" ? "pagamento" : "cobrança"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{m.cliente ?? m.observacao ?? NA}</TableCell>
-                      <TableCell
-                        className={cn(
-                          "text-right tabular-nums",
-                          m.tipo === "pagamento" && "text-success",
-                        )}
-                      >
-                        {m.tipo === "pagamento" ? "−" : ""}
-                        {brl(m.valor_cb)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {data.cacExtrato.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Nenhuma cobrança de CAC lançada ainda.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </Card>
+                ))}
+                {data.cacExtrato.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Nenhuma cobrança de CAC lançada ainda.
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </Card>
 
-            {data.cacFila.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  Ainda não cobrados{" "}
-                  <span className="font-normal text-muted-foreground">
-                    · {data.cacFila.length} cliente(s) ·{" "}
-                    {brl(data.cacFila.reduce((t, r) => t + (r.valor ?? 0), 0))}
-                  </span>
-                </p>
-                <Card className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Competência</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
+          {data.cacFila.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                Ainda não cobrados{" "}
+                <span className="font-normal text-muted-foreground">
+                  · {data.cacFila.length} cliente(s) ·{" "}
+                  {brl(data.cacFila.reduce((t, r) => t + (r.valor ?? 0), 0))}
+                </span>
+              </p>
+              <Card className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Competência</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.cacFila.map((r) => (
+                      <TableRow key={`${r.unidade_id}-${r.cliente}-${r.mes_referencia}`}>
+                        <TableCell>{r.cliente ?? NA}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {dataCurta(r.mes_referencia)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{brl(r.valor)}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.cacFila.map((r) => (
-                        <TableRow key={`${r.unidade_id}-${r.cliente}-${r.mes_referencia}`}>
-                          <TableCell>{r.cliente ?? NA}</TableCell>
-                          <TableCell className="whitespace-nowrap text-muted-foreground">
-                            {dataCurta(r.mes_referencia)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{brl(r.valor)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              </div>
-            ) : null}
-          </TabsContent>
-        ) : null}
-      </Tabs>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <Dialog
         open={!!precificando}

@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   BarChart3,
   BookUser,
+  BookmarkCheck,
   Building2,
   CalendarClock,
   ClipboardCheck,
@@ -22,6 +23,7 @@ import {
   MessageSquareHeart,
   MessageSquarePlus,
   Percent,
+  Receipt,
   Scale,
   ScrollText,
   Send,
@@ -138,11 +140,12 @@ export function partesDoLink(url: string): { to: string; search: Record<string, 
  * Casa pelo path, ignorando a query, porque o mesmo path serve várias telas
  * ("/gente?visao=..." é tudo Planning People).
  *
- * É lista, e não uma área só, porque **sete caminhos moram em duas áreas ao
+ * É lista, e não uma área só, porque **seis caminhos moram em duas áreas ao
  * mesmo tempo**: `/clientes`, `/painel-cs` e `/nps` estão em `clientes` e em
  * `minha_unidade`; `/idu` em `rede` e `minha_unidade`; `/funil-receita` e
- * `/contas-receber` em `receita` e `minha_unidade_financeiro`; `/broker` em
- * `broker` e `minha_unidade`. Isso é de propósito: a mesma tela é o trabalho da
+ * `/contas-receber` em `receita` e `minha_unidade_financeiro`. (`/broker` saiu
+ * da Minha Unidade em 23/09/2026: o sócio regional já tem a área `broker`.)
+ * Isso é de propósito: a mesma tela é o trabalho da
  * matriz e o da unidade, e `ops.area_chaves` concede `view.clientes` pelos dois
  * lados. A versão anterior devolvia a PRIMEIRA área da lista e trancava o sócio
  * regional em quatro dos seis itens do próprio menu dele (relatado em
@@ -472,7 +475,13 @@ export const AREAS: Area[] = [
       {
         label: "Broker",
         items: [
-          { title: "Fila de oportunidades", url: "/broker", icon: Store },
+          // Até 23/09/2026 as quatro seguintes eram abas dentro de /broker.
+          // Viraram páginas quando o Broker ganhou lugar no seletor de produtos.
+          { title: "Oportunidades", url: "/broker", icon: Store },
+          { title: "Minhas reservas", url: "/broker/reservas", icon: BookmarkCheck },
+          { title: "Movimentações", url: "/broker/movimentacoes", icon: History },
+          { title: "Faturas e pagamentos", url: "/broker/faturas", icon: Wallet },
+          { title: "CAC", url: "/broker/cac", icon: Receipt },
           {
             // Única exceção à regra de "a área libera tudo": a Matriz mostra o
             // multiplicador e a composição do CAC, que são camada interna. Ela

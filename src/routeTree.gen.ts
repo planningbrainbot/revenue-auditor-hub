@@ -61,6 +61,10 @@ import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authen
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
+import { Route as AuthenticatedBrokerReservasRouteImport } from './routes/_authenticated/broker.reservas'
+import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_authenticated/broker.movimentacoes'
+import { Route as AuthenticatedBrokerFaturasRouteImport } from './routes/_authenticated/broker.faturas'
+import { Route as AuthenticatedBrokerCacRouteImport } from './routes/_authenticated/broker.cac'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
 import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
@@ -358,6 +362,29 @@ const AuthenticatedRoyaltiesSplitRoute =
     path: '/split',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
   } as any)
+const AuthenticatedBrokerReservasRoute =
+  AuthenticatedBrokerReservasRouteImport.update({
+    id: '/broker/reservas',
+    path: '/broker/reservas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBrokerMovimentacoesRoute =
+  AuthenticatedBrokerMovimentacoesRouteImport.update({
+    id: '/broker/movimentacoes',
+    path: '/broker/movimentacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBrokerFaturasRoute =
+  AuthenticatedBrokerFaturasRouteImport.update({
+    id: '/broker/faturas',
+    path: '/broker/faturas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBrokerCacRoute = AuthenticatedBrokerCacRouteImport.update({
+  id: '/broker/cac',
+  path: '/broker/cac',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedBrokerAdminRoute =
   AuthenticatedBrokerAdminRouteImport.update({
     id: '/broker/admin',
@@ -473,6 +500,10 @@ export interface FileRoutesByFullPath {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/broker/cac': typeof AuthenticatedBrokerCacRoute
+  '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
+  '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
+  '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -534,6 +565,10 @@ export interface FileRoutesByTo {
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/broker/cac': typeof AuthenticatedBrokerCacRoute
+  '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
+  '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
+  '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -599,6 +634,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
   '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
+  '/_authenticated/broker/cac': typeof AuthenticatedBrokerCacRoute
+  '/_authenticated/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
+  '/_authenticated/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
+  '/_authenticated/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -664,6 +703,10 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/admin/validacao'
     | '/broker/admin'
+    | '/broker/cac'
+    | '/broker/faturas'
+    | '/broker/movimentacoes'
+    | '/broker/reservas'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
@@ -725,6 +768,10 @@ export interface FileRouteTypes {
     | '/admin/usuarios'
     | '/admin/validacao'
     | '/broker/admin'
+    | '/broker/cac'
+    | '/broker/faturas'
+    | '/broker/movimentacoes'
+    | '/broker/reservas'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
@@ -789,6 +836,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/usuarios'
     | '/_authenticated/admin/validacao'
     | '/_authenticated/broker/admin'
+    | '/_authenticated/broker/cac'
+    | '/_authenticated/broker/faturas'
+    | '/_authenticated/broker/movimentacoes'
+    | '/_authenticated/broker/reservas'
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/funil-cac'
     | '/_authenticated/unidades/royalties'
@@ -1174,6 +1225,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoyaltiesSplitRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
     }
+    '/_authenticated/broker/reservas': {
+      id: '/_authenticated/broker/reservas'
+      path: '/broker/reservas'
+      fullPath: '/broker/reservas'
+      preLoaderRoute: typeof AuthenticatedBrokerReservasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/broker/movimentacoes': {
+      id: '/_authenticated/broker/movimentacoes'
+      path: '/broker/movimentacoes'
+      fullPath: '/broker/movimentacoes'
+      preLoaderRoute: typeof AuthenticatedBrokerMovimentacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/broker/faturas': {
+      id: '/_authenticated/broker/faturas'
+      path: '/broker/faturas'
+      fullPath: '/broker/faturas'
+      preLoaderRoute: typeof AuthenticatedBrokerFaturasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/broker/cac': {
+      id: '/_authenticated/broker/cac'
+      path: '/broker/cac'
+      fullPath: '/broker/cac'
+      preLoaderRoute: typeof AuthenticatedBrokerCacRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/broker/admin': {
       id: '/_authenticated/broker/admin'
       path: '/broker/admin'
@@ -1334,6 +1413,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
   AuthenticatedAdminValidacaoRoute: typeof AuthenticatedAdminValidacaoRoute
   AuthenticatedBrokerAdminRoute: typeof AuthenticatedBrokerAdminRoute
+  AuthenticatedBrokerCacRoute: typeof AuthenticatedBrokerCacRoute
+  AuthenticatedBrokerFaturasRoute: typeof AuthenticatedBrokerFaturasRoute
+  AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
+  AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
 }
 
@@ -1389,6 +1472,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
   AuthenticatedAdminValidacaoRoute: AuthenticatedAdminValidacaoRoute,
   AuthenticatedBrokerAdminRoute: AuthenticatedBrokerAdminRoute,
+  AuthenticatedBrokerCacRoute: AuthenticatedBrokerCacRoute,
+  AuthenticatedBrokerFaturasRoute: AuthenticatedBrokerFaturasRoute,
+  AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
+  AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
 }
 

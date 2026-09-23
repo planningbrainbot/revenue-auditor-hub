@@ -2,19 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { BrokerUnidadeView } from "@/components/broker/broker-unidade-view";
 import { PageHeader } from "@/components/planning";
 
-export const Route = createFileRoute("/_authenticated/broker/")({
-  component: BrokerOportunidadesPage,
+export const Route = createFileRoute("/_authenticated/broker/movimentacoes")({
+  component: BrokerMovimentacoesPage,
 });
 
 // TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
-function BrokerOportunidadesPage() {
+function BrokerMovimentacoesPage() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
-        titulo="Oportunidades"
-        descricao="Clientes disponíveis para a sua unidade e o seu saldo em CashBrain"
+        titulo="Movimentações"
+        descricao="Extrato do seu saldo em CashBrain: crédito, bloqueio, compra e liberação"
       />
-      <BrokerUnidadeView secao="oportunidades" />
+      <BrokerUnidadeView secao="movimentacoes" />
     </div>
   );
 }
