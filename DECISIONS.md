@@ -2785,3 +2785,28 @@ Escrita segue `edit.idu_metas` (admin e diretor); leitura segue `view.idu`.
 RLS testada em sessão simulada: o sócio regional lê e não grava.
 
 Migration: `20260923220000_idu_metas_padrao.sql`, já aplicada no banco único.
+
+## [2026-09-23] Minha Unidade ganha "Auditorias": o sócio lê o resultado das auditorias da própria unidade
+
+**Contexto:** o dono pediu, na visão Minha Unidade do sócio regional, uma página
+com os resultados das auditorias da unidade dele. Os dados já existiam em
+`ops.auditorias_internas` (pipe Pipefy 307181077), mas o sócio regional não lia
+a tabela: as policies de leitura eram `has_role` de admin, diretor, auditor e
+papel customizado, e `socio_regional` é papel de sistema. Medido com sessão
+simulada: 0 linhas para o sócio de Belém e para o de Maceió.
+
+**Decisão:** tela própria, `/minhas-auditorias`, e não `/auditoria-interna` em
+duas áreas. Aquela é a visão da matriz (ranking entre unidades, botão que força
+o sync do Pipefy); esta mostra só o resultado, com o texto dos achados
+(oportunidades e contingências) por cliente. Chave nova
+`view.minhas_auditorias` só na área `minha_unidade` e policy PERMISSIVE de
+SELECT com `can()` (migration `20260923200000_minhas_auditorias.sql`, aplicada
+no banco único no mesmo dia). O recorte por unidade não é repetido: é a
+RESTRICTIVE `escopo_unidade` da migration 63. Depois da policy: Belém 7 linhas,
+Maceió 5, de 88. Linhas com `unidade` que não é unidade ("Comercial", "Contas
+Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
+
+**Pendente, fora deste escopo:** a policy "Custom roles can read" deixa
+qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
+inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
+tem `todas_unidades` lê tudo.

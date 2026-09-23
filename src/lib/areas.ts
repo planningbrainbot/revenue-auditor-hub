@@ -554,6 +554,15 @@ export const AREAS: Area[] = [
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
           { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
+          {
+            // Tela própria, e não /auditoria-interna em duas áreas: aquela é a
+            // visão da matriz (ranking entre unidades, botão de sync). Esta mostra
+            // só o resultado, e o recorte vem da RLS de `auditorias_internas`.
+            title: "Auditorias",
+            url: "/minhas-auditorias",
+            icon: ClipboardCheck,
+            chave: "view.minhas_auditorias",
+          },
         ],
       },
       {

@@ -32,6 +32,7 @@ import { Route as AuthenticatedPagamentosUnidadesRouteImport } from './routes/_a
 import { Route as AuthenticatedOperacaoRouteImport } from './routes/_authenticated/operacao'
 import { Route as AuthenticatedNpsRouteImport } from './routes/_authenticated/nps'
 import { Route as AuthenticatedMonetizacaoRouteImport } from './routes/_authenticated/monetizacao'
+import { Route as AuthenticatedMinhasAuditoriasRouteImport } from './routes/_authenticated/minhas-auditorias'
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
@@ -197,6 +198,12 @@ const AuthenticatedMonetizacaoRoute =
   AuthenticatedMonetizacaoRouteImport.update({
     id: '/monetizacao',
     path: '/monetizacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMinhasAuditoriasRoute =
+  AuthenticatedMinhasAuditoriasRouteImport.update({
+    id: '/minhas-auditorias',
+    path: '/minhas-auditorias',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMeusRoyaltiesRoute =
@@ -474,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
   '/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
@@ -540,6 +548,7 @@ export interface FileRoutesByTo {
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
   '/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/nps': typeof AuthenticatedNpsRoute
   '/operacao': typeof AuthenticatedOperacaoRoute
@@ -607,6 +616,7 @@ export interface FileRoutesById {
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
+  '/_authenticated/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
   '/_authenticated/monetizacao': typeof AuthenticatedMonetizacaoRoute
   '/_authenticated/nps': typeof AuthenticatedNpsRoute
   '/_authenticated/operacao': typeof AuthenticatedOperacaoRoute
@@ -677,6 +687,7 @@ export interface FileRouteTypes {
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
+    | '/minhas-auditorias'
     | '/monetizacao'
     | '/nps'
     | '/operacao'
@@ -743,6 +754,7 @@ export interface FileRouteTypes {
     | '/indicadores-trimestre'
     | '/inicio'
     | '/meus-royalties'
+    | '/minhas-auditorias'
     | '/monetizacao'
     | '/nps'
     | '/operacao'
@@ -809,6 +821,7 @@ export interface FileRouteTypes {
     | '/_authenticated/indicadores-trimestre'
     | '/_authenticated/inicio'
     | '/_authenticated/meus-royalties'
+    | '/_authenticated/minhas-auditorias'
     | '/_authenticated/monetizacao'
     | '/_authenticated/nps'
     | '/_authenticated/operacao'
@@ -1020,6 +1033,13 @@ declare module '@tanstack/react-router' {
       path: '/monetizacao'
       fullPath: '/monetizacao'
       preLoaderRoute: typeof AuthenticatedMonetizacaoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/minhas-auditorias': {
+      id: '/_authenticated/minhas-auditorias'
+      path: '/minhas-auditorias'
+      fullPath: '/minhas-auditorias'
+      preLoaderRoute: typeof AuthenticatedMinhasAuditoriasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/meus-royalties': {
@@ -1387,6 +1407,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
+  AuthenticatedMinhasAuditoriasRoute: typeof AuthenticatedMinhasAuditoriasRoute
   AuthenticatedMonetizacaoRoute: typeof AuthenticatedMonetizacaoRoute
   AuthenticatedNpsRoute: typeof AuthenticatedNpsRoute
   AuthenticatedOperacaoRoute: typeof AuthenticatedOperacaoRoute
@@ -1445,6 +1466,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedIndicadoresTrimestreRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,
+  AuthenticatedMinhasAuditoriasRoute: AuthenticatedMinhasAuditoriasRoute,
   AuthenticatedMonetizacaoRoute: AuthenticatedMonetizacaoRoute,
   AuthenticatedNpsRoute: AuthenticatedNpsRoute,
   AuthenticatedOperacaoRoute: AuthenticatedOperacaoRoute,
