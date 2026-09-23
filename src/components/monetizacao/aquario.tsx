@@ -250,7 +250,7 @@ export function Aquario({
                   {NOMES[p]}
                   <span className="flex shrink-0 items-center gap-1">
                     {p === "consultoria" && consultPending.length > 0 && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                      <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
                         {consultPending.length} a confirmar
                       </span>
                     )}
@@ -265,12 +265,12 @@ export function Aquario({
                     aptas e disponíveis
                   </span>
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {p === "consultoria"
                     ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
                     : `${number(eligible.length)} com perfil aderente`}
                 </p>
-                <p className="mt-2 text-[11px] text-muted-foreground">
+                <p className="mt-2 text-xs text-muted-foreground">
                   {p === "consultoria"
                     ? "Base Antiga · sem fechamento comercial · contato opcional"
                     : p === "cella"
@@ -357,7 +357,7 @@ export function Aquario({
                       <div className="flex shrink-0 items-center gap-1">
                         {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
                           <span
-                            className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning"
                             title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
                           >
                             cobertura parcial
@@ -374,7 +374,7 @@ export function Aquario({
                     </p>
                     {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
                         censo. As fontes se sobrepõem, por isso não somam. */}
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {u.omie_integrado === false
                         ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
                         : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
@@ -386,7 +386,7 @@ export function Aquario({
                     >
                       {[
                         ["bg-primary", antigas],
-                        ["bg-sky-500", novas],
+                        ["bg-info", novas],
                         ["bg-muted-foreground/40", conferir],
                       ].map(([cor, n], i) =>
                         (n as number) > 0 ? (
@@ -403,12 +403,12 @@ export function Aquario({
                     <div className="mt-2 flex items-center justify-between gap-2 text-xs">
                       <span className="text-primary">{c} aptas em Consultoria</span>
                       {pending > 0 && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
                           {pending} a confirmar
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
                     </p>
                   </button>
@@ -568,13 +568,13 @@ function PortfolioTable({
           key: "free",
           label: "Prontas para enviar",
           n: contagem.free,
-          tone: "text-emerald-700 dark:text-emerald-300",
+          tone: "text-success",
         },
         {
           key: "qualificar",
           label: "A confirmar",
           n: contagem.qualificar,
-          tone: "text-amber-700 dark:text-amber-300",
+          tone: "text-warning",
         },
         { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied, tone: "" },
         {
@@ -930,7 +930,7 @@ function PortfolioTable({
         </div>
       )}
       {product === "consultoria" && (
-        <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
           <p className="font-medium">Regime não informado não significa empresa inapta.</p>
           <p className="mt-1 text-xs text-muted-foreground">
             A base para análise reúne contas antigas das unidades sem fechamento comercial
@@ -1008,7 +1008,7 @@ function PortfolioTable({
                     >
                       {a.name}
                     </button>
-                    <p className="my-1 text-[11px] text-muted-foreground">
+                    <p className="my-1 text-xs text-muted-foreground">
                       {a.unit_label ? `${a.unit_label} · ` : ""}
                       <span title={a.base_origin?.reason}>{ORIGENS_BASE[origemBase(a)]}</span>
                       {a.situacao_receita && a.situacao_receita !== "ativa" && (
@@ -1035,20 +1035,20 @@ function PortfolioTable({
                   <td className="min-w-40 p-2 align-top text-xs">
                     {faturamentoDeclarado(a)}
                     {tetoContradizFaixa(a) && (
-                      <p className="mt-1 text-[10px] font-medium text-amber-600">
+                      <p className="mt-1 text-xs font-medium text-warning">
                         {tetoContradizFaixa(a)}
                       </p>
                     )}
                     {a.driva?.group_revenue_band && (
                       <p className="mt-1 font-medium">
                         {a.driva.group_revenue_band}
-                        <span className="block text-[10px] font-normal text-muted-foreground">
+                        <span className="block text-xs font-normal text-muted-foreground">
                           Estimativa Driva · grupo econômico
                         </span>
                       </p>
                     )}
                     {a.band_conflict && (
-                      <span className="block text-amber-600">Fontes divergem</span>
+                      <span className="block text-warning">Fontes divergem</span>
                     )}
                   </td>
                   <td className="min-w-36 p-2 align-top text-xs">
@@ -1060,11 +1060,11 @@ function PortfolioTable({
                           : "Regime a confirmar")}
                     </span>
                     {a.regime_source && (
-                      <span className="block text-[10px] text-muted-foreground">
+                      <span className="block text-xs text-muted-foreground">
                         Regime: {a.regime_source}
                       </span>
                     )}
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
                       {a.segment_source || "Sem fonte preenchida"}
                     </span>
                   </td>
@@ -1113,23 +1113,23 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
     e.perfil.status === "elegivel"
       ? {
           label: "Apta · validada",
-          tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+          tone: "bg-success/15 text-success",
         }
       : e.perfil.status === "revisar"
-        ? { label: "A confirmar", tone: "bg-amber-500/15 text-amber-700 dark:text-amber-300" }
+        ? { label: "A confirmar", tone: "bg-warning/15 text-warning" }
         : { label: "Fora da regra", tone: "bg-muted text-muted-foreground" };
   const lista = e.listas[0];
   return (
     <div className="space-y-1 text-xs">
       <span
-        className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${perfil.tone}`}
+        className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${perfil.tone}`}
         title={e.perfil.reason}
       >
         {perfil.label}
       </span>
       {e.perfil.status === "elegivel" ? (
         e.livre ? (
-          <p className="font-medium text-emerald-700 dark:text-emerald-300">Pronta para enviar</p>
+          <p className="font-medium text-success">Pronta para enviar</p>
         ) : (
           <p className="text-muted-foreground">{e.motivoDisponibilidade}</p>
         )
@@ -1172,7 +1172,7 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
           href={e.semProduto.url}
           target="_blank"
           rel="noreferrer"
-          className="block text-amber-700 hover:underline dark:text-amber-300"
+          className="block text-warning hover:underline"
         >
           Negócio sem produto no Pipedrive · {e.semProduto.stage} ·{" "}
           {e.semProduto.status === "open"

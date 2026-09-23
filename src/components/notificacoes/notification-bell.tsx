@@ -45,7 +45,7 @@ export function NotificationBell() {
         >
           <Bell className="h-4 w-4" />
           {naoLidas > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-xs font-semibold leading-none text-background">
               {naoLidas > 9 ? "9+" : naoLidas}
             </span>
           )}
@@ -78,7 +78,7 @@ export function NotificationBell() {
                 className="flex flex-col items-start gap-0.5 whitespace-normal py-2"
               >
                 <div className="flex w-full items-center gap-1.5">
-                  {!n.lida && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-600" />}
+                  {!n.lida && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger" />}
                   <span
                     className={`text-xs font-medium ${n.lida ? "text-muted-foreground" : "text-foreground"}`}
                   >
@@ -86,7 +86,7 @@ export function NotificationBell() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{n.mensagem}</p>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}
                 </span>
               </DropdownMenuItem>

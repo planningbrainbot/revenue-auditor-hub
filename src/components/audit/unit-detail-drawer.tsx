@@ -178,13 +178,13 @@ function Stat({
 }) {
   const tones: Record<string, string> = {
     default: "bg-card",
-    emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900",
-    amber: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900",
+    emerald: "bg-success-soft border-success/40",
+    amber: "bg-warning-soft border-warning/40",
     indigo: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900",
   };
   return (
     <div className={cn("rounded-lg border p-3 shadow-sm", tones[tone])}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-bold">{value}</div>
     </div>
   );

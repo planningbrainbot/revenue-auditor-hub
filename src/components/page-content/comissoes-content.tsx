@@ -125,7 +125,7 @@ function ComissoesTable() {
           </thead>
           <tbody>
             {filtered.map((r, i) => (
-              <tr key={`${r.deal_id}-${i}`} className={cn("border-t", !r.pagou && "bg-amber-50/60 dark:bg-amber-950/20")}>
+              <tr key={`${r.deal_id}-${i}`} className={cn("border-t", !r.pagou && "bg-warning-soft/60")}>
                 <td className="px-3 py-2 font-medium">{r.deal_titulo ?? "—"}</td>
                 <td className="px-3 py-2 font-mono text-xs">{r.cnpj ?? "—"}</td>
                 <td className="px-3 py-2">{r.razao_social ?? "—"}</td>
@@ -148,11 +148,11 @@ function ComissoesTable() {
                 </td>
                 <td className="px-3 py-2">
                   {r.pagou ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+                    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
                       Recebido
                     </span>
                   ) : (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
                       Sem recebimento
                     </span>
                   )}
@@ -186,12 +186,12 @@ function Th({ children }: { children: React.ReactNode }) {
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
   return (
     <div className="rounded-lg border bg-card p-3 shadow-sm">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div
         className={cn(
           "mt-1 text-xl font-semibold",
-          tone === "ok" && "text-emerald-700 dark:text-emerald-300",
-          tone === "warn" && "text-amber-700 dark:text-amber-300",
+          tone === "ok" && "text-success",
+          tone === "warn" && "text-warning",
         )}
       >
         {value}

@@ -63,11 +63,11 @@ function categorize(score: string | null): Categoria {
 
 function npsBadge(cat: Categoria) {
   if (cat === "promotor")
-    return <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">Promotor</Badge>;
+    return <Badge variant="outline" className="border-success/30 bg-success/[0.07] text-success">Promotor</Badge>;
   if (cat === "neutro")
-    return <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">Neutro</Badge>;
+    return <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">Neutro</Badge>;
   if (cat === "detrator")
-    return <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">Detrator</Badge>;
+    return <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">Detrator</Badge>;
   return null;
 }
 
@@ -118,11 +118,11 @@ function statusKey(row: NpsExecucaoRow): StatusKey {
 function statusBadge(row: NpsExecucaoRow) {
   const key = statusKey(row);
   const classes: Record<StatusKey, string> = {
-    respondido: "border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400",
-    failed: "border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400",
-    read: "border-sky-600/30 bg-sky-600/[0.07] text-sky-700 dark:text-sky-400",
+    respondido: "border-success/30 bg-success/[0.07] text-success",
+    failed: "border-danger/30 bg-danger/[0.07] text-danger",
+    read: "border-info/30 bg-info/[0.07] text-info",
     delivered: "border-muted-foreground/30 bg-muted-foreground/[0.07]",
-    sent: "border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400",
+    sent: "border-warning/30 bg-warning/[0.07] text-warning",
     sem_status: "",
   };
   return (
@@ -238,19 +238,19 @@ function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; histori
               <div key={l.id} className="rounded-md border p-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span
-                    className={l.atendeu ? "font-medium text-emerald-700 dark:text-emerald-400" : "font-medium text-muted-foreground"}
+                    className={l.atendeu ? "font-medium text-success" : "font-medium text-muted-foreground"}
                   >
                     {l.atendeu ? "Atendeu" : "Não atendeu"}
                   </span>
                   <span className="text-muted-foreground">{tempoDecorrido(l.criadoEm)}</span>
                 </div>
                 {l.retornarEm && (
-                  <div className="mt-1 text-amber-700 dark:text-amber-400">
+                  <div className="mt-1 text-warning">
                     Retornar em {new Date(`${l.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
                   </div>
                 )}
                 {l.observacao && <div className="mt-1 text-muted-foreground">{l.observacao}</div>}
-                {l.criadoPor && <div className="mt-1 text-[11px] text-muted-foreground">por {l.criadoPor}</div>}
+                {l.criadoPor && <div className="mt-1 text-xs text-muted-foreground">por {l.criadoPor}</div>}
               </div>
             ))}
           </div>
@@ -497,7 +497,7 @@ function DispararCampanhaCard() {
                       : ""}
                     . Não tem como cancelar depois de enviado.
                   </p>
-                  <p className="rounded-md border border-amber-600/30 bg-amber-600/[0.07] p-2.5 text-amber-800 dark:text-amber-300">
+                  <p className="rounded-md border border-warning/30 bg-warning/[0.07] p-2.5 text-warning">
                     Custo estimado:{" "}
                     <strong>
                       US$ {custoEstimado.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -569,7 +569,7 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
                 <strong className="text-foreground">{row.telefone}</strong>. Não afeta os outros contatos da unidade.
                 Não tem como cancelar depois de enviado.
               </p>
-              <p className="rounded-md border border-amber-600/30 bg-amber-600/[0.07] p-2.5 text-amber-800 dark:text-amber-300">
+              <p className="rounded-md border border-warning/30 bg-warning/[0.07] p-2.5 text-warning">
                 Custo estimado: <strong>US$ {CUSTO_POR_MENSAGEM_USD.toFixed(2)}</strong> (cobrado pela Meta no envio).
               </p>
             </div>
@@ -678,7 +678,7 @@ export function NpsExecucaoTab() {
       <DispararCampanhaCard />
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando execução…</Card>}
-      {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar execução.</Card>}
+      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar execução.</Card>}
 
       {data && (
         <>
@@ -689,24 +689,24 @@ export function NpsExecucaoTab() {
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Respondidos</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">{data.totalRespondidos}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-success">{data.totalRespondidos}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Aguardando</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-amber-600">{data.totalAguardando}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-warning">{data.totalAguardando}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Falhas</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-red-600">{data.totalFalhas}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-danger">{data.totalFalhas}</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Ligações feitas</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums">{data.ligacoes.length}</div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{ligacoesPorTelefone.size} contatos ligados</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{ligacoesPorTelefone.size} contatos ligados</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Agendados p/ retornar</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-sky-600">{totalAgendados}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-info">{totalAgendados}</div>
             </Card>
           </div>
 
@@ -828,7 +828,7 @@ export function NpsExecucaoTab() {
                           {r.telefone}
                           {!validacao.valido && (
                             <TriangleAlert
-                              className="size-3.5 shrink-0 text-amber-600"
+                              className="size-3.5 shrink-0 text-warning"
                               aria-label={validacao.motivo ?? "Formato suspeito"}
                             >
                               <title>{validacao.motivo ?? "Formato suspeito"}</title>
@@ -869,7 +869,7 @@ export function NpsExecucaoTab() {
                             {ultimaLigacao.retornarEm && (
                               <Badge
                                 variant="outline"
-                                className="w-fit border-sky-600/30 bg-sky-600/[0.07] text-sky-700 dark:text-sky-400"
+                                className="w-fit border-info/30 bg-info/[0.07] text-info"
                               >
                                 Retornar {new Date(`${ultimaLigacao.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
                               </Badge>
@@ -919,7 +919,7 @@ export function NpsExecucaoTab() {
                     <span className="text-xs text-muted-foreground">enviado {tempoDecorrido(selected.enviadoEm)}</span>
                   </div>
                   {selected.status === "failed" && erroResumo(selected.erro) && (
-                    <p className="mt-2 text-xs text-red-600">{erroResumo(selected.erro)}</p>
+                    <p className="mt-2 text-xs text-danger">{erroResumo(selected.erro)}</p>
                   )}
                   <div className="mt-3">
                     <ReenviarPesquisaButton row={selected} />
@@ -961,10 +961,10 @@ export function NpsExecucaoTab() {
                             variant="outline"
                             className={
                               selected.recebeuMensagem === "sim"
-                                ? "border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400"
+                                ? "border-success/30 bg-success/[0.07] text-success"
                                 : selected.recebeuMensagem === "nao"
-                                  ? "border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400"
-                                  : "border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400"
+                                  ? "border-danger/30 bg-danger/[0.07] text-danger"
+                                  : "border-warning/30 bg-warning/[0.07] text-warning"
                             }
                           >
                             {selected.recebeuMensagem === "sim"
@@ -1000,15 +1000,15 @@ export function NpsExecucaoTab() {
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-md border p-2">
-                          <div className="text-[11px] text-muted-foreground">Fiscal</div>
+                          <div className="text-xs text-muted-foreground">Fiscal</div>
                           <div className="text-lg font-semibold">{selected.avaliacaoFiscal ?? "—"}</div>
                         </div>
                         <div className="rounded-md border p-2">
-                          <div className="text-[11px] text-muted-foreground">Contábil</div>
+                          <div className="text-xs text-muted-foreground">Contábil</div>
                           <div className="text-lg font-semibold">{selected.avaliacaoContabil ?? "—"}</div>
                         </div>
                         <div className="rounded-md border p-2">
-                          <div className="text-[11px] text-muted-foreground">Folha</div>
+                          <div className="text-xs text-muted-foreground">Folha</div>
                           <div className="text-lg font-semibold">{selected.avaliacaoFolhaPagamento ?? "—"}</div>
                         </div>
                       </div>

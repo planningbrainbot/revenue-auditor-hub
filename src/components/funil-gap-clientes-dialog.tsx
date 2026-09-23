@@ -105,7 +105,7 @@ export function FunilGapClientesDialog({
                   <TableCell>{r.titulo}</TableCell>
                   <TableCell className="text-right">{brl(r.mrr)}</TableCell>
                   <TableCell className="text-right">{brl(r.faturado)}</TableCell>
-                  <TableCell className="text-right font-medium text-red-600 dark:text-red-400">{brl(r.diferenca)}</TableCell>
+                  <TableCell className="text-right font-medium text-danger">{brl(r.diferenca)}</TableCell>
                 </TableRow>
               ))}
               {rows.length === 0 && (

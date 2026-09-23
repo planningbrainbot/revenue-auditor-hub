@@ -38,15 +38,15 @@ function StatCard({
 }) {
   const tones: Record<string, string> = {
     default: "bg-card",
-    emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900",
-    red: "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900",
+    emerald: "bg-success-soft border-success/40",
+    red: "bg-danger-soft border-danger/40",
     indigo: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900",
   };
   return (
     <div className={cn("rounded-lg border p-3 shadow-sm", tones[tone])}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-bold">{value}</div>
-      {help && <div className="mt-1 text-[10px] text-muted-foreground">{help}</div>}
+      {help && <div className="mt-1 text-xs text-muted-foreground">{help}</div>}
     </div>
   );
 }
@@ -82,12 +82,12 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                   <TipoBadge value={registro.tipo_contrato} />
                   <PagamentoBadge value={registro.status_pagamento} />
                   {origem === "Base Antiga" && (
-                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                    <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
                       Base Antiga
                     </span>
                   )}
                   {origem === "Base Nova" && (
-                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-200">
+                    <span className="inline-flex items-center rounded-full bg-info-soft px-2 py-0.5 text-xs font-medium text-info">
                       Base Nova
                     </span>
                   )}
@@ -177,8 +177,8 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                           key={r.month}
                           className={cn(
                             "border-t",
-                            r.status === "aberto" && "bg-red-50/60 dark:bg-red-950/20",
-                            r.status === "parcial" && "bg-amber-50/60 dark:bg-amber-950/20",
+                            r.status === "aberto" && "bg-danger-soft/60",
+                            r.status === "parcial" && "bg-warning-soft/60",
                             r.isFuture && "opacity-60",
                           )}
                         >
@@ -192,8 +192,8 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                           <td
                             className={cn(
                               "px-3 py-2 text-right whitespace-nowrap font-medium",
-                              !r.isFuture && r.diff < 0 && "text-red-700 dark:text-red-300",
-                              r.diff > 0 && "text-blue-700 dark:text-blue-300",
+                              !r.isFuture && r.diff < 0 && "text-danger",
+                              r.diff > 0 && "text-info",
                             )}
                           >
                             {r.isFuture && r.received === 0
@@ -231,22 +231,22 @@ export function ClientDetailDrawer({ registro, open, onClose }: Props) {
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-md border bg-amber-50 p-2 dark:bg-amber-950/40">
-                    <div className="text-[10px] uppercase text-amber-800 dark:text-amber-200">CAC</div>
+                  <div className="rounded-md border bg-warning-soft p-2">
+                    <div className="text-xs uppercase text-warning">CAC</div>
                     <div className="text-base font-bold">{brl(matriz.cacRecebido)}</div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {matriz.cacMes ? `1º pag.: ${formatMonthLabel(matriz.cacMes)}` : "ainda não pago"}
                     </div>
                   </div>
                   <div className="rounded-md border bg-indigo-50 p-2 dark:bg-indigo-950/40">
-                    <div className="text-[10px] uppercase text-indigo-800 dark:text-indigo-200">Royalties total</div>
+                    <div className="text-xs uppercase text-indigo-800 dark:text-indigo-200">Royalties total</div>
                     <div className="text-base font-bold">{brl(matriz.totalRoyalties)}</div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {matriz.royaltiesPorMes.length} parcelas
                     </div>
                   </div>
-                  <div className="rounded-md border bg-emerald-50 p-2 dark:bg-emerald-950/40">
-                    <div className="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Total à matriz</div>
+                  <div className="rounded-md border bg-success-soft p-2">
+                    <div className="text-xs uppercase text-success">Total à matriz</div>
                     <div className="text-base font-bold">{brl(matriz.cacRecebido + matriz.totalRoyalties)}</div>
                   </div>
                 </div>

@@ -171,7 +171,7 @@ export function OnboardingTab() {
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Onboardings concluídos</div>
-          <div className="text-2xl font-bold text-emerald-600">{kpis.concluidos}</div>
+          <div className="text-2xl font-bold text-success">{kpis.concluidos}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Gargalos (parado ≥ {DIAS_ALERTA_GARGALO}d na fase)</div>

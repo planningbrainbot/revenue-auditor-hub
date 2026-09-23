@@ -193,9 +193,9 @@ function CardPendencia({
 }) {
   const limpo = quantidade === 0;
   return (
-    <Card className={limpo ? "p-4" : "border-amber-300 p-4 dark:border-amber-900"}>
+    <Card className={limpo ? "p-4" : "border-warning/40 p-4"}>
       <div className="flex items-start gap-2">
-        <span className={limpo ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}>
+        <span className={limpo ? "text-muted-foreground" : "text-warning"}>
           {icone}
         </span>
         <div className="min-w-0 flex-1">
@@ -366,7 +366,7 @@ export function ReceitaOverviewContent() {
       </div>
 
       {mesEmAndamento(mes) && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
           Mês em andamento. Os números ainda vão mudar até a virada.
         </div>
       )}

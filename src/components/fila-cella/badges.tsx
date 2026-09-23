@@ -16,13 +16,13 @@ import {
 
 const ECD_CLASSE: Record<EcdEstado, string> = {
   ecd_com_sinal:
-    "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 hover:bg-emerald-100",
+    "bg-success-soft text-success hover:bg-success-soft",
   ecd_sem_sinal:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 hover:bg-amber-100",
+    "bg-warning-soft text-warning hover:bg-warning-soft",
   ecd_sem_nome_de_conta:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 hover:bg-amber-100",
-  sem_ecd: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-200",
-  sem_cnpj: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 hover:bg-red-100",
+    "bg-warning-soft text-warning hover:bg-warning-soft",
+  sem_ecd: "bg-muted text-foreground hover:bg-muted",
+  sem_cnpj: "bg-danger-soft text-danger hover:bg-danger-soft",
 };
 
 /** Os cinco estados do §6.7. Nunca vazio, nunca "sem ECD" genérico, nunca R$ 0. */
@@ -47,9 +47,9 @@ export function EcdChip({ estado }: { estado: EcdEstado }) {
 }
 
 const FORCA_CLASSE: Record<Forca, string> = {
-  Forte: "bg-emerald-600 text-white hover:bg-emerald-600",
-  Moderado: "bg-amber-500 text-white hover:bg-amber-500",
-  Fraco: "bg-slate-400 text-white hover:bg-slate-400",
+  Forte: "bg-success text-background hover:bg-success",
+  Moderado: "bg-warning text-background hover:bg-warning",
+  Fraco: "bg-muted-foreground text-background hover:bg-muted-foreground",
 };
 
 export function ForcaChip({
@@ -115,11 +115,11 @@ export function CurvaChips({
       )}
       {apurada &&
         (diverge ? (
-          <span className="text-red-600" title="declarada e apurada divergem">
+          <span className="text-danger" title="declarada e apurada divergem">
             ✗
           </span>
         ) : (
-          <span className="text-emerald-600" title="declarada e apurada batem">
+          <span className="text-success" title="declarada e apurada batem">
             ✓
           </span>
         ))}
@@ -130,7 +130,7 @@ export function CurvaChips({
 const FRENTE_CLASSE: Record<Frente, string> = {
   Contencioso:
     "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 hover:bg-purple-100",
-  Transação: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200 hover:bg-sky-100",
+  Transação: "bg-info-soft text-info hover:bg-info-soft",
   Tese: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 hover:bg-indigo-100",
 };
 
@@ -204,7 +204,7 @@ export function BloqueiosChips({ bloqueios }: { bloqueios: Bloqueio[] }) {
           <TooltipTrigger asChild>
             <Badge
               variant="outline"
-              className="whitespace-nowrap border-red-300 bg-red-50 font-normal text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+              className="whitespace-nowrap border-danger/40 bg-danger-soft font-normal text-danger"
             >
               {b.rotulo}
             </Badge>
@@ -229,11 +229,11 @@ export function CadenciaChip({
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-xs">
       <span className="text-muted-foreground">C{cicloNum}</span>
-      <span className={cn(n >= 4 && "text-red-600")}>
+      <span className={cn(n >= 4 && "text-danger")}>
         {"█".repeat(Math.min(n, 4))}
         {"░".repeat(Math.max(0, 4 - n))}
       </span>
-      <span className={cn(n >= 4 && "font-semibold text-red-600")}>{n}/4</span>
+      <span className={cn(n >= 4 && "font-semibold text-danger")}>{n}/4</span>
     </span>
   );
 }

@@ -248,18 +248,18 @@ export function OverviewTab() {
         </ChartCard>
       </div>
 
-      <div className="rounded-lg border bg-red-50 p-4 shadow-sm dark:bg-red-950/40">
+      <div className="rounded-lg border bg-danger-soft p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">
+          <h3 className="text-sm font-semibold text-danger">
             Inadimplentes ({inadOrdered.length})
-            <span className="ml-2 text-xs font-normal text-red-800/80 dark:text-red-200/80">
+            <span className="ml-2 text-xs font-normal text-danger/80">
               · Nova {num(inadGroups.nova.length)} · Antiga {num(inadGroups.antiga.length)} · s/cad {num(inadGroups.semCadastro.length)}
             </span>
           </h3>
         </div>
-        <div className="max-h-80 overflow-auto rounded-md border border-red-200 dark:border-red-900">
+        <div className="max-h-80 overflow-auto rounded-md border border-danger/40">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-red-100 text-left text-xs uppercase text-red-900 dark:bg-red-900 dark:text-red-100">
+            <thead className="sticky top-0 bg-danger-soft text-left text-xs uppercase text-danger">
               <tr>
                 <th className="px-3 py-2">ID</th>
                 <th className="px-3 py-2">Razão Social</th>
@@ -275,7 +275,7 @@ export function OverviewTab() {
                 <tr
                   key={`${r.deal_id ?? r.cnpj ?? "x"}-${i}`}
                   onClick={() => setSelected(r)}
-                  className="border-t border-red-200/60 dark:border-red-900/60 cursor-pointer hover:bg-red-100/60 dark:hover:bg-red-900/40"
+                  className="border-t border-danger/60 cursor-pointer hover:bg-danger-soft/60"
                 >
                   <td className="px-3 py-2 font-mono text-xs">{r.deal_id ?? "—"}</td>
                   <td className="px-3 py-2">{r.razao_social ?? r.deal_titulo ?? "—"}</td>

@@ -43,11 +43,11 @@ interface ContaReceber {
 
 function statusBadge(s: string | null) {
   if (s === "RECEBIDO")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Recebido</Badge>;
+    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
   if (s === "ATRASADO")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Atrasado</Badge>;
+    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
   if (s === "A VENCER" || s === "VENCE HOJE")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">A vencer</Badge>;
+    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
   return <Badge variant="outline">{s ?? "—"}</Badge>;
 }
 
@@ -299,7 +299,7 @@ export function ContasReceberView() {
                     <TableCell className="text-right whitespace-nowrap">{brl(Number(r.valor ?? 0))}</TableCell>
                     <TableCell className="text-right">
                       {atraso != null ? (
-                        <span className="text-red-700 dark:text-red-300 font-medium">{atraso}</span>
+                        <span className="text-danger font-medium">{atraso}</span>
                       ) : "—"}
                     </TableCell>
                   </TableRow>
@@ -332,10 +332,10 @@ function KpiCard({
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
   const toneMap = {
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-    red: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
-    emerald: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
-    slate: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
+    amber: "border-warning/40 bg-warning-soft",
+    red: "border-danger/40 bg-danger-soft",
+    emerald: "border-success/40 bg-success-soft",
+    slate: "border-border bg-muted",
   } as const;
   return (
     <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>

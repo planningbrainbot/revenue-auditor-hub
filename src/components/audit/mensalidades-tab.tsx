@@ -168,8 +168,8 @@ export function MensalidadesTab() {
                 key={`${l.cnpj ?? "x"}-${i}`}
                 className={cn(
                   "border-t",
-                  l.status === "faltando" && "bg-red-50/60 dark:bg-red-950/20",
-                  l.status === "excedente" && "bg-sky-50/60 dark:bg-sky-950/20",
+                  l.status === "faltando" && "bg-danger-soft/60",
+                  l.status === "excedente" && "bg-info-soft/60",
                 )}
               >
                 <td className="px-3 py-2 font-medium">{l.razao}</td>
@@ -183,8 +183,8 @@ export function MensalidadesTab() {
                 <td
                   className={cn(
                     "px-3 py-2 whitespace-nowrap font-medium",
-                    l.diferenca > 0 && "text-red-700 dark:text-red-300",
-                    l.diferenca < 0 && "text-sky-700 dark:text-sky-300",
+                    l.diferenca > 0 && "text-danger",
+                    l.diferenca < 0 && "text-info",
                   )}
                 >
                   {brl(l.diferenca)}
@@ -192,17 +192,17 @@ export function MensalidadesTab() {
                 <td className="px-3 py-2">{l.pctRealizado.toFixed(0)}%</td>
                 <td className="px-3 py-2">
                   {l.status === "ok" && (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+                    <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
                       Em dia
                     </span>
                   )}
                   {l.status === "faltando" && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                    <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">
                       Faltando
                     </span>
                   )}
                   {l.status === "excedente" && (
-                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-200">
+                    <span className="rounded-full bg-info-soft px-2 py-0.5 text-xs font-medium text-info">
                       Excedente
                     </span>
                   )}
@@ -234,12 +234,12 @@ function Th({ children }: { children: React.ReactNode }) {
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
   return (
     <div className="rounded-lg border bg-card p-3 shadow-sm">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div
         className={cn(
           "mt-1 text-xl font-semibold",
-          tone === "ok" && "text-emerald-700 dark:text-emerald-300",
-          tone === "warn" && "text-amber-700 dark:text-amber-300",
+          tone === "ok" && "text-success",
+          tone === "warn" && "text-warning",
         )}
       >
         {value}

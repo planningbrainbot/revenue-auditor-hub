@@ -75,7 +75,7 @@ function fmtMesLabel(mesKey: string): string {
 
 function statusBadge(status: string | null) {
   const s = (status ?? "").toLowerCase();
-  if (s === "won") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Ganho</Badge>;
+  if (s === "won") return <Badge className="bg-success hover:bg-success">Ganho</Badge>;
   if (s === "lost") return <Badge variant="destructive">Perdido</Badge>;
   if (s === "open") return <Badge variant="secondary">Aberto</Badge>;
   return <Badge variant="outline">{status ?? NA}</Badge>;
@@ -362,7 +362,7 @@ export function TratativasTab() {
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Recuperados</div>
-          <div className="text-2xl font-bold text-emerald-600">{kpis.recuperados}</div>
+          <div className="text-2xl font-bold text-success">{kpis.recuperados}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">MRR perdido</div>
@@ -375,14 +375,14 @@ export function TratativasTab() {
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Taxa de churn (blended)</div>
           <div className="text-2xl font-bold text-destructive">{kpis.taxaChurnBlended.toFixed(1)}%</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {kpis.churnBlendedNum} churn / {kpis.churnBlendedDenom} ativos (base nova)
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Tempo médio até churn</div>
           <div className="text-xl font-bold">{fmtTenure(kpis.tenureMedioDias)}</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {kpis.tenureAmostra > 0 ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn` : "sem dados suficientes"}
           </div>
         </Card>
@@ -545,7 +545,7 @@ export function TratativasTab() {
                     <TableCell className="font-medium">{u.unidade}</TableCell>
                     <TableCell className="text-right">{u.total}</TableCell>
                     <TableCell className="text-right text-destructive">{u.perdidos}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{u.recuperados}</TableCell>
+                    <TableCell className="text-right text-success">{u.recuperados}</TableCell>
                     <TableCell className="text-right">{fmtMoney(u.mrrPerdido)}</TableCell>
                     <TableCell className="text-right">{taxa.toFixed(1)}%</TableCell>
                   </TableRow>

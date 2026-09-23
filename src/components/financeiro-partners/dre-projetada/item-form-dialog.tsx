@@ -186,7 +186,7 @@ export function ItemFormDialog({
           )}
           <div className="col-span-2 mt-2 rounded-md border p-2 bg-muted/30">
             <div className="text-xs text-muted-foreground mb-1">Pré-visualização mensal</div>
-            <div className="grid grid-cols-12 gap-1 text-[10px]">
+            <div className="grid grid-cols-12 gap-1 text-xs">
               {preview.map((v, i) => (
                 <div key={i} className="text-center">
                   <div className="text-muted-foreground">{MESES_LABEL[i]}</div>

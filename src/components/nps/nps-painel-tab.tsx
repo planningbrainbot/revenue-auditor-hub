@@ -55,19 +55,19 @@ function categorize(score: string | null): Categoria {
 
 function npsBadge(cat: Categoria) {
   if (cat === "promotor")
-    return <Badge variant="outline" className="border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 dark:text-emerald-400">Promotor</Badge>;
+    return <Badge variant="outline" className="border-success/30 bg-success/[0.07] text-success">Promotor</Badge>;
   if (cat === "neutro")
-    return <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">Neutro</Badge>;
+    return <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">Neutro</Badge>;
   if (cat === "detrator")
-    return <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">Detrator</Badge>;
+    return <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">Detrator</Badge>;
   return <Badge variant="outline">—</Badge>;
 }
 
 function classifyNps(score: number) {
-  if (score >= 75) return { label: "Excelente", icon: TrendingUp, color: "text-emerald-600" };
-  if (score >= 50) return { label: "Muito bom", icon: TrendingUp, color: "text-emerald-600" };
-  if (score >= 0) return { label: "Razoável", icon: Minus, color: "text-amber-600" };
-  return { label: "Crítico", icon: TrendingDown, color: "text-red-600" };
+  if (score >= 75) return { label: "Excelente", icon: TrendingUp, color: "text-success" };
+  if (score >= 50) return { label: "Muito bom", icon: TrendingUp, color: "text-success" };
+  if (score >= 0) return { label: "Razoável", icon: Minus, color: "text-warning" };
+  return { label: "Crítico", icon: TrendingDown, color: "text-danger" };
 }
 
 function fmtDate(d: string | null) {
@@ -475,7 +475,7 @@ export function NpsPainelTab() {
       </div>
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando pesquisas…</Card>}
-      {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar dados.</Card>}
+      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar dados.</Card>}
 
       <Tabs defaultValue="resumo" className="w-full">
         <TabsList>
@@ -498,7 +498,7 @@ export function NpsPainelTab() {
                       <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-3xl font-semibold tabular-nums">{kpis.resp > 0 ? kpis.nps : "—"}</span>
                         {npsDelta != null && !npsDelta.amostraPequena && (
-                          <span className={`flex items-center gap-0.5 text-xs font-medium ${npsDelta.delta >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                          <span className={`flex items-center gap-0.5 text-xs font-medium ${npsDelta.delta >= 0 ? "text-success" : "text-danger"}`}>
                             {npsDelta.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                             {npsDelta.delta >= 0 ? "+" : ""}{npsDelta.delta} pts
                           </span>
@@ -514,7 +514,7 @@ export function NpsPainelTab() {
                       <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-3xl font-semibold tabular-nums">{csat.score != null ? `${csat.score}%` : "—"}</span>
                         {csatDelta != null && !csatDelta.amostraPequena && (
-                          <span className={`flex items-center gap-0.5 text-xs font-medium ${csatDelta.delta >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                          <span className={`flex items-center gap-0.5 text-xs font-medium ${csatDelta.delta >= 0 ? "text-success" : "text-danger"}`}>
                             {csatDelta.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                             {csatDelta.delta >= 0 ? "+" : ""}{csatDelta.delta} pp
                           </span>
@@ -694,7 +694,7 @@ export function NpsPainelTab() {
                           {r.unidade ?? "—"} · {r.nome_contato ?? "—"} · {r.email_pesquisa ?? "—"}
                         </div>
                       </div>
-                      <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">
+                      <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">
                         Nota {r.nps_recomendacao}
                       </Badge>
                     </li>

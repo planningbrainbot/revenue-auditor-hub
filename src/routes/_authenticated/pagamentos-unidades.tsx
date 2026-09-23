@@ -231,7 +231,7 @@ function PagamentosUnidadesPage() {
       </div>
 
       {error && (
-        <Card className="p-4 border-red-300 bg-red-50 text-sm text-red-700">{error}</Card>
+        <Card className="p-4 border-danger/40 bg-danger-soft text-sm text-danger">{error}</Card>
       )}
 
       <Card className="overflow-x-auto">

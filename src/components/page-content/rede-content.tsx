@@ -328,7 +328,7 @@ export function RedeContent() {
                             {u.observacoes_financeiras ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Info className="h-4 w-4 cursor-help text-amber-500" />
+                                  <Info className="h-4 w-4 cursor-help text-warning" />
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-xs">
                                   {u.observacoes_financeiras}

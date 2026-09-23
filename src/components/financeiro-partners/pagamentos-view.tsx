@@ -179,13 +179,13 @@ function omieAgregado(rows: PfRow[]): { valor: number; status: Linha["omieStatus
 
 function omieStatusBadge(s: Linha["omieStatus"]) {
   if (s === "RECEBIDO")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Recebido</Badge>;
+    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
   if (s === "PARCIAL")
-    return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-200">Parcial</Badge>;
+    return <Badge className="bg-info-soft text-info hover:bg-info-soft">Parcial</Badge>;
   if (s === "ATRASADO")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Atrasado</Badge>;
+    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
   if (s === "A VENCER")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">A vencer</Badge>;
+    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
   return <Badge variant="outline">Sem referência</Badge>;
 }
 
@@ -477,7 +477,7 @@ export function PagamentosView() {
       </Card>
 
       {error && (
-        <Card className="p-4 border-red-300 bg-red-50 text-sm text-red-700">{error}</Card>
+        <Card className="p-4 border-danger/40 bg-danger-soft text-sm text-danger">{error}</Card>
       )}
 
       <Card className="overflow-hidden">
@@ -504,7 +504,7 @@ export function PagamentosView() {
                 const divergente = hasDivergencia(l);
                 const statusValidado = l.pagamento?.status_validado ?? "pendente";
                 return (
-                  <TableRow key={l.key} className={divergente ? "bg-red-50/50 dark:bg-red-950/10" : undefined}>
+                  <TableRow key={l.key} className={divergente ? "bg-danger-soft/50" : undefined}>
                     <TableCell className="whitespace-nowrap">{fmtMes(l.mesReferencia)}</TableCell>
                     <TableCell className="font-medium">{l.unidade}</TableCell>
                     <TableCell>{CATEGORIA_LABEL[l.categoria]}</TableCell>
@@ -512,10 +512,10 @@ export function PagamentosView() {
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {omieStatusBadge(l.omieStatus)}
-                        {divergente && <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />}
+                        {divergente && <AlertTriangle className="h-3.5 w-3.5 text-danger" />}
                       </div>
                       {l.omieStatus && (
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">{brl(l.omieValor)}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{brl(l.omieValor)}</div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -534,7 +534,7 @@ export function PagamentosView() {
                         </SelectContent>
                       </Select>
                       {l.pagamento?.validado_em && (
-                        <div className="mt-1 text-[11px] text-muted-foreground">
+                        <div className="mt-1 text-xs text-muted-foreground">
                           {date(l.pagamento.validado_em)} {l.pagamento.validado_por ? `· ${l.pagamento.validado_por}` : ""}
                         </div>
                       )}
@@ -599,10 +599,10 @@ function KpiCard({
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
   const toneMap = {
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-    red: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
-    emerald: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
-    slate: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
+    amber: "border-warning/40 bg-warning-soft",
+    red: "border-danger/40 bg-danger-soft",
+    emerald: "border-success/40 bg-success-soft",
+    slate: "border-border bg-muted",
   } as const;
   return (
     <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>

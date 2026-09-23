@@ -55,9 +55,9 @@ type DetRow = {
 
 const FAIXA_ESTILO: Record<string, string> = {
   Crítico: "bg-destructive/10 text-destructive border-destructive/30",
-  Abaixo: "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400",
-  "Na meta": "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
-  Superação: "bg-sky-500/10 text-sky-600 border-sky-500/30 dark:text-sky-400",
+  Abaixo: "bg-warning/10 text-warning border-warning/30",
+  "Na meta": "bg-success/10 text-success border-success/30",
+  Superação: "bg-info/10 text-info border-info/30",
   "sem base": "bg-muted text-muted-foreground border-border",
 };
 
@@ -202,7 +202,7 @@ export function IduView() {
           ))}
         </select>
         {semMeta > 0 && (
-          <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400">
+          <Badge variant="outline" className="border-warning/40 text-warning">
             {semMeta} indicador{semMeta > 1 ? "es" : ""} sem meta — fora do denominador
           </Badge>
         )}
@@ -336,7 +336,7 @@ export function IduView() {
                                           className={cn(
                                             "inline-flex items-center gap-1",
                                             podeEditarMetas && "hover:underline",
-                                            l.meta === null && "text-amber-600 dark:text-amber-400",
+                                            l.meta === null && "text-warning",
                                           )}
                                         >
                                           {l.meta === null
@@ -353,7 +353,7 @@ export function IduView() {
                                       className={cn(
                                         "text-right tabular-nums",
                                         l.ajuste === "piso" && "text-destructive",
-                                        l.ajuste === "teto" && "text-sky-600 dark:text-sky-400",
+                                        l.ajuste === "teto" && "text-info",
                                         l.ajuste === "sem dado" && "text-muted-foreground",
                                       )}
                                     >

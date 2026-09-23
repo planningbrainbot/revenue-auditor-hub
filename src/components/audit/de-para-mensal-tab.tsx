@@ -108,11 +108,11 @@ export function DeParaMensalTab({ tipo }: Props) {
 
   function statusCls(prev: number, receb: number) {
     if (prev === 0 && receb === 0) return "text-muted-foreground";
-    if (prev === 0) return "text-emerald-600";
+    if (prev === 0) return "text-success";
     const r = receb / prev;
-    if (r >= 0.95) return "text-emerald-700 dark:text-emerald-300";
-    if (r >= 0.7) return "text-amber-700 dark:text-amber-300";
-    return "text-rose-600 dark:text-rose-300";
+    if (r >= 0.95) return "text-success";
+    if (r >= 0.7) return "text-warning";
+    return "text-danger";
   }
 
   async function saveCell() {
@@ -202,7 +202,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                 ))}
                 <th className="bg-card px-3 py-2 text-center border-l" colSpan={3}>Total</th>
               </tr>
-              <tr className="text-[10px]">
+              <tr className="text-xs">
                 <th className="bg-card px-3 py-1 text-left"></th>
                 {monthsList.map((ym) => (
                   <Fragment key={ym}>
@@ -257,7 +257,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                                   }}
                                   className="h-6 w-20 rounded border border-border bg-background px-1 text-right text-xs"
                                 />
-                                <button type="button" onClick={() => void saveCell()} className="text-emerald-600 hover:text-emerald-700">
+                                <button type="button" onClick={() => void saveCell()} className="text-success hover:text-success">
                                   <Check className="h-3 w-3" />
                                 </button>
                                 <button type="button" onClick={() => setEditCell(null)} className="text-muted-foreground hover:text-foreground">
@@ -266,7 +266,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1">
-                                <span className={receb > 0 ? "font-semibold text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}>
+                                <span className={receb > 0 ? "font-semibold text-success" : "text-muted-foreground"}>
                                   {receb > 0 ? brl(receb) : "—"}
                                 </span>
                                 {canManage && (

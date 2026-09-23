@@ -197,9 +197,9 @@ export function ResumoView({ itens, valores, categorias, modoPartners, rateio, g
   const colHeaders = agrupar(zero12()).map((b) => b.label);
 
   function colorFor(accent: "receita" | "despesa" | "resultado" | "neutro", total: number) {
-    if (accent === "receita") return "text-emerald-600 dark:text-emerald-400";
-    if (accent === "despesa") return "text-rose-600 dark:text-rose-400";
-    if (accent === "resultado") return total >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+    if (accent === "receita") return "text-success";
+    if (accent === "despesa") return "text-danger";
+    if (accent === "resultado") return total >= 0 ? "text-success" : "text-danger";
     return "text-muted-foreground";
   }
 
@@ -250,7 +250,7 @@ export function ResumoView({ itens, valores, categorias, modoPartners, rateio, g
           <td key={i} className={cn("p-2 text-right tabular-nums", cls)}>
             <div>{b.valor ? b.valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</div>
             {baseBuckets && (
-              <div className="text-[10px] font-normal text-muted-foreground">
+              <div className="text-xs font-normal text-muted-foreground">
                 {fmtPct(b.valor, baseBuckets[i].valor)}
               </div>
             )}
@@ -259,7 +259,7 @@ export function ResumoView({ itens, valores, categorias, modoPartners, rateio, g
         <td className={cn("p-2 text-right tabular-nums", cls)}>
           <div>{BRL(total)}</div>
           {base && (
-            <div className="text-[10px] font-normal text-muted-foreground">
+            <div className="text-xs font-normal text-muted-foreground">
               {fmtPct(total, baseTotal)}
             </div>
           )}
@@ -341,7 +341,7 @@ export function ResumoView({ itens, valores, categorias, modoPartners, rateio, g
   return (
     <div className="space-y-3">
       {naoClassif && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
           Há despesas sem grupo DRE classificado. Abra <strong>Cadastros</strong> e defina o "Grupo DRE" das categorias para que entrem nos subtotais.
         </div>
       )}

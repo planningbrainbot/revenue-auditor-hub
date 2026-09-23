@@ -139,7 +139,7 @@ export function PrePlanningTab() {
           <div className="mt-2 text-3xl font-bold">
             {isLoading ? "—" : visiveis.length.toLocaleString("pt-BR")}
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
+          <div className="mt-1 text-xs text-muted-foreground">
             Clientes Omie ativos ainda não convertidos para Planning
           </div>
         </Card>
@@ -302,7 +302,7 @@ export function PrePlanningTab() {
                     className={
                       "text-sm tabular-nums " +
                       (isPagamentoAtrasado(r.ultimo_pagamento)
-                        ? "text-amber-600 dark:text-amber-400"
+                        ? "text-warning"
                         : "")
                     }
                   >

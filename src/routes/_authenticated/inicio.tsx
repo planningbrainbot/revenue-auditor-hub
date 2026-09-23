@@ -209,7 +209,7 @@ function InicioPage() {
                 e.stopPropagation();
                 abrir(p, true);
               }}
-              className="mt-auto self-start text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              className="mt-auto self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
             >
               sempre começar por aqui
             </button>

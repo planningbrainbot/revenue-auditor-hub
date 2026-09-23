@@ -247,13 +247,13 @@ function ReformaTributariaPage() {
         {/* Header */}
         <div className="p-5 border-b border-border shrink-0">
           <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <FileBarChart2 className="h-4 w-4 text-emerald-400" />
+            <div className="p-2 rounded-lg bg-success/10 border border-success/20">
+              <FileBarChart2 className="h-4 w-4 text-success" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="text-sm font-semibold">Reforma Tributária</h1>
-                <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-500">Confidencial</Badge>
+                <Badge variant="outline" className="text-xs border-warning/30 text-warning">Confidencial</Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">Gere apresentações a partir do arquivo de simulação</p>
             </div>
@@ -268,14 +268,14 @@ function ReformaTributariaPage() {
             </Label>
             {!fileName ? (
               <label
-                className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${isDragging ? 'border-emerald-500 bg-emerald-500/5' : 'border-border hover:border-emerald-500/50 hover:bg-accent/30'}`}
+                className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${isDragging ? 'border-success bg-success/5' : 'border-border hover:border-success/50 hover:bg-accent/30'}`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
               >
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileInput} />
                 {parsing ? (
-                  <RefreshCw className="h-6 w-6 text-emerald-400 animate-spin" />
+                  <RefreshCw className="h-6 w-6 text-success animate-spin" />
                 ) : (
                   <Upload className="h-6 w-6 text-muted-foreground" />
                 )}
@@ -285,11 +285,11 @@ function ReformaTributariaPage() {
                 </div>
               </label>
             ) : (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                <FileSpreadsheet className="h-5 w-5 text-emerald-400 shrink-0" />
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-success/5 border border-success/20">
+                <FileSpreadsheet className="h-5 w-5 text-success shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{fileName}</p>
-                  <p className="text-[11px] text-emerald-400">Dados importados</p>
+                  <p className="text-xs text-success">Dados importados</p>
                 </div>
                 <button onClick={clearFile} className="p-1 rounded hover:bg-accent">
                   <X className="h-3.5 w-3.5 text-muted-foreground" />
@@ -328,7 +328,7 @@ function ReformaTributariaPage() {
                     {lookingUpCnpj ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : 'Buscar'}
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Preenche atividade e estado via Receita Federal</p>
+                <p className="text-xs text-muted-foreground mt-1">Preenche atividade e estado via Receita Federal</p>
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Razão Social</Label>
@@ -421,7 +421,7 @@ function ReformaTributariaPage() {
                     {data.years.map((y, i) => (
                       <tr
                         key={y.ano}
-                        className={`border-b border-border last:border-0 ${i === data.years.length - 1 ? 'bg-emerald-500/5' : ''}`}
+                        className={`border-b border-border last:border-0 ${i === data.years.length - 1 ? 'bg-success/5' : ''}`}
                       >
                         <td className="p-2 font-medium">{y.ano}</td>
                         <td className="p-1">
@@ -432,7 +432,7 @@ function ReformaTributariaPage() {
                             max="1"
                             value={y.carga || ''}
                             onChange={(e) => setYearField(i, 'carga', parseFloat(e.target.value) || 0)}
-                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-emerald-500 rounded px-1 py-0.5"
+                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-success rounded px-1 py-0.5"
                             title={`${pct(y.carga)}%`}
                           />
                         </td>
@@ -443,7 +443,7 @@ function ReformaTributariaPage() {
                             min="0"
                             value={y.desembolso || ''}
                             onChange={(e) => setYearField(i, 'desembolso', parseFloat(e.target.value) || 0)}
-                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-emerald-500 rounded px-1 py-0.5"
+                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-success rounded px-1 py-0.5"
                           />
                         </td>
                       </tr>
@@ -452,7 +452,7 @@ function ReformaTributariaPage() {
                 </table>
               </div>
             </Card>
-            <p className="text-[11px] text-muted-foreground mt-1">Carga em decimal (ex: 0.0759 = 7,59%)</p>
+            <p className="text-xs text-muted-foreground mt-1">Carga em decimal (ex: 0.0759 = 7,59%)</p>
           </section>
 
           {/* ── ALÍQUOTAS ── */}
@@ -508,7 +508,7 @@ function ReformaTributariaPage() {
               className="text-sm resize-none"
               rows={4}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">Aparece como "Nota da Auditora" na apresentação</p>
+            <p className="text-xs text-muted-foreground mt-1">Aparece como "Nota da Auditora" na apresentação</p>
           </section>
 
           {/* ── TEXTOS ── */}
@@ -526,7 +526,7 @@ function ReformaTributariaPage() {
                   className="text-sm resize-none"
                   rows={4}
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">Aparece abaixo do título principal</p>
+                <p className="text-xs text-muted-foreground mt-1">Aparece abaixo do título principal</p>
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Parágrafo de fechamento</Label>
@@ -537,7 +537,7 @@ function ReformaTributariaPage() {
                   className="text-sm resize-none"
                   rows={4}
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">Aparece no bloco final antes do rodapé</p>
+                <p className="text-xs text-muted-foreground mt-1">Aparece no bloco final antes do rodapé</p>
               </div>
             </div>
           </section>
@@ -546,7 +546,7 @@ function ReformaTributariaPage() {
         {/* ── ACTION BUTTONS ── */}
         <div className="p-4 border-t border-border shrink-0 space-y-2">
           <Button
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm h-9"
+            className="w-full bg-success hover:bg-success text-background text-sm h-9"
             onClick={() => {
               if (editMode) {
                 iframeRef.current?.contentWindow?.postMessage({ type: 'reforma-exit-edit' }, '*');
@@ -576,19 +576,19 @@ function ReformaTributariaPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0 bg-muted/20">
           <div className="flex items-center gap-2">
-            <div className={`h-1.5 w-1.5 rounded-full ${previewUpdating ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'}`} />
+            <div className={`h-1.5 w-1.5 rounded-full ${previewUpdating ? 'bg-warning animate-pulse' : 'bg-success'}`} />
             <span className="text-xs text-muted-foreground">
               {previewUpdating ? 'Atualizando preview...' : 'Preview da apresentação'}
             </span>
           </div>
           <div className="flex items-center gap-2">
             {data.empresa && (
-              <Badge variant="outline" className="text-[10px]">{data.empresa}</Badge>
+              <Badge variant="outline" className="text-xs">{data.empresa}</Badge>
             )}
             <Button
               variant="ghost"
               size="sm"
-              className={`h-7 text-xs gap-1.5 ${editMode ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15' : 'text-muted-foreground'}`}
+              className={`h-7 text-xs gap-1.5 ${editMode ? 'text-success bg-success/10 hover:bg-success/15' : 'text-muted-foreground'}`}
               onClick={handleToggleEdit}
               title={editMode ? 'Sair do modo edição' : 'Editar textos da apresentação'}
             >

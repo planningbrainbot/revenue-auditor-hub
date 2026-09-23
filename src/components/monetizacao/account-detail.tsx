@@ -227,7 +227,7 @@ export function AccountDetail({
                       <div key={r.cnpj} className="rounded-lg border p-3 text-sm">
                         <p className="font-medium">CNPJ {r.cnpj}</p>
                         {r.status !== "enriched" && (
-                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          <p className="mt-1 text-xs text-warning">
                             {r.status === "invalid_cnpj"
                               ? "CNPJ inválido no cadastro"
                               : r.status === "not_found"
@@ -291,7 +291,7 @@ export function AccountDetail({
                             <dd>{r.registration_status || "Não informada"}</dd>
                           </div>
                         </dl>
-                        <p className="mt-3 text-[11px] text-muted-foreground">
+                        <p className="mt-3 text-xs text-muted-foreground">
                           Consulta: {date(r.queried_at)}. Referência dos dados:{" "}
                           {r.source_updated_at
                             ? date(r.source_updated_at)
@@ -319,7 +319,7 @@ export function AccountDetail({
                         {f.source || "Sem fonte"} · {date(f.at)}
                       </dd>
                       {f.conflict && (
-                        <details className="mt-1 text-xs text-amber-600">
+                        <details className="mt-1 text-xs text-warning">
                           <summary>Fontes divergem</summary>
                           {f.alternatives?.map((a, i) => (
                             <p key={i}>

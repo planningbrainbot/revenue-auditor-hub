@@ -38,11 +38,11 @@ function SourceChip({ label, prefix, dateIso }: { label: string; prefix: string;
       className="inline-flex items-center gap-1"
       title={dateIso ? `${label}: ${fmtDateFull(dateIso)}` : `${label}: sem dados`}
     >
-      <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/80">
+      <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground/80">
         {label}
       </span>
       <span className="text-muted-foreground/40">·</span>
-      <span className={cn("text-[10px]", dateIso ? "text-muted-foreground" : "text-muted-foreground/40")}>
+      <span className={cn("text-xs", dateIso ? "text-muted-foreground" : "text-muted-foreground/40")}>
         {dateIso ? `${prefix} ${fmtDate(dateIso)}` : "—"}
       </span>
     </span>

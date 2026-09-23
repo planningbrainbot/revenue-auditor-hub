@@ -69,9 +69,9 @@ const mesLongo = (v: string) =>
   new Date(`${v}T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
 const STATUS_COR: Record<string, string> = {
-  disponivel: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  reservado: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  comprado: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
+  disponivel: "bg-success/10 text-success",
+  reservado: "bg-warning/10 text-warning",
+  comprado: "bg-info/10 text-info",
   perdido: "bg-muted text-muted-foreground",
   matriz: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
 };
@@ -506,9 +506,9 @@ export function BrokerAdminView() {
                         variant="secondary"
                         className={cn(
                           f.status === "paga" &&
-                            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                            "bg-success/10 text-success",
                           f.status === "aberta" &&
-                            "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                            "bg-warning/10 text-warning",
                         )}
                       >
                         {f.status}

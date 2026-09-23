@@ -130,7 +130,7 @@ function AcessosFinanceiroPage() {
     >
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
         {aviso && (
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-4">
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-success/40 bg-success/5 p-4">
             <p className="text-sm text-foreground">{aviso}</p>
             <button
               onClick={() => setAviso(null)}
@@ -323,7 +323,7 @@ function AcessosFinanceiroPage() {
                     />
                     <span className="text-sm text-foreground">{u.rotulo}</span>
                     {u.tipo && (
-                      <span className="text-[11px] text-muted-foreground">({u.tipo})</span>
+                      <span className="text-xs text-muted-foreground">({u.tipo})</span>
                     )}
                   </label>
                 );

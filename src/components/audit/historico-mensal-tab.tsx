@@ -26,11 +26,11 @@ function mesLabel(m: string): string {
 
 function cellClass(pago: number, mrr: number | null) {
   if (pago === 0) return "";
-  if (!mrr || mrr === 0) return "bg-emerald-50 dark:bg-emerald-950/30";
+  if (!mrr || mrr === 0) return "bg-success-soft";
   const ratio = pago / mrr;
-  if (ratio >= 0.8) return "bg-emerald-100 dark:bg-emerald-950/50";
-  if (ratio >= 0.3) return "bg-amber-50 dark:bg-amber-950/30";
-  return "bg-orange-50 dark:bg-orange-950/30";
+  if (ratio >= 0.8) return "bg-success-soft";
+  if (ratio >= 0.3) return "bg-warning-soft";
+  return "bg-warning-soft";
 }
 
 function exportCsv(rows: ReturnType<typeof buildRows>, meses: string[]) {
@@ -189,7 +189,7 @@ export function HistoricoMensalTab() {
             {filtered.map((r) => (
               <tr
                 key={`${r.deal_id}`}
-                className={cn("border-t", !r.na_ana && "bg-amber-50/50 dark:bg-amber-950/10")}
+                className={cn("border-t", !r.na_ana && "bg-warning-soft/50")}
               >
                 <td className="sticky left-0 z-[1] max-w-[220px] truncate bg-inherit px-3 py-1.5 font-medium">
                   {r.razao_social ?? "—"}
@@ -198,7 +198,7 @@ export function HistoricoMensalTab() {
                 <td className="whitespace-nowrap px-3 py-1.5 text-right">{r.mrr ? brl(r.mrr) : "—"}</td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">{r.ganho_em ?? "—"}</td>
                 <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">
-                  {r.primeiro_rec ? mesLabel(r.primeiro_rec) : <span className="text-amber-600">sem rec.</span>}
+                  {r.primeiro_rec ? mesLabel(r.primeiro_rec) : <span className="text-warning">sem rec.</span>}
                 </td>
                 {meses.map((m) => {
                   const v = r.por_mes.get(m) ?? 0;
@@ -216,7 +216,7 @@ export function HistoricoMensalTab() {
                   );
                 })}
                 <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold">
-                  {r.total_rec > 0 ? brl(r.total_rec) : <span className="text-amber-600 font-normal">—</span>}
+                  {r.total_rec > 0 ? brl(r.total_rec) : <span className="text-warning font-normal">—</span>}
                 </td>
               </tr>
             ))}
@@ -231,7 +231,7 @@ export function HistoricoMensalTab() {
         </table>
       </div>
 
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Verde escuro ≥ 80% MRR · Verde claro &lt; 80% · Âmbar &lt; 30% · Fundo âmbar = sem recebimento
       </p>
     </div>
@@ -242,7 +242,7 @@ function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean 
   return (
     <th
       className={cn(
-        "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap",
+        "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap",
         sticky && "sticky left-0 z-20 bg-muted/95",
       )}
     >
@@ -254,12 +254,12 @@ function Th({ children, sticky }: { children: React.ReactNode; sticky?: boolean 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
   return (
     <div className="rounded-lg border bg-card p-3 shadow-sm">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div
         className={cn(
           "mt-1 text-xl font-semibold",
-          tone === "ok" && "text-emerald-700 dark:text-emerald-300",
-          tone === "warn" && "text-amber-700 dark:text-amber-300",
+          tone === "ok" && "text-success",
+          tone === "warn" && "text-warning",
         )}
       >
         {value}

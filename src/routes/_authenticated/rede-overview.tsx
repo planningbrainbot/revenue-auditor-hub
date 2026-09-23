@@ -981,7 +981,7 @@ function RedeOverviewPage() {
                   ? `${receitaTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(receitaTotalStats.pct))} vs. período anterior`
                   : "sem base de comparação"}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Recebido no período</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Recebido no período</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Booking Total</div>
@@ -991,7 +991,7 @@ function RedeOverviewPage() {
                   ? `${bookingTotalStats.pct >= 0 ? "▲" : "▼"} ${fmtPct(Math.abs(bookingTotalStats.pct))} vs. período anterior`
                   : "sem base de comparação"}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">MRR novo × 12 meses</div>
+              <div className="text-xs text-muted-foreground mt-0.5">MRR novo × 12 meses</div>
             </Card>
             <Card
               className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
@@ -1000,12 +1000,12 @@ function RedeOverviewPage() {
             >
               <div className="text-xs text-muted-foreground">Qtd Proj. Ativos</div>
               <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">= Clientes Ativos</div>
+              <div className="text-xs text-muted-foreground mt-0.5">= Clientes Ativos</div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Receita Média Cliente</div>
               <div className="mt-1 text-xl font-bold">{arpa != null ? fmtBRL(arpa) : "—"}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">MRR ÷ clientes ativos</div>
+              <div className="text-xs text-muted-foreground mt-0.5">MRR ÷ clientes ativos</div>
             </Card>
             <Card
               className="p-4 cursor-pointer hover:shadow-md transition-shadow hover:border-primary/40"
@@ -1014,7 +1014,7 @@ function RedeOverviewPage() {
             >
               <div className="text-xs text-muted-foreground">Qtd Clientes ativos</div>
               <div className="mt-1 text-2xl font-bold">{clientesAtivos}</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 {totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
               </div>
             </Card>
@@ -1023,7 +1023,7 @@ function RedeOverviewPage() {
               <div className="mt-1 text-xl font-bold">
                 {ltvFormulaico.ltv != null ? fmtBRL(ltvFormulaico.ltv) : "—"}
               </div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 ARPA ÷ churn mensal
                 {ltvFormulaico.churnMensalPct != null
                   ? ` (${fmtPct(ltvFormulaico.churnMensalPct)} a.m., período selecionado)`
@@ -1031,7 +1031,7 @@ function RedeOverviewPage() {
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">Vida útil (projetada)</div>
+                  <div className="text-xs text-muted-foreground">Vida útil (projetada)</div>
                   <div className="text-sm font-bold tabular-nums">
                     {ltvFormulaico.lifetimeMeses != null
                       ? `${ltvFormulaico.lifetimeMeses.toFixed(1)} meses`
@@ -1039,7 +1039,7 @@ function RedeOverviewPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     Vida útil (concluídos
                     {lifetimeConcluidos.n > 0 ? `, ${lifetimeConcluidos.n}` : ""})
                   </div>
@@ -1050,7 +1050,7 @@ function RedeOverviewPage() {
                   </div>
                 </div>
               </div>
-              <div className="mt-1 text-[10px] text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground">
                 Projetada = 1 ÷ churn mensal (estimativa). Concluídos = tempo real de vida de quem
                 já deu churn (1ª compra até a data de churn).
               </div>
@@ -1103,7 +1103,7 @@ function RedeOverviewPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
+                <div className="mt-1 text-xs text-muted-foreground">
                   Perdido = MRR de contratos com churn registrado em `central_tratativas` (mesma
                   fonte dos outros cards de churn da página). Novo = MRR de contratos ganhos no mês.
                   Expansão/Contração por contrato ficam de fora até existir uma medição confiável de
@@ -1156,7 +1156,7 @@ function RedeOverviewPage() {
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
+                <div className="mt-1 text-xs text-muted-foreground">
                   Reconstruído por evento (ganho − churn acumulado por mês) — não é snapshot salvo.
                 </div>
               </Card>
@@ -1190,7 +1190,7 @@ function RedeOverviewPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">
+                <div className="mt-1 text-xs text-muted-foreground">
                   Booking = MRR novo do mês × 12 (contrato assumido em 12 meses).
                 </div>
               </Card>
@@ -1252,7 +1252,7 @@ function RedeOverviewPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">
+              <div className="mt-1 text-xs text-muted-foreground">
                 Só a fração do MRR Hunter com "Unidade de Negócio" preenchida no Pipedrive — ver
                 nota na tabela abaixo.
               </div>
@@ -1382,15 +1382,15 @@ function RedeOverviewPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {mix != null ? (
-                            <span className="font-semibold text-emerald-600">{fmtPct(mix)}</span>
+                            <span className="font-semibold text-success">{fmtPct(mix)}</span>
                           ) : (
                             "—"
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-emerald-600">
+                        <TableCell className="text-right text-success">
                           {aud.oportunidade > 0 ? fmtBRL(aud.oportunidade) : "—"}
                         </TableCell>
-                        <TableCell className="text-right text-amber-600">
+                        <TableCell className="text-right text-warning">
                           {aud.contingencia > 0 ? fmtBRL(aud.contingencia) : "—"}
                         </TableCell>
                       </TableRow>
@@ -1435,7 +1435,7 @@ function RedeOverviewPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Churn Receita</div>
-              <div className="mt-1 text-xl font-bold text-amber-600">
+              <div className="mt-1 text-xl font-bold text-warning">
                 {churnStats.churnReceitaPct != null ? fmtPct(churnStats.churnReceitaPct) : "—"}
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
@@ -1445,7 +1445,7 @@ function RedeOverviewPage() {
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Churn Logo</div>
-              <div className="mt-1 text-xl font-bold text-amber-600">
+              <div className="mt-1 text-xl font-bold text-warning">
                 {churnStats.churnLogoPct != null ? fmtPct(churnStats.churnLogoPct) : "—"}
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
@@ -1457,7 +1457,7 @@ function RedeOverviewPage() {
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Carteira Saudável</div>
               <div
-                className={`mt-1 text-xl font-bold ${saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "text-emerald-600" : "text-amber-600"}`}
+                className={`mt-1 text-xl font-bold ${saudeStats.pctSaudavel != null && saudeStats.pctSaudavel >= 70 ? "text-success" : "text-warning"}`}
               >
                 {saudeStats.pctSaudavel != null ? fmtPct(saudeStats.pctSaudavel) : "—"}
               </div>
@@ -1470,14 +1470,14 @@ function RedeOverviewPage() {
               <div className="text-xs text-muted-foreground">Auditoria Interna (fiscal)</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[11px] text-muted-foreground">Oportunidade</div>
-                  <div className="text-lg font-bold text-emerald-600">
+                  <div className="text-xs text-muted-foreground">Oportunidade</div>
+                  <div className="text-lg font-bold text-success">
                     {fmtBRL(auditoriaStats.oportunidade)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-muted-foreground">Contingência</div>
-                  <div className="text-lg font-bold text-amber-600">
+                  <div className="text-xs text-muted-foreground">Contingência</div>
+                  <div className="text-lg font-bold text-warning">
                     {fmtBRL(auditoriaStats.contingencia)}
                   </div>
                 </div>

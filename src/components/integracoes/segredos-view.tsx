@@ -133,11 +133,11 @@ export function SegredosView() {
           {grupo === "Asaas" && teste ? (
             <Card
               className={`flex items-start gap-2 p-3 text-sm ${
-                teste.ok ? "border-emerald-500/40" : "border-destructive/40"
+                teste.ok ? "border-success/40" : "border-destructive/40"
               }`}
             >
               {teste.ok ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
               ) : (
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               )}
@@ -157,13 +157,13 @@ export function SegredosView() {
                       {s?.configurado ? (
                         <Badge
                           variant="secondary"
-                          className="max-w-[22rem] truncate font-mono text-[10px]"
+                          className="max-w-[22rem] truncate font-mono text-xs"
                           title={s.final}
                         >
                           {s.final}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-xs">
                           não configurado
                         </Badge>
                       )}
@@ -171,7 +171,7 @@ export function SegredosView() {
                     <p className="mt-1 text-xs text-muted-foreground">{c.ajuda}</p>
                   </div>
                   {s?.configurado ? (
-                    <div className="text-right text-[11px] text-muted-foreground">
+                    <div className="text-right text-xs text-muted-foreground">
                       <p>{quando(s.atualizado_em)}</p>
                       <p>{s.atualizado_por ?? ""}</p>
                     </div>

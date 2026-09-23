@@ -238,7 +238,7 @@ function PainelUnidadePage() {
                   <TableCell className="font-medium">{r.empresa}</TableCell>
                   <TableCell>{r.status}</TableCell>
                   <TableCell>{fmtData(r.ultimoPag)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-red-600">{fmtBRL(r.atraso)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-danger">{fmtBRL(r.atraso)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -254,18 +254,18 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
     <Card className="p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
-      {sub && <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
     </Card>
   );
 }
 
 function Alert({ tone, label, value, sub, loading }: { tone: "red" | "amber"; label: string; value: string; sub: string; loading: boolean }) {
-  const bg = tone === "red" ? "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900" : "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-900";
+  const bg = tone === "red" ? "bg-danger-soft border-danger/40" : "bg-warning-soft border-warning/40";
   return (
     <Card className={`${bg} p-4`}>
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-bold">{loading ? "—" : value}</div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
     </Card>
   );
 }

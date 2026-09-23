@@ -16,17 +16,17 @@ import { aggregateUnidades, unidadesNaoMapeadas, type UnidadeMesAgg, type Modelo
 
 const GROUPS: { key: Modelo; label: string; color: string }[] = [
   { key: "verba", label: "Regionais Verba", color: "bg-indigo-50 dark:bg-indigo-950/40" },
-  { key: "absorcao", label: "Regionais Absorção / CAC", color: "bg-orange-50 dark:bg-orange-950/40" },
-  { key: "interna", label: "BUs Internas", color: "bg-slate-50 dark:bg-slate-900/40" },
+  { key: "absorcao", label: "Regionais Absorção / CAC", color: "bg-warning-soft" },
+  { key: "interna", label: "BUs Internas", color: "bg-muted" },
 ];
 
 function paybackTone(d: number | null): string {
-  if (d == null) return "text-slate-600 dark:text-slate-300";
-  if (d === 0) return "text-emerald-700 dark:text-emerald-300";
-  if (d <= 90) return "text-emerald-600 dark:text-emerald-400";
-  if (d <= 180) return "text-amber-600 dark:text-amber-400";
-  if (d <= 360) return "text-orange-600 dark:text-orange-400";
-  return "text-red-600 dark:text-red-400";
+  if (d == null) return "text-muted-foreground";
+  if (d === 0) return "text-success";
+  if (d <= 90) return "text-success";
+  if (d <= 180) return "text-warning";
+  if (d <= 360) return "text-warning";
+  return "text-danger";
 }
 
 function paybackBarColor(d: number) {
@@ -203,8 +203,8 @@ function GroupRows({
               className={cn(
                 "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
                 r.modelo === "verba" && "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
-                r.modelo === "absorcao" && "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200",
-                r.modelo === "interna" && "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+                r.modelo === "absorcao" && "bg-warning-soft text-warning",
+                r.modelo === "interna" && "bg-muted text-foreground",
               )}
             >
               {r.modelo === "verba" ? "Verba" : r.modelo === "absorcao" ? "Absorção" : "Interna"}
@@ -218,8 +218,8 @@ function GroupRows({
               className={cn(
                 "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
                 r.roas >= 1
-                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                  : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+                  ? "bg-success-soft text-success"
+                  : "bg-danger-soft text-danger",
               )}
             >
               {r.roas.toFixed(2)}

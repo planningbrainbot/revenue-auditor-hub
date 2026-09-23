@@ -60,16 +60,16 @@ function toneFatRec(p: number) {
 }
 
 const TONE_BG: Record<string, string> = {
-  emerald: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-900",
-  amber: "bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-900",
-  red: "bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-900",
+  emerald: "bg-success-soft border-success/40",
+  amber: "bg-warning-soft border-warning/40",
+  red: "bg-danger-soft border-danger/40",
   slate: "bg-card border-border",
 };
 const TONE_BADGE: Record<string, string> = {
-  emerald: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100",
-  amber: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100",
-  red: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100",
-  slate: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100",
+  emerald: "bg-success-soft text-success",
+  amber: "bg-warning-soft text-warning",
+  red: "bg-danger-soft text-danger",
+  slate: "bg-muted text-foreground",
 };
 
 function FunilCard({
@@ -83,7 +83,7 @@ function FunilCard({
           {label}
         </div>
         {source && (
-          <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+          <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {source}
           </span>
         )}
@@ -297,7 +297,7 @@ export function FunilContent() {
         <>
           {/* Aviso de cobertura parcial quando há unidades sem dados Omie */}
           {rows.some((r) => N(r.mrr_contratado) > 0 && N(r.faturado) === 0) && (
-            <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>
                 Faturado e Recebido cobrem apenas unidades com dados no Omie.
@@ -383,7 +383,7 @@ export function FunilContent() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{r.unidade}</span>
                         {semDados && (
-                          <Badge className="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+                          <Badge className="bg-muted text-foreground">
                             Sem dados no Omie
                           </Badge>
                         )}
@@ -395,7 +395,7 @@ export function FunilContent() {
                     <TableCell className="text-right">
                       <CellLink to="/contas-receber" search={{ unidade: unidadeStr, dataIni, dataFim }}>{brl(fat)}</CellLink>
                     </TableCell>
-                    <TableCell className={cn("text-right", gapF > 0 && "text-red-600 dark:text-red-400 font-medium")}>
+                    <TableCell className={cn("text-right", gapF > 0 && "text-danger font-medium")}>
                       {Math.abs(gapF) < 0.01 ? (
                         brl(gapF)
                       ) : gapF > 0 ? (
@@ -413,7 +413,7 @@ export function FunilContent() {
                     <TableCell className="text-right">
                       <CellLink to="/contas-receber" search={{ unidade: unidadeStr, status: "RECEBIDO", dataIni, dataFim }}>{brl(rec)}</CellLink>
                     </TableCell>
-                    <TableCell className={cn("text-right", gapC > 0 && "text-orange-600 dark:text-orange-400 font-medium")}>
+                    <TableCell className={cn("text-right", gapC > 0 && "text-warning font-medium")}>
                       <CellLink to="/contas-receber" search={{ unidade: unidadeStr, status: "NAO_RECEBIDO", dataIni, dataFim }}>{brl(gapC)}</CellLink>
                     </TableCell>
                     <TableCell className="text-right">
@@ -465,7 +465,7 @@ export function FunilContent() {
           {loading ? (
             <Skeleton className="h-16 w-full" />
           ) : insights.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="flex items-center gap-2 text-sm text-success">
               <Check className="h-4 w-4" /> Nenhum alerta para o filtro atual.
             </div>
           ) : (
@@ -475,8 +475,8 @@ export function FunilContent() {
                 className={cn(
                   "flex items-start gap-2 rounded-md border p-3 text-sm",
                   it.kind === "critical"
-                    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
-                    : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100",
+                    ? "border-danger/40 bg-danger-soft text-danger"
+                    : "border-warning/40 bg-warning-soft text-warning",
                 )}
               >
                 {it.kind === "critical" ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}

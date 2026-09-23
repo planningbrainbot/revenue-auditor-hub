@@ -260,7 +260,7 @@ export function DirectSend({
                 )}
                 {[...(r.handoff?.errors || []), ...(r.handoff?.warnings || [])].map(
                   (message, i) => (
-                    <p key={i} className="text-xs text-amber-600">
+                    <p key={i} className="text-xs text-warning">
                       {message}
                     </p>
                   ),

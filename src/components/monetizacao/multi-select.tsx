@@ -58,7 +58,7 @@ export function MultiSelect({
           <span className={`truncate ${value.length ? "" : "text-foreground/80"}`}>{summary}</span>
           <span className="flex shrink-0 items-center gap-1">
             {value.length > 1 && (
-              <span className="rounded bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+              <span className="rounded bg-primary/15 px-1.5 text-xs font-semibold text-primary">
                 {value.length}
               </span>
             )}
@@ -84,7 +84,7 @@ export function MultiSelect({
           {groups.map((g) => (
             <div key={g || "_"}>
               {g && (
-                <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase text-muted-foreground">
                   {g}
                 </p>
               )}
@@ -104,7 +104,7 @@ export function MultiSelect({
                     <span>
                       {o.label}
                       {o.hint && (
-                        <span className="block text-[11px] text-muted-foreground">{o.hint}</span>
+                        <span className="block text-xs text-muted-foreground">{o.hint}</span>
                       )}
                     </span>
                   </label>

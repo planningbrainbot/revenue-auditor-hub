@@ -81,7 +81,7 @@ function Campo({ rotulo, valor }: { rotulo: string; valor: string | null }) {
   if (!valor) return null;
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{rotulo}</p>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{rotulo}</p>
       <p className="truncate text-sm" title={valor}>
         {valor}
       </p>
@@ -114,7 +114,7 @@ function NotaIa({
           {quando ? dataCurta(quando) : ""} · {aberto ? "esconder" : "ler"}
         </span>
       </button>
-      <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-500">
+      <p className="mt-1 text-xs text-warning">
         Gerado por IA — confira antes de usar.
       </p>
       {aberto ? (
@@ -492,7 +492,7 @@ export function BrokerUnidadeView() {
                     {compradas.map((o) => (
                       <TableRow key={o.id}>
                         <TableCell className="font-medium">
-                          <CheckCircle2 className="mr-1.5 inline h-4 w-4 text-emerald-600" />
+                          <CheckCircle2 className="mr-1.5 inline h-4 w-4 text-success" />
                           {o.empresa ?? NA}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{cb(o.preco_cb)}</TableCell>
@@ -597,9 +597,9 @@ export function BrokerUnidadeView() {
                           variant="secondary"
                           className={cn(
                             f.status === "paga" &&
-                              "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                              "bg-success/10 text-success",
                             f.status === "aberta" &&
-                              "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                              "bg-warning/10 text-warning",
                           )}
                         >
                           {f.status}

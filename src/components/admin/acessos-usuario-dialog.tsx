@@ -139,7 +139,7 @@ export function AcessosUsuarioDialog({
               )}
             </div>
             {!q.data?.temUnidade && (
-              <p className="mx-5 mt-4 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <p className="mx-5 mt-4 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
                 Sem unidade no Escopo. Para nomear como sócio, defina a unidade primeiro.
               </p>
             )}
@@ -207,18 +207,18 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
           <p className="text-sm font-medium text-foreground">
             {area.nome}
             {area.nivel === "bloqueado" ? (
-              <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-destructive">
+              <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold uppercase text-destructive">
                 bloqueada
               </span>
             ) : (
               area.pelo_papel && (
-                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase text-primary">
                   área inteira pelo perfil
                 </span>
               )
             )}
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {area.escopo === "unidade" ? "Recorte por unidade" : area.escopo === "empresa" ? "Recorte por empresa" : "Sem recorte"}
           </p>
         </div>
@@ -253,7 +253,7 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
         </button>
       </div>
 
-      <p className="mt-1 text-[11px] text-muted-foreground">
+      <p className="mt-1 text-xs text-muted-foreground">
         {nivel === "nenhum" && area.pelo_papel
           ? "Vê a área inteira pelo perfil. Nada a mais por delegação."
           : NIVEIS.find((n) => n.valor === nivel)?.ajuda}
@@ -261,7 +261,7 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
 
       {nivel === "usuario" && (
         <fieldset className="mt-2">
-          <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Páginas que vê
           </legend>
           {area.paginas.length === 0 ? (

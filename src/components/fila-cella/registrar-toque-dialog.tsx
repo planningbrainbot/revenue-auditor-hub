@@ -152,7 +152,7 @@ export function RegistrarToqueDialog({
                 onChange={(e) => setData(e.target.value)}
               />
               {data < hoje && (
-                <p className="text-xs text-amber-600">
+                <p className="text-xs text-warning">
                   Registrar no mesmo dia é a regra (playbook §5.6 nº 1).
                 </p>
               )}
@@ -208,11 +208,11 @@ export function RegistrarToqueDialog({
               semântica e nenhum matcher de texto a pega — por isso o atesto abaixo.
             </p>
             {sinalizadas.length > 0 && (
-              <div className="space-y-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950">
-                <p className="font-medium text-red-700 dark:text-red-200">
+              <div className="space-y-2 rounded-md border border-danger/40 bg-danger-soft p-3 text-sm">
+                <p className="font-medium text-danger">
                   {sinalizadas.length} formulação(ões) proibida(s) no texto:
                 </p>
-                <ul className="list-disc space-y-1 pl-5 text-red-700 dark:text-red-200">
+                <ul className="list-disc space-y-1 pl-5 text-danger">
                   {sinalizadas.map((s) => (
                     <li key={s.rotulo}>
                       {s.rotulo} — diga no lugar: <em>{s.noLugar}</em>

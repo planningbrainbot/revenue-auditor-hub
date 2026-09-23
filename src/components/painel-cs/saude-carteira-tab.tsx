@@ -48,23 +48,23 @@ const CATEGORIA_LABEL: Record<CategoriaFinanceira, string> = {
 const SEMAFORO_META: Record<Semaforo, { label: string; badge: string; dot: string }> = {
   saudavel: {
     label: "Saudável",
-    badge: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200",
-    dot: "bg-emerald-500",
+    badge: "bg-success-soft text-success hover:bg-success-soft",
+    dot: "bg-success",
   },
   atencao: {
     label: "Atenção",
-    badge: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200",
-    dot: "bg-amber-500",
+    badge: "bg-warning-soft text-warning hover:bg-warning-soft",
+    dot: "bg-warning",
   },
   risco: {
     label: "Risco",
-    badge: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200",
-    dot: "bg-red-500",
+    badge: "bg-danger-soft text-danger hover:bg-danger-soft",
+    dot: "bg-danger",
   },
   sem_medicao: {
     label: "Sem medição",
-    badge: "bg-slate-100 text-slate-700 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-300",
-    dot: "bg-slate-400",
+    badge: "bg-muted text-foreground hover:bg-muted",
+    dot: "bg-muted-foreground",
   },
 };
 
@@ -161,19 +161,19 @@ export function SaudeCarteiraTab() {
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Saudável</div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-600">{kpis.saudavel}</div>
+          <div className="mt-1 text-2xl font-semibold text-success">{kpis.saudavel}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Atenção</div>
-          <div className="mt-1 text-2xl font-semibold text-amber-600">{kpis.atencao}</div>
+          <div className="mt-1 text-2xl font-semibold text-warning">{kpis.atencao}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Risco</div>
-          <div className="mt-1 text-2xl font-semibold text-red-600">{kpis.risco}</div>
+          <div className="mt-1 text-2xl font-semibold text-danger">{kpis.risco}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Sem medição</div>
-          <div className="mt-1 text-2xl font-semibold text-slate-500">{kpis.semMedicao}</div>
+          <div className="mt-1 text-2xl font-semibold text-muted-foreground">{kpis.semMedicao}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">MRR em atenção/risco</div>
@@ -182,7 +182,7 @@ export function SaudeCarteiraTab() {
       </div>
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando saúde da carteira…</Card>}
-      {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar dados.</Card>}
+      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar dados.</Card>}
 
       <Tabs defaultValue="unidades" className="w-full">
         <TabsList>
@@ -208,10 +208,10 @@ export function SaudeCarteiraTab() {
                 {porUnidade.map((u) => (
                   <TableRow key={u.unidade}>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{u.saudavel}</TableCell>
-                    <TableCell className="text-right text-amber-600">{u.atencao}</TableCell>
-                    <TableCell className="text-right text-red-600">{u.risco}</TableCell>
-                    <TableCell className="text-right text-slate-500">{u.semMedicao}</TableCell>
+                    <TableCell className="text-right text-success">{u.saudavel}</TableCell>
+                    <TableCell className="text-right text-warning">{u.atencao}</TableCell>
+                    <TableCell className="text-right text-danger">{u.risco}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{u.semMedicao}</TableCell>
                     <TableCell className="text-right">{fmtBRL(u.mrrRisco)}</TableCell>
                   </TableRow>
                 ))}

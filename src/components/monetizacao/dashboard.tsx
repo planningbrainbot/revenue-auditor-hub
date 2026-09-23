@@ -332,7 +332,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   </button>
                 ))}
               </div>
-              <p className="mt-3 text-[10px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Carteira do responsável atual. O filtro de datas vale para os movimentos; o funil
                 mostra a posição de hoje.
               </p>
@@ -410,7 +410,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   ) : null}
                 </ComposedChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Cards distintos por dia. Um card que volta à etapa em dias diferentes aparece em
                 ambos os dias; no indicador do período conta uma vez. A linha é uma razão diária,
                 não uma conversão de coorte.
@@ -420,7 +420,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           <Panel
             title="Por produto"
             action={
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Clique para abrir as oportunidades
               </span>
             }
@@ -562,7 +562,7 @@ function DealDetails({
                       {c.title}
                     </a>
                     {!c.org_id && (
-                      <span className="block text-amber-600">Sem organização vinculada</span>
+                      <span className="block text-warning">Sem organização vinculada</span>
                     )}
                     <details className="mt-2">
                       <summary>Histórico no período</summary>
@@ -587,7 +587,7 @@ function DealDetails({
                   <td className="p-3">{date(c.expected_close)}</td>
                   <td className="p-3">
                     {money(c.revenue.total.amount ?? c.revenue.sum, c.revenue.total.currency)}
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
                       {c.revenue.status === "ok"
                         ? "Split conferido"
                         : c.revenue.status === "missing"

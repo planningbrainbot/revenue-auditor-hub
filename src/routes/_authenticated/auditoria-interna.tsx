@@ -180,7 +180,7 @@ function KpiCards({ rows, labelTotal }: { rows: Auditoria[]; labelTotal: string 
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Concluídas</div>
-        <div className="text-2xl font-bold text-emerald-600">{kpis.concluidas}</div>
+        <div className="text-2xl font-bold text-success">{kpis.concluidas}</div>
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Prazos vencidos</div>
@@ -188,13 +188,13 @@ function KpiCards({ rows, labelTotal }: { rows: Auditoria[]; labelTotal: string 
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Oportunidades identificadas</div>
-        <div className="text-xl font-bold text-emerald-600">{fmtMoney(kpis.oportunidades)}</div>
-        <div className="text-[11px] text-muted-foreground">estimado, extraído dos relatórios</div>
+        <div className="text-xl font-bold text-success">{fmtMoney(kpis.oportunidades)}</div>
+        <div className="text-xs text-muted-foreground">estimado, extraído dos relatórios</div>
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Contingências/riscos identificados</div>
-        <div className="text-xl font-bold text-amber-600">{fmtMoney(kpis.contingencias)}</div>
-        <div className="text-[11px] text-muted-foreground">estimado, extraído dos relatórios</div>
+        <div className="text-xl font-bold text-warning">{fmtMoney(kpis.contingencias)}</div>
+        <div className="text-xs text-muted-foreground">estimado, extraído dos relatórios</div>
       </Card>
     </div>
   );
@@ -218,7 +218,7 @@ function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
     <Card className="p-0 overflow-hidden">
       <div className="px-4 py-3 border-b">
         <div className="text-sm font-semibold">Resumo por unidade</div>
-        <div className="text-[11px] text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           Auditorias realizadas = cards na fase &ldquo;{FASE_AUDITORIA_REALIZADA}&rdquo; do Pipefy
         </div>
       </div>
@@ -237,8 +237,8 @@ function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
               <TableRow key={u.unidade}>
                 <TableCell className="font-medium">{u.unidade}</TableCell>
                 <TableCell className="text-right">{u.realizadas}</TableCell>
-                <TableCell className="text-right text-emerald-600">{fmtMoney(u.oportunidades)}</TableCell>
-                <TableCell className="text-right text-amber-600">{fmtMoney(u.contingencias)}</TableCell>
+                <TableCell className="text-right text-success">{fmtMoney(u.oportunidades)}</TableCell>
+                <TableCell className="text-right text-warning">{fmtMoney(u.contingencias)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -293,7 +293,7 @@ function Rankings({ rows }: { rows: Auditoria[] }) {
                   <TableRow key={u.unidade}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right text-emerald-600 font-semibold">{fmtMoney(u.oportunidades)}</TableCell>
+                    <TableCell className="text-right text-success font-semibold">{fmtMoney(u.oportunidades)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -322,7 +322,7 @@ function Rankings({ rows }: { rows: Auditoria[] }) {
                   <TableRow key={u.unidade}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right text-amber-600 font-semibold">{fmtMoney(u.contingencias)}</TableCell>
+                    <TableCell className="text-right text-warning font-semibold">{fmtMoney(u.contingencias)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -472,7 +472,7 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
       <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">Achados fiscais — classificação Alta ou Média</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {algumFiltroAtivo
               ? `${maioresAchados.length} de ${base.length} achados`
               : `${base.length} achados`}
@@ -571,8 +571,8 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
                     <TableCell className="font-medium">{a.empresa}</TableCell>
                     <TableCell>{a.unidade}</TableCell>
                     <TableCell>{a.classificacao}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{fmtMoney(a.r.oportunidades_valor)}</TableCell>
-                    <TableCell className="text-right text-amber-600">{fmtMoney(a.r.contingencias_valor)}</TableCell>
+                    <TableCell className="text-right text-success">{fmtMoney(a.r.oportunidades_valor)}</TableCell>
+                    <TableCell className="text-right text-warning">{fmtMoney(a.r.contingencias_valor)}</TableCell>
                     <TableCell className="text-right font-semibold">{fmtMoney(a.total)}</TableCell>
                   </TableRow>
                 ))
@@ -658,10 +658,10 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
       <div className="px-4 py-3 border-b flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Saúde da carteira</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Achado total (oportunidade + contingência) e quanto ele representa do faturamento auditado
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Só projetos do tipo Auditoria — Reforma Tributária e apoio comercial ficam de fora.
           </div>
         </div>
@@ -697,15 +697,15 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
                       )}
                     </div>
                     <div
-                      className="text-sm font-semibold text-sky-600 tabular-nums"
+                      className="text-sm font-semibold text-info tabular-nums"
                       title="Exposição: achado fiscal dividido pelo faturamento do período analisado, contando só as auditorias com esse campo preenchido."
                     >
                       {c.exposicao == null ? (
-                        <span className="text-[11px] font-normal text-muted-foreground">sem faturamento</span>
+                        <span className="text-xs font-normal text-muted-foreground">sem faturamento</span>
                       ) : (
                         <>
                           {fmtPct(c.exposicao)}
-                          <span className="text-[11px] font-normal text-muted-foreground"> exposição</span>
+                          <span className="text-xs font-normal text-muted-foreground"> exposição</span>
                         </>
                       )}
                     </div>
@@ -715,20 +715,20 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
                 {/* Barra: comprimento = achado total; divisão = oportunidade x contingência. */}
                 <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
                   <div className="flex h-full" style={{ width: `${largura}%` }}>
-                    <div className="h-full bg-emerald-500" style={{ width: `${fatiaOport}%` }} />
-                    <div className="h-full bg-amber-500" style={{ width: `${100 - fatiaOport}%` }} />
+                    <div className="h-full bg-success" style={{ width: `${fatiaOport}%` }} />
+                    <div className="h-full bg-warning" style={{ width: `${100 - fatiaOport}%` }} />
                   </div>
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
                   <span>
                     <span className="font-medium text-foreground">{c.realizadas}</span> realizadas
                   </span>
                   <span>
                     {c.taxaAchado == null ? "—" : `${Math.round(c.taxaAchado * 100)}% com achado`}
                   </span>
-                  <span className="text-emerald-600">{fmtMoney(c.oportunidades)} oport.</span>
-                  <span className="text-amber-600">{fmtMoney(c.contingencias)} conting.</span>
+                  <span className="text-success">{fmtMoney(c.oportunidades)} oport.</span>
+                  <span className="text-warning">{fmtMoney(c.contingencias)} conting.</span>
                   {c.faturamento > 0 && <span>{fmtMoney(c.faturamento)} faturamento auditado</span>}
                 </div>
               </div>
@@ -804,8 +804,8 @@ function CasosTable({ rows }: { rows: Auditoria[] }) {
                   <TableCell>{r.unidade ?? NA}</TableCell>
                   <TableCell>{r.fase_atual ?? NA}</TableCell>
                   <TableCell>{r.classificacao_apontamentos ?? NA}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{fmtMoney(r.oportunidades_valor)}</TableCell>
-                  <TableCell className="text-right text-amber-600">{fmtMoney(r.contingencias_valor)}</TableCell>
+                  <TableCell className="text-right text-success">{fmtMoney(r.oportunidades_valor)}</TableCell>
+                  <TableCell className="text-right text-warning">{fmtMoney(r.contingencias_valor)}</TableCell>
                   <TableCell className="text-right">{fmtDate(r.data_conclusao)}</TableCell>
                 </TableRow>
               ))}
@@ -897,7 +897,7 @@ function FinalizadasPorMes({ rows }: { rows: Auditoria[] }) {
         )}
       </div>
       {semData > 0 && (
-        <div className="mt-1 text-[11px] text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           {semData} caso(s) concluído(s) sem data de conclusão registrada no Pipefy — não aparecem no gráfico.
         </div>
       )}

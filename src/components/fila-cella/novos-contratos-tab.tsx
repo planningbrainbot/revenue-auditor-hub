@@ -27,7 +27,7 @@ export function NovosContratosTab() {
   }
   if (q.error) {
     return (
-      <Card className="border-red-300 p-6 text-sm text-red-600 dark:border-red-900">
+      <Card className="border-danger/40 p-6 text-sm text-danger">
         Falha ao ler <code>v_fila_cella</code>.
       </Card>
     );
@@ -72,7 +72,7 @@ export function NovosContratosTab() {
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   {r.segmento ?? "—"}
-                  {r.segmento_prioritario && <span className="ml-1 text-amber-500">★</span>}
+                  {r.segmento_prioritario && <span className="ml-1 text-warning">★</span>}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{BRL(r.mrr)}</TableCell>
                 <TableCell>

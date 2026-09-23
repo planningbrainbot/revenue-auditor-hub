@@ -135,7 +135,7 @@ function RedeHeadcountPage() {
         </div>
         <Card className="p-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+            <AlertCircle className="h-5 w-5 text-warning mt-0.5 shrink-0" />
             <div>
               <div className="font-semibold text-sm mb-1">Tabela de headcount não configurada</div>
               <p className="text-sm text-muted-foreground mb-4">
@@ -215,17 +215,17 @@ CREATE POLICY "Headcount leitura autenticados"
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Turnover Mês</div>
-          <div className={`mt-1 text-2xl font-bold ${(ultimo?.turnover ?? 0) > 5 ? "text-red-500" : "text-foreground"}`}>
+          <div className={`mt-1 text-2xl font-bold ${(ultimo?.turnover ?? 0) > 5 ? "text-danger" : "text-foreground"}`}>
             {ultimo ? fmtPct(ultimo.turnover) : "—"}
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Admissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-600">{ultimo?.admissoes ?? "—"}</div>
+          <div className="mt-1 text-2xl font-bold text-success">{ultimo?.admissoes ?? "—"}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Demissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-red-500">{ultimo?.demissoes ?? "—"}</div>
+          <div className="mt-1 text-2xl font-bold text-danger">{ultimo?.demissoes ?? "—"}</div>
         </Card>
       </div>
 
@@ -308,8 +308,8 @@ CREATE POLICY "Headcount leitura autenticados"
                 <TableRow key={r.unidade}>
                   <TableCell className="font-medium">{r.unidade}</TableCell>
                   <TableCell className="text-right">{r.headcount}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{r.admissoes || "—"}</TableCell>
-                  <TableCell className="text-right text-red-500">{r.demissoes || "—"}</TableCell>
+                  <TableCell className="text-right text-success">{r.admissoes || "—"}</TableCell>
+                  <TableCell className="text-right text-danger">{r.demissoes || "—"}</TableCell>
                   <TableCell className="text-right">
                     {r.headcount > 0 ? fmtPct((r.demissoes / r.headcount) * 100) : "—"}
                   </TableCell>

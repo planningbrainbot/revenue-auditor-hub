@@ -226,18 +226,18 @@ function SimuladorCaixa() {
               <Calendar className="h-5 w-5 text-muted-foreground" />
             </div>
           </Card>
-          <Card className="p-5 border-l-4 border-l-emerald-500">
+          <Card className="p-5 border-l-4 border-l-success">
             <div className="flex items-start justify-between">
               <div>
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">
                   Payback Total (ROI+)
                 </div>
-                <div className="mt-2 text-3xl font-bold text-emerald-600">
+                <div className="mt-2 text-3xl font-bold text-success">
                   {main.payback !== null ? "Mês " + main.payback : "Fora do período"}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">Caixa acumulado ≥ 0</div>
               </div>
-              <Target className="h-5 w-5 text-emerald-600" />
+              <Target className="h-5 w-5 text-success" />
             </div>
           </Card>
         </div>
@@ -421,7 +421,7 @@ function SimuladorCaixa() {
                             <div className="font-semibold mb-1">Mês {h.mes}</div>
                             <div>
                               Mensalidade:{" "}
-                              <strong className="text-emerald-600">{fmt(h.entradaRoas)}</strong>
+                              <strong className="text-success">{fmt(h.entradaRoas)}</strong>
                             </div>
                             <div>
                               Royalties:{" "}
@@ -435,7 +435,7 @@ function SimuladorCaixa() {
                               Fluxo Líquido:{" "}
                               <strong
                                 className={cn(
-                                  h.fluxo >= 0 ? "text-emerald-600" : "text-destructive",
+                                  h.fluxo >= 0 ? "text-success" : "text-destructive",
                                 )}
                               >
                                 {fmt(h.fluxo)}
@@ -518,7 +518,7 @@ function SimuladorCaixa() {
                     <td
                       className={cn(
                         "py-2 text-right",
-                        s.data[12].fluxo >= 0 ? "text-emerald-600" : "text-destructive",
+                        s.data[12].fluxo >= 0 ? "text-success" : "text-destructive",
                       )}
                     >
                       {fmt(s.data[12].fluxo)}
@@ -526,7 +526,7 @@ function SimuladorCaixa() {
                     <td
                       className={cn(
                         "py-2 text-right",
-                        s.data[24].fluxo >= 0 ? "text-emerald-600" : "text-destructive",
+                        s.data[24].fluxo >= 0 ? "text-success" : "text-destructive",
                       )}
                     >
                       {fmt(s.data[24].fluxo)}
@@ -534,7 +534,7 @@ function SimuladorCaixa() {
                     <td
                       className={cn(
                         "py-2 text-right font-semibold",
-                        s.data[35].acumulado >= 0 ? "text-emerald-600" : "text-destructive",
+                        s.data[35].acumulado >= 0 ? "text-success" : "text-destructive",
                       )}
                     >
                       {fmt(s.data[35].acumulado)}
@@ -567,13 +567,13 @@ function SimuladorCaixa() {
                 {main.data.map((row) => (
                   <tr key={row.mes} className={cn("border-b", row.mes % 2 === 0 && "bg-muted/20")}>
                     <td className="py-1 font-medium">M{row.mes}</td>
-                    <td className="py-1 text-right text-emerald-600">{fmt(row.entradaRoas)}</td>
+                    <td className="py-1 text-right text-success">{fmt(row.entradaRoas)}</td>
                     <td className="py-1 text-right text-indigo-500">{fmt(row.entradaRoyalties)}</td>
                     <td className="py-1 text-right text-destructive">−{fmt(row.saida)}</td>
                     <td
                       className={cn(
                         "py-1 text-right font-medium",
-                        row.fluxo >= 0 ? "text-emerald-600" : "text-destructive",
+                        row.fluxo >= 0 ? "text-success" : "text-destructive",
                       )}
                     >
                       {fmt(row.fluxo)}
@@ -581,7 +581,7 @@ function SimuladorCaixa() {
                     <td
                       className={cn(
                         "py-1 text-right font-semibold",
-                        row.acumulado >= 0 ? "text-emerald-600" : "text-destructive",
+                        row.acumulado >= 0 ? "text-success" : "text-destructive",
                       )}
                     >
                       {fmt(row.acumulado)}
@@ -635,7 +635,7 @@ function SliderField({
           onValueChange={(v) => onChange(v[0])}
         />
       )}
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{hint}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{hint}</div>
     </div>
   );
 }

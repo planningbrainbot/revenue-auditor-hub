@@ -168,26 +168,26 @@ export function EbitOperacionalView() {
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Custo Operacional (mês atual)</div>
           <div className="text-2xl font-bold">{fmtMoney(custoMesAtual)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Soma dos itens · aba Controle de Gastos Geral</div>
+          <div className="text-xs text-muted-foreground mt-1">Soma dos itens · aba Controle de Gastos Geral</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Vendido (MRR atual)</div>
-          <div className="text-2xl font-bold text-emerald-600">{fmtMoney(mrrVendido)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">{vendidas.length} venda(s) confirmada(s)</div>
+          <div className="text-2xl font-bold text-success">{fmtMoney(mrrVendido)}</div>
+          <div className="text-xs text-muted-foreground mt-1">{vendidas.length} venda(s) confirmada(s)</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             Gap a fechar
             {gap <= 0 ? (
-              <TrendingUp className="h-3 w-3 text-emerald-600" />
+              <TrendingUp className="h-3 w-3 text-success" />
             ) : (
               <TrendingDown className="h-3 w-3 text-destructive" />
             )}
           </div>
-          <div className={cn("text-2xl font-bold", gap <= 0 ? "text-emerald-600" : "text-destructive")}>
+          <div className={cn("text-2xl font-bold", gap <= 0 ? "text-success" : "text-destructive")}>
             {gap <= 0 ? "EBIT zerado" : fmtMoney(gap)}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="text-xs text-muted-foreground mt-1">
             <Target className="inline h-3 w-3 mr-0.5" />
             {(pctCoberto * 100).toFixed(0)}% do custo coberto
           </div>
@@ -198,7 +198,7 @@ export function EbitOperacionalView() {
             Potencial pós-rampa
           </div>
           <div className="text-2xl font-bold text-muted-foreground">{fmtMoney(mrrPotencial)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="text-xs text-muted-foreground mt-1">
             Informativo — não conta pro gap oficial até acontecer
           </div>
         </Card>

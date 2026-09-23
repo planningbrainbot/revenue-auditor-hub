@@ -101,7 +101,7 @@ export function VerComoDialog({ aberto, aoFechar }: { aberto: boolean; aoFechar:
               {/* Sem sócio com login, a simulação mostra o que o PERFIL de sócio
                   regional alcança — e quem lê a lista precisa saber disso antes
                   de clicar, não depois. */}
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {u.socio ?? "sem sócio cadastrado"}
               </span>
             </button>

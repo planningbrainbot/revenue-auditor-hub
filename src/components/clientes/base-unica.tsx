@@ -216,7 +216,7 @@ export function ClientesBase() {
           >
             {label}
             {key === "pendencias" && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs text-amber-900">
+              <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
                 {
                   rows.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
                     .length
@@ -304,7 +304,7 @@ export function ClientesBase() {
                 <div className="mt-1 text-3xl font-semibold tabular-nums">
                   {number(Number(value))}
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {index === 0
                     ? "Contas conciliadas, sem multiplicar por contato"
                     : "Dentro do degrau anterior"}
@@ -413,7 +413,7 @@ export function ClientesBase() {
                             {d.title}
                           </a>
                           {!d.org_id && (
-                            <div className="text-xs text-amber-700">Sem empresa vinculada</div>
+                            <div className="text-xs text-warning">Sem empresa vinculada</div>
                           )}
                         </td>
                         <td className="p-3">{NOMES[d.route]}</td>
@@ -449,7 +449,7 @@ export function ClientesBase() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       {[
                         "Empresa / CNPJ",
@@ -475,7 +475,7 @@ export function ClientesBase() {
                           >
                             {a.name}
                           </button>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
                           </p>
                         </td>
@@ -500,14 +500,14 @@ export function ClientesBase() {
                         </td>
                         <td className="max-w-[190px] px-4 py-3 text-xs">
                           {a.base?.needs_source_correction ? (
-                            <span className="text-amber-700">Origem a corrigir no Pipefy</span>
+                            <span className="text-warning">Origem a corrigir no Pipefy</span>
                           ) : a.base?.source_status === "ok" ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700">
+                            <span className="inline-flex items-center gap-1 text-success">
                               <CheckCircle2 className="h-3 w-3" />
                               Pipefy conferido
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-amber-700">
+                            <span className="inline-flex items-center gap-1 text-warning">
                               <AlertCircle className="h-3 w-3" />
                               {a.base?.source_status === "absent"
                                 ? "Ausente no Pipefy"
@@ -518,7 +518,7 @@ export function ClientesBase() {
                                     : "Leitura pendente"}
                             </span>
                           )}
-                          <p className="mt-1 text-[10px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {a.base?.synced_at
                               ? at(a.base.synced_at)
                               : `${a.base?.omie_records || 0} registros Omie`}

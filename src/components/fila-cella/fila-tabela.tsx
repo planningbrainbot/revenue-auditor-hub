@@ -110,7 +110,7 @@ export function FilaTabela({
   return (
     <div className="space-y-2">
       {sort?.key === "score" && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
           Ordenado por Score. Lembre que o score não é comparável entre contas com e sem ECD — sem
           gatilho apurado não há força, e o teto cai de 11 para 5.
         </p>
@@ -179,7 +179,7 @@ export function FilaTabela({
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>
                     {r.vetado ? (
-                      <span className="font-semibold text-red-600">FORA</span>
+                      <span className="font-semibold text-danger">FORA</span>
                     ) : (
                       <span
                         className={cn(
@@ -209,7 +209,7 @@ export function FilaTabela({
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {r.segmento ?? "—"}
-                    {r.segmento_prioritario && <span className="ml-1 text-amber-500">★</span>}
+                    {r.segmento_prioritario && <span className="ml-1 text-warning">★</span>}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{BRL(r.mrr)}</TableCell>
                   <TableCell>
@@ -238,7 +238,7 @@ export function FilaTabela({
                   <TableCell
                     className={cn(
                       "whitespace-nowrap text-sm",
-                      dias != null && dias > 15 && "font-medium text-red-600",
+                      dias != null && dias > 15 && "font-medium text-danger",
                     )}
                   >
                     {dataBR(r.ultimo_toque)}
@@ -248,7 +248,7 @@ export function FilaTabela({
                       <div
                         className={cn(
                           "truncate text-sm",
-                          r.passo_vencido && "font-medium text-red-600",
+                          r.passo_vencido && "font-medium text-danger",
                         )}
                         title={r.proximo_passo}
                       >
@@ -258,7 +258,7 @@ export function FilaTabela({
                         </span>
                       </div>
                     ) : (
-                      <span className="text-sm text-amber-600">sem próximo passo</span>
+                      <span className="text-sm text-warning">sem próximo passo</span>
                     )}
                   </TableCell>
                 </TableRow>

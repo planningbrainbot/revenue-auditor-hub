@@ -155,7 +155,7 @@ export function AuditoriaFaturamentoContent() {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+      <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info-soft p-3 text-sm text-info">
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
           O "Esperado" é calculado a partir dos contratos ativos no Pipedrive. Unidades com base antiga (Curitiba e Patos de Minas) têm uma parcela de CSC não calculável pelo Pipedrive — ela aparece como "Sem categoria" no Omie.
@@ -201,7 +201,7 @@ export function AuditoriaFaturamentoContent() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{r.unidade}</span>
                       {r.paga_cac && (
-                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-200">CAC</Badge>
+                        <Badge className="bg-info-soft text-info hover:bg-info-soft">CAC</Badge>
                       )}
                     </div>
                   </TableCell>
@@ -218,7 +218,7 @@ export function AuditoriaFaturamentoContent() {
                   <TableCell className="text-right font-semibold">{brl(r.total_esperado)}</TableCell>
                   <TableCell>
                     {r.tem_base_antiga && (
-                      <Badge className="gap-1 bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-200">
+                      <Badge className="gap-1 bg-warning-soft text-warning hover:bg-warning-soft">
                         <AlertTriangle className="h-3 w-3" />
                         Base antiga não calculada
                       </Badge>

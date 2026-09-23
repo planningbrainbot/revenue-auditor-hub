@@ -13,7 +13,7 @@ export function ValidationBanner() {
   if (validated === null || validated === true) return null;
 
   return (
-    <div className="sticky top-0 z-30 border-b border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+    <div className="sticky top-0 z-30 border-b border-warning/40 bg-warning-soft text-warning">
       <div className="flex items-start gap-2 px-4 py-2 text-xs sm:text-sm">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <p>

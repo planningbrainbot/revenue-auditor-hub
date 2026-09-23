@@ -41,24 +41,24 @@ const CONVENTIONAL_RE = /^([a-z]+)(\([^)]+\))?:\s*(.+)$/i;
 const TYPE_LABEL: Record<string, { label: string; tone: string }> = {
   feat: {
     label: "feature",
-    tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+    tone: "bg-success-soft text-success",
   },
-  fix: { label: "correção", tone: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300" },
+  fix: { label: "correção", tone: "bg-danger-soft text-danger" },
   chore: {
     label: "manutenção",
-    tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    tone: "bg-muted text-foreground",
   },
   refactor: {
     label: "refatoração",
-    tone: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    tone: "bg-info-soft text-info",
   },
   docs: {
     label: "docs",
-    tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    tone: "bg-muted text-foreground",
   },
   style: {
     label: "estilo",
-    tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    tone: "bg-muted text-foreground",
   },
   perf: {
     label: "performance",
@@ -66,7 +66,7 @@ const TYPE_LABEL: Record<string, { label: string; tone: string }> = {
   },
   test: {
     label: "teste",
-    tone: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    tone: "bg-muted text-foreground",
   },
 };
 
@@ -192,7 +192,7 @@ function AtividadePage() {
     >
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
         {error && (
-          <Card className="border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <Card className="border-danger/40 bg-danger-soft p-4 text-sm text-danger">
             {error}
           </Card>
         )}

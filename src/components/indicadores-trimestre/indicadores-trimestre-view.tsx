@@ -120,14 +120,14 @@ function CardKPI({
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
         {alerta ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label={alerta} />
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={alerta} />
         ) : null}
       </div>
       <p className={cn("mt-2 text-2xl font-bold", valor === NA && "text-muted-foreground")}>
         {valor}
       </p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-      {alerta ? <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">{alerta}</p> : null}
+      {alerta ? <p className="mt-1 text-xs text-warning">{alerta}</p> : null}
     </Card>
   );
 }
@@ -251,8 +251,8 @@ export function IndicadoresTrimestreView() {
       </div>
 
       {!mat.madura ? (
-        <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="font-medium">Trimestre ainda não maturou.</p>
             <p className="text-muted-foreground">
@@ -323,7 +323,7 @@ export function IndicadoresTrimestreView() {
                       <TableCell className="font-medium">
                         {r.unidade}
                         {rampa ? (
-                          <Badge variant="outline" className="ml-2 text-[10px]">
+                          <Badge variant="outline" className="ml-2 text-xs">
                             {r.meses_apurados}/3 meses
                           </Badge>
                         ) : null}
@@ -366,7 +366,7 @@ export function IndicadoresTrimestreView() {
                           <span
                             className={cn(
                               r.churn_faturamento_n > r.churn_pipefy_n &&
-                                "text-amber-600 dark:text-amber-500",
+                                "text-warning",
                             )}
                           >
                             {fmtNum(r.churn_faturamento_n)}
@@ -493,8 +493,8 @@ function DetalheUnidade({ row: r }: { row: Row }) {
       </div>
 
       {gapChurn ? (
-        <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="font-medium">
               O pipe de Tratativas registra menos churn do que o faturamento mostra.

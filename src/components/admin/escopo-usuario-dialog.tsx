@@ -147,7 +147,7 @@ export function EscopoUsuarioDialog({
                 ))}
               </div>
               {!todasUnidades && unidades.length === 0 && (
-                <p className="mt-2 text-xs text-amber-600">
+                <p className="mt-2 text-xs text-warning">
                   Sem nenhuma unidade marcada, as telas com recorte por unidade abrem vazias.
                 </p>
               )}
@@ -171,7 +171,7 @@ export function EscopoUsuarioDialog({
               <div className={cn("space-y-2", todasEmpresas && "pointer-events-none opacity-40")}>
                 {porGrupo.map(([grupo, es]) => (
                   <div key={grupo}>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {grupo}
                     </p>
                     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">

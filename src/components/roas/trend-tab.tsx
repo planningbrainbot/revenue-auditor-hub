@@ -116,8 +116,8 @@ export function TrendTab() {
                           className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
                             v >= 1
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                              : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+                              ? "bg-success-soft text-success"
+                              : "bg-danger-soft text-danger",
                           )}
                         >
                           {v.toFixed(2)}
@@ -137,8 +137,8 @@ export function TrendTab() {
                         className={cn(
                           "inline-flex items-center rounded-full px-2 py-0.5 text-xs",
                           v >= 1
-                            ? "bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
-                            : "bg-red-200 text-red-900 dark:bg-red-900 dark:text-red-100",
+                            ? "bg-success-soft text-success"
+                            : "bg-danger-soft text-danger",
                         )}
                       >
                         {v.toFixed(2)}

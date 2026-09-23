@@ -278,7 +278,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
                   <td>{r.available}</td>
                   <td>{r.planned}</td>
                   <td>{r.started}</td>
-                  <td className={r.gap ? "text-amber-600" : ""}>{r.gap}</td>
+                  <td className={r.gap ? "text-warning" : ""}>{r.gap}</td>
                 </tr>
               ))}
             </tbody>
@@ -481,7 +481,7 @@ function FollowDay({ data, filter, openDeals }: Cut) {
                     {NOMES[c.route]}
                     <span className="block text-muted-foreground">{c.stage}</span>
                   </td>
-                  <td className="text-xs text-amber-600">{issue}</td>
+                  <td className="text-xs text-warning">{issue}</td>
                   <td>{age} dias</td>
                   <td>{date(c.next_activity)}</td>
                 </tr>

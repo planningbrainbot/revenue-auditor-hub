@@ -24,7 +24,7 @@ function Bloco({
 }) {
   const corpo = (
     <Card className="min-w-[180px] flex-1 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {titulo}
       </div>
       <div className="mt-1">{children}</div>

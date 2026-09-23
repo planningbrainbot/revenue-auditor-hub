@@ -40,15 +40,15 @@ function formatMesLabel(mes: string): string {
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   rascunho: {
     label: "Rascunho",
-    cls: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+    cls: "bg-muted text-foreground",
   },
   em_revisao: {
     label: "Em revisão",
-    cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+    cls: "bg-warning-soft text-warning",
   },
   confirmado: {
     label: "Confirmado",
-    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+    cls: "bg-success-soft text-success",
   },
   faturado: {
     label: "Faturado",
@@ -57,10 +57,10 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 };
 
 const TOM = {
-  ok: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
-  aviso: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
-  ruim: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200",
-  neutro: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+  ok: "bg-success-soft text-success",
+  aviso: "bg-warning-soft text-warning",
+  ruim: "bg-danger-soft text-danger",
+  neutro: "bg-muted text-foreground",
 };
 
 function dataCurta(iso: string | null | undefined): string {
@@ -82,7 +82,7 @@ function CelulaFatura({ f }: { f: FaturaDoMes | undefined }) {
   return (
     <div className="flex flex-col items-start gap-0.5">
       <Badge className={TOM.ok}>OS {f.num_os}</Badge>
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {brl(f.valor_total)} · emitida {dataCurta(f.faturada_em)}
       </span>
     </div>
@@ -106,7 +106,7 @@ function CelulaRecebimento({ f }: { f: FaturaDoMes | undefined }) {
       return (
         <div className="flex flex-col items-start gap-0.5">
           <Badge className={TOM.ruim}>Atrasado</Badge>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             venceu {dataCurta(r.vencimento)}
           </span>
         </div>
@@ -117,7 +117,7 @@ function CelulaRecebimento({ f }: { f: FaturaDoMes | undefined }) {
       return (
         <div className="flex flex-col items-start gap-0.5">
           <Badge className={TOM.aviso}>A vencer</Badge>
-          <span className="text-[11px] text-muted-foreground">{vence}</span>
+          <span className="text-xs text-muted-foreground">{vence}</span>
         </div>
       );
   }
@@ -199,7 +199,7 @@ export function ApuracaoRoyaltiesContent() {
       </div>
 
       {isMesEmAndamento(mes) && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
           Mês em andamento — a apuração só fecha depois que o mês termina. Use as setas para voltar
           ao mês anterior.
         </div>

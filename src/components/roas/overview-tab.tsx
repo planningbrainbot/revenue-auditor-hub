@@ -105,11 +105,11 @@ function Card({
 }) {
   const toneClass =
     tone === "emerald"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-success"
       : tone === "red"
-        ? "text-red-600 dark:text-red-400"
+        ? "text-danger"
         : tone === "amber"
-          ? "text-amber-600 dark:text-amber-400"
+          ? "text-warning"
           : "text-foreground";
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -210,7 +210,7 @@ export function OverviewTab() {
             <div
               className={cn(
                 "h-full rounded-full transition-all",
-                k.roas >= 1 ? "bg-emerald-500" : k.roas >= 0.6 ? "bg-amber-500" : "bg-red-500",
+                k.roas >= 1 ? "bg-success" : k.roas >= 0.6 ? "bg-warning" : "bg-danger",
               )}
               style={{ width: `${Math.min(100, k.roas * 100).toFixed(1)}%` }}
             />
@@ -252,7 +252,7 @@ export function OverviewTab() {
           </div>
           {k.saldo <= 0 ? (
             <>
-              <div className="mt-4 text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="mt-4 text-3xl font-bold text-success">
                 Mês 1 ✓
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -261,7 +261,7 @@ export function OverviewTab() {
             </>
           ) : (
             <>
-              <div className="mt-4 text-3xl font-bold text-amber-600 dark:text-amber-400">
+              <div className="mt-4 text-3xl font-bold text-warning">
                 {k.mesesParaCobrir != null ? `${k.mesesParaCobrir.toFixed(1)} meses` : "—"}
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -321,8 +321,8 @@ function Row({
     "flex items-center justify-between",
     bold && "font-semibold",
     muted && "text-muted-foreground",
-    tone === "emerald" && "text-emerald-600 dark:text-emerald-400",
-    tone === "red" && "text-red-600 dark:text-red-400",
+    tone === "emerald" && "text-success",
+    tone === "red" && "text-danger",
   );
   const sign = value >= 0 ? "+" : "−";
   return (

@@ -32,7 +32,7 @@ export function FilaHigieneBar({
 
   return (
     <Card className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Higiene §5.6
       </span>
       {itens.map((i) => {

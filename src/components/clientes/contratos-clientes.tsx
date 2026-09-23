@@ -168,38 +168,38 @@ const STATUS_META: Record<
 > = {
   ATIVO: {
     label: "Ativo",
-    card: "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-100",
-    badge: "bg-emerald-500 text-white hover:bg-emerald-500",
+    card: "bg-success-soft border-success/40 text-success",
+    badge: "bg-success text-background hover:bg-success",
     description: "Pagou nos últimos 90 dias",
   },
   EM_ATRASO: {
     label: "Em atraso",
-    card: "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950 dark:border-amber-900 dark:text-amber-100",
-    badge: "bg-amber-400 text-amber-950 hover:bg-amber-400",
+    card: "bg-warning-soft border-warning/40 text-warning",
+    badge: "bg-warning text-background hover:bg-warning",
     description: "Título vencido, mas pagou recentemente",
   },
   INADIMPLENTE: {
     label: "Inadimplente",
-    card: "bg-red-50 border-red-200 text-red-900 dark:bg-red-950 dark:border-red-900 dark:text-red-100",
-    badge: "bg-red-600 text-white hover:bg-red-600",
+    card: "bg-danger-soft border-danger/40 text-danger",
+    badge: "bg-danger text-background hover:bg-danger",
     description: "Vencido + sem pagamento há mais de 90 dias",
   },
   SEM_ATIVIDADE: {
     label: "Sem atividade",
-    card: "bg-orange-50 border-orange-200 text-orange-900 dark:bg-orange-950 dark:border-orange-900 dark:text-orange-100",
-    badge: "bg-orange-500 text-white hover:bg-orange-500",
+    card: "bg-warning-soft border-warning/40 text-warning",
+    badge: "bg-warning text-background hover:bg-warning",
     description: "Sem pagamento >90 dias, sem título em aberto",
   },
   NUNCA_PAGOU: {
     label: "Nunca pagou",
-    card: "bg-slate-700 border-slate-800 text-white dark:bg-slate-800 dark:border-slate-900",
-    badge: "bg-slate-700 text-white hover:bg-slate-700",
+    card: "bg-foreground border-border text-background",
+    badge: "bg-foreground text-background hover:bg-foreground",
     description: "Sem nenhum pagamento registrado",
   },
   SEM_AR: {
     label: "Sem AR",
-    card: "bg-slate-100 border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200",
-    badge: "bg-slate-300 text-slate-800 hover:bg-slate-300",
+    card: "bg-muted border-border text-foreground",
+    badge: "bg-muted text-foreground hover:bg-muted",
     description: "Sem histórico de faturamento (Pipedrive sem Omie)",
   },
 };
@@ -681,7 +681,7 @@ export function ContratosClientes({
             }}
             className={cn(
               "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
-              "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-100",
+              "bg-success-soft border-success/40 text-success",
               churnFilter === false && "ring-2 ring-offset-2 ring-primary",
             )}
           >
@@ -689,7 +689,7 @@ export function ContratosClientes({
               Clientes Ativos
             </div>
             <div className="mt-1 text-3xl font-bold">{churnCounts.ativo}</div>
-            <div className="mt-1 text-[11px] opacity-75">Sem card de churn em tratativas</div>
+            <div className="mt-1 text-xs opacity-75">Sem card de churn em tratativas</div>
           </button>
           <button
             type="button"
@@ -699,13 +699,13 @@ export function ContratosClientes({
             }}
             className={cn(
               "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
-              "bg-red-50 border-red-200 text-red-900 dark:bg-red-950 dark:border-red-900 dark:text-red-100",
+              "bg-danger-soft border-danger/40 text-danger",
               churnFilter === true && "ring-2 ring-offset-2 ring-primary",
             )}
           >
             <div className="text-xs font-medium uppercase tracking-wide opacity-80">Churn</div>
             <div className="mt-1 text-3xl font-bold">{churnCounts.churn}</div>
-            <div className="mt-1 text-[11px] opacity-75">Card "Perdido" em tratativas</div>
+            <div className="mt-1 text-xs opacity-75">Card "Perdido" em tratativas</div>
           </button>
         </div>
 
@@ -938,14 +938,14 @@ export function ContratosClientes({
                         <div className="flex items-center gap-2">
                           {displayName(r) || "—"}
                           {churned && (
-                            <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] px-1.5 py-0">
+                            <Badge className="bg-danger-soft text-danger border-danger/40 text-xs px-1.5 py-0">
                               churn
                             </Badge>
                           )}
                           {podeVerContatos && (contatosCount.get(r.id) ?? 0) > 0 && (
                             <Badge
                               variant="secondary"
-                              className="gap-1 px-1.5 py-0 text-[10px] font-normal"
+                              className="gap-1 px-1.5 py-0 text-xs font-normal"
                               title="Contatos vinculados — clique na linha para ver"
                             >
                               <Users className="h-3 w-3" />
@@ -970,7 +970,7 @@ export function ContratosClientes({
                             <span title={fonte ? `MRR vem do ${fonte}` : undefined}>
                               {fmtBRL(v)}
                               {fonte ? (
-                                <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                                <span className="ml-1 text-xs uppercase text-muted-foreground">
                                   {fonte}
                                 </span>
                               ) : null}
@@ -1040,9 +1040,9 @@ export function ContratosClientes({
         </Card>
 
         {q.trim().length >= 3 && (omieLoading || omieMatches.length > 0) && (
-          <Card className="border-amber-300 dark:border-amber-800">
+          <Card className="border-warning/40">
             <div className="flex items-center gap-2 border-b px-4 py-3">
-              <TriangleAlert className="h-4 w-4 text-amber-600" />
+              <TriangleAlert className="h-4 w-4 text-warning" />
               <span className="text-sm font-medium">
                 {omieLoading
                   ? "Buscando na Omie..."
@@ -1067,7 +1067,7 @@ export function ContratosClientes({
                             {m.razao_social || "—"}
                             <Badge
                               variant="outline"
-                              className="border-amber-400 text-amber-700 dark:text-amber-300 text-[10px] px-1.5 py-0"
+                              className="border-warning text-warning text-xs px-1.5 py-0"
                             >
                               não reconciliado
                             </Badge>
@@ -1083,7 +1083,7 @@ export function ContratosClientes({
                 </Table>
               </div>
             )}
-            <div className="border-t px-4 py-2 text-[11px] text-muted-foreground">
+            <div className="border-t px-4 py-2 text-xs text-muted-foreground">
               Encontrado no cadastro de clientes da Omie (ERP), mas sem vínculo com deal/contrato em
               `empresas`. Não conta nos cards, na contagem ou no MRR total acima — reconciliar
               manualmente se for um cliente ativo.
@@ -1262,7 +1262,7 @@ function MarcarChurnClienteButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-red-600 hover:text-red-700 dark:text-red-400"
+          className="h-7 w-7 text-danger hover:text-danger"
           title="Marcar churn"
         >
           <UserX className="h-3.5 w-3.5" />

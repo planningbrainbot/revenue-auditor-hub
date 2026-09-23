@@ -38,24 +38,24 @@ function UnmappedTable({
 
   const toneMap = {
     orange: {
-      box: "border-orange-300 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/30",
-      head: "bg-orange-100 text-orange-900 dark:bg-orange-900 dark:text-orange-100",
+      box: "border-warning/40 bg-warning-soft",
+      head: "bg-warning-soft text-warning",
     },
     purple: {
       box: "border-purple-300 bg-purple-50 dark:border-purple-900 dark:bg-purple-950/30",
       head: "bg-purple-100 text-purple-900 dark:bg-purple-900 dark:text-purple-100",
     },
     amber: {
-      box: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-      head: "bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100",
+      box: "border-warning/40 bg-warning-soft",
+      head: "bg-warning-soft text-warning",
     },
     sky: {
-      box: "border-sky-300 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30",
-      head: "bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100",
+      box: "border-info/40 bg-info-soft",
+      head: "bg-info-soft text-info",
     },
     slate: {
-      box: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
-      head: "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100",
+      box: "border-border bg-muted",
+      head: "bg-muted text-foreground",
     },
   } as const;
   const t = toneMap[tone];
@@ -139,10 +139,10 @@ export function UnmappedTab() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-orange-300 bg-orange-50 p-4 shadow-sm dark:border-orange-900 dark:bg-orange-950/30">
-          <div className="text-xs font-medium uppercase text-orange-800 dark:text-orange-200">Vendas sem recebimento localizado</div>
-          <div className="mt-1 text-3xl font-bold text-orange-900 dark:text-orange-100">{num(stats.deal_sem_planning)}</div>
-          <div className="text-xs text-orange-800/80 dark:text-orange-200/80">
+        <div className="rounded-lg border border-warning/40 bg-warning-soft p-4 shadow-sm">
+          <div className="text-xs font-medium uppercase text-warning">Vendas sem recebimento localizado</div>
+          <div className="mt-1 text-3xl font-bold text-warning">{num(stats.deal_sem_planning)}</div>
+          <div className="text-xs text-warning/80">
             Vendas fechadas no CRM (Pipedrive) que não foram encontradas no Planning. Investigar: contrato não cadastrado, CNPJ divergente ou duplicidade.
           </div>
         </div>

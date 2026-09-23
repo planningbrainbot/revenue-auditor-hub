@@ -159,8 +159,8 @@ export function ResolverCnpjDialog({
                     variant="outline"
                     className={
                       c.dv_valido
-                        ? "border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-300"
-                        : "border-red-300 text-red-700 dark:border-red-900 dark:text-red-300"
+                        ? "border-success/40 text-success"
+                        : "border-danger/40 text-danger"
                     }
                   >
                     DV {c.dv_valido ? "válido" : "inválido"}
@@ -202,7 +202,7 @@ export function ResolverCnpjDialog({
               </Button>
             </div>
             {manualDigits.length === 14 && !cnpjDvValido(manualDigits) && (
-              <p className="text-xs text-red-600">
+              <p className="text-xs text-danger">
                 Dígito verificador inválido. Já aconteceu na base (SantaMaria,{" "}
                 <span className="font-mono">27412261100075</span>) — transposição de dígitos.
               </p>

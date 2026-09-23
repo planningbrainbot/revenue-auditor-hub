@@ -53,7 +53,7 @@ export function NpsPlanoAcaoTab() {
       </p>
 
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando plano de ação…</Card>}
-      {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar plano de ação.</Card>}
+      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar plano de ação.</Card>}
 
       {data && (
         <>
@@ -64,23 +64,23 @@ export function NpsPlanoAcaoTab() {
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Com WhatsApp válido</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600">
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-success">
                 {data.totalComContatoValido}
                 <span className="ml-1 text-sm font-normal text-muted-foreground">({coberturaPct}%)</span>
               </div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Faltando contato</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-red-600">
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-danger">
                 {data.empresasSemContato.length}
               </div>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Contatos p/ classificar</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-amber-600">
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-warning">
                 {data.contatosParaClassificar.length}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">têm WhatsApp mas sem empresa vinculada</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">têm WhatsApp mas sem empresa vinculada</div>
             </Card>
           </div>
 
@@ -145,15 +145,15 @@ export function NpsPlanoAcaoTab() {
                       <TableCell className="text-xs text-muted-foreground">{e.origemDaBase ?? "—"}</TableCell>
                       <TableCell>
                         {e.status === "sem_contato" ? (
-                          <Badge variant="outline" className="border-red-600/30 bg-red-600/[0.07] text-red-700 dark:text-red-400">
+                          <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">
                             Sem contato
                           </Badge>
                         ) : e.status === "contato_formato_invalido" ? (
-                          <Badge variant="outline" className="border-orange-600/30 bg-orange-600/[0.07] text-orange-700 dark:text-orange-400">
+                          <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">
                             Formato inválido
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="border-amber-600/30 bg-amber-600/[0.07] text-amber-700 dark:text-amber-400">
+                          <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">
                             Sem WhatsApp
                           </Badge>
                         )}

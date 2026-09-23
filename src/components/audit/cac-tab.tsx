@@ -159,10 +159,10 @@ export function CacTab() {
                     <td className="px-3 py-2 font-medium">{u.nome}</td>
                     <td className="px-3 py-2 text-right">{u.clientes.length}</td>
                     <td className="px-3 py-2 text-right">{u.qtdAquisicoes}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right font-semibold text-success whitespace-nowrap">
                       {brl(u.cacRealizado)}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap text-amber-700 dark:text-amber-300">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-warning">
                       {brl(u.cacPendente)}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">{brl(ticket)}</td>

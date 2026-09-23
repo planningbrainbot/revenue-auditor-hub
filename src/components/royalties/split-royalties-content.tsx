@@ -248,7 +248,7 @@ export function SplitRoyaltiesContent() {
                   <div className="truncate font-medium">
                     {r.cliente ?? "—"}
                     {r.metodo_vinculo === "similaridade" && (
-                      <span className="ml-2 text-xs text-amber-600">vínculo por semelhança</span>
+                      <span className="ml-2 text-xs text-warning">vínculo por semelhança</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
