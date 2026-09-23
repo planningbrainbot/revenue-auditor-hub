@@ -459,6 +459,10 @@ export function receitaSintetica(hoje: string): LeituraReceita[] {
         status: corrente ? "rascunho" : "confirmado",
         receita_base: corrente ? 0 : Math.round(u.base * (1 + i * 0.02 + r() * 0.05)),
         receita_base_antiga: corrente ? 0 : Math.round(u.base * 0.1),
+        // Royalties e CSC fictícios: percentual fixo da base e CSC mensal fixo.
+        royalties_valor: corrente ? 0 : Math.round(u.base * 0.08 * 100) / 100,
+        csc_valor_fixo: corrente ? 0 : 5_000,
+        csc_base_antiga_valor: corrente ? 0 : Math.round(u.base * 0.1 * 0.05 * 100) / 100,
       });
     }
   });

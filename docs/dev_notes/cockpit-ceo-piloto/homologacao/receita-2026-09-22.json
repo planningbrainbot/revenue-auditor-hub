@@ -1,5 +1,5 @@
 {
-  "quando": "2026-09-23T02:18:09.178Z",
+  "quando": "2026-09-23T02:47:59.892Z",
   "hoje": "2026-09-22",
   "janela": {
     "de": "2024-10-01",
@@ -313,8 +313,8 @@
     "cockpit_mostraria": "acesso_insuficiente"
   },
   "tempos": {
-    "faturamento_ms": 2261,
-    "grupo_sql_ms": 2076,
-    "rede_ms": 1482
+    "faturamento_ms": 2078,
+    "grupo_sql_ms": 1577,
+    "rede_ms": 1397
   }
 }

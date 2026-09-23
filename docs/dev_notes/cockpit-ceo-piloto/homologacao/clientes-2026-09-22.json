@@ -1,5 +1,5 @@
 {
-  "quando": "2026-09-23T02:28:41.100Z",
+  "quando": "2026-09-23T02:49:56.430Z",
   "hoje": "2026-09-22",
   "desde90": "2026-06-24",
   "fonte": "banco único Planning Brain (npknehhyyzelmrbbxvtu), somente leitura, JWT de super admin simulado",
@@ -173,19 +173,20 @@
   },
   "negocios_ganhos": 2,
   "avisos": [
+    "8 CNPJs estão em mais de uma conta da Base: por isso \"contas na Base\" pode passar do número de CNPJs.",
     "Penetração é ganho no CRM (negócio ganho no pipe de Monetização do produto); não é consumo, contrato assinado nem receita. O pipe tem 2 negócios ganhos visíveis para você: quem já consumia o produto antes dele não aparece aqui."
   ],
   "confere": true,
   "tempos": {
-    "leitura_contrato_omie_ms": 1585,
-    "leitura_recebeu_90d_ms": 1442,
-    "leitura_qb_ativos_ms": 1282,
-    "leitura_mrr_positivo_ms": 1445,
-    "carga_base_ms": 68915,
+    "leitura_contrato_omie_ms": 1513,
+    "leitura_recebeu_90d_ms": 1420,
+    "leitura_qb_ativos_ms": 1348,
+    "leitura_mrr_positivo_ms": 1421,
+    "carga_base_ms": 61493,
     "carga": {
-      "tabelas_monetizacao": 1893,
-      "contas": 27052,
-      "catalogo": 39903
+      "tabelas_monetizacao": 2461,
+      "contas": 25710,
+      "catalogo": 33257
     }
   }
 }
