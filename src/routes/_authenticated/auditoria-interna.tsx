@@ -45,6 +45,7 @@ import {
   type Ordem,
 } from "@/components/auditoria-interna/column-filter";
 import { cn } from "@/lib/utils";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/auditoria-interna")({
   component: AuditoriaInternaPage,
@@ -968,6 +969,7 @@ function TipoTab({ rows, tipo }: { rows: Auditoria[]; tipo: TipoKey }) {
   );
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function AuditoriaInternaPage() {
   const [rows, setRows] = useState<Auditoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1008,30 +1010,25 @@ function AuditoriaInternaPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ClipboardCheck className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Auditoria Interna</h1>
-            <p className="text-sm text-muted-foreground">
-              Visão executiva dos projetos do time fiscal — auditoria, apoio ao comercial e reforma tributária
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={sync.isPending}
-          onClick={() => sync.mutate()}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-          Forçar atualização
-        </Button>
-      </div>
+      <PageHeader
+        titulo="Auditoria Interna"
+        descricao="Visão executiva dos projetos do time fiscal — auditoria, apoio ao comercial e reforma tributária"
+        acoes={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={sync.isPending}
+            onClick={() => sync.mutate()}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
+            Forçar atualização
+          </Button>
+        }
+      />
 
       {loading ? (
-        <div className="text-center text-sm text-muted-foreground py-16">Carregando…</div>
+        <Carregando variante="kpis" />
       ) : (
         <Tabs defaultValue="geral">
           <TabsList className="flex-wrap h-auto">

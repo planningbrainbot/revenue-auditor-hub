@@ -47,9 +47,9 @@ export function EcdChip({ estado }: { estado: EcdEstado }) {
 }
 
 const FORCA_CLASSE: Record<Forca, string> = {
-  Forte: "bg-success text-background hover:bg-success",
-  Moderado: "bg-warning text-background hover:bg-warning",
-  Fraco: "bg-muted-foreground text-background hover:bg-muted-foreground",
+  Forte: "bg-success-soft text-success",
+  Moderado: "bg-warning-soft text-warning",
+  Fraco: "bg-muted text-muted-foreground",
 };
 
 export function ForcaChip({

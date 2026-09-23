@@ -42,6 +42,7 @@ import {
   number,
   Panel,
 } from "./common";
+import { PageHeader } from "@/components/planning";
 
 export const ABAS = [
   "operacao",
@@ -66,6 +67,7 @@ const labels: Record<Aba, string> = {
   roteiros: "Abordagens",
   distribuicao: "Distribuição",
 };
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Aba) => void }) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -140,14 +142,22 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
   }));
   return (
     <main className="mx-auto max-w-[1600px] space-y-3 p-4 md:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <img
-          src="/brand/caixa/assinatura-horizontal.svg"
-          alt="Caixa de Oportunidade"
-          className="h-10 w-auto dark:brightness-0 dark:invert"
-        />
-        <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
-      </div>
+      {/* Cada aba é um item do menu de Monetização, então o título é o da aba
+          (o menu chama a primeira de "Operação diária"). A assinatura da Caixa de
+          Oportunidade continua, agora ao lado do frescor do CRM. */}
+      <PageHeader
+        titulo={aba === "operacao" ? "Operação diária" : labels[aba]}
+        acoes={
+          <>
+            <img
+              src="/brand/caixa/assinatura-horizontal.svg"
+              alt="Caixa de Oportunidade"
+              className="h-8 w-auto dark:brightness-0 dark:invert"
+            />
+            <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
+          </>
+        }
+      />
       <div
         className="flex gap-1 overflow-x-auto border-b"
         role="tablist"

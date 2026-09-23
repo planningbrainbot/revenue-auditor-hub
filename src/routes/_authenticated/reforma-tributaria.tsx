@@ -15,12 +15,12 @@ import {
   Printer,
   Maximize2,
   RefreshCw,
-  FileBarChart2,
   X,
   Pencil,
 } from 'lucide-react';
 import { DEFAULT_DATA, parseReformaTributariaXlsx, type ReformaTributariaData } from '@/components/reforma-tributaria/xlsx-parser';
 import { generatePresentationHTML } from '@/components/reforma-tributaria/html-generator';
+import { PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute('/_authenticated/reforma-tributaria')({
   component: ReformaTributariaPage,
@@ -65,6 +65,7 @@ function computeDefaultTextos(d: ReformaTributariaData): Pick<ReformaTributariaD
   };
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function ReformaTributariaPage() {
   const [data, setData] = useState<ReformaTributariaData>({ ...DEFAULT_DATA });
   const [fileName, setFileName] = useState('');
@@ -245,19 +246,13 @@ function ReformaTributariaPage() {
       {/* ── LEFT COLUMN — FORM ── */}
       <div className="w-[420px] shrink-0 flex flex-col border-r border-border">
         {/* Header */}
-        <div className="p-5 border-b border-border shrink-0">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-success/10 border border-success/20">
-              <FileBarChart2 className="h-4 w-4 text-success" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold">Reforma Tributária</h1>
-                <Badge variant="outline" className="text-xs border-warning/30 text-warning">Confidencial</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Gere apresentações a partir do arquivo de simulação</p>
-            </div>
-          </div>
+        <div className="border-b border-border px-5 pt-5 shrink-0">
+          <PageHeader
+            titulo="Reforma Tributária"
+            descricao="Gere apresentações a partir do arquivo de simulação"
+            acoes={<Badge variant="outline" className="text-xs border-warning/30 text-warning">Confidencial</Badge>}
+            className="border-b-0"
+          />
         </div>
 
         <div className="p-4 space-y-5 flex-1 overflow-y-auto">
@@ -546,7 +541,7 @@ function ReformaTributariaPage() {
         {/* ── ACTION BUTTONS ── */}
         <div className="p-4 border-t border-border shrink-0 space-y-2">
           <Button
-            className="w-full bg-success hover:bg-success text-background text-sm h-9"
+            className="w-full text-sm h-9"
             onClick={() => {
               if (editMode) {
                 iframeRef.current?.contentWindow?.postMessage({ type: 'reforma-exit-edit' }, '*');

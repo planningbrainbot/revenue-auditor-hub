@@ -4,7 +4,6 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Building2,
   ExternalLink,
   FileSpreadsheet,
   Pencil,
@@ -55,6 +54,7 @@ import {
 import { atualizarCliente, marcarChurnCliente } from "@/lib/clientes.functions";
 import { MOTIVOS_CHURN, type MotivoChurn } from "@/lib/royalties.functions";
 import { digits } from "@/lib/server-utils";
+import { Secao } from "@/components/planning";
 
 type StatusFinanceiro =
   "ATIVO" | "EM_ATRASO" | "INADIMPLENTE" | "SEM_ATIVIDADE" | "NUNCA_PAGOU" | "SEM_AR";
@@ -169,25 +169,25 @@ const STATUS_META: Record<
   ATIVO: {
     label: "Ativo",
     card: "bg-success-soft border-success/40 text-success",
-    badge: "bg-success text-background hover:bg-success",
+    badge: "bg-success-soft text-success",
     description: "Pagou nos últimos 90 dias",
   },
   EM_ATRASO: {
     label: "Em atraso",
     card: "bg-warning-soft border-warning/40 text-warning",
-    badge: "bg-warning text-background hover:bg-warning",
+    badge: "bg-warning-soft text-warning",
     description: "Título vencido, mas pagou recentemente",
   },
   INADIMPLENTE: {
     label: "Inadimplente",
     card: "bg-danger-soft border-danger/40 text-danger",
-    badge: "bg-danger text-background hover:bg-danger",
+    badge: "bg-danger-soft text-danger",
     description: "Vencido + sem pagamento há mais de 90 dias",
   },
   SEM_ATIVIDADE: {
     label: "Sem atividade",
     card: "bg-warning-soft border-warning/40 text-warning",
-    badge: "bg-warning text-background hover:bg-warning",
+    badge: "bg-warning-soft text-warning",
     description: "Sem pagamento >90 dias, sem título em aberto",
   },
   NUNCA_PAGOU: {
@@ -659,18 +659,12 @@ export function ContratosClientes({
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Building2 className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contratos da rede</h1>
-          <p className="text-sm text-muted-foreground">
-            Recorte operacional das unidades regionais. Estes números medem contratos e situação
-            financeira, não o total da base.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-6">
+      {/* Aba de /clientes, que já tem o PageHeader: o título aqui é de seção. */}
+      <Secao
+        titulo="Contratos da rede"
+        descricao="Recorte operacional das unidades regionais. Estes números medem contratos e situação financeira, não o total da base."
+        className="space-y-6"
+      >
         {/* Status do Cliente (ativo vs churn) */}
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -1090,7 +1084,7 @@ export function ContratosClientes({
             </div>
           </Card>
         )}
-      </div>
+      </Secao>
 
       <ContatosClienteDialog
         cliente={contatoCliente}

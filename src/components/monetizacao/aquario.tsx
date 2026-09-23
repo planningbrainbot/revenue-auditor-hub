@@ -5,7 +5,6 @@ import {
   ArrowRight,
   CheckCheck,
   Download,
-  Fish,
   ListPlus,
   Search,
   Send,
@@ -74,6 +73,7 @@ import {
   OfertaTag,
   Panel,
 } from "./common";
+import { Secao } from "@/components/planning";
 
 type Filters = PortfolioFilters;
 // Mesmo limite da validação do servidor para listas e envios (salvarListaAquario / monetizacao_save_list).
@@ -162,323 +162,320 @@ export function Aquario({
   );
   return (
     <main className={embedded ? "space-y-4" : "mx-auto max-w-[1600px] space-y-4 p-4 md:p-6"}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Fish className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold">Cockpit da base</h1>
-            <p className="text-xs text-muted-foreground">
-              Base de clientes · carteiras e listas para os sócios
-            </p>
-          </div>
+      {/* Vive embutido em /clientes, que já tem o PageHeader: aqui o título é de
+          seção (h2), não um segundo título de página. */}
+      <Secao
+        titulo="Cockpit da base"
+        descricao="Base de clientes · carteiras e listas para os sócios"
+        acoes={<Freshness data={data} refreshing={refreshing} onRefresh={refresh} />}
+        className="space-y-4"
+      >
+        {data.sync_error && (
+          <Notice>
+            A atualização do CRM falhou. Os dados exibidos são da última carga concluída.{" "}
+            {data.sync_error}
+          </Notice>
+        )}
+        {!data.permissions.all_units && !data.units.length && (
+          <Notice>
+            Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
+            definir suas carteiras.
+          </Notice>
+        )}
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          <Kpi
+            label="Contas na base conciliada"
+            value={number(data.accounts.length)}
+            hint="Uma conta, mesmo com mais de um produto"
+          />
+          <Kpi
+            label="Cella · perfil aderente"
+            value={number(cella.length)}
+            hint="A partir de R$ 25 mi · fora do Simples"
+          />
+          <Kpi
+            label="Consultoria · carteira retroativa"
+            value={number(consultBase.length)}
+            hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
+            accent
+          />
+          <Kpi
+            label="Finance · perfil aderente"
+            value={number(finance.length)}
+            hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
+          />
+          <Kpi
+            label="Mais de um produto"
+            value={number(overlap.length)}
+            hint="Contas já incluídas nos produtos ao lado"
+          />
         </div>
-        <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
-      </div>
-      {data.sync_error && (
-        <Notice>
-          A atualização do CRM falhou. Os dados exibidos são da última carga concluída.{" "}
-          {data.sync_error}
-        </Notice>
-      )}
-      {!data.permissions.all_units && !data.units.length && (
-        <Notice>
-          Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
-          definir suas carteiras.
-        </Notice>
-      )}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <Kpi
-          label="Contas na base conciliada"
-          value={number(data.accounts.length)}
-          hint="Uma conta, mesmo com mais de um produto"
-        />
-        <Kpi
-          label="Cella · perfil aderente"
-          value={number(cella.length)}
-          hint="A partir de R$ 25 mi · fora do Simples"
-        />
-        <Kpi
-          label="Consultoria · carteira retroativa"
-          value={number(consultBase.length)}
-          hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
-          accent
-        />
-        <Kpi
-          label="Finance · perfil aderente"
-          value={number(finance.length)}
-          hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
-        />
-        <Kpi
-          label="Mais de um produto"
-          value={number(overlap.length)}
-          hint="Contas já incluídas nos produtos ao lado"
-        />
-      </div>
-      <Panel title="Listas potenciais por produto">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            onClick={() => setTab("recon")}
-            className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "recon" ? "border-primary bg-primary/5" : ""}`}
-          >
-            <span className="flex items-center justify-between font-semibold">
-              Recon <ArrowRight className="h-4 w-4" />
-            </span>
-            <p className="mt-2 text-sm">
-              {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
-              {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
-            </p>
-          </button>
-          {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
-            const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
-            const free = eligible.filter(
-              (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
-            );
-            return (
-              <button
-                key={p}
-                onClick={() => {
-                  setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
-                  setPicked(new Set());
-                  setTab("contas");
-                }}
-                className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "contas" && filters.product === p ? "border-primary bg-primary/5" : ""}`}
-              >
-                <span className="flex items-center justify-between gap-2 font-semibold">
-                  {NOMES[p]}
-                  <span className="flex shrink-0 items-center gap-1">
-                    {p === "consultoria" && consultPending.length > 0 && (
-                      <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
-                        {consultPending.length} a confirmar
-                      </span>
-                    )}
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
-                </span>
-                {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
-                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
-                <p className="my-2 text-3xl font-semibold tabular-nums">
-                  {number(free.length)}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    aptas e disponíveis
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {p === "consultoria"
-                    ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
-                    : `${number(eligible.length)} com perfil aderente`}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {p === "consultoria"
-                    ? "Base Antiga · sem fechamento comercial · contato opcional"
-                    : p === "cella"
-                      ? "A partir de R$ 25 mi · fora do Simples"
-                      : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-        <Button
-          className="mt-3"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setFilters({
-              ...emptyFilters,
-              product: "consultoria",
-              origin: ["antiga"],
-              status: ["qualificar"],
-            });
-            setPicked(new Set());
-            setTab("contas");
-          }}
-        >
-          Conferir regime da base retroativa
-        </Button>
-        <p className="mt-3 text-xs text-muted-foreground">
-          A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
-          preenchido no Pipedrive; contato é opcional.
-        </p>
-      </Panel>
-      <Tabs value={tab} onValueChange={setTab}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="carteiras">Carteiras por unidade</TabsTrigger>
-            <TabsTrigger value="contas">Todas as contas</TabsTrigger>
-            <TabsTrigger value="recon">Recon</TabsTrigger>
-            <TabsTrigger value="listas">
-              Listas para sócios <span className="ml-1 text-xs">{data.lists.length}</span>
-            </TabsTrigger>
-            <TabsTrigger value="gates">Entenda os números</TabsTrigger>
-          </TabsList>
-          <Link
-            to="/monetizacao"
-            search={{ aba: "operacao" }}
-            className="flex items-center gap-1 text-xs font-medium text-primary"
-          >
-            Acompanhar operação <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <TabsContent value="carteiras" className="space-y-4">
-          <Panel title="Abra a unidade para organizar a apresentação">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {data.units.map((u) => {
-                const keys = new Set(u.account_keys);
-                const accounts = data.accounts.filter((a) => keys.has(a.key)),
-                  c = accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
-                  pending = accounts.filter(
-                    (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
-                  ).length,
-                  f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length,
-                  cella_u = accounts.filter((a) => oferta(a, "cella").status === "elegivel").length,
-                  antigas = accounts.filter((a) => origemBase(a) === "antiga").length,
-                  novas = accounts.filter((a) => origemBase(a) === "nova").length,
-                  conferir = accounts.filter((a) =>
-                    ["confirmar", "divergente"].includes(origemBase(a)),
-                  ).length;
-                return (
-                  <button
-                    key={u.key}
-                    onClick={() => {
-                      // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
-                      if (unit?.key !== u.key) {
-                        setFilters(emptyFilters);
-                        setPicked(new Set());
-                      }
-                      setUnit(u);
-                    }}
-                    className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold">{u.name}</span>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
-                          <span
-                            className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning"
-                            title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
-                          >
-                            cobertura parcial
-                          </span>
-                        )}
-                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
-                      </div>
-                    </div>
-                    {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
-                        unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
-                    <p className="my-2 text-3xl font-semibold tabular-nums">
-                      {number(u.cnpjs ?? accounts.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">empresas</span>
-                    </p>
-                    {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
-                        censo. As fontes se sobrepõem, por isso não somam. */}
-                    <p className="text-xs text-muted-foreground">
-                      {u.omie_integrado === false
-                        ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
-                        : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
-                    </p>
-                    {/* Composição da origem em barra: comprimento compara melhor que três números. */}
-                    <div
-                      className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted"
-                      title={`${antigas} antigas · ${novas} novas · ${conferir} a conferir`}
-                    >
-                      {[
-                        ["bg-primary", antigas],
-                        ["bg-info", novas],
-                        ["bg-muted-foreground/40", conferir],
-                      ].map(([cor, n], i) =>
-                        (n as number) > 0 ? (
-                          <div
-                            key={i}
-                            className={cor as string}
-                            style={{
-                              width: `${Math.max(2, ((n as number) / Math.max(1, accounts.length)) * 100)}%`,
-                            }}
-                          />
-                        ) : null,
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-primary">{c} aptas em Consultoria</span>
-                      {pending > 0 && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
-                          {pending} a confirmar
+        <Panel title="Listas potenciais por produto">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <button
+              onClick={() => setTab("recon")}
+              className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "recon" ? "border-primary bg-primary/5" : ""}`}
+            >
+              <span className="flex items-center justify-between font-semibold">
+                Recon <ArrowRight className="h-4 w-4" />
+              </span>
+              <p className="mt-2 text-sm">
+                {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
+                {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
+              </p>
+            </button>
+            {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
+              const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
+              const free = eligible.filter(
+                (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+              );
+              return (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
+                    setPicked(new Set());
+                    setTab("contas");
+                  }}
+                  className={`rounded-lg border p-4 text-left hover:border-primary ${tab === "contas" && filters.product === p ? "border-primary bg-primary/5" : ""}`}
+                >
+                  <span className="flex items-center justify-between gap-2 font-semibold">
+                    {NOMES[p]}
+                    <span className="flex shrink-0 items-center gap-1">
+                      {p === "consultoria" && consultPending.length > 0 && (
+                        <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
+                          {consultPending.length} a confirmar
                         </span>
                       )}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </Panel>
-          <Notice>
-            As carteiras podem compartilhar contas. Os totais por unidade não devem ser somados.
-            Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
-          </Notice>
-        </TabsContent>
-        <TabsContent value="contas">{content(data.accounts)}</TabsContent>
-        <TabsContent value="recon">
-          <ReconAquario accounts={data.accounts} showAccount={setAccount} />
-        </TabsContent>
-        <TabsContent value="listas" forceMount className={tab === "listas" ? "" : "hidden"}>
-          <ListWorkspace
-            data={data}
-            initial={draft}
-            onConsume={() => setDraft(null)}
-            showAccount={setAccount}
-          />
-        </TabsContent>
-        <TabsContent value="gates">
-          <Gates data={data} />
-        </TabsContent>
-      </Tabs>
-      <Sheet open={!!unit} onOpenChange={(o) => !o && setUnit(null)}>
-        <SheetContent
-          className="w-full overflow-y-auto sm:max-w-[min(1180px,95vw)]"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-        >
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              {unit?.name}
-            </SheetTitle>
-            <SheetDescription>
-              {unitAccounts.length} contas · veja a origem da carteira e filtre o produto para
-              trabalhar.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-5 space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {Object.entries(ORIGENS_BASE).map(([key, label]) => (
-                <Kpi
-                  key={key}
-                  label={label}
-                  value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
-                  onClick={() => {
-                    setFilters({ ...emptyFilters, origin: [key as OrigemBase] });
-                    setPicked(new Set());
-                  }}
-                />
-              ))}
-            </div>
-            {content(unitAccounts, true)}
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </span>
+                  {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
+                      aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
+                  <p className="my-2 text-3xl font-semibold tabular-nums">
+                    {number(free.length)}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      aptas e disponíveis
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {p === "consultoria"
+                      ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
+                      : `${number(eligible.length)} com perfil aderente`}
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {p === "consultoria"
+                      ? "Base Antiga · sem fechamento comercial · contato opcional"
+                      : p === "cella"
+                        ? "A partir de R$ 25 mi · fora do Simples"
+                        : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
+                  </p>
+                </button>
+              );
+            })}
           </div>
-          {/* Dentro do SheetContent de proposito: como irmao, o fade de saida da ficha devolvia o
-              clique ao overlay da gaveta e fechava a unidade junto, levando a montagem de lista. */}
-          {unit && (
-            <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
-          )}
-        </SheetContent>
-      </Sheet>
-      {!unit && (
-        <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
-      )}
+          <Button
+            className="mt-3"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFilters({
+                ...emptyFilters,
+                product: "consultoria",
+                origin: ["antiga"],
+                status: ["qualificar"],
+              });
+              setPicked(new Set());
+              setTab("contas");
+            }}
+          >
+            Conferir regime da base retroativa
+          </Button>
+          <p className="mt-3 text-xs text-muted-foreground">
+            A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
+            preenchido no Pipedrive; contato é opcional.
+          </p>
+        </Panel>
+        <Tabs value={tab} onValueChange={setTab}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabsList>
+              <TabsTrigger value="carteiras">Carteiras por unidade</TabsTrigger>
+              <TabsTrigger value="contas">Todas as contas</TabsTrigger>
+              <TabsTrigger value="recon">Recon</TabsTrigger>
+              <TabsTrigger value="listas">
+                Listas para sócios <span className="ml-1 text-xs">{data.lists.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="gates">Entenda os números</TabsTrigger>
+            </TabsList>
+            <Link
+              to="/monetizacao"
+              search={{ aba: "operacao" }}
+              className="flex items-center gap-1 text-xs font-medium text-primary"
+            >
+              Acompanhar operação <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <TabsContent value="carteiras" className="space-y-4">
+            <Panel title="Abra a unidade para organizar a apresentação">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {data.units.map((u) => {
+                  const keys = new Set(u.account_keys);
+                  const accounts = data.accounts.filter((a) => keys.has(a.key)),
+                    c = accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+                    pending = accounts.filter(
+                      (a) => potencialConsultoria(a) && oferta(a, "consultoria").status === "revisar",
+                    ).length,
+                    f = accounts.filter((a) => oferta(a, "finance").status === "elegivel").length,
+                    cella_u = accounts.filter((a) => oferta(a, "cella").status === "elegivel").length,
+                    antigas = accounts.filter((a) => origemBase(a) === "antiga").length,
+                    novas = accounts.filter((a) => origemBase(a) === "nova").length,
+                    conferir = accounts.filter((a) =>
+                      ["confirmar", "divergente"].includes(origemBase(a)),
+                    ).length;
+                  return (
+                    <button
+                      key={u.key}
+                      onClick={() => {
+                        // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
+                        if (unit?.key !== u.key) {
+                          setFilters(emptyFilters);
+                          setPicked(new Set());
+                        }
+                        setUnit(u);
+                      }}
+                      className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold">{u.name}</span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {u.omie_integrado === false && (u.cnpjs ?? 0) > 0 && (
+                            <span
+                              className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning"
+                              title="O Omie desta unidade não chega ao Brain. A carteira faturada pode ser maior do que o que aparece aqui."
+                            >
+                              cobertura parcial
+                            </span>
+                          )}
+                          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                        </div>
+                      </div>
+                      {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
+                          unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
+                      <p className="my-2 text-3xl font-semibold tabular-nums">
+                        {number(u.cnpjs ?? accounts.length)}{" "}
+                        <span className="text-xs font-normal text-muted-foreground">empresas</span>
+                      </p>
+                      {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
+                          censo. As fontes se sobrepõem, por isso não somam. */}
+                      <p className="text-xs text-muted-foreground">
+                        {u.omie_integrado === false
+                          ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
+                          : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
+                      </p>
+                      {/* Composição da origem em barra: comprimento compara melhor que três números. */}
+                      <div
+                        className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted"
+                        title={`${antigas} antigas · ${novas} novas · ${conferir} a conferir`}
+                      >
+                        {[
+                          ["bg-primary", antigas],
+                          ["bg-info", novas],
+                          ["bg-muted-foreground/40", conferir],
+                        ].map(([cor, n], i) =>
+                          (n as number) > 0 ? (
+                            <div
+                              key={i}
+                              className={cor as string}
+                              style={{
+                                width: `${Math.max(2, ((n as number) / Math.max(1, accounts.length)) * 100)}%`,
+                              }}
+                            />
+                          ) : null,
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-primary">{c} aptas em Consultoria</span>
+                        {pending > 0 && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
+                            {pending} a confirmar
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
+            <Notice>
+              As carteiras podem compartilhar contas. Os totais por unidade não devem ser somados.
+              Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
+            </Notice>
+          </TabsContent>
+          <TabsContent value="contas">{content(data.accounts)}</TabsContent>
+          <TabsContent value="recon">
+            <ReconAquario accounts={data.accounts} showAccount={setAccount} />
+          </TabsContent>
+          <TabsContent value="listas" forceMount className={tab === "listas" ? "" : "hidden"}>
+            <ListWorkspace
+              data={data}
+              initial={draft}
+              onConsume={() => setDraft(null)}
+              showAccount={setAccount}
+            />
+          </TabsContent>
+          <TabsContent value="gates">
+            <Gates data={data} />
+          </TabsContent>
+        </Tabs>
+        <Sheet open={!!unit} onOpenChange={(o) => !o && setUnit(null)}>
+          <SheetContent
+            className="w-full overflow-y-auto sm:max-w-[min(1180px,95vw)]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+          >
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                {unit?.name}
+              </SheetTitle>
+              <SheetDescription>
+                {unitAccounts.length} contas · veja a origem da carteira e filtre o produto para
+                trabalhar.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-5 space-y-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {Object.entries(ORIGENS_BASE).map(([key, label]) => (
+                  <Kpi
+                    key={key}
+                    label={label}
+                    value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
+                    onClick={() => {
+                      setFilters({ ...emptyFilters, origin: [key as OrigemBase] });
+                      setPicked(new Set());
+                    }}
+                  />
+                ))}
+              </div>
+              {content(unitAccounts, true)}
+            </div>
+            {/* Dentro do SheetContent de proposito: como irmao, o fade de saida da ficha devolvia o
+                clique ao overlay da gaveta e fechava a unidade junto, levando a montagem de lista. */}
+            {unit && (
+              <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
+            )}
+          </SheetContent>
+        </Sheet>
+        {!unit && (
+          <AccountDetail account={account} cards={data.cards} close={() => setAccount(null)} />
+        )}
+      </Secao>
     </main>
   );
 }

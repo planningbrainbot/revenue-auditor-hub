@@ -1280,7 +1280,7 @@ function FiliaisCell({
         title={count > 0 ? `${count} filial(is) vinculada(s)` : "Vincular filiais Omie"}
       >
         {count > 0 ? (
-          <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 font-medium text-info hover:bg-info-soft">
+          <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 font-medium text-info hover:bg-info/15">
             <Link2 className="h-3 w-3" />
             {count} filial{count > 1 ? "is" : ""}
           </span>
@@ -1610,7 +1610,7 @@ function SecaoGrupo({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs transition-colors",
                       checkFiltro === "pendentes"
-                        ? "bg-warning text-background"
+                        ? "bg-warning-soft text-warning ring-1 ring-inset ring-warning/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >
@@ -1627,7 +1627,7 @@ function SecaoGrupo({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs transition-colors",
                       checkFiltro === "confirmados"
-                        ? "bg-success text-background"
+                        ? "bg-success-soft text-success ring-1 ring-inset ring-success/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >

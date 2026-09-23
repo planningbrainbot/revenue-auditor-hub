@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, Search, X, CalendarIcon } from "lucide-react";
+import { Search, X, CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
+import { PageHeader } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -69,6 +70,7 @@ function parseDate(d: string | null): Date | null {
   }
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function ContasReceberView() {
   const [rows, setRows] = useState<ContaReceber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,15 +167,10 @@ export function ContasReceberView() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Wallet className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contas a Receber — Partners</h1>
-          <p className="text-sm text-muted-foreground">
-            Faturas emitidas pela conta Omie da Partners (Matriz) — origem: Omie.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Contas a Receber — Partners"
+        descricao="Faturas emitidas pela conta Omie da Partners (Matriz) — origem: Omie."
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />

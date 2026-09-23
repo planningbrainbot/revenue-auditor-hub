@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +41,7 @@ import { useRoyaltiesHistoricoRede } from "@/hooks/use-royalties";
 import { useSaudeCarteira } from "@/hooks/use-saude-carteira";
 import { normalizeUnitName, unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
+import { Carregando, PageHeader } from "@/components/planning";
 
 // Todo card do Overview segue o mesmo padrão: número-resumo aqui, "ver
 // detalhe" leva pra página dona daquele dado. O Overview nunca duplica a
@@ -158,6 +159,7 @@ function RedeOverviewGuard() {
   return <RedeOverviewPage />;
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeOverviewPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<ReconcRow[]>([]);
@@ -908,53 +910,52 @@ function RedeOverviewPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Activity className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Overview — Gestão da Rede</h1>
-            <p className="text-sm text-muted-foreground">Receita, clientes e retenção da rede</p>
-          </div>
-        </div>
-        {perms.scopedToOwnUnit && perms.unidade ? (
-          <Badge variant="secondary" className="h-9 px-3 text-sm">
-            Unidade: {perms.unidade}
-          </Badge>
-        ) : (
-          <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Unidade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos</SelectItem>
-              {unidades.map((u) => (
-                <SelectItem key={u} value={u}>
-                  {u}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
-            aria-label="Data inicial"
-          />
-          <span className="text-sm text-muted-foreground">até</span>
-          <input
-            type="date"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
-            aria-label="Data final"
-          />
-        </div>
-      </div>
+      <PageHeader
+        titulo="Overview"
+        descricao="Gestão da Rede: receita, clientes e retenção da rede"
+        filtros={
+          <>
+            {perms.scopedToOwnUnit && perms.unidade ? (
+              <Badge variant="secondary" className="h-9 px-3 text-sm">
+                Unidade: {perms.unidade}
+              </Badge>
+            ) : (
+              <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Todos</SelectItem>
+                  {unidades.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                aria-label="Data inicial"
+              />
+              <span className="text-sm text-muted-foreground">até</span>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                aria-label="Data final"
+              />
+            </div>
+          </>
+        }
+      />
 
-      {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
+      {loading && <Carregando variante="kpis" />}
 
       {loadError && (
         <Card className="border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">

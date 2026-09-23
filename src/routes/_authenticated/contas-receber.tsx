@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Wallet, Search, X, CalendarIcon } from "lucide-react";
+import { Search, X, CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
@@ -48,6 +48,7 @@ import {
   YAxis,
 } from "recharts";
 import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { PageHeader } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -112,6 +113,7 @@ function parseSearchDate(s: string): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function ContasReceberPage() {
   const search = Route.useSearch();
   const { data, isLoading } = useContasReceber();
@@ -279,18 +281,11 @@ function ContasReceberPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Wallet className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Contas a Receber</h1>
-            <p className="text-sm text-muted-foreground">
-              Faturas emitidas pelas unidades — origem: Omie.
-            </p>
-          </div>
-        </div>
-        <OmieLastSync className="pt-1" />
-      </div>
+      <PageHeader
+        titulo="Contas a Receber"
+        descricao="Faturas emitidas pelas unidades — origem: Omie."
+        acoes={<OmieLastSync />}
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />

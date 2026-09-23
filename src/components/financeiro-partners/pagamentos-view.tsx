@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
+import { PageHeader } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -201,6 +202,7 @@ function fmtMes(mesReferencia: string): string {
   return `${m}/${y}`;
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function PagamentosView() {
   const [apuracoes, setApuracoes] = useState<ApuracaoRow[]>([]);
   const [pagamentos, setPagamentos] = useState<PagamentoRow[]>([]);
@@ -400,15 +402,10 @@ export function PagamentosView() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <CircleDollarSign className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recebimentos das Unidades</h1>
-          <p className="text-sm text-muted-foreground">
-            Faturas das apurações de royalties fechadas (confirmadas) — status do Omie como referência + validação manual contra o extrato bancário.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Recebimentos das Unidades"
+        descricao="Faturas das apurações de royalties fechadas (confirmadas) — status do Omie como referência + validação manual contra o extrato bancário."
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard icon={CircleDollarSign} label="Total a Receber" value={brl(kpis.total)} tone="slate" />

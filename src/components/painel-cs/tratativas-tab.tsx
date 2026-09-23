@@ -75,7 +75,7 @@ function fmtMesLabel(mesKey: string): string {
 
 function statusBadge(status: string | null) {
   const s = (status ?? "").toLowerCase();
-  if (s === "won") return <Badge className="bg-success hover:bg-success">Ganho</Badge>;
+  if (s === "won") return <Badge variant="sucesso">Ganho</Badge>;
   if (s === "lost") return <Badge variant="destructive">Perdido</Badge>;
   if (s === "open") return <Badge variant="secondary">Aberto</Badge>;
   return <Badge variant="outline">{status ?? NA}</Badge>;

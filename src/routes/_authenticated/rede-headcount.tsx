@@ -13,10 +13,11 @@ import {
   YAxis,
 } from "recharts";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { Users, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/rede-headcount")({
   component: RedeHeadcountPage,
@@ -49,6 +50,7 @@ const fmtMes = (m: string | null | undefined) => {
   return d.toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
 };
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeHeadcountPage() {
   const [rows, setRows] = useState<HeadcountRow[]>([]);
   const [reconcRows, setReconcRows] = useState<ReconcRow[]>([]);
@@ -126,13 +128,10 @@ function RedeHeadcountPage() {
   if (!tableExists) {
     return (
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-            <p className="text-sm text-muted-foreground">Admissões, demissões e turnover por unidade</p>
-          </div>
-        </div>
+        <PageHeader
+          titulo="Headcount"
+          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+        />
         <Card className="p-6">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-warning mt-0.5 shrink-0" />
@@ -179,16 +178,16 @@ CREATE POLICY "Headcount leitura autenticados"
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-muted-foreground">Carregando dados…</div>;
+    return <Carregando variante="pagina" className="p-4 md:p-6" />;
   }
 
   if (rows.length === 0) {
     return (
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-        </div>
+        <PageHeader
+          titulo="Headcount"
+          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+        />
         <Card className="p-6 text-center text-sm text-muted-foreground">
           Tabela criada mas sem dados. Insira registros na tabela <code className="bg-muted px-1 rounded">headcount_mensal</code>.
         </Card>
@@ -198,13 +197,10 @@ CREATE POLICY "Headcount leitura autenticados"
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <Users className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-          <p className="text-sm text-muted-foreground">Admissões, demissões e turnover por unidade</p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Headcount"
+        descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

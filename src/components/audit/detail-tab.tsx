@@ -183,7 +183,7 @@ export function DetailTab() {
                 onClick={() => setSelected(r)}
                 className={cn(
                   "border-t cursor-pointer hover:bg-muted/50",
-                  r.status_pagamento === "inadimplente" && "bg-danger-soft/70 hover:bg-danger-soft/70",
+                  r.status_pagamento === "inadimplente" && "bg-danger-soft/70 hover:bg-danger-soft",
                 )}
               >
                 <td className="px-3 py-2 font-mono text-xs">{r.deal_id ?? "—"}</td>

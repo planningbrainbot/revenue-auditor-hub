@@ -14,10 +14,10 @@ import {
   YAxis,
 } from "recharts";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/rede-ltv")({
   component: RedeLtvPage,
@@ -57,6 +57,7 @@ function monthDiff(from: Date, to: Date): number {
   return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeLtvPage() {
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
   const [roas, setRoas] = useState<RoasMensalRow[]>([]);
@@ -167,13 +168,10 @@ function RedeLtvPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <TrendingUp className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">LTV Estimado — Gestão da Rede</h1>
-          <p className="text-sm text-muted-foreground">Valor do tempo de vida estimado por cliente</p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="LTV Estimado"
+        descricao="Gestão da Rede: valor do tempo de vida estimado por cliente"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
@@ -196,7 +194,7 @@ function RedeLtvPage() {
         </Card>
       </div>
 
-      {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
+      {loading && <Carregando variante="grafico" />}
 
       {!loading && (
         <>

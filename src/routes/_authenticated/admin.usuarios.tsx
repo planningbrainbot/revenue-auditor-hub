@@ -43,14 +43,10 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
 
 type Role = string;
 
-const SYSTEM_ROLE_PILL: Record<string, string> = {
-  admin: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  diretor: "bg-info-soft text-info",
-  socio: "bg-success-soft text-success",
-  head: "bg-warning-soft text-warning",
-  auditor: "bg-danger-soft text-danger",
-  socio_regional: "bg-success-soft text-success",
-};
+// Papel e produto são CATEGORIA, não status. Pintados com as cores de status,
+// "auditor" parecia erro, "sócio" parecia sucesso e sócio e sócio regional
+// ficavam iguais. A palavra já diz qual é; a pílula é neutra para todos.
+const ROLE_PILL = "border border-input text-foreground";
 const CUSTOM_ROLE_PILL = "bg-muted text-foreground";
 
 // Papéis e departamentos do Growth — espelham os CHECK de public.membros lá.
@@ -72,11 +68,6 @@ const PRODUTOS = [
   { slug: "financeiro", rotulo: "Financeiro" },
 ] as const;
 
-const PRODUTO_PILL: Record<string, string> = {
-  ops: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  growth: "bg-info-soft text-info",
-  financeiro: "bg-success-soft text-success",
-};
 const PRODUTO_PILL_OFF =
   "border border-dashed border-border text-muted-foreground hover:border-solid hover:bg-accent";
 
@@ -155,7 +146,6 @@ function UsersPage() {
   );
 
   const roleLabel = (key: string) => roles.find((r) => r.key === key)?.label ?? key;
-  const rolePill = (key: string) => SYSTEM_ROLE_PILL[key] ?? CUSTOM_ROLE_PILL;
 
   const [showForm, setShowForm] = useState(false);
   const [nome, setNome] = useState("");
@@ -592,7 +582,7 @@ function UsersPage() {
                         type="button"
                         onClick={() => abrirEdicao(u)}
                         title="Clique para trocar o papel desta pessoa"
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 ${rolePill(u.role)}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 ${ROLE_PILL}`}
                       >
                         {roleLabel(u.role)}
                       </button>
@@ -680,7 +670,7 @@ function UsersPage() {
                               navigate({ to: "/admin/acessos-financeiro" });
                             }}
                             className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 ${
-                              tem ? PRODUTO_PILL[prod.slug] ?? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
+                              tem ? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
                             }`}
                           >
                             {prod.rotulo}

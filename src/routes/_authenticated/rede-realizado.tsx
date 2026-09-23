@@ -11,10 +11,10 @@ import {
   YAxis,
 } from "recharts";
 import { CORES_SERIE } from "@/lib/planning/grafico";
-import { BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/rede-realizado")({
   component: RedeRealizadoPage,
@@ -69,6 +69,7 @@ const METRICS: { key: MetricKey; label: string; format: (v: number) => string }[
   { key: "nps", label: "NPS", format: (v) => String(Math.round(v)) },
 ];
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeRealizadoPage() {
   const [reconcRows, setReconcRows] = useState<ReconcRow[]>([]);
   const [roasRows, setRoasRows] = useState<RoasUnitRow[]>([]);
@@ -186,15 +187,12 @@ function RedeRealizadoPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <BarChart3 className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Realizado por Unidade</h1>
-          <p className="text-sm text-muted-foreground">Métricas por unidade ao longo do tempo</p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Realizado Unidades"
+        descricao="Realizado por unidade: métricas ao longo do tempo"
+      />
 
-      {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
+      {loading && <Carregando variante="grafico" />}
 
       {!loading && (
         <Tabs defaultValue="receita" className="w-full">

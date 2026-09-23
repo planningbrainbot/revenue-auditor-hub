@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Building2,
   ArrowRight,
   Download,
   RefreshCw,
@@ -42,6 +41,7 @@ import { downloadCsv, inputClass, LoadingState, number } from "@/components/mone
 import { AccountDetail } from "@/components/monetizacao/account-detail";
 import { Aquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
+import { PageHeader } from "@/components/planning";
 
 const views = [
   // O cockpit abre a base: é onde se decide o que trabalhar. "Empresas" vem logo depois.
@@ -61,6 +61,7 @@ const at = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
     : "Sem leitura confirmada";
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function ClientesBase() {
   const query = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -183,30 +184,25 @@ export function ClientesBase() {
   };
   return (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold">Base de clientes</h1>
-            <p className="text-xs text-muted-foreground">
-              Uma base · empresas, contatos, negócios e oportunidades
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={query.isFetching}
-          onClick={() => {
-            void invalidate();
-            void health.refetch();
-            void contacts.refetch();
-          }}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Atualizar
-        </Button>
-      </header>
+      <PageHeader
+        titulo="Base de clientes"
+        descricao="Uma base · empresas, contatos, negócios e oportunidades"
+        acoes={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={query.isFetching}
+            onClick={() => {
+              void invalidate();
+              void health.refetch();
+              void contacts.refetch();
+            }}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
+        }
+      />
       <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
         {views.map(([key, label]) => (
           <button

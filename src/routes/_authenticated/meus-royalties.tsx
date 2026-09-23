@@ -120,8 +120,8 @@ function MeusRoyaltiesPage() {
 
   function situacao(prev: number, rec: number | null) {
     if (rec == null) return <Badge variant="outline">—</Badge>;
-    if (rec >= prev * 0.99) return <Badge className="bg-success hover:bg-success">Pago</Badge>;
-    if (rec > 0) return <Badge className="bg-warning hover:bg-warning">Parcial</Badge>;
+    if (rec >= prev * 0.99) return <Badge variant="sucesso">Pago</Badge>;
+    if (rec > 0) return <Badge variant="atencao">Parcial</Badge>;
     return <Badge variant="destructive">Em aberto</Badge>;
   }
 

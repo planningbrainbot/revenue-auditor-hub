@@ -103,7 +103,7 @@ export function LogToquesTab() {
                     </Badge>
                   )}
                   {t.override_por && (
-                    <Badge className="bg-warning font-normal text-background hover:bg-warning">
+                    <Badge variant="atencao" className="font-normal">
                       override
                     </Badge>
                   )}
