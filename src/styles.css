@@ -5,29 +5,92 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Planning Design System
- * - Dark theme: preto profundo + verde mint vibrante (#2EE5A8)
- * - Light theme: branco + verde mint escurecido (#14B881) para contraste
- * - Tipografia: Poppins (carregada em __root.tsx)
+ * Planning Brain · tokens v2
+ * Regras de uso: docs/design/DESIGN.md. Autoridade: a spec em
+ * docs/superpowers/specs/2026-09-23-design-system-v2-design.md (§2.3 a §2.5).
+ *
+ * Por que cada grupo existe:
+ *
+ * - Papéis (background, card, foreground, muted-foreground, border, input,
+ *   primary, ring…): a tela escolhe o PAPEL, nunca o matiz. O escuro é o
+ *   padrão da marca; o claro usa os mesmos nomes. `border` é só divisória
+ *   (1,3:1); borda de controle usa `input`, que passa 3:1 nos dois temas.
+ *
+ * - Verde da marca em dois papéis: `primary` (#0ae18c) é só PREENCHIMENTO,
+ *   com texto #04110b em cima (11,2:1). `primary-text` é o verde usado como
+ *   texto/link: no escuro é o próprio #0ae18c, no claro é #007a4f, porque o
+ *   verde vivo sobre branco dá 1,7:1 e some. A marca é "preto sobre vivo".
+ *
+ * - Status (success, warning, danger, info + *-soft): positivo, atenção, erro e
+ *   informação têm um lugar só, em vez de cada tela escolher emerald/amber/red.
+ *   Laranja da marca é atenção, ciano da marca é informação; o vermelho é a
+ *   única cor fora da paleta e só significa erro. O *-soft é o fundo do selo:
+ *   o texto do status sobre ele passa 4,5:1 (conferido em 23/09/2026).
+ *   `destructive` do shadcn aponta para o mesmo vermelho.
+ *
+ * - Cor de área (--area-<slug>): identifica a área no filete, no anel e na
+ *   grade de círculos, nunca como fundo nem texto. No claro, verde, ciano e
+ *   lima vivos não passam 3:1 sobre branco; a variante clara é o mesmo matiz
+ *   (OKLCH) escurecido até ≥3,2:1.
+ *
+ * - Gráfico (--chart-1..6): ordem fixa verde → ciano → roxo → laranja → lima →
+ *   neutro. Validação da paleta registrada em src/lib/planning/grafico.ts.
+ *   As variáveis são hex: use `var(--chart-n)` direto, sem embrulhar em hsl.
+ *
+ * - Tipografia: Bw Glenn Sans é a fonte da marca, mas os .woff2 ainda não
+ *   existem (pendência do Mika); o @font-face fica pronto e o navegador cai
+ *   para Fira Sans, a mais próxima na prancha oficial. Números em
+ *   `tabular-nums` para as colunas alinharem.
+ *
+ * - Raio e movimento: base 10px (controle 8, card 12, sheet 16); 120ms no
+ *   hover, 200ms na entrada, ease-out, e nada disso com reduced-motion.
  */
 
+@font-face {
+  font-family: "Bw Glenn Sans";
+  src: url("/fonts/BwGlennSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bw Glenn Sans";
+  src: url("/fonts/BwGlennSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bw Glenn Sans";
+  src: url("/fonts/BwGlennSans-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
-  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Bw Glenn Sans", "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --ease-planning: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Base 10px: md = controle (8), xl = card (12), 2xl = sheet (16). */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: calc(var(--radius) + 2px);
+  --radius-2xl: calc(var(--radius) + 6px);
+  --radius-3xl: calc(var(--radius) + 10px);
+  --radius-4xl: calc(var(--radius) + 14px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-surface-elevated: var(--surface-elevated);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -40,11 +103,33 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-area-rede: var(--area-rede);
+  --color-area-minha_unidade: var(--area-minha_unidade);
+  --color-area-broker: var(--area-broker);
+  --color-area-clientes: var(--area-clientes);
+  --color-area-receita: var(--area-receita);
+  --color-area-monetizacao: var(--area-monetizacao);
+  --color-area-people: var(--area-people);
+  --color-area-estrategia: var(--area-estrategia);
+  --color-area-admin: var(--area-admin);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -55,90 +140,131 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Light theme (white background) */
+/* Tema claro. Contraste medido sobre `card` (#ffffff). */
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  /* Paleta Planning Brain — a mesma no Ops, no Growth e no Financeiro.
-   *
-   * Antes o Ops usava cinza neutro (croma zero) e um verde proprio, enquanto
-   * os outros dois ja usavam a marca: verde #0ae18c, ciano #14c8fa e um preto
-   * azulado. Quem trocava de produto via a temperatura da tela mudar. Quem se
-   * moveu foi o Ops, porque era o unico fora do padrao.
-   *
-   * No claro, verde e ciano aparecem em DOIS valores: um escuro para texto e
-   * borda (contraste sobre branco) e o vivo para preenchimento. Verde vivo em
-   * texto sobre branco da 1.7:1 e e ilegivel. */
-  --background: #f4f7f9;
-  --foreground: #10171c;
+  --background: #f5f7f8;
+  --foreground: #0b1216; /* 18,9:1 */
   --card: #ffffff;
-  --card-foreground: #10171c;
+  --card-foreground: #0b1216;
   --popover: #ffffff;
-  --popover-foreground: #10171c;
+  --popover-foreground: #0b1216;
+  --surface-elevated: #ffffff;
   --primary: #0ae18c;
-  --primary-foreground: #06090b;
-  --secondary: #f7f9fa;
-  --secondary-foreground: #10171c;
+  --primary-foreground: #04110b;
+  --primary-text: #007a4f; /* 5,4:1 */
+  --secondary: #eef2f4;
+  --secondary-foreground: #0b1216;
   --muted: #eceff2;
-  --muted-foreground: #4a5b66;
+  --muted-foreground: #4f606b; /* 6,5:1 */
   --accent: #e2f8ee;
-  --accent-foreground: #00875a;
-  --destructive: #c0392b;
+  --accent-foreground: #007a4f;
+  --destructive: #c62a2f;
   --destructive-foreground: #ffffff;
   --border: #dde4e9;
-  --input: #dde4e9;
-  --ring: #00875a;
-  --chart-1: #0ae18c;
-  --chart-2: #14c8fa;
-  --chart-3: #5b8def;
-  --chart-4: #ffc857;
-  --chart-5: #c792ea;
+  --input: #7d8b94; /* 3,5:1, borda de controle */
+  --ring: #007a4f;
+
+  --success: #00794e; /* 5,5:1 */
+  --success-soft: #ebf4f1; /* texto success sobre ele: 4,9:1 */
+  --warning: #b54400; /* 5,5:1 */
+  --warning-soft: #f9f0eb; /* 4,9:1 */
+  --danger: #c62a2f; /* 5,6:1 */
+  --danger-soft: #faeeee; /* 4,9:1 */
+  --info: #0074a0; /* 5,2:1 */
+  --info-soft: #ebf4f7; /* 4,7:1 */
+
+  /* Variantes escurecidas no mesmo matiz até ≥3:1 sobre branco. */
+  --area-rede: #009bcb; /* ciano, 3,2:1 */
+  --area-minha_unidade: #009bcb;
+  --area-broker: #009bcb;
+  --area-clientes: #00a454; /* verde, 3,3:1 */
+  --area-receita: #7d9b00; /* lima, 3,2:1 */
+  --area-monetizacao: #f36201; /* laranja, 3,2:1 */
+  --area-people: #962dff; /* roxo já passa: 5,1:1 */
+  --area-estrategia: #00a454;
+  --area-admin: #849199; /* neutro, 3,2:1 */
+
+  /* Ver validação em src/lib/planning/grafico.ts. A lima do gráfico é mais
+   * escura que a da área porque, ao lado do laranja, a #7d9b00 colapsa para
+   * quem tem deuteranopia (ΔE 4,4). */
+  --chart-1: #00a454;
+  --chart-2: #009bcb;
+  --chart-3: #962dff;
+  --chart-4: #f36201;
+  --chart-5: #526b00;
+  --chart-6: #849199;
   --chart-csat: #0b7285;
+
   --sidebar: #ffffff;
-  --sidebar-foreground: #10171c;
-  --sidebar-primary: #00875a;
+  --sidebar-foreground: #0b1216;
+  --sidebar-primary: #007a4f;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e2f8ee;
-  --sidebar-accent-foreground: #00875a;
+  --sidebar-accent-foreground: #007a4f;
   --sidebar-border: #dde4e9;
-  --sidebar-ring: #00875a;
+  --sidebar-ring: #007a4f;
 }
 
-/* Dark theme (Planning signature) */
+/* Tema escuro, o padrão da marca. Contraste medido sobre `card` (#0d1418). */
 .dark {
-  /* Mesmos nomes, valores do tema escuro da marca. */
   --background: #06090b;
-  --foreground: #e8eef2;
-  --card: #10171c;
+  --foreground: #e8eef2; /* 15,9:1 */
+  --card: #0d1418;
   --card-foreground: #e8eef2;
-  --popover: #10171c;
+  --popover: #121b21;
   --popover-foreground: #e8eef2;
+  --surface-elevated: #121b21;
   --primary: #0ae18c;
-  --primary-foreground: #06090b;
+  --primary-foreground: #04110b;
+  --primary-text: #0ae18c; /* 10,8:1 */
   --secondary: #141c22;
   --secondary-foreground: #e8eef2;
   --muted: #141c22;
-  --muted-foreground: #8fa0ab;
+  --muted-foreground: #93a4af; /* 7,2:1 */
   --accent: #0c2a20;
   --accent-foreground: #0ae18c;
-  --destructive: #ff6b5e;
+  --destructive: #ff6b6b;
   --destructive-foreground: #06090b;
-  --border: #1e2a31;
-  --input: #1e2a31;
+  --border: #1f2b33;
+  --input: #5b6d78; /* 3,5:1, borda de controle */
   --ring: #0ae18c;
+
+  --success: #3ef0a8; /* 12,6:1 */
+  --success-soft: #132e29; /* texto success sobre ele: 9,8:1 */
+  --warning: #ff9a5c; /* 8,9:1 */
+  --warning-soft: #2a2420; /* 7,3:1 */
+  --danger: #ff6b6b; /* 6,7:1 */
+  --danger-soft: #2a1e22; /* 5,8:1 */
+  --info: #5ad8ff; /* 11,2:1 */
+  --info-soft: #162c34; /* 8,8:1 */
+
+  --area-rede: #14c8fa;
+  --area-minha_unidade: #14c8fa;
+  --area-broker: #14c8fa;
+  --area-clientes: #0ae18c;
+  --area-receita: #c3e61e;
+  --area-monetizacao: #fa6914;
+  --area-people: #962dff; /* 3,6:1, o mais baixo do escuro */
+  --area-estrategia: #0ae18c;
+  --area-admin: #8a979f;
+
   --chart-1: #0ae18c;
   --chart-2: #14c8fa;
-  --chart-3: #7aa2ff;
-  --chart-4: #ffc857;
-  --chart-5: #c792ea;
+  --chart-3: #962dff;
+  --chart-4: #fa6914;
+  --chart-5: #c3e61e;
+  --chart-6: #8a979f;
   --chart-csat: #14c8fa;
-  --sidebar: #10171c;
+
+  --sidebar: #0d1418;
   --sidebar-foreground: #e8eef2;
   --sidebar-primary: #0ae18c;
-  --sidebar-primary-foreground: #06090b;
+  --sidebar-primary-foreground: #04110b;
   --sidebar-accent: #0c2a20;
   --sidebar-accent-foreground: #0ae18c;
-  --sidebar-border: #1e2a31;
+  --sidebar-border: #1f2b33;
   --sidebar-ring: #0ae18c;
 }
 
@@ -155,5 +281,30 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+  }
+
+  /* Coluna de número só alinha com algarismos de largura fixa. */
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* Quem pediu menos movimento ao sistema não recebe transição nem animação. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
