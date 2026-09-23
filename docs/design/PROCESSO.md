@@ -36,12 +36,13 @@ A branch `feat/design-system-v2-20260923` saiu de `origin/main` `eea3d90`. A `ma
 | **B · Casca** | lateral, cabeçalho com trilha, `AppShell` → `PageHeader` | médio: `app-sidebar.tsx` e `route.tsx` são do Eliezek | Eliezek |
 | **C · Codemod e cabeçalhos** | troca de cor crua por token, fonte menor que 12px, cabeçalhos ad-hoc → `PageHeader` | **alto**: toca ~90 arquivos | Eliezek + Pedro |
 
-O PR C não é mesclado resolvendo conflito à mão. No dia combinado:
+No PR C, conflito de classe não se resolve à mão, mas o codemod sozinho também não basta. A revisão final de 23/09 refez o codemod sobre a base e comparou com a branch: 38 dos 100 arquivos têm trabalho manual por cima dele (gráficos, cabeçalhos, selos revisados, lint zerado). Refazer a branch e só rodar o script jogaria esse trabalho fora. No dia combinado:
 1. Eliezek segura os commits por uma janela curta.
-2. A branch é refeita a partir da `main` do dia.
-3. `node scripts/design/codemod-cores.mjs` roda de novo; o script é reexecutável de propósito.
-4. Build + `npm run design:lint` + capturas.
-5. Merge no mesmo dia.
+2. **Rebase** da branch sobre a `main` do dia. Os commits manuais continuam na história e são reaplicados pelo git.
+3. Onde o rebase der conflito **só de classe** (className), aceite a versão da `main` para o arquivo e rode `npm run design:codemod` nele. Depois reaplique à mão só o que o commit manual mudou naquele arquivo (`git show <commit> -- <arquivo>`). Conflito em lógica se resolve normalmente e com o Eliezek, nunca pelo script.
+4. Para as telas que nasceram na `main` depois de `eea3d90`, rode `npm run design:codemod` de novo; o script é reexecutável e não mexe no que já está em token.
+5. Build + `npm run design:lint` (0 erros, catraca) + `npm run design:capturar -- integracao`.
+6. Merge no mesmo dia.
 
 Antes de cada merge, o preview da Vercel é aberto nas cinco telas de conferência (Overview da Rede, Base de clientes, Fila Cella, Apuração de Royalties e Admin › Usuários), nos dois temas. Se der errado, volta com `git revert` do merge.
 
