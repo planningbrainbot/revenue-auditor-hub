@@ -103,6 +103,20 @@ pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
 
 ---
 
+## [2026-09-23] Tela em duas áreas: o portão pergunta por TODAS, não pela primeira
+
+**Contexto:** o super admin, vestindo o sócio de Maceió pelo "Ver como", abriu a Base de clientes e levou "Esta página é da área Base de clientes. Seu acesso não inclui essa área" com o item grifado na lateral, ao lado. O portão de área que entrou em 22/09 (`route.tsx`, motivado por quem tem só Planning People caindo em `/rede-overview`) resolvia o caminho com `areaDoCaminho`, que devolvia a **primeira** área da lista `AREAS` que declara aquela URL.
+
+Sete caminhos moram em duas áreas de propósito, e em todos a área da matriz vem primeiro na lista: `/clientes`, `/painel-cs` e `/nps` estão em `clientes` e `minha_unidade`; `/idu` em `rede` e `minha_unidade`; `/funil-receita` e `/contas-receber` em `receita` e `minha_unidade_financeiro`; `/broker` em `broker` e `minha_unidade`. O banco já concordava com o desenho: `ops.area_chaves` concede `view.clientes`, `view.painel_cs` e `view.nps` pelos dois lados, então `can()` dizia sim, o menu mostrava o item, a RLS já recortava para a unidade, e só o portão do frontend dizia não. Quatro dos seis itens do menu do sócio regional estavam trancados.
+
+**Decisão — quem tem UMA das áreas do caminho entra.** `areaDoCaminho` vira `areasDoCaminho`, que devolve todas, e o portão só bloqueia quem não tem nenhuma. O nome antigo continua existindo como atalho de aparência (cabeçalho e cor da área), documentado como "não use para decidir acesso". Não se cogitou dar a área `clientes` ao papel `socio_regional`: isso levaria junto Auditoria Interna, Reforma Tributária e Base de Contatos, e derrubaria a fronteira desenhada em 16/09, quando o bloco Financeiro saiu do sócio via `minha_unidade_financeiro`.
+
+**Status:** implementado, commit `86c187d` (`src/lib/areas.ts`, `src/routes/_authenticated/route.tsx`), publicado em produção pelo CLI da Vercel em 23/09/2026. Conferido rodando `areasDoCaminho` com as áreas reais do papel (`minha_unidade`, `people`, `broker`, lidas de `ops.role_areas`): os 6 itens do menu do sócio abrem, e `/funil-receita`, `/contas-receber` e `/rede-overview` seguem trancados. Nada mudou em RLS, em `ops.areas` ou em `ops.area_chaves`.
+
+**Regra que fica:** área é fronteira de confiança, não pasta de menu. Quando a mesma tela é o trabalho da matriz e o da unidade, ela aparece nas duas áreas, e qualquer código que pergunte "de que área é este caminho" para decidir acesso está errado por construção.
+
+---
+
 ## [2026-09-09] Fim do vocabulário de franquia: papel `socio_franqueado` vira `socio_regional`
 
 **Contexto:** a Planning é uma rede de unidades regionais, no modelo de agência de banco — "franquia", "franqueadora" e "franqueado" não descrevem o negócio e não devem aparecer na plataforma. O termo estava espalhado em rótulo de papel, subtítulo de tela, descrição de permissão, textos de ajuda e comentários.
