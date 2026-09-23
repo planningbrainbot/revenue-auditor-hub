@@ -84,3 +84,21 @@ test('Link ausente não aproveita uma sessão já logada', async () => {
   assert.equal((await createPasswordRecoveryFlow(auth, {kind:'missing'}).save('valid-password')).ok, false);
   assert.equal(calls.length, 0);
 });
+
+test('Senha provisória: a sessão prova a identidade, sem OTP e sem e-mail', async () => {
+  const { calls, auth } = fixture();
+  const flow = createPasswordRecoveryFlow(auth, { kind: 'sessao' });
+  assert.deepEqual(await flow.save('valid-password'), { ok: true });
+  assert.equal(calls.some(c => c[0] === 'verify'), false);
+  assert.deepEqual(calls.map(c => c[0]), ['user', 'user', 'update']);
+  assert.deepEqual(calls.at(-1), ['update', { password: 'valid-password' }]);
+});
+
+test('Senha provisória sem sessão viva não troca a senha', async () => {
+  const { calls, auth } = fixture();
+  auth.getUser = async () => ({ data: { user: null }, error: { code: 'session_not_found' } });
+  const result = await createPasswordRecoveryFlow(auth, { kind: 'sessao' }).save('valid-password');
+  assert.equal(result.ok, false);
+  assert.equal(result.expired, true);
+  assert.equal(calls.some(c => c[0] === 'update'), false);
+});

@@ -14,6 +14,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
+import { temSenhaProvisoria } from "@/lib/senha-provisoria";
 import { areasDoCaminho, AREAS, type Area, type Item } from "@/lib/areas";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,11 @@ export const Route = createFileRoute("/_authenticated")({
     // request via requireSupabaseAuth's getClaims() check.
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.user) throw redirect({ to: "/auth" });
+    // Senha provisória gerada pelo admin: a senha andou por WhatsApp, então a
+    // pessoa não navega no Ops antes de cadastrar a dela. Vale para qualquer
+    // caminho daqui para dentro, e não para a tela de login nem para
+    // /redefinir-senha, que ficam fora deste layout — sem risco de laço.
+    if (temSenhaProvisoria(data.session.user)) throw redirect({ to: "/redefinir-senha" });
     return { user: data.session.user };
   },
   component: AuthenticatedLayout,

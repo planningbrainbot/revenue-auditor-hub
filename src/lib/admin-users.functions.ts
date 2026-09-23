@@ -4,6 +4,8 @@ import { assertAffected } from "@/lib/supabase-assert";
 import { enviarEmailAcesso as enviarEmail, accessEmailStatus } from "@/lib/email-access.server";
 import { emailBoasVindas, emailRedefinicaoSenha } from "@/lib/email-templates";
 import { passwordRecoveryLink } from "@/lib/password-recovery";
+import { generatePassword } from "@/lib/password-utils";
+import { MARCA_SENHA_PROVISORIA } from "@/lib/senha-provisoria";
 
 type Role = string;
 
@@ -343,6 +345,56 @@ export const adminEnviarRedefinicaoSenha = createServerFn({ method: "POST" })
       emailEnviado: envio.enviado,
       emailErro: envio.erro ?? null,
     };
+  });
+
+/**
+ * Gera uma senha provisória, grava na conta e devolve em tela para o admin
+ * repassar na mão.
+ *
+ * Existe ao lado do link por e-mail, não no lugar dele. O link continua sendo o
+ * caminho certo quando a pessoa acessa o e-mail; a senha em tela é para quando
+ * ela não acessa (e-mail corporativo ainda não entregue, caixa cheia, sócio no
+ * WhatsApp pedindo para entrar agora). A senha ANTIGA para de valer na hora —
+ * diferente do "Enviar redefinição", que não toca na senha atual.
+ *
+ * O que segura o risco de a senha trafegar fora do e-mail é a marca
+ * `senha_provisoria`: no próximo login a pessoa é levada a /redefinir-senha e
+ * não navega antes de cadastrar a dela. Ver [[senha-provisoria.ts]].
+ */
+export const adminGerarSenhaProvisoria = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { user_id: string }) => {
+    if (!input?.user_id) throw new Error("user_id obrigatório.");
+    if (!UUID_RE.test(input.user_id)) throw new Error("user_id inválido.");
+    return { user_id: input.user_id };
+  })
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context.userId);
+    // Trocar a própria senha por uma aleatória que você mesmo terá de trocar no
+    // login seguinte não serve para nada, e derruba a sua sessão de admin por
+    // engano. Para a própria senha existe o "Esqueci minha senha" do login.
+    if (data.user_id === context.userId) {
+      throw new Error("Para trocar a sua própria senha, use “Esqueci minha senha” na tela de login.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: alvo, error } = await supabaseAdmin.auth.admin.getUserById(data.user_id);
+    const email = alvo?.user?.email ?? "";
+    if (error || !email) {
+      console.error("[adminGerarSenhaProvisoria] getUserById failed:", error);
+      throw new Error("Usuário não encontrado.");
+    }
+
+    const senha = generatePassword(12);
+    const { error: upErr } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
+      password: senha,
+      app_metadata: { [MARCA_SENHA_PROVISORIA]: true },
+    });
+    if (upErr) {
+      console.error("[adminGerarSenhaProvisoria] updateUserById failed:", upErr);
+      throw new Error("Falha ao gerar a senha provisória. Tente novamente.");
+    }
+
+    return { user_id: data.user_id, email, senha };
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })

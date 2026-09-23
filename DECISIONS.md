@@ -2580,3 +2580,104 @@ Deploy `dpl_4rkG6stZveofYiU7hDZfPCu2YG2t`: CLI da conta `planningbrainbot-4862`,
 **E os três números que pareciam brigar, que na verdade respondem perguntas diferentes:** "Já cobrado" no funil e COBRADO no broker são o mesmo (R$ 17.230,63). "A cobrar" no funil (R$ 45.703,44) é o que tem card aberto e ainda não entrou, menos o churn. A fila de CAC do broker (R$ 43.952,00 em 9 clientes) é o atribuído que ainda não virou cobrança, e fica fora do saldo por decisão de 16/09.
 
 **Arquivos:** `supabase/migrations/20260923160000_ver_como_fecha_porta_de_admin.sql`, rollback em `supabase/rollback/`, e `src/lib/broker.functions.ts`.
+## [2026-09-23] Senha provisória em tela, ao lado do link por e-mail (revisa a decisão de 2026-09-03)
+
+**Contexto:** o pedido foi "na gestão de usuário quero uma opção de resetar a
+senha e ela aparecer na tela para enviar pro usuário, hoje está só por e-mail".
+A entrada de 2026-09-03 ("E-mail transacional de acesso — link de senha, não
+senha em texto") decidiu o contrário: o "Resetar senha" virou "Enviar
+redefinição", e a capacidade de forçar uma senha pela UI foi removida de
+propósito. Essa entrada anotou o preço da decisão sem nomear: **quem não acessa o
+e-mail não entra.** É o caso real do sócio com e-mail corporativo ainda não
+entregue, da caixa cheia, e de quem pede acesso pelo WhatsApp na hora. O fallback
+previsto em 03/09 (copiar o link em tela) só existia quando o **envio falhava** —
+não quando a pessoa simplesmente não abre o e-mail.
+
+**Decisão — os dois caminhos convivem, e o link continua sendo o primeiro.** Na
+linha de `/admin/usuarios`, "Enviar redefinição" virou o botão **"Senha"**, que
+abre um diálogo com duas opções, na ordem:
+
+1. *Enviar link por e-mail* (marcada por padrão) — o que existia. Não toca na
+   senha atual.
+2. *Gerar senha provisória* — grava uma senha nova de 12 caracteres e a mostra em
+   tela, no mesmo card "Credenciais geradas" que o cadastro do Growth já usava. A
+   senha anterior para de valer na hora.
+
+Um botão em vez de dois na linha: a diferença entre os caminhos (um troca a
+senha, o outro não) não cabe num rótulo, e o diálogo é onde ela é dita.
+
+**Decisão — a senha provisória é provisória de verdade, e isso é o que segura o
+risco de 03/09.** O argumento de lá continua de pé: senha que trafega por
+WhatsApp fica gravada no aparelho de duas pessoas. A resposta não é proibir o
+caminho, é encurtar a vida da senha. `adminGerarSenhaProvisoria` marca
+`senha_provisoria: true` no **`app_metadata`** da conta, e o portão de
+`/_authenticated` manda quem está marcado para `/redefinir-senha` antes de
+qualquer tela. A pessoa não navega no Ops com a senha que passou por WhatsApp.
+
+Por que `app_metadata` e não `user_metadata`: `user_metadata` é escrita pelo
+próprio usuário com o token dele, e a marca é justamente o que o obriga a
+trocar — ele não pode se desmarcar. Como a marca viaja dentro do JWT, o portão
+lê sem ida ao banco, e ela só aparece no token emitido **depois** da geração,
+que é exatamente o login feito com a senha provisória.
+
+**Decisão — não vale para a própria conta.** O rádio fica desabilitado quando o
+alvo é o próprio admin, e o servidor recusa também. Trocar a própria senha por
+uma aleatória que você mesmo terá de trocar no login seguinte não serve para
+nada e derruba a própria sessão por engano; para isso existe o "Esqueci minha
+senha" do login.
+
+**Arquitetura:**
+- `src/lib/senha-provisoria.ts` — a marca e o `temSenhaProvisoria(user)`, puro,
+  lido pelo portão e pela tela de redefinição.
+- `src/lib/senha-provisoria.functions.ts` — `concluirSenhaProvisoria` apaga a
+  marca. Age só sobre `context.userId` (a pessoa marcada não é admin, então o
+  alvo não pode vir do corpo do pedido). Apaga passando `null`: o GoTrue mescla
+  o `app_metadata` recebido e remove chaves nulas, o que preserva a concessão do
+  Financeiro (`brain`) e o `provider`, que moram no mesmo objeto.
+- `src/lib/admin-users.functions.ts` — `adminGerarSenhaProvisoria`, ao lado de
+  `adminEnviarRedefinicaoSenha`, que não mudou.
+- `src/lib/password-recovery-flow.ts` — nova fonte de identidade `{ kind:
+  "sessao" }`: sem OTP, a prova é a sessão que a pessoa abriu com a senha
+  provisória. `{ kind: "missing" }` continua **recusando** sessão logada (o teste
+  "Link ausente não aproveita uma sessão já logada" segue valendo) — só a tela
+  escolhe a fonte `sessao`, e só depois de conferir a marca.
+- `src/routes/redefinir-senha.tsx` — atende também quem chega sem link na URL e
+  com a marca. Depois de salvar, apaga a marca e **renova o token**: sem renovar,
+  o portão leria o JWT antigo e devolveria a pessoa para a mesma tela em laço. Se
+  a limpeza ou a renovação falhar, faz `signOut` e pede para entrar de novo — a
+  senha nova já está salva, e o próximo login emite token limpo.
+- `src/routes/_authenticated/route.tsx` — o portão. Fica no layout e não em 56
+  páginas; `/auth` e `/redefinir-senha` estão fora dele, então não há laço.
+
+**Status:** `tsc --noEmit` sem erro novo (os 7 que aparecem são pré-existentes,
+em `integracoes-status`, `admin.integracoes`, `rede-overview` e
+`reforma-tributaria`), `node --test tests/password-recovery-flow.test.mjs` 10/10
+com 2 casos novos, `design:lint --changed` sem violação nova. **Não commitado
+nem deployado** — regra de subir só local até o dono pedir.
+
+**Nota sobre a catraca do `design:lint`:** V6 aparece como 21 contra baseline 20,
+e não é desta mudança — `origin/main` (`48ca198`) já tem 21 `confirm()` em `src`,
+e o `lint-baseline.json` foi gerado em `3360bfa`. Quem regenerar o baseline
+resolve; não regenerei para não misturar isso com esta mudança.
+
+**Por que a senha nova não passa pelo nosso servidor:** a troca continua sendo
+`supabase.auth.updateUser({ password })` do navegador direto para o GoTrue, e a
+nossa função só apaga a marca depois. O preço é que a limpeza não é atômica com a
+troca: alguém marcado poderia chamar `concluirSenhaProvisoria` na mão e ficar com
+a senha provisória. Isso não escala privilégio nenhum — a senha é dele —, e o
+outro desenho (mandar a senha nova para uma função de servidor, que trocaria e
+limparia junto) faria a senha em texto passar pelo nosso código e pelos nossos
+logs. Preferi o desenho em que ela não passa.
+
+**Limite conhecido, pelo mesmo motivo que dá a vantagem:** a marca viaja no JWT,
+então quem **já tinha sessão aberta** continua navegando com o token antigo (sem
+marca) até ele expirar — a senha nova é exigida no próximo login, não na hora.
+`updateUserById({ password })` não derruba sessões, e o supabase-js não expõe
+revogação por `user_id`. Na prática não aparece: a senha provisória é para quem
+não consegue entrar, e esse não tem sessão aberta. Se um dia precisar valer na
+hora, o caminho é o portão ler a marca no banco em vez do token, ao custo de uma
+consulta por navegação.
+
+**Pendente:** teste ponta a ponta com uma conta de verdade (gerar, entrar com a
+senha, conferir que o portão leva a `/redefinir-senha` e que depois de trocar a
+navegação libera). Não feito porque mexe em senha de gente real em produção.

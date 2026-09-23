@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PlanningLogo } from "@/components/planning-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,6 +9,8 @@ import {
   recoveryRequestError,
 } from "@/lib/password-recovery";
 import { createPasswordRecoveryFlow } from "@/lib/password-recovery-flow";
+import { temSenhaProvisoria } from "@/lib/senha-provisoria";
+import { concluirSenhaProvisoria } from "@/lib/senha-provisoria.functions";
 
 export const Route = createFileRoute("/redefinir-senha")({
   ssr: false,
@@ -24,10 +26,19 @@ export const Route = createFileRoute("/redefinir-senha")({
 
 function ResetPasswordPage() {
   const [link] = useState(() => readRecoveryLink(window.location.href));
+  // Quem recebeu uma senha provisória do admin chega aqui SEM link na URL:
+  // entrou com a senha e o portão de /_authenticated o trouxe para cá. A prova
+  // de identidade é a própria sessão, e pedir um e-mail nesse caso desfaria o
+  // motivo da senha em tela (a pessoa não acessa o e-mail).
+  const [sessao, setSessao] = useState<{ email: string } | null>(null);
   const [status, setStatus] = useState<"ready" | "invalid" | "done">(
     link.kind === "token" || link.kind === "legacy" ? "ready" : "invalid",
   );
-  const [flow] = useState(() => createPasswordRecoveryFlow(supabase.auth, link));
+  const [precisaEntrarDeNovo, setPrecisaEntrarDeNovo] = useState(false);
+  const flow = useMemo(
+    () => createPasswordRecoveryFlow(supabase.auth, sessao ? { kind: "sessao" } : link),
+    [sessao, link],
+  );
   const [codeMode, setCodeMode] = useState(false);
   const [code, setCode] = useState("");
   const [verified, setVerified] = useState(false);
@@ -37,6 +48,40 @@ function ResetPasswordPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (link.kind === "token" || link.kind === "legacy") return;
+    let cancelado = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      const usuario = data.session?.user;
+      if (cancelado || !usuario || !temSenhaProvisoria(usuario)) return;
+      setSessao({ email: usuario.email ?? "" });
+      setStatus("ready");
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [link]);
+
+  /**
+   * Tira a marca de senha provisória e renova o token.
+   *
+   * A marca viaja DENTRO do JWT e é ele que o portão de /_authenticated lê:
+   * apagar no banco sem renovar o token deixaria a pessoa em laço, salvando a
+   * senha e voltando para esta tela. Se qualquer um dos dois passos falhar,
+   * sair destrava sempre — o próximo login emite um token limpo, já com a senha
+   * nova, que a esta altura está salva.
+   */
+  async function encerrarSenhaProvisoria() {
+    try {
+      await concluirSenhaProvisoria();
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) throw refreshError;
+    } catch {
+      await supabase.auth.signOut();
+      setPrecisaEntrarDeNovo(true);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,8 +102,8 @@ function ResetPasswordPage() {
     setLoading(true);
     const result = await flow.save(password, codeMode ? { email, token: code } : undefined);
     setVerified(flow.isVerified());
-    setLoading(false);
     if (!result.ok) {
+      setLoading(false);
       setError(result.message);
       if (result.expired) {
         setStatus("invalid");
@@ -68,6 +113,8 @@ function ResetPasswordPage() {
       return;
     }
     window.history.replaceState(window.history.state, "", window.location.pathname);
+    if (sessao) await encerrarSenhaProvisoria();
+    setLoading(false);
     setPassword("");
     setConfirmPassword("");
     setCode("");
@@ -109,15 +156,26 @@ function ResetPasswordPage() {
         </div>
         {status === "done" ? (
           <div className="mt-6 space-y-5 text-center">
-            <p role="status">Sua senha foi atualizada. Você já pode acessar o Planning Brain.</p>
-            <Link to="/" className={`${buttonClass} block`}>
-              Entrar no painel
+            <p role="status">
+              {precisaEntrarDeNovo
+                ? "Sua senha foi atualizada. Entre de novo com ela para continuar."
+                : "Sua senha foi atualizada. Você já pode acessar o Planning Brain."}
+            </p>
+            <Link to={precisaEntrarDeNovo ? "/auth" : "/"} className={`${buttonClass} block`}>
+              {precisaEntrarDeNovo ? "Ir para o login" : "Entrar no painel"}
             </Link>
           </div>
         ) : status === "ready" || codeMode ? (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Escolha sua nova senha. Ela será alterada somente quando você salvar.
+              {sessao ? (
+                <>
+                  A senha que você usou para entrar é provisória. Escolha a sua para continuar
+                  {sessao.email ? ` como ${sessao.email}` : ""}.
+                </>
+              ) : (
+                "Escolha sua nova senha. Ela será alterada somente quando você salvar."
+              )}
             </p>
             {codeMode && (
               <>
@@ -223,7 +281,9 @@ function ResetPasswordPage() {
             </Link>
           </form>
         )}
-        {status !== "done" && !verified && (
+        {/* Em senha provisória não há e-mail no caminho: oferecer "código do
+            e-mail" mandaria a pessoa justamente à caixa que ela não abre. */}
+        {status !== "done" && !verified && !sessao && (
           <button
             type="button"
             disabled={loading}
