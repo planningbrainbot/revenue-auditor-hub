@@ -545,7 +545,6 @@ export const AREAS: Area[] = [
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
           { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
-          { title: "Broker", url: "/broker", icon: Store, area: "broker" },
         ],
       },
       {
