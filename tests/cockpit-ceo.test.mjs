@@ -111,3 +111,38 @@ test("Ausência não vira zero na formatação e na soma da composição", () =>
 function pick(p) {
   return { preset: p.preset, de: p.de, ate: p.ate };
 }
+
+// ── Task 3: catálogo de perguntas ────────────────────────────────────────────
+import { PERGUNTAS, EXIGENCIAS_INVESTIDOR, COBERTURAS } from "../src/lib/cockpit-ceo/perguntas.ts";
+import { IDS_INDICADORES, ORDEM_FRENTES } from "../src/lib/cockpit-ceo/contrato.ts";
+
+test("Catálogo cobre as 11 exigências do mapa e a trajetória para R$ 1 bi", () => {
+  assert.equal(EXIGENCIAS_INVESTIDOR.length, 11);
+  for (const e of EXIGENCIAS_INVESTIDOR)
+    assert.ok(
+      PERGUNTAS.some((p) => p.exigencia === e.id),
+      `exigência sem pergunta: ${e.titulo}`,
+    );
+  const bilhao = PERGUNTAS.find((p) => /R\$ 1 bi/.test(p.texto));
+  assert.ok(bilhao, "falta a pergunta da trajetória");
+  assert.equal(bilhao.cobertura, "depende_decisao");
+  for (const f of ORDEM_FRENTES) assert.ok(PERGUNTAS.some((p) => p.frente === f), `frente vazia: ${f}`);
+});
+
+test("Nenhuma pergunta se declara verificada no piloto e toda referência de indicador existe", () => {
+  assert.ok(Object.keys(COBERTURAS).includes("verificada"));
+  assert.equal(PERGUNTAS.filter((p) => p.cobertura === "verificada").length, 0);
+  const ids = new Set(PERGUNTAS.map((p) => p.id));
+  assert.equal(ids.size, PERGUNTAS.length, "ids repetidos");
+  for (const p of PERGUNTAS) {
+    for (const i of p.indicadores) assert.ok(IDS_INDICADORES.includes(i), `${p.id} → ${i}`);
+    assert.ok(p.responsavel && p.aceite && p.fonte, `${p.id} incompleta`);
+    if (p.cobertura === "implementada_nao_homologada")
+      assert.ok(p.indicadores.length > 0, `${p.id} implementada sem indicador`);
+  }
+});
+
+test("Catálogo não usa o vocabulário de franquia abolido em 09/09", () => {
+  const texto = JSON.stringify([PERGUNTAS, EXIGENCIAS_INVESTIDOR]);
+  assert.doesNotMatch(texto, /franqu/i);
+});

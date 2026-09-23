@@ -54,6 +54,17 @@ export const ESTADOS: Record<Estado, string> = {
 
 export type UnidadeContagem = "contas" | "negócios" | "eventos" | "reais" | "percentual";
 
+/** Os indicadores da primeira fatia. Ids estáveis: a URL e o catálogo de perguntas apontam para eles. */
+export const IDS_INDICADORES = [
+  "meta-bilhao",
+  "contratos-ganhos",
+  "oportunidades-validadas",
+  "leads-trabalhados",
+  "receita-prevista-aberta",
+  "contas-prontas",
+] as const;
+export type IdIndicador = (typeof IDS_INDICADORES)[number];
+
 export interface LinhaComposicao {
   chave: string;
   rotulo: string;
