@@ -146,3 +146,207 @@ test("Catálogo não usa o vocabulário de franquia abolido em 09/09", () => {
   const texto = JSON.stringify([PERGUNTAS, EXIGENCIAS_INVESTIDOR]);
   assert.doesNotMatch(texto, /franqu/i);
 });
+
+// ── Task 4: indicadores de Base e Monetização ────────────────────────────────
+import { montarCockpit } from "../src/lib/cockpit-ceo/indicadores.ts";
+
+const ev = (date, actor = 1) => ({ at: date + "T12:00:00Z", date, actor_id: actor, source: "teste" });
+const receita = (total, partners = null, unit = null) =>
+  total === null
+    ? { total: v(null), partners: v(null), unit: v(null), sum: null, difference: null, status: "missing", basis: "", unit_name: null }
+    : { total: v(total), partners: v(partners), unit: v(unit), sum: total, difference: 0, status: "ok", basis: "", unit_name: null };
+function v(amount) {
+  return { amount, currency: amount === null ? null : "BRL", invalid: false };
+}
+const negocio = (id, route, events = {}, extra = {}) => ({
+  id, title: "Negócio sintético " + id, org: null, org_id: 100 + id, owner: "Pessoa", owner_id: 1, route,
+  status: "open", stage_id: 1, stage: "Etapa", order: 1,
+  events: { loaded: [], started: [], scheduled: [], meeting: [], validated: [], signed: [], ...events },
+  created_at: "2026-08-01", started_at: null, validated_at: null, signed_on: null, won_on: null,
+  expected_close: null, revenue: receita(null), next_activity: null, history_known: true, url: "#", ...extra,
+});
+const conta = (key, changes = {}) => ({
+  key, name: "Empresa Sintética " + key, units: [], unit_label: null, orgs: [], contact: true,
+  band: "R$ 10 milhões até R$ 25 milhões", regime: "Lucro Presumido", segment: "Indústria",
+  old_base: false, matrix: false, new_commercial: false, pipedrive_contract: false,
+  consultoria_priority: false, finance_candidate: false, finance: { status: "revisar", reason: "" }, ecd: false,
+  base_origin: { status: "nova", reason: "", source: "", commercial: false }, ...changes,
+});
+// A: apta e livre em Consultoria E Finance (sobreposição). B: apta e livre só em Finance.
+// C: apta em Cella, mas só no cadastro do Omie. D: fora de todos (Simples).
+const contaA = conta("A", {
+  old_base: true, pipedrive_contract: true, orgs: [101],
+  base_origin: { status: "antiga", reason: "", source: "", commercial: false },
+  consultoria_origin: { status: "retroativa", reason: "", checked_at: "", ops_ids: [], pipefy_ids: [], commercial_deal_ids: [], non_simples_confirmed: true, regime_source: null },
+});
+const contaB = conta("B", { pipedrive_contract: true, orgs: [102] });
+const contaC = conta("C", { band: "R$ 50 milhões até R$ 78 milhões" });
+const contaD = conta("D", { regime: "Simples Nacional" });
+function dados(changes = {}) {
+  return {
+    forecasts: [], reservations: [], lists: [], records: [], stages: [], base_count: 4,
+    accounts: [contaA, contaB, contaC, contaD],
+    units: [
+      { id: 1, key: "u1", name: "Unidade Exemplo Um", classification: "unidade", account_keys: ["A", "C"] },
+      { id: 2, key: "u2", name: "Unidade Exemplo Dois", classification: "unidade", account_keys: ["B", "D"] },
+    ],
+    cards: [
+      // Ganho dentro do período, na org da conta A (unidade 1), produto Consultoria.
+      negocio(1, "consultoria", { started: [ev("2026-09-02")], validated: [ev("2026-09-05")], signed: [ev("2026-09-10")] }, { status: "won", won_on: "2026-09-10", org_id: 101 }),
+      // Ganho fora do período (agosto), Finance, org da conta B.
+      negocio(2, "finance", { signed: [ev("2026-08-20")] }, { status: "won", won_on: "2026-08-20", org_id: 102 }),
+      // Aberto, validado no período, sem conta vinculada, com receita prevista.
+      negocio(3, "cella", { started: [ev("2026-09-03")], validated: [ev("2026-09-12")] }, { validated_at: "2026-09-12", revenue: receita(1000, 300, 700), org_id: 999 }),
+      // Aberto, validado antes do período, sem receita declarada, sem conta vinculada.
+      negocio(4, "finance", { validated: [ev("2026-08-25")] }, { validated_at: "2026-08-25", org_id: 998 }),
+    ],
+    plans: [],
+    measured_at: "2026-09-22T14:00:00Z", catalog_at: "2026-09-22T13:59:00Z", sync_status: "ok", sync_error: null,
+    permissions: { view: true, manage: false, send: false, all_units: true },
+    ...changes,
+  };
+}
+const fonteOk = (d = dados(), extra = {}) => ({
+  sintetico: false, hoje: "2026-09-22", agora: "2026-09-22T15:00:00Z", acessoBase: true,
+  monetizacao: { estado: "ok", erro: null, dados: d }, ...extra,
+});
+const recorte = (busca = {}, perimetro = "") => ({ periodo: resolverPeriodo(busca, "2026-09-22"), perimetro });
+const ind = (c, id) => c.indicadores.find((i) => i.id === id);
+
+test("Cockpit produz exatamente os indicadores declarados, no máximo seis", () => {
+  const c = montarCockpit(fonteOk(), recorte());
+  assert.deepEqual(c.indicadores.map((i) => i.id).sort(), [...IDS_INDICADORES].sort());
+  assert.ok(c.indicadores.length <= 6);
+  for (const i of c.indicadores) {
+    assert.ok(i.definicao && i.fonte && i.versaoRegra && i.pergunta, i.id);
+    assert.equal(i.dataApuracao, "2026-09-22T15:00:00Z");
+  }
+});
+
+test("Duas ofertas da mesma conta não duplicam contas únicas", () => {
+  const i = ind(montarCockpit(fonteOk(), recorte()), "contas-prontas");
+  assert.equal(i.estado, "disponivel");
+  assert.equal(i.unidade, "contas");
+  assert.equal(i.valor, 2, "A (2 produtos) + B (1 produto)");
+  const porProduto = Object.fromEntries(i.composicao.map((l) => [l.chave, l.valor]));
+  assert.equal(porProduto["produto:consultoria"], 1);
+  assert.equal(porProduto["produto:finance"], 2);
+  assert.equal(porProduto["produto:cella"], 0);
+  assert.equal(porProduto["sobreposicao"], 1);
+  assert.equal(porProduto["so_omie"], 1, "C aprovada pela régua, mas só no Omie, fica fora");
+  assert.equal(somaDaComposicao(i), i.valor);
+  assert.equal(i.periodo, null, "fotografia: o período não se aplica");
+  assert.match(i.notaComposicao, /mais de um produto/);
+});
+
+test("Contratos ganhos contam só o evento dentro do período e a composição reconstrói o total", () => {
+  const i = ind(montarCockpit(fonteOk(), recorte()), "contratos-ganhos");
+  assert.equal(i.unidade, "negócios");
+  assert.equal(i.valor, 1);
+  assert.equal(somaDaComposicao(i), 1);
+  assert.deepEqual(i.periodo, { de: "2026-09-01", ate: "2026-09-22" });
+  const anterior = i.comparacoes.find((c) => c.rotulo.startsWith("Período anterior"));
+  assert.equal(anterior.referencia, 1, "o ganho de 20/08 cai no período anterior (10/08 a 31/08)");
+  assert.equal(i.destino.rota, "/monetizacao");
+  assert.equal(i.destino.search.aba, "operacao");
+  assert.equal(i.destino.mesmoRecorte, false);
+  assert.ok(i.destino.observacao.length > 20);
+  const ago = ind(montarCockpit(fonteOk(), recorte({ periodo: "mes_anterior" })), "contratos-ganhos");
+  assert.equal(ago.valor, 1);
+});
+
+test("Sem permissão de Monetização os comerciais dizem acesso insuficiente, e a Base continua", () => {
+  const c = montarCockpit(fonteOk(dados({ permissions: { view: false, manage: false, send: false, all_units: true } })), recorte());
+  for (const id of ["contratos-ganhos", "oportunidades-validadas", "leads-trabalhados", "receita-prevista-aberta"]) {
+    assert.equal(ind(c, id).estado, "acesso_insuficiente", id);
+    assert.equal(ind(c, id).valor, null, id);
+    assert.equal(ind(c, id).composicao.length, 0, id);
+  }
+  assert.equal(ind(c, "contas-prontas").estado, "disponivel");
+  assert.equal(c.serieDiaria, null);
+  const semBase = montarCockpit(fonteOk(dados(), { acessoBase: false }), recorte());
+  assert.equal(ind(semBase, "contas-prontas").estado, "acesso_insuficiente");
+  assert.equal(ind(semBase, "contas-prontas").valor, null);
+});
+
+test("Fonte com erro não vira zero e não mostra cache", () => {
+  const c = montarCockpit(
+    { ...fonteOk(), monetizacao: { estado: "erro", erro: "A base mudou durante a consulta.", dados: null } },
+    recorte(),
+  );
+  for (const i of c.indicadores.filter((x) => x.id !== "meta-bilhao")) {
+    assert.equal(i.estado, "fonte_indisponivel", i.id);
+    assert.equal(i.valor, null, i.id);
+  }
+  assert.ok(c.avisos.some((a) => /mudou durante a consulta/.test(a)));
+});
+
+test("Carga comercial com falha vira dado parcial com a data do dado", () => {
+  const c = montarCockpit(fonteOk(dados({ sync_error: "statement timeout", measured_at: "2026-09-21T18:35:00Z" })), recorte());
+  const i = ind(c, "contratos-ganhos");
+  assert.equal(i.estado, "parcial");
+  assert.equal(i.dataDado, "2026-09-21T18:35:00Z");
+  assert.equal(i.valor, 1, "o número existe, mas marcado como parcial");
+  assert.ok(c.ameacas.some((a) => a.id === "crm-parado"));
+  const nunca = montarCockpit(fonteOk(dados({ measured_at: null })), recorte());
+  assert.equal(ind(nunca, "contratos-ganhos").estado, "fonte_indisponivel");
+});
+
+test("Perímetro de unidade exclui negócio sem conta vinculada e diz quantos ficaram fora", () => {
+  const c = montarCockpit(fonteOk(), recorte({}, "u1"));
+  assert.match(c.universo, /Unidade Exemplo Um/);
+  assert.equal(ind(c, "contratos-ganhos").valor, 1);
+  const val = ind(c, "oportunidades-validadas");
+  assert.equal(val.valor, 1, "negócio 1 (conta A); o negócio 3 não tem conta vinculada");
+  assert.match(val.notaComposicao, /1 negócio sem conta vinculada/);
+  assert.equal(ind(montarCockpit(fonteOk(), recorte()), "oportunidades-validadas").valor, 2, "na rede entram os dois");
+  assert.equal(ind(c, "contas-prontas").valor, 1, "só A está na unidade 1 entre as prontas");
+  const u2 = montarCockpit(fonteOk(), recorte({}, "u2"));
+  assert.equal(ind(u2, "contratos-ganhos").valor, 0);
+  const desconhecida = montarCockpit(fonteOk(), recorte({}, "u9"));
+  assert.ok(desconhecida.avisos.some((a) => /Unidade não encontrada/.test(a)));
+  assert.equal(ind(desconhecida, "contratos-ganhos").valor, 1, "cai na rede");
+});
+
+test("Meta mensal só compara com período dentro de um mês", () => {
+  const plano = { month: "2026-08", owner_id: 1, owner_name: "Pessoa", capacity: 90, meetings_capacity: 40, target_contracts: 6, daily_target: 4, allocation: { cella: 0, consultoria: 0, finance: 0 }, rates: { cella: null, consultoria: null, finance: null } };
+  const ago = ind(montarCockpit(fonteOk(dados({ plans: [plano] })), recorte({ periodo: "mes_anterior" })), "contratos-ganhos");
+  const meta = ago.comparacoes.find((c) => c.rotulo.startsWith("Meta do mês"));
+  assert.equal(meta.referencia, 6);
+  assert.equal(meta.estado, "disponivel");
+  const tri = ind(montarCockpit(fonteOk(dados({ plans: [plano] })), recorte({ periodo: "trimestre" })), "contratos-ganhos");
+  const metaTri = tri.comparacoes.find((c) => c.rotulo.startsWith("Meta do mês"));
+  assert.equal(metaTri.estado, "nao_apurado");
+  assert.equal(metaTri.referencia, null);
+  assert.match(metaTri.nota, /mensal/);
+});
+
+test("Ritmo abaixo da meta e plano sem alocação viram ameaça e decisão", () => {
+  const plano = { month: "2026-09", owner_id: 1, owner_name: "Pessoa", capacity: 90, meetings_capacity: 40, target_contracts: 6, daily_target: 4, allocation: { cella: 0, consultoria: 0, finance: 0 }, rates: { cella: null, consultoria: null, finance: null } };
+  const c = montarCockpit(fonteOk(dados({ plans: [plano] })), recorte());
+  assert.ok(c.ameacas.some((a) => a.id === "ritmo-contratos"), "1 ganho contra ~remaining ritmo de 6");
+  assert.ok(c.decisoes.some((d) => d.id === "alocar-plano"));
+  assert.ok(c.decisoes.length <= 3);
+  assert.equal(c.decisoes[0].id, "perimetro-meta");
+});
+
+test("Meta de R$ 1 bi fica não apurada, com lacuna e responsável", () => {
+  const i = ind(montarCockpit(fonteOk(), recorte()), "meta-bilhao");
+  assert.equal(i.estado, "nao_apurado");
+  assert.equal(i.valor, null);
+  assert.equal(i.unidade, "reais");
+  assert.equal(i.lacuna.responsavel, "CEO + CFO");
+  assert.match(i.definicao, /faturamento anual/i);
+  assert.match(i.definicao, /não é valuation/i);
+});
+
+test("Receita prevista soma o declarado, separa o faltante e não chama de faturamento", () => {
+  const i = ind(montarCockpit(fonteOk(), recorte()), "receita-prevista-aberta");
+  assert.equal(i.valor, 1000);
+  assert.equal(i.estado, "parcial", "um negócio validado aberto sem valor");
+  const faltante = i.composicao.find((l) => l.chave === "faltante");
+  assert.equal(faltante.valor, 1);
+  assert.equal(somaDaComposicao(i), 1000);
+  assert.match(i.definicao, /não é faturamento/);
+  assert.equal(i.periodo, null);
+});
