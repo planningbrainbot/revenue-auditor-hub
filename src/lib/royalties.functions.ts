@@ -206,6 +206,30 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
       }
     }
 
+    // A cópia acima traz a lista inteira do mês anterior, inclusive linhas que
+    // não deveriam se repetir como estavam. `ops.royalties_outras_receitas_politica`
+    // guarda as exceções e a RPC abaixo as aplica: Pipedrive e Panda Pé assumem
+    // o valor de catálogo (o que impede o valor de derivar de um mês pro outro),
+    // Qculture nasce zerada porque oscila com o número de assentos e precisa ser
+    // digitada, e Power BI é removida porque não é mais cobrada. Decisões do
+    // usuário em 22/09/2026. Linha sem regra — Customer Success, Gente & Gestão,
+    // CEFIS — passa direto, copiada como sempre foi.
+    // A RPC é idempotente e só mexe em `rascunho`, então dá pra rodar de novo à
+    // mão se esta chamada falhar depois da apuração já ter sido criada.
+    // `as any` porque a RPC é nova e ainda não está em integrations/supabase/types.ts,
+    // que é gerado. Mesmo padrão de `base_propor_alteracoes` em clientes.functions.ts.
+    const { error: polErr } = await (supabase as any).rpc(
+      "royalties_aplicar_politica_outras",
+      { p_apuracao_id: inserted.id },
+    );
+    if (polErr) {
+      throw new Error(
+        `Apuração ${inserted.id} foi criada, mas a política de outras receitas não ` +
+          `pôde ser aplicada (${polErr.message}). Confira Pipedrive, Panda Pé, ` +
+          `Qculture e Power BI antes de fechar o mês.`,
+      );
+    }
+
     return { apuracao_id: inserted.id, created: true };
   });
 
