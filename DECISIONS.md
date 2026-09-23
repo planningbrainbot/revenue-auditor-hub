@@ -2126,3 +2126,157 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 
 **Status:** implementado na branch pelas tarefas do plano `docs/superpowers/plans/2026-09-23-design-system-v2.md`. Não integrado à `main` nem publicado.
 **Próximos passos:** o Eliezek revisa e integra (`docs/design/PROCESSO.md` §3); depois o codemod roda de novo e a baseline é regravada.
+
+## [2026-09-22] Recife ganha card, e com isso vira a terceira "cobertura parcial"
+
+**Contexto:** 385 contas rotuladas Recife não apareciam em card nenhum. A causa não era dado faltando — as contas já carregam `unidade_id = 13` e a praça já existia em `ops.unidades`. Faltava a linha em `ops.monetizacao_unidades`, que é o que `ops.monetizacao_cobertura_refresh()` percorre para montar a cobertura.
+
+**Decisão:** inserida a linha `('0384bff73f7cfcc0', 13, 'Recife', 'unidade')`. A chave segue a convenção das demais, decifrada por conferência: `sha256(nome)[:16]` — bate em Belém, Curitiba, São Bernardo, Fortaleza, Maceió, Campo Novo, Patos de Minas, São Luís, Sudeste (RJ) e Itaúna.
+
+**Efeito medido, depois do refresh:** Recife entra com **385 contas / 385 CNPJs / 384 no Pipefy / 0 no Omie**, a quinta maior carteira — acima de Belém (360), Sudeste (318) e Fortaleza (260). Total de linhas de cobertura: 13 → 14.
+
+**`unidade_id` preenchido, e isso importa.** O join de `monetizacao_cobertura_refresh()` usa o ramo do `unidade_id` quando ele existe e só cai no casamento por nome quando é nulo. As 385 contas de Recife já têm `13` em `unidade_ids`, então o ramo do id casa todas. Se a linha tivesse entrado com `unidade_id` nulo — como está São Bernardo — o card apareceria mesmo assim, mas por outro caminho. Repetir a inserção para Sorocaba (id 14) ou São Paulo (id 15) exige conferir antes se as contas daquela praça carregam o id; sem isso o card nasce zerado.
+
+**Consequência que não é ganho:** `omie_integrado` fica falso (não há credencial Omie para Recife em `ops.omie_credentials`, que tem 10 e nenhuma dessa praça), então o card nasce com o selo **"cobertura parcial"** — o terceiro, junto de São Bernardo e Fortaleza. A troca é de "invisível" por "visível com ressalva verdadeira", e o aviso só sai quando as três praças tiverem credencial Omie.
+
+**Sem deploy.** É linha de dado; a tabela de cobertura é lida em tempo de execução.
+
+**Reversão:** `delete from ops.monetizacao_unidades where key='0384bff73f7cfcc0'; select ops.monetizacao_cobertura_refresh();`. Backup do estado anterior em `unidades-1344/unidades-backup-20260922.json`.
+
+## [2026-09-22] Os avisos de "cobertura parcial" saem das telas; auditoria passa a morar num lugar só
+
+**Contexto:** ao cadastrar Recife, o card nasceu com o selo âmbar "cobertura parcial" — o terceiro, junto de São Bernardo e Fortaleza, todos pela mesma causa (sem credencial Omie em `ops.omie_credentials`, que tem 10 e nenhuma dessas praças). O dono cortou a discussão: **"não usa esses avisos de cobertura parcial; deixa pra centralizar numa tela só o que precisa de auditar"** — uma tela que outra sessão está montando em paralelo.
+
+**Decisão:** removidos os dois avisos de lacuna de fonte que existiam na interface:
+- o selo âmbar no card de unidade do Aquário (`aquario.tsx`), que disparava com `omie_integrado === false && cnpjs > 0`;
+- a tarja âmbar no topo do Funil (`funil-content.tsx`), que dizia "Faturado e Recebido cobrem apenas unidades com dados no Omie" e disparava com `mrr_contratado > 0 && faturado === 0`.
+
+**O que fica, e por quê.** A linha de procedência do card continua (`catálogo Pipefy 384 · Omie não integrado`). Ela é informação sobre a origem do número, não alerta sobre o que está faltando — o card seguir declarando de onde conhece a carteira era decisão de 21/09 e não foi revogada.
+
+**O princípio, para a próxima vez:** lacuna de fonte é assunto de auditoria, e auditoria mora numa tela só. Aviso espalhado pela interface não vira ação — vira ruído que o usuário aprende a ignorar, e some o sinal junto.
+
+**Verificado:** `tsc --noEmit` dá os mesmos 7 erros antes e depois, nenhum nos arquivos tocados. `AlertTriangle` continua importado em `funil-content.tsx` porque a lista de alertas do rodapé ainda usa.
+
+**Reversão:** os dois trechos removidos estão no diff deste commit; o comentário que ficou no lugar marca a posição exata.
+
+## [2026-09-22] Faturamento da DataStone entra como faixa; procedência vira dimensão da tela
+
+**Contexto:** 3.374 contas ativas de porte Demais estavam sem faixa de faturamento, e em Cella e Finance a faixa é a **última** trava da `oferta()` — quem para antes, no regime ou na situação cadastral, não muda de estado por enriquecimento nenhum. Medido pela régua: 3.410 contas travadas só pela faixa em Cella, 61 em Finance.
+
+**Decisão — o endpoint é o da Consulta, não o do B2B.** `GET /v1/companies/?cnpj=<14 dígitos>` devolve o objeto inteiro em uma chamada. O `POST /b2b/companies/` que constava do plano é busca paginada e devolveria no máximo um `company_id`. Custo medido: **1 crédito B2C por CNPJ novo**, com carência de 24 h por documento (2 chamadas, 1 nova + 1 repetida, saldo caiu exatamente 1). O saldo B2B de 27 créditos descartou o endpoint de lote, que é o que consome essa carteira.
+
+**Decisão — `estimated_revenue` é faixa em texto, e a tradução recusa precisão que a fonte não tem.** Valor real: `"DE R$ 50 MM ATÉ R$ 100 MM"`. A tradução para `FAIXAS` tem duas portas: cabe inteiro numa faixa do app, ou atravessa fronteira do app mas fica inteiro de um lado só do corte de R$ 25 mi (aí grava a faixa que contém o piso, porque Cella e Finance decidem igual). **Atravessar o próprio corte de 25 não passa**: `"DE R$ 10 MM ATÉ R$ 50 MM"` não diz se a empresa é Cella, e fingir que diz é pior que a lacuna. Em 1.921 consultas: 75% viraram faixa, 9% sem estimativa na fonte, 16% atravessando o corte.
+
+**Aplicado:** 1.447 contas receberam `band`, `band_source` e `band_at`. O `band_source` carrega o texto exato do fornecedor (`"DataStone · estimativa DE R$ 50 MM ATÉ R$ 100 MM"`), porque a faixa gravada às vezes tem teto mais apertado que o intervalo original e quem abre a ficha precisa ler a afirmação da fonte, não só a traduzida. Backup dos perfis anteriores em `unidades-1344/band-backup-20260922.json`.
+
+**A descoberta que mudou a tela: a régua do Cella não pergunta se a empresa é cliente.** Ela pede ativa na Receita, fora do Simples e faturamento acima de R$ 25 mi — nada mais. Como **6.162 das 9.992 contas entraram pelo ERP Omie da unidade**, e esse cadastro inclui quem a unidade *paga*, enriquecer faturamento converte contraparte de razão contábil em prospect. Apareceram na fila do Cella: Claro, Magazine Luiza, Amazon, B3, Localiza, Sodexo, Editora Globo, Accor (esta em 5 filiais).
+
+**Hipótese testada e descartada:** "quem só existe no Omie não é cliente" parece um corte objetivo e **erra nos dois sentidos**. A HOTELARIA ACCOR tem cadastro no Pipefy e está marcada Base Antiga — é hotel. A UNIGGEL SEMENTES não tem nem Pipefy nem Pipedrive e é cliente real, com ECD na Planning. Nenhuma flag isolada responde "é cliente?": ECD cobre 404 contas, contrato Pipedrive 731, Base Antiga 2.221.
+
+**Decisão — a tela declara procedência, não veredito.** `procedencia()` em `portfolio.ts` rotula cada conta pela melhor porta que ela tem: ECD → contrato no Pipedrive → cadastro no Pipefy → só Omie. É fato verificável e responde uma pergunta mais modesta do que a base sabe responder. A situação `so_omie` separa, na lista de cada produto, as contas que a régua aprova mas que entraram só pelo ERP; elas saem da contagem de aptas do card e ganham chip azul próprio — nem o verde de "pronta", nem o âmbar de "pendente", porque a régua aprovou e o que está em questão é a origem. Rodapé `ProcedenciaBase`, no molde do `ProcedenciaFooter` da fila do Cella, explica as portas e por que não valem o mesmo.
+
+**Não resolvido:** 881 CNPJs da fila ficaram sem consulta (saldo B2C acabou), 4 falharam por rede, e 349 caíram no caso que atravessa o corte de R$ 25 mi. Esses continuam "a confirmar", que é a resposta honesta.
+
+## [2026-09-22] A barra de frescor mostrava o relógio errado, e o aviso de falha despejava o Postgres
+
+**Contexto:** print da Caixa de Oportunidade com `CRM · 21/09, 15:35 · atualização pendente` e uma tarja âmbar terminando em `canceling statement due to statement timeout`.
+
+**Medido em `ops.monetizacao_sync`:** `catalog_at` = 22/09 13:29 (um minuto antes do print), `measured_at` = 21/09 15:35, `error` = timeout, `started_at` = 22/09 13:30. São **duas cargas com dois relógios**: o catálogo de empresas concluiu, o passo de métricas estourou o tempo. A barra lia só `measured_at`, então a tela dizia que a base inteira estava parada havia 22 horas — o que não era verdade e desautoriza o resto da tela sem motivo.
+
+**Decisão:** a barra mostra os dois relógios (`Empresas · <data>` e `Indicadores · <data> (parados)`), e o farol fica âmbar só quando as duas cargas estão velhas; azul quando é só uma.
+
+**Decisão — a mensagem do banco não é para o sócio ler.** `FalhaDeCarga` em `common.tsx` diz qual passo caiu, desde quando, e o que continua confiável; `motivoLegivel()` traduz os erros conhecidos (timeout, deadlock, permissão, conexão) e cai num texto genérico honesto para o resto. O texto cru continua no `title`, para quem for investigar. Aquário e Caixa de Oportunidade tinham cópias divergentes desse aviso e passam a usar o mesmo componente.
+
+**Por quê:** erro de fonte tem que aparecer na tela — é a regra do `spec-dash-funil-cella.md`. Mas aparecer não é despejar: um erro em inglês, minúsculo, colado depois de um ponto, não informa ninguém e ensina o usuário a ignorar a tarja âmbar.
+
+## [2026-09-22] Quatro perdas de trabalho no cockpit consertadas, e o estudo de navegação que contesta a spec
+
+**Contexto:** o dono voltou com quatro queixas sobre `/clientes` — o menu de contatos/empresas/negócios "inútil", as duas dobras do meio mostrando a mesma coisa, o menu inferior de carteiras que "não pode estar ali", e "o que é contratos da rede?". Antes de mexer em navegação, rodou-se um estudo (seis lentes investigando código, banco e web, cada afirmação submetida a dois refutadores adversariais, três arquitetos com prioris opostos, júri e crítico de completude — 71 agentes). O estudo está em `docs/dev_notes/cockpit-navegacao-ux/estudo.md`.
+
+**A causa dos três níveis de navegação, provada por commit.** `0b29b44` (17/09, "Unifica Clientes e oportunidades") **apagou o item "Aquário" do menu lateral** (`git show 0b29b44 -- src/lib/areas.ts` tem uma linha de diferença). Antes dele o Aquário era rota de primeiro nível e as cinco abas `Carteiras por unidade · Todas as contas · Recon · Listas para sócios · Entenda os números` eram a navegação principal dele. O commit embutiu a tela em `/clientes` como aba e as cinco abas viraram nível 3 sem redesenho. A queixa 3 do dono descreve esse resíduo. O padrão correto já existe na casa: `areas.ts:295-309` expõe cada aba de `/monetizacao` como item do menu lateral, sem aba aninhada.
+
+**Consertado agora (perda de trabalho, sem mexer em rota):**
+
+1. **A lista aberta deixa de ser destruída.** `list-workspace.tsx`: `empty()` não carrega `id`/`revision`, e o efeito de `initial` fazia `setDraft({ ...empty(), ... })`. Efeito: abrir lista salva → voltar à base → selecionar → "Preparar lista" **descartava a lista aberta**, e o próximo salvar criava outra (`persist` manda `id: draft.id`). Agora, com lista aberta, "Preparar lista" **soma** a ela, deduplicando por `account_key|product` — que é a chave `UNIQUE (list_id, account_key, product)` de `ops.monetizacao_itens` — e diz na tela quantas entraram e quantas já estavam. Sem lista aberta, o comportamento é o de antes. O rascunho de agora é lido por `draftRef`, não por dependência do efeito: o efeito só pode reagir a `initial`.
+2. **A busca para de jogar fora a paginação.** `aquario.tsx`: `setLimit(50)` estava fora do guard `if (key !== "query")`. Digitar uma letra depois de três "Mostrar mais 50" devolvia a tabela para 50 linhas.
+3. **O KPI de origem dentro da gaveta para de zerar o produto.** `aquario.tsx`: partia de `emptyFilters` e derrubava o produto que o operador tinha acabado de escolher. Agora troca só a chave `origin`, como o seletor de origem da tabela. A seleção continua sendo limpa — trocar filtro limpa seleção é decisão de 16/09 e vale nos dois caminhos.
+4. **"Nova lista" passa a perguntar.** `list-workspace.tsx`: descartava rascunho sujo em silêncio, enquanto o botão de trocar de lista logo abaixo já perguntava. Mesmo portão nos dois.
+
+**Onde o estudo contradiz `docs/spec-cockpit-da-base.md`, com evidência:**
+
+- **A prop `embedded` não suprime nada.** São três ocorrências em `aquario.tsx` (default, tipo, `className` do `<main>`). A spec a tratou como mecanismo pronto de supressão de casca. Hoje a página monta **dois `<h1>`** e dois "Atualizar" **com efeitos diferentes** — o de fora só invalida cache, o de dentro (`Freshness`) é o **único gatilho de sync do CRM** em `/clientes`. Quem for suprimir, suprima o de fora.
+- **O escopo por unidade é o inverso do que a spec diz.** Ela afirma "24 usuários com `todas_unidades`, 85 vínculos, a maioria vê a base filtrada sem saber". Medido em 22/09: **36 de 37 veem tudo**, e **um** usuário tem escopo restrito. Os 14 vínculos dos outros cinco são decorativos, porque `todas_unidades=true` sobrepõe.
+- **A spec não considerou permissão em nenhum dos quatro blocos.** `ops.monetizacao_listas` e `ops.monetizacao_itens` só abrem com `view.aquario OR view.monetizacao`, e a área `minha_unidade` (por onde o sócio regional entra, `areas.ts:355`) tem `view.clientes` e **nenhuma das duas**. O único sócio regional do sistema aterrissa numa tela cuja aba se chama "Listas para sócios" e que, para ele, está vazia — sem aviso. É também a causa do "0 negócios" da aba Negócios. Numa página única empilhada não há como não renderizar esse bloco vazio; numa rota com chave no item de menu, o item não aparece. **Por isso o estudo recomenda rotas irmãs em vez dos quatro blocos numa rolagem só.**
+- **A duplicação que `af0b980` declarou ter removido dos cards de produto continua lá.** "Cella · perfil aderente" = 63 no KPI e "63 com perfil aderente" no card, mesma expressão e mesmo rótulo; idem Finance (160) e as 2.329 aptas da Consultoria. E há uma contradição pior: o KPI diz "Consultoria · carteira **retroativa** 4.731" (`baseRetroativaConsultoria`) e o card diz "de 2.356 **retroativas**" (`potencialConsultoria`, subconjunto estrito) — dois denominadores com o mesmo nome, a 68 linhas um do outro. Números da régua sobre a carteira de 22/09.
+
+**Defeito de rota encontrado de passagem, não consertado nesta entrada:** `rede-overview.tsx:979` e `:993` prometem "Ver clientes ativos" e mandam `status: ""`; `clientes.tsx:5` só escolhe a view `contratos` quando `status` é *truthy*, então os dois caem no cockpit de prospecção. Dois dos três pontos de entrada externos de `/clientes` erram o alvo.
+
+**"Contratos da rede" (queixa 4):** lê `empresas`, `contratos` e `central_tratativas` — as mesmas três tabelas da aba Tratativas de `/painel-cs`, que existe desde `5bc5e5a` (14/09), **três dias antes** de `contratos-clientes.tsx` nascer em `0b29b44`. Nunca houve decisão de pôr contrato na tela de prospecção; foi colateral da mesma fusão. `central_tratativas` não recebe linha nova desde 19/08/2026. A recomendação é sair de `/clientes` como rota irmã renomeada — **não** como quarta aba de `/painel-cs`, porque `contratos-clientes.tsx` lê `contatos` e `omie_clientes_cadastro`, que `/painel-cs` não lê, e `status_financeiro` cru não é a `categoria_financeira` derivada de lá.
+
+**Pendente de decisão do dono — nada de navegação foi implementado.** Sete perguntas no fim do estudo, todas com recomendação formada. As duas que mais importam: (a) "Empresas" seria **promovida** a corpo de `/clientes` em vez de sair, o que é o contrário do que ele pediu — é ela que tem a busca por CNPJ e o CSV completo; (b) qual chave guarda a tela de produtos e listas — `view.aquario` (22 pessoas), `manage.aquario` (16) e `send.monetizacao` (16) são três portões distintos e a tela modela um só.
+
+**Ressalva de procedência do estudo:** a rodada adversarial marcou 29 de 30 afirmações como derrubadas, mas os refutadores foram instruídos a "na dúvida, refute" — lidas uma a uma, a maioria confirma o fato e corrige o *alcance* da conclusão ou um número de linha defasado. Todas as afirmações reproduzidas nesta entrada foram reconferidas à mão contra `HEAD ffed13a` e contra o banco.
+
+## [2026-09-22] Decisões do dono sobre a navegação da Base de clientes, e o destino dos cards de cliente ativo
+
+Respostas às perguntas abertas do estudo `docs/dev_notes/cockpit-navegacao-ux/estudo.md`. Registradas aqui porque nenhuma delas está implementada ainda — a implementação de navegação segue pendente.
+
+**1. "Empresas" é PROMOVIDA, não removida.** O dono tinha dito que a aba estava inútil ("não vou usar ele ali"), e o estudo mostrou que ela é a única superfície com busca por CNPJ, coluna de CNPJ, estado do espelho do Pipefy com data, e cinco colunas de CSV que o `PortfolioTable` não exporta. Decidido: o **conteúdo** dela vira o corpo de `/clientes`; o que morre é a aba, não a ferramenta. Consequência prática: migrar essas colunas para o `PortfolioTable` é **pré-requisito** de qualquer fatia que mexa na faixa de abas — sem isso a promoção perde dado.
+
+**2. A tela de produtos e listas é guardada por `view.aquario`, com os botões degradando.** Existem três portões distintos e a tela modela um só: `view.aquario` (22 pessoas), `manage.aquario` (16) e `send.monetizacao` (16) — contados na união de `user_roles×role_areas×area_chaves` e `usuario_areas×usuario_chaves`, em 22/09. Decidido: o **item de menu** aparece para quem tem `view.aquario`; "Preparar lista" e "Enviar ao Pipedrive" ficam **desabilitados com o motivo no `title`** para quem não tem `manage.aquario`/`send.monetizacao`, em vez de sumirem. As 6 pessoas do delta veem os cards de produto e não conseguem montar lista — e passam a saber por quê.
+
+**3. "Preparar lista" soma à lista aberta mesmo quando o produto não bate.** Ao consertar a perda da lista aberta (entrada anterior de hoje), surgiu a pergunta: e se a lista aberta é de Consultoria e a seleção é de Finance? O banco permite — não há constraint de produto único por lista, só `UNIQUE (list_id, account_key, product)`. Alternativas oferecidas: (a) somar sempre, (b) recusar quando o produto difere, (c) perguntar. **Escolhida a (a)**, com o aviso na tela dizendo quantas entraram e quantas já estavam. Razão: era o conserto mínimo da perda de trabalho, e as 6 listas que existem hoje são todas de um produto só — o caso nunca aconteceu na prática. Se lista mista passar a ser considerada erro, a mudança é para (b) e são ~5 linhas.
+
+**4. Os dois cards de "clientes ativos" do Rede Overview passam a declarar a view.** `rede-overview.tsx` tinha dois cards com `title="Ver clientes ativos"` mandando `search: { status: "", unidade: "" }`. Como `clientes.tsx` só escolhe a view de contratos quando `status` é *truthy*, os dois caíam no cockpit de prospecção — dois dos três pontos de entrada externos de `/clientes` erravam o alvo. Agora mandam `view: "contratos"` explicitamente.
+
+**Não se manda `status: "ATIVO"` de propósito.** Naquela tela `ATIVO` quer dizer "pagou nos últimos 90 dias" (`contratos-clientes.tsx`, descrição do próprio status), enquanto o `clientesAtivos` do card é "empresa que não deu churn" — conjuntos diferentes. Mandar o filtro faria o destino mostrar menos do que o número clicado. **Fica registrado como folga conhecida:** o card leva à lista certa, mas o total de lá não bate com o número do card. Fechar isso exige um filtro de "não deu churn" na tela de contratos, que é decisão de dado e não entrou aqui.
+
+## [2026-09-22] A tela de Operação parou de atualizar o CRM: o teto de 8 s do PostgREST contra uma função de 5,2 s
+
+**Sintoma:** o dono reportou a Caixa de Oportunidade parada em "CRM · 21/09, 15:35 · atualização pendente", com a tarja "A atualização falhou; preservamos a última carga concluída. canceling statement due to statement timeout".
+
+**Onde morria, apurado no banco.** `ops.monetizacao_sync` mostrava `status=error`, `measured_at` de 21/09 18:35 e `catalog_at` de **hoje**. Como `monetizacao_intake_ops` é quem grava `catalog_at` e `monetizacao_replace_snapshot` é quem grava `measured_at`, a falha estava entre as duas — e a única chamada pesada de banco ali no meio é `ops.monetizacao_refresh_ops()`. O `collect()` do meio só faz dois SELECT com `limit=1000`, e o erro é do Postgres, não HTTP.
+
+**Medido, não suposto.** `explain (analyze) select ops.monetizacao_refresh_ops()` → **5.243,9 ms** de execução. A função é um laço PL/pgSQL linha a linha sobre as **3.761** contas com `empresa_ids`, com 5 statements por volta (2 selects + 3 updates) — cerca de 19 mil comandos numa chamada só. Do ponto de vista do PostgREST isso é **um** statement, então leva o `statement_timeout` inteiro.
+
+**A causa do teto.** `pg_db_role_setting` dá `statement_timeout=8s` ao **`authenticator`**, que é a role de login do PostgREST, e o `service_role` não tinha override próprio. O `supautils` (carregado em `session_preload_libraries` do `authenticator`) aplica as configurações de role no `SET ROLE`, então o `service_role` herdava os 8 s. Prova por contradição: uma função de 5,2 s nunca estouraria um teto de 120 s — e estourava. Folga real: 1,5×. Qualquer concorrência derrubava, e derrubou 
+por ~22 horas seguidas, a cada 5 minutos.
+
+**Decisão:** `alter role service_role set statement_timeout = '60s';` — 11× de folga sobre os 5,2 s medidos. O `authenticated` **continua em 8 s**: o teto do usuário na tela não foi afrouxado, só o do backend que roda o sync.
+
+**O passo que faltava, e que quase fez o conserto parecer errado:** o `ALTER ROLE` sozinho não teve efeito. O PostgREST guarda as configurações de role em cache; foi preciso `notify pgrst, 'reload config'`. Antes do reload o sync continuou estourando em 8 s; depois dele passou na primeira tentativa.
+
+**Verificado pelo efeito:** `status=ok`, `error=null`, `measured_at=2026-09-22 17:15:21`, e `ops.monetizacao_deals` reescrita às 17:15:25 (176 negócios).
+
+**Reversão:** `alter role service_role reset statement_timeout; notify pgrst, 'reload config';`
+
+**Dívida que fica registrada, e que o teto novo só adia.** `monetizacao_refresh_ops` atualiza as 3.761 contas **incondicionalmente**, com `updated_at=now()`, a cada 5 minutos — 288 vezes por dia, três UPDATE por conta, para dado que quase nunca muda. São ~3,2 milhões de reescritas de linha por dia em `monetizacao_contas` e `monetizacao_detalhes`, com o vacuum correndo atrás. O conserto durável é tornar a função conjuntista (ou ao menos pular o UPDATE quando o `perfil` não mudou), o que levaria os 5,2 s para a casa dos milissegundos. Não foi feito nesta rodada: é cirurgia numa função `SECURITY DEFINER` em produção, e o sintoma do dono já estava resolvido. Enquanto não for feito, o tempo cresce com a base e volta a encostar no teto.
+
+## [2026-09-22] Um menu só: as duas faixas de abas da Base de clientes viram cinco entradas
+
+**Contexto:** o dono olhou a tela depois do deploy e disse "não mudou absolutamente nada no menu como eu tinha pedido". Ele estava certo — a rodada anterior entregou o pré-requisito (levar para a tabela da carteira o que só existia na aba "Empresas") e tratou isso como "o pendente", quando o pendente era a navegação. Erro de escopo de quem executou, não de pedido.
+
+**A causa, provada por commit.** `0b29b44` (17/09) apagou o item "Aquário" do menu lateral (`git show 0b29b44 -- src/lib/areas.ts` tem uma linha de diferença) e embutiu aquela tela em `/clientes` como aba. As cinco abas que eram a navegação **principal** do Aquário viraram segundo nível dentro do primeiro, sem redesenho nenhum. Eram duas faixas, onze entradas, três níveis. É isso que a queixa 3 descrevia.
+
+**Decisão: a faixa de cima passa a ser a única navegação, com cinco entradas.**
+`Base de clientes · Produtos e listas · Validar origem (N) · Contratos e churn · Entenda os números`
+
+O `<Tabs>` de dentro do Aquário **deixa de existir**. O componente recebe `secao` (`base` | `produtos` | `gates`) e `irPara` da casca. Ele renderiza na **mesma posição do JSX** nas três seções, então **não desmonta** ao trocar de entrada: filtro, seleção e rascunho de lista sobrevivem à navegação — o que a faixa de abas Radix não garantia. A montagem de lista continua sempre montada e escondida por classe, porque desmontá-la jogaria fora o rascunho do operador.
+
+**"Carteiras por unidade" e "Todas as contas" foram fundidas.** Eram filtro da mesma tabela, não abas distintas — é a regra do design system da Atlassian citada no estudo (`docs/dev_notes/cockpit-navegacao-ux/estudo.md`): *"Don't use tabs to separate information that users need at the same time, such as filtering data within a single table."* Viraram "Base de clientes": grade de unidades e tabela na mesma seção.
+
+**Recon** desceu para dentro de "Produtos e listas" e o cartão dele rola até o painel, em vez de trocar de aba. Ele não é produto (`PRODUTOS` tem três) e não produz lista — onde ele mora de verdade segue pergunta aberta do estudo.
+
+**Destino de cada aba antiga:**
+- **Empresas** — sai da faixa porque foi **promovida** (decisão do dono, entrada de hoje): busca por CNPJ, coluna de CNPJ, espelho do Pipefy e as cinco colunas do CSV já tinham ido para a tabela da carteira. Sai a aba, não a ferramenta.
+- **Negócios** — **morre**. Era recorte pior do que `/monetizacao?aba=operacao` já mostra. O ramo e o `const deals` foram removidos do código.
+- **Contatos** — sai da faixa e ganha link no rodapé do funil ("Ver contatos vinculados"), guardado por `view.contatos`. A view continua endereçável por `?view=contatos` através de uma lista `viewsOcultas`: sem isso ela cairia no fallback e o dado ficaria inalcançável. É a única tela do Ops que lista nominalmente os contatos vinculados a conta.
+- **Contratos da rede** — vira **"Contratos e churn"** na aba **e no `<h1>` da própria tela**. Renomear só a aba deixaria a queixa 4 ("o que é contratos da rede? me deixou confuso") de pé.
+
+**Cabeçalho duplicado.** Embutido, o Aquário para de renderizar o próprio `<h1>` e subtítulo — eram dois `<h1>` na mesma página. O `Freshness` **fica**, porque é o único gatilho de sincronização do CRM nesta tela (o "Atualizar" de fora só invalida cache). Os dois botões de atualizar continuam existindo: fica registrado como dívida, não foi resolvido aqui.
+
+**Conferido no bundle construído, não no status do deploy:** os cinco rótulos novos aparecem em `.output/public/assets/`, e `Carteiras por unidade`, `Listas para sócios`, `Contratos da rede`, `Cockpit da base` e `negócios de Monetização` não aparecem em asset nenhum.
+
+**Nota de ambiente:** o build local estoura o heap do Node com o padrão; precisa de `NODE_OPTIONS=--max-old-space-size=8192`. Não é erro de código — a Vercel constrói a mesma árvore sem isso.
+
+**O que NÃO entrou, e segue no estudo:** rotas irmãs (`/clientes/produtos`, `/clientes/contratos`) em vez de views na mesma rota; a gaveta da unidade virar rota; `?conta=` na URL; publicar `aquario`/`clients` em `permissions` (`functions.ts`) para a tela poder dizer quando está vazia por RLS; e a chave que guarda "Produtos e listas" — hoje a entrada aparece para todos, a decisão registrada era `view.aquario` com os botões degradando.

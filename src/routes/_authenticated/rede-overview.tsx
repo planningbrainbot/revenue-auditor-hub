@@ -973,6 +973,8 @@ function RedeOverviewPage() {
 
         {/* ---- Aba 1: Visão Geral — mesmo layout do mockup de referência ---- */}
         <TabsContent value="geral" className="space-y-4">
+          {/* Os dois cards de clientes declaram a view de contratos: `clientes.tsx` só a escolhe
+              quando `status` tem valor, e o card caía no cockpit de prospecção (22/09). */}
           {/* Mesmos seis números e textos de antes, no KpiCard do design system.
               A comparação com o período anterior vira `delta` (seta em degrau,
               cor pelo sentido); "—" de valor nulo vira "não apurado" (N4). Os
@@ -1011,7 +1013,7 @@ function RedeOverviewPage() {
               valor={clientesAtivos}
               nota="= Clientes Ativos"
               abrir={{
-                onClick: () => navigate({ to: "/clientes", search: { status: "", unidade: "" } }),
+                onClick: () => navigate({ to: "/clientes", search: { view: "contratos", status: "", unidade: "" } }),
                 rotulo: "Ver clientes ativos",
               }}
             />
@@ -1026,7 +1028,7 @@ function RedeOverviewPage() {
               valor={clientesAtivos}
               nota={totalClientes > 0 ? `de ${totalClientes} cadastrados` : "sem dados"}
               abrir={{
-                onClick: () => navigate({ to: "/clientes", search: { status: "", unidade: "" } }),
+                onClick: () => navigate({ to: "/clientes", search: { view: "contratos", status: "", unidade: "" } }),
                 rotulo: "Ver clientes ativos",
               }}
             />

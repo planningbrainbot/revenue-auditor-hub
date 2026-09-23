@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CheckCheck, Download, Plus, Presentation, Save, Send, Trash2 } from "lucide-react";
@@ -83,17 +83,17 @@ export function ListWorkspace({
     action = useServerFn(acionarMonetizacao),
     invalidate = useAtualizarMonetizacao();
   const by = new Map(data.accounts.map((a) => [a.key, a]));
+  // Lido dentro do efeito sem entrar nas dependências dele: o efeito só pode reagir a `initial`,
+  // mas precisa enxergar o rascunho de agora para saber se há lista aberta.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   useEffect(() => {
     if (!initial) return;
     const inferred =
       initial.unit ||
       data.units.find((u) => u.id && initial.accounts.every((k) => u.account_keys.includes(k))) ||
       null;
-    setDraft({
-      ...empty(),
-      nome: `${NOMES[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
-      unidade_id: inferred?.id || null,
-      items: initial.accounts.map((key) => ({
+    const novos: ItemLista[] = initial.accounts.map((key) => ({
         id: crypto.randomUUID(),
         account_key: key,
         product: initial.product,
@@ -101,10 +101,38 @@ export function ListWorkspace({
         status: "draft",
         deal_id: null,
         reason: null,
-      })),
+    }));
+    const aberta = draftRef.current;
+    if (!aberta.id) {
+      setDraft({
+        ...empty(),
+        nome: `${NOMES[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
+        unidade_id: inferred?.id || null,
+        items: novos,
     });
     setSelected(new Set());
     setDirty(true);
+    onConsume();
+      return;
+    }
+    // Com uma lista salva aberta, "Preparar lista" SOMA a ela. Antes daqui saía
+    // `{ ...empty(), items: novos }`, e `empty()` não tem `id`/`revision`: a lista aberta era
+    // descartada em silêncio e o próximo salvar criava outra, porque `persist` manda `id: draft.id`.
+    // A chave de unicidade do banco é (list_id, account_key, product) — é por ela que se deduplica.
+    const tem = new Set(aberta.items.map((i) => `${i.account_key}|${i.product}`));
+    const somar = novos.filter((i) => !tem.has(`${i.account_key}|${i.product}`));
+    const repetidas = novos.length - somar.length;
+    const jaEstavam = repetidas ? ` · ${repetidas} já estavam na lista` : "";
+    if (somar.length) {
+      setDraft({ ...aberta, items: [...aberta.items, ...somar] });
+      setSelected(new Set());
+      setDirty(true);
+      toast.success(
+        `${somar.length} ${somar.length === 1 ? "conta adicionada" : "contas adicionadas"} a "${aberta.nome}"${jaEstavam}`,
+      );
+    } else {
+      toast.info(`Nada a adicionar: as ${novos.length} já estavam em "${aberta.nome}".`);
+    }
     onConsume();
   }, [initial, data.units, onConsume]); // Refetch não substitui rascunho: initial só existe após seleção explícita.
   const owners = [
@@ -299,6 +327,10 @@ export function ListWorkspace({
             variant="ghost"
             aria-label="Nova lista"
             onClick={() => {
+              // Mesmo portão do botão de trocar de lista, logo abaixo: abrir uma lista nova
+              // descarta o rascunho em andamento, e isso não pode acontecer em silêncio.
+              if (dirty && !window.confirm("Há alterações não salvas. Descartar e começar outra?"))
+                return;
               setDraft(empty());
               setDirty(false);
               setSelected(new Set());
@@ -412,10 +444,7 @@ export function ListWorkspace({
             {dirty ? "Alterações não salvas" : statusNames[draft.status]}
           </p>
           {!draft.items.length ? (
-            <Notice>
-              Selecione empresas em Carteiras por unidade ou Todas as contas e clique em Preparar
-              lista.
-            </Notice>
+            <Notice>Selecione empresas em Base de clientes e clique em Preparar lista.</Notice>
           ) : (
             <div className="space-y-3">
               {draft.items.map((i, idx) => {
