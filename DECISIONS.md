@@ -2340,3 +2340,21 @@ O `<Tabs>` de dentro do Aquário **deixa de existir**. O componente recebe `seca
 2. `ops.qb_clientes_ativos` não é `security_invoker`: um sócio regional com escopo por unidade vê 1.236 empresas de 18 unidades pela view, contra 304 pela RLS de `empresas`. Correção sugerida: `alter view ops.qb_clientes_ativos set (security_invoker = true)` depois de conferir quem depende dela.
 
 **Status:** implementado e homologado na cópia isolada; nada integrado à main. Relatório: `docs/dev_notes/cockpit-ceo-piloto/relatorio-rodada-2.md`.
+
+## [2026-09-23] Cockpit do CEO no Design System v2, pronto para subir (sem deploy)
+
+**Contexto:** o dono pediu levar o Cockpit do CEO ao padrão do DS v2 e deixá-lo pronto para subir, sem push/merge/deploy de produção sem perguntar (deploy do Ops é do Eliezek, por CLI) e sem mexer em cálculo, consultas, `portas.ts`, RLS ou na homologação da rodada 2. Contrato em `docs/design/contratos/cockpit-ceo.md`, arquétipo Visão geral, aprovado pelo dono em 23/09.
+
+**Decisão — ordem da pilha: DS v2 → filtros-multi → cockpit.** O cockpit depende de `so_omie` em `estadoProduto()` (commit de filtros-multi `180b186`, aqui `521f789`), e os 7 commits de filtros-multi nunca chegaram à main. O dono aceitou que eles entrem antes, como PR próprio. O piloto foi trazido por `git format-patch` + `git am -3` sobre essa base; nenhuma lógica de filtros-multi se perdeu no rebase (conferido commit a commit).
+
+**Decisão — onde o cockpit mora.** Card da área na tela `/inicio` (área própria `cockpit_ceo`, já aplicada só para `admin` na rodada 2) e rota `/cockpit-ceo`. Título do menu e da aba: "Visão executiva". Pergunta do `PageHeader`: "Estamos no plano para o bilhão, o que mudou e o que é decisão minha?".
+
+**Decisão — as seis frentes saem das abas e viram itens da lateral** (`/cockpit-ceo?frente=receita|clientes|comercial|rede|retencao|capital`), como Monetização faz com `?aba=`. Aba que troca de assunto não é filtro (N6); o estado continua na URL (N7). Cada frente tem a própria pergunta no `PageHeader`.
+
+**Decisão — destinos corrigidos.** "Contas prontas" e a decisão de contas só no Omie abrem Produtos e listas (`view: "produtos"`), não a Base inteira; o destino da rede é Apuração de Royalties em `/unidades/royalties` (o `/royalties` antigo só redirecionava, sem avisar). Só rota e rótulo mudaram, nenhum número.
+
+**Decisão — cor da área reusa a da Estratégia** (`--area-cockpit_ceo: var(--area-estrategia)`) até a Mika definir uma. **Coortes em escala de um tom** (`color-mix` de `--chart-1` proporcional à retenção): os cortes verde/âmbar/vermelho em 95/85/70% do piloto não tinham sido decididos por ninguém, e o codemod de cores tinha convertido esses cortes para sucesso/atenção/perigo, o que os oficializaria.
+
+**Decisão — Jev desligado em produção, em duas travas.** (1) A rota autenticada não passa o slot do Jev: o roteador só aparece no preview sintético `/piloto/cockpit-ceo`, que responde 404 no build. (2) As server functions só rodam com `COCKPIT_JEV_PILOTO=1` **e** `NODE_ENV !== "production"`, e a chave é lida do Keychain do macOS: numa build da Vercel o Jev não liga nem com a chave configurada. Ligar em produção exige decisão do dono e do Eliezek **e** mudança de código (chave por variável só de servidor, sem prefixo `VITE_`; tirar a trava de `NODE_ENV`; montar o slot na rota real). Nenhuma chave foi escrita em arquivo.
+
+**Status:** branch `feat/cockpit-ceo-ds-20260923`. `node --test` 187/187, `tsc` com os mesmos 7 erros anteriores, `design:lint` RESULTADO ok (0 erros), verificação por CDP do preview 23/23, capturas antes/depois em `docs/design/capturas/cockpit-ceo/` (comparativo em `comparativo.md`). **Não publicado.** Para publicar: merge na ordem da pilha e deploy pela CLI no projeto `ops-brain` (time `planning17`), a cargo do Eliezek.
