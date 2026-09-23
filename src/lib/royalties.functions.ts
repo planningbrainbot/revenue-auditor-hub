@@ -218,10 +218,9 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
     // mão se esta chamada falhar depois da apuração já ter sido criada.
     // `as any` porque a RPC é nova e ainda não está em integrations/supabase/types.ts,
     // que é gerado. Mesmo padrão de `base_propor_alteracoes` em clientes.functions.ts.
-    const { error: polErr } = await (supabase as any).rpc(
-      "royalties_aplicar_politica_outras",
-      { p_apuracao_id: inserted.id },
-    );
+    const { error: polErr } = await (supabase as any).rpc("royalties_aplicar_politica_outras", {
+      p_apuracao_id: inserted.id,
+    });
     if (polErr) {
       throw new Error(
         `Apuração ${inserted.id} foi criada, mas a política de outras receitas não ` +

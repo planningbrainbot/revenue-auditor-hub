@@ -579,8 +579,8 @@ export function BrokerAdminView() {
           </div>
 
           {cacTotais.semNota > 0 ? (
-            <Card className="flex gap-3 border-amber-500/40 p-4">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <Card className="flex gap-3 border-warning/40 p-4">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p className="text-sm">
                 <strong>{brl(cacTotais.semNota)}</strong> foram cobrados no pipe e não têm nota
                 emitida no Omie. Isso não é inadimplência da unidade: é emissão que ainda não
@@ -613,7 +613,7 @@ export function BrokerAdminView() {
                       <TableCell
                         className={cn(
                           "text-right font-medium tabular-nums",
-                          devendo ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+                          devendo ? "text-destructive" : "text-success",
                         )}
                       >
                         {devendo ? "" : "−"}
@@ -624,9 +624,7 @@ export function BrokerAdminView() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {(p?.sem_nota ?? 0) > 0 ? (
-                          <span className="font-medium text-amber-600 dark:text-amber-400">
-                            {brl(p?.sem_nota)}
-                          </span>
+                          <span className="font-medium text-warning">{brl(p?.sem_nota)}</span>
                         ) : (
                           <span className="text-muted-foreground">{NA}</span>
                         )}
@@ -672,7 +670,7 @@ export function BrokerAdminView() {
                     <TableCell
                       className={cn(
                         "text-right tabular-nums",
-                        m.tipo === "pagamento" && "text-emerald-600 dark:text-emerald-400",
+                        m.tipo === "pagamento" && "text-success",
                       )}
                     >
                       {m.tipo === "pagamento" ? "−" : ""}

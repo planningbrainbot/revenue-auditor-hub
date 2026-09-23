@@ -757,7 +757,7 @@ export function BrokerUnidadeView() {
                 <p
                   className={cn(
                     "mt-1 text-2xl font-bold tabular-nums",
-                    cacDevendo ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
+                    cacDevendo ? "text-destructive" : "text-success",
                   )}
                 >
                   {brl(Math.abs(cacSaldo.a_pagar))}
@@ -804,7 +804,7 @@ export function BrokerUnidadeView() {
                       <TableCell
                         className={cn(
                           "text-right tabular-nums",
-                          m.tipo === "pagamento" && "text-emerald-600 dark:text-emerald-400",
+                          m.tipo === "pagamento" && "text-success",
                         )}
                       >
                         {m.tipo === "pagamento" ? "−" : ""}
