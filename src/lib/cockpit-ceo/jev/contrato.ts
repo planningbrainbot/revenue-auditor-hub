@@ -123,9 +123,17 @@ export const OPCOES_ROTEAMENTO: Record<string, string> = {
 export function payloadRoteamento(id: string): PedidoJev {
   if (!(id in PERGUNTAS_CEO_FICTICIAS))
     throw new Error("Pergunta fora da lista fictícia do piloto.");
+  return pedidoRoteamento(PERGUNTAS_CEO_FICTICIAS[id as IdPerguntaCeo]);
+}
+
+/**
+ * O pedido de encaminhamento para um texto. Só a avaliação rotulada (casos fictícios fixos) e o
+ * preview (lista fixa acima) chamam isto; nenhuma tela passa texto livre.
+ */
+export function pedidoRoteamento(texto: string): PedidoJev {
   return {
     model: JEV_MODELO,
-    state: { pergunta: PERGUNTAS_CEO_FICTICIAS[id as IdPerguntaCeo] },
+    state: { pergunta: texto },
     questions: {
       frente: {
         type: "choice",
