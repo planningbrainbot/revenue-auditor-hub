@@ -41,7 +41,7 @@ function Shell({
             aria-label={`Filtrar e ordenar por ${titulo}`}
             className={cn(
               "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-muted",
-              (ativo || dirOrdem) && "bg-primary/10 text-primary",
+              (ativo || dirOrdem) && "bg-primary/10 text-primary-text",
             )}
           >
             {dirOrdem === "asc" ? (
@@ -217,7 +217,7 @@ export function FiltroNumero({
       alinharDireita
     >
       <div className="space-y-2 p-2">
-        <div className="text-[11px] text-muted-foreground">Valor entre</div>
+        <div className="text-xs text-muted-foreground">Valor entre</div>
         <div className="flex items-center gap-1.5">
           <Input
             defaultValue={faixa.min ?? ""}

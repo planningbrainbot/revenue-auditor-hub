@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type CSSProperties } from "react";
 import {
   createFileRoute,
   Outlet,
@@ -14,8 +14,12 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
-import { areaDoCaminho, AREAS } from "@/lib/areas";
+import { areaDoCaminho, AREAS, type Area, type Item } from "@/lib/areas";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
+import { Button } from "@/components/ui/button";
+import { Filete } from "@/components/planning";
+import { corDaArea } from "@/lib/planning/cores-area";
+import { ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -39,6 +43,37 @@ const ROLE_LABEL: Record<string, string> = {
   socio_regional: "Sócio Regional",
 };
 
+// "Área › Página" do cabeçalho, lido do próprio menu (areas.ts): nada de dado
+// novo. Mesma regra do grifo da lateral: vale o item de caminho mais específico
+// que casa, para /unidades/split dizer "Split do Asaas" e não "Regras da Rede".
+// Não passa por permissão de propósito: é rótulo de onde você está, e o portão
+// de área logo abaixo já decide se a tela abre.
+function trilhaDoCaminho(
+  pathname: string,
+  searchStr: string,
+): { area: Area; item: Item } | null {
+  const atual = new URLSearchParams(searchStr);
+  let melhor: { area: Area; item: Item } | null = null;
+  for (const area of AREAS) {
+    for (const grupo of area.grupos) {
+      for (const item of grupo.items) {
+        const [caminho, busca] = item.url.split("?");
+        const casa =
+          caminho === "/"
+            ? pathname === "/"
+            : pathname === caminho || pathname.startsWith(caminho + "/");
+        const consultaConfere = [...new URLSearchParams(busca || "")].every(
+          ([k, v]) => atual.get(k) === v,
+        );
+        if (casa && consultaConfere && (!melhor || item.url.length > melhor.item.url.length)) {
+          melhor = { area, item };
+        }
+      }
+    }
+  }
+  return melhor;
+}
+
 // Telas que são PORTA, não destino: entram autenticadas, mas sem a moldura.
 // O /inicio pergunta em qual produto entrar; menu ali seria contraditório,
 // porque o menu já é de um produto — o que a pessoa ainda não escolheu.
@@ -47,6 +82,7 @@ const SEM_MOLDURA = ["/inicio"];
 function AuthenticatedLayout() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const { user } = Route.useRouteContext();
   const { primaryRole, unidade, loading, temArea } = usePermissions(user.id);
 
@@ -74,6 +110,14 @@ function AuthenticatedLayout() {
       ? (AREAS.find((a) => a.slug === slugDaArea)?.nome ?? slugDaArea)
       : null;
 
+  const trilha = trilhaDoCaminho(pathname, searchStr);
+  // Cor da área na raiz do layout: filete de card clicável, abas e o que mais
+  // pedir `--area-atual` herdam daqui sem repetir o slug (a lateral define a
+  // sua, porque no celular ela abre em portal).
+  const estiloArea = {
+    "--area-atual": corDaArea(trilha?.area.slug ?? slugDaArea),
+  } as CSSProperties;
+
   if (SEM_MOLDURA.includes(pathname)) {
     // Só o guarda de autenticação (que vive no `beforeLoad` desta rota) e a
     // tela. Sem barra lateral, sem cabeçalho, sem sino.
@@ -84,7 +128,10 @@ function AuthenticatedLayout() {
     <SidebarProvider>
       {/* --app-header-h: altura do cabeçalho fixo, para quem precisa grudar
           algo logo abaixo dele (ex.: cabeçalho de tabela em /admin/permissoes). */}
-      <div className="flex min-h-screen w-full bg-background [--app-header-h:60px]">
+      <div
+        className="flex min-h-screen w-full bg-background [--app-header-h:60px]"
+        style={estiloArea}
+      >
         <AppSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Tarja e cabeçalho grudam JUNTOS: o botão de sair da simulação que
@@ -94,15 +141,30 @@ function AuthenticatedLayout() {
             <VerComoTarja />
             <header className="flex h-[var(--app-header-h)] items-center gap-3 border-b bg-card px-4">
               <SidebarTrigger />
-              <div className="min-w-0 flex-1" />
+              <nav aria-label="Onde você está" className="min-w-0 flex-1">
+                {trilha && (
+                  <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+                    <li className="hidden shrink-0 items-center gap-2 text-muted-foreground sm:flex">
+                      <Filete className="h-4" />
+                      {trilha.area.nome}
+                    </li>
+                    <li aria-hidden className="hidden text-muted-foreground sm:block">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </li>
+                    <li className="min-w-0 truncate font-medium text-foreground" aria-current="page">
+                      {trilha.item.title}
+                    </li>
+                  </ol>
+                )}
+              </nav>
               <div className="flex items-center gap-2">
-                <div className="hidden flex-col items-end text-right md:flex">
+                <div className="hidden flex-col items-end gap-1 text-right md:flex">
                   <span className="text-xs text-muted-foreground">{user?.email}</span>
                   {!loading && primaryRole && (
-                    <span className="mt-0.5 flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-foreground">
+                    <span className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium leading-4 text-foreground">
                       {ROLE_LABEL[primaryRole] ?? primaryRole}
                       {(primaryRole === "socio" || primaryRole === "socio_regional") && unidade && (
-                        <span className="rounded bg-primary/15 px-1 py-px text-primary">
+                        <span className="rounded-full bg-primary/15 px-1.5 text-primary-text">
                           {unidade}
                         </span>
                       )}
@@ -111,13 +173,9 @@ function AuthenticatedLayout() {
                 </div>
                 <NotificationBell />
                 <ThemeToggle />
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent"
-                >
+                <Button type="button" variant="outline" size="sm" onClick={handleSignOut}>
                   Sair
-                </button>
+                </Button>
               </div>
             </header>
           </div>

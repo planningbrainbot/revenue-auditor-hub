@@ -55,7 +55,7 @@ import { ResolverCnpjDialog } from "@/components/fila-cella/resolver-cnpj-dialog
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {titulo}
       </h3>
       {children}
@@ -190,7 +190,7 @@ export function ContaDetalheSheet({
                 <Linha rotulo="Cliente desde">{dataBR(conta.cliente_desde)}</Linha>
                 <Linha rotulo="Segmento">
                   {conta.segmento ?? "—"}
-                  {conta.segmento_prioritario && <span className="ml-1 text-amber-500">★</span>}
+                  {conta.segmento_prioritario && <span className="ml-1 text-warning">★</span>}
                 </Linha>
                 <Linha rotulo="Faixa declarada">{conta.faixa_declarada ?? "—"}</Linha>
                 <Linha rotulo="Regime">
@@ -220,7 +220,7 @@ export function ContaDetalheSheet({
                 </Linha>
               </div>
               {conta.avisos?.length > 0 && (
-                <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-700 dark:text-amber-400">
+                <ul className="list-disc space-y-0.5 pl-5 text-xs text-warning">
                   {conta.avisos.map((a) => (
                     <li key={a}>{a}</li>
                   ))}
@@ -249,14 +249,14 @@ export function ContaDetalheSheet({
                 <div className="divide-y rounded-md border text-sm">
                   {gatilhos.map((g, i) => (
                     <div key={`${g.gatilho}-${i}`} className="flex items-baseline gap-2 p-2">
-                      <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                      <Badge variant="outline" className="shrink-0 font-mono text-xs">
                         {g.gatilho}
                       </Badge>
                       <span className="min-w-0 flex-1 truncate" title={g.nome_conta}>
                         {g.nome_conta}
                       </span>
                       <span className="shrink-0 tabular-nums">{BRL(g.valor)}</span>
-                      <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
+                      <span className="shrink-0 text-xs uppercase text-muted-foreground">
                         {g.tipo}
                       </span>
                     </div>
@@ -432,7 +432,7 @@ export function ContaDetalheSheet({
               ) : (
                 <div className="space-y-2">
                   {conta.reentrada_bloqueada && (
-                    <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                    <p className="rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
                       Reentrada bloqueada até {dataBR(conta.bloqueado_ate)} (
                       {conta.recusa_explicita ? "180 dias, recusa explícita" : "60 dias"}). Furar a
                       data exige fato novo e a permissão manage.fila_cella_override.
@@ -485,7 +485,7 @@ export function ContaDetalheSheet({
                           {t.resultado}
                         </Badge>
                         {t.override_por && (
-                          <Badge className="bg-amber-500 font-normal text-white hover:bg-amber-500">
+                          <Badge variant="atencao" className="font-normal">
                             override
                           </Badge>
                         )}
@@ -511,7 +511,7 @@ export function ContaDetalheSheet({
                 ].map((c) => (
                   <li
                     key={c.txt}
-                    className={cn("flex gap-2", !c.ok && "text-amber-700 dark:text-amber-400")}
+                    className={cn("flex gap-2", !c.ok && "text-warning")}
                   >
                     <span>{c.ok ? "✓" : "○"}</span>
                     <span>{c.txt}</span>

@@ -169,7 +169,7 @@ export function CustosTab() {
                 <div
                   className={cn(
                     "text-xs mt-0.5",
-                    variacao > 0 ? "text-destructive" : "text-emerald-600",
+                    variacao > 0 ? "text-destructive" : "text-success",
                   )}
                 >
                   {variacao > 0 ? "+" : ""}

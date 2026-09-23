@@ -157,7 +157,7 @@ function SeletorPaginas({
 }) {
   return (
     <fieldset>
-      <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Páginas que vê (só consulta)
       </legend>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
@@ -230,7 +230,7 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
       </div>
 
       <fieldset>
-        <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unidade</legend>
+        <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unidade</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {area.unidades.map((u) => (
             <label key={u.id} htmlFor={`${id}-un-${u.id}`} className="flex items-center gap-2 text-xs">
@@ -250,13 +250,13 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
       <SeletorPaginas id={id} area={area} valor={paginas} onChange={setPaginas} />
 
       {mut.isError && <p className="text-xs text-destructive">{(mut.error as Error).message}</p>}
-      {resultado && <p className="text-xs text-primary">{resultado}</p>}
+      {resultado && <p className="text-xs text-primary-text">{resultado}</p>}
       {link && (
-        <p className="break-all rounded-md bg-muted px-3 py-2 font-mono text-[11px] text-foreground">{link}</p>
+        <p className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs text-foreground">{link}</p>
       )}
 
       <div className="flex items-center justify-end gap-2">
-        {falta && <span className="mr-auto text-[11px] text-muted-foreground">{falta}</span>}
+        {falta && <span className="mr-auto text-xs text-muted-foreground">{falta}</span>}
         <button onClick={onFim} className="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent">
           Fechar
         </button>
@@ -334,12 +334,12 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
           <p className="text-sm font-medium text-foreground">
             {pessoa.nome}
             {pessoa.nivel === "socio" && (
-              <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+              <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase text-primary-text">
                 sócio
               </span>
             )}
             {pessoa.pendente && (
-              <span className="ml-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-400">
+              <span className="ml-2 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-semibold uppercase text-warning">
                 convite pendente
               </span>
             )}
@@ -369,7 +369,7 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
 
           {podeNomear && (
             <fieldset>
-              <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unidades</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unidades</legend>
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {area.unidades.map((u) => (
                   <label key={u.id} htmlFor={`${id}-un-${u.id}`} className="flex items-center gap-2 text-xs">
@@ -388,7 +388,7 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
           )}
 
           {erro && <p className="text-xs text-destructive">{erro.message}</p>}
-          {aviso && <p className="text-xs text-primary">{aviso}</p>}
+          {aviso && <p className="text-xs text-primary-text">{aviso}</p>}
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button

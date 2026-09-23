@@ -18,7 +18,7 @@ export function NpsCoberturaTab() {
   return (
     <div className="space-y-4">
       {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando cobertura…</Card>}
-      {error && <Card className="p-6 text-sm text-red-600">Erro ao carregar cobertura.</Card>}
+      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar cobertura.</Card>}
       {coverage && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -32,7 +32,7 @@ export function NpsCoberturaTab() {
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Com WhatsApp válido pra disparo</div>
-              <div className="mt-1 text-2xl font-semibold text-emerald-600">
+              <div className="mt-1 text-2xl font-semibold text-success">
                 {coverage.totalComWhatsapp}
                 <span className="ml-1 text-sm font-normal text-muted-foreground">
                   ({coverage.totalEmpresas > 0 ? Math.round((coverage.totalComWhatsapp / coverage.totalEmpresas) * 100) : 0}%)
@@ -41,7 +41,7 @@ export function NpsCoberturaTab() {
             </Card>
             <Card className="p-4">
               <div className="text-xs text-muted-foreground">Sem contato — não disparará</div>
-              <div className="mt-1 text-2xl font-semibold text-red-600">{coverage.totalEmpresas - coverage.totalComWhatsapp}</div>
+              <div className="mt-1 text-2xl font-semibold text-danger">{coverage.totalEmpresas - coverage.totalComWhatsapp}</div>
             </Card>
           </div>
 
@@ -75,7 +75,7 @@ export function NpsCoberturaTab() {
                 <TableBody>
                   {coverage.rows.map((u) => {
                     const pct = u.empresas > 0 ? Math.round((u.comWhatsapp / u.empresas) * 100) : 0;
-                    const color = pct >= 70 ? "text-emerald-600" : pct >= 30 ? "text-amber-600" : "text-red-600";
+                    const color = pct >= 70 ? "text-success" : pct >= 30 ? "text-warning" : "text-danger";
                     return (
                       <TableRow key={u.unidade}>
                         <TableCell className="font-medium">{u.unidade}</TableCell>
@@ -84,7 +84,7 @@ export function NpsCoberturaTab() {
                         <TableCell className="text-right text-muted-foreground">{u.jaDisparadasBaseAntiga}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{u.jaDisparadasBaseNova}</TableCell>
                         <TableCell className="text-right">{u.comWhatsapp}</TableCell>
-                        <TableCell className="text-right text-red-600">{u.empresas - u.comWhatsapp}</TableCell>
+                        <TableCell className="text-right text-danger">{u.empresas - u.comWhatsapp}</TableCell>
                         <TableCell className={`text-right font-semibold ${color}`}>{pct}%</TableCell>
                       </TableRow>
                     );

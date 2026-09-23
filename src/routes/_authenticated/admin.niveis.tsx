@@ -39,7 +39,7 @@ const CELULA: Record<Nivel, { texto: string; classe: string }> = {
   super_admin: { texto: "total", classe: "bg-primary text-primary-foreground" },
   admin: { texto: "admin", classe: "bg-primary/80 text-primary-foreground" },
   socio: { texto: "sócio", classe: "bg-primary/25 text-foreground" },
-  usuario: { texto: "usuário", classe: "bg-primary/10 text-primary" },
+  usuario: { texto: "usuário", classe: "bg-primary/10 text-primary-text" },
   perfil: { texto: "perfil", classe: "border border-border text-muted-foreground" },
   bloqueado: { texto: "bloqueada", classe: "bg-destructive/10 text-destructive" },
   nenhum: { texto: "", classe: "" },
@@ -65,7 +65,7 @@ function NiveisPage() {
     >
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
           <div className="text-muted-foreground">
             <p>
               <strong className="text-foreground">total</strong> super admin ·{" "}
@@ -97,7 +97,7 @@ function NiveisPage() {
         ) : (
           <div className="overflow-x-auto rounded-xl border bg-card">
             <table className="w-full text-sm">
-              <thead className="bg-accent/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-accent/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-2">Pessoa</th>
                   <th className="px-3 py-2">Perfil</th>
@@ -125,7 +125,7 @@ function NiveisPage() {
                         }}
                       >
                         <span className="block font-medium text-foreground">{p.nome}</span>
-                        <span className="block text-[11px] text-muted-foreground">{p.email}</span>
+                        <span className="block text-xs text-muted-foreground">{p.email}</span>
                       </button>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{p.perfis.join(", ") || "sem perfil"}</td>
@@ -134,7 +134,7 @@ function NiveisPage() {
                       return (
                         <td key={a.slug} className="px-2 py-2 text-center">
                           {c.texto && (
-                            <span className={cn("inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", c.classe)}>
+                            <span className={cn("inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase", c.classe)}>
                               {c.texto}
                             </span>
                           )}

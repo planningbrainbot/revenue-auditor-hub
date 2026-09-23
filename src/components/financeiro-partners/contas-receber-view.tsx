@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, Search, X, CalendarIcon } from "lucide-react";
+import { Search, X, CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
+import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -43,11 +44,11 @@ interface ContaReceber {
 
 function statusBadge(s: string | null) {
   if (s === "RECEBIDO")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Recebido</Badge>;
+    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
   if (s === "ATRASADO")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Atrasado</Badge>;
+    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
   if (s === "A VENCER" || s === "VENCE HOJE")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">A vencer</Badge>;
+    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
   return <Badge variant="outline">{s ?? "—"}</Badge>;
 }
 
@@ -69,6 +70,7 @@ function parseDate(d: string | null): Date | null {
   }
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function ContasReceberView() {
   const [rows, setRows] = useState<ContaReceber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,15 +167,10 @@ export function ContasReceberView() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Wallet className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contas a Receber — Partners</h1>
-          <p className="text-sm text-muted-foreground">
-            Faturas emitidas pela conta Omie da Partners (Matriz) — origem: Omie.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Contas a Receber — Partners"
+        descricao="Faturas emitidas pela conta Omie da Partners (Matriz) — origem: Omie."
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />
@@ -270,7 +267,7 @@ export function ContasReceberView() {
         </div>
         <div className="relative max-h-[calc(100vh-380px)] overflow-auto">
           <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
               <TableRow>
                 <TableHead className="bg-card">Status</TableHead>
                 <TableHead className="bg-card">Documento</TableHead>
@@ -299,7 +296,7 @@ export function ContasReceberView() {
                     <TableCell className="text-right whitespace-nowrap">{brl(Number(r.valor ?? 0))}</TableCell>
                     <TableCell className="text-right">
                       {atraso != null ? (
-                        <span className="text-red-700 dark:text-red-300 font-medium">{atraso}</span>
+                        <span className="text-danger font-medium">{atraso}</span>
                       ) : "—"}
                     </TableCell>
                   </TableRow>
@@ -320,28 +317,20 @@ export function ContasReceberView() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` era o fundo do card e vira o `tom` do KpiCard (amber →
+// atenção, red → perigo, emerald → sucesso, slate → neutro): valor na cor,
+// ícone de status e filete, nunca cor sozinha (V7).
 function KpiCard({
+  tone,
   label,
   value,
   hint,
-  tone,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  const toneMap = {
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-    red: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
-    emerald: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
-    slate: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>
-      <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }

@@ -258,7 +258,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
       {mostraAdmin && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Target className="h-4 w-4 text-primary" />
+            <Target className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Ciclos</h3>
           </div>
           {data.ciclos.length === 0 ? (
@@ -312,7 +312,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
       {mostraEu && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4 text-primary" />
+            <ClipboardCheck className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Minha fila de avaliação</h3>
             {data.fila.length > 0 && <Badge>{data.fila.length}</Badge>}
           </div>
@@ -387,7 +387,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
       {mostraAdmin && data.podeAdministrar && (
         <Card className="p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Grid3X3 className="h-4 w-4 text-primary" />
+            <Grid3X3 className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Calibração e nine box</h3>
             <Select value={cicloAberto} onValueChange={setCicloAberto}>
               <SelectTrigger className="ml-auto w-72">

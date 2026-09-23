@@ -9,7 +9,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "design:lint": "node scripts/design/lint.mjs",
+    "design:lint:changed": "node scripts/design/lint.mjs --changed",
+    "design:capturar": "node scripts/design/capturar.mjs",
+    "design:codemod": "node scripts/design/codemod-cores.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

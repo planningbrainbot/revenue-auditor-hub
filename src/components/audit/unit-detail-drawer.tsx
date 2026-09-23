@@ -19,6 +19,7 @@ import {
 import { ClientDetailDrawer } from "./client-detail-drawer";
 import type { AuditRegistro } from "@/lib/audit-types";
 import { cn } from "@/lib/utils";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 
 interface Props {
   agg: UnidadeAggregate | null;
@@ -93,11 +94,11 @@ export function UnitDetailDrawer({ agg, mode, open, onClose }: Props) {
                 <div className="h-52 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthly}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={50} />
-                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                      <Tooltip formatter={(v: number) => brl(v)} />
-                      <Bar dataKey="value" name={mode === "cac" ? "CAC" : "Royalties"} fill={mode === "cac" ? "#f59e0b" : "#6366f1"} />
+                      <CartesianGrid {...gradeProps} />
+                      <XAxis {...eixoProps} dataKey="label" angle={-30} textAnchor="end" height={50} />
+                      <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                      <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                      <Bar dataKey="value" name={mode === "cac" ? "CAC" : "Royalties"} fill={CORES_SERIE[0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -178,13 +179,13 @@ function Stat({
 }) {
   const tones: Record<string, string> = {
     default: "bg-card",
-    emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900",
-    amber: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900",
-    indigo: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900",
+    emerald: "bg-success-soft border-success/40",
+    amber: "bg-warning-soft border-warning/40",
+    indigo: "bg-info-soft border-info/30",
   };
   return (
     <div className={cn("rounded-lg border p-3 shadow-sm", tones[tone])}>
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-bold">{value}</div>
     </div>
   );

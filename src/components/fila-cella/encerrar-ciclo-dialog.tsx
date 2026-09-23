@@ -99,7 +99,7 @@ export function EncerrarCicloDialog({
           <p
             className={
               recusa
-                ? "rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+                ? "rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger"
                 : "rounded-md border bg-muted px-3 py-2 text-sm"
             }
           >

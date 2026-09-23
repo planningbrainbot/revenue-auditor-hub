@@ -122,7 +122,7 @@ export function ForecastModel({
                 className="sticky left-0 top-0 z-30 border-b border-r bg-card px-5 py-4 text-left text-muted-foreground"
               >
                 Indicador{" "}
-                <span className="block pt-1 text-[10px] font-normal">Valores monetários em R$</span>
+                <span className="block pt-1 text-xs font-normal">Valores monetários em R$</span>
               </th>
               {source.months.map((m) => (
                 <th
@@ -132,7 +132,7 @@ export function ForecastModel({
                   className={`sticky top-0 z-20 border-b px-4 py-3 ${m === selectedMonth ? "bg-primary text-primary-foreground" : "bg-card"}`}
                 >
                   <span className="block text-sm capitalize">{monthLabel(m)}</span>
-                  <span className="mt-1 block text-[10px] font-normal opacity-75">
+                  <span className="mt-1 block text-xs font-normal opacity-75">
                     {m.slice(0, 4)}
                     {m === selectedMonth ? " · selecionado" : ""}
                   </span>
@@ -153,7 +153,7 @@ export function ForecastModel({
                       scope="row"
                       className="sticky left-0 z-10 border-r border-primary/20 bg-primary/15 px-5 py-3 text-left font-semibold text-foreground backdrop-blur-xl"
                     >
-                      <span className="mr-2 text-[10px] text-muted-foreground">
+                      <span className="mr-2 text-xs text-muted-foreground">
                         {String(BLOCKS.indexOf(g) + 1).padStart(2, "0")}
                       </span>
                       {g.name}
@@ -209,7 +209,7 @@ export function ForecastModel({
             </p>
           )}
       </div>
-      <div className="flex flex-wrap justify-between gap-2 px-5 py-3 text-[11px] leading-relaxed text-muted-foreground">
+      <div className="flex flex-wrap justify-between gap-2 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
         <p>
           Premissas do modelo preservadas. Caixa projetado e receita prevista são medidas distintas.
         </p>

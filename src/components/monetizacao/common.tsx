@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
 import { csv, oferta } from "@/lib/monetizacao/model";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -52,6 +53,10 @@ export function Panel({
     </section>
   );
 }
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). Com `onClick` o card inteiro abre o detalhe (N2); `accent` pintava o
+// número de verde (o número "bom" da grade: aptas, conversão) e vira o tom
+// `sucesso` do KpiCard, com ícone de status junto da cor (V7).
 export function Kpi({
   label,
   value,
@@ -65,35 +70,23 @@ export function Kpi({
   onClick?: () => void;
   accent?: boolean;
 }) {
-  const content = (
-    <>
-      <span className="block text-xs font-medium text-muted-foreground">{label}</span>
-      <span
-        className={`my-2 block text-3xl font-semibold tabular-nums ${accent ? "text-primary" : ""}`}
-      >
-        {value}
-      </span>
-      <span className="block text-xs text-muted-foreground">{hint}</span>
-    </>
-  );
-  return onClick ? (
-    <button
-      onClick={onClick}
-      className="rounded-xl border bg-card p-4 text-left transition hover:border-primary focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {content}
-    </button>
-  ) : (
-    <div className="rounded-xl border bg-card p-4">{content}</div>
+  return (
+    <KpiCard
+      rotulo={label}
+      valor={value}
+      nota={hint}
+      abrir={onClick ? { onClick } : undefined}
+      tom={tomDoLegado(accent)}
+    />
   );
 }
 export function Notice({ children }: { children: ReactNode }) {
   return (
     <div
       role="status"
-      className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs"
+      className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs"
     >
-      <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+      <AlertCircle className="h-4 w-4 shrink-0 text-warning" />
       <div>{children}</div>
     </div>
   );
@@ -126,7 +119,7 @@ export function Freshness({
   const stale = !data.measured_at || Date.now() - Date.parse(data.measured_at) > 30 * 60000;
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <span className={`h-2 w-2 rounded-full ${stale ? "bg-amber-500" : "bg-emerald-500"}`} />
+      <span className={`h-2 w-2 rounded-full ${stale ? "bg-warning" : "bg-success"}`} />
       <span>
         CRM ·{" "}
         {data.measured_at
@@ -151,14 +144,14 @@ export function OfertaTag({ account, product }: { account: Conta; product: Produ
   const result = oferta(account, product);
   const colors =
     result.status === "elegivel"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      ? "border-success/30 bg-success/10 text-success"
       : result.status === "revisar"
-        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        ? "border-warning/30 bg-warning/10 text-warning"
         : "text-muted-foreground";
   return (
     <span
       title={result.reason}
-      className={`inline-block rounded border px-1.5 py-0.5 text-[10px] ${colors}`}
+      className={`inline-block rounded border px-1.5 py-0.5 text-xs ${colors}`}
     >
       {NOMES[product]} ·{" "}
       {result.status === "elegivel"

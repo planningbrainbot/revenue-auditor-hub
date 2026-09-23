@@ -29,7 +29,7 @@ export function FilaCoberturaBar({
         onClick={() => onFiltrarEcd(ativo ? null : estadoAlvo)}
         className={cn(
           "font-semibold underline-offset-2 hover:underline",
-          ativo && "text-primary underline",
+          ativo && "text-primary-text underline",
         )}
       >
         {valor}

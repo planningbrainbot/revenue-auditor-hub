@@ -35,14 +35,14 @@ import {
  */
 
 const ROTULO: Record<string, { texto: string; cls: string }> = {
-  a_emitir: { texto: "A emitir", cls: "text-emerald-700 dark:text-emerald-300" },
-  ja_existia: { texto: "Já no Omie", cls: "text-amber-700 dark:text-amber-300" },
-  ja_registrada: { texto: "Já emitida", cls: "text-amber-700 dark:text-amber-300" },
+  a_emitir: { texto: "A emitir", cls: "text-success" },
+  ja_existia: { texto: "Já no Omie", cls: "text-warning" },
+  ja_registrada: { texto: "Já emitida", cls: "text-warning" },
   nao_fechada: { texto: "Não fechada", cls: "text-muted-foreground" },
   sem_valor: { texto: "Sem valor", cls: "text-muted-foreground" },
   sem_apuracao: { texto: "Sem apuração", cls: "text-muted-foreground" },
-  criada: { texto: "OS criada", cls: "text-sky-700 dark:text-sky-300" },
-  faturada: { texto: "Faturada", cls: "text-emerald-700 dark:text-emerald-300" },
+  criada: { texto: "OS criada", cls: "text-info" },
+  faturada: { texto: "Faturada", cls: "text-success" },
   erro: { texto: "Erro", cls: "text-destructive" },
 };
 
@@ -160,7 +160,7 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
         {!simular.isPending && linhas.length > 0 && (
           <>
             {naoFechadas.length > 0 && !resultado && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+              <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-foreground">
                 {naoFechadas.length === 1
                   ? "1 unidade tem apuração aberta"
                   : `${naoFechadas.length} unidades têm apuração aberta`}{" "}
@@ -170,7 +170,7 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
             )}
 
             {jaFoi.length > 0 && !resultado && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
                 {jaFoi.length === 1
                   ? "1 unidade já tem fatura"
                   : `${jaFoi.length} unidades já têm fatura`}{" "}
@@ -259,7 +259,7 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
             )}
 
             {resultado && (
-              <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <div className="flex items-start gap-2 rounded-md border border-success/40 bg-success-soft px-3 py-2 text-sm text-success">
                 <Check className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
                   {resultado.resumo.faturadas} faturada(s), {resultado.resumo.criadas} criada(s) sem

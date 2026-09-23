@@ -141,7 +141,7 @@ export function GenteClimaTab() {
   return (
     <div className="space-y-4">
       <Card className="flex items-start gap-3 p-4">
-        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
         <div className="text-sm">
           <div className="font-medium">A resposta é anônima, e isso é garantido pelo banco.</div>
           <p className="mt-1 text-muted-foreground">

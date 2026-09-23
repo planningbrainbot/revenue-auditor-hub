@@ -6,6 +6,7 @@ import { buildReconciliation, daysSince, type Bucket, type GrupoFilialLink, type
 import { brl, date, num } from "./format";
 import { unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
+import { KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 
 type SubTab = "vendido_sem_faturar" | "faturado_sem_crm" | "cadastro_orfao" | "matriz";
@@ -21,12 +22,12 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 };
 
 const BUCKET_TONE: Record<Bucket, string> = {
-  completo: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
-  vendido_sem_faturar: "bg-orange-100 text-orange-900 dark:bg-orange-900 dark:text-orange-100",
-  faturado_sem_crm: "bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100",
+  completo: "bg-success-soft text-success",
+  vendido_sem_faturar: "bg-warning-soft text-warning",
+  faturado_sem_crm: "bg-info-soft text-info",
   faturado_sem_cadastro: "bg-purple-100 text-purple-900 dark:bg-purple-900 dark:text-purple-100",
-  vendido_sem_cadastro: "bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100",
-  cadastro_orfao: "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100",
+  vendido_sem_cadastro: "bg-warning-soft text-warning",
+  cadastro_orfao: "bg-muted text-foreground",
   outro: "bg-muted text-muted-foreground",
 };
 
@@ -180,7 +181,7 @@ export function Conciliacao3ViasTab() {
             className={
               "rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors " +
               (sub === k
-                ? "border-primary text-primary"
+                ? "border-primary text-primary-text"
                 : "border-transparent text-muted-foreground hover:text-foreground")
             }
           >
@@ -225,9 +226,11 @@ export function Conciliacao3ViasTab() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O ícone sai; o `tone` vira o `tom` do KpiCard (orange → atenção,
+// sky → info, slate → neutro), com ícone de status junto da cor (V7).
 function KpiCard({
   tone,
-  icon,
   label,
   value,
   hint,
@@ -238,21 +241,7 @@ function KpiCard({
   value: string;
   hint: string;
 }) {
-  const map = {
-    orange: "border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-100",
-    sky: "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100",
-    slate: "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-100",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${map[tone]}`}>
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 text-3xl font-bold">{value}</div>
-      <div className="mt-1 text-xs opacity-80">{hint}</div>
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }
 
 function ReconTable({
@@ -299,7 +288,7 @@ function ReconTable({
                   <td className="px-3 py-2">
                     <div className="font-medium">{r.razaoSocial ?? "—"}</div>
                     {isNovo && (
-                      <span className="ml-0 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900 dark:bg-blue-900 dark:text-blue-100">
+                      <span className="ml-0 inline-block rounded bg-info-soft px-1.5 py-0.5 text-xs font-semibold text-info">
                         contrato novo ({d}d)
                       </span>
                     )}
@@ -322,7 +311,7 @@ function ReconTable({
                       {r.ultimaFaturaRecebida
                         ? `${date(r.ultimaFaturaRecebida.data_pagamento)} · ${brl(r.ultimaFaturaRecebida.valor)}`
                         : r.temOmieQualquer
-                          ? <span className="text-amber-700">sem RECEBIDO &lt; 60d</span>
+                          ? <span className="text-warning">sem RECEBIDO &lt; 60d</span>
                           : <span className="text-muted-foreground">sem registro</span>}
                     </td>
                   )}
@@ -359,13 +348,13 @@ function Signals({ row }: { row: ReconRow }) {
     <span
       title={title}
       className={
-        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold " +
+        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold " +
         (on
-          ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
+          ? "bg-success-soft text-success"
           : "bg-muted text-muted-foreground")
       }
     >
-      <span className={"h-1.5 w-1.5 rounded-full " + (on ? "bg-emerald-600" : "bg-muted-foreground/40")} />
+      <span className={"h-1.5 w-1.5 rounded-full " + (on ? "bg-success" : "bg-muted-foreground/40")} />
       {label}
     </span>
   );
@@ -377,7 +366,7 @@ function Signals({ row }: { row: ReconRow }) {
       {row.viaGrupo && (
         <span
           title="Match via filial vinculada (grupo)"
-          className="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900 dark:bg-blue-950 dark:text-blue-200"
+          className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 text-xs font-semibold text-info"
         >
           <Link2 className="h-2.5 w-2.5" />
           via grupo

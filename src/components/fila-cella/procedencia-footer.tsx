@@ -41,7 +41,7 @@ export function ProcedenciaFooter({
         Sincronizado em <strong>{sync}</strong> · a ECD não tem controle de retificadora: uma
         escrituração substituta não é distinguível da original nesta base.
       </p>
-      {estado !== "ok" && aviso && <p className="text-amber-700 dark:text-amber-400">{aviso}</p>}
+      {estado !== "ok" && aviso && <p className="text-warning">{aviso}</p>}
     </Card>
   );
 }

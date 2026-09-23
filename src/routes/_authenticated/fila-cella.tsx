@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ListChecks } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -7,16 +6,18 @@ import { FilaTab } from "@/components/fila-cella/fila-tab";
 import { NovosContratosTab } from "@/components/fila-cella/novos-contratos-tab";
 import { LogToquesTab } from "@/components/fila-cella/log-toques-tab";
 import { DicionarioTab } from "@/components/fila-cella/dicionario-tab";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/fila-cella")({
   component: FilaCellaPage,
 });
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function FilaCellaPage() {
   const { can, loading } = usePermissions();
 
   if (loading) {
-    return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+    return <Carregando variante="pagina" className="p-4 md:p-6" />;
   }
   // A tela checa permissão no componente de propósito: hoje base-contatos,
   // painel-cs, nps e funil-receita não checam, e uma URL digitada à mão abre a
@@ -32,16 +33,15 @@ function FilaCellaPage() {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <ListChecks className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Fila Cella</h1>
-            <p className="text-sm text-muted-foreground">
+        <PageHeader
+          titulo="Fila Cella"
+          descricao={
+            <>
               Canal dedicado sobre a base instalada. Esta tela cobre o <strong>Funil B</strong> — a
               cadeia contratos → Tiago → análise não está aqui.
-            </p>
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <Tabs defaultValue="fila" className="w-full">
           <TabsList>

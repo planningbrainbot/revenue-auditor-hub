@@ -43,15 +43,11 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
 
 type Role = string;
 
-const SYSTEM_ROLE_PILL: Record<string, string> = {
-  admin: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  diretor: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
-  socio: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  head: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  auditor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200",
-  socio_regional: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200",
-};
-const CUSTOM_ROLE_PILL = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
+// Papel e produto são CATEGORIA, não status. Pintados com as cores de status,
+// "auditor" parecia erro, "sócio" parecia sucesso e sócio e sócio regional
+// ficavam iguais. A palavra já diz qual é; a pílula é neutra para todos.
+const ROLE_PILL = "border border-input text-foreground";
+const CUSTOM_ROLE_PILL = "bg-muted text-foreground";
 
 // Papéis e departamentos do Growth — espelham os CHECK de public.membros lá.
 const GROWTH_PAPEIS = ["admin", "gestao", "operacional"] as const;
@@ -72,11 +68,6 @@ const PRODUTOS = [
   { slug: "financeiro", rotulo: "Financeiro" },
 ] as const;
 
-const PRODUTO_PILL: Record<string, string> = {
-  ops: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
-  growth: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
-  financeiro: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-};
 const PRODUTO_PILL_OFF =
   "border border-dashed border-border text-muted-foreground hover:border-solid hover:bg-accent";
 
@@ -155,7 +146,6 @@ function UsersPage() {
   );
 
   const roleLabel = (key: string) => roles.find((r) => r.key === key)?.label ?? key;
-  const rolePill = (key: string) => SYSTEM_ROLE_PILL[key] ?? CUSTOM_ROLE_PILL;
 
   const [showForm, setShowForm] = useState(false);
   const [nome, setNome] = useState("");
@@ -354,8 +344,8 @@ function UsersPage() {
           <div
             className={`rounded-xl border p-4 ${
               acesso.enviado
-                ? "border-emerald-500/40 bg-emerald-500/5"
-                : "border-amber-500/50 bg-amber-500/5"
+                ? "border-success/40 bg-success/5"
+                : "border-warning/50 bg-warning/5"
             }`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -482,11 +472,11 @@ function UsersPage() {
                   {lookingUp ? (
                     <span className="text-muted-foreground">Buscando unidade…</span>
                   ) : socioUnidade ? (
-                    <span className="text-emerald-700 dark:text-emerald-300">
+                    <span className="text-success">
                       Unidade vinculada: <strong>{socioUnidade}</strong>
                     </span>
                   ) : (
-                    <span className="text-amber-700 dark:text-amber-300">
+                    <span className="text-warning">
                       Email não encontrado na tabela de sócios. O acesso será criado, mas a unidade ficará vazia.
                     </span>
                   )}
@@ -581,7 +571,7 @@ function UsersPage() {
                           ))}
                         </select>
                         {editingRole !== (u.role ?? "") && (
-                          <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                          <p className="mt-1 text-xs leading-tight text-muted-foreground">
                             Troca as áreas que vêm do perfil. O que foi dado a ela em Acessos
                             continua igual.
                           </p>
@@ -592,7 +582,7 @@ function UsersPage() {
                         type="button"
                         onClick={() => abrirEdicao(u)}
                         title="Clique para trocar o papel desta pessoa"
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide hover:opacity-80 ${rolePill(u.role)}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 ${ROLE_PILL}`}
                       >
                         {roleLabel(u.role)}
                       </button>
@@ -620,7 +610,7 @@ function UsersPage() {
                       {u.escopo.todas ? (
                         <span className="text-foreground">Todas as unidades</span>
                       ) : u.escopo.unidades.length === 0 ? (
-                        <span className="text-amber-600">nenhuma unidade</span>
+                        <span className="text-warning">nenhuma unidade</span>
                       ) : u.escopo.unidades.length === 1 ? (
                         <span className="text-foreground">{u.escopo.unidades[0]}</span>
                       ) : (
@@ -629,11 +619,11 @@ function UsersPage() {
                         </span>
                       )}
                       {(u.role === "socio" || u.role === "socio_regional") && (
-                        <span className="mt-0.5 block text-[10px] normal-case">
+                        <span className="mt-0.5 block text-xs normal-case">
                           {u.unidade ? (
                             <>sócio de {u.unidade}</>
                           ) : (
-                            <span className="text-amber-600">sócio não vinculado</span>
+                            <span className="text-warning">sócio não vinculado</span>
                           )}
                         </span>
                       )}
@@ -679,12 +669,12 @@ function UsersPage() {
                               }
                               navigate({ to: "/admin/acessos-financeiro" });
                             }}
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 ${
-                              tem ? PRODUTO_PILL[prod.slug] ?? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 ${
+                              tem ? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
                             }`}
                           >
                             {prod.rotulo}
-                            {inconsistente && <span className="ml-1 text-amber-600">!</span>}
+                            {inconsistente && <span className="ml-1 text-warning">!</span>}
                           </button>
                         );
                       })}

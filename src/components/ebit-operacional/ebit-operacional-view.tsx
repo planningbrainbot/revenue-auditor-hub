@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import {
   syncVendasServicos,
   syncCustoOperacional,
@@ -34,7 +35,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const NA = "—";
-const COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#ef4444"];
 
 type VendaRow = {
   pipefy_card_id: string;
@@ -168,26 +168,26 @@ export function EbitOperacionalView() {
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Custo Operacional (mês atual)</div>
           <div className="text-2xl font-bold">{fmtMoney(custoMesAtual)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Soma dos itens · aba Controle de Gastos Geral</div>
+          <div className="text-xs text-muted-foreground mt-1">Soma dos itens · aba Controle de Gastos Geral</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Vendido (MRR atual)</div>
-          <div className="text-2xl font-bold text-emerald-600">{fmtMoney(mrrVendido)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">{vendidas.length} venda(s) confirmada(s)</div>
+          <div className="text-2xl font-bold text-success">{fmtMoney(mrrVendido)}</div>
+          <div className="text-xs text-muted-foreground mt-1">{vendidas.length} venda(s) confirmada(s)</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             Gap a fechar
             {gap <= 0 ? (
-              <TrendingUp className="h-3 w-3 text-emerald-600" />
+              <TrendingUp className="h-3 w-3 text-success" />
             ) : (
               <TrendingDown className="h-3 w-3 text-destructive" />
             )}
           </div>
-          <div className={cn("text-2xl font-bold", gap <= 0 ? "text-emerald-600" : "text-destructive")}>
+          <div className={cn("text-2xl font-bold", gap <= 0 ? "text-success" : "text-destructive")}>
             {gap <= 0 ? "EBIT zerado" : fmtMoney(gap)}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="text-xs text-muted-foreground mt-1">
             <Target className="inline h-3 w-3 mr-0.5" />
             {(pctCoberto * 100).toFixed(0)}% do custo coberto
           </div>
@@ -198,7 +198,7 @@ export function EbitOperacionalView() {
             Potencial pós-rampa
           </div>
           <div className="text-2xl font-bold text-muted-foreground">{fmtMoney(mrrPotencial)}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="text-xs text-muted-foreground mt-1">
             Informativo — não conta pro gap oficial até acontecer
           </div>
         </Card>
@@ -214,11 +214,7 @@ export function EbitOperacionalView() {
               <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
               <Tooltip />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {funil.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Bar>
+              <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

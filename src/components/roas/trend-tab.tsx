@@ -12,11 +12,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, investimentoEfetivo } from "./calculations";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
-const COLORS = [
-  "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#0ea5e9", "#f97316", "#14b8a6", "#ec4899", "#84cc16",
-];
+// TODO(design): área empilhada com uma série por unidade passa de 3 (DESIGN §5); decisão de produto.
+const COLORS = CORES_SERIE;
 
 export function TrendTab() {
   const { contratos, configs, mesesDisponiveis } = useRoasData();
@@ -61,11 +60,11 @@ export function TrendTab() {
         <div className="h-80 w-full">
           <ResponsiveContainer>
             <AreaChart data={areaData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="mes" fontSize={11} />
-              <YAxis fontSize={11} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="mes" />
+              <YAxis {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
               {unidades.map((u, i) => (
                 <Area
                   key={u}
@@ -116,8 +115,8 @@ export function TrendTab() {
                           className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
                             v >= 1
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                              : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+                              ? "bg-success-soft text-success"
+                              : "bg-danger-soft text-danger",
                           )}
                         >
                           {v.toFixed(2)}
@@ -137,8 +136,8 @@ export function TrendTab() {
                         className={cn(
                           "inline-flex items-center rounded-full px-2 py-0.5 text-xs",
                           v >= 1
-                            ? "bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100"
-                            : "bg-red-200 text-red-900 dark:bg-red-900 dark:text-red-100",
+                            ? "bg-success-soft text-success"
+                            : "bg-danger-soft text-danger",
                         )}
                       >
                         {v.toFixed(2)}

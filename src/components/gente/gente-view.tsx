@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { KpiCard } from "@/components/planning";
 
 const NA = "—";
 const TODOS = "__todos__";
@@ -37,8 +38,9 @@ const VINCULO_LABEL: Record<string, string> = {
 const fmtData = (d: string | null) =>
   d ? new Date(`${d}T12:00:00`).toLocaleDateString("pt-BR") : NA;
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O ícone sai: o card de número do Brain leva só o rótulo em cima.
 function Kpi({
-  icone: Icone,
   valor,
   rotulo,
   detalhe,
@@ -48,18 +50,7 @@ function Kpi({
   rotulo: string;
   detalhe?: string;
 }) {
-  return (
-    <Card className="p-4">
-      <div className="flex items-start gap-3">
-        <Icone className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-        <div className="min-w-0">
-          <div className="text-2xl font-bold tabular-nums leading-tight">{valor}</div>
-          <div className="text-sm text-muted-foreground">{rotulo}</div>
-          {detalhe ? <div className="mt-0.5 text-xs text-muted-foreground">{detalhe}</div> : null}
-        </div>
-      </div>
-    </Card>
-  );
+  return <KpiCard rotulo={rotulo} valor={valor} nota={detalhe} />;
 }
 
 export function GenteView() {
@@ -207,7 +198,7 @@ export function GenteView() {
 
       {!podeIndividual ? (
         <Card className="flex items-start gap-3 p-4">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
           <div className="text-sm">
             <div className="font-medium">Aqui você vê número por unidade, não nome por nome.</div>
             <p className="mt-1 text-muted-foreground">

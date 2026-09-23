@@ -32,7 +32,7 @@ export function FilaHigieneBar({
 
   return (
     <Card className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Higiene §5.6
       </span>
       {itens.map((i) => {
@@ -47,7 +47,7 @@ export function FilaHigieneBar({
             className={cn(
               "rounded-md border px-2 py-1 text-xs transition-colors",
               ativo
-                ? "border-primary bg-primary/10 text-primary"
+                ? "border-primary bg-primary/10 text-primary-text"
                 : "border-border hover:bg-muted disabled:cursor-default disabled:opacity-60",
               valor ? "font-medium" : "text-muted-foreground",
             )}

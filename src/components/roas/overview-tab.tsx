@@ -14,6 +14,8 @@ import { brl, num } from "@/components/audit/format";
 import { cn } from "@/lib/utils";
 import { useRoasData, monthLabel } from "./data-context";
 import { aggregateUnidades, type UnidadeMesAgg } from "./calculations";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
+import { KpiCard, tomDoLegado } from "@/components/planning";
 
 function fmtBRL(v: number) {
   return brl(v);
@@ -92,32 +94,22 @@ function computeKpis(aggs: UnidadeMesAgg[]): Kpis {
   return { invTotal, verba, bolso, mrrTotal, mrrRegionais, mrrBUs, roas, gap, cacRecebido, saldo, royaltiesNovos, mesesParaCobrir };
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` pintava o número e vira o `tom` do KpiCard (emerald →
+// sucesso, red → perigo, amber → atenção, neutral → neutro), com ícone de
+// status junto da cor (V7).
 function Card({
+  tone,
   label,
   value,
   sub,
-  tone,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "emerald" | "red" | "amber" | "neutral";
 }) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : tone === "red"
-        ? "text-red-600 dark:text-red-400"
-        : tone === "amber"
-          ? "text-amber-600 dark:text-amber-400"
-          : "text-foreground";
-  return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 text-2xl font-bold", toneClass)}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
-    </div>
-  );
+  return <KpiCard rotulo={label} valor={value} nota={sub} tom={tomDoLegado(tone)} />;
 }
 
 export function OverviewTab() {
@@ -210,7 +202,7 @@ export function OverviewTab() {
             <div
               className={cn(
                 "h-full rounded-full transition-all",
-                k.roas >= 1 ? "bg-emerald-500" : k.roas >= 0.6 ? "bg-amber-500" : "bg-red-500",
+                k.roas >= 1 ? "bg-success" : k.roas >= 0.6 ? "bg-warning" : "bg-danger",
               )}
               style={{ width: `${Math.min(100, k.roas * 100).toFixed(1)}%` }}
             />
@@ -252,7 +244,7 @@ export function OverviewTab() {
           </div>
           {k.saldo <= 0 ? (
             <>
-              <div className="mt-4 text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="mt-4 text-3xl font-bold text-success">
                 Mês 1 ✓
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -261,7 +253,7 @@ export function OverviewTab() {
             </>
           ) : (
             <>
-              <div className="mt-4 text-3xl font-bold text-amber-600 dark:text-amber-400">
+              <div className="mt-4 text-3xl font-bold text-warning">
                 {k.mesesParaCobrir != null ? `${k.mesesParaCobrir.toFixed(1)} meses` : "—"}
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -282,20 +274,19 @@ export function OverviewTab() {
         <div className="h-72 w-full">
           <ResponsiveContainer>
             <BarChart data={barData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="mes" fontSize={11} />
-              <YAxis fontSize={11} tickFormatter={(v) => num(v)} />
-              <Tooltip formatter={(v: number) => brl(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="mes" />
+              <YAxis {...eixoProps} tickFormatter={(v) => num(v)} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+              <Legend {...legendaProps} />
               <ReferenceLine
                 y={invMensalFixo}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                label={{ value: "Break-even", fill: "#ef4444", fontSize: 11 }}
+                {...linhaMetaProps}
+                label={{ value: "Break-even", fill: "var(--muted-foreground)", fontSize: 12 }}
               />
-              <Bar dataKey="investimento" fill="#f97316" name="Investimento" />
-              <Bar dataKey="mrr" fill="#10b981" name="MRR captado" />
-              <Bar dataKey="royalties" fill="#60a5fa" name="Royalties do mês" />
+              <Bar dataKey="investimento" fill={CORES_SERIE[0]} name="Investimento" />
+              <Bar dataKey="mrr" fill={CORES_SERIE[1]} name="MRR captado" />
+              <Bar dataKey="royalties" fill={CORES_SERIE[2]} name="Royalties do mês" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -321,8 +312,8 @@ function Row({
     "flex items-center justify-between",
     bold && "font-semibold",
     muted && "text-muted-foreground",
-    tone === "emerald" && "text-emerald-600 dark:text-emerald-400",
-    tone === "red" && "text-red-600 dark:text-red-400",
+    tone === "emerald" && "text-success",
+    tone === "red" && "text-danger",
   );
   const sign = value >= 0 ? "+" : "−";
   return (

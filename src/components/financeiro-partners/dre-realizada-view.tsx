@@ -3,8 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Mesma paleta "oliva" da aba FCx — intencional, replica a identidade visual
 // do relatório original da contadora (planilha Financeiro Partners).
-const OLIVE = "#6b7c3a";
-const OLIVE_BG = "#e8edcc";
+// Oliva do relatório impresso da controladoria não tem token; na tela o
+// cabeçalho usa texto e superfície do tema, para funcionar no escuro.
+const OLIVE = "var(--foreground)";
+const OLIVE_BG = "var(--muted)";
 
 interface DreRow {
   bloco: string;
@@ -138,8 +140,8 @@ export function DreRealizadaView() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="bg-white border border-red-200 rounded-2xl p-8 max-w-md text-center space-y-3">
-          <p className="text-red-600 font-bold">Erro ao carregar dados</p>
+        <div className="bg-card border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
+          <p className="text-danger font-bold">Erro ao carregar dados</p>
           <p className="text-muted-foreground text-sm">{error}</p>
         </div>
       </div>
@@ -171,12 +173,12 @@ export function DreRealizadaView() {
       </div>
 
       <div className="space-y-0">
-        <div className="bg-white rounded-t-2xl border border-slate-200 px-6 py-5">
+        <div className="bg-card rounded-t-2xl border border-border px-6 py-5">
           <div className="flex items-center gap-6">
             <div>
-              <div className="text-4xl font-black text-slate-900 leading-none tracking-tight">DRE</div>
-              <div className="text-[11px] font-semibold mt-0.5" style={{ color: OLIVE }}>DRE Realizada (Regime de Caixa)</div>
-              <div className="text-[9px] font-bold tracking-widest mt-0.5" style={{ color: OLIVE }}>CONTROLADORIA</div>
+              <div className="text-4xl font-black text-foreground leading-none tracking-tight">DRE</div>
+              <div className="text-xs font-semibold mt-0.5" style={{ color: OLIVE }}>DRE Realizada (Regime de Caixa)</div>
+              <div className="text-xs font-bold tracking-widest mt-0.5" style={{ color: OLIVE }}>CONTROLADORIA</div>
             </div>
             <div className="flex-1 rounded-lg px-5 py-3" style={{ background: OLIVE_BG }}>
               <h2 className="text-sm font-bold" style={{ color: OLIVE }}>Relatório: Fluxo de COM.Caixa (FCx Realizado)</h2>
@@ -187,18 +189,18 @@ export function DreRealizadaView() {
           </div>
         </div>
 
-        <div className="border border-t-0 border-slate-200 rounded-b-2xl overflow-hidden">
+        <div className="border border-t-0 border-border rounded-b-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="py-2 px-5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-80">Categoria</th>
+                  <th className="py-2 px-5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide w-80">Categoria</th>
                   {meses.map((mes) => (
-                    <th key={mes} className="py-2 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                    <th key={mes} className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                       {mesLabel(mes)}
                     </th>
                   ))}
-                  <th className="py-2 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Total Geral</th>
+                  <th className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Total Geral</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,36 +208,36 @@ export function DreRealizadaView() {
                   const isExpanded = expandidos.has(b.bloco);
                   return (
                     <Fragment key={b.bloco}>
-                      <tr onClick={() => toggle(b.bloco)} className="border-t border-slate-100 cursor-pointer select-none hover:bg-slate-50/80">
-                        <td className="py-2.5 px-5 text-xs font-semibold leading-tight text-slate-700">
-                          <span className="mr-1.5 text-slate-400 text-[10px]">{isExpanded ? "▾" : "▸"}</span>
+                      <tr onClick={() => toggle(b.bloco)} className="border-t border-border cursor-pointer select-none hover:bg-muted/80">
+                        <td className="py-2.5 px-5 text-xs font-semibold leading-tight text-foreground">
+                          <span className="mr-1.5 text-muted-foreground text-xs">{isExpanded ? "▾" : "▸"}</span>
                           {b.bloco}
                         </td>
                         {meses.map((mes) => {
                           const v = b.porMes[mes] ?? 0;
                           return (
-                            <td key={mes} className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${v > 0 ? "text-emerald-700" : v < 0 ? "text-red-600" : "text-slate-300"}`}>
+                            <td key={mes} className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${v > 0 ? "text-success" : v < 0 ? "text-danger" : "text-muted-foreground"}`}>
                               {v !== 0 ? fmtN(v) : "—"}
                             </td>
                           );
                         })}
-                        <td className={`py-2.5 px-4 text-right font-bold whitespace-nowrap ${b.total > 0 ? "text-emerald-700" : b.total < 0 ? "text-red-600" : "text-slate-300"}`}>
+                        <td className={`py-2.5 px-4 text-right font-bold whitespace-nowrap ${b.total > 0 ? "text-success" : b.total < 0 ? "text-danger" : "text-muted-foreground"}`}>
                           {b.total !== 0 ? fmtN(b.total) : "—"}
                         </td>
                       </tr>
 
                       {isExpanded && b.linhas.map((l) => (
-                        <tr key={b.bloco + "|" + l.linha} className="border-t border-slate-100 bg-indigo-50/40">
-                          <td className="py-2 px-5 pl-10 text-xs text-slate-600 max-w-xs truncate" title={l.linha}>{l.linha}</td>
+                        <tr key={b.bloco + "|" + l.linha} className="border-t border-border bg-indigo-50/40">
+                          <td className="py-2 px-5 pl-10 text-xs text-muted-foreground max-w-xs truncate" title={l.linha}>{l.linha}</td>
                           {meses.map((mes) => {
                             const v = l.porMes[mes] ?? 0;
                             return (
-                              <td key={mes} className={`py-2 px-4 text-right text-xs whitespace-nowrap ${v > 0 ? "text-emerald-700" : v < 0 ? "text-red-600" : "text-slate-300"}`}>
+                              <td key={mes} className={`py-2 px-4 text-right text-xs whitespace-nowrap ${v > 0 ? "text-success" : v < 0 ? "text-danger" : "text-muted-foreground"}`}>
                                 {v !== 0 ? fmtN(v) : "—"}
                               </td>
                             );
                           })}
-                          <td className={`py-2 px-4 text-right text-xs font-medium whitespace-nowrap ${l.total > 0 ? "text-emerald-700" : l.total < 0 ? "text-red-600" : "text-slate-300"}`}>
+                          <td className={`py-2 px-4 text-right text-xs font-medium whitespace-nowrap ${l.total > 0 ? "text-success" : l.total < 0 ? "text-danger" : "text-muted-foreground"}`}>
                             {l.total !== 0 ? fmtN(l.total) : "—"}
                           </td>
                         </tr>
@@ -244,14 +246,14 @@ export function DreRealizadaView() {
                   );
                 })}
 
-                <tr className="border-t-2 border-slate-300 font-bold" style={{ background: OLIVE_BG }}>
+                <tr className="border-t-2 border-border font-bold" style={{ background: OLIVE_BG }}>
                   <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Total Geral</td>
                   {meses.map((mes) => (
-                    <td key={mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: (grandTotalPorMes[mes] ?? 0) >= 0 ? "#166534" : "#991b1b" }}>
+                    <td key={mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: (grandTotalPorMes[mes] ?? 0) >= 0 ? "var(--success)" : "var(--danger)" }}>
                       {fmtN(grandTotalPorMes[mes] ?? 0)}
                     </td>
                   ))}
-                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "#166534" : "#991b1b" }}>
+                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "var(--success)" : "var(--danger)" }}>
                     {fmtN(grandTotalGeral)}
                   </td>
                 </tr>

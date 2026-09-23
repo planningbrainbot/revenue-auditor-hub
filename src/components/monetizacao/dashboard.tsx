@@ -42,6 +42,15 @@ import {
   number,
   Panel,
 } from "./common";
+import { PageHeader } from "@/components/planning";
+import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  linhaMetaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
 
 export const ABAS = [
   "operacao",
@@ -66,6 +75,7 @@ const labels: Record<Aba, string> = {
   roteiros: "Abordagens",
   distribuicao: "Distribuição",
 };
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Aba) => void }) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -102,7 +112,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           Seu acesso permite consultar o Aquário. A área de Monetização é habilitada pela
           administração da plataforma.
         </Notice>
-        <Link to="/aquario" className="text-primary underline">
+        <Link to="/aquario" className="text-primary-text underline">
           Abrir Aquário
         </Link>
       </div>
@@ -140,14 +150,22 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
   }));
   return (
     <main className="mx-auto max-w-[1600px] space-y-3 p-4 md:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <img
-          src="/brand/caixa/assinatura-horizontal.svg"
-          alt="Caixa de Oportunidade"
-          className="h-10 w-auto dark:brightness-0 dark:invert"
-        />
-        <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
-      </div>
+      {/* Cada aba é um item do menu de Monetização, então o título é o da aba
+          (o menu chama a primeira de "Operação diária"). A assinatura da Caixa de
+          Oportunidade continua, agora ao lado do frescor do CRM. */}
+      <PageHeader
+        titulo={aba === "operacao" ? "Operação diária" : labels[aba]}
+        acoes={
+          <>
+            <img
+              src="/brand/caixa/assinatura-horizontal.svg"
+              alt="Caixa de Oportunidade"
+              className="h-8 w-auto dark:brightness-0 dark:invert"
+            />
+            <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
+          </>
+        }
+      />
       <div
         className="flex gap-1 overflow-x-auto border-b"
         role="tablist"
@@ -159,12 +177,12 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
             aria-selected={aba === a}
             onClick={() => setAba(a)}
             key={a}
-            className={`shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium ${aba === a ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium ${aba === a ? "border-primary text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {labels[a]}
           </button>
         ))}
-        <Link to="/aquario" className="ml-auto shrink-0 px-3 py-2.5 text-xs text-primary">
+        <Link to="/aquario" className="ml-auto shrink-0 px-3 py-2.5 text-xs text-primary-text">
           Clientes → Aquário ↗
         </Link>
       </div>
@@ -332,7 +350,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   </button>
                 ))}
               </div>
-              <p className="mt-3 text-[10px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Carteira do responsável atual. O filtro de datas vale para os movimentos; o funil
                 mostra a posição de hoje.
               </p>
@@ -369,33 +387,43 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   data={view.series}
                   margin={{ top: 15, right: 4, bottom: 0, left: -20 }}
                 >
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={18} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis {...eixoProps} dataKey="label" minTickGap={18} />
+                  <YAxis {...eixoProps} allowDecimals={false} />
                   <YAxis
+                    {...eixoProps}
                     yAxisId="ratio"
                     orientation="right"
-                    tick={{ fontSize: 10 }}
                     unit="%"
                     domain={[0, "auto"]}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
+                  <Tooltip {...tooltipProps} />
+                  <Legend {...legendaProps} />
+                  <Bar
+                    dataKey="started"
+                    name="Trabalhados"
+                    fill={CORES_SERIE[0]}
+                    radius={[2, 2, 0, 0]}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="started" name="Trabalhados" fill="#03784A" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="scheduled" name="Marcadas" fill="#22ae7a" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="meeting" name="Realizadas" fill="#8bcab0" radius={[2, 2, 0, 0]} />
+                  <Bar
+                    dataKey="scheduled"
+                    name="Marcadas"
+                    fill={CORES_SERIE[0]}
+                    fillOpacity={0.65}
+                    radius={[2, 2, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="meeting"
+                    name="Realizadas"
+                    fill={CORES_SERIE[0]}
+                    fillOpacity={0.35}
+                    radius={[2, 2, 0, 0]}
+                  />
                   <Line
                     yAxisId="ratio"
                     dataKey="conversion"
                     name="Marcadas / trabalhados"
-                    stroke="#d97b29"
+                    stroke={CORES_SERIE[3]}
                     dot={false}
                     strokeWidth={2}
                     connectNulls={false}
@@ -403,14 +431,17 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                   {plan?.daily_target ? (
                     <ReferenceLine
                       y={plan.daily_target}
-                      stroke="#b77b1e"
-                      strokeDasharray="4 3"
-                      label={{ value: `meta ${plan.daily_target}/dia`, fontSize: 10 }}
+                      {...linhaMetaProps}
+                      label={{
+                        value: `meta ${plan.daily_target}/dia`,
+                        fontSize: 12,
+                        fill: "var(--muted-foreground)",
+                      }}
                     />
                   ) : null}
                 </ComposedChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Cards distintos por dia. Um card que volta à etapa em dias diferentes aparece em
                 ambos os dias; no indicador do período conta uma vez. A linha é uma razão diária,
                 não uma conversão de coorte.
@@ -420,7 +451,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
           <Panel
             title="Por produto"
             action={
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Clique para abrir as oportunidades
               </span>
             }
@@ -444,7 +475,7 @@ export function DashboardMonetizacao({ aba, setAba }: { aba: Aba; setAba: (a: Ab
                       {METRICAS.map((m) => (
                         <td key={m.key} className="text-right">
                           <button
-                            className="font-semibold tabular-nums text-primary underline underline-offset-2"
+                            className="font-semibold tabular-nums text-primary-text underline underline-offset-2"
                             onClick={() =>
                               setDetail({
                                 title: `${NOMES[p.product]} · ${m.label}`,
@@ -557,12 +588,12 @@ function DealDetails({
                       href={c.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-primary underline"
+                      className="text-primary-text underline"
                     >
                       {c.title}
                     </a>
                     {!c.org_id && (
-                      <span className="block text-amber-600">Sem organização vinculada</span>
+                      <span className="block text-warning">Sem organização vinculada</span>
                     )}
                     <details className="mt-2">
                       <summary>Histórico no período</summary>
@@ -587,7 +618,7 @@ function DealDetails({
                   <td className="p-3">{date(c.expected_close)}</td>
                   <td className="p-3">
                     {money(c.revenue.total.amount ?? c.revenue.sum, c.revenue.total.currency)}
-                    <span className="block text-[10px] text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
                       {c.revenue.status === "ok"
                         ? "Split conferido"
                         : c.revenue.status === "missing"

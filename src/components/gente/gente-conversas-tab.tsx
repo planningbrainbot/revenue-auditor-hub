@@ -187,7 +187,7 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
       {time.length ? (
         <Card className="p-4">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
-            <CalendarClock className="h-4 w-4 text-primary" />
+            <CalendarClock className="h-4 w-4 text-primary-text" />
             Registrar um 1:1
           </h2>
           <div className="grid gap-3 md:grid-cols-3">
@@ -416,7 +416,7 @@ export function GenteFeedbackTab() {
     <div className="space-y-4">
       <Card className="p-4">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
-          <MessageSquarePlus className="h-4 w-4 text-primary" />
+          <MessageSquarePlus className="h-4 w-4 text-primary-text" />
           Dar feedback
         </h2>
         <div className="grid gap-3 md:grid-cols-3">

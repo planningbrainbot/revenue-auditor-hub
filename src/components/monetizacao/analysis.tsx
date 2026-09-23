@@ -109,7 +109,7 @@ function Temporal({ data, filter, openDeals }: Cut) {
                 <td className="py-3">{w.week === "Sem data" ? w.week : date(w.week)}</td>
                 <td>
                   <button
-                    className="text-primary underline"
+                    className="text-primary-text underline"
                     onClick={() => openDeals(`Previsão · ${w.week}`, w.rows)}
                   >
                     {w.rows.length}
@@ -148,7 +148,7 @@ function Temporal({ data, filter, openDeals }: Cut) {
                     : `Cenário: ${number(dated.length * rate)} contratos · hipótese ${number(rate * 100)}%`}
                 </p>
                 <button
-                  className="mt-2 text-xs text-primary underline"
+                  className="mt-2 text-xs text-primary-text underline"
                   onClick={() => openDeals(`${NOMES[p]} · previstas no período`, dated)}
                 >
                   Conferir oportunidades
@@ -278,7 +278,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
                   <td>{r.available}</td>
                   <td>{r.planned}</td>
                   <td>{r.started}</td>
-                  <td className={r.gap ? "text-amber-600" : ""}>{r.gap}</td>
+                  <td className={r.gap ? "text-warning" : ""}>{r.gap}</td>
                 </tr>
               ))}
             </tbody>
@@ -289,7 +289,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
           mês inteiro e todos os produtos. Há empresas em mais de uma coluna. Antes de distribuir a
           carga, valide as listas no Aquário e coordene as abordagens da mesma empresa.
         </p>
-        <Link to="/aquario" className="mt-3 inline-block text-sm text-primary underline">
+        <Link to="/aquario" className="mt-3 inline-block text-sm text-primary-text underline">
           Preparar a base nas carteiras dos clientes →
         </Link>
       </Panel>
@@ -468,7 +468,7 @@ function FollowDay({ data, filter, openDeals }: Cut) {
                 <tr className="border-t" key={c.id}>
                   <td className="py-3 pr-3">
                     <a
-                      className="text-primary underline"
+                      className="text-primary-text underline"
                       href={c.url}
                       target="_blank"
                       rel="noreferrer"
@@ -481,7 +481,7 @@ function FollowDay({ data, filter, openDeals }: Cut) {
                     {NOMES[c.route]}
                     <span className="block text-muted-foreground">{c.stage}</span>
                   </td>
-                  <td className="text-xs text-amber-600">{issue}</td>
+                  <td className="text-xs text-warning">{issue}</td>
                   <td>{age} dias</td>
                   <td>{date(c.next_activity)}</td>
                 </tr>
@@ -989,7 +989,7 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
             >
               Registrar decisão
             </Button>
-            <Link to="/aquario" className="ml-3 text-sm text-primary underline">
+            <Link to="/aquario" className="ml-3 text-sm text-primary-text underline">
               Abrir as listas no Aquário
             </Link>
           </div>

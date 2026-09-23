@@ -37,6 +37,8 @@ import {
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { isUnidadeDaRede } from "@/lib/unidades-rede";
 import { cn } from "@/lib/utils";
+import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { KpiCard, KpiGrade } from "@/components/planning";
 
 type Tratativa = {
   id: number;
@@ -75,7 +77,7 @@ function fmtMesLabel(mesKey: string): string {
 
 function statusBadge(status: string | null) {
   const s = (status ?? "").toLowerCase();
-  if (s === "won") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Ganho</Badge>;
+  if (s === "won") return <Badge variant="sucesso">Ganho</Badge>;
   if (s === "lost") return <Badge variant="destructive">Perdido</Badge>;
   if (s === "open") return <Badge variant="secondary">Aberto</Badge>;
   return <Badge variant="outline">{status ?? NA}</Badge>;
@@ -346,47 +348,33 @@ export function TratativasTab() {
         </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Total</div>
-          <div className="text-2xl font-bold">{kpis.total}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Em aberto</div>
-          <div className="text-2xl font-bold">{kpis.abertos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Perdidos</div>
-          <div className="text-2xl font-bold text-destructive">{kpis.perdidos}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Recuperados</div>
-          <div className="text-2xl font-bold text-emerald-600">{kpis.recuperados}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">MRR perdido</div>
-          <div className="text-xl font-bold text-destructive">{fmtMoney(kpis.mrrPerdido)}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de recuperação</div>
-          <div className="text-2xl font-bold">{kpis.taxaRecuperacao.toFixed(1)}%</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Taxa de churn (blended)</div>
-          <div className="text-2xl font-bold text-destructive">{kpis.taxaChurnBlended.toFixed(1)}%</div>
-          <div className="text-[11px] text-muted-foreground">
-            {kpis.churnBlendedNum} churn / {kpis.churnBlendedDenom} ativos (base nova)
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Tempo médio até churn</div>
-          <div className="text-xl font-bold">{fmtTenure(kpis.tenureMedioDias)}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {kpis.tenureAmostra > 0 ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn` : "sem dados suficientes"}
-          </div>
-        </Card>
-      </div>
+      {/* KPIs — oito números em duas linhas de quatro: a grade do design system
+          vai até seis por linha, e oito cards de 30px numa só não cabem. As
+          cores de perdido/recuperado ficam como tom do KpiCard, com ícone de status
+          junto da cor (V7). */}
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="Total" valor={kpis.total} />
+        <KpiCard rotulo="Em aberto" valor={kpis.abertos} />
+        <KpiCard rotulo="Perdidos" valor={kpis.perdidos} tom="perigo" />
+        <KpiCard rotulo="Recuperados" valor={kpis.recuperados} tom="sucesso" />
+        <KpiCard rotulo="MRR perdido" valor={fmtMoney(kpis.mrrPerdido)} tom="perigo" />
+        <KpiCard rotulo="Taxa de recuperação" valor={`${kpis.taxaRecuperacao.toFixed(1)}%`} />
+        <KpiCard
+          rotulo="Taxa de churn (blended)"
+          valor={`${kpis.taxaChurnBlended.toFixed(1)}%`}
+          tom="perigo"
+          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova)`}
+        />
+        <KpiCard
+          rotulo="Tempo médio até churn"
+          valor={fmtTenure(kpis.tenureMedioDias)}
+          nota={
+            kpis.tenureAmostra > 0
+              ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn`
+              : "sem dados suficientes"
+          }
+        />
+      </KpiGrade>
 
       {/* Filtros */}
       <Card className="p-4">
@@ -442,13 +430,13 @@ export function TratativasTab() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porUnidade}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="unidade" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="perdidos" stackId="a" fill="#ef4444" name="Perdidos" />
-                <Bar dataKey="recuperados" stackId="a" fill="#10b981" name="Recuperados" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis {...eixoProps} dataKey="unidade" interval={0} angle={-15} textAnchor="end" height={60} />
+                <YAxis {...eixoProps} />
+                <Tooltip {...tooltipProps} />
+                <Legend {...legendaProps} />
+                <Bar dataKey="perdidos" stackId="a" fill={COR_NEGATIVO} name="Perdidos" />
+                <Bar dataKey="recuperados" stackId="a" fill={CORES_SERIE[0]} name="Recuperados" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -463,17 +451,18 @@ export function TratativasTab() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mrrPerdidoPorMes}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="mes" tickFormatter={fmtMesLabel} tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtMoney(v)} width={90} />
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis {...eixoProps} dataKey="mes" tickFormatter={fmtMesLabel} />
+                  <YAxis {...eixoProps} tickFormatter={(v) => fmtMoney(v)} width={90} />
                   <Tooltip
+                    {...tooltipProps}
                     labelFormatter={(v) => fmtMesLabel(String(v))}
                     formatter={(value: number, name, item) => [
                       fmtMoney(value),
                       `MRR perdido (${item?.payload?.qtd ?? 0} caso(s))`,
                     ]}
                   />
-                  <Bar dataKey="mrr" fill="#ef4444" name="MRR perdido" />
+                  <Bar dataKey="mrr" fill={COR_NEGATIVO} name="MRR perdido" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -545,7 +534,7 @@ export function TratativasTab() {
                     <TableCell className="font-medium">{u.unidade}</TableCell>
                     <TableCell className="text-right">{u.total}</TableCell>
                     <TableCell className="text-right text-destructive">{u.perdidos}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{u.recuperados}</TableCell>
+                    <TableCell className="text-right text-success">{u.recuperados}</TableCell>
                     <TableCell className="text-right">{fmtMoney(u.mrrPerdido)}</TableCell>
                     <TableCell className="text-right">{taxa.toFixed(1)}%</TableCell>
                   </TableRow>

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
+import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -179,13 +180,13 @@ function omieAgregado(rows: PfRow[]): { valor: number; status: Linha["omieStatus
 
 function omieStatusBadge(s: Linha["omieStatus"]) {
   if (s === "RECEBIDO")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Recebido</Badge>;
+    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
   if (s === "PARCIAL")
-    return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-200">Parcial</Badge>;
+    return <Badge className="bg-info-soft text-info hover:bg-info-soft">Parcial</Badge>;
   if (s === "ATRASADO")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Atrasado</Badge>;
+    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
   if (s === "A VENCER")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">A vencer</Badge>;
+    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
   return <Badge variant="outline">Sem referência</Badge>;
 }
 
@@ -201,6 +202,7 @@ function fmtMes(mesReferencia: string): string {
   return `${m}/${y}`;
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function PagamentosView() {
   const [apuracoes, setApuracoes] = useState<ApuracaoRow[]>([]);
   const [pagamentos, setPagamentos] = useState<PagamentoRow[]>([]);
@@ -400,15 +402,10 @@ export function PagamentosView() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <CircleDollarSign className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recebimentos das Unidades</h1>
-          <p className="text-sm text-muted-foreground">
-            Faturas das apurações de royalties fechadas (confirmadas) — status do Omie como referência + validação manual contra o extrato bancário.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Recebimentos das Unidades"
+        descricao="Faturas das apurações de royalties fechadas (confirmadas) — status do Omie como referência + validação manual contra o extrato bancário."
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard icon={CircleDollarSign} label="Total a Receber" value={brl(kpis.total)} tone="slate" />
@@ -477,7 +474,7 @@ export function PagamentosView() {
       </Card>
 
       {error && (
-        <Card className="p-4 border-red-300 bg-red-50 text-sm text-red-700">{error}</Card>
+        <Card className="p-4 border-danger/40 bg-danger-soft text-sm text-danger">{error}</Card>
       )}
 
       <Card className="overflow-hidden">
@@ -488,7 +485,7 @@ export function PagamentosView() {
         </div>
         <div className="relative max-h-[calc(100vh-420px)] overflow-auto">
           <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
               <TableRow>
                 <TableHead className="bg-card">Mês</TableHead>
                 <TableHead className="bg-card">Unidade</TableHead>
@@ -504,7 +501,7 @@ export function PagamentosView() {
                 const divergente = hasDivergencia(l);
                 const statusValidado = l.pagamento?.status_validado ?? "pendente";
                 return (
-                  <TableRow key={l.key} className={divergente ? "bg-red-50/50 dark:bg-red-950/10" : undefined}>
+                  <TableRow key={l.key} className={divergente ? "bg-danger-soft/50" : undefined}>
                     <TableCell className="whitespace-nowrap">{fmtMes(l.mesReferencia)}</TableCell>
                     <TableCell className="font-medium">{l.unidade}</TableCell>
                     <TableCell>{CATEGORIA_LABEL[l.categoria]}</TableCell>
@@ -512,10 +509,10 @@ export function PagamentosView() {
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {omieStatusBadge(l.omieStatus)}
-                        {divergente && <AlertTriangle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />}
+                        {divergente && <AlertTriangle className="h-3.5 w-3.5 text-danger" />}
                       </div>
                       {l.omieStatus && (
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">{brl(l.omieValor)}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{brl(l.omieValor)}</div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -534,7 +531,7 @@ export function PagamentosView() {
                         </SelectContent>
                       </Select>
                       {l.pagamento?.validado_em && (
-                        <div className="mt-1 text-[11px] text-muted-foreground">
+                        <div className="mt-1 text-xs text-muted-foreground">
                           {date(l.pagamento.validado_em)} {l.pagamento.validado_por ? `· ${l.pagamento.validado_por}` : ""}
                         </div>
                       )}
@@ -585,12 +582,15 @@ function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: s
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O ícone ao lado do rótulo sai; o `tone` vira o `tom` do KpiCard
+// (amber → atenção, red → perigo, emerald → sucesso, slate → neutro), com
+// ícone de status junto da cor (V7).
 function KpiCard({
-  icon: Icon,
+  tone,
   label,
   value,
   hint,
-  tone,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -598,20 +598,5 @@ function KpiCard({
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  const toneMap = {
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-    red: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
-    emerald: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
-    slate: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>
-      <div className="flex items-center gap-1.5 text-xs font-medium uppercase text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }

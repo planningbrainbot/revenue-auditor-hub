@@ -103,14 +103,14 @@ export function LogToquesTab() {
                     </Badge>
                   )}
                   {t.override_por && (
-                    <Badge className="bg-amber-500 font-normal text-white hover:bg-amber-500">
+                    <Badge variant="atencao" className="font-normal">
                       override
                     </Badge>
                   )}
                   {!t.atesto_sem_citar_cliente && (
                     <Badge
                       variant="outline"
-                      className="border-amber-300 font-normal text-amber-700 dark:border-amber-900 dark:text-amber-300"
+                      className="border-warning/40 font-normal text-warning"
                     >
                       sem atesto
                     </Badge>

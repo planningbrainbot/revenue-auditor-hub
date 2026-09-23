@@ -207,7 +207,7 @@ export function SplitRoyaltiesContent() {
         {/* Tudo que o split ja capturou, dentro e fora do caixa. Cancelado
             continua fora: nao vira dinheiro. */}
         <Card className="flex items-center gap-3 border-primary/40 p-4">
-          <Sigma className="h-5 w-5 shrink-0 text-primary" />
+          <Sigma className="h-5 w-5 shrink-0 text-primary-text" />
           <div>
             <div className="text-xs text-muted-foreground">Total retido</div>
             <div className="text-xl font-semibold">{fmtBRL(total)}</div>
@@ -248,7 +248,7 @@ export function SplitRoyaltiesContent() {
                   <div className="truncate font-medium">
                     {r.cliente ?? "—"}
                     {r.metodo_vinculo === "similaridade" && (
-                      <span className="ml-2 text-xs text-amber-600">vínculo por semelhança</span>
+                      <span className="ml-2 text-xs text-warning">vínculo por semelhança</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">

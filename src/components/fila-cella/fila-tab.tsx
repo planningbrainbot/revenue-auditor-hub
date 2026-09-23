@@ -160,7 +160,7 @@ export function FilaTab() {
       )}
 
       {fila.error && (
-        <Card className="border-red-300 p-6 text-sm text-red-600 dark:border-red-900">
+        <Card className="border-danger/40 p-6 text-sm text-danger">
           Falha ao ler <code>v_fila_cella</code>:{" "}
           {fila.error instanceof Error ? fila.error.message : "erro desconhecido"}
         </Card>

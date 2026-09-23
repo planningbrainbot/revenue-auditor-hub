@@ -229,13 +229,13 @@ export function PlanejamentoTab() {
                 {/* Totals */}
                 <TableRow className="bg-muted/70 font-semibold">
                   <TableCell className="sticky left-0 z-10 bg-muted/70 text-xs" colSpan={5}>TOTAL RECEITAS</TableCell>
-                  {monthCols.map((m) => <TableCell key={m.value} className="text-right text-xs text-emerald-700">{BRL(totals[m.value]?.rec ?? 0)}</TableCell>)}
+                  {monthCols.map((m) => <TableCell key={m.value} className="text-right text-xs text-success">{BRL(totals[m.value]?.rec ?? 0)}</TableCell>)}
                   <TableCell className="text-right text-xs">{BRL(Object.values(totals).reduce((s, t) => s + t.rec, 0))}</TableCell>
                   <TableCell className="sticky right-0 z-10 bg-muted/70" />
                 </TableRow>
                 <TableRow className="bg-muted/70 font-semibold">
                   <TableCell className="sticky left-0 z-10 bg-muted/70 text-xs" colSpan={5}>TOTAL DESPESAS</TableCell>
-                  {monthCols.map((m) => <TableCell key={m.value} className="text-right text-xs text-red-700">{BRL(totals[m.value]?.desp ?? 0)}</TableCell>)}
+                  {monthCols.map((m) => <TableCell key={m.value} className="text-right text-xs text-danger">{BRL(totals[m.value]?.desp ?? 0)}</TableCell>)}
                   <TableCell className="text-right text-xs">{BRL(Object.values(totals).reduce((s, t) => s + t.desp, 0))}</TableCell>
                   <TableCell className="sticky right-0 z-10 bg-muted/70" />
                 </TableRow>
@@ -243,7 +243,7 @@ export function PlanejamentoTab() {
                   <TableCell className="sticky left-0 z-10 bg-muted text-xs" colSpan={5}>RESULTADO</TableCell>
                   {monthCols.map((m) => {
                     const r = (totals[m.value]?.rec ?? 0) - (totals[m.value]?.desp ?? 0);
-                    return <TableCell key={m.value} className={`text-right text-xs ${r >= 0 ? "text-emerald-700" : "text-red-700"}`}>{BRL(r)}</TableCell>;
+                    return <TableCell key={m.value} className={`text-right text-xs ${r >= 0 ? "text-success" : "text-danger"}`}>{BRL(r)}</TableCell>;
                   })}
                   <TableCell className="text-right text-xs">{BRL(Object.values(totals).reduce((s, t) => s + t.rec - t.desp, 0))}</TableCell>
                   <TableCell className="sticky right-0 z-10 bg-muted" />

@@ -2108,3 +2108,21 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 **"Faturado e não recebido" passa a mostrar data, não só nome de unidade.** O chip de cada unidade ganha o vencimento do título na Partners (`dd/MM`), que é a data que diz se já passou do prazo — nem o mês da apuração nem a competência da ND respondem isso. A formatação é feita por corte de string, não por `new Date`: `new Date("2026-09-10")` é meia-noite UTC e em São Paulo vira dia 09.
 
 **Nada mudou no servidor.** `receita-repasses.functions.ts` não foi tocado: todas as datas exibidas já vinham na resposta (`vence_em`, `recebimento.vencimento`). A mudança é de leitura, não de número.
+
+## [2026-09-23] Design System v2 do Brain
+
+**Contexto:** a marca estava nos tokens e nenhuma regra levava marca, navegação e objetivo de negócio para a tela: `<Toaster/>` nunca montado, 33 `hsl(var())` sobre variáveis hex, cerca de 1.650 classes de cor crua, cerca de 230 fontes de 9–11px e cabeçalho desenhado de 9 jeitos. Spec: `docs/superpowers/specs/2026-09-23-design-system-v2-design.md`. Diagnóstico em `docs/design/diagnostico/`. Branch `feat/design-system-v2-20260923`, sem push nem deploy.
+
+**Decisões não óbvias:**
+- **O DS canônico mora no repo do Brain**: regras em `docs/design/`, código em `src/styles.css` e `src/components/planning/`. Regra que não está no repo que o agente abre não existe para ele. `planning-design-system/` (Tailwind v3, HSL) passa a apontar para cá. A marca (logo, paleta, grafismos) continua com o Mika.
+- **Fira Sans é a reserva da Bw Glenn Sans.** A pilha começa na Bw Glenn e o `@font-face` já está pronto, mas os `.woff2` não existem no disco e dependem do Mika. Poppins sai.
+- **Tokens por papel, não por matiz**, com contraste medido (WCAG 2.1 sobre `card`): `muted-foreground` 7,2:1 no escuro e 6,5:1 no claro; `input` 3,5:1 como borda de controle (`border`, com 1,3:1, é só divisória); `primary-text` claro `#007a4f` a 5,4:1; status success/warning/danger/info com variante `-soft`. Laranja da marca é atenção, ciano é informação, e o vermelho de `danger` é o único fora da paleta. Tabela em `docs/design/DESIGN.md` §3.
+- **Cor de área só em anel, filete e eyebrow**, nunca fundo nem texto de corpo. No tema claro o texto do eyebrow é neutro (`muted-foreground`), porque verde, ciano e lima não passam 3:1 sobre branco.
+- **Paleta de gráfico do escuro fica viva, mesmo reprovando a faixa de luminosidade do validador da skill `dataviz`** (verde 0,80, lima 0,87, contra a faixa 0,48–0,67). A marca vale mais que o validador: escurecer apagaria o "vivo sobre preto" que é a assinatura dela. Croma, separação para daltonismo e contraste passam. O risco fica contido por traço fino, no máximo 3 séries empilhadas e texto nunca na cor da série. No claro, cada cor foi escurecida no mesmo matiz. A lima foi até `#526b00`, porque em `#7d9b00` ela colapsava com o laranja para deuteranopia (ΔE 4,4). Registro completo em `src/lib/planning/grafico.ts`.
+- **Funil é pintado numa cor só**, em rampa do claro ao escuro. Etapa não é categoria (`DESIGN.md` §5).
+- **A integração com a `main` é feita por codemod reexecutável**, e não por conflito resolvido à mão. `scripts/design/codemod-cores.mjs` (`npm run design:codemod`) é idempotente. Depois de trazer a `main` do Eliezek, basta rodá-lo de novo. A catraca de `npm run design:lint` (`docs/design/lint-baseline.json`) impede que a contagem de erro volte a subir.
+
+**Pendente de decisão humana (não resolvido pelo DS):** o logo vetorial oficial, porque há dois gradientes em uso e o SVG tem `#5FB77F → #4EBED8` (Mika); os arquivos da fonte (Mika); os nomes e a estrutura do menu propostos em `docs/design/NAVEGACAO.md` §4, que são proposta e não foram implementados (Pedro e Eliezek); e os conflitos de produto de `docs/design/PRODUCT.md` §5 (5.1–5.17, com os donos sugeridos lá).
+
+**Status:** implementado na branch pelas tarefas do plano `docs/superpowers/plans/2026-09-23-design-system-v2.md`. Não integrado à `main` nem publicado.
+**Próximos passos:** o Eliezek revisa e integra (`docs/design/PROCESSO.md` §3); depois o codemod roda de novo e a baseline é regravada.

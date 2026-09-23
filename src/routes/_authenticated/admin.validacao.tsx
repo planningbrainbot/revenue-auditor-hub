@@ -57,7 +57,7 @@ function ValidationAdminPage() {
   return (
     <AppShell title="Validação de páginas" subtitle="Marque quais páginas já tiveram seus dados conferidos">
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning-soft p-4 text-warning">
           <AlertTriangle className="mt-0.5 h-5 w-5" />
           <div className="text-sm">
             <p className="font-semibold">Como funciona</p>
@@ -89,11 +89,11 @@ function ValidationAdminPage() {
                     <td className="px-4 py-3 text-muted-foreground">{p.key}</td>
                     <td className="px-4 py-3 text-center">
                       {validated ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
                           <CheckCircle2 className="h-3 w-3" /> Validada
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
                           <AlertTriangle className="h-3 w-3" /> Em validação
                         </span>
                       )}

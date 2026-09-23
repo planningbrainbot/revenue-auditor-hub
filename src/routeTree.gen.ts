@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VitrineRouteImport } from './routes/vitrine'
 import { Route as TrustRouteImport } from './routes/trust'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -69,6 +70,11 @@ import { Route as AuthenticatedAdminCredenciaisRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminAcessosFinanceiroRouteImport } from './routes/_authenticated/admin.acessos-financeiro'
 import { Route as AuthenticatedRoyaltiesUnidadeIdMesRouteImport } from './routes/_authenticated/royalties.$unidadeId.$mes'
 
+const VitrineRoute = VitrineRouteImport.update({
+  id: '/vitrine',
+  path: '/vitrine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TrustRoute = TrustRouteImport.update({
   id: '/trust',
   path: '/trust',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/vitrine': typeof VitrineRoute
   '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -465,6 +472,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/vitrine': typeof VitrineRoute
   '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -525,6 +533,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
+  '/vitrine': typeof VitrineRoute
   '/_authenticated/aquario': typeof AuthenticatedAquarioRoute
   '/_authenticated/atividade': typeof AuthenticatedAtividadeRoute
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
@@ -588,6 +597,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/vitrine'
     | '/aquario'
     | '/atividade'
     | '/auditoria'
@@ -647,6 +657,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/vitrine'
     | '/aquario'
     | '/atividade'
     | '/auditoria'
@@ -706,6 +717,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/redefinir-senha'
     | '/trust'
+    | '/vitrine'
     | '/_authenticated/aquario'
     | '/_authenticated/atividade'
     | '/_authenticated/auditoria'
@@ -768,10 +780,18 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrustRoute: typeof TrustRoute
+  VitrineRoute: typeof VitrineRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/vitrine': {
+      id: '/vitrine'
+      path: '/vitrine'
+      fullPath: '/vitrine'
+      preLoaderRoute: typeof VitrineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/trust': {
       id: '/trust'
       path: '/trust'
@@ -1339,6 +1359,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrustRoute: TrustRoute,
+  VitrineRoute: VitrineRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

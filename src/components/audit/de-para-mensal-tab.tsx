@@ -26,6 +26,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { ImportRepassesDialog } from "./import-repasses-dialog";
 import type { TipoRepasse } from "@/lib/repasses.functions";
 import { toast } from "sonner";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
 interface Props {
   tipo: TipoRepasse;
@@ -103,16 +104,17 @@ export function DeParaMensalTab({ tipo }: Props) {
   }, [units, monthsList, recebidos, tipo]);
 
   const titulo = tipo === "royalties" ? "Royalties" : "CAC";
-  const corPrev = tipo === "royalties" ? "#6366f1" : "#f59e0b";
-  const corReceb = "#10b981";
+  // Previsto é referência (neutro); recebido é a série (DESIGN §5).
+  const corPrev = COR_NEUTRA;
+  const corReceb = CORES_SERIE[0];
 
   function statusCls(prev: number, receb: number) {
     if (prev === 0 && receb === 0) return "text-muted-foreground";
-    if (prev === 0) return "text-emerald-600";
+    if (prev === 0) return "text-success";
     const r = receb / prev;
-    if (r >= 0.95) return "text-emerald-700 dark:text-emerald-300";
-    if (r >= 0.7) return "text-amber-700 dark:text-amber-300";
-    return "text-rose-600 dark:text-rose-300";
+    if (r >= 0.95) return "text-success";
+    if (r >= 0.7) return "text-warning";
+    return "text-danger";
   }
 
   async function saveCell() {
@@ -171,11 +173,11 @@ export function DeParaMensalTab({ tipo }: Props) {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-              <Tooltip formatter={(v: number) => brl(v)} />
-              <Legend />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="label" angle={-30} textAnchor="end" height={60} />
+              <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+              <Legend {...legendaProps} />
               <Bar dataKey="Previsto" fill={corPrev} />
               <Bar dataKey="Recebido" fill={corReceb} />
             </BarChart>
@@ -192,7 +194,7 @@ export function DeParaMensalTab({ tipo }: Props) {
         </div>
         <div className="max-h-[calc(100vh-460px)] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-card uppercase text-muted-foreground shadow-[inset_0_-1px_0_hsl(var(--border))]">
+            <thead className="sticky top-0 z-10 bg-card uppercase text-muted-foreground shadow-[inset_0_-1px_0_var(--border)]">
               <tr>
                 <th className="bg-card px-3 py-2 text-left">Unidade</th>
                 {monthsList.map((ym) => (
@@ -202,7 +204,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                 ))}
                 <th className="bg-card px-3 py-2 text-center border-l" colSpan={3}>Total</th>
               </tr>
-              <tr className="text-[10px]">
+              <tr className="text-xs">
                 <th className="bg-card px-3 py-1 text-left"></th>
                 {monthsList.map((ym) => (
                   <Fragment key={ym}>
@@ -257,7 +259,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                                   }}
                                   className="h-6 w-20 rounded border border-border bg-background px-1 text-right text-xs"
                                 />
-                                <button type="button" onClick={() => void saveCell()} className="text-emerald-600 hover:text-emerald-700">
+                                <button type="button" onClick={() => void saveCell()} className="text-success hover:text-success">
                                   <Check className="h-3 w-3" />
                                 </button>
                                 <button type="button" onClick={() => setEditCell(null)} className="text-muted-foreground hover:text-foreground">
@@ -266,7 +268,7 @@ export function DeParaMensalTab({ tipo }: Props) {
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1">
-                                <span className={receb > 0 ? "font-semibold text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}>
+                                <span className={receb > 0 ? "font-semibold text-success" : "text-muted-foreground"}>
                                   {receb > 0 ? brl(receb) : "—"}
                                 </span>
                                 {canManage && (

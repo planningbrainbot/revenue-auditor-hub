@@ -94,7 +94,7 @@ function ProfilesPage() {
     <AppShell title="Perfis de usuário" subtitle="Cada perfil é um modelo: abre um conjunto de áreas para quem o recebe">
       <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <Info className="mt-0.5 h-5 w-5 text-primary" />
+          <Info className="mt-0.5 h-5 w-5 text-primary-text" />
           <div className="flex-1 text-sm text-foreground">
             <p className="font-semibold">Como funciona</p>
             <p className="mt-1 text-muted-foreground">
@@ -201,10 +201,10 @@ function ProfilesPage() {
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.key}</td>
                   <td className="px-4 py-2">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                         r.is_system
                           ? "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200"
-                          : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                          : "bg-muted text-foreground"
                       }`}
                     >
                       {r.is_system ? "Sistema" : "Customizado"}
@@ -214,7 +214,7 @@ function ProfilesPage() {
                     {r.pessoas > 0 ? (
                       r.pessoas
                     ) : (
-                      <span className="text-xs text-amber-600" title="Ninguém tem este perfil hoje">sem uso</span>
+                      <span className="text-xs text-warning" title="Ninguém tem este perfil hoje">sem uso</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">

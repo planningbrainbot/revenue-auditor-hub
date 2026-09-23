@@ -97,9 +97,9 @@ function IntegracoesPage() {
 
   function statusIntegracao(i: IntegracaoStatus): { label: string; cls: string } {
     if (i.ultimo_status === "erro") return { label: "Erro", cls: "bg-destructive/10 text-destructive" };
-    if (i.tipo === "cron" && i.atrasada) return { label: "Atrasada", cls: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" };
+    if (i.tipo === "cron" && i.atrasada) return { label: "Atrasada", cls: "bg-warning-soft text-warning" };
     if (!i.ultima_execucao) return { label: "Sem execução ainda", cls: "bg-muted text-muted-foreground" };
-    return { label: "OK", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" };
+    return { label: "OK", cls: "bg-success-soft text-success" };
   }
 
   function formatUltimaExecucao(i: IntegracaoStatus): string {
@@ -160,7 +160,7 @@ function IntegracoesPage() {
                         {i.tipo === "cron" ? `cron (${i.intervalo_esperado_minutos}min)` : "webhook"}
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${st.cls}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${st.cls}`}>
                           {st.label}
                         </span>
                       </td>
@@ -248,9 +248,9 @@ function IntegracoesPage() {
                     <button
                       onClick={() => toggleMut.mutate({ id: c.id, ativo: !c.ativo })}
                       disabled={toggleMut.isPending}
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                         c.ativo
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                          ? "bg-success-soft text-success"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >

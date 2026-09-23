@@ -25,6 +25,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import {
   type Ordem,
 } from "@/components/auditoria-interna/column-filter";
 import { cn } from "@/lib/utils";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/auditoria-interna")({
   component: AuditoriaInternaPage,
@@ -72,7 +74,6 @@ const NA = "—";
 const FASES_CONCLUIDAS = new Set(["Projeto Concluído", "Reforma Tributária Concluida", "Solicitações Comerciais"]);
 // Fase que caracteriza uma auditoria efetivamente realizada (pipe 307181077).
 const FASE_AUDITORIA_REALIZADA = "Projeto Concluído";
-const FASE_COLORS = ["hsl(var(--primary))", "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444"];
 
 // Valor do campo "Tipo de Projeto" no Pipefy -> como apresentamos na tela e
 // qual o objetivo de negócio de cada tipo (ver pipe 307181077, campo
@@ -96,10 +97,10 @@ const TIPO_DESCRICAO: Record<TipoKey, string> = {
 };
 
 const TIPO_COLOR: Record<TipoKey, string> = {
-  Auditoria: "#6366f1",
-  "Contas Perdidas": "#f59e0b",
-  "Solicitações Comerciais": "#10b981",
-  "Reforma Tributária": "#8b5cf6",
+  Auditoria: CORES_SERIE[0],
+  "Contas Perdidas": CORES_SERIE[1],
+  "Solicitações Comerciais": CORES_SERIE[2],
+  "Reforma Tributária": CORES_SERIE[3],
 };
 
 const TIPO_ICON: Record<TipoKey, typeof ClipboardCheck> = {
@@ -180,7 +181,7 @@ function KpiCards({ rows, labelTotal }: { rows: Auditoria[]; labelTotal: string 
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Concluídas</div>
-        <div className="text-2xl font-bold text-emerald-600">{kpis.concluidas}</div>
+        <div className="text-2xl font-bold text-success">{kpis.concluidas}</div>
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Prazos vencidos</div>
@@ -188,13 +189,13 @@ function KpiCards({ rows, labelTotal }: { rows: Auditoria[]; labelTotal: string 
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Oportunidades identificadas</div>
-        <div className="text-xl font-bold text-emerald-600">{fmtMoney(kpis.oportunidades)}</div>
-        <div className="text-[11px] text-muted-foreground">estimado, extraído dos relatórios</div>
+        <div className="text-xl font-bold text-success">{fmtMoney(kpis.oportunidades)}</div>
+        <div className="text-xs text-muted-foreground">estimado, extraído dos relatórios</div>
       </Card>
       <Card className="p-4">
         <div className="text-xs text-muted-foreground">Contingências/riscos identificados</div>
-        <div className="text-xl font-bold text-amber-600">{fmtMoney(kpis.contingencias)}</div>
-        <div className="text-[11px] text-muted-foreground">estimado, extraído dos relatórios</div>
+        <div className="text-xl font-bold text-warning">{fmtMoney(kpis.contingencias)}</div>
+        <div className="text-xs text-muted-foreground">estimado, extraído dos relatórios</div>
       </Card>
     </div>
   );
@@ -218,7 +219,7 @@ function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
     <Card className="p-0 overflow-hidden">
       <div className="px-4 py-3 border-b">
         <div className="text-sm font-semibold">Resumo por unidade</div>
-        <div className="text-[11px] text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           Auditorias realizadas = cards na fase &ldquo;{FASE_AUDITORIA_REALIZADA}&rdquo; do Pipefy
         </div>
       </div>
@@ -237,8 +238,8 @@ function ResumoPorUnidade({ rows }: { rows: Auditoria[] }) {
               <TableRow key={u.unidade}>
                 <TableCell className="font-medium">{u.unidade}</TableCell>
                 <TableCell className="text-right">{u.realizadas}</TableCell>
-                <TableCell className="text-right text-emerald-600">{fmtMoney(u.oportunidades)}</TableCell>
-                <TableCell className="text-right text-amber-600">{fmtMoney(u.contingencias)}</TableCell>
+                <TableCell className="text-right text-success">{fmtMoney(u.oportunidades)}</TableCell>
+                <TableCell className="text-right text-warning">{fmtMoney(u.contingencias)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -293,7 +294,7 @@ function Rankings({ rows }: { rows: Auditoria[] }) {
                   <TableRow key={u.unidade}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right text-emerald-600 font-semibold">{fmtMoney(u.oportunidades)}</TableCell>
+                    <TableCell className="text-right text-success font-semibold">{fmtMoney(u.oportunidades)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -322,7 +323,7 @@ function Rankings({ rows }: { rows: Auditoria[] }) {
                   <TableRow key={u.unidade}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right text-amber-600 font-semibold">{fmtMoney(u.contingencias)}</TableCell>
+                    <TableCell className="text-right text-warning font-semibold">{fmtMoney(u.contingencias)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -472,7 +473,7 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
       <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">Achados fiscais — classificação Alta ou Média</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {algumFiltroAtivo
               ? `${maioresAchados.length} de ${base.length} achados`
               : `${base.length} achados`}
@@ -571,8 +572,8 @@ function AchadosFiscais({ rows }: { rows: Auditoria[] }) {
                     <TableCell className="font-medium">{a.empresa}</TableCell>
                     <TableCell>{a.unidade}</TableCell>
                     <TableCell>{a.classificacao}</TableCell>
-                    <TableCell className="text-right text-emerald-600">{fmtMoney(a.r.oportunidades_valor)}</TableCell>
-                    <TableCell className="text-right text-amber-600">{fmtMoney(a.r.contingencias_valor)}</TableCell>
+                    <TableCell className="text-right text-success">{fmtMoney(a.r.oportunidades_valor)}</TableCell>
+                    <TableCell className="text-right text-warning">{fmtMoney(a.r.contingencias_valor)}</TableCell>
                     <TableCell className="text-right font-semibold">{fmtMoney(a.total)}</TableCell>
                   </TableRow>
                 ))
@@ -658,10 +659,10 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
       <div className="px-4 py-3 border-b flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Saúde da carteira</div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Achado total (oportunidade + contingência) e quanto ele representa do faturamento auditado
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Só projetos do tipo Auditoria — Reforma Tributária e apoio comercial ficam de fora.
           </div>
         </div>
@@ -697,15 +698,15 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
                       )}
                     </div>
                     <div
-                      className="text-sm font-semibold text-sky-600 tabular-nums"
+                      className="text-sm font-semibold text-info tabular-nums"
                       title="Exposição: achado fiscal dividido pelo faturamento do período analisado, contando só as auditorias com esse campo preenchido."
                     >
                       {c.exposicao == null ? (
-                        <span className="text-[11px] font-normal text-muted-foreground">sem faturamento</span>
+                        <span className="text-xs font-normal text-muted-foreground">sem faturamento</span>
                       ) : (
                         <>
                           {fmtPct(c.exposicao)}
-                          <span className="text-[11px] font-normal text-muted-foreground"> exposição</span>
+                          <span className="text-xs font-normal text-muted-foreground"> exposição</span>
                         </>
                       )}
                     </div>
@@ -715,20 +716,20 @@ function SaudeDaCarteira({ rows }: { rows: Auditoria[] }) {
                 {/* Barra: comprimento = achado total; divisão = oportunidade x contingência. */}
                 <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
                   <div className="flex h-full" style={{ width: `${largura}%` }}>
-                    <div className="h-full bg-emerald-500" style={{ width: `${fatiaOport}%` }} />
-                    <div className="h-full bg-amber-500" style={{ width: `${100 - fatiaOport}%` }} />
+                    <div className="h-full bg-success" style={{ width: `${fatiaOport}%` }} />
+                    <div className="h-full bg-warning" style={{ width: `${100 - fatiaOport}%` }} />
                   </div>
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
                   <span>
                     <span className="font-medium text-foreground">{c.realizadas}</span> realizadas
                   </span>
                   <span>
                     {c.taxaAchado == null ? "—" : `${Math.round(c.taxaAchado * 100)}% com achado`}
                   </span>
-                  <span className="text-emerald-600">{fmtMoney(c.oportunidades)} oport.</span>
-                  <span className="text-amber-600">{fmtMoney(c.contingencias)} conting.</span>
+                  <span className="text-success">{fmtMoney(c.oportunidades)} oport.</span>
+                  <span className="text-warning">{fmtMoney(c.contingencias)} conting.</span>
                   {c.faturamento > 0 && <span>{fmtMoney(c.faturamento)} faturamento auditado</span>}
                 </div>
               </div>
@@ -759,12 +760,10 @@ function PorFaseChart({ rows }: { rows: Auditoria[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={porFase} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={160} />
-            <Tooltip />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-              {porFase.map((_, i) => (<Cell key={i} fill={FASE_COLORS[i % FASE_COLORS.length]} />))}
-            </Bar>
+            <XAxis {...eixoProps} type="number" allowDecimals={false} />
+            <YAxis {...eixoProps} type="category" dataKey="name" width={160} />
+            <Tooltip {...tooltipProps} />
+            <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -806,8 +805,8 @@ function CasosTable({ rows }: { rows: Auditoria[] }) {
                   <TableCell>{r.unidade ?? NA}</TableCell>
                   <TableCell>{r.fase_atual ?? NA}</TableCell>
                   <TableCell>{r.classificacao_apontamentos ?? NA}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{fmtMoney(r.oportunidades_valor)}</TableCell>
-                  <TableCell className="text-right text-amber-600">{fmtMoney(r.contingencias_valor)}</TableCell>
+                  <TableCell className="text-right text-success">{fmtMoney(r.oportunidades_valor)}</TableCell>
+                  <TableCell className="text-right text-warning">{fmtMoney(r.contingencias_valor)}</TableCell>
                   <TableCell className="text-right">{fmtDate(r.data_conclusao)}</TableCell>
                 </TableRow>
               ))}
@@ -838,9 +837,9 @@ function ProjetosPorTipo({ rows }: { rows: Auditoria[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={150} />
-            <Tooltip />
+            <XAxis {...eixoProps} type="number" allowDecimals={false} />
+            <YAxis {...eixoProps} type="category" dataKey="name" width={150} />
+            <Tooltip {...tooltipProps} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {data.map((d) => (<Cell key={d.name} fill={d.color} />))}
             </Bar>
@@ -889,17 +888,17 @@ function FinalizadasPorMes({ rows }: { rows: Auditoria[] }) {
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ left: 0, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
-              <Tooltip />
-              <Bar dataKey="value" name="Finalizadas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="name" />
+              <YAxis {...eixoProps} type="number" allowDecimals={false} width={32} />
+              <Tooltip {...tooltipProps} />
+              <Bar dataKey="value" name="Finalizadas" fill={CORES_SERIE[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
       {semData > 0 && (
-        <div className="mt-1 text-[11px] text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           {semData} caso(s) concluído(s) sem data de conclusão registrada no Pipefy — não aparecem no gráfico.
         </div>
       )}
@@ -970,6 +969,7 @@ function TipoTab({ rows, tipo }: { rows: Auditoria[]; tipo: TipoKey }) {
   );
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function AuditoriaInternaPage() {
   const [rows, setRows] = useState<Auditoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1010,30 +1010,25 @@ function AuditoriaInternaPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ClipboardCheck className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Auditoria Interna</h1>
-            <p className="text-sm text-muted-foreground">
-              Visão executiva dos projetos do time fiscal — auditoria, apoio ao comercial e reforma tributária
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={sync.isPending}
-          onClick={() => sync.mutate()}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-          Forçar atualização
-        </Button>
-      </div>
+      <PageHeader
+        titulo="Auditoria Interna"
+        descricao="Visão executiva dos projetos do time fiscal — auditoria, apoio ao comercial e reforma tributária"
+        acoes={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={sync.isPending}
+            onClick={() => sync.mutate()}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
+            Forçar atualização
+          </Button>
+        }
+      />
 
       {loading ? (
-        <div className="text-center text-sm text-muted-foreground py-16">Carregando…</div>
+        <Carregando variante="kpis" />
       ) : (
         <Tabs defaultValue="geral">
           <TabsList className="flex-wrap h-auto">

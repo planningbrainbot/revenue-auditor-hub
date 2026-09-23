@@ -13,10 +13,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/rede-ltv")({
   component: RedeLtvPage,
@@ -56,6 +57,7 @@ function monthDiff(from: Date, to: Date): number {
   return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeLtvPage() {
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
   const [roas, setRoas] = useState<RoasMensalRow[]>([]);
@@ -166,13 +168,10 @@ function RedeLtvPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <TrendingUp className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">LTV Estimado — Gestão da Rede</h1>
-          <p className="text-sm text-muted-foreground">Valor do tempo de vida estimado por cliente</p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="LTV Estimado"
+        descricao="Gestão da Rede: valor do tempo de vida estimado por cliente"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3">
@@ -195,7 +194,7 @@ function RedeLtvPage() {
         </Card>
       </div>
 
-      {loading && <Card className="p-6 text-sm text-muted-foreground">Carregando dados…</Card>}
+      {loading && <Carregando variante="grafico" />}
 
       {!loading && (
         <>
@@ -206,14 +205,14 @@ function RedeLtvPage() {
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={ltvChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="left" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => fmtBRL(v)} />
-                    <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="cac" name="CAC" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={false} />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="label" {...eixoProps} />
+                    <YAxis yAxisId="left" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                    <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+                    <Legend {...legendaProps} />
+                    <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke={CORES_SERIE[0]} strokeWidth={2} dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="cac" name="CAC" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -225,16 +224,16 @@ function RedeLtvPage() {
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={ltvChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="left" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number, name: string) =>
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="label" {...eixoProps} />
+                    <YAxis yAxisId="left" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                    <YAxis yAxisId="right" orientation="right" {...eixoProps} />
+                    <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
                       name === "LT Médio" ? `${v?.toFixed(1)} meses` : fmtBRL(v)
                     } />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="arpa" name="ARPA" fill="hsl(var(--primary) / 0.7)" />
-                    <Line yAxisId="right" type="monotone" dataKey="lt" name="LT Médio" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} />
+                    <Legend {...legendaProps} />
+                    <Bar yAxisId="left" dataKey="arpa" name="ARPA" fill={CORES_SERIE[0]} fillOpacity={0.7} />
+                    <Line yAxisId="right" type="monotone" dataKey="lt" name="LT Médio" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -247,11 +246,11 @@ function RedeLtvPage() {
             <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={ltvPorUnidade} layout="vertical" margin={{ left: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis type="number" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="unidade" width={80} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => fmtBRL(v)} />
-                  <Bar dataKey="ltv" name="LTV" fill="hsl(var(--primary))" />
+                  <CartesianGrid {...gradeProps} vertical horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                  <YAxis type="category" dataKey="unidade" width={80} {...eixoProps} />
+                  <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+                  <Bar dataKey="ltv" name="LTV" fill={CORES_SERIE[0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

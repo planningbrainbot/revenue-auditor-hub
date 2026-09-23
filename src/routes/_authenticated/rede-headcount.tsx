@@ -12,10 +12,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Users, AlertCircle } from "lucide-react";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { Carregando, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/rede-headcount")({
   component: RedeHeadcountPage,
@@ -48,6 +50,7 @@ const fmtMes = (m: string | null | undefined) => {
   return d.toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
 };
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function RedeHeadcountPage() {
   const [rows, setRows] = useState<HeadcountRow[]>([]);
   const [reconcRows, setReconcRows] = useState<ReconcRow[]>([]);
@@ -125,16 +128,13 @@ function RedeHeadcountPage() {
   if (!tableExists) {
     return (
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-            <p className="text-sm text-muted-foreground">Admissões, demissões e turnover por unidade</p>
-          </div>
-        </div>
+        <PageHeader
+          titulo="Headcount"
+          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+        />
         <Card className="p-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+            <AlertCircle className="h-5 w-5 text-warning mt-0.5 shrink-0" />
             <div>
               <div className="font-semibold text-sm mb-1">Tabela de headcount não configurada</div>
               <p className="text-sm text-muted-foreground mb-4">
@@ -178,16 +178,16 @@ CREATE POLICY "Headcount leitura autenticados"
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-muted-foreground">Carregando dados…</div>;
+    return <Carregando variante="pagina" className="p-4 md:p-6" />;
   }
 
   if (rows.length === 0) {
     return (
       <div className="space-y-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-        </div>
+        <PageHeader
+          titulo="Headcount"
+          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+        />
         <Card className="p-6 text-center text-sm text-muted-foreground">
           Tabela criada mas sem dados. Insira registros na tabela <code className="bg-muted px-1 rounded">headcount_mensal</code>.
         </Card>
@@ -197,13 +197,10 @@ CREATE POLICY "Headcount leitura autenticados"
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <Users className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Headcount — Gestão da Rede</h1>
-          <p className="text-sm text-muted-foreground">Admissões, demissões e turnover por unidade</p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Headcount"
+        descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -214,17 +211,17 @@ CREATE POLICY "Headcount leitura autenticados"
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Turnover Mês</div>
-          <div className={`mt-1 text-2xl font-bold ${(ultimo?.turnover ?? 0) > 5 ? "text-red-500" : "text-foreground"}`}>
+          <div className={`mt-1 text-2xl font-bold ${(ultimo?.turnover ?? 0) > 5 ? "text-danger" : "text-foreground"}`}>
             {ultimo ? fmtPct(ultimo.turnover) : "—"}
           </div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Admissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-600">{ultimo?.admissoes ?? "—"}</div>
+          <div className="mt-1 text-2xl font-bold text-success">{ultimo?.admissoes ?? "—"}</div>
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Demissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-red-500">{ultimo?.demissoes ?? "—"}</div>
+          <div className="mt-1 text-2xl font-bold text-danger">{ultimo?.demissoes ?? "—"}</div>
         </Card>
       </div>
 
@@ -235,16 +232,16 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedChart}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v?.toFixed(1)}%`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number, name: string) =>
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v?.toFixed(1)}%`} {...eixoProps} />
+                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
                   name === "Turnover %" ? fmtPct(v) : v
                 } />
-                <Legend />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill="hsl(var(--primary) / 0.7)" />
-                <Line yAxisId="right" type="monotone" dataKey="turnover" name="Turnover %" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={false} />
+                <Legend {...legendaProps} />
+                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.7} />
+                <Line yAxisId="right" type="monotone" dataKey="turnover" name="Turnover %" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -256,13 +253,13 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byMes}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="admissoes" name="Admissões" fill="hsl(142 71% 45%)" />
-                <Bar dataKey="demissoes" name="Demissões" fill="hsl(0 84% 60%)" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis allowDecimals={false} {...eixoProps} />
+                <Tooltip {...tooltipProps} />
+                <Legend {...legendaProps} />
+                <Bar dataKey="admissoes" name="Admissões" fill={CORES_SERIE[0]} />
+                <Bar dataKey="demissoes" name="Demissões" fill={CORES_SERIE[1]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -274,16 +271,16 @@ CREATE POLICY "Headcount leitura autenticados"
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={combinedChart}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number, name: string) =>
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="label" {...eixoProps} />
+                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
+                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
                   name === "Receita/HC" ? fmtBRL(v) : v
                 } />
-                <Legend />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill="hsl(var(--primary) / 0.4)" />
-                <Line yAxisId="right" type="monotone" dataKey="receitaPerHead" name="Receita/HC" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} />
+                <Legend {...legendaProps} />
+                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.4} />
+                <Line yAxisId="right" type="monotone" dataKey="receitaPerHead" name="Receita/HC" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -307,8 +304,8 @@ CREATE POLICY "Headcount leitura autenticados"
                 <TableRow key={r.unidade}>
                   <TableCell className="font-medium">{r.unidade}</TableCell>
                   <TableCell className="text-right">{r.headcount}</TableCell>
-                  <TableCell className="text-right text-emerald-600">{r.admissoes || "—"}</TableCell>
-                  <TableCell className="text-right text-red-500">{r.demissoes || "—"}</TableCell>
+                  <TableCell className="text-right text-success">{r.admissoes || "—"}</TableCell>
+                  <TableCell className="text-right text-danger">{r.demissoes || "—"}</TableCell>
                   <TableCell className="text-right">
                     {r.headcount > 0 ? fmtPct((r.demissoes / r.headcount) * 100) : "—"}
                   </TableCell>

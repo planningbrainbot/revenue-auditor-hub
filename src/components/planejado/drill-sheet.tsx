@@ -165,7 +165,7 @@ export function DrillSheet({
                           <TableCell className="text-xs">{r.codigo_cliente_fornecedor ? (forn[r.codigo_cliente_fornecedor] ?? `#${r.codigo_cliente_fornecedor}`) : "—"}</TableCell>
                           <TableCell className="text-xs">{r.departamento ?? "—"}</TableCell>
                           <TableCell className="text-right text-xs">{BRL2(Number(r.valor_documento ?? 0))}</TableCell>
-                          <TableCell className="text-xs"><Badge variant="outline" className="text-[10px]">{r.status_titulo}</Badge></TableCell>
+                          <TableCell className="text-xs"><Badge variant="outline" className="text-xs">{r.status_titulo}</Badge></TableCell>
                         </TableRow>
                       ))}
                       {fin.length === 0 && (
@@ -231,9 +231,9 @@ export function DrillSheet({
                                   <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(null)}><X className="h-3 w-3" /></Button>
                                 </div>
                               ) : isDel ? (
-                                <div className="flex gap-1 text-[10px]">
-                                  <Button size="sm" variant="destructive" className="h-6 px-2 text-[10px]" onClick={() => handleDelete(o.id)}>Sim</Button>
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => setConfirmDel(null)}>Não</Button>
+                                <div className="flex gap-1 text-xs">
+                                  <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" onClick={() => handleDelete(o.id)}>Sim</Button>
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setConfirmDel(null)}>Não</Button>
                                 </div>
                               ) : (
                                 <div className="flex gap-1">

@@ -193,7 +193,7 @@ export function ItensView({
                     <div className="flex items-center gap-1.5">
                       <span>{item.nome}</span>
                       {badge && (
-                        <span className="text-[10px] px-1 rounded bg-primary/10 text-primary tabular-nums" title="% Partners">
+                        <span className="text-xs px-1 rounded bg-primary/10 text-primary-text tabular-nums" title="% Partners">
                           {badge}
                         </span>
                       )}
@@ -210,7 +210,7 @@ export function ItensView({
                     const isCustom = isSingleMonth && customSet.has(`${item.id}:${mes}`);
                     const editable = isSingleMonth && !readonly && !isSintetico && item.tipo === "fixo_variavel" && !isDaApuracao(item);
                     return (
-                      <td key={bi} className={"p-1 text-right tabular-nums relative group/cell " + (isCustom && !readonly ? "bg-amber-100/40 dark:bg-amber-500/10" : "")}>
+                      <td key={bi} className={"p-1 text-right tabular-nums relative group/cell " + (isCustom && !readonly ? "bg-warning-soft/40" : "")}>
                         {editable ? (
                           <input
                             defaultValue={v ? v.toFixed(2).replace(".", ",") : ""}
@@ -263,7 +263,7 @@ export function ItensView({
             })}
           </tbody>
         </table>
-        <div className="px-3 py-2 text-[11px] text-muted-foreground border-t bg-muted/20">
+        <div className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20">
           {readonly
             ? <>Visão somente leitura — valores exibidos correspondem à fatia Partners do rateio. Alterne para <em>Base — Total</em> para editar.</>
             : <>Dica: passe o mouse sobre uma célula mensal e clique no <X className="inline h-3 w-3" /> para apagar somente aquele mês.</>}

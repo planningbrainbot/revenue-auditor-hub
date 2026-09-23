@@ -9,14 +9,14 @@ import { ClientDetailDrawer } from "./client-detail-drawer";
 function OrigemBadge({ value }: { value: OrigemBase }) {
   if (value === "Base Antiga") {
     return (
-      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+      <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
         Base Antiga
       </span>
     );
   }
   if (value === "Base Nova") {
     return (
-      <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-200">
+      <span className="inline-flex items-center rounded-full bg-info-soft px-2 py-0.5 text-xs font-medium text-info">
         Base Nova
       </span>
     );
@@ -33,9 +33,9 @@ const PAGE_SIZE = 30;
 
 function diasClass(d: number | null) {
   if (d == null) return "";
-  if (d <= 45) return "text-emerald-700 dark:text-emerald-300 font-medium";
-  if (d <= 90) return "text-amber-700 dark:text-amber-300 font-medium";
-  return "text-red-700 dark:text-red-300 font-semibold";
+  if (d <= 45) return "text-success font-medium";
+  if (d <= 90) return "text-warning font-medium";
+  return "text-danger font-semibold";
 }
 
 export function DetailTab() {
@@ -183,7 +183,7 @@ export function DetailTab() {
                 onClick={() => setSelected(r)}
                 className={cn(
                   "border-t cursor-pointer hover:bg-muted/50",
-                  r.status_pagamento === "inadimplente" && "bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100/70",
+                  r.status_pagamento === "inadimplente" && "bg-danger-soft/70 hover:bg-danger-soft",
                 )}
               >
                 <td className="px-3 py-2 font-mono text-xs">{r.deal_id ?? "—"}</td>

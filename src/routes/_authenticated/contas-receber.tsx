@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Wallet, Search, X, CalendarIcon } from "lucide-react";
+import { Search, X, CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
@@ -47,6 +47,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -79,11 +81,11 @@ const DATA_TIPO_LABEL: Record<DataTipo, string> = {
 
 function statusBadge(s: string | null) {
   if (s === "RECEBIDO")
-    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200">Recebido</Badge>;
+    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
   if (s === "ATRASADO")
-    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950/50 dark:text-red-200">Atrasado</Badge>;
+    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
   if (s === "A VENCER")
-    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-200">A vencer</Badge>;
+    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
   return <Badge variant="outline">{s ?? "—"}</Badge>;
 }
 
@@ -111,6 +113,7 @@ function parseSearchDate(s: string): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function ContasReceberPage() {
   const search = Route.useSearch();
   const { data, isLoading } = useContasReceber();
@@ -278,18 +281,11 @@ function ContasReceberPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Wallet className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Contas a Receber</h1>
-            <p className="text-sm text-muted-foreground">
-              Faturas emitidas pelas unidades — origem: Omie.
-            </p>
-          </div>
-        </div>
-        <OmieLastSync className="pt-1" />
-      </div>
+      <PageHeader
+        titulo="Contas a Receber"
+        descricao="Faturas emitidas pelas unidades — origem: Omie."
+        acoes={<OmieLastSync />}
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />
@@ -445,8 +441,8 @@ function ContasReceberPage() {
                       <TableCell className="text-right">{num(u.qtd)}</TableCell>
                       <TableCell className="text-right">{brl(u.total)}</TableCell>
                       <TableCell className="text-right">{brl(u.aVencer)}</TableCell>
-                      <TableCell className="text-right text-red-700 dark:text-red-300">{brl(u.atrasado)}</TableCell>
-                      <TableCell className="text-right text-emerald-700 dark:text-emerald-300">{brl(u.recebido)}</TableCell>
+                      <TableCell className="text-right text-danger">{brl(u.atrasado)}</TableCell>
+                      <TableCell className="text-right text-success">{brl(u.recebido)}</TableCell>
                     </TableRow>
                   ))}
                   {porUnidade.length === 0 && (
@@ -471,17 +467,17 @@ function ContasReceberPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={Math.max(220, inadimplenciaUnidade.length * 32)}>
                   <BarChart data={inadimplenciaUnidade} layout="vertical" margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-                    <YAxis type="category" dataKey="unidade" stroke="hsl(var(--muted-foreground))" fontSize={12} width={90} />
+                    <CartesianGrid {...gradeProps} vertical horizontal={false} />
+                    <XAxis type="number" {...eixoProps} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                    <YAxis type="category" dataKey="unidade" {...eixoProps} width={90} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
+                      {...tooltipProps}
                       formatter={(value: number, _name, item) => [
                         `${value.toFixed(1)}% (${brl(item?.payload?.atrasado ?? 0)})`,
                         "Em atraso",
                       ]}
                     />
-                    <Bar dataKey="pct" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="pct" fill={COR_NEGATIVO} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -496,17 +492,17 @@ function ContasReceberPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={evolucaoMensal} margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => brl(v).replace("R$", "")} />
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="mes" {...eixoProps} />
+                    <YAxis {...eixoProps} tickFormatter={(v) => brl(v).replace("R$", "")} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }}
+                      {...tooltipProps}
                       formatter={(value: number) => brl(value)}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="recebido" name="Recebido" stroke="hsl(var(--chart-2, 142 71% 45%))" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="aVencer" name="A vencer" stroke="hsl(var(--chart-4, 38 92% 50%))" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="atrasado" name="Em atraso" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
+                    <Legend {...legendaProps} />
+                    <Line type="monotone" dataKey="recebido" name="Recebido" stroke={CORES_SERIE[0]} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="aVencer" name="A vencer" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="atrasado" name="Em atraso" stroke={COR_NEGATIVO} strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -523,7 +519,7 @@ function ContasReceberPage() {
             </div>
             <div className="relative max-h-[calc(100vh-340px)] overflow-auto">
               <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_hsl(var(--border))]">
+                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
                   <TableRow>
                     <TableHead className="bg-card">Status</TableHead>
                     <TableHead className="bg-card">Documento</TableHead>
@@ -556,7 +552,7 @@ function ContasReceberPage() {
                         <TableCell className="text-right whitespace-nowrap">{brl(Number(r.valor ?? 0))}</TableCell>
                         <TableCell className="text-right">
                           {atraso != null ? (
-                            <span className="text-red-700 dark:text-red-300 font-medium">{atraso}</span>
+                            <span className="text-danger font-medium">{atraso}</span>
                           ) : "—"}
                         </TableCell>
                       </TableRow>
@@ -590,28 +586,20 @@ function ContasReceberPage() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). O `tone` era o fundo do card e vira o `tom` do KpiCard (amber →
+// atenção, red → perigo, emerald → sucesso, slate → neutro): valor na cor,
+// ícone de status e filete, nunca cor sozinha (V7).
 function KpiCard({
+  tone,
   label,
   value,
   hint,
-  tone,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone: "amber" | "red" | "emerald" | "slate";
 }) {
-  const toneMap = {
-    amber: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
-    red: "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
-    emerald: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
-    slate: "border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40",
-  } as const;
-  return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneMap[tone]}`}>
-      <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
 }

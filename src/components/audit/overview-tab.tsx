@@ -20,17 +20,19 @@ import { ClientDetailDrawer } from "./client-detail-drawer";
 import { useState } from "react";
 import type { AuditRegistro } from "@/lib/audit-types";
 import { OrigemBadge, groupByOrigem } from "./origem-badge";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
+// Esta pizza é de status de pagamento: aqui a cor é o próprio status.
 const PAG_COLORS: Record<string, string> = {
-  adimplente: "#10b981",
-  inadimplente: "#ef4444",
-  recente: "#f59e0b",
-  sem_dados: "#94a3b8",
+  adimplente: "var(--success)",
+  inadimplente: "var(--danger)",
+  recente: "var(--warning)",
+  sem_dados: COR_NEUTRA,
 };
 
 const TIPO_COLORS: Record<string, string> = {
-  Recorrente: "#6366f1",
-  "Avulso (On-Time)": "#d946ef",
+  Recorrente: CORES_SERIE[0],
+  "Avulso (On-Time)": CORES_SERIE[1],
 };
 
 const DIAS_BUCKETS: { label: string; test: (d: number) => boolean }[] = [
@@ -183,13 +185,13 @@ export function OverviewTab() {
         <ChartCard title="Clientes por cidade (Top 12)">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={cidadeData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="cidade" tick={{ fontSize: 11 }} angle={-25} textAnchor="end" height={70} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="total" name="Total" fill="#6366f1" />
-              <Bar dataKey="pagaram" name="Pagaram" fill="#10b981" />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="cidade" angle={-25} textAnchor="end" height={70} />
+              <YAxis {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
+              <Bar dataKey="total" name="Total" fill={CORES_SERIE[0]} />
+              <Bar dataKey="pagaram" name="Pagaram" fill={CORES_SERIE[1]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -199,11 +201,11 @@ export function OverviewTab() {
             <PieChart>
               <Pie data={pagData} dataKey="value" nameKey="name" outerRadius={100} label>
                 {pagData.map((entry) => (
-                  <Cell key={entry.name} fill={PAG_COLORS[entry.name] ?? "#94a3b8"} />
+                  <Cell key={entry.name} fill={PAG_COLORS[entry.name] ?? COR_NEUTRA} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -211,11 +213,11 @@ export function OverviewTab() {
         <ChartCard title="Dias até o 1º pagamento">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={diasData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" name="Clientes" fill="#6366f1" />
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="label" />
+              <YAxis {...eixoProps} />
+              <Tooltip {...tooltipProps} />
+              <Bar dataKey="count" name="Clientes" fill={CORES_SERIE[0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -227,11 +229,11 @@ export function OverviewTab() {
                 <PieChart>
                   <Pie data={tipoData} dataKey="count" nameKey="name" outerRadius={70} label>
                     {tipoData.map((entry) => (
-                      <Cell key={entry.name} fill={TIPO_COLORS[entry.name] ?? "#94a3b8"} />
+                      <Cell key={entry.name} fill={TIPO_COLORS[entry.name] ?? COR_NEUTRA} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip {...tooltipProps} />
+                  <Legend {...legendaProps} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -248,18 +250,18 @@ export function OverviewTab() {
         </ChartCard>
       </div>
 
-      <div className="rounded-lg border bg-red-50 p-4 shadow-sm dark:bg-red-950/40">
+      <div className="rounded-lg border bg-danger-soft p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-red-900 dark:text-red-200">
+          <h3 className="text-sm font-semibold text-danger">
             Inadimplentes ({inadOrdered.length})
-            <span className="ml-2 text-xs font-normal text-red-800/80 dark:text-red-200/80">
+            <span className="ml-2 text-xs font-normal text-danger">
               · Nova {num(inadGroups.nova.length)} · Antiga {num(inadGroups.antiga.length)} · s/cad {num(inadGroups.semCadastro.length)}
             </span>
           </h3>
         </div>
-        <div className="max-h-80 overflow-auto rounded-md border border-red-200 dark:border-red-900">
+        <div className="max-h-80 overflow-auto rounded-md border border-danger/40">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-red-100 text-left text-xs uppercase text-red-900 dark:bg-red-900 dark:text-red-100">
+            <thead className="sticky top-0 bg-danger-soft text-left text-xs uppercase text-danger">
               <tr>
                 <th className="px-3 py-2">ID</th>
                 <th className="px-3 py-2">Razão Social</th>
@@ -275,7 +277,7 @@ export function OverviewTab() {
                 <tr
                   key={`${r.deal_id ?? r.cnpj ?? "x"}-${i}`}
                   onClick={() => setSelected(r)}
-                  className="border-t border-red-200/60 dark:border-red-900/60 cursor-pointer hover:bg-red-100/60 dark:hover:bg-red-900/40"
+                  className="border-t border-danger/60 cursor-pointer hover:bg-danger-soft/60"
                 >
                   <td className="px-3 py-2 font-mono text-xs">{r.deal_id ?? "—"}</td>
                   <td className="px-3 py-2">{r.razao_social ?? r.deal_titulo ?? "—"}</td>

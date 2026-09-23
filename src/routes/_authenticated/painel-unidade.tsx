@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
+import { KpiCard } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/painel-unidade")({
   head: () => ({ meta: [{ title: "Painel da Unidade – Planning" }] }),
@@ -238,7 +239,7 @@ function PainelUnidadePage() {
                   <TableCell className="font-medium">{r.empresa}</TableCell>
                   <TableCell>{r.status}</TableCell>
                   <TableCell>{fmtData(r.ultimoPag)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-red-600">{fmtBRL(r.atraso)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-danger">{fmtBRL(r.atraso)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -249,23 +250,18 @@ function PainelUnidadePage() {
   );
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN §1.6).
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold">{value}</div>
-      {sub && <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>}
-    </Card>
-  );
+  return <KpiCard rotulo={label} valor={value} nota={sub} />;
 }
 
 function Alert({ tone, label, value, sub, loading }: { tone: "red" | "amber"; label: string; value: string; sub: string; loading: boolean }) {
-  const bg = tone === "red" ? "bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900" : "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-900";
+  const bg = tone === "red" ? "bg-danger-soft border-danger/40" : "bg-warning-soft border-warning/40";
   return (
     <Card className={`${bg} p-4`}>
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-bold">{loading ? "—" : value}</div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
     </Card>
   );
 }

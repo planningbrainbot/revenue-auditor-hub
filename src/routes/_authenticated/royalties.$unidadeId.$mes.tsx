@@ -130,9 +130,9 @@ function formatCompetencias(datas: string[] | null | undefined): string {
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  rascunho: { label: "Rascunho", cls: "bg-slate-100 text-slate-800" },
-  em_revisao: { label: "Em revisão", cls: "bg-amber-100 text-amber-800" },
-  confirmado: { label: "Confirmado", cls: "bg-emerald-100 text-emerald-800" },
+  rascunho: { label: "Rascunho", cls: "bg-muted text-foreground" },
+  em_revisao: { label: "Em revisão", cls: "bg-warning-soft text-warning" },
+  confirmado: { label: "Confirmado", cls: "bg-success-soft text-success" },
   faturado: { label: "Faturado", cls: "bg-indigo-100 text-indigo-800" },
 };
 
@@ -596,20 +596,20 @@ function ApuracaoLoaded({
       </div>
 
       {isMesEmAndamento(mes) && (
-        <div className="mx-6 mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="mx-6 mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
           Mês em andamento ou futuro — os valores aqui são projeção (gerada automaticamente a partir dos contratos
           ativos), não apuração real. A apuração só fecha depois que o mês termina.
         </div>
       )}
 
       {!u.tem_omie && (
-        <div className="mx-6 mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="mx-6 mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
           Esta unidade ainda não está integrada ao Omie. Preencha os valores recebidos manualmente.
         </div>
       )}
 
       {readOnly && (
-        <div className="mx-6 mt-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+        <div className="mx-6 mt-4 rounded-md border border-success/40 bg-success-soft px-4 py-3 text-sm text-success">
           Apuração de {formatMesLabel(mes)} confirmada em{" "}
           {apuracao.confirmado_em ? new Date(apuracao.confirmado_em).toLocaleString("pt-BR") : "—"}
           {apuracao.confirmado_por ? ` por ${apuracao.confirmado_por}` : ""}.
@@ -787,7 +787,7 @@ function ApuracaoLoaded({
               <span className="text-sm font-semibold">Total fatura</span>
               <span className="text-lg font-bold">{brl(totalFatura)}</span>
             </div>
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               CSC + Royalties + CAC + Outras + Tráfego pago
             </div>
           </div>
@@ -808,7 +808,7 @@ function ApuracaoLoaded({
               >
                 Fechar apuração
               </Button>
-              <div className="text-[10px] text-center text-muted-foreground">
+              <div className="text-xs text-center text-muted-foreground">
                 Salvamento automático — não há rascunho manual.
               </div>
             </div>
@@ -866,9 +866,9 @@ function Metric({
 }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={highlight ? "text-base font-bold" : "text-sm font-semibold"}>{value}</div>
-      {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -916,7 +916,7 @@ function OutrasReceitasSection({
     <div className="text-xs space-y-1.5">
       <Label className="text-xs text-muted-foreground">Outras receitas</Label>
       {itens.length === 0 && (
-        <div className="text-[11px] text-muted-foreground italic">
+        <div className="text-xs text-muted-foreground italic">
           Nenhum item — adicione abaixo.
         </div>
       )}
@@ -1049,7 +1049,7 @@ function MarcarChurnButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-red-600 hover:text-red-700 dark:text-red-400"
+          className="h-7 w-7 text-danger hover:text-danger"
           title="Marcar churn"
         >
           <UserX className="h-3.5 w-3.5" />
@@ -1134,7 +1134,7 @@ function ExcluirItemButton({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-amber-600 hover:text-amber-700 dark:text-amber-400"
+          className="h-7 w-7 text-warning hover:text-warning"
           title="Excluir da apuração deste mês"
         >
           <Ban className="h-3.5 w-3.5" />
@@ -1171,7 +1171,7 @@ function ExcluirItemButton({
           </Button>
           <Button
             variant="outline"
-            className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400"
+            className="border-warning text-warning hover:bg-warning-soft"
             onClick={submit}
             disabled={pending}
           >
@@ -1280,7 +1280,7 @@ function FiliaisCell({
         title={count > 0 ? `${count} filial(is) vinculada(s)` : "Vincular filiais Omie"}
       >
         {count > 0 ? (
-          <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 font-medium text-blue-900 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-200">
+          <span className="inline-flex items-center gap-1 rounded bg-info-soft px-1.5 py-0.5 font-medium text-info hover:bg-info/15">
             <Link2 className="h-3 w-3" />
             {count} filial{count > 1 ? "is" : ""}
           </span>
@@ -1377,15 +1377,15 @@ type ItemSortKey =
 const SITUACAO_INFO: Record<string, { label: string; cls: string }> = {
   matched: {
     label: "✅ Matched",
-    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+    cls: "bg-success-soft text-success",
   },
   so_pipedrive: {
     label: "⚠️ Só Pipedrive",
-    cls: "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
+    cls: "bg-warning-soft text-warning",
   },
   so_omie: {
     label: "🔍 Só Omie",
-    cls: "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300",
+    cls: "bg-info-soft text-info",
   },
 };
 
@@ -1401,7 +1401,7 @@ function SituacaoBadge({ status }: { status: string | null | undefined }) {
   if (!info) return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <span
-      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium", info.cls)}
+      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium", info.cls)}
     >
       {info.label}
     </span>
@@ -1411,7 +1411,7 @@ function SituacaoBadge({ status }: { status: string | null | undefined }) {
 const ORIGEM_PIPELINE_INFO: Record<string, { label: string; cls: string }> = {
   inside_sales: {
     label: "Inside Sales",
-    cls: "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    cls: "bg-info-soft text-info",
   },
   socios: {
     label: "Sócios",
@@ -1424,7 +1424,7 @@ function OrigemPipelineBadge({ origem }: { origem: string | null | undefined }) 
   if (!info) return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <span
-      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium", info.cls)}
+      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium", info.cls)}
     >
       {info.label}
     </span>
@@ -1610,7 +1610,7 @@ function SecaoGrupo({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs transition-colors",
                       checkFiltro === "pendentes"
-                        ? "bg-amber-500 text-white"
+                        ? "bg-warning-soft text-warning ring-1 ring-inset ring-warning/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >
@@ -1627,7 +1627,7 @@ function SecaoGrupo({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs transition-colors",
                       checkFiltro === "confirmados"
-                        ? "bg-emerald-600 text-white"
+                        ? "bg-success-soft text-success ring-1 ring-inset ring-success/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >
@@ -1769,7 +1769,7 @@ function SecaoGrupo({
                         <td className="sticky left-0 z-10 bg-card px-3 py-2">
                           {it.razao_social}
                           {it.churn_pipefy_card_id && (
-                            <Badge className="ml-2 bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300 text-[10px] px-1.5 py-0 align-middle">
+                            <Badge className="ml-2 bg-danger-soft text-danger text-xs px-1.5 py-0 align-middle">
                               churn
                             </Badge>
                           )}
@@ -1914,7 +1914,7 @@ function SecaoGrupo({
                           className={cn(
                             "px-3 py-2 text-right whitespace-nowrap",
                             it.is_cac
-                              ? "text-amber-700 dark:text-amber-400"
+                              ? "text-warning"
                               : "text-indigo-700 dark:text-indigo-300",
                           )}
                         >

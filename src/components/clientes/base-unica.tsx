@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Building2,
   ArrowRight,
   Download,
   RefreshCw,
@@ -42,6 +41,7 @@ import { downloadCsv, inputClass, LoadingState, number } from "@/components/mone
 import { AccountDetail } from "@/components/monetizacao/account-detail";
 import { Aquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
+import { PageHeader } from "@/components/planning";
 
 const views = [
   // O cockpit abre a base: é onde se decide o que trabalhar. "Empresas" vem logo depois.
@@ -61,6 +61,7 @@ const at = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
     : "Sem leitura confirmada";
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function ClientesBase() {
   const query = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -183,40 +184,35 @@ export function ClientesBase() {
   };
   return (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold">Base de clientes</h1>
-            <p className="text-xs text-muted-foreground">
-              Uma base · empresas, contatos, negócios e oportunidades
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={query.isFetching}
-          onClick={() => {
-            void invalidate();
-            void health.refetch();
-            void contacts.refetch();
-          }}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Atualizar
-        </Button>
-      </header>
+      <PageHeader
+        titulo="Base de clientes"
+        descricao="Uma base · empresas, contatos, negócios e oportunidades"
+        acoes={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={query.isFetching}
+            onClick={() => {
+              void invalidate();
+              void health.refetch();
+              void contacts.refetch();
+            }}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
+        }
+      />
       <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
         {views.map(([key, label]) => (
           <button
             key={key}
             onClick={() => change({ view: key })}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${view === key ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             {label}
             {key === "pendencias" && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs text-amber-900">
+              <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
                 {
                   rows.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
                     .length
@@ -304,7 +300,7 @@ export function ClientesBase() {
                 <div className="mt-1 text-3xl font-semibold tabular-nums">
                   {number(Number(value))}
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {index === 0
                     ? "Contas conciliadas, sem multiplicar por contato"
                     : "Dentro do degrau anterior"}
@@ -368,7 +364,7 @@ export function ClientesBase() {
                               .map((k) => (
                                 <button
                                   key={k}
-                                  className="block text-left text-primary underline"
+                                  className="block text-left text-primary-text underline"
                                   onClick={() =>
                                     setDetail(data.accounts.find((a) => a.key === k) || null)
                                   }
@@ -408,12 +404,12 @@ export function ClientesBase() {
                             href={d.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-primary underline"
+                            className="text-primary-text underline"
                           >
                             {d.title}
                           </a>
                           {!d.org_id && (
-                            <div className="text-xs text-amber-700">Sem empresa vinculada</div>
+                            <div className="text-xs text-warning">Sem empresa vinculada</div>
                           )}
                         </td>
                         <td className="p-3">{NOMES[d.route]}</td>
@@ -449,7 +445,7 @@ export function ClientesBase() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       {[
                         "Empresa / CNPJ",
@@ -470,12 +466,12 @@ export function ClientesBase() {
                       <tr className="border-t hover:bg-muted/20" key={a.key}>
                         <td className="max-w-xs px-4 py-3">
                           <button
-                            className="text-left font-medium hover:text-primary hover:underline"
+                            className="text-left font-medium hover:text-primary-text hover:underline"
                             onClick={() => setDetail(a)}
                           >
                             {a.name}
                           </button>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
                           </p>
                         </td>
@@ -500,14 +496,14 @@ export function ClientesBase() {
                         </td>
                         <td className="max-w-[190px] px-4 py-3 text-xs">
                           {a.base?.needs_source_correction ? (
-                            <span className="text-amber-700">Origem a corrigir no Pipefy</span>
+                            <span className="text-warning">Origem a corrigir no Pipefy</span>
                           ) : a.base?.source_status === "ok" ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700">
+                            <span className="inline-flex items-center gap-1 text-success">
                               <CheckCircle2 className="h-3 w-3" />
                               Pipefy conferido
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-amber-700">
+                            <span className="inline-flex items-center gap-1 text-warning">
                               <AlertCircle className="h-3 w-3" />
                               {a.base?.source_status === "absent"
                                 ? "Ausente no Pipefy"
@@ -518,7 +514,7 @@ export function ClientesBase() {
                                     : "Leitura pendente"}
                             </span>
                           )}
-                          <p className="mt-1 text-[10px] text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {a.base?.synced_at
                               ? at(a.base.synced_at)
                               : `${a.base?.omie_records || 0} registros Omie`}

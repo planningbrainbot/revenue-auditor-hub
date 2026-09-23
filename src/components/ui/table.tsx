@@ -2,10 +2,28 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/*
+ * Tabela do Brain (DESIGN §9): cabeçalho 12px maiúsculo em muted-foreground
+ * sobre fundo levemente distinto, linha de ~40px com hover muted/40, algarismos
+ * tabulares em todas as células.
+ *
+ * Coluna de número: o alinhamento à direita NÃO é global (quebraria as telas
+ * que já alinham à mão). Marque a coluna com `className="text-right num"` no
+ * TableHead e no TableCell.
+ *
+ * Cabeçalho grudável: `<TableHeader grudavel>`. Gruda no topo do contêiner de
+ * rolagem da própria tabela, então a tabela precisa de altura limitada
+ * (ex.: `<Table className="...">` dentro de um bloco com `max-h-*`).
+ */
+
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+      <table
+        ref={ref}
+        className={cn("w-full caption-bottom text-sm tabular-nums", className)}
+        {...props}
+      />
     </div>
   ),
 );
@@ -13,9 +31,18 @@ Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  React.HTMLAttributes<HTMLTableSectionElement> & { grudavel?: boolean }
+>(({ className, grudavel = false, ...props }, ref) => (
+  <thead
+    ref={ref}
+    className={cn(
+      "bg-muted/40 [&_tr]:border-b [&_tr]:hover:bg-transparent",
+      // Fundo opaco quando gruda, senão as linhas aparecem por trás.
+      grudavel && "sticky top-0 z-10 bg-[color-mix(in_oklab,var(--muted)_40%,var(--card))]",
+      className,
+    )}
+    {...props}
+  />
 ));
 TableHeader.displayName = "TableHeader";
 
@@ -33,7 +60,7 @@ const TableFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={cn("border-t bg-muted/50 font-medium [&>tr]:last:border-b-0", className)}
+    className={cn("border-t bg-muted/40 font-semibold [&>tr]:last:border-b-0", className)}
     {...props}
   />
 ));
@@ -44,7 +71,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b border-border transition-colors duration-120 ease-planning hover:bg-muted/40 data-[state=selected]:bg-muted",
         className,
       )}
       {...props}
@@ -60,7 +87,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "h-10 px-3 text-left align-middle text-xs font-semibold uppercase tracking-wider whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className,
     )}
     {...props}
@@ -75,7 +102,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+      "px-3 py-2.5 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className,
     )}
     {...props}
@@ -87,7 +114,7 @@ const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>
 >(({ className, ...props }, ref) => (
-  <caption ref={ref} className={cn("mt-4 text-sm text-muted-foreground", className)} {...props} />
+  <caption ref={ref} className={cn("mt-4 text-[13px] text-muted-foreground", className)} {...props} />
 ));
 TableCaption.displayName = "TableCaption";
 

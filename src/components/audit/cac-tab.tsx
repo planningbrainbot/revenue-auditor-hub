@@ -25,8 +25,10 @@ import {
   type UnidadeAggregate,
 } from "./matriz-calc";
 import { UnitDetailDrawer } from "./unit-detail-drawer";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 
-const COLORS = ["#f59e0b", "#10b981", "#6366f1", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+// TODO(design): pizza com uma fatia por unidade passa de 6; decisão de produto é agrupar em "Outros".
+const COLORS = CORES_SERIE;
 
 export function CacTab() {
   const { registros, cnpjToUnidade, unidadesByName } = useData();
@@ -101,11 +103,11 @@ export function CacTab() {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlySeries}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
-                <Tooltip formatter={(v: number) => brl(v)} />
-                <Bar dataKey="value" name="CAC" fill="#f59e0b" />
+                <CartesianGrid {...gradeProps} />
+                <XAxis {...eixoProps} dataKey="label" angle={-30} textAnchor="end" height={60} />
+                <YAxis {...eixoProps} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                <Bar dataKey="value" name="CAC" fill={CORES_SERIE[0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -121,8 +123,8 @@ export function CacTab() {
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => brl(v)} />
-                <Legend />
+                <Tooltip {...tooltipProps} formatter={(v: number) => brl(v)} />
+                <Legend {...legendaProps} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -159,10 +161,10 @@ export function CacTab() {
                     <td className="px-3 py-2 font-medium">{u.nome}</td>
                     <td className="px-3 py-2 text-right">{u.clientes.length}</td>
                     <td className="px-3 py-2 text-right">{u.qtdAquisicoes}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                    <td className="px-3 py-2 text-right font-semibold text-success whitespace-nowrap">
                       {brl(u.cacRealizado)}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap text-amber-700 dark:text-amber-300">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-warning">
                       {brl(u.cacPendente)}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">{brl(ticket)}</td>

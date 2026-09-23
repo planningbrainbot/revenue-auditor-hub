@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { fetchFxcData, FxcData, FxcRecord, buildDre, DRE_GRUPOS } from "@/data/fxcData";
 
-const OLIVE    = "#6b7c3a";
-const OLIVE_BG = "#e8edcc";
+// Oliva do relatório impresso da controladoria não tem token; na tela o
+// cabeçalho usa texto e superfície do tema, para funcionar no escuro.
+const OLIVE = "var(--foreground)";
+const OLIVE_BG = "var(--muted)";
 
 const RECEITAS_DIRETAS_KEYS = ["csc_expansao", "royalties", "outras_rx_exp", "csc_trafego", "nao_classif", "devolucoes"];
 const LUCRO_BRUTO_KEYS = [...RECEITAS_DIRETAS_KEYS, "outras_receitas", "repasses", "impostos", "folha", "desp_pessoal"];
@@ -70,8 +72,8 @@ export function FxcView() {
   if (error || !data) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="bg-white border border-red-200 rounded-2xl p-8 max-w-md text-center space-y-3">
-          <p className="text-red-600 font-bold">Erro ao carregar dados</p>
+        <div className="bg-card border border-danger/40 rounded-2xl p-8 max-w-md text-center space-y-3">
+          <p className="text-danger font-bold">Erro ao carregar dados</p>
           <p className="text-muted-foreground text-sm">{error ?? "Dados não encontrados"}</p>
           <button onClick={() => window.location.reload()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">
             Tentar novamente
@@ -109,24 +111,24 @@ export function FxcView() {
         const variation = lastMes.saldo_final - lastMes.saldo_inicial;
         return (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo em Caixa — {lastMes.label}/{lastMes.mes.slice(0,4)}</p>
-              <p className="text-3xl font-black mt-1" style={{ color: lastMes.saldo_final < 5000 ? "#991b1b" : lastMes.saldo_final < 20000 ? "#b45309" : "#166534" }}>
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo em Caixa — {lastMes.label}/{lastMes.mes.slice(0,4)}</p>
+              <p className="text-3xl font-black mt-1" style={{ color: lastMes.saldo_final < 5000 ? "var(--danger)" : lastMes.saldo_final < 20000 ? "var(--warning)" : "var(--success)" }}>
                 {fmtN(lastMes.saldo_final)}
               </p>
-              <p className="text-xs text-slate-400 mt-1">conta corrente Partners</p>
+              <p className="text-xs text-muted-foreground mt-1">conta corrente Partners</p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Inicial — {lastMes.label}</p>
-              <p className="text-3xl font-black mt-1 text-slate-700">{fmtN(lastMes.saldo_inicial)}</p>
-              <p className="text-xs text-slate-400 mt-1">abertura do período</p>
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo Inicial — {lastMes.label}</p>
+              <p className="text-3xl font-black mt-1 text-foreground">{fmtN(lastMes.saldo_inicial)}</p>
+              <p className="text-xs text-muted-foreground mt-1">abertura do período</p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resultado — {lastMes.label}</p>
-              <p className="text-3xl font-black mt-1" style={{ color: variation >= 0 ? "#166534" : "#991b1b" }}>
+            <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resultado — {lastMes.label}</p>
+              <p className="text-3xl font-black mt-1" style={{ color: variation >= 0 ? "var(--success)" : "var(--danger)" }}>
                 {variation >= 0 ? "+" : ""}{fmtN(variation)}
               </p>
-              <p className="text-xs text-slate-400 mt-1">variação de caixa no mês</p>
+              <p className="text-xs text-muted-foreground mt-1">variação de caixa no mês</p>
             </div>
           </div>
         );
@@ -136,12 +138,12 @@ export function FxcView() {
       <div className="space-y-0">
 
         {/* Header */}
-        <div className="bg-white rounded-t-2xl border border-slate-200 px-6 py-5">
+        <div className="bg-card rounded-t-2xl border border-border px-6 py-5">
           <div className="flex items-center gap-6">
             <div>
-              <div className="text-4xl font-black text-slate-900 leading-none tracking-tight">FCx</div>
-              <div className="text-[11px] font-semibold mt-0.5" style={{ color: "#5db89a" }}>Fluxo de Caixa Realizado</div>
-              <div className="text-[9px] font-bold tracking-widest mt-0.5" style={{ color: "#5db89a" }}>CONTROLADORIA</div>
+              <div className="text-4xl font-black text-foreground leading-none tracking-tight">FCx</div>
+              <div className="text-xs font-semibold mt-0.5" style={{ color: "var(--primary-text)" }}>Fluxo de Caixa Realizado</div>
+              <div className="text-xs font-bold tracking-widest mt-0.5" style={{ color: "var(--primary-text)" }}>CONTROLADORIA</div>
             </div>
             <div className="flex-1 rounded-lg px-5 py-3" style={{ background: OLIVE_BG }}>
               <h2 className="text-sm font-bold" style={{ color: OLIVE }}>Relatório: Fluxo de Caixa (FCx — Realizado)</h2>
@@ -151,7 +153,7 @@ export function FxcView() {
         </div>
 
         {/* Saldo em destaque */}
-        <div className="border-x border-slate-200" style={{ background: OLIVE_BG }}>
+        <div className="border-x border-border" style={{ background: OLIVE_BG }}>
           {!temSaldo ? (
             <div className="px-5 py-3">
               <p className="text-xs font-medium opacity-70" style={{ color: OLIVE }}>
@@ -187,16 +189,16 @@ export function FxcView() {
         </div>
 
         {/* Tabela DRE */}
-        <div className="border border-t-0 border-slate-200 rounded-b-2xl overflow-hidden">
+        <div className="border border-t-0 border-border rounded-b-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="py-2 px-5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-80">Categoria</th>
+                  <th className="py-2 px-5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide w-80">Categoria</th>
                   {dre.map((m) => (
-                    <th key={m.mes} className="py-2 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{m.label}</th>
+                    <th key={m.mes} className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{m.label}</th>
                   ))}
-                  <th className="py-2 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Grand Total</th>
+                  <th className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Grand Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,79 +213,79 @@ export function FxcView() {
                   return (
                     <Fragment key={grupo.key}>
                       {showSecaoHeader && (
-                        <tr className="bg-slate-100 border-t border-slate-200">
-                          <td colSpan={nCols} className="py-1.5 px-5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        <tr className="bg-muted border-t border-border">
+                          <td colSpan={nCols} className="py-1.5 px-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                             {SECAO_HEADERS[grupo.secao] ?? grupo.secao}
                           </td>
                         </tr>
                       )}
 
-                      <tr onClick={() => toggleGroup(grupo.key)} className="border-t border-slate-100 cursor-pointer select-none hover:bg-slate-50/80">
-                        <td className="py-2.5 px-5 text-xs font-semibold leading-tight text-slate-700">
-                          <span className="mr-1.5 text-slate-400 text-[10px]">{isExpanded ? "▾" : "▸"}</span>
+                      <tr onClick={() => toggleGroup(grupo.key)} className="border-t border-border cursor-pointer select-none hover:bg-muted/80">
+                        <td className="py-2.5 px-5 text-xs font-semibold leading-tight text-foreground">
+                          <span className="mr-1.5 text-muted-foreground text-xs">{isExpanded ? "▾" : "▸"}</span>
                           {grupo.label}
                         </td>
                         {dre.map((m) => {
                           const v = m.grupos[grupo.key] ?? 0;
                           return (
-                            <td key={m.mes} className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${v > 0 ? "text-emerald-700" : v < 0 ? "text-red-600" : "text-slate-300"}`}>
+                            <td key={m.mes} className={`py-2.5 px-4 text-right font-medium whitespace-nowrap ${v > 0 ? "text-success" : v < 0 ? "text-danger" : "text-muted-foreground"}`}>
                               {v !== 0 ? fmtN(v) : "—"}
                             </td>
                           );
                         })}
-                        <td className={`py-2.5 px-4 text-right font-bold whitespace-nowrap ${(grandTotals[grupo.key] ?? 0) > 0 ? "text-emerald-700" : (grandTotals[grupo.key] ?? 0) < 0 ? "text-red-600" : "text-slate-300"}`}>
+                        <td className={`py-2.5 px-4 text-right font-bold whitespace-nowrap ${(grandTotals[grupo.key] ?? 0) > 0 ? "text-success" : (grandTotals[grupo.key] ?? 0) < 0 ? "text-danger" : "text-muted-foreground"}`}>
                           {(grandTotals[grupo.key] ?? 0) !== 0 ? fmtN(grandTotals[grupo.key] ?? 0) : "—"}
                         </td>
                       </tr>
 
                       {isExpanded && subRows.map((sub) => (
-                        <tr key={sub.name} className="border-t border-slate-100 bg-indigo-50/40">
-                          <td className="py-2 px-5 pl-10 text-xs text-slate-600 max-w-xs truncate" title={sub.name}>{sub.name}</td>
+                        <tr key={sub.name} className="border-t border-border bg-indigo-50/40">
+                          <td className="py-2 px-5 pl-10 text-xs text-muted-foreground max-w-xs truncate" title={sub.name}>{sub.name}</td>
                           {dre.map((m) => {
                             const v = sub.meses[m.mes] ?? 0;
                             return (
-                              <td key={m.mes} className={`py-2 px-4 text-right text-xs whitespace-nowrap ${v > 0 ? "text-emerald-700" : v < 0 ? "text-red-600" : "text-slate-300"}`}>
+                              <td key={m.mes} className={`py-2 px-4 text-right text-xs whitespace-nowrap ${v > 0 ? "text-success" : v < 0 ? "text-danger" : "text-muted-foreground"}`}>
                                 {v !== 0 ? fmtN(v) : "—"}
                               </td>
                             );
                           })}
-                          <td className={`py-2 px-4 text-right text-xs font-medium whitespace-nowrap ${sub.total > 0 ? "text-emerald-700" : sub.total < 0 ? "text-red-600" : "text-slate-300"}`}>
+                          <td className={`py-2 px-4 text-right text-xs font-medium whitespace-nowrap ${sub.total > 0 ? "text-success" : sub.total < 0 ? "text-danger" : "text-muted-foreground"}`}>
                             {sub.total !== 0 ? fmtN(sub.total) : "—"}
                           </td>
                         </tr>
                       ))}
 
                       {isLastReceitaDireta && (
-                        <tr className="border-t-2 border-blue-200" style={{ background: "#eff6ff" }}>
-                          <td className="py-2.5 px-5 text-xs font-black uppercase tracking-wide text-blue-800">(=) Receitas Diretas</td>
+                        <tr className="border-t-2 border-info/40" style={{ background: "var(--info-soft)" }}>
+                          <td className="py-2.5 px-5 text-xs font-black uppercase tracking-wide text-info">(=) Receitas Diretas</td>
                           {receitasDiretasPorMes.map(({ mes, value }) => (
-                            <td key={mes} className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-blue-700" : "text-red-600"}`}>{fmtN(value)}</td>
+                            <td key={mes} className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-info" : "text-danger"}`}>{fmtN(value)}</td>
                           ))}
-                          <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${receitasDiretasTotal >= 0 ? "text-blue-700" : "text-red-600"}`}>{fmtN(receitasDiretasTotal)}</td>
+                          <td className={`py-2.5 px-4 text-right font-black whitespace-nowrap ${receitasDiretasTotal >= 0 ? "text-info" : "text-danger"}`}>{fmtN(receitasDiretasTotal)}</td>
                         </tr>
                       )}
 
                       {isLastCustoDireto && (
-                        <tr className="border-t-2 border-emerald-300" style={{ background: "#f0fdf4" }}>
-                          <td className="py-3 px-5 text-xs font-black uppercase tracking-wide text-emerald-800">(=) LUCRO BRUTO</td>
+                        <tr className="border-t-2 border-success/40" style={{ background: "var(--success-soft)" }}>
+                          <td className="py-3 px-5 text-xs font-black uppercase tracking-wide text-success">(=) LUCRO BRUTO</td>
                           {lucroBrutoPorMes.map(({ mes, value }) => (
-                            <td key={mes} className={`py-3 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-emerald-700" : "text-red-600"}`}>{fmtN(value)}</td>
+                            <td key={mes} className={`py-3 px-4 text-right font-black whitespace-nowrap ${value >= 0 ? "text-success" : "text-danger"}`}>{fmtN(value)}</td>
                           ))}
-                          <td className={`py-3 px-4 text-right font-black whitespace-nowrap ${lucroBrutoTotal >= 0 ? "text-emerald-700" : "text-red-600"}`}>{fmtN(lucroBrutoTotal)}</td>
+                          <td className={`py-3 px-4 text-right font-black whitespace-nowrap ${lucroBrutoTotal >= 0 ? "text-success" : "text-danger"}`}>{fmtN(lucroBrutoTotal)}</td>
                         </tr>
                       )}
                     </Fragment>
                   );
                 })}
 
-                <tr className="border-t-2 border-slate-300 font-bold" style={{ background: OLIVE_BG }}>
+                <tr className="border-t-2 border-border font-bold" style={{ background: OLIVE_BG }}>
                   <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Grand Total</td>
                   {dre.map((m) => (
-                    <td key={m.mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: m.grand_total >= 0 ? "#166534" : "#991b1b" }}>
+                    <td key={m.mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: m.grand_total >= 0 ? "var(--success)" : "var(--danger)" }}>
                       {fmtN(m.grand_total)}
                     </td>
                   ))}
-                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "#166534" : "#991b1b" }}>
+                  <td className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: grandTotalGeral >= 0 ? "var(--success)" : "var(--danger)" }}>
                     {fmtN(grandTotalGeral)}
                   </td>
                 </tr>

@@ -120,8 +120,8 @@ function MeusRoyaltiesPage() {
 
   function situacao(prev: number, rec: number | null) {
     if (rec == null) return <Badge variant="outline">—</Badge>;
-    if (rec >= prev * 0.99) return <Badge className="bg-emerald-600 hover:bg-emerald-600">Pago</Badge>;
-    if (rec > 0) return <Badge className="bg-amber-500 hover:bg-amber-500">Parcial</Badge>;
+    if (rec >= prev * 0.99) return <Badge variant="sucesso">Pago</Badge>;
+    if (rec > 0) return <Badge variant="atencao">Parcial</Badge>;
     return <Badge variant="destructive">Em aberto</Badge>;
   }
 
@@ -180,7 +180,7 @@ function Info({ label, value, sub }: { label: string; value: string; sub?: strin
     <Card className="p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
-      {sub && <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
     </Card>
   );
 }

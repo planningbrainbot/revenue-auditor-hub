@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import React from "react";
-import { Coins, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import {
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/pagamentos-unidades")({
   component: PagamentosUnidadesPage,
@@ -87,6 +88,7 @@ type UnidadePivot = {
   cats: CatPivot[];
 };
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function PagamentosUnidadesPage() {
   const anoAtual = String(new Date().getFullYear());
   const [ano, setAno] = useState(anoAtual);
@@ -189,15 +191,10 @@ function PagamentosUnidadesPage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <Coins className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Pagamentos das Unidades</h1>
-          <p className="text-sm text-muted-foreground">
-            Faturamento Partners por unidade e linha de receita — {ano}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Pagamentos das Unidades"
+        descricao={`Faturamento Partners por unidade e linha de receita — ${ano}`}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={ano} onValueChange={setAno}>
@@ -231,7 +228,7 @@ function PagamentosUnidadesPage() {
       </div>
 
       {error && (
-        <Card className="p-4 border-red-300 bg-red-50 text-sm text-red-700">{error}</Card>
+        <Card className="p-4 border-danger/40 bg-danger-soft text-sm text-danger">{error}</Card>
       )}
 
       <Card className="overflow-x-auto">

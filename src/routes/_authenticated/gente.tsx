@@ -1,7 +1,6 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { resumoMenuGente, type ResumoMenuGente } from "@/lib/gente-menu.functions";
 import { GenteView } from "@/components/gente/gente-view";
@@ -11,6 +10,7 @@ import { GenteLiderancaTab, GenteElogiosTab } from "@/components/gente/gente-lid
 import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
 import { Adocao, VisaoMinhaVez, VisaoMeuTime } from "@/components/gente/gente-visoes";
+import { PageHeader } from "@/components/planning";
 
 // Uma tela por MÓDULO, mais duas de rotina ("Minha vez" e "Meu time").
 //
@@ -84,6 +84,7 @@ export const Route = createFileRoute("/_authenticated/gente")({
   component: GentePage,
 });
 
+// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function GentePage() {
   const { tela } = useSearch({ from: "/_authenticated/gente" });
   const navegar = Route.useNavigate();
@@ -103,15 +104,12 @@ function GentePage() {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
-      <div className="flex items-center gap-3">
-        <Users className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Planning People</h1>
-          <p className="text-sm text-muted-foreground">
-            As pessoas das unidades. Cada unidade enxerga só a sua, e dentro dela vale a hierarquia.
-          </p>
-        </div>
-      </div>
+      {/* A área (Planning People) já sobe no eyebrow; o título é o item do menu
+          que abriu a tela, que aqui é a visão escolhida em `?tela=`. */}
+      <PageHeader
+        titulo={TELAS.find((t) => t.id === tela)?.rotulo ?? "Planning People"}
+        descricao="As pessoas das unidades. Cada unidade enxerga só a sua, e dentro dela vale a hierarquia."
+      />
 
       <Tabs
         value={tela}

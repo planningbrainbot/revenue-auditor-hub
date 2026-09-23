@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { KpiCard } from "@/components/planning";
 
 const NA = "—";
 
@@ -104,6 +105,10 @@ function maturacao(fim: string): { madura: boolean; dias: number } {
   return { madura: dias >= 60, dias };
 }
 
+// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
+// §1.6). `NA` é o "—" que os formatadores devolvem para null: vira o estado
+// "não apurado" em vez de um traço que parece número (N4). O alerta segue
+// com ícone e palavra (V7), na linha de nota.
 function CardKPI({
   label,
   valor,
@@ -116,19 +121,24 @@ function CardKPI({
   alerta?: string;
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        {alerta ? (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label={alerta} />
-        ) : null}
-      </div>
-      <p className={cn("mt-2 text-2xl font-bold", valor === NA && "text-muted-foreground")}>
-        {valor}
-      </p>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-      {alerta ? <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">{alerta}</p> : null}
-    </Card>
+    <KpiCard
+      rotulo={label}
+      valor={valor}
+      estado={valor === NA ? "nao-apurado" : "ok"}
+      nota={
+        hint || alerta ? (
+          <>
+            {hint}
+            {alerta ? (
+              <span className={cn("flex items-start gap-1 text-warning", hint && "mt-1")}>
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                {alerta}
+              </span>
+            ) : null}
+          </>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -240,7 +250,7 @@ export function IndicadoresTrimestreView() {
               className={cn(
                 "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
                 selecionada?.unidade === r.unidade
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-primary bg-primary/10 text-primary-text"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -251,8 +261,8 @@ export function IndicadoresTrimestreView() {
       </div>
 
       {!mat.madura ? (
-        <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="font-medium">Trimestre ainda não maturou.</p>
             <p className="text-muted-foreground">
@@ -323,7 +333,7 @@ export function IndicadoresTrimestreView() {
                       <TableCell className="font-medium">
                         {r.unidade}
                         {rampa ? (
-                          <Badge variant="outline" className="ml-2 text-[10px]">
+                          <Badge variant="outline" className="ml-2 text-xs">
                             {r.meses_apurados}/3 meses
                           </Badge>
                         ) : null}
@@ -366,7 +376,7 @@ export function IndicadoresTrimestreView() {
                           <span
                             className={cn(
                               r.churn_faturamento_n > r.churn_pipefy_n &&
-                                "text-amber-600 dark:text-amber-500",
+                                "text-warning",
                             )}
                           >
                             {fmtNum(r.churn_faturamento_n)}
@@ -493,8 +503,8 @@ function DetalheUnidade({ row: r }: { row: Row }) {
       </div>
 
       {gapChurn ? (
-        <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div className="text-sm">
             <p className="font-medium">
               O pipe de Tratativas registra menos churn do que o faturamento mostra.
