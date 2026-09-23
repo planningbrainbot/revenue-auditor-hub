@@ -460,9 +460,9 @@ export const AREAS: Area[] = [
   {
     // Cockpit do CEO (piloto de 22/09/2026). Área própria porque o PRD o põe no seletor de módulos
     // e porque a fronteira de confiança é outra: ver a Base não dá visão consolidada da empresa.
-    // A área ainda NÃO existe em `ops.areas` — a proposta está em
-    // supabase/proposals/20260922120000_cockpit_ceo_area.sql e não foi aplicada — então hoje o
-    // item não aparece para ninguém. Fica depois do Broker, e não em primeiro, para não virar a
+    // A área existe em `ops.areas` desde 22/09/2026, liberada só para o papel `admin`
+    // (supabase/migrations/20260922220000_cockpit_ceo_area.sql). O card só aparece onde este código
+    // roda: a produção ainda não tem esta entrada. Fica depois do Broker, e não em primeiro, para não virar a
     // área padrão da lateral de quem a receber. Ao integrar com a main, avaliar se ele mora dentro de
     // "Estratégia & Execução" (área de 21/09), que não existe neste checkout.
     slug: "cockpit_ceo",
