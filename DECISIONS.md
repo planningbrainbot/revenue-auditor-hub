@@ -2091,3 +2091,20 @@ Uma linha recusou a escrita, e vale como sinal: id 1134 (MM Agro LTDA) bateu no 
 **A chave `view.royalties_historico` sai também, e aqui a decisão é o oposto da tomada com `view.reconciliacao` em 17/09.** Naquele caso a chave ficou porque policies de `contratos` e `contas_receber` liam por ela. Nesta, foi conferido no banco antes de apagar: nenhuma policy de RLS e nenhuma function citam a chave, ela só abria a rota. Some de `ops.area_chaves` (área receita) e de `ops.role_permissions` (papéis admin e diretor) na migration `20260922210000`, com rollback escrito. Deixar chave morta no catálogo polui a tela de acessos com permissão que não guarda nada.
 
 **Dado nenhum foi tocado.** `royalties_apuracao` e `royalties_itens` seguem inteiros: o que saiu foi a leitura em tabela, não a apuração.
+
+## [2026-09-23] A abertura de Receita e Repasses diz a régua de data em cada número, não só no rodapé
+
+**Pedido do usuário:** "para nao gerar confusao nesta página é interessante trazer a data sempre de competência e caixa". O seletor de mês é um só e governa os dois blocos, mas o mês significa coisas diferentes em cada um — e a tela dizia isso uma vez só, em letra pequena ao lado do título do bloco ("fonte: apuração de royalties (caixa)").
+
+**Decisão: a régua aparece em três alturas, sempre visível, no mesmo padrão já usado na apuração de royalties (commit `fed069a`, 22/09).** (1) Faixa fixa logo abaixo do seletor: repasse é caixa, receita da rede é competência, os dois usam o mês do seletor e não têm por que dar o mesmo número. (2) Selo com tooltip ao lado de cada título de bloco — `caixa` e `competência`. (3) `help` de cada KPI citando o mês por extenso e a régua daquele número.
+
+**O que a auditoria dos números mudou no texto, e não era cosmético:**
+
+- **O repasse não é caixa inteiro.** Só royalties e o percentual do CSC sobre base antiga incidem sobre o que o cliente pagou dentro do mês. CSC fixo, CAC e mídia são valores da competência e não dependem de recebimento nenhum. O texto antigo ("fonte: apuração de royalties (caixa)") cobria os cinco com a mesma régua.
+- **"Recebido" na receita da rede não é caixa do mês.** `v_reconciliacao_mensal` bucketiza por `data_competencia` e soma como recebido os títulos daquela competência com status `RECEBIDO`, em **qualquer** data de pagamento. Quem lia a barra como "entrou no mês" estava comparando com o repasse, que é caixa de verdade. O `help` agora diz a diferença e aponta qual das duas o bloco de repasse usa.
+- **"Em atraso" por competência é exatamente o padrão que a decisão de 25/08/2026 proíbe para inadimplência** (`data_competencia` joga vencido velho em mês recente — GABI e Sidikum, vencimento em 2021 e competência em fev/2026). O card fica, porque é sinal útil de safra, mas o `help` manda medir inadimplência pela safra de vencimento em Contas a Receber.
+- **MRR contratado não tem data.** É foto dos contratos ativos hoje no Pipedrive; não muda ao trocar o mês, e por isso não serve de denominador para um mês passado.
+
+**"Faturado e não recebido" passa a mostrar data, não só nome de unidade.** O chip de cada unidade ganha o vencimento do título na Partners (`dd/MM`), que é a data que diz se já passou do prazo — nem o mês da apuração nem a competência da ND respondem isso. A formatação é feita por corte de string, não por `new Date`: `new Date("2026-09-10")` é meia-noite UTC e em São Paulo vira dia 09.
+
+**Nada mudou no servidor.** `receita-repasses.functions.ts` não foi tocado: todas as datas exibidas já vinham na resposta (`vence_em`, `recebimento.vencimento`). A mudança é de leitura, não de número.

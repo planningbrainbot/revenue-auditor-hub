@@ -14,11 +14,25 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, ArrowRight, ChevronLeft, ChevronRight, FileWarning, Timer } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  FileWarning,
+  Info,
+  Timer,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { KpiCard } from "@/components/audit/kpi-card";
 import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -75,6 +89,14 @@ function rotuloCurto(mes: string): string {
   return `${m}/${y.slice(2)}`;
 }
 
+/** `YYYY-MM-DD` do banco em `dd/MM`, sem passar por Date: `new Date("2026-09-10")`
+ *  é meia-noite UTC e no fuso de casa vira o dia 09. */
+function rotuloDia(iso?: string | null): string | null {
+  if (!iso) return null;
+  const [, m, d] = iso.slice(0, 10).split("-");
+  return m && d ? `${d}/${m}` : null;
+}
+
 function mesEmAndamento(mes: string): boolean {
   const d = new Date();
   return mes >= `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -115,14 +137,37 @@ function TooltipBRL({ active, payload, label }: any) {
   );
 }
 
+/**
+ * Selo de régua de data ao lado do título do bloco. Existe porque o mês do
+ * seletor significa coisas diferentes em cada bloco, e essa é a confusão que
+ * mais cara custa na área (ver DATA-RULES, decisão de 20/07/2026).
+ */
+function SeloRegime({ regime, children }: { regime: string; children: React.ReactNode }) {
+  return (
+    <TooltipProvider>
+      <UiTooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className="cursor-help font-normal text-muted-foreground">
+            {regime}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs">{children}</TooltipContent>
+      </UiTooltip>
+    </TooltipProvider>
+  );
+}
+
 /** Lista de unidades de uma pendência. Nome resolve; contagem sozinha não. */
-function ChipsUnidades({ nomes }: { nomes: string[] }) {
-  if (nomes.length === 0) return null;
+function ChipsUnidades({ itens }: { itens: { nome: string; detalhe?: string | null }[] }) {
+  if (itens.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-1">
-      {nomes.map((n) => (
-        <Badge key={n} variant="outline" className="font-normal">
-          {n}
+      {itens.map((i) => (
+        <Badge key={i.nome} variant="outline" className="font-normal">
+          {i.nome}
+          {i.detalhe && (
+            <span className="ml-1 text-muted-foreground tabular-nums">· {i.detalhe}</span>
+          )}
         </Badge>
       ))}
     </div>
@@ -135,7 +180,7 @@ function CardPendencia({
   quantidade,
   valor,
   explicacao,
-  nomes,
+  itens,
   destino,
 }: {
   icone: React.ReactNode;
@@ -143,7 +188,7 @@ function CardPendencia({
   quantidade: number;
   valor?: number;
   explicacao: string;
-  nomes: string[];
+  itens: { nome: string; detalhe?: string | null }[];
   destino: { to: string; search: Record<string, string> };
 }) {
   const limpo = quantidade === 0;
@@ -164,7 +209,7 @@ function CardPendencia({
             )}
           </div>
           <p className="mt-1 text-xs leading-snug text-muted-foreground">{explicacao}</p>
-          <ChipsUnidades nomes={nomes} />
+          <ChipsUnidades itens={itens} />
           <Link
             to={destino.to}
             search={destino.search}
@@ -283,10 +328,10 @@ export function ReceitaOverviewContent() {
 
   return (
     <div className="space-y-5 p-4 md:p-6">
-      {/* ---- competência ---- */}
+      {/* ---- o mês, e o que ele quer dizer em cada bloco ---- */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">
-          O mês do repasse. A apuração de um mês só fecha depois que ele termina.
+          O mês que a tela está mostrando. A apuração de um mês só fecha depois que ele termina.
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => setMes(shiftMes(mes, -1))}>
@@ -306,9 +351,23 @@ export function ReceitaOverviewContent() {
         </div>
       </div>
 
+      {/* O mesmo mês significa coisas diferentes nos dois blocos. Dizer isso uma
+          vez, sempre visível, é mais barato que explicar depois por que o
+          repasse de um mês não bate com a receita do mesmo mês. */}
+      <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          <strong className="text-foreground">Duas réguas de data nesta tela.</strong> O repasse de{" "}
+          <strong>{rotuloMes(mes)}</strong> é por <strong>caixa</strong>: conta o que o Omie baixou
+          como recebido dentro do mês, pela data de pagamento. A receita da rede é por{" "}
+          <strong>competência</strong>: cada nota conta no mês a que se refere, mesmo que o dinheiro
+          entre depois. Os dois blocos usam o mês do seletor e não têm por que dar o mesmo número.
+        </span>
+      </div>
+
       {mesEmAndamento(mes) && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          Mês em andamento — os números ainda vão mudar até a virada.
+          Mês em andamento. Os números ainda vão mudar até a virada.
         </div>
       )}
 
@@ -330,10 +389,17 @@ export function ReceitaOverviewContent() {
       {data?.podeRepasse && mesAtual && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold">Repasse das unidades para a matriz</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold">Repasse das unidades para a matriz</h2>
+              <SeloRegime regime="caixa">
+                O mês da apuração é de caixa: entra o que o Omie baixou como recebido dentro de{" "}
+                {rotuloMes(mes)}, pela data de pagamento. A competência do título do cliente pode
+                ser outro mês, e ela aparece na tela de apuração, coluna "Competência".
+              </SeloRegime>
+            </div>
             <span className="text-xs text-muted-foreground">
               {mesAtual.confirmadas} de {data.totalUnidades} unidades com o mês fechado · fonte:
-              apuração de royalties (caixa)
+              apuração de royalties · caixa de {rotuloMes(mes)}
             </span>
           </div>
 
@@ -343,29 +409,33 @@ export function ReceitaOverviewContent() {
               value={brl(mesAtual.total)}
               sub={`${mesAtual.comApuracao} unidade(s) com apuração aberta`}
               tone="indigo"
-              help="Soma do total da fatura de cada apuração do mês: royalties + CSC + CAC + mídia + outras receitas."
+              help={`Soma do total da fatura de cada apuração do mês: royalties + CSC + CAC + mídia + outras receitas. A nota de débito que cobra isso sai com competência ${rotuloMes(mes)} e costuma ser emitida no mês seguinte. O que já foi emitido e ainda não entrou está no card "Faturado e não recebido".`}
             />
             <KpiCard
               label="Royalties"
               value={brl(mesAtual.royalties)}
               sub="% sobre o recebido do cliente"
               tone="emerald"
+              help={`Percentual sobre o que o cliente pagou à unidade dentro de ${rotuloMes(mes)}, por caixa e sobre o valor líquido de retenção. A competência da nota do cliente pode ser outro mês: fatura atrasada entra no mês em que foi paga, não no mês a que se refere.`}
             />
             <KpiCard
               label="CSC"
               value={brl(mesAtual.csc)}
               sub="Fixo + percentual da base antiga"
+              help={`Duas parcelas com réguas diferentes: o valor fixo é da competência ${rotuloMes(mes)} e não depende de recebimento nenhum; o percentual da base antiga incide sobre o que os clientes antigos pagaram dentro do mês (caixa).`}
             />
             <KpiCard
               label="CAC"
               value={brl(mesAtual.cac)}
               sub="Clientes vendidos pela matriz"
               tone="purple"
+              help={`Cobrança pelos clientes que a matriz vendeu, lançada na competência ${rotuloMes(mes)}. Não é caixa: o gatilho é a fila do broker e o primeiro honorário do cliente, não o pagamento da unidade.`}
             />
             <KpiCard
               label="Mídia"
               value={brl(mesAtual.midia)}
               sub="Reembolso de tráfego pago"
+              help={`Reembolso do tráfego pago da competência ${rotuloMes(mes)}, valor acordado por unidade. Não é caixa e fica fora do take rate: é repasse de custo, não remuneração da matriz.`}
             />
             <KpiCard
               label="Take rate"
@@ -375,7 +445,7 @@ export function ReceitaOverviewContent() {
                   ? "sem mês fechado"
                   : `sobre ${brl(mesAtual.receitaBaseConfirmada)} apurados`
               }
-              help="Royalties + CSC dividido pela receita apurada das unidades, só dos meses fechados. Mídia e CAC ficam de fora: são reembolso de custo, não remuneração da matriz."
+              help="Royalties + CSC dividido pela receita apurada das unidades, só dos meses fechados. As duas pontas saem da mesma apuração, por caixa. Nunca dividir por faturamento de competência do Omie, que é bruto e de outro regime. Mídia e CAC ficam de fora: são reembolso de custo, não remuneração da matriz."
             />
           </div>
 
@@ -385,8 +455,8 @@ export function ReceitaOverviewContent() {
               icone={<Timer className="h-4 w-4" />}
               titulo="Apuração não fechada"
               quantidade={pendencias.semFechar.length}
-              explicacao="Unidade sem apuração aberta ou ainda em rascunho. Enquanto não fecha, não vira fatura."
-              nomes={pendencias.semFechar.map((u) => u.unidade)}
+              explicacao={`Unidade sem apuração aberta ou ainda em rascunho em ${rotuloMes(mes)}. Enquanto não fecha, não vira fatura.`}
+              itens={pendencias.semFechar.map((u) => ({ nome: u.unidade }))}
               destino={destinoApuracao}
             />
             <CardPendencia
@@ -394,10 +464,12 @@ export function ReceitaOverviewContent() {
               titulo="Fechada sem fatura"
               quantidade={pendencias.semFatura.length}
               valor={pendencias.valorSemFatura}
-              explicacao="O mês fechou e a nota não foi emitida no Omie. É dinheiro apurado que ninguém cobrou."
-              nomes={pendencias.semFatura.map((u) => u.unidade)}
+              explicacao={`O mês fechou e a nota de competência ${rotuloMes(mes)} não foi emitida no Omie. É dinheiro apurado que ninguém cobrou.`}
+              itens={pendencias.semFatura.map((u) => ({ nome: u.unidade }))}
               destino={destinoApuracao}
             />
+            {/* Aqui a data que resolve é a de vencimento do título na Partners,
+                não o mês da apuração: é ela que diz se já passou do prazo. */}
             <CardPendencia
               icone={<AlertTriangle className="h-4 w-4" />}
               titulo="Faturado e não recebido"
@@ -405,10 +477,13 @@ export function ReceitaOverviewContent() {
               valor={pendencias.valorNaoRecebido}
               explicacao={
                 pendencias.atrasadas > 0
-                  ? `${pendencias.atrasadas} título(s) já vencido(s) na conta da Partners.`
-                  : "Títulos emitidos que ainda não foram baixados no Omie."
+                  ? `${pendencias.atrasadas} título(s) já vencido(s) na conta da Partners. A data ao lado da unidade é o vencimento.`
+                  : "Títulos emitidos que ainda não foram baixados no Omie. A data ao lado da unidade é o vencimento."
               }
-              nomes={pendencias.naoRecebidas.map((u) => u.unidade)}
+              itens={pendencias.naoRecebidas.map((u) => ({
+                nome: u.unidade,
+                detalhe: rotuloDia(u.fatura?.recebimento?.vencimento ?? u.fatura?.vence_em),
+              }))}
               destino={destinoApuracao}
             />
           </div>
@@ -418,8 +493,8 @@ export function ReceitaOverviewContent() {
             <Card className="p-4">
               <div className="text-sm font-medium">Do que o repasse é feito</div>
               <p className="mb-2 text-xs text-muted-foreground">
-                Remuneração da matriz, mês a mês. CAC e mídia ficam no gráfico ao lado: são
-                reembolso de custo, não receita de franquia.
+                Remuneração da matriz, mês a mês pelo mês da apuração (caixa). CAC e mídia ficam no
+                gráfico ao lado: são reembolso de custo, não receita de franquia.
               </p>
               <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -470,8 +545,8 @@ export function ReceitaOverviewContent() {
             <Card className="p-4">
               <div className="text-sm font-medium">CAC cobrado das unidades</div>
               <p className="mb-2 text-xs text-muted-foreground">
-                O que a matriz cobrou pelos clientes que vendeu. Varia com a fila do broker, não com
-                o tamanho da carteira.
+                O que a matriz cobrou pelos clientes que vendeu, na competência de cada apuração.
+                Varia com a fila do broker, não com o tamanho da carteira.
               </p>
               <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -496,8 +571,8 @@ export function ReceitaOverviewContent() {
           <Card className="p-4">
             <div className="text-sm font-medium">Take rate da rede</div>
             <p className="mb-2 text-xs text-muted-foreground">
-              Quanto da receita das unidades fica com a matriz. Só meses com apuração fechada
-              aparecem — mês aberto ainda não tem base apurada.
+              Quanto da receita das unidades fica com a matriz, com as duas pontas por caixa. Só
+              meses com apuração fechada aparecem: mês aberto ainda não tem base apurada.
             </p>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -538,9 +613,17 @@ export function ReceitaOverviewContent() {
       {data?.podeReceita && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold">Receita da rede</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold">Receita da rede</h2>
+              <SeloRegime regime="competência">
+                Aqui o mês é o da competência do título no Omie: cada nota conta em {rotuloMes(mes)}
+                se é a esse mês que ela se refere, mesmo que tenha sido paga antes ou depois. É
+                outra régua do bloco de repasse, que é caixa.
+              </SeloRegime>
+            </div>
             <span className="text-xs text-muted-foreground">
-              fonte: Omie, por competência e bruto de nota — a mesma régua do Funil de Receita
+              fonte: Omie · competência de {rotuloMes(mes)} e bruto de nota · a mesma régua do Funil
+              de Receita
             </span>
           </div>
 
@@ -549,8 +632,14 @@ export function ReceitaOverviewContent() {
               label="MRR contratado"
               value={brl(receitaDoMes?.mrrContratado)}
               sub="Contratos ativos hoje (Pipedrive)"
+              help="Soma dos contratos que estão ativos hoje no Pipedrive. É foto do momento, sem data de corte: não muda ao trocar o mês do seletor, e por isso não serve para comparar com o faturado de um mês passado."
             />
-            <KpiCard label="Faturado" value={brl(receitaDoMes?.faturado)} sub="Notas emitidas no mês" />
+            <KpiCard
+              label="Faturado"
+              value={brl(receitaDoMes?.faturado)}
+              sub={`Competência ${rotuloCurto(mes)}, bruto de nota`}
+              help={`Títulos cuja competência no Omie cai em ${rotuloMes(mes)}, independentemente de quando foram emitidos ou pagos. Valor bruto de nota: antes de retenção de imposto, ao contrário da base de royalties, que é líquida.`}
+            />
             <KpiCard
               label="Recebido"
               value={brl(receitaDoMes?.recebido)}
@@ -560,12 +649,14 @@ export function ReceitaOverviewContent() {
                   : "—"
               }
               tone="emerald"
+              help={`Quanto das notas de competência ${rotuloMes(mes)} já foi baixado no Omie, em qualquer data de pagamento. Não é o caixa do mês: dinheiro que entrou em ${rotuloMes(mes)} por nota de outra competência fica de fora daqui, e é justamente esse dinheiro, o que entrou no mês, que o bloco de repasse mede.`}
             />
             <KpiCard
               label="Em atraso"
               value={brl(receitaDoMes?.emAtraso)}
               sub={`A vencer: ${brl(receitaDoMes?.aVencer)}`}
               tone={receitaDoMes && receitaDoMes.emAtraso > 0 ? "red" : "default"}
+              help={`Títulos de competência ${rotuloMes(mes)} pelo status atual no Omie, que segue a data de vencimento. Para medir inadimplência, a régua é a safra de vencimento em Contas a Receber: a competência de título antigo no Omie é pouco confiável e joga vencido velho em mês recente.`}
             />
           </div>
 
@@ -574,7 +665,9 @@ export function ReceitaOverviewContent() {
               <div>
                 <div className="text-sm font-medium">Faturado × recebido</div>
                 <p className="mb-2 text-xs text-muted-foreground">
-                  A diferença entre as duas barras é o que a rede emitiu e ainda não entrou.
+                  Cada nota no mês da sua competência. A diferença entre as duas barras é o que a
+                  rede emitiu naquela competência e ainda não entrou. A barra de recebido conta o
+                  pagamento em qualquer data, não o caixa do mês.
                 </p>
               </div>
               <Link
