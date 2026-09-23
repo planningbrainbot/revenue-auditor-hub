@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, Trophy } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, RotateCcw, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Card } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { IduMetasPadrao, type Indicador, type PadraoRow } from "./idu-metas-padrao";
 
 const NA = "—";
 
@@ -51,6 +52,14 @@ type DetRow = {
   atingimento: number | null;
   ajuste: string;
   pontos: number | null;
+  /** De onde veio a meta: 'unidade' | 'tier' | 'rede' | 'fixa' (churn 5%). Nulo = sem meta. */
+  meta_origem: string | null;
+};
+
+const ORIGEM_ROTULO: Record<string, string> = {
+  tier: "tier",
+  rede: "rede",
+  fixa: "fixa",
 };
 
 const FAIXA_ESTILO: Record<string, string> = {
@@ -92,7 +101,11 @@ const fmtNum = (v: number | null | undefined, casas = 1) =>
 function fmtValor(v: number | null, medida: string) {
   if (v === null || v === undefined) return NA;
   if (medida === "R$/mês")
-    return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+    return v.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    });
   if (medida === "%") return `${fmtNum(v, 1)}%`;
   return fmtNum(v, 0);
 }
@@ -103,6 +116,7 @@ export function IduView() {
   const [periodo, setPeriodo] = useState(periodos[1] ?? periodos[0]);
   const [rank, setRank] = useState<RankRow[]>([]);
   const [det, setDet] = useState<DetRow[]>([]);
+  const [padrao, setPadrao] = useState<PadraoRow[]>([]);
   const [aberta, setAberta] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -116,17 +130,23 @@ export function IduView() {
     setLoading(true);
     setErro(null);
     const args = { p_inicio: periodo.ini, p_fim: periodo.fim };
-    const [r, d] = await Promise.all([
+    const [r, d, p] = await Promise.all([
       supabase.rpc("idu_ranking", args),
       supabase.rpc("idu_apuracao", args),
+      supabase
+        .from("idu_metas_padrao")
+        .select("escopo, indicador, meta")
+        .eq("periodo_inicio", periodo.ini),
     ]);
-    if (r.error || d.error) {
-      setErro(r.error?.message ?? d.error?.message ?? "erro desconhecido");
+    if (r.error || d.error || p.error) {
+      setErro(r.error?.message ?? d.error?.message ?? p.error?.message ?? "erro desconhecido");
       setRank([]);
       setDet([]);
+      setPadrao([]);
     } else {
       setRank((r.data ?? []) as RankRow[]);
       setDet((d.data ?? []) as DetRow[]);
+      setPadrao((p.data ?? []) as PadraoRow[]);
     }
     setLoading(false);
   }, [periodo]);
@@ -150,6 +170,18 @@ export function IduView() {
       { onConflict: "unidade_id,periodo_inicio,indicador" },
     );
     setEditando(null);
+    if (error) setErro(error.message);
+    else await carregar();
+  }
+
+  /** Apaga a meta própria da unidade: ela volta a seguir o tier ou a rede. */
+  async function voltarAoPadrao(unidadeId: number, indicador: string) {
+    const { error } = await supabase
+      .from("idu_metas")
+      .delete()
+      .eq("unidade_id", unidadeId)
+      .eq("periodo_inicio", periodo.ini)
+      .eq("indicador", indicador);
     if (error) setErro(error.message);
     else await carregar();
   }
@@ -187,6 +219,14 @@ export function IduView() {
 
   const semMeta = det.filter((d) => d.meta === null).length;
 
+  // Catálogo e contagem por tier saem da própria apuração: a ordem é a da tela de detalhe.
+  const indicadores: Indicador[] = [];
+  for (const d of det)
+    if (!indicadores.some((i) => i.indicador === d.indicador)) indicadores.push(d);
+  const unidadesPorTier: Record<string, number> = {};
+  for (const r of rank) unidadesPorTier[r.curva] = (unidadesPorTier[r.curva] ?? 0) + 1;
+  const idx = periodos.findIndex((p) => p.key === periodo.key);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -207,6 +247,17 @@ export function IduView() {
           </Badge>
         )}
       </div>
+
+      <IduMetasPadrao
+        periodo={periodo}
+        anterior={periodos[idx + 1]}
+        indicadores={indicadores}
+        padrao={padrao}
+        unidadesPorTier={unidadesPorTier}
+        podeEditar={podeEditarMetas}
+        fmtValor={fmtValor}
+        onSalvo={carregar}
+      />
 
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 border-b px-4 py-3">
@@ -266,7 +317,9 @@ export function IduView() {
                       {r.liberado_pct === null ? NA : `${fmtNum(r.liberado_pct, 0)}%`}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.falta_corte === null || r.falta_corte === 0 ? "cruzou" : fmtNum(r.falta_corte)}
+                      {r.falta_corte === null || r.falta_corte === 0
+                        ? "cruzou"
+                        : fmtNum(r.falta_corte)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {r.base_efetiva ?? NA}
@@ -300,7 +353,9 @@ export function IduView() {
                                     <TableCell className="text-xs text-muted-foreground">
                                       {l.pilar}
                                     </TableCell>
-                                    <TableCell className="text-right tabular-nums">{l.peso}</TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                      {l.peso}
+                                    </TableCell>
                                     <TableCell className="text-right tabular-nums">
                                       {editando === chave ? (
                                         <div className="flex items-center justify-end gap-1">
@@ -310,7 +365,11 @@ export function IduView() {
                                             onChange={(e) => setRascunho(e.target.value)}
                                             onKeyDown={(e) => {
                                               if (e.key === "Enter")
-                                                void salvarMeta(l.unidade_id, l.indicador, rascunho);
+                                                void salvarMeta(
+                                                  l.unidade_id,
+                                                  l.indicador,
+                                                  rascunho,
+                                                );
                                               if (e.key === "Escape") setEditando(null);
                                             }}
                                             className="h-7 w-24 text-right"
@@ -342,9 +401,30 @@ export function IduView() {
                                           {l.meta === null
                                             ? "definir meta"
                                             : fmtValor(l.meta, l.unidade_medida)}
-                                          {podeEditarMetas && <Pencil className="h-3 w-3 opacity-50" />}
+                                          {l.meta_origem && ORIGEM_ROTULO[l.meta_origem] && (
+                                            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                                              {ORIGEM_ROTULO[l.meta_origem]}
+                                            </span>
+                                          )}
+                                          {podeEditarMetas && (
+                                            <Pencil className="h-3 w-3 opacity-50" />
+                                          )}
                                         </button>
                                       )}
+                                      {editando !== chave &&
+                                        podeEditarMetas &&
+                                        l.meta_origem === "unidade" && (
+                                          <button
+                                            type="button"
+                                            title="Apagar a meta própria e voltar a seguir o tier ou a rede"
+                                            onClick={() =>
+                                              void voltarAoPadrao(l.unidade_id, l.indicador)
+                                            }
+                                            className="ml-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
+                                          >
+                                            <RotateCcw className="h-3 w-3" />
+                                          </button>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right tabular-nums">
                                       {fmtValor(l.realizado, l.unidade_medida)}
@@ -398,9 +478,9 @@ export function IduView() {
 
       <p className="text-xs text-muted-foreground">
         Piso de 50% zera o indicador · teto de 120% · nota limitada a 100 · abaixo de 75 a nota é o
-        próprio percentual liberado, de 75 a 89 libera 100%, de 90 a 100 libera até 120%. Indicador
-        sem meta pactuada ou sem dado sai do denominador. Churn é o que está lançado no pipe de
-        Tratativas.
+        próprio percentual liberado, de 75 a 89 libera 100%, de 90 a 100 libera até 120%. A meta da
+        unidade vence a do tier, que vence a da rede. Indicador sem meta em nenhum nível ou sem dado
+        sai do denominador. Churn é o que está lançado no pipe de Tratativas.
       </p>
     </div>
   );

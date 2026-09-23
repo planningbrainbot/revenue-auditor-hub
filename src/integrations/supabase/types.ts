@@ -83,6 +83,42 @@ export type Database = {
           },
         ]
       }
+      idu_metas_padrao: {
+        Row: {
+          id: number
+          periodo_inicio: string
+          periodo_fim: string
+          escopo: string
+          indicador: string
+          meta: number
+          observacao: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          periodo_inicio: string
+          periodo_fim: string
+          escopo: string
+          indicador: string
+          meta: number
+          observacao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          periodo_inicio?: string
+          periodo_fim?: string
+          escopo?: string
+          indicador?: string
+          meta?: number
+          observacao?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_arquitetura: {
         Row: {
           detalhes: Json
@@ -4810,6 +4846,7 @@ export type Database = {
           atingimento: number | null
           ajuste: string
           pontos: number | null
+          meta_origem: string | null
         }[]
       }
       idu_ranking: {

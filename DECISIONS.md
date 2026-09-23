@@ -2755,3 +2755,33 @@ feito pelo IDU (Pacto Trimestral).
 `/auditoria-interna` é outra coisa (achado fiscal por unidade sobre o
 faturamento auditado), só divide o nome. A permissão `view.saude_carteira` já
 estava morta desde a unificação de 2026-07-22. Sem migration.
+
+## [2026-09-23] IDU: metas padrão por trimestre, para a rede e por tier
+
+**Contexto:** a meta do IDU só existia por unidade (`ops.idu_metas`). Pactuar um
+trimestre era preencher 8 unidades × 6 indicadores, célula por célula, na
+abertura de cada linha do ranking.
+
+**Decisão:** nova tabela `ops.idu_metas_padrao` (trimestre × escopo × indicador)
+e a meta passa a resolver em cascata:
+
+    meta da unidade  >  meta do tier  >  meta da rede  >  churn 5% fixo
+
+**Tier é a curva que o IDU já usa para os pesos** (Madura = 5+ trimestres desde
+a inauguração, Ramp-up = até 4). Não é coluna em `unidades`: é calculado no
+trimestre apurado, então a unidade que amadurece passa sozinha para a meta de
+Madura. Se um dia o tier precisar ser outro corte (porte de carteira, região),
+o `escopo` da tabela é o lugar de estender.
+
+**Na tela:** quadro "Metas do trimestre" no topo de `/idu`, com as colunas Rede,
+Madura e Ramp-up, e o botão para copiar as metas padrão do trimestre anterior
+(não sobrescreve o que já foi definido). Na abertura de cada unidade, a meta
+mostra de onde veio (`rede`, `tier`, `fixa`), e a meta própria tem o botão de
+voltar ao padrão. `idu_apuracao` ganhou a coluna `meta_origem`.
+
+**O que não mudou:** indicador sem meta em nenhum nível continua fora do
+denominador. Meta padrão só existe se alguém a gravou para aquele trimestre.
+Escrita segue `edit.idu_metas` (admin e diretor); leitura segue `view.idu`.
+RLS testada em sessão simulada: o sócio regional lê e não grava.
+
+Migration: `20260923220000_idu_metas_padrao.sql`, já aplicada no banco único.
