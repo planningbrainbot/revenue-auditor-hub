@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { createFileRoute, notFound, type SearchSchemaInput } from "@tanstack/react-router";
 import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
+import { JevRoteador } from "@/components/cockpit-ceo/jev-roteador";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fonteSintetica } from "@/lib/cockpit-ceo/fixture-sintetica";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
@@ -56,7 +57,14 @@ function Pagina() {
           <ThemeToggle />
         </div>
       </header>
-      <CockpitCeo cockpit={cockpit} busca={busca} periodo={periodo} aoMudar={aoMudar} preview />
+      <CockpitCeo
+        cockpit={cockpit}
+        busca={busca}
+        periodo={periodo}
+        aoMudar={aoMudar}
+        preview
+        jev={(irParaFrente) => <JevRoteador irParaFrente={irParaFrente} />}
+      />
     </div>
   );
 }
