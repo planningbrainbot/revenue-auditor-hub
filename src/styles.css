@@ -308,3 +308,57 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------------------
+ * Primitivos v2 (components/ui)
+ *
+ * Sombra elevada: só para o que se sobrepõe à página (popover, menu, diálogo,
+ * sheet, tooltip) — spec §2.5. Duas camadas: uma curta que desenha a borda de
+ * contato e uma larga que separa do fundo. No escuro a sombra quase não
+ * aparece sobre #06090b, então a camada larga é mais densa.
+ *
+ * Shimmer do Skeleton: faixa clara atravessando o bloco, para "carregando" não
+ * parecer "vazio" (N4). Desligado em reduced-motion: fica só o bloco parado.
+ * ---------------------------------------------------------------------- */
+@theme inline {
+  --shadow-elevada: var(--sombra-elevada);
+}
+
+:root {
+  --sombra-elevada: 0 1px 2px rgb(11 18 22 / 0.06), 0 12px 32px -8px rgb(11 18 22 / 0.18);
+}
+
+.dark {
+  --sombra-elevada: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+}
+
+@keyframes planning-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@layer components {
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--foreground) 7%, transparent),
+      transparent
+    );
+    animation: planning-shimmer 1.6s var(--ease-planning) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after {
+    animation: none;
+    display: none;
+  }
+}
