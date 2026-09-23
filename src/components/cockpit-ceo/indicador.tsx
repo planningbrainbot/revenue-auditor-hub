@@ -30,7 +30,6 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
   );
   const anterior = utilizaveis.find(ehAnterior);
   const meta = utilizaveis.find(ehMeta);
-  const outras = utilizaveis.filter((c) => c !== anterior && c !== meta);
 
   // Variação só com base diferente de zero (de 0 para 3 não é "+∞%", é nota) e com o período
   // anterior inteiro: janela que começa antes do primeiro evento do CRM não serve de base.
@@ -49,6 +48,8 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
     i.id === "meta-bilhao"
       ? i.comparacoes.find((c) => c.rotulo.startsWith("Meta anual"))
       : undefined;
+  // Nota curta: uma informação, não um parágrafo. O resto (capacidade, meta anual, média
+  // necessária) está na composição, a um clique.
   const notas: string[] = [];
   if (i.valor === null && i.lacuna) notas.push(`Depende de: ${i.lacuna.responsavel}`);
   // A base da variação fica escrita: "+1.100%" sem "anterior 1" engana.
@@ -59,9 +60,7 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
   // Sem valor à vista o KpiCard esconde `meta`: o ritmo da meta passa para a nota.
   const mostraValor = estado === "ok" || estado === "parcial";
   if (meta && !mostraValor) notas.push(curto(meta, i));
-  // Sem valor apurado o KpiCard não mostra `meta`: a meta anual fica na nota.
-  notas.push(...outras.filter((c) => c !== metaAnual || i.valor === null).map((c) => curto(c, i)));
-  if (!notas.length) notas.push(i.periodo ? "Sem comparação disponível" : "Fotografia de agora");
+  if (!notas.length && !i.periodo) notas.push("Fotografia de agora");
 
   return {
     rotulo: i.titulo,
@@ -81,7 +80,7 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
             rotulo: metaAnual.rotulo.toLowerCase(),
           }
         : undefined,
-    nota: notas.join(" · "),
+    nota: notas.join(" · ") || undefined,
     procedencia: { fonte: i.fonte, atualizadoEm: i.dataDado },
     abrir: { onClick: onAbrir, rotulo: "Ver composição" },
   };
