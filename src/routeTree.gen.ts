@@ -15,6 +15,7 @@ import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as PilotoCockpitCeoRouteImport } from './routes/piloto.cockpit-ceo'
 import { Route as AuthenticatedUnidadesRouteImport } from './routes/_authenticated/unidades'
 import { Route as AuthenticatedSimuladorCaixaRouteImport } from './routes/_authenticated/simulador-caixa'
 import { Route as AuthenticatedRoyaltiesRouteImport } from './routes/_authenticated/royalties'
@@ -45,6 +46,7 @@ import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
+import { Route as AuthenticatedCockpitCeoRouteImport } from './routes/_authenticated/cockpit-ceo'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBaseContatosRouteImport } from './routes/_authenticated/base-contatos'
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
@@ -98,6 +100,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const PilotoCockpitCeoRoute = PilotoCockpitCeoRouteImport.update({
+  id: '/piloto/cockpit-ceo',
+  path: '/piloto/cockpit-ceo',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedUnidadesRoute = AuthenticatedUnidadesRouteImport.update({
   id: '/unidades',
@@ -266,6 +273,11 @@ const AuthenticatedComissoesRoute = AuthenticatedComissoesRouteImport.update({
   path: '/comissoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCockpitCeoRoute = AuthenticatedCockpitCeoRouteImport.update({
+  id: '/cockpit-ceo',
+  path: '/cockpit-ceo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
@@ -420,6 +432,7 @@ export interface FileRoutesByFullPath {
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
+  '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -450,6 +463,7 @@ export interface FileRoutesByFullPath {
   '/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/unidades': typeof AuthenticatedUnidadesRouteWithChildren
+  '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
   '/admin/integracoes': typeof AuthenticatedAdminIntegracoesRoute
@@ -480,6 +494,7 @@ export interface FileRoutesByTo {
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
+  '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -508,6 +523,7 @@ export interface FileRoutesByTo {
   '/rede-realizado': typeof AuthenticatedRedeRealizadoRoute
   '/reforma-tributaria': typeof AuthenticatedReformaTributariaRoute
   '/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
+  '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
@@ -541,6 +557,7 @@ export interface FileRoutesById {
   '/_authenticated/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/_authenticated/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
+  '/_authenticated/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -571,6 +588,7 @@ export interface FileRoutesById {
   '/_authenticated/royalties': typeof AuthenticatedRoyaltiesRouteWithChildren
   '/_authenticated/simulador-caixa': typeof AuthenticatedSimuladorCaixaRoute
   '/_authenticated/unidades': typeof AuthenticatedUnidadesRouteWithChildren
+  '/piloto/cockpit-ceo': typeof PilotoCockpitCeoRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/acessos-financeiro': typeof AuthenticatedAdminAcessosFinanceiroRoute
   '/_authenticated/admin/credenciais': typeof AuthenticatedAdminCredenciaisRoute
@@ -605,6 +623,7 @@ export interface FileRouteTypes {
     | '/auditoria-interna'
     | '/base-contatos'
     | '/clientes'
+    | '/cockpit-ceo'
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
@@ -635,6 +654,7 @@ export interface FileRouteTypes {
     | '/royalties'
     | '/simulador-caixa'
     | '/unidades'
+    | '/piloto/cockpit-ceo'
     | '/admin/acessos-financeiro'
     | '/admin/credenciais'
     | '/admin/integracoes'
@@ -665,6 +685,7 @@ export interface FileRouteTypes {
     | '/auditoria-interna'
     | '/base-contatos'
     | '/clientes'
+    | '/cockpit-ceo'
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
@@ -693,6 +714,7 @@ export interface FileRouteTypes {
     | '/rede-realizado'
     | '/reforma-tributaria'
     | '/simulador-caixa'
+    | '/piloto/cockpit-ceo'
     | '/'
     | '/admin/acessos-financeiro'
     | '/admin/credenciais'
@@ -725,6 +747,7 @@ export interface FileRouteTypes {
     | '/_authenticated/auditoria-interna'
     | '/_authenticated/base-contatos'
     | '/_authenticated/clientes'
+    | '/_authenticated/cockpit-ceo'
     | '/_authenticated/comissoes'
     | '/_authenticated/contas-receber'
     | '/_authenticated/disparos-whatsapp'
@@ -755,6 +778,7 @@ export interface FileRouteTypes {
     | '/_authenticated/royalties'
     | '/_authenticated/simulador-caixa'
     | '/_authenticated/unidades'
+    | '/piloto/cockpit-ceo'
     | '/_authenticated/'
     | '/_authenticated/admin/acessos-financeiro'
     | '/_authenticated/admin/credenciais'
@@ -781,6 +805,7 @@ export interface RootRouteChildren {
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrustRoute: typeof TrustRoute
   VitrineRoute: typeof VitrineRoute
+  PilotoCockpitCeoRoute: typeof PilotoCockpitCeoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -826,6 +851,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/piloto/cockpit-ceo': {
+      id: '/piloto/cockpit-ceo'
+      path: '/piloto/cockpit-ceo'
+      fullPath: '/piloto/cockpit-ceo'
+      preLoaderRoute: typeof PilotoCockpitCeoRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/unidades': {
       id: '/_authenticated/unidades'
@@ -1035,6 +1067,13 @@ declare module '@tanstack/react-router' {
       path: '/comissoes'
       fullPath: '/comissoes'
       preLoaderRoute: typeof AuthenticatedComissoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cockpit-ceo': {
+      id: '/_authenticated/cockpit-ceo'
+      path: '/cockpit-ceo'
+      fullPath: '/cockpit-ceo'
+      preLoaderRoute: typeof AuthenticatedCockpitCeoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/clientes': {
@@ -1254,6 +1293,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAuditoriaInternaRoute: typeof AuthenticatedAuditoriaInternaRoute
   AuthenticatedBaseContatosRoute: typeof AuthenticatedBaseContatosRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
+  AuthenticatedCockpitCeoRoute: typeof AuthenticatedCockpitCeoRoute
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
@@ -1306,6 +1346,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAuditoriaInternaRoute: AuthenticatedAuditoriaInternaRoute,
   AuthenticatedBaseContatosRoute: AuthenticatedBaseContatosRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
+  AuthenticatedCockpitCeoRoute: AuthenticatedCockpitCeoRoute,
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
@@ -1360,6 +1401,7 @@ const rootRouteChildren: RootRouteChildren = {
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrustRoute: TrustRoute,
   VitrineRoute: VitrineRoute,
+  PilotoCockpitCeoRoute: PilotoCockpitCeoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

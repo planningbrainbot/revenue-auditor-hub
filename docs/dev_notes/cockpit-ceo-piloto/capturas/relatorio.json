@@ -1,0 +1,140 @@
+{
+  "base": "http://127.0.0.1:8080",
+  "relatorio": [
+    {
+      "nome": "Seis indicadores na primeira dobra (1440×900)",
+      "ok": true,
+      "detalhe": "{\"cards\":6,\"cardsNaDobra\":6,\"decisoes\":3,\"rolagemHorizontal\":false,\"universo\":\"Rede inteira no seu escopo · 01/09/2026 a 23/09/2026 · 72 contas conciliadas · 75 negócios do pipe de Monetização · Financeiro fora deste recorte\",\"sintetico\":true}"
+    },
+    {
+      "nome": "Até três decisões",
+      "ok": true,
+      "detalhe": "3"
+    },
+    {
+      "nome": "Sem rolagem horizontal",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Selo de dados sintéticos visível",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Clique no número abre a composição e grava na URL",
+      "ok": true,
+      "detalhe": "?indicador=contas-prontas"
+    },
+    {
+      "nome": "Composição reconstrói o número (∑ ✓)",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Voltar do navegador fecha a composição",
+      "ok": true,
+      "detalhe": "{\"search\":\"\",\"aberta\":false}"
+    },
+    {
+      "nome": "Fechar no X e depois voltar sai da tela num clique só",
+      "ok": true,
+      "detalhe": "{\"aposX\":{\"search\":\"\",\"aberta\":false},\"aposVoltar\":\"?periodo=ano\"}"
+    },
+    {
+      "nome": "Período e perímetro vêm da URL",
+      "ok": true,
+      "detalhe": "{\"universo\":\"Unidade Exemplo Norte · 01/08/2026 a 31/08/2026 · 18 contas conciliadas · 17 negócios do pipe de Monetização · Financeiro fora deste recorte\",\"perimetro\":\"ex-norte\",\"grafico\":true}"
+    },
+    {
+      "nome": "Frente comercial mostra o gráfico diário",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Frente Receita mostra as duas leituras candidatas com série",
+      "ok": true,
+      "detalhe": "{\"cartoes\":2,\"graficos\":2}"
+    },
+    {
+      "nome": "Trajetória diz que as leituras não se somam, usa 2030 e se identifica como sintética",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Frente Clientes mostra as quatro definições com sobreposição",
+      "ok": true,
+      "detalhe": "{\"linhas\":4}"
+    },
+    {
+      "nome": "Penetração se declara ganho no CRM e a fonte se identifica como sintética",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Frente Rede mostra unidades com participação e concentração",
+      "ok": true,
+      "detalhe": "{\"linhas\":4}"
+    },
+    {
+      "nome": "Frente Retenção mostra coortes com células vazias para meses não medidos",
+      "ok": true,
+      "detalhe": "{\"linhas\":11,\"vazias\":107}"
+    },
+    {
+      "nome": "Frente Capital oferece a exportação da matriz de evidências",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Meta de R$ 1 bi aparece como não apurada com responsável",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Período inválido cai no mês atual com aviso",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Sem rolagem horizontal em 1280",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Nenhuma requisição fora de 127.0.0.1 além da fonte do Google",
+      "ok": true,
+      "detalhe": "{\"127.0.0.1:8080\":3230,\"fonts.googleapis.com\":12,\"fonts.gstatic.com\":48}"
+    },
+    {
+      "nome": "Sem exceção de JavaScript do cockpit",
+      "ok": true,
+      "detalhe": ""
+    },
+    {
+      "nome": "Aviso preexistente do layout raiz (tema no <html>), 13×",
+      "ok": true,
+      "detalhe": "hydration mismatch em data-theme; não é do cockpit"
+    }
+  ],
+  "hosts": {
+    "127.0.0.1:8080": 3230,
+    "fonts.googleapis.com": 12,
+    "fonts.gstatic.com": 48
+  },
+  "erros": [
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133452035} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133456388} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133458637} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133456388} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133463566} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133466208} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133468889} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133471569} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133474089} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133476528} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133478406} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133480530} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <StartClient>\n      <Await promise={Promise}>\n        <AwaitInner promise={Promise}>\n          <RouterProvider router={{...}}>\n            <RouterContextProvider router={{...}}>\n              <Matches>\n                <SafeFragment fallback={null}>\n                  <Transitioner>\n                  <MatchesInner>\n                    <CatchBoundary getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>\n                      <CatchBoundaryImpl getResetKey={function getResetKey} onCatch={function}>\n                        <MatchImpl matchId=\"__root__/\">\n                          <MatchView router={{...}} matchId=\"__root__/\" resetKey={1790133482571} ...>\n                            <RootShell>\n                              <html\n                                lang=\"en\"\n                                className=\"dark\"\n-                               data-theme=\"escuro\"\n                              >\n"
+  ]
+}

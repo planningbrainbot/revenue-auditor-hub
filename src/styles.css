@@ -128,6 +128,7 @@
   --color-area-monetizacao: var(--area-monetizacao);
   --color-area-people: var(--area-people);
   --color-area-estrategia: var(--area-estrategia);
+  --color-area-cockpit_ceo: var(--area-cockpit_ceo);
   --color-area-admin: var(--area-admin);
 
   --color-chart-1: var(--chart-1);
@@ -200,6 +201,8 @@
   --area-monetizacao: #f36201; /* laranja, 3,2:1 */
   --area-people: #962dff; /* roxo já passa: 5,1:1 */
   --area-estrategia: #00a454;
+  /* Cockpit do CEO reusa a cor de Estratégia (camada do CEO) até a Mika definir a própria. */
+  --area-cockpit_ceo: var(--area-estrategia);
   --area-admin: #849199; /* neutro, 3,2:1 */
 
   /* Ver validação em src/lib/planning/grafico.ts. A lima do gráfico é mais
@@ -264,6 +267,7 @@
   --area-monetizacao: #fa6914;
   --area-people: #962dff; /* 3,6:1, o mais baixo do escuro */
   --area-estrategia: #0ae18c;
+  --area-cockpit_ceo: var(--area-estrategia);
   --area-admin: #8a979f;
 
   --chart-1: #0ae18c;

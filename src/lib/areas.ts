@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Coins,
+  Compass,
   FileBarChart2,
   Filter,
   Gauge,
@@ -35,6 +36,10 @@ import {
   Users,
   UsersRound,
   Wallet,
+  Briefcase,
+  CircleDollarSign,
+  Database,
+  UserX,
 } from "lucide-react";
 
 /**
@@ -452,6 +457,43 @@ export const AREAS: Area[] = [
             icon: Coins,
             area: "broker_matriz",
           },
+        ],
+      },
+    ],
+  },
+  {
+    // Cockpit do CEO (piloto de 22/09/2026). Área própria porque o PRD o põe no seletor de módulos
+    // e porque a fronteira de confiança é outra: ver a Base não dá visão consolidada da empresa.
+    // A área existe em `ops.areas` desde 22/09/2026, liberada só para o papel `admin`
+    // (supabase/migrations/20260922220000_cockpit_ceo_area.sql). Fica depois do Broker, e não em
+    // primeiro, para não virar a área padrão da lateral de quem a receber. Área própria com card no
+    // /inicio, e não dentro de "Estratégia & Execução": decisão do Pedro em 23/09/2026.
+    //
+    // As seis frentes são itens da lateral (`?frente=`), como Monetização faz com `?aba=`: a
+    // página não desenha abas que trocam de assunto (NAVEGACAO.md N6; contrato
+    // docs/design/contratos/cockpit-ceo.md, aprovado em 23/09).
+    slug: "cockpit_ceo",
+    nome: "Cockpit do CEO",
+    descricao: "Plano, crescimento, ameaças e decisões, com a composição de cada número.",
+    icone: Compass,
+    grupos: [
+      {
+        label: "Cockpit do CEO",
+        items: [{ title: "Visão executiva", url: "/cockpit-ceo", icon: LayoutDashboard }],
+      },
+      {
+        label: "Frentes",
+        items: [
+          {
+            title: "Receita e crescimento",
+            url: "/cockpit-ceo?frente=receita",
+            icon: CircleDollarSign,
+          },
+          { title: "Clientes e produtos", url: "/cockpit-ceo?frente=clientes", icon: Building2 },
+          { title: "Execução comercial", url: "/cockpit-ceo?frente=comercial", icon: Briefcase },
+          { title: "Saúde da rede", url: "/cockpit-ceo?frente=rede", icon: Store },
+          { title: "Retenção e entrega", url: "/cockpit-ceo?frente=retencao", icon: UserX },
+          { title: "Capital e evidências", url: "/cockpit-ceo?frente=capital", icon: Database },
         ],
       },
     ],

@@ -1,0 +1,492 @@
+{
+  "quando": "2026-09-23T03:15:59.185Z",
+  "resultado": [
+    {
+      "perfil": "super admin",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": true,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": true,
+      "cockpit_mostraria": {
+        "comerciais": "números",
+        "contas_prontas": "números"
+      },
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "abre",
+          "rls_ve": "1784/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "abre",
+          "rls_ve": "31127/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "abre",
+          "rls_ve": "4166/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "abre",
+          "rls_ve": "479/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "abre",
+          "rls_ve": "770/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "abre",
+          "rls_ve": "31/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "abre",
+          "rls_ve": "56/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "abre",
+          "rls_ve": "15/15",
+          "coerencia": "ok"
+        }
+      }
+    },
+    {
+      "perfil": "sócio regional",
+      "chaves": {
+        "aquario": false,
+        "monetizacao": false,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 0,
+        "contas_visiveis": 360,
+        "manifesto": {
+          "contas_no_manifesto": 360
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": false,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "fecha",
+          "rls_ve": "92/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "fecha",
+          "rls_ve": "734/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "fecha",
+          "rls_ve": "304/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "fecha",
+          "rls_ve": "93/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "fecha",
+          "rls_ve": "98/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "fecha",
+          "rls_ve": "8/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "fecha",
+          "rls_ve": "15/15",
+          "coerencia": "conservadora"
+        }
+      }
+    },
+    {
+      "perfil": "diretor (rede toda)",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": true,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "abre",
+          "rls_ve": "1784/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "abre",
+          "rls_ve": "31127/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "abre",
+          "rls_ve": "4166/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "abre",
+          "rls_ve": "479/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "abre",
+          "rls_ve": "770/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "abre",
+          "rls_ve": "31/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "abre",
+          "rls_ve": "56/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "abre",
+          "rls_ve": "15/15",
+          "coerencia": "ok"
+        }
+      }
+    },
+    {
+      "perfil": "financeiro (rede toda)",
+      "chaves": {
+        "aquario": false,
+        "monetizacao": false,
+        "clientes": false
+      },
+      "rls": {
+        "negocios_visiveis": 0,
+        "contas_visiveis": 0,
+        "manifesto": null
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "fecha",
+          "rls_ve": "0/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "fecha",
+          "rls_ve": "0/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "fecha",
+          "rls_ve": "4166/4166",
+          "coerencia": "conservadora"
+        },
+        "contratos_documentos": {
+          "porta": "fecha",
+          "rls_ve": "0/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "fecha",
+          "rls_ve": "770/770",
+          "coerencia": "conservadora"
+        },
+        "central_tratativas": {
+          "porta": "fecha",
+          "rls_ve": "31/31",
+          "coerencia": "conservadora"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "fecha",
+          "rls_ve": "15/15",
+          "coerencia": "conservadora"
+        }
+      }
+    },
+    {
+      "perfil": "cs (rede toda)",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": false,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "abre",
+          "rls_ve": "1784/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "abre",
+          "rls_ve": "31127/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "abre",
+          "rls_ve": "4166/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "abre",
+          "rls_ve": "479/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "abre",
+          "rls_ve": "770/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "abre",
+          "rls_ve": "31/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "abre",
+          "rls_ve": "15/15",
+          "coerencia": "ok"
+        }
+      }
+    },
+    {
+      "perfil": "hunter_monetizacao (rede toda)",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": true,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "abre",
+          "rls_ve": "1784/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "abre",
+          "rls_ve": "31127/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "abre",
+          "rls_ve": "4166/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "abre",
+          "rls_ve": "479/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "abre",
+          "rls_ve": "770/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "abre",
+          "rls_ve": "31/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "abre",
+          "rls_ve": "15/15",
+          "coerencia": "ok"
+        }
+      }
+    },
+    {
+      "perfil": "auditor (rede toda)",
+      "chaves": {
+        "aquario": true,
+        "monetizacao": false,
+        "clientes": true
+      },
+      "rls": {
+        "negocios_visiveis": 176,
+        "contas_visiveis": 10304,
+        "manifesto": {
+          "contas_no_manifesto": 10304
+        }
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": true,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "abre",
+          "rls_ve": "1784/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "abre",
+          "rls_ve": "31127/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "abre",
+          "rls_ve": "4166/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "abre",
+          "rls_ve": "479/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "abre",
+          "rls_ve": "770/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "abre",
+          "rls_ve": "31/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "abre",
+          "rls_ve": "15/15",
+          "coerencia": "ok"
+        }
+      }
+    },
+    {
+      "perfil": "conta sem papel",
+      "chaves": {
+        "aquario": false,
+        "monetizacao": false,
+        "clientes": false
+      },
+      "rls": {
+        "negocios_visiveis": 0,
+        "contas_visiveis": 0,
+        "manifesto": null
+      },
+      "area_cockpit_ceo": false,
+      "cockpit_mostraria": "tela de sem acesso à área (nenhuma carga)",
+      "coerencia": "ok",
+      "todas_unidades": false,
+      "portas": {
+        "omie_contratos_servico": {
+          "porta": "fecha",
+          "rls_ve": "0/1784",
+          "coerencia": "ok"
+        },
+        "contas_receber": {
+          "porta": "fecha",
+          "rls_ve": "0/31127",
+          "coerencia": "ok"
+        },
+        "empresas": {
+          "porta": "fecha",
+          "rls_ve": "0/4166",
+          "coerencia": "ok"
+        },
+        "contratos_documentos": {
+          "porta": "fecha",
+          "rls_ve": "0/479",
+          "coerencia": "ok"
+        },
+        "contratos": {
+          "porta": "fecha",
+          "rls_ve": "0/770",
+          "coerencia": "ok"
+        },
+        "central_tratativas": {
+          "porta": "fecha",
+          "rls_ve": "0/31",
+          "coerencia": "ok"
+        },
+        "royalties_apuracao": {
+          "porta": "fecha",
+          "rls_ve": "0/56",
+          "coerencia": "ok"
+        },
+        "unidades": {
+          "porta": "fecha",
+          "rls_ve": "0/15",
+          "coerencia": "ok"
+        }
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
-import { csv, oferta } from "@/lib/monetizacao/model";
+import { csv, LIMITE_CARGA_PARADA_MS, oferta } from "@/lib/monetizacao/model";
 import { KpiCard, tomDoLegado } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
@@ -183,8 +183,8 @@ export function Freshness({
       : null;
   const catalogo = quando(data.catalog_at);
   const metricas = quando(data.measured_at);
-  const metricasVelhas = idade(data.measured_at) > 30 * 60000;
-  const catalogoVelho = idade(data.catalog_at) > 30 * 60000;
+  const metricasVelhas = idade(data.measured_at) > LIMITE_CARGA_PARADA_MS;
+  const catalogoVelho = idade(data.catalog_at) > LIMITE_CARGA_PARADA_MS;
   const stale = metricasVelhas && catalogoVelho;
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
