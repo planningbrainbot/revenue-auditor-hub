@@ -14,7 +14,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
-import { areaDoCaminho, AREAS, type Area, type Item } from "@/lib/areas";
+import { areasDoCaminho, AREAS, type Area, type Item } from "@/lib/areas";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { Button } from "@/components/ui/button";
 import { Filete } from "@/components/planning";
@@ -104,10 +104,14 @@ function AuthenticatedLayout() {
   // acesso a um link que a pessoa está vendo.
   const FORA_DO_PORTAO = ["/equipe"];
 
-  const slugDaArea = FORA_DO_PORTAO.includes(pathname) ? null : areaDoCaminho(pathname);
+  // Uma tela pode morar em mais de uma área (a carteira é `clientes` para a
+  // matriz e `minha_unidade` para o sócio). Basta TER UMA delas para entrar:
+  // perguntar só pela primeira da lista tranca o sócio regional em telas que
+  // estão no menu dele e que a RLS já recorta para a unidade dele.
+  const slugsDaArea = FORA_DO_PORTAO.includes(pathname) ? [] : areasDoCaminho(pathname);
   const areaBloqueada =
-    !loading && slugDaArea && !temArea(slugDaArea)
-      ? (AREAS.find((a) => a.slug === slugDaArea)?.nome ?? slugDaArea)
+    !loading && slugsDaArea.length > 0 && !slugsDaArea.some((slug) => temArea(slug))
+      ? (AREAS.find((a) => a.slug === slugsDaArea[0])?.nome ?? slugsDaArea[0])
       : null;
 
   const trilha = trilhaDoCaminho(pathname, searchStr);
@@ -115,7 +119,7 @@ function AuthenticatedLayout() {
   // pedir `--area-atual` herdam daqui sem repetir o slug (a lateral define a
   // sua, porque no celular ela abre em portal).
   const estiloArea = {
-    "--area-atual": corDaArea(trilha?.area.slug ?? slugDaArea),
+    "--area-atual": corDaArea(trilha?.area.slug ?? slugsDaArea[0] ?? null),
   } as CSSProperties;
 
   if (SEM_MOLDURA.includes(pathname)) {

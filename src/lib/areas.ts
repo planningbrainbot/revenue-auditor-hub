@@ -129,24 +129,50 @@ export function partesDoLink(url: string): { to: string; search: Record<string, 
 }
 
 /**
- * A área que responde por um caminho, segundo o próprio menu.
+ * TODAS as áreas que respondem por um caminho, segundo o próprio menu.
  *
- * Devolve `null` para caminho que não está em área nenhuma (admin, /equipe,
- * /inicio e afins), e aí o portão do layout não opina: quem manda continua
- * sendo a checagem da própria página.
+ * Devolve lista vazia para caminho que não está em área nenhuma (admin,
+ * /equipe, /inicio e afins), e aí o portão do layout não opina: quem manda
+ * continua sendo a checagem da própria página.
  *
  * Casa pelo path, ignorando a query, porque o mesmo path serve várias telas
  * ("/gente?visao=..." é tudo Planning People).
+ *
+ * É lista, e não uma área só, porque **sete caminhos moram em duas áreas ao
+ * mesmo tempo**: `/clientes`, `/painel-cs` e `/nps` estão em `clientes` e em
+ * `minha_unidade`; `/idu` em `rede` e `minha_unidade`; `/funil-receita` e
+ * `/contas-receber` em `receita` e `minha_unidade_financeiro`; `/broker` em
+ * `broker` e `minha_unidade`. Isso é de propósito: a mesma tela é o trabalho da
+ * matriz e o da unidade, e `ops.area_chaves` concede `view.clientes` pelos dois
+ * lados. A versão anterior devolvia a PRIMEIRA área da lista e trancava o sócio
+ * regional em quatro dos seis itens do próprio menu dele (relatado em
+ * 23/09/2026: "Esta página é da área Base de clientes" para quem tem
+ * `minha_unidade`).
  */
-export function areaDoCaminho(pathname: string): string | null {
+export function areasDoCaminho(pathname: string): string[] {
+  const slugs: string[] = [];
   for (const area of AREAS) {
     for (const grupo of area.grupos) {
       for (const item of grupo.items) {
-        if (item.url.split("?")[0] === pathname) return areaDoItem(area, item);
+        if (item.url.split("?")[0] !== pathname) continue;
+        const slug = areaDoItem(area, item);
+        if (!slugs.includes(slug)) slugs.push(slug);
       }
     }
   }
-  return null;
+  return slugs;
+}
+
+/**
+ * A primeira área que responde por um caminho. **Só para aparência.**
+ *
+ * É o que o cabeçalho e a cor da área usam quando precisam de um slug só, e aí
+ * a escolha é de gosto: a carteira pinta de `clientes` mesmo quando quem abriu
+ * foi o sócio. Para DECIDIR ACESSO use `areasDoCaminho`, porque quem tem a
+ * segunda área também entra.
+ */
+export function areaDoCaminho(pathname: string): string | null {
+  return areasDoCaminho(pathname)[0] ?? null;
 }
 
 /**
