@@ -2357,4 +2357,14 @@ O `<Tabs>` de dentro do Aquário **deixa de existir**. O componente recebe `seca
 
 **Decisão — Jev desligado em produção, em duas travas.** (1) A rota autenticada não passa o slot do Jev: o roteador só aparece no preview sintético `/piloto/cockpit-ceo`, que responde 404 no build. (2) As server functions só rodam com `COCKPIT_JEV_PILOTO=1` **e** `NODE_ENV !== "production"`, e a chave é lida do Keychain do macOS: numa build da Vercel o Jev não liga nem com a chave configurada. Ligar em produção exige decisão do dono e do Eliezek **e** mudança de código (chave por variável só de servidor, sem prefixo `VITE_`; tirar a trava de `NODE_ENV`; montar o slot na rota real). Nenhuma chave foi escrita em arquivo.
 
+**Revisão final** (um revisor, só leitura; as quatro restrições conferidas e respeitadas): 2 importantes e 5 menores. Corrigidos:
+- a variação % só é calculada contra período anterior inteiro; janela parcial vira nota "Anterior N (parcial)";
+- o motivo dos números com cadeado fica listado sob os cartões, porque o `KpiCard` em "sem acesso" não abre nem mostra nota;
+- o ritmo da meta vai para a nota quando o cartão não mostra valor;
+- trocar de frente empilha no histórico;
+- o título da aba acompanha a frente;
+- o nome do filtro citado bate com o da tela.
+
+Mantido de propósito: os itens da lateral são URLs fixas e não carregam período nem perímetro, o mesmo comportamento dos itens da Monetização.
+
 **Status:** branch `feat/cockpit-ceo-ds-20260923`. `node --test` 187/187, `tsc` com os mesmos 7 erros anteriores, `design:lint` RESULTADO ok (0 erros), verificação por CDP do preview 23/23, capturas antes/depois em `docs/design/capturas/cockpit-ceo/` (comparativo em `comparativo.md`). **Não publicado.** Para publicar: merge na ordem da pilha e deploy pela CLI no projeto `ops-brain` (time `planning17`), a cargo do Eliezek.
