@@ -211,9 +211,10 @@ export interface ApuracaoRede {
 }
 
 const DESTINO_REDE: Destino = {
-  rota: "/royalties",
+  // `/royalties` só redireciona em silêncio; a tela do menu é a Apuração de Royalties (23/09).
+  rota: "/unidades/royalties",
   search: {},
-  rotulo: "Abrir Royalties",
+  rotulo: "Abrir Apuração de Royalties",
   mesmoRecorte: false,
   observacao: "A apuração abre por unidade e mês, com os itens que cada unidade assinou.",
 };

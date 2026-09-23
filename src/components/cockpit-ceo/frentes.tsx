@@ -8,10 +8,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { FRENTES, ORDEM_FRENTES, formatarValor } from "@/lib/cockpit-ceo/contrato";
+import { Secao } from "@/components/planning";
+import { formatarValor } from "@/lib/cockpit-ceo/contrato";
 import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
 import { perguntasDaFrente } from "@/lib/cockpit-ceo/perguntas";
+import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
 import { CoberturaBadge, EstadoBadge } from "./estado";
 import { ClientesAtivos } from "./clientes-ativos";
 import { CoortesRetencao } from "./coortes";
@@ -19,128 +27,102 @@ import { ExportarEvidencias } from "./exportar-evidencias";
 import { RedeUnidades } from "./rede-unidades";
 import { Trajetoria } from "./trajetoria";
 
+// A vista de uma frente do cockpit (`?frente=`), item próprio da lateral (N6). Mostra o painel da
+// frente, quando existe, e as perguntas que ela responde, com fonte, responsável e o que falta.
+
 function GraficoDiario({ serie }: { serie: NonNullable<Cockpit["serieDiaria"]> }) {
   return (
-    <figure className="rounded-lg border p-3">
-      <figcaption className="mb-2 text-xs font-medium">
-        Eventos por dia no período · negócios do pipe de Monetização
-      </figcaption>
-      <div className="h-56">
+    <Secao
+      titulo="Quantos eventos comerciais aconteceram por dia?"
+      descricao="Negócios do pipe de Monetização, por dia do período. Eventos, não coorte."
+    >
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={serie} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-            <Tooltip
-              contentStyle={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                fontSize: 12,
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+          <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid {...gradeProps} />
+            <XAxis dataKey="label" {...eixoProps} interval="preserveStartEnd" />
+            <YAxis allowDecimals={false} {...eixoProps} />
+            <Tooltip {...tooltipProps} />
+            <Legend {...legendaProps} />
             <Bar
               isAnimationActive={false}
               dataKey="started"
               name="Leads trabalhados"
-              fill="var(--chart-1)"
+              fill={CORES_SERIE[0]}
             />
             <Bar
               isAnimationActive={false}
               dataKey="scheduled"
               name="Reuniões marcadas"
-              fill="var(--chart-2)"
+              fill={CORES_SERIE[1]}
             />
             <Bar
               isAnimationActive={false}
               dataKey="meeting"
               name="Reuniões realizadas"
-              fill="var(--chart-3)"
+              fill={CORES_SERIE[2]}
             />
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </figure>
+    </Secao>
   );
 }
 
-export function Frentes({
+export function VistaFrente({
   cockpit,
   frente,
-  onFrente,
   onAbrirIndicador,
   preview,
 }: {
   cockpit: Cockpit;
   frente: Frente;
-  onFrente: (f: Frente) => void;
   onAbrirIndicador: (id: string) => void;
   preview: boolean;
 }) {
   const perguntas = perguntasDaFrente(frente);
-  const comNumero = (f: Frente) =>
-    perguntasDaFrente(f).filter((p) => p.cobertura === "implementada_nao_homologada").length;
+  const comNumero = perguntas.filter((p) => p.cobertura === "implementada_nao_homologada").length;
   return (
-    <section id="frentes" className="rounded-xl border bg-card">
-      <div
-        className="flex gap-1 overflow-x-auto border-b px-2"
-        role="tablist"
-        aria-label="Frentes do cockpit"
+    <>
+      {frente === "receita" && (cockpit.trajetoria || cockpit.trajetoriaAviso) && (
+        <Trajetoria
+          trajetoria={cockpit.trajetoria}
+          aviso={cockpit.trajetoriaAviso}
+          preview={preview}
+        />
+      )}
+      {frente === "clientes" && (cockpit.clientes || cockpit.clientesAviso) && (
+        <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
+      )}
+      {frente === "comercial" && cockpit.serieDiaria && (
+        <GraficoDiario serie={cockpit.serieDiaria} />
+      )}
+      {frente === "rede" && (cockpit.rede || cockpit.trajetoriaAviso) && (
+        <RedeUnidades rede={cockpit.rede} aviso={cockpit.trajetoriaAviso} />
+      )}
+      {frente === "retencao" && (cockpit.coortes || cockpit.coortesAviso) && (
+        <CoortesRetencao coortes={cockpit.coortes} aviso={cockpit.coortesAviso} />
+      )}
+      {frente === "capital" && <ExportarEvidencias cockpit={cockpit} />}
+
+      <Secao
+        titulo="Quais perguntas esta frente responde?"
+        descricao={`${comNumero} de ${perguntas.length} com cálculo implementado; as demais dizem o que falta e quem responde.`}
       >
-        {ORDEM_FRENTES.map((f) => (
-          <button
-            key={f}
-            role="tab"
-            aria-selected={f === frente}
-            onClick={() => onFrente(f)}
-            className={`shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium ${f === frente ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {FRENTES[f].titulo}
-            <span className="ml-1.5 tabular-nums text-[10px] text-muted-foreground">
-              {comNumero(f)}/{perguntasDaFrente(f).length}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="space-y-3 p-4">
-        <p className="text-xs text-muted-foreground">
-          {FRENTES[frente].pergunta} O número ao lado da frente diz quantas perguntas já têm cálculo
-          implementado (ainda não homologado); as demais mostram o que falta e quem responde.
-        </p>
-        {frente === "receita" && (cockpit.trajetoria || cockpit.trajetoriaAviso) && (
-          <Trajetoria
-            trajetoria={cockpit.trajetoria}
-            aviso={cockpit.trajetoriaAviso}
-            preview={preview}
-          />
-        )}
-        {frente === "clientes" && (cockpit.clientes || cockpit.clientesAviso) && (
-          <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
-        )}
-        {frente === "rede" && (cockpit.rede || cockpit.trajetoriaAviso) && (
-          <RedeUnidades rede={cockpit.rede} aviso={cockpit.trajetoriaAviso} />
-        )}
-        {frente === "retencao" && (cockpit.coortes || cockpit.coortesAviso) && (
-          <CoortesRetencao coortes={cockpit.coortes} aviso={cockpit.coortesAviso} />
-        )}
-        {frente === "capital" && <ExportarEvidencias cockpit={cockpit} />}
-        {frente === "comercial" && cockpit.serieDiaria && (
-          <GraficoDiario serie={cockpit.serieDiaria} />
-        )}
-        <ul className="divide-y rounded-lg border">
+        <ul className="divide-y rounded-xl border bg-card">
           {perguntas.map((p) => (
-            <li key={p.id} className="grid gap-2 p-3 md:grid-cols-[minmax(0,1fr)_auto]">
+            <li key={p.id} className="grid gap-2 p-4 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium">{p.texto}</p>
-                <p className="text-xs text-muted-foreground">
-                  <span className="text-foreground/80">Fonte:</span> {p.fonte}
+                <p className="font-medium">{p.texto}</p>
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-foreground">Fonte:</span> {p.fonte}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  <span className="text-foreground/80">Responsável:</span> {p.responsavel}
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-foreground">Responsável:</span> {p.responsavel}
                   {p.pendencia && (
                     <>
                       {" · "}
-                      <span className="text-foreground/80">Falta:</span> {p.pendencia}
+                      <span className="text-foreground">Falta:</span> {p.pendencia}
                     </>
                   )}
                 </p>
@@ -154,9 +136,9 @@ export function Frentes({
                           key={id}
                           type="button"
                           onClick={() => onAbrirIndicador(id)}
-                          className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:border-primary"
+                          className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          {i.titulo}: <strong className="tabular-nums">{formatarValor(i)}</strong>
+                          {i.titulo}: <strong className="num">{formatarValor(i)}</strong>
                           {i.estado !== "disponivel" && <EstadoBadge estado={i.estado} />}
                         </button>
                       );
@@ -164,11 +146,11 @@ export function Frentes({
                   </div>
                 )}
               </div>
-              <div className="flex items-start gap-1.5 md:justify-end">
+              <div className="flex flex-wrap items-start gap-1.5 md:justify-end">
                 <CoberturaBadge cobertura={p.cobertura} />
                 {p.exigencia && (
                   <span
-                    className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"
+                    className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
                     title="Exigência explícita do mapa de investidores"
                   >
                     Mapa · {p.exigencia}
@@ -178,7 +160,7 @@ export function Frentes({
             </li>
           ))}
         </ul>
-      </div>
-    </section>
+      </Secao>
+    </>
   );
 }

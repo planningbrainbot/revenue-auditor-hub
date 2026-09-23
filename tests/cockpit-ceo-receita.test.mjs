@@ -275,7 +275,7 @@ test("Rede: apuração de royalties confirmada; unidade inaugurada e sem apuraç
   assert.ok(l.cobertura.some((c) => /rascunho/.test(c)));
   assert.ok(!JSON.stringify(l).includes("Unidade Interna"));
   assert.match(l.definicao, /apuração/);
-  assert.equal(l.destino.rota, "/royalties");
+  assert.equal(l.destino.rota, "/unidades/royalties");
   assert.equal(
     montarLeituraRede({ acesso: false, unidades: [], apuracoes: [] }).estado,
     "acesso_insuficiente",

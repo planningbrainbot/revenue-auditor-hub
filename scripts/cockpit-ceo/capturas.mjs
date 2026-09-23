@@ -119,14 +119,27 @@ async function foto(nome, { inteira = false } = {}) {
 }
 
 const relatorio = [];
+// Os seis KpiCard da Visão executiva (DS v2): botão cujo texto começa pelo rótulo do indicador.
+const ROTULOS = [
+  "Faturamento anual × meta de R$ 1 bi",
+  "Contratos ganhos no CRM",
+  "Oportunidades validadas",
+  "Leads trabalhados",
+  "Receita prevista em oportunidades abertas",
+  "Contas prontas para trabalhar",
+];
+const cartao = (rotulo) =>
+  `[...document.querySelectorAll("main button")].find((b) => b.textContent.trim().startsWith(${JSON.stringify(rotulo)}))`;
 const conferir = (nome, ok, detalhe = "") => relatorio.push({ nome, ok: !!ok, detalhe });
 
 await janela(1440, 900);
 await abrir("/piloto/cockpit-ceo");
 await foto("01-primeira-dobra-1440x900");
 const dobra = await avaliar(`(() => {
-  const cards = [...document.querySelectorAll('[aria-label$="abrir composição"]')];
-  const decisoes = [...document.querySelectorAll('ol > li')];
+  const cards = ${JSON.stringify(ROTULOS)}
+    .map((t) => [...document.querySelectorAll("main button")].find((b) => b.textContent.trim().startsWith(t)))
+    .filter(Boolean);
+  const decisoes = [...document.querySelectorAll('ol[aria-label="Decisões"] > li')];
   const r = (e) => e.getBoundingClientRect();
   return {
     cards: cards.length,
@@ -149,7 +162,7 @@ await foto("02-pagina-inteira", { inteira: true });
 
 // Número → composição → retorno.
 await avaliar(
-  `document.querySelector('[aria-label="Contas prontas para trabalhar: abrir composição"]').click()`,
+  `${cartao("Contas prontas para trabalhar")}.click()`,
 );
 await espera(900);
 const url1 = await avaliar("location.search");
@@ -178,11 +191,11 @@ conferir(
 await abrir("/piloto/cockpit-ceo?periodo=ano");
 await abrir("/piloto/cockpit-ceo");
 await avaliar(
-  `document.querySelector('[aria-label="Contratos ganhos no CRM: abrir composição"]').click()`,
+  `${cartao("Contratos ganhos no CRM")}.click()`,
 );
 await espera(800);
 await avaliar(
-  `[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close/.test(b.textContent))?.click()`,
+  `[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close|Fechar/.test(b.textContent))?.click()`,
 );
 await espera(800);
 const aposX = await avaliar(
@@ -201,17 +214,16 @@ conferir(
 await abrir("/piloto/cockpit-ceo?periodo=mes_anterior&perimetro=ex-norte&frente=comercial");
 const recorte = await avaliar(`(() => ({
   universo: document.querySelector('h1 + p')?.textContent,
-  perimetro: document.querySelector('select')?.value,
-  grafico: !!document.querySelector('figure svg'),
+  perimetro: document.querySelector('[aria-label="Perímetro"]')?.textContent,
+  grafico: !!document.querySelector('svg.recharts-surface'),
 }))()`);
 conferir(
   "Período e perímetro vêm da URL",
-  recorte.perimetro === "ex-norte" && /Unidade Exemplo Norte/.test(recorte.universo || ""),
+  /Unidade Exemplo Norte/.test(recorte.perimetro || "") &&
+    /Unidade Exemplo Norte/.test(recorte.universo || ""),
   JSON.stringify(recorte),
 );
 conferir("Frente comercial mostra o gráfico diário", recorte.grafico);
-await avaliar("document.getElementById('frentes').scrollIntoView()");
-await espera(600);
 await foto("04-frente-comercial-grafico-diario");
 
 // Trajetória para R$ 1 bi: leituras candidatas lado a lado, sem soma, com mês parcial fora.
@@ -220,7 +232,7 @@ const traj = await avaliar(`(() => {
   const s = document.querySelector('[aria-label="Trajetória para a meta"]');
   return {
     existe: !!s,
-    texto: s?.innerText || "",
+    texto: s?.closest("section")?.innerText || "",
     cartoes: s ? s.querySelectorAll("article").length : 0,
     graficos: s ? s.querySelectorAll("svg.recharts-surface").length : 0,
   };

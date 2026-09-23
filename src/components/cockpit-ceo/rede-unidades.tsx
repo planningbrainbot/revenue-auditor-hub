@@ -17,10 +17,12 @@ export function RedeUnidades({ rede, aviso }: { rede: Rede | null; aviso: string
       ? (rede.notas[0] ?? "Sem leitura da apuração de royalties.")
       : "Sem janela de meses completos na apuração de royalties.";
   return (
-    <section className="space-y-3 rounded-lg border p-3" aria-label="Rede por unidade">
+    <section className="space-y-4 rounded-xl border bg-card p-4" aria-label="Rede por unidade">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold">Faturamento, repasse e concentração por unidade</h3>
+          <h2 className="text-base font-semibold">
+            Quanto cada unidade fatura e repassa, e quão concentrada é a rede?
+          </h2>
           {rede && <EstadoBadge estado={rede.estado} />}
         </div>
         <p className="text-xs text-muted-foreground">
@@ -86,7 +88,7 @@ export function RedeUnidades({ rede, aviso }: { rede: Rede | null; aviso: string
           )}
         </>
       )}
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Recebido por unidade fica de fora: a única série mensal disponível agrupa títulos por data
         de competência, régua que a casa declarou não confiável em 26/08.
       </p>

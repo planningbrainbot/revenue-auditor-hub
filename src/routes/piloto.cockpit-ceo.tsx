@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { createFileRoute, notFound, type SearchSchemaInput } from "@tanstack/react-router";
 import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
 import { JevRoteador } from "@/components/cockpit-ceo/jev-roteador";
+import { StatusBadge } from "@/components/planning";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { fonteSintetica } from "@/lib/cockpit-ceo/fixture-sintetica";
 import { montarCockpit } from "@/lib/cockpit-ceo/indicadores";
@@ -50,9 +51,9 @@ function Pagina() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 flex h-[60px] items-center gap-3 border-b bg-card px-4">
         <span className="text-sm font-semibold">Planning Brain</span>
-        <span className="rounded-full border border-fuchsia-500/40 bg-fuchsia-500/10 px-2 py-0.5 text-[11px] text-fuchsia-700 dark:text-fuchsia-300">
+        <StatusBadge tom="info">
           Preview do piloto · fonte sintética · sem login e sem banco
-        </span>
+        </StatusBadge>
         <div className="ml-auto">
           <ThemeToggle />
         </div>

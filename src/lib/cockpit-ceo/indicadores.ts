@@ -685,8 +685,10 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       .join(" "),
     destino: {
       rota: "/clientes",
-      search: unidade ? { view: "monetizacao", unidade: unidade.key } : { view: "monetizacao" },
-      rotulo: "Abrir Base de clientes",
+      // "Produtos e listas" é onde as prontas por produto são trabalhadas (menu único da Base,
+      // 22/09); a visão "Base de clientes" mostra a carteira inteira (contrato do cockpit, 23/09).
+      search: unidade ? { view: "produtos", unidade: unidade.key } : { view: "produtos" },
+      rotulo: "Abrir Produtos e listas",
       mesmoRecorte: false,
       observacao:
         'A Base recebe a unidade; o produto e a situação "Prontas para enviar" se escolhem lá, com a mesma régua.',
@@ -909,10 +911,10 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
           responsavel: "Departamento de Receitas + unidades",
           destino: {
             rota: "/clientes",
-            search: { view: "monetizacao" },
-            rotulo: "Abrir Base de clientes",
+            search: { view: "produtos" },
+            rotulo: "Abrir Produtos e listas",
             mesmoRecorte: false,
-            observacao: 'Na Base, filtre a situação "só no cadastro do Omie" em cada produto.',
+            observacao: 'Em Produtos e listas, filtre a situação "só no Omie da unidade" em cada produto.',
           },
         }
       : {

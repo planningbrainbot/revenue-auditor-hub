@@ -8,9 +8,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Secao } from "@/components/planning";
 import { formatarNumero } from "@/lib/cockpit-ceo/contrato";
 import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, mesBr } from "@/lib/cockpit-ceo/receita";
 import type { ResumoLeitura } from "@/lib/cockpit-ceo/receita";
+import {
+  CORES_SERIE,
+  COR_NEUTRA,
+  eixoProps,
+  gradeProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
 import { BotaoDestino } from "./composicao";
 import { EstadoBadge, valorCurto } from "./estado";
 
@@ -41,13 +49,9 @@ function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
     <div className="h-40">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={dados} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="rotulo" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis
-            tick={{ fontSize: 10 }}
-            width={76}
-            tickFormatter={(v: number) => valorCurto(v, "reais")}
-          />
+          <CartesianGrid {...gradeProps} />
+          <XAxis dataKey="rotulo" {...eixoProps} interval="preserveStartEnd" />
+          <YAxis {...eixoProps} width={76} tickFormatter={(v: number) => valorCurto(v, "reais")} />
           <Tooltip
             formatter={(v, _n, p) => [
               typeof v !== "number"
@@ -55,15 +59,11 @@ function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
                 : formatarNumero(v, "reais") + (p?.payload?.parcial ? " (parcial)" : ""),
               "Faturamento",
             ]}
-            contentStyle={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              fontSize: 12,
-            }}
+            {...tooltipProps}
           />
           <Bar isAnimationActive={false} dataKey="valor">
             {dados.map((s) => (
-              <Cell key={s.mes} fill={s.parcial ? "var(--muted-foreground)" : "var(--chart-1)"} />
+              <Cell key={s.mes} fill={s.parcial ? COR_NEUTRA : CORES_SERIE[0]} />
             ))}
           </Bar>
         </BarChart>
@@ -75,9 +75,9 @@ function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
 function Numero({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] text-muted-foreground">{rotulo}</p>
+      <p className="text-xs text-muted-foreground">{rotulo}</p>
       <p className="text-sm font-semibold tabular-nums">{valor}</p>
-      {nota && <p className="text-[10px] text-muted-foreground">{nota}</p>}
+      {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
     </div>
   );
 }
@@ -86,15 +86,15 @@ function CartaoLeitura({ t, preview }: { t: ResumoLeitura; preview: boolean }) {
   const f = t.fechados;
   const mesesComNota = t.serie.filter((s) => t.notasPorMes[s.mes]);
   return (
-    <article className="space-y-3 rounded-lg border p-3">
+    <article className="space-y-3 rounded-xl border bg-card p-4">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-semibold">{t.titulo}</h4>
           <EstadoBadge estado={t.estado} />
         </div>
         <p className="text-xs text-muted-foreground">{t.definicao}</p>
-        <p className="text-[11px] text-muted-foreground">
-          <span className="text-foreground/80">Fonte:</span> {t.fonte}
+        <p className="text-xs text-muted-foreground">
+          <span className="text-foreground">Fonte:</span> {t.fonte}
         </p>
       </header>
 
@@ -126,7 +126,7 @@ function CartaoLeitura({ t, preview }: { t: ResumoLeitura; preview: boolean }) {
           </div>
           {t.serie.length > 0 && <Serie serie={t.serie} />}
           {t.porChave.length > 1 && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Participação na janela:{" "}
               {t.porChave
                 .slice(0, 5)
@@ -153,7 +153,7 @@ function CartaoLeitura({ t, preview }: { t: ResumoLeitura; preview: boolean }) {
             ))}
             {mesesComNota.map((s) => (
               <li key={s.mes}>
-                <span className="text-foreground/80">{mesBr(s.mes)}:</span> {t.notasPorMes[s.mes]}
+                <span className="text-foreground">{mesBr(s.mes)}:</span> {t.notasPorMes[s.mes]}
               </li>
             ))}
           </ul>
@@ -174,26 +174,20 @@ export function Trajetoria({
   preview: boolean;
 }) {
   return (
-    <section className="space-y-3 rounded-lg border p-3" aria-label="Trajetória para a meta">
-      <header className="space-y-1">
-        <h3 className="text-sm font-semibold">
-          Trajetória para R$ 1 bi de faturamento em {ANO_ALVO}
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Leituras candidatas do perímetro da meta, lado a lado. Elas não se somam: royalties das
-          unidades são receita do grupo e parte do faturamento da rede. Mês em andamento e mês que a
-          fonte marca como parcial ficam fora da conta. Vale para a empresa inteira: o filtro de
-          unidade e o de período não se aplicam aqui.
-        </p>
-      </header>
-      {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
-      {trajetoria && (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {trajetoria.map((t) => (
-            <CartaoLeitura key={t.id} t={t} preview={preview} />
-          ))}
-        </div>
-      )}
-    </section>
+    <Secao
+      titulo={`Quanto falta para R$ 1 bi de faturamento em ${ANO_ALVO}?`}
+      descricao="Leituras candidatas do perímetro da meta, lado a lado. Elas não se somam: royalties das unidades são receita do grupo e parte do faturamento da rede. Mês em andamento e mês que a fonte marca como parcial ficam fora da conta. Vale para a empresa inteira: o filtro de unidade e o de período não se aplicam aqui."
+    >
+      <div className="space-y-3" role="region" aria-label="Trajetória para a meta">
+        {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
+        {trajetoria && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {trajetoria.map((t) => (
+              <CartaoLeitura key={t.id} t={t} preview={preview} />
+            ))}
+          </div>
+        )}
+      </div>
+    </Secao>
   );
 }

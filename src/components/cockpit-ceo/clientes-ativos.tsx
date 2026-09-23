@@ -17,9 +17,14 @@ export function ClientesAtivos({
 }) {
   const titulo = (id: string) => clientes?.definicoes.find((d) => d.id === id)?.titulo ?? id;
   return (
-    <section className="space-y-3 rounded-lg border p-3" aria-label="Clientes ativos por definição">
+    <section
+      className="space-y-4 rounded-xl border bg-card p-4"
+      aria-label="Clientes ativos por definição"
+    >
       <header className="space-y-1">
-        <h3 className="text-sm font-semibold">Clientes ativos: definições candidatas</h3>
+        <h2 className="text-base font-semibold">
+          Quantos clientes ativos temos, em cada definição?
+        </h2>
         <p className="text-xs text-muted-foreground">
           Cada linha conta CNPJs distintos por uma régua que já existe na casa. Elas não se somam, e
           a escolha de qual vale para cada contexto ainda não foi feita. Vale para a rede inteira: o
@@ -61,8 +66,8 @@ export function ClientesAtivos({
                         <span className="font-medium">{d.titulo}</span>
                         {d.estado !== "disponivel" && <EstadoBadge estado={d.estado} />}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{d.definicao}</p>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">{d.definicao}</p>
+                      <p className="text-xs text-muted-foreground">
                         Fonte: {d.fonte}
                         {d.foraDoFormato
                           ? ` · ${d.foraDoFormato} documento(s) que não são CNPJ fora`
@@ -121,10 +126,10 @@ export function ClientesAtivos({
                   {formatarNumero(clientes.emTodas, "contas")}
                 </strong>
               </p>
-              <p className="text-[11px] text-muted-foreground">CNPJs distintos</p>
+              <p className="text-xs text-muted-foreground">CNPJs distintos</p>
             </div>
           </div>
-          <ul className="list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
             {clientes.avisos.map((a) => (
               <li key={a}>{a}</li>
             ))}

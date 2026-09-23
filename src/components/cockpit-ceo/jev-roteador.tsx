@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/planning";
 import { Panel } from "@/components/monetizacao/common";
 import { FRENTES, ORDEM_FRENTES } from "@/lib/cockpit-ceo/contrato";
 import type { Frente } from "@/lib/cockpit-ceo/contrato";
@@ -54,9 +55,9 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
     <Panel
       title="Pergunte ao cockpit"
       action={
-        <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
-          <Sparkles className="h-3 w-3" /> Jev real · texto fictício · sugestão de IA
-        </span>
+        <StatusBadge tom="info" icone={Sparkles}>
+          Jev real · texto fictício · sugestão de IA
+        </StatusBadge>
       }
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -90,7 +91,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
             >
               {m.isPending ? "Consultando Jev…" : "Encaminhar com Jev"}
             </Button>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {st.isError
                 ? "Não foi possível conferir o estado do piloto no servidor."
                 : !st.data
@@ -100,9 +101,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
                     : `${orcamento?.tentativas ?? 0} de 10 requisições usadas · custo informado US$ ${decimal(orcamento?.custoConhecidoUsd ?? 0, 6)}${orcamento?.custoDesconhecido ? " · há chamada sem custo informado" : ""} · chave ${st.data.chaveCadastrada ? "cadastrada" : "NÃO cadastrada"}`}
             </span>
           </div>
-          {orcamento?.bloqueado && (
-            <p className="text-xs text-amber-700 dark:text-amber-300">{orcamento.motivo}</p>
-          )}
+          {orcamento?.bloqueado && <p className="text-xs text-warning">{orcamento.motivo}</p>}
         </div>
 
         <div className="space-y-2 text-xs" aria-live="polite">
@@ -112,9 +111,9 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
               calcula número, não decide regra e não autoriza ação.
             </p>
           )}
-          {m.error && <p className="text-red-600">Falha ao chamar o servidor: {m.error.message}</p>}
+          {m.error && <p className="text-danger">Falha ao chamar o servidor: {m.error.message}</p>}
           {r && r.estado !== "ok" && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+            <div className="rounded-lg border border-danger/30 bg-danger/5 p-3">
               <p className="font-medium">Sem classificação ({r.codigo}).</p>
               <p className="text-muted-foreground">{r.mensagem}</p>
               <p className="mt-1 text-muted-foreground">
@@ -124,8 +123,8 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
           )}
           {r?.estado === "ok" && frente && pedeDado && (
             <div className="space-y-2">
-              <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+              <div className="rounded-lg border border-info/30 bg-info-soft p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-info">
                   Sugestão de IA · não é dado verificado
                 </p>
                 {m.variables && (
@@ -151,7 +150,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
                           <span className="truncate">{ROTULO_OPCAO[k] ?? k}</span>
                           <span className="h-1.5 rounded bg-muted">
                             <span
-                              className="block h-1.5 rounded bg-violet-500"
+                              className="block h-1.5 rounded bg-chart-3"
                               style={{ width: `${Math.round(p * 100)}%` }}
                             />
                           </span>
@@ -183,7 +182,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
                   </span>
                 )}
                 {confiancaBaixa && (
-                  <span className="text-amber-700 dark:text-amber-300">
+                  <span className="text-warning">
                     Confiança baixa: confira a frente você mesmo (limiar provisório, não validado).
                   </span>
                 )}
@@ -191,7 +190,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
               <p className="text-muted-foreground">
                 Os números da frente vêm do cálculo do Brain sobre a fonte da tela, não do Jev.
               </p>
-              <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-0.5 rounded-lg border p-2 text-[11px]">
+              <dl className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-0.5 rounded-lg border p-2 text-xs">
                 <dt className="text-muted-foreground">Modelo</dt>
                 <dd>
                   {r.modeloRetornado}{" "}

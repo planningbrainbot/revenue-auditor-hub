@@ -69,7 +69,7 @@ export function BotaoDestino({
         <Button size="sm" variant="outline" disabled>
           {destino.rotulo}
         </Button>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           No preview sintético o destino não abre: ele exige login e dados reais do Brain. Endereço:{" "}
           <code>{href}</code>
         </p>
@@ -161,12 +161,15 @@ export function ComposicaoIndicador({
                           <td className="py-1.5 pr-2">
                             {l.rotulo}
                             {l.soma && (
-                              <span className="ml-1 text-[10px] text-primary" title="Entra na soma">
+                              <span
+                                className="ml-1 text-xs text-primary-text"
+                                title="Entra na soma"
+                              >
                                 ∑
                               </span>
                             )}
                             {l.observacao && (
-                              <span className="block text-[11px] text-muted-foreground">
+                              <span className="block text-xs text-muted-foreground">
                                 {l.observacao}
                               </span>
                             )}
@@ -218,7 +221,7 @@ export function ComposicaoIndicador({
                 <section className="space-y-2 border-t pt-3">
                   <h3 className="text-xs font-semibold">Tela de origem</h3>
                   <BotaoDestino destino={i.destino} preview={preview} />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {i.destino.mesmoRecorte
                       ? "O destino recebe o mesmo recorte."
                       : "O destino não recebe o mesmo recorte; os totais podem diferir. "}

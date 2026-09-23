@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CockpitCeo, type MudarBusca } from "@/components/cockpit-ceo/cockpit-ceo";
-import { LoadingState, Panel } from "@/components/monetizacao/common";
+import type { ReactNode } from "react";
+import {
+  CockpitCeo,
+  PERGUNTA_EXECUTIVA,
+  type MudarBusca,
+} from "@/components/cockpit-ceo/cockpit-ceo";
+import { Carregando, EstadoSemAcesso, PageHeader } from "@/components/planning";
 import { useAuth } from "@/hooks/use-auth";
 import { useMonetizacao } from "@/hooks/use-monetizacao";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -34,22 +39,33 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 // porta de cada uma (Financeiro; todas as unidades) e devolve "acesso insuficiente" por leitura.
 export const Route = createFileRoute("/_authenticated/cockpit-ceo")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => buscaDaUrl(s),
+  head: () => ({ meta: [{ title: "Visão executiva · Planning Brain" }] }),
   component: Pagina,
 });
 
+/** Casca dos estados sem cockpit montado: o mesmo cabeçalho da Visão executiva (N1, V5). */
+function Casca({ children }: { children: ReactNode }) {
+  return (
+    <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
+      <PageHeader area="cockpit_ceo" titulo="Visão executiva" pergunta={PERGUNTA_EXECUTIVA} />
+      {children}
+    </main>
+  );
+}
+
 function Pagina() {
   const perms = usePermissions();
-  if (perms.loading) return <LoadingState retry={() => undefined} />;
+  if (perms.loading)
+    return (
+      <Casca>
+        <Carregando variante="kpis" />
+      </Casca>
+    );
   if (!perms.temArea("cockpit_ceo"))
     return (
-      <div className="p-6">
-        <Panel title="Cockpit do CEO">
-          <p className="text-sm text-muted-foreground">
-            Seu acesso não inclui a área Cockpit do CEO. A administração da plataforma controla esse
-            acesso.
-          </p>
-        </Panel>
-      </div>
+      <Casca>
+        <EstadoSemAcesso oQueFalta="a área Cockpit do CEO (a administração da plataforma concede)" />
+      </Casca>
     );
   const acesso: AcessoCockpit = {
     acessoBase: perms.can("view.aquario") || perms.can("view.clientes"),
@@ -136,7 +152,11 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
     ],
   );
   if (fonte.monetizacao.estado === "carregando")
-    return <LoadingState retry={() => void q.refetch()} />;
+    return (
+      <Casca>
+        <Carregando variante="kpis" />
+      </Casca>
+    );
   return <Tela fonte={fonte} hoje={hoje} />;
 }
 

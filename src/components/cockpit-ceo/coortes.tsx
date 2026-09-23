@@ -8,12 +8,11 @@ import { EstadoBadge } from "./estado";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
-function cor(p: number) {
-  if (p >= 0.95) return "bg-emerald-500/20";
-  if (p >= 0.85) return "bg-emerald-500/10";
-  if (p >= 0.7) return "bg-amber-500/15";
-  return "bg-red-500/15";
-}
+// Escala sequencial de um tom só (a série principal), proporcional à retenção. Sem cortes de
+// "bom" e "ruim": ninguém decidiu que 85% é atenção, e cor de status não pinta série (DESIGN.md §5).
+const fundo = (p: number) => ({
+  background: `color-mix(in srgb, var(--chart-1) ${Math.round(8 + p * 32)}%, transparent)`,
+});
 
 export function CoortesRetencao({
   coortes,
@@ -23,15 +22,15 @@ export function CoortesRetencao({
   aviso: string | null;
 }) {
   return (
-    <section className="space-y-3 rounded-lg border p-3" aria-label="Coortes de retenção">
+    <section className="space-y-4 rounded-xl border bg-card p-4" aria-label="Coortes de retenção">
       <header className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold">Retenção de logo por coorte de ganho</h3>
+        <h2 className="text-base font-semibold">Quem permanece depois do ganho, por coorte?</h2>
         {coortes && <EstadoBadge estado={coortes.estado} />}
       </header>
       {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
       {coortes && coortes.linhas.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[11px] tabular-nums">
+          <table className="w-full min-w-[720px] text-xs tabular-nums">
             <thead className="text-muted-foreground">
               <tr className="border-b">
                 <th className="py-1 pr-2 text-left font-medium">Coorte</th>
@@ -66,7 +65,7 @@ export function CoortesRetencao({
                     )}
                     {l.churnsSemData > 0 && (
                       <span
-                        className="ml-1 text-amber-600 dark:text-amber-400"
+                        className="ml-1 text-warning"
                         title={`${l.churnsSemData} churn sem data: retenção real menor`}
                       >
                         *
@@ -77,7 +76,8 @@ export function CoortesRetencao({
                   {l.retidos.map((r, k) => (
                     <td
                       key={k}
-                      className={`px-1 py-1 text-center ${r === null ? "text-muted-foreground/50" : cor(r / l.denominador)}`}
+                      className="px-1 py-1 text-center"
+                      style={r === null ? undefined : fundo(r / l.denominador)}
                       title={r === null ? "Mês não medido" : `${r} de ${l.denominador}`}
                     >
                       {r === null ? "" : pct(r / l.denominador)}
@@ -90,7 +90,7 @@ export function CoortesRetencao({
         </div>
       )}
       {coortes && (
-        <ul className="list-disc space-y-1 pl-4 text-[11px] text-muted-foreground">
+        <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
           {coortes.avisos.map((a) => (
             <li key={a}>{a}</li>
           ))}

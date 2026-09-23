@@ -1,55 +1,80 @@
-import { FRENTES } from "@/lib/cockpit-ceo/contrato";
-import type { Comparacao, Indicador } from "@/lib/cockpit-ceo/contrato";
-import { EstadoBadge, valorCurto } from "./estado";
+import type { KpiCardProps } from "@/components/planning";
+import type { Comparacao, Estado, Indicador } from "@/lib/cockpit-ceo/contrato";
+import { valorCurto } from "./estado";
 
-const curto = (c: Comparacao, i: Indicador) => {
-  const rotulo = c.rotulo.startsWith("Período anterior")
-    ? "Anterior"
-    : c.rotulo.replace("Ritmo esperado da", "Ritmo da");
-  return `${rotulo} ${valorCurto(c.referencia, i.unidade)}`;
+// Um indicador do cockpit no KpiCard do Design System v2.
+//
+// O cálculo continua em lib/cockpit-ceo; aqui só a leitura: o estado do dado vira `estado` (nunca
+// 0 no lugar de ausência, N4/V10), o ritmo da meta vira `meta` ao lado do valor (N13), o período
+// anterior vira `delta` quando existe base, e o clique abre a composição (N2).
+
+const ESTADO_KPI: Record<Estado, NonNullable<KpiCardProps["estado"]>> = {
+  disponivel: "ok",
+  parcial: "parcial",
+  nao_apurado: "nao-apurado",
+  fonte_indisponivel: "indisponivel",
+  acesso_insuficiente: "sem-acesso",
 };
 
-export function CartaoIndicador({
-  indicador: i,
-  onAbrir,
-}: {
-  indicador: Indicador;
-  onAbrir: () => void;
-}) {
-  const comparacoes = i.comparacoes.filter(
-    (c) => c.estado !== "nao_apurado" || c.referencia !== null,
+const ehAnterior = (c: Comparacao) => c.rotulo.startsWith("Período anterior");
+const ehMeta = (c: Comparacao) => c.rotulo.startsWith("Ritmo esperado da meta");
+
+const curto = (c: Comparacao, i: Indicador) =>
+  `${c.rotulo.replace("Ritmo esperado da", "Ritmo da")} ${valorCurto(c.referencia, i.unidade)}`;
+
+export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardProps {
+  const estado =
+    i.valor === null && i.estado === "disponivel" ? "nao-apurado" : ESTADO_KPI[i.estado];
+  const utilizaveis = i.comparacoes.filter(
+    (c) => c.referencia !== null && c.estado !== "nao_apurado",
   );
-  return (
-    <button
-      type="button"
-      onClick={onAbrir}
-      aria-label={`${i.titulo}: abrir composição`}
-      className="group flex min-h-[132px] flex-col rounded-xl border bg-card p-4 text-left transition hover:border-primary focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {FRENTES[i.frente].titulo}
-        </span>
-        {i.estado !== "disponivel" && <EstadoBadge estado={i.estado} />}
-      </span>
-      <span className="mt-1 text-sm font-medium leading-snug">{i.titulo}</span>
-      <span className="mt-auto flex items-baseline gap-2 pt-2">
-        <span className="text-3xl font-semibold tabular-nums">
-          {valorCurto(i.valor, i.unidade)}
-        </span>
-        {i.unidade !== "reais" && i.valor !== null && (
-          <span className="text-xs text-muted-foreground">{i.unidade}</span>
-        )}
-      </span>
-      <span className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-        {i.valor === null && i.lacuna
-          ? `Depende de: ${i.lacuna.responsavel}`
-          : comparacoes.length
-            ? comparacoes.map((c) => curto(c, i)).join(" · ")
-            : i.periodo
-              ? "Sem comparação disponível"
-              : "Fotografia de agora"}
-      </span>
-    </button>
-  );
+  const anterior = utilizaveis.find(ehAnterior);
+  const meta = utilizaveis.find(ehMeta);
+  const outras = utilizaveis.filter((c) => c !== anterior && c !== meta);
+
+  // Variação só com base diferente de zero: de 0 para 3 não é "+∞%", é nota.
+  const delta =
+    anterior && i.valor !== null && anterior.referencia
+      ? {
+          valor: ((i.valor - anterior.referencia) / anterior.referencia) * 100,
+          rotulo: "vs período anterior",
+        }
+      : undefined;
+
+  // A meta de R$ 1 bi não tem valor apurado: a meta e a média necessária vão na nota, junto de
+  // quem destrava o número (N13: meta à vista mesmo sem realizado).
+  const metaAnual =
+    i.id === "meta-bilhao"
+      ? i.comparacoes.find((c) => c.rotulo.startsWith("Meta anual"))
+      : undefined;
+  const notas: string[] = [];
+  if (i.valor === null && i.lacuna) notas.push(`Depende de: ${i.lacuna.responsavel}`);
+  // A base da variação fica escrita: "+1.100%" sem "anterior 1" engana.
+  if (anterior) notas.push(`Anterior ${valorCurto(anterior.referencia, i.unidade)}`);
+  // Sem valor apurado o KpiCard não mostra `meta`: a meta anual fica na nota.
+  notas.push(...outras.filter((c) => c !== metaAnual || i.valor === null).map((c) => curto(c, i)));
+  if (!notas.length) notas.push(i.periodo ? "Sem comparação disponível" : "Fotografia de agora");
+
+  return {
+    rotulo: i.titulo,
+    valor: i.valor === null ? "—" : valorCurto(i.valor, i.unidade),
+    unidade: i.unidade !== "reais" && i.valor !== null ? i.unidade : undefined,
+    estado,
+    delta,
+    meta: meta
+      ? {
+          valor: valorCurto(meta.referencia, i.unidade),
+          rotulo: "ritmo da meta",
+          progresso: i.valor !== null && meta.referencia ? i.valor / meta.referencia : undefined,
+        }
+      : metaAnual && i.valor !== null
+        ? {
+            valor: valorCurto(metaAnual.referencia, "reais"),
+            rotulo: metaAnual.rotulo.toLowerCase(),
+          }
+        : undefined,
+    nota: notas.join(" · "),
+    procedencia: { fonte: i.fonte, atualizadoEm: i.dataDado },
+    abrir: { onClick: onAbrir, rotulo: "Ver composição" },
+  };
 }
