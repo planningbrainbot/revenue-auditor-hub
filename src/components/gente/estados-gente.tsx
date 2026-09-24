@@ -1,6 +1,8 @@
+import { useId } from "react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EstadoErro, EstadoVazio } from "@/components/planning";
+import { cn } from "@/lib/utils";
 
 /**
  * Peças de estado do Planning People, em cima de `@/components/planning`
@@ -86,39 +88,55 @@ export function AvisoCorte({
 }
 
 /**
- * `Button` que diz por que está desabilitado (N8). Botão `disabled` não recebe
- * ponteiro, então o gatilho do tooltip é um `span` focável em volta dele; o
- * motivo também vai no `aria-label`, para leitor de tela. O primeiro motivo
- * verdadeiro da lista ganha. Sem motivo, é um `Button` comum.
+ * `Button` que diz por que está desabilitado (N8). É sempre o mesmo elemento,
+ * habilitado ou não: desabilitado vira `aria-disabled` (sem `disabled`), então
+ * continua focável e recebe ponteiro para o tooltip; o clique é bloqueado aqui.
+ * O motivo vai no tooltip e num texto `sr-only` ligado por `aria-describedby`.
+ * O primeiro motivo verdadeiro da lista ganha.
  * (Mesma API do `BotaoComMotivo` da Monetização.)
  */
 export function BotaoComMotivo({
   motivo,
   disabled,
+  onClick,
+  className,
   ...props
 }: ButtonProps & { motivo?: string | null | (string | null | false | undefined)[] }) {
-  const texto = Array.isArray(motivo) ? motivo.find(Boolean) || null : motivo || null;
-  if (!texto || !disabled) return <Button disabled={disabled} {...props} />;
+  const idMotivo = useId();
+  const primeiro = Array.isArray(motivo) ? motivo.find(Boolean) || null : motivo || null;
+  const texto = disabled ? primeiro : null;
   return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            tabIndex={0}
-            aria-label={texto}
-            className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+    <>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip open={texto ? undefined : false}>
+          <TooltipTrigger asChild>
             <Button
-              disabled
-              aria-disabled
               {...props}
-              className={`${props.className ?? ""} pointer-events-none`}
+              aria-disabled={disabled || undefined}
+              aria-describedby={texto ? idMotivo : undefined}
+              onClick={(e) => {
+                if (disabled) {
+                  e.preventDefault();
+                  return;
+                }
+                onClick?.(e);
+              }}
+              className={cn(
+                "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                disabled && "cursor-not-allowed opacity-50",
+                className,
+              )}
             />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{texto}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          </TooltipTrigger>
+          {texto ? <TooltipContent>{texto}</TooltipContent> : null}
+        </Tooltip>
+      </TooltipProvider>
+      {texto ? (
+        <span id={idMotivo} className="sr-only">
+          {texto}
+        </span>
+      ) : null}
+    </>
   );
 }
 

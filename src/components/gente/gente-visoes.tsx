@@ -101,7 +101,7 @@ function Pendencias({
                       search={{ tela: item.para }}
                       className="inline-flex items-center gap-1 rounded-md text-sm font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      Abrir
+                      Abrir<span className="sr-only">: {item.texto}</span>
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>
                   )}
@@ -165,6 +165,9 @@ export function VisaoMinhaVez() {
   const avaliacao = q.avaliacao.data;
   const pdi = q.pdi.data;
   const semana = segundaDaSemana();
+
+  // Sem linha no cadastro a fila não existe: não é "em dia".
+  if (lideranca && !lideranca.minhaPessoaId) return <SemCadastroNaRede oQueDepende="Minha vez" />;
 
   const itens: Pendencia[] = [];
   if (lideranca?.minhaPessoaId) {

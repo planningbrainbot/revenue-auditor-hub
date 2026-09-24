@@ -112,7 +112,12 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
   const pessoaFiltro = escopo === "tudo" ? pessoaUrl : "";
 
   const [lideradoId, setLideradoId] = useState("");
-  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const meuTimeIds = new Set((escopo === "eu" ? [] : (q.data?.meuTime ?? [])).map((p) => String(p.id)));
+  const lideradoValido = meuTimeIds.has(lideradoId) ? lideradoId : "";
+  // Hoje no dia de São Paulo ("en-CA" dá aaaa-mm-dd); o ISO dava o dia UTC depois das 21h.
+  const [data, setData] = useState(() =>
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
+  );
   const [pauta, setPauta] = useState("");
   const [notas, setNotas] = useState("");
   const [proximosPassos, setProximosPassos] = useState("");
@@ -123,7 +128,7 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
     mutationFn: async () =>
       salvarFn({
         data: {
-          lideradoId: Number(lideradoId),
+          lideradoId: Number(lideradoValido),
           data,
           pauta,
           notas,
@@ -145,7 +150,7 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
 
   if (q.isLoading) return <Carregando variante="tabela" />;
   if (q.isError) return <ErroDaFonte fonte={FONTE} erro={q.error} tentar={() => q.refetch()} />;
-  if (!q.data) return null;
+  if (!q.data) return <Carregando variante="tabela" />;
   if (!q.data.podeUmAUm) return <EstadoSemAcesso oQueFalta="view.gente.um_a_um" />;
   if (!q.data.minhaPessoaId) return <SemCadastroNaRede oQueDepende="O 1:1" />;
 
@@ -153,6 +158,10 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
   const podeRegistrar = d.podeRegistrar;
   const mostraTime = escopo !== "eu";
   const time = mostraTime ? d.meuTime : [];
+  // A fila (cobertura) pode trazer quem não é liderado direto; o formulário só
+  // registra com liderado direto, e o Select nunca fica em "Escolha" com um id
+  // escolhido por fora.
+  const noTime = new Set(time.map((p) => p.id));
   const cobertura = d.cobertura.filter((c) => c.pessoaId !== d.minhaPessoaId);
   const doEscopo =
     escopo === "eu"
@@ -219,11 +228,14 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
                       <BotaoComMotivo
                         size="sm"
                         variant="outline"
-                        disabled={!podeRegistrar}
-                        motivo={podeRegistrar ? null : MOTIVO_SEM_REGISTRO}
+                        disabled={!podeRegistrar || !noTime.has(c.pessoaId)}
+                        motivo={[
+                          !podeRegistrar && MOTIVO_SEM_REGISTRO,
+                          !noTime.has(c.pessoaId) && "Não é seu liderado direto no cadastro.",
+                        ]}
                         onClick={() => abrirRegistro(c.pessoaId)}
                       >
-                        Registrar 1:1
+                        Registrar 1:1<span className="sr-only"> com {c.nome}</span>
                       </BotaoComMotivo>
                     </TableCell>
                   </TableRow>
@@ -248,7 +260,7 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="1a1-pessoa">Com quem</Label>
-                  <Select value={lideradoId} onValueChange={setLideradoId}>
+                  <Select value={lideradoValido} onValueChange={setLideradoId}>
                     <SelectTrigger id="1a1-pessoa">
                       <SelectValue placeholder="Escolha" />
                     </SelectTrigger>
@@ -340,10 +352,10 @@ export function GenteUmAUmTab({ escopo = "tudo" }: { escopo?: EscopoUmAUm } = {}
               <div className="mt-3 flex justify-end">
                 <BotaoComMotivo
                   onClick={() => salvar.mutate()}
-                  disabled={!podeRegistrar || !lideradoId || !data || salvar.isPending}
+                  disabled={!podeRegistrar || !lideradoValido || !data || salvar.isPending}
                   motivo={[
                     !podeRegistrar && MOTIVO_SEM_REGISTRO,
-                    !lideradoId && "Escolha com quem foi o 1:1.",
+                    !lideradoValido && "Escolha com quem foi o 1:1.",
                     !data && "Informe a data do 1:1.",
                   ]}
                 >
@@ -499,7 +511,7 @@ export function GenteFeedbackTab() {
 
   if (q.isLoading) return <Carregando variante="tabela" />;
   if (q.isError) return <ErroDaFonte fonte={FONTE} erro={q.error} tentar={() => q.refetch()} />;
-  if (!q.data) return null;
+  if (!q.data) return <Carregando variante="tabela" />;
   if (!q.data.podeFeedback) return <EstadoSemAcesso oQueFalta="view.gente.feedback" />;
   if (!q.data.minhaPessoaId) return <SemCadastroNaRede oQueDepende="O feedback" />;
 
@@ -510,6 +522,8 @@ export function GenteFeedbackTab() {
   const enviados = filtrar(d.feedbackEnviado);
 
   const motivoEnviar = [
+    !d.podeRegistrar &&
+      "Enviar feedback exige a permissão edit.gente.conversas. Peça a quem administra os acessos da sua área.",
     !pessoas.length && "Ninguém da sua unidade está no cadastro ainda, então não há para quem enviar.",
     !paraId && "Escolha para quem é o feedback.",
     texto.trim().length < 3 && "Escreva o feedback (pelo menos 3 caracteres).",
@@ -608,7 +622,7 @@ export function GenteFeedbackTab() {
           <div className="mt-3 flex justify-end">
             <BotaoComMotivo
               onClick={() => enviar.mutate()}
-              disabled={!paraId || texto.trim().length < 3 || enviar.isPending}
+              disabled={!d.podeRegistrar || !paraId || texto.trim().length < 3 || enviar.isPending}
               motivo={motivoEnviar}
             >
               <Send className="size-4" aria-hidden />

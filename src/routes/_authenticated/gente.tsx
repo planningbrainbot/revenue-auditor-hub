@@ -51,7 +51,7 @@ const TELAS: Record<Tela, { titulo: string; pergunta: string; descricao: () => s
     titulo: "Meu time",
     pergunta: "Quem do meu time precisa de mim agora?",
     descricao: () =>
-      "As pessoas que têm você como gestor no cadastro, em qualquer profundidade: 1:1, pulso da semana e PDI.",
+      "Seus liderados diretos, as pessoas que têm você como gestor no cadastro: 1:1, pulso da semana e PDI.",
   },
   "um-a-um": {
     titulo: "1:1",
