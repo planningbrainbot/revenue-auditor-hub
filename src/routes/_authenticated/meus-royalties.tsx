@@ -44,6 +44,10 @@ type LinhaMes = {
   mes: string;
   /** Sem linha do billing_esperado para a unidade neste mês. */
   semPrevisto: boolean;
+  /** A leitura do previsto deste mês falhou. */
+  erroPrevisto: boolean;
+  /** A leitura dos repasses falhou (vale para todos os meses). */
+  erroRecebido: boolean;
   mrrBase: number;
   royaltiesPrev: number;
   cscPrev: number;
@@ -66,6 +70,7 @@ function MeusRoyaltiesPage() {
   const [loading, setLoading] = useState(true);
   const [tentativa, setTentativa] = useState(0);
   const [erros, setErros] = useState<string[]>([]);
+  const [lidoEm, setLidoEm] = useState<Date | null>(null);
   const [regras, setRegras] = useState<UnidadeRegras | null>(null);
   const [historico, setHistorico] = useState<LinhaMes[]>([]);
 
@@ -97,11 +102,13 @@ function MeusRoyaltiesPage() {
       // Esperado por mês via RPC billing_esperado
       const esperadoPorMes: Record<string, { mrr: number; royalties: number; csc: number; midia: number; total: number }> = {};
       const mesesComErro: string[] = [];
+      const isoComErro = new Set<string>();
       await Promise.all(
         meses.map(async (m) => {
           const { data, error } = await supabase.rpc("billing_esperado", { mes_ref: m.iso });
           if (error) {
             mesesComErro.push(m.label);
+            isoComErro.add(m.iso);
             return;
           }
           const linha = (data ?? []).find((r: any) => unitMatches(userUnidade, r.unidade));
@@ -143,6 +150,8 @@ function MeusRoyaltiesPage() {
           return {
             mes: m.label,
             semPrevisto: !e,
+            erroPrevisto: isoComErro.has(m.iso),
+            erroRecebido: !!erroRepasses,
             mrrBase: esp.mrr,
             royaltiesPrev: esp.royalties,
             cscPrev: esp.csc,
@@ -152,12 +161,15 @@ function MeusRoyaltiesPage() {
           };
         }),
       );
+      setLidoEm(new Date());
       setLoading(false);
     })();
     return () => { alive = false; };
   }, [permLoading, userUnidade, tentativa]);
 
   function situacao(h: LinhaMes) {
+    // Leitura que falhou não vira "Sem cobrança" nem "Em aberto": não se sabe.
+    if (h.erroPrevisto || h.erroRecebido) return <span className="text-muted-foreground">—</span>;
     if (h.semPrevisto && h.recebido == null) return <span className="text-muted-foreground">—</span>;
     // Nada previsto e nada repassado não é "Pago": não houve cobrança.
     if (h.totalPrev === 0 && (h.recebido ?? 0) === 0) return <StatusBadge tom="neutro">Sem cobrança</StatusBadge>;
@@ -178,12 +190,13 @@ function MeusRoyaltiesPage() {
         descricao={`${userUnidade ?? "Sem unidade vinculada"} · últimos 12 meses · previsto pelas regras da unidade contra o repasse recebido`}
         procedencia={{
           fonte: "Regras da unidade · previsto (billing_esperado) · repasses recebidos",
+          atualizadoEm: lidoEm,
           regua: "Pago quando o recebido cobre 99% do previsto; leitura de até 1.000 repasses",
         }}
       />
 
       {carregando ? (
-        <Carregando variante="pagina" />
+        <Carregando variante="tabela" />
       ) : !userUnidade ? (
         <EstadoVazio
           titulo="Seu usuário não tem unidade vinculada"
