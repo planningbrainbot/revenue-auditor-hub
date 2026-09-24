@@ -120,6 +120,15 @@ const ETAPAS: { chave: string; rotulo: string; acao: boolean }[] = [
   { chave: "card_em_outra_unidade", rotulo: "Card aberto na unidade errada", acao: true },
   { chave: "churn_sem_cobranca", rotulo: "Churn antes de abrir cobrança", acao: false },
 ];
+/**
+ * Rampa sequencial de um tom só (DESIGN §5, "etapas em sequência"): do claro ao
+ * escuro a partir de `--chart-1`, misturando com o fundo nos primeiros degraus.
+ */
+function tomDoDegrau(i: number, total: number): string {
+  const forca = total <= 1 ? 100 : Math.round(45 + (55 * i) / (total - 1));
+  return `color-mix(in oklab, ${CORES_SERIE[0]} ${forca}%, var(--background))`;
+}
+
 const ROTULO = new Map(ETAPAS.map((e) => [e.chave, e.rotulo]));
 const EXIGE_ACAO = new Set(ETAPAS.filter((e) => e.acao).map((e) => e.chave));
 
@@ -388,7 +397,7 @@ export function FunilCacContent() {
                   <div className="h-6 flex-1 overflow-hidden rounded bg-muted">
                     <div
                       className="h-full"
-                      style={{ width: `${Math.max(pct, 2)}%`, background: CORES_SERIE[0] }}
+                      style={{ width: `${Math.max(pct, 2)}%`, background: tomDoDegrau(i, funil.length) }}
                     />
                   </div>
                   <div className="num w-24 shrink-0 text-right text-xs">
@@ -433,7 +442,8 @@ export function FunilCacContent() {
             cards abertos na unidade da venda. Vendas fora da régua de CAC ficam fora
             do funil e aparecem na lista: unidade que não cobra, venda anterior ao
             início da cobrança na unidade ou honorário mensal abaixo do piso que a
-            unidade negociou.
+            unidade negociou. O valor de cada etapa abaixo é o que falta cobrar nela
+            e inclui churn; o “A cobrar” do topo, não.
           </p>
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar vendas por etapa">
             {porEtapa.map((e) => {
@@ -450,7 +460,7 @@ export function FunilCacContent() {
                     ativa ? "border-foreground bg-muted text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  {acao && <OctagonAlert className="size-3.5 text-danger" aria-label="pede ação" />}
+                  {acao && <OctagonAlert className="size-4 text-danger" aria-label="pede ação" />}
                   {e.rotulo}: {e.n}
                   {e.valor > 0 ? ` · ${fmtBRL(e.valor)}` : ""}
                 </button>
@@ -587,7 +597,17 @@ export function FunilCacContent() {
                       <TableCell className="num text-right">{fmtBRL(r.honorario)}</TableCell>
                       <TableCell className="num text-right">{fmtBRL(r.cobrado)}</TableCell>
                       <TableCell className="num text-right">
-                        {Number(r.a_cobrar ?? 0) > 0 ? fmtBRL(r.a_cobrar) : "—"}
+                        {/* Churn antes do 1º fee não entra no "A cobrar" do card:
+                            a linha diz isso em vez de mostrar um valor que não soma. */}
+                        {r.churn && Number(r.a_cobrar ?? 0) > 0 ? (
+                          <span className="text-muted-foreground" title={`${fmtBRL(r.a_cobrar)} fora do "A cobrar"`}>
+                            churn
+                          </span>
+                        ) : Number(r.a_cobrar ?? 0) > 0 ? (
+                          fmtBRL(r.a_cobrar)
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
