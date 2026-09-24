@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { ComissoesContent } from "@/components/page-content/comissoes-content";
-import { MolduraReceita } from "@/components/receita/moldura";
 
 type BuscaComissoes = { q?: string; closer?: string; sdr?: string; status?: string; base?: string };
 
@@ -25,18 +24,7 @@ export const Route = createFileRoute("/_authenticated/comissoes")({
 
 function ComissoesPage() {
   useAuth();
-  return (
-    <MolduraReceita
-      titulo="Comissões"
-      pergunta="Quais vendas já pagaram e têm closer e SDR para comissionar?"
-      descricao="Vendas ganhas no Pipedrive (franquias) × 1º pagamento recebido no Omie, por Closer e SDR. Todo o histórico, sem recorte de mês."
-      procedencia={{
-        fonte:
-          "Pipedrive (vendas e contratos) × contas a receber do Omie · os recebimentos são lidos em até 1.000 títulos; 'Sem pagamento' pode estar errado",
-        regua: "1º pagamento (caixa)",
-      }}
-    >
-      <ComissoesContent />
-    </MolduraReceita>
-  );
+  // O cabeçalho (MolduraReceita) mora no conteúdo: o "Atualizar" das ações
+  // depende do DataProvider.
+  return <ComissoesContent />;
 }

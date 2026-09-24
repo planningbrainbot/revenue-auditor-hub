@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate } from "@tanstack/react-router";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { DataProvider, useData, type OrigemFilter } from "@/components/audit/data-context";
 import { brl, date, num } from "@/components/audit/format";
@@ -11,7 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   BarraFiltros,
   EstadoVazio,
@@ -21,6 +30,7 @@ import {
   StatusBadge,
 } from "@/components/planning";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
+import { MolduraReceita } from "@/components/receita/moldura";
 
 /**
  * Apuração de comissões (contrato `docs/design/contratos/receita-e-repasses.md`
@@ -81,10 +91,7 @@ function SeletorBase() {
   }, [allRegistros, getOrigem]);
 
   return (
-    <Select
-      value={origemParaSelect(base)}
-      onValueChange={(v) => setBaseUrl(v === ALL ? "" : v)}
-    >
+    <Select value={origemParaSelect(base)} onValueChange={(v) => setBaseUrl(v === ALL ? "" : v)}>
       <SelectTrigger className="w-[210px]" aria-label="Base">
         <SelectValue />
       </SelectTrigger>
@@ -101,7 +108,13 @@ function SeletorBase() {
 function BotaoAtualizar() {
   const { refresh, refreshing } = useData();
   return (
-    <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing}>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void refresh()}
+      disabled={refreshing}
+    >
       <RefreshCw className={refreshing ? "animate-spin" : undefined} aria-hidden />
       {refreshing ? "Atualizando…" : "Atualizar"}
     </Button>
@@ -135,6 +148,27 @@ function ComissoesTable() {
   const statusFilter: Status = ehStatus(statusUrl) ? statusUrl : "all";
   const limpar = useLimparFiltrosNaUrl(["q", "closer", "sdr", "status", "base"]);
   const [baseUrl] = useFiltroNaUrl("base", "");
+  const navigate = useNavigate();
+
+  /**
+   * O cartão conta todas as vendas da base: antes de aplicar o seu filtro, tira
+   * busca, Closer, SDR e status, senão a tabela não bate com o número clicado.
+   * Uma navegação só, para não gravar a URL em etapas.
+   */
+  const aplicarCartao = (filtro: { status?: Status; closer?: string; sdr?: string }) => {
+    void navigate({
+      to: ".",
+      search: ((prev: Record<string, unknown>) => ({
+        ...prev,
+        q: undefined,
+        closer: filtro.closer,
+        sdr: filtro.sdr,
+        status: filtro.status && filtro.status !== "all" ? filtro.status : undefined,
+      })) as never,
+      replace: true,
+      resetScroll: false,
+    });
+  };
 
   // Só vendas efetivamente registradas no Pipedrive — são as que geram comissão.
   const vendas = useMemo(() => registros.filter((r) => r.deal_id != null), [registros]);
@@ -162,10 +196,12 @@ function ComissoesTable() {
       if (statusFilter === "pago" && !r.pagou) return false;
       if (statusFilter === "sem_pag" && r.pagou) return false;
       // Mesmo teste dos cards ("Sem Closer" = `!r.closer`, inclusive string vazia).
-      if (closerFilter !== ALL && !(closerFilter === SEM ? !r.closer : r.closer === closerFilter)) return false;
+      if (closerFilter !== ALL && !(closerFilter === SEM ? !r.closer : r.closer === closerFilter))
+        return false;
       if (sdrFilter !== ALL && !(sdrFilter === SEM ? !r.sdr : r.sdr === sdrFilter)) return false;
       if (ql) {
-        const hay = `${r.deal_titulo ?? ""} ${r.razao_social ?? ""} ${r.cnpj ?? ""} ${r.deal_id ?? ""}`.toLowerCase();
+        const hay =
+          `${r.deal_titulo ?? ""} ${r.razao_social ?? ""} ${r.cnpj ?? ""} ${r.deal_id ?? ""}`.toLowerCase();
         if (!hay.includes(ql)) return false;
       }
       return true;
@@ -245,32 +281,32 @@ function ComissoesTable() {
           <KpiCard
             rotulo="Vendas"
             valor={num(stats.total)}
-            abrir={{ onClick: () => setStatusFilter("all"), rotulo: "Ver todas" }}
+            abrir={{ onClick: () => aplicarCartao({}), rotulo: "Ver todas" }}
           />
           <KpiCard
             rotulo="Com 1º pagamento"
             valor={num(stats.comPag)}
             tom="sucesso"
-            abrir={{ onClick: () => setStatusFilter("pago"), rotulo: "Filtrar" }}
+            abrir={{ onClick: () => aplicarCartao({ status: "pago" }), rotulo: "Filtrar" }}
           />
           <KpiCard
             rotulo="Sem pagamento"
             valor={num(stats.semPag)}
             tom="atencao"
             nota="pode estar errado: recebimentos lidos em até 1.000 títulos"
-            abrir={{ onClick: () => setStatusFilter("sem_pag"), rotulo: "Filtrar" }}
+            abrir={{ onClick: () => aplicarCartao({ status: "sem_pag" }), rotulo: "Filtrar" }}
           />
           <KpiCard
             rotulo="Sem Closer atribuído"
             valor={num(stats.semCloser)}
             tom={stats.semCloser > 0 ? "atencao" : undefined}
-            abrir={{ onClick: () => setCloserFilter(SEM), rotulo: "Filtrar" }}
+            abrir={{ onClick: () => aplicarCartao({ closer: SEM }), rotulo: "Filtrar" }}
           />
           <KpiCard
             rotulo="Sem SDR atribuído"
             valor={num(stats.semSdr)}
             tom={stats.semSdr > 0 ? "atencao" : undefined}
-            abrir={{ onClick: () => setSdrFilter(SEM), rotulo: "Filtrar" }}
+            abrir={{ onClick: () => aplicarCartao({ sdr: SEM }), rotulo: "Filtrar" }}
           />
         </KpiGrade>
       </Secao>
@@ -316,7 +352,9 @@ function ComissoesTable() {
                           {r.deal_id} <ExternalLink className="size-4" aria-hidden />
                         </a>
                       </TableCell>
-                      <TableCell className="num whitespace-nowrap">{date(r.data_fechamento)}</TableCell>
+                      <TableCell className="num whitespace-nowrap">
+                        {date(r.data_fechamento)}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {r.closer ?? <span className="text-muted-foreground">—</span>}
                       </TableCell>
@@ -333,7 +371,9 @@ function ComissoesTable() {
                       <TableCell className="num whitespace-nowrap text-right">
                         {r.pagou && r.valor_primeiro_pag != null ? brl(r.valor_primeiro_pag) : "—"}
                       </TableCell>
-                      <TableCell className="num whitespace-nowrap">{date(r.data_primeiro_pag)}</TableCell>
+                      <TableCell className="num whitespace-nowrap">
+                        {date(r.data_primeiro_pag)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -346,15 +386,32 @@ function ComissoesTable() {
   );
 }
 
+/**
+ * A página inteira, com o cabeçalho: "Atualizar" mora nas `acoes` do
+ * `PageHeader`. O cabeçalho fica fora do `DataProvider` (senão some enquanto
+ * carrega, porque o provider troca tudo pelo spinner), e o botão, que precisa
+ * do contexto, entra no slot das ações por portal.
+ */
 export function ComissoesContent() {
+  const [slotAcoes, setSlotAcoes] = useState<HTMLSpanElement | null>(null);
   return (
-    <DataProvider>
-      <div className="space-y-4 px-4 py-6 md:px-6">
-        <div className="flex justify-end">
-          <BotaoAtualizar />
+    <MolduraReceita
+      titulo="Comissões"
+      pergunta="Quais vendas já pagaram e têm closer e SDR para comissionar?"
+      descricao="Vendas ganhas no Pipedrive (franquias) × 1º pagamento recebido no Omie, por Closer e SDR. Todo o histórico, sem recorte de mês."
+      procedencia={{
+        fonte:
+          "Pipedrive (vendas e contratos) × contas a receber do Omie · os recebimentos são lidos em até 1.000 títulos; 'Sem pagamento' pode estar errado",
+        regua: "1º pagamento (caixa)",
+      }}
+      acoes={<span ref={setSlotAcoes} className="contents" />}
+    >
+      <DataProvider>
+        {slotAcoes && createPortal(<BotaoAtualizar />, slotAcoes)}
+        <div className="px-4 py-6 md:px-6">
+          <ComissoesTable />
         </div>
-        <ComissoesTable />
-      </div>
-    </DataProvider>
+      </DataProvider>
+    </MolduraReceita>
   );
 }
