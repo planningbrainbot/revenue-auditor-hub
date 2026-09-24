@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -97,6 +97,31 @@ type Props = {
   busca?: BuscaMonetizacao;
   mudarBusca?: (patch: Partial<BuscaMonetizacao>) => void;
 };
+/**
+ * Foco de volta ao fechar `Sheet`, `Dialog` ou `AlertDialog`: volta ao controle que abriu
+ * (guardado ao abrir); se ele saiu da tela (linha arquivada), vai para `reserva`.
+ */
+export function useFocoDeVolta(reserva?: RefObject<HTMLElement | null>) {
+  const origem = useRef<HTMLElement | null>(null);
+  return {
+    /** Guarda quem abriu; sem argumento, o elemento com foco agora. */
+    guardar: (el?: Element | null) => {
+      origem.current = (el ?? document.activeElement) as HTMLElement | null;
+    },
+    /** Para quem abre por estado: o foco ainda está no gatilho quando o conteúdo monta. */
+    onOpenAutoFocus: () => {
+      if (!origem.current) origem.current = document.activeElement as HTMLElement | null;
+    },
+    onCloseAutoFocus: (e: Event) => {
+      e.preventDefault();
+      const o = origem.current;
+      origem.current = null;
+      const alvo = o && o.isConnected && o !== document.body ? o : reserva?.current;
+      alvo?.focus?.();
+    },
+  };
+}
+
 export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
   if (aba === "forecast")
@@ -1454,7 +1479,11 @@ function People({
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <SecaoCartao
-        titulo={`Como ${dono} foi na amostra do período?`}
+        titulo={
+          filter.owner === null
+            ? "Como o hunter foi na amostra do período?"
+            : `Como ${dono} foi na amostra do período?`
+        }
         descricao={`Amostra de ${date(filter.from)} a ${date(filter.to)} · 5 critérios, nota 1–5`}
       >
         <div className="space-y-3">
@@ -1603,6 +1632,15 @@ function Scripts({
     [busy, setBusy] = useState(false),
     [aberta, setAberta] = useState<{ modo: "nova" } | { modo: "ver"; id: string } | null>(null),
     [arquivar, setArquivar] = useState<Registro | null>(null);
+  const novaRef = useRef<HTMLButtonElement>(null);
+  const foco = useFocoDeVolta(novaRef);
+  const abrirSheet = (
+    estado: { modo: "nova" } | { modo: "ver"; id: string },
+    origem?: Element | null,
+  ) => {
+    foco.guardar(origem);
+    setAberta(estado);
+  };
   const fn = useServerFn(salvarRegistroMonetizacao),
     invalidate = useAtualizarMonetizacao();
   const motivoEscrita = motivoSemEscopo(data);
@@ -1619,6 +1657,7 @@ function Scripts({
         ? situacaoDoRoteiro(r) === filtroSituacao
         : situacaoDoRoteiro(r) !== "arquivado"),
   );
+  const nArquivadas = todas.filter((r) => situacaoDoRoteiro(r) === "arquivado").length;
   const vista = aberta?.modo === "ver" ? todas.find((r) => r.id === aberta.id) : undefined;
   const compose = () =>
     setText(
@@ -1723,9 +1762,13 @@ function Scripts({
       </BarraFiltros>
       <SecaoCartao
         titulo="Qual abordagem usar para este produto e segmento?"
-        descricao={`${number(lista.length)} de ${number(todas.length)} abordagens${filtroSituacao ? "" : " · arquivadas ficam fora; filtre a situação Arquivada para vê-las"} · clique na linha para abrir`}
+        descricao={`${number(lista.length)} de ${number(todas.length)} abordagens · ${number(nArquivadas)} ${nArquivadas === 1 ? "arquivada" : "arquivadas"}${filtroSituacao ? "" : " (fora da lista; filtre a situação Arquivada para vê-las)"} · clique na linha para abrir`}
         acoes={
-          <Button size="sm" onClick={() => setAberta({ modo: "nova" })}>
+          <Button
+            ref={novaRef}
+            size="sm"
+            onClick={(e) => abrirSheet({ modo: "nova" }, e.currentTarget)}
+          >
             <Plus />
             Nova abordagem
           </Button>
@@ -1753,25 +1796,28 @@ function Scripts({
               <TableBody>
                 {lista.map((r) => {
                   const sit = SITUACAO_ROTEIRO[situacaoDoRoteiro(r)];
-                  const abrir = () => setAberta({ modo: "ver", id: r.id });
+                  const abrir = (origem?: Element | null) =>
+                    abrirSheet({ modo: "ver", id: r.id }, origem);
                   return (
                     <TableRow
                       key={r.id}
-                      className="cursor-pointer outline-none focus-visible:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-                      tabIndex={0}
-                      aria-label={`Abrir a abordagem ${r.title}`}
-                      onClick={abrir}
-                      onKeyDown={(e) => {
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          abrir();
-                        }
-                      }}
+                      className="cursor-pointer"
+                      onClick={(e) => abrir(e.currentTarget.querySelector("button"))}
                     >
                       <TableCell>{NOMES[produtoDoRoteiro(r)]}</TableCell>
                       <TableCell>{String(r.body.segment || "—")}</TableCell>
-                      <TableCell className="font-medium">{r.title}</TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          className={`text-left font-medium text-primary-text underline-offset-2 hover:underline ${FOCO_VISIVEL}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            abrir(e.currentTarget);
+                          }}
+                        >
+                          {r.title}
+                        </button>
+                      </TableCell>
                       <TableCell>
                         <StatusBadge tom={sit.tom}>{sit.rotulo}</StatusBadge>
                       </TableCell>
@@ -1789,7 +1835,10 @@ function Scripts({
       </SecaoCartao>
 
       <Sheet open={!!aberta} onOpenChange={(o) => !o && setAberta(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-xl"
+          onCloseAutoFocus={foco.onCloseAutoFocus}
+        >
           {aberta?.modo === "nova" ? (
             <>
               <SheetHeader>
@@ -1935,6 +1984,8 @@ function Scripts({
       <ConfirmarArquivar
         registro={arquivar}
         oQue="a abordagem"
+        feminino
+        comoVer="filtrando a situação Arquivada"
         onCancelar={() => setArquivar(null)}
         onConfirmar={(r) => {
           setArquivar(null);
@@ -2075,7 +2126,7 @@ function Distribution({ data, filter, openDeals, busca }: Cut & Pick<Props, "bus
                           aba: "capacidade",
                           responsavel: id,
                           de: busca?.de,
-                          ate: busca?.ate,
+                          ate: busca?.ate ?? filter.to,
                         }}
                         aria-label={`${name}: capacidade mensal ${capacity ?? "a definir"}, abrir o plano em Capacidade e alocação`}
                         className={FOCO_LINK}
@@ -2225,6 +2276,7 @@ function RecordList({
     invalidate = useAtualizarMonetizacao();
   const [arquivar, setArquivar] = useState<Registro | null>(null),
     [busy, setBusy] = useState<string | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const todos = data.records
     .filter((r) => r.kind === kind)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -2238,6 +2290,12 @@ function RecordList({
       await fn({ data: { id: r.id, kind: r.kind, title: r.title, body: { ...r.body, status } } });
       await invalidate();
       toast.success(mensagem);
+      // O PDI arquivado some da lista: o foco que estava nele vai para "Mostrar arquivados".
+      if (status === "arquivado")
+        requestAnimationFrame(() => {
+          if (!document.activeElement || document.activeElement === document.body)
+            toggleRef.current?.focus();
+        });
     } catch (e) {
       toast.error(`O registro não foi atualizado: ${(e as Error).message}`);
     } finally {
@@ -2261,12 +2319,13 @@ function RecordList({
         kind === "pdi" &&
         (nArquivados > 0 || arquivados) && (
           <Button
+            ref={toggleRef}
             size="sm"
-            variant="ghost"
+            variant={arquivados ? "secondary" : "ghost"}
             aria-pressed={arquivados}
             onClick={() => mudarArquivados?.(!arquivados)}
           >
-            {arquivados ? "Ocultar arquivados" : `Mostrar arquivados (${nArquivados})`}
+            Mostrar arquivados ({nArquivados})
           </Button>
         )
       }
@@ -2377,23 +2436,34 @@ function RecordList({
 function ConfirmarArquivar({
   registro,
   oQue,
+  feminino = false,
+  comoVer = "em Mostrar arquivados",
   onCancelar,
   onConfirmar,
 }: {
   registro: Registro | null;
   /** "o PDI", "a abordagem". */
   oQue: string;
+  /** Concordância do texto: "ela continua salva" em vez de "ele continua salvo". */
+  feminino?: boolean;
+  /** Como ver o arquivado depois: "filtrando a situação Arquivada". */
+  comoVer?: string;
   onCancelar: () => void;
   onConfirmar: (r: Registro) => void;
 }) {
+  const foco = useFocoDeVolta();
+  const o = feminino ? "a" : "o";
   return (
-    <AlertDialog open={!!registro} onOpenChange={(o) => !o && onCancelar()}>
-      <AlertDialogContent>
+    <AlertDialog open={!!registro} onOpenChange={(aberto) => !aberto && onCancelar()}>
+      <AlertDialogContent
+        onOpenAutoFocus={foco.onOpenAutoFocus}
+        onCloseAutoFocus={foco.onCloseAutoFocus}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Arquivar {registro?.title}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Arquivar tira {oQue} da lista padrão; ele continua salvo e pode ser visto filtrando os
-            arquivados.
+            Arquivar tira {oQue} da lista padrão; {feminino ? "ela" : "ele"} continua salv{o} e pode
+            ser vist{o} {comoVer}.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

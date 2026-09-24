@@ -35,7 +35,7 @@ import { hoje, METRICAS, operacao } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Metrica, Negocio, Plano } from "@/lib/monetizacao/types";
-import { Analysis } from "./analysis";
+import { Analysis, useFocoDeVolta } from "./analysis";
 import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
@@ -934,6 +934,8 @@ function DealDetails({
 }) {
   const [search, setSearch] = useState("");
   useEffect(() => setSearch(""), [detail]);
+  // Fechar devolve o foco ao número que abriu o detalhe (guardado quando o conteúdo monta).
+  const foco = useFocoDeVolta();
   const total = detail?.rows.length ?? 0;
   const ordenadas = detail?.ordenarPor
     ? [...detail.rows].sort((a, b) =>
@@ -948,7 +950,11 @@ function DealDetails({
     (id === 28381245 ? "Matheus Carvalho" : `Usuário ${id}`);
   return (
     <Dialog open={!!detail} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[min(1250px,95vw)]">
+      <DialogContent
+        className="max-h-[90dvh] overflow-y-auto sm:max-w-[min(1250px,95vw)]"
+        onOpenAutoFocus={foco.onOpenAutoFocus}
+        onCloseAutoFocus={foco.onCloseAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>{detail?.title}</DialogTitle>
           <DialogDescription>
