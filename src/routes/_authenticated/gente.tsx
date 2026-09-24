@@ -1,8 +1,4 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { resumoMenuGente, type ResumoMenuGente } from "@/lib/gente-menu.functions";
+import { createFileRoute } from "@tanstack/react-router";
 import { GenteView } from "@/components/gente/gente-view";
 import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
 import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
@@ -11,6 +7,7 @@ import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
 import { Adocao, VisaoMinhaVez, VisaoMeuTime } from "@/components/gente/gente-visoes";
 import { PageHeader } from "@/components/planning";
+import { segundaDaSemana } from "@/lib/gente-lideranca.functions";
 
 // Uma tela por MÓDULO, mais duas de rotina ("Minha vez" e "Meu time").
 //
@@ -23,10 +20,12 @@ import { PageHeader } from "@/components/planning";
 // 3. Agora é módulo de novo, **filtrado por pessoa**. Quem implanta vê os onze
 //    itens; quem só responde vê meia dúzia. O filtro é por fato, não por
 //    permissão, porque a área concede todas as chaves (ver `resumoMenuGente`).
+// 4. (24/09/2026, DS v2) A faixa de abas que repetia os onze itens da lateral
+//    saiu (N6): a lateral é o menu, e `?tela=` continua sendo o endereço.
 //
 // O que sobrou do passo 2 e vale: "Minha vez" e "Meu time" continuam existindo,
 // como atalho de quem quer a fila do dia e não um módulo.
-type Tela =
+export type Tela =
   | "minha-vez"
   | "meu-time"
   | "um-a-um"
@@ -39,19 +38,80 @@ type Tela =
   | "clima"
   | "adocao";
 
-const TELAS: { id: Tela; rotulo: string; flag?: keyof ResumoMenuGente }[] = [
-  { id: "minha-vez", rotulo: "Minha vez" },
-  { id: "meu-time", rotulo: "Meu time", flag: "lideraAlguem" },
-  { id: "um-a-um", rotulo: "1:1" },
-  { id: "lideranca", rotulo: "Sentimento e prioridades", flag: "noCadastro" },
-  { id: "feedback", rotulo: "Feedback" },
-  { id: "elogios", rotulo: "Elogios" },
-  { id: "avaliacao", rotulo: "Avaliação", flag: "verAvaliacao" },
-  { id: "pdi", rotulo: "PDI", flag: "temPdi" },
-  { id: "cadastro", rotulo: "Cadastro" },
-  { id: "clima", rotulo: "Clima", flag: "administra" },
-  { id: "adocao", rotulo: "Adoção", flag: "redeInteira" },
-];
+// `titulo` = item do menu (`areas.ts`); `pergunta` = N1, da tabela do contrato
+// (`docs/design/contratos/gente.md`); `descricao` = o universo de cada tela.
+const TELAS: Record<Tela, { titulo: string; pergunta: string; descricao: () => string }> = {
+  "minha-vez": {
+    titulo: "Minha vez",
+    pergunta: "O que está pendente comigo esta semana?",
+    descricao: () =>
+      `Só o que é seu, na semana que começa em ${dataCurta(segundaDaSemana())}: pulso, prioridades, avaliações a responder e ações do seu PDI.`,
+  },
+  "meu-time": {
+    titulo: "Meu time",
+    pergunta: "Quem do meu time precisa de mim agora?",
+    descricao: () =>
+      "As pessoas que têm você como gestor no cadastro, em qualquer profundidade: 1:1, pulso da semana e PDI.",
+  },
+  "um-a-um": {
+    titulo: "1:1",
+    pergunta: "Com quem estou há mais tempo sem 1:1?",
+    descricao: () =>
+      "Os 1:1 em que você é gestor ou liderado. Na fila, quem nunca teve vem primeiro, depois quem está há mais dias sem.",
+  },
+  lideranca: {
+    titulo: "Sentimento e prioridades",
+    pergunta: "Como o time está, e quais são as prioridades da semana?",
+    descricao: () =>
+      "O pulso semanal e as prioridades da semana, seus e das pessoas que você lidera.",
+  },
+  feedback: {
+    titulo: "Feedback",
+    pergunta: "Que feedback eu recebi e enviei?",
+    descricao: () =>
+      "Feedback entre pessoas da sua unidade que tenha você como autor ou destinatário. Quem escreve escolhe quem mais enxerga.",
+  },
+  elogios: {
+    titulo: "Elogios",
+    pergunta: "Quem foi reconhecido, e por quê?",
+    descricao: () => "O mural de elogios da sua unidade: quem recebeu, de quem e o motivo.",
+  },
+  avaliacao: {
+    titulo: "Avaliação",
+    pergunta: "Em que pé está o ciclo de avaliação, e o que falta concluir?",
+    descricao: () =>
+      "Os ciclos de avaliação que você enxerga: o que espera sua resposta e o andamento de cada avaliado.",
+  },
+  pdi: {
+    titulo: "PDI",
+    pergunta: "As metas de desenvolvimento estão andando?",
+    descricao: () =>
+      "Os planos de desenvolvimento seus e das pessoas que você lidera: metas, ações e prazos.",
+  },
+  cadastro: {
+    titulo: "Cadastro",
+    pergunta: "Quem são as pessoas da rede, e onde estão?",
+    descricao: () =>
+      "As pessoas das unidades que você enxerga. Cada unidade vê só a sua, e dentro dela vale a hierarquia.",
+  },
+  clima: {
+    titulo: "Clima",
+    pergunta: "Como está o eNPS da rede e de cada unidade?",
+    descricao: () =>
+      "As rodadas de eNPS, da rede e por unidade. Com menos de 5 respostas a nota não aparece.",
+  },
+  adocao: {
+    titulo: "Adoção por unidade",
+    pergunta: "Quais unidades já usam o People?",
+    descricao: () =>
+      "Todas as unidades da rede, em números agregados e sem nome: pessoas, login, pulso, 1:1, PDI e ciclo.",
+  },
+};
+
+const dataCurta = (iso: string) => {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+};
 
 // Os dois formatos anteriores continuam funcionando como link, para favorito e
 // mensagem antiga não caírem numa tela em branco.
@@ -66,6 +126,7 @@ const DE_ABA: Record<string, Tela> = {
   cadastro: "cadastro",
   "um-a-um": "um-a-um",
   lideranca: "lideranca",
+  sentimento: "lideranca",
   feedback: "feedback",
   elogios: "elogios",
   avaliacao: "avaliacao",
@@ -73,90 +134,61 @@ const DE_ABA: Record<string, Tela> = {
   clima: "clima",
 };
 
+export type BuscaGente = { tela: Tela } & Record<string, unknown>;
+
 export const Route = createFileRoute("/_authenticated/gente")({
-  validateSearch: (busca: Record<string, unknown>): { tela: Tela } => {
-    const bruta = String(busca?.tela ?? "");
-    if (TELAS.some((t) => t.id === bruta)) return { tela: bruta as Tela };
-    const deVisao = DE_VISAO[String(busca?.visao ?? "")];
-    const deAba = DE_ABA[String(busca?.aba ?? "")];
-    return { tela: deVisao ?? deAba ?? "minha-vez" };
+  // Repassa as outras chaves: os filtros de cada tela moram na URL
+  // (`useFiltroNaUrl`, N7), e uma validação que devolvesse só `tela` os apagaria.
+  // `visao` e `aba` são traduzidas para `tela` e saem.
+  validateSearch: (busca: Record<string, unknown>): BuscaGente => {
+    const { tela: bruta, visao, aba, ...resto } = busca ?? {};
+    const pedida = String(bruta ?? "");
+    const tela: Tela =
+      Object.prototype.hasOwnProperty.call(TELAS, pedida)
+        ? (pedida as Tela)
+        : (DE_ABA[pedida] ?? DE_VISAO[String(visao ?? "")] ?? DE_ABA[String(aba ?? "")] ?? "minha-vez");
+    return { ...resto, tela };
   },
   component: GentePage,
 });
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function GentePage() {
-  const { tela } = useSearch({ from: "/_authenticated/gente" });
-  const navegar = Route.useNavigate();
-
-  const fn = useServerFn(resumoMenuGente);
-  // Mesma `queryKey` da lateral: as abas e o menu concordam sem pedir duas
-  // vezes a mesma resposta.
-  const { data: resumo } = useQuery<ResumoMenuGente>({
-    queryKey: ["gente-menu"],
-    queryFn: () => fn({}),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // A tela aberta sempre aparece na barra, mesmo que a condição dela não passe:
-  // quem chegou por link direto precisa entender onde está.
-  const visiveis = TELAS.filter((t) => t.id === tela || !t.flag || Boolean(resumo?.[t.flag]));
+  const { tela } = Route.useSearch();
+  const def = TELAS[tela];
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      {/* A área (Planning People) já sobe no eyebrow; o título é o item do menu
-          que abriu a tela, que aqui é a visão escolhida em `?tela=`. */}
-      <PageHeader
-        titulo={TELAS.find((t) => t.id === tela)?.rotulo ?? "Planning People"}
-        descricao="As pessoas das unidades. Cada unidade enxerga só a sua, e dentro dela vale a hierarquia."
-      />
-
-      <Tabs
-        value={tela}
-        onValueChange={(v) => navegar({ search: { tela: v as Tela }, replace: true })}
-      >
-        <TabsList className="flex-wrap">
-          {visiveis.map((t) => (
-            <TabsTrigger key={t.id} value={t.id}>
-              {t.rotulo}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="minha-vez" className="mt-4">
-          <VisaoMinhaVez />
-        </TabsContent>
-        <TabsContent value="meu-time" className="mt-4">
-          <VisaoMeuTime />
-        </TabsContent>
-        <TabsContent value="um-a-um" className="mt-4">
-          <GenteUmAUmTab />
-        </TabsContent>
-        <TabsContent value="lideranca" className="mt-4">
-          <GenteLiderancaTab />
-        </TabsContent>
-        <TabsContent value="feedback" className="mt-4">
-          <GenteFeedbackTab />
-        </TabsContent>
-        <TabsContent value="elogios" className="mt-4">
-          <GenteElogiosTab />
-        </TabsContent>
-        <TabsContent value="avaliacao" className="mt-4">
-          <GenteAvaliacaoTab />
-        </TabsContent>
-        <TabsContent value="pdi" className="mt-4">
-          <GentePdiTab />
-        </TabsContent>
-        <TabsContent value="cadastro" className="mt-4">
-          <GenteView />
-        </TabsContent>
-        <TabsContent value="clima" className="mt-4">
-          <GenteClimaTab />
-        </TabsContent>
-        <TabsContent value="adocao" className="mt-4">
-          <Adocao />
-        </TabsContent>
-      </Tabs>
+    <div className="space-y-6 p-4 md:p-6">
+      {/* A área (Planning People) sobe no eyebrow com o nome do item do menu;
+          o <h1> é a pergunta da tela. */}
+      <PageHeader titulo={def.titulo} pergunta={def.pergunta} descricao={def.descricao()} />
+      <ConteudoDaTela tela={tela} />
     </div>
   );
+}
+
+function ConteudoDaTela({ tela }: { tela: Tela }) {
+  switch (tela) {
+    case "minha-vez":
+      return <VisaoMinhaVez />;
+    case "meu-time":
+      return <VisaoMeuTime />;
+    case "um-a-um":
+      return <GenteUmAUmTab />;
+    case "lideranca":
+      return <GenteLiderancaTab />;
+    case "feedback":
+      return <GenteFeedbackTab />;
+    case "elogios":
+      return <GenteElogiosTab />;
+    case "avaliacao":
+      return <GenteAvaliacaoTab />;
+    case "pdi":
+      return <GentePdiTab />;
+    case "cadastro":
+      return <GenteView />;
+    case "clima":
+      return <GenteClimaTab />;
+    case "adocao":
+      return <Adocao />;
+  }
 }

@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
 import {
   listLideranca,
   segundaDaSemana,
@@ -13,8 +15,18 @@ import { GenteUmAUmTab } from "@/components/gente/gente-conversas-tab";
 import { GenteLiderancaTab } from "@/components/gente/gente-lideranca-tab";
 import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
+import { ErroDaFonte, SemCadastroNaRede } from "@/components/gente/estados-gente";
+import type { Tela } from "@/routes/_authenticated/gente";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Carregando,
+  EstadoVazio,
+  Procedencia,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
 import {
   Table,
   TableBody,
@@ -24,52 +36,93 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// As quatro visões do Planning People.
+// As duas visões de rotina do Planning People ("Minha vez" e "Meu time") e a
+// tabela de adoção.
 //
 // Até 22/09/2026 a tela era organizada por MÓDULO (Cadastro, 1:1, Liderança,
 // Feedback, Elogios, Avaliação, PDI, Clima), que é o desenho do Qulture. O
 // efeito prático: um colaborador abria oito abas e seis não eram para ele.
-//
-// Agora a organização é por QUEM VOCÊ É. O mesmo módulo aparece em visões
-// diferentes com recortes diferentes: pulso de sentimento é formulário em
-// "Minha vez" e tabela em "Meu time"; avaliação é fila em "Minha vez" e
-// calibração em "Administração".
+// As duas visões de rotina são o que sobrou da organização por QUEM VOCÊ É: o
+// mesmo módulo aparece com recortes diferentes (pulso é formulário em "Minha
+// vez" e tabela em "Meu time").
 //
 // Nenhuma visão inventa permissão: quem recorta linha continua sendo a RLS, e
 // aqui só se decide o que faz sentido mostrar.
 
 // ---------------------------------------------------------------- pendências
 
-type Pendencia = { texto: string; grave?: boolean };
+type Pendencia = { texto: string; tom: TomStatus; rotulo: string; para?: Tela };
 
-function Pendencias({ itens, vazio }: { itens: Pendencia[]; vazio: string }) {
-  if (!itens.length) {
-    return (
-      <Card className="flex items-center gap-3 p-4">
-        <CheckCircle2 className="h-5 w-5 shrink-0 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">{vazio}</span>
-      </Card>
-    );
-  }
+/** `nome` entra na frase do erro ("Não foi possível ler {nome}"); `curto`, na procedência. */
+type Fonte = { nome: string; curto: string; q: UseQueryResult<unknown> };
+
+/**
+ * "O que espera por você". Separa os quatro estados (contrato gente.md): enquanto
+ * qualquer fonte carrega, esqueleto (antes dizia "Nada pendente" durante a
+ * carga); fonte que falhou aparece com o nome e "Tentar de novo"; "em dia" só
+ * quando todas as fontes responderam.
+ */
+function Pendencias({
+  itens,
+  fontes,
+  emDia,
+}: {
+  itens: Pendencia[];
+  fontes: Fonte[];
+  emDia: string;
+}) {
+  const carregando = fontes.some((f) => f.q.isLoading);
+  const falhas = fontes.filter((f) => f.q.isError);
+  const atualizadoEm = Math.min(
+    ...fontes.map((f) => f.q.dataUpdatedAt).filter((t) => t > 0),
+  );
+
   return (
-    <Card className="space-y-2 p-4">
-      <div className="flex items-center gap-2">
-        <AlertCircle className="h-4 w-4 text-primary-text" />
-        <h3 className="font-semibold">
-          O que espera por você
-          <Badge variant="secondary" className="ml-2">
-            {itens.length}
-          </Badge>
-        </h3>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {itens.map((item, i) => (
-          <li key={i} className={item.grave ? "text-destructive" : "text-muted-foreground"}>
-            {item.texto}
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <Secao
+      titulo="O que espera por você"
+      descricao="Cada item leva à tela onde se resolve."
+    >
+      {carregando ? (
+        <Carregando variante="tabela" linhas={3} />
+      ) : (
+        <>
+          {falhas.map((f) => (
+            <ErroDaFonte key={f.nome} fonte={f.nome} erro={f.q.error} tentar={() => f.q.refetch()} />
+          ))}
+          {itens.length > 0 ? (
+            <Card className="divide-y p-0">
+              {itens.map((item, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                  <StatusBadge tom={item.tom}>{item.rotulo}</StatusBadge>
+                  <span className="min-w-0 flex-1 text-foreground">{item.texto}</span>
+                  {item.para && (
+                    <Link
+                      to="/gente"
+                      search={{ tela: item.para }}
+                      className="inline-flex items-center gap-1 rounded-md text-sm font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      Abrir
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </Card>
+          ) : falhas.length === 0 ? (
+            <Card className="flex items-center gap-3 p-4 text-sm">
+              <StatusBadge tom="sucesso">Em dia</StatusBadge>
+              <span className="text-muted-foreground">{emDia}</span>
+            </Card>
+          ) : null}
+          {Number.isFinite(atualizadoEm) && (
+            <Procedencia
+              fonte={`Planning People: ${fontes.map((f) => f.curto).join(", ")}`}
+              atualizadoEm={new Date(atualizadoEm)}
+            />
+          )}
+        </>
+      )}
+    </Secao>
   );
 }
 
@@ -88,13 +141,17 @@ function useDados() {
     queryFn: () => fnAvaliacao({}),
   });
   const pdi = useQuery<PdiResult>({ queryKey: ["gente-pdi"], queryFn: () => fnPdi({}) });
-  return { lideranca: lideranca.data, avaliacao: avaliacao.data, pdi: pdi.data };
+  return { lideranca, avaliacao, pdi };
 }
 
-function Explicacao({ children }: { children: React.ReactNode }) {
+const FONTE_LIDERANCA = "o pulso e as prioridades";
+const FONTE_AVALIACAO = "as avaliações";
+const FONTE_PDI = "os PDIs";
+
+function Explicacao({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-start gap-2 text-sm text-muted-foreground">
-      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
       <p>{children}</p>
     </div>
   );
@@ -103,35 +160,63 @@ function Explicacao({ children }: { children: React.ReactNode }) {
 // ------------------------------------------------------------------ Minha vez
 
 export function VisaoMinhaVez() {
-  const { lideranca, avaliacao, pdi } = useDados();
+  const q = useDados();
+  const lideranca = q.lideranca.data;
+  const avaliacao = q.avaliacao.data;
+  const pdi = q.pdi.data;
   const semana = segundaDaSemana();
 
   const itens: Pendencia[] = [];
   if (lideranca?.minhaPessoaId) {
     if (!lideranca.meusSentimentos.some((s) => s.periodoEm === semana))
-      itens.push({ texto: "Você ainda não disse como foi sua semana." });
+      itens.push({
+        texto: "Você ainda não disse como foi sua semana.",
+        tom: "atencao",
+        rotulo: "Pulso",
+        para: "lideranca",
+      });
     const prio = lideranca.minhasPrioridades.find((p) => p.periodoEm === semana);
     if (!prio || prio.prioridades.length === 0)
-      itens.push({ texto: "Suas prioridades da semana estão em branco." });
+      itens.push({
+        texto: "Suas prioridades da semana estão em branco.",
+        tom: "atencao",
+        rotulo: "Prioridades",
+        para: "lideranca",
+      });
   }
   if (avaliacao?.fila.length)
     itens.push({
       texto: `${avaliacao.fila.length} avaliação(ões) esperando sua resposta.`,
-      grave: true,
+      tom: "perigo",
+      rotulo: "Avaliação",
+      para: "avaliacao",
     });
   const meuAtraso = (pdi?.planos ?? [])
     .filter((p) => p.souEu)
     .flatMap((p) => p.metas.flatMap((m) => m.acoes))
     .filter((a) => a.atrasada).length;
   if (meuAtraso > 0)
-    itens.push({ texto: `${meuAtraso} ação(ões) do seu PDI passaram do prazo.`, grave: true });
+    itens.push({
+      texto: `${meuAtraso} ação(ões) do seu PDI passaram do prazo.`,
+      tom: "perigo",
+      rotulo: "Atrasado",
+      para: "pdi",
+    });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* A fila do dia, e só. 1:1, feedback e elogios têm item próprio no
           menu desde 22/09/2026 e não se repetem aqui: "Minha vez" é o que
           espera por mim, não um índice de tudo. */}
-      <Pendencias itens={itens} vazio="Nada pendente para você agora." />
+      <Pendencias
+        itens={itens}
+        emDia="Nada pendente para você agora."
+        fontes={[
+          { nome: FONTE_LIDERANCA, curto: "pulso e prioridades", q: q.lideranca },
+          { nome: FONTE_AVALIACAO, curto: "avaliações", q: q.avaliacao },
+          { nome: FONTE_PDI, curto: "PDI", q: q.pdi },
+        ]}
+      />
       <GenteLiderancaTab escopo="eu" />
       <GenteAvaliacaoTab escopo="eu" />
       <GentePdiTab escopo="eu" />
@@ -142,41 +227,93 @@ export function VisaoMinhaVez() {
 // -------------------------------------------------------------------- Meu time
 
 export function VisaoMeuTime() {
-  const { lideranca, pdi } = useDados();
+  const q = useDados();
+  const lideranca = q.lideranca.data;
+  const pdi = q.pdi.data;
 
-  const atrasados = (lideranca?.cadencias ?? []).filter((c) => c.atrasado).length;
-  const semCadencia = (lideranca?.meuTime ?? []).filter(
-    (p) => !(lideranca?.cadencias ?? []).some((c) => c.lideradoId === p.id),
-  ).length;
-  const semanaAtual = segundaDaSemana();
-  const responderam = new Set(
-    (lideranca?.sentimentosDoTime ?? [])
-      .filter((s) => s.periodoEm === semanaAtual)
-      .map((s) => s.pessoaId),
-  );
-  const semPulso = (lideranca?.meuTime ?? []).filter((p) => !responderam.has(p.id)).length;
-  const pdiSemMeta = (pdi?.planos ?? []).filter((p) => !p.souEu && p.metas.length === 0).length;
-
-  const itens: Pendencia[] = [];
-  if (atrasados) itens.push({ texto: `${atrasados} 1:1 atrasado(s).`, grave: true });
-  if (semCadencia)
-    itens.push({ texto: `${semCadencia} pessoa(s) do time sem cadência de 1:1 combinada.` });
-  if (semPulso)
-    itens.push({ texto: `${semPulso} pessoa(s) não responderam o pulso desta semana.` });
-  if (pdiSemMeta) itens.push({ texto: `${pdiSemMeta} PDI(s) do time sem nenhuma meta escrita.` });
-
-  if (!lideranca?.meuTime.length) {
+  // O time vem do pulso (`listLideranca`): sem ele não há como dizer se a pessoa
+  // lidera alguém. Carregando e erro não viram "Você não lidera ninguém".
+  if (q.lideranca.isLoading) return <Carregando variante="tabela" linhas={4} />;
+  if (q.lideranca.isError) {
     return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        Você não lidera ninguém no cadastro da rede. Se isso estiver errado, o campo que define time
-        é o gestor de cada pessoa, no cadastro.
-      </Card>
+      <ErroDaFonte
+        fonte="o seu time (cadastro, pulso e cadências)"
+        erro={q.lideranca.error}
+        tentar={() => q.lideranca.refetch()}
+      />
+    );
+  }
+  if (!lideranca?.minhaPessoaId) return <SemCadastroNaRede oQueDepende="Meu time" />;
+  if (!lideranca.meuTime.length) {
+    return (
+      <EstadoVazio
+        titulo="Você não lidera ninguém no cadastro da rede"
+        descricao="Quem define o time é o campo gestor de cada pessoa, no Cadastro. Se isso estiver errado, é lá que se corrige."
+        acao={
+          <Link
+            to="/gente"
+            search={{ tela: "cadastro" }}
+            className="inline-flex items-center gap-1 rounded-md text-sm font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Abrir Cadastro
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        }
+      />
     );
   }
 
+  const atrasados = lideranca.cadencias.filter((c) => c.atrasado).length;
+  const semCadencia = lideranca.meuTime.filter(
+    (p) => !lideranca.cadencias.some((c) => c.lideradoId === p.id),
+  ).length;
+  const semanaAtual = segundaDaSemana();
+  const responderam = new Set(
+    lideranca.sentimentosDoTime.filter((s) => s.periodoEm === semanaAtual).map((s) => s.pessoaId),
+  );
+  const semPulso = lideranca.meuTime.filter((p) => !responderam.has(p.id)).length;
+  const pdiSemMeta = (pdi?.planos ?? []).filter((p) => !p.souEu && p.metas.length === 0).length;
+
+  const itens: Pendencia[] = [];
+  if (atrasados)
+    itens.push({
+      texto: `${atrasados} 1:1 atrasado(s).`,
+      tom: "perigo",
+      rotulo: "Atrasado",
+      para: "um-a-um",
+    });
+  if (semCadencia)
+    itens.push({
+      texto: `${semCadencia} pessoa(s) do time sem cadência de 1:1 combinada.`,
+      tom: "atencao",
+      rotulo: "Sem cadência",
+      para: "lideranca",
+    });
+  if (semPulso)
+    itens.push({
+      texto: `${semPulso} pessoa(s) não responderam o pulso desta semana.`,
+      tom: "atencao",
+      rotulo: "Pulso",
+      para: "lideranca",
+    });
+  if (pdiSemMeta)
+    itens.push({
+      texto: `${pdiSemMeta} PDI(s) do time sem nenhuma meta escrita.`,
+      tom: "atencao",
+      rotulo: "PDI sem meta",
+      para: "pdi",
+    });
+
   return (
-    <div className="space-y-4">
-      <Pendencias itens={itens} vazio="Seu time está em dia." />
+    <div className="space-y-6">
+      <Pendencias
+        itens={itens}
+        emDia="Seu time está em dia."
+        fontes={[
+          { nome: FONTE_LIDERANCA, curto: "pulso e prioridades", q: q.lideranca },
+          { nome: FONTE_PDI, curto: "PDI", q: q.pdi },
+        ]}
+      />
       <Explicacao>
         Você enxerga o time que lidera, em qualquer profundidade. Sócio-diretor da unidade não
         aparece aqui por ser dono dela: unidade é o teto, hierarquia é a régua dentro dele.

@@ -14,6 +14,7 @@ import {
   type SentimentoRow,
 } from "@/lib/gente-lideranca.functions";
 import { Card } from "@/components/ui/card";
+import { AvisoCorte } from "@/components/gente/estados-gente";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -349,6 +350,9 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               ))}
             </TableBody>
           </Table>
+          <div className="mt-3">
+            <AvisoCorte mostrando={40} total={timeSentimento.length} oQue="respostas de pulso" />
+          </div>
         </Card>
       )}
 
@@ -373,6 +377,9 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               ))}
             </TableBody>
           </Table>
+          <div className="mt-3">
+            <AvisoCorte mostrando={40} total={data.prioridadesDoTime.length} oQue="registros de prioridades" />
+          </div>
         </Card>
       )}
     </div>
