@@ -2810,3 +2810,15 @@ Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
 qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
 inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
 tem `todas_unidades` lê tudo.
+
+## [2026-09-24] Administração no DS v2: quatro decisões da aplicação
+
+**Contexto:** migração das telas de Administração, `/inicio` e rotas órfãs para o Design System v2 (contrato `docs/design/contratos/administracao.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Quatro escolhas não óbvias saíram da aplicação.
+
+**Decisão:**
+1. **Excluir perfil em uso fica desabilitado, não confirmado.** O contrato pedia um aviso de "N pessoas perdem as áreas", mas `deleteRole` já recusa excluir perfil que alguém usa: a perda nunca acontece. O botão diz o motivo; sem ninguém no perfil, o `AlertDialog` diz que ninguém perde acesso.
+2. **Asaas em produção confirma desde a primeira gravação.** Sem valor salvo, o ambiente é o sandbox; gravar "produção" torna as cobranças reais, então pede confirmação mesmo na primeira vez. Remover o Ambiente diz "volta ao sandbox", porque é o que `testarAsaas` faz sem a chave.
+3. **`/inicio`: um produto interno só vai para a primeira tela acessível** (`primeiraTelaAcessivel`, a mesma regra de `index.tsx`), não sempre para `/rede-overview` ou `/painel-unidade`. Quem só tem Growth fica no `/inicio` com um card (antes caía no Overview da Rede sem acesso). Card de produto cuja consulta falha aparece como "indisponível" e suspende o redirecionamento: sem saber se a pessoa tem um produto só, a tela não decide por ela.
+4. **`/pagamentos-unidades` passa a se chamar "Títulos por vencimento"**: a tela soma títulos a receber pelo vencimento, pagos ou não; "Pagamentos" dizia outra coisa. A rota e o fato de estar fora do menu (desde 14/09) não mudam; o cabeçalho avisa e aponta para Receita e Repasses.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-admin-20260924` (sem push). Revisão do Eliezek no PR.

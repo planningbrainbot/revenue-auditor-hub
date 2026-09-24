@@ -13,7 +13,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Um arquivo, uma seção por
 |---|---|---|
 | `/admin/usuarios` | Quem acessa o Brain, com qual papel? | Excluir usuário e revogar o Growth: `AlertDialog`; excluir dá `toast`; trocar papel diz quais áreas a pessoa passa a ver/deixa de ver (já calculado para permissões); erro da lista → `EstadoErro`; `return null` para não admin → `EstadoSemAcesso` |
 | `/admin/niveis` | Que nível cada pessoa tem em cada área? | Vazio por busca; "ficou sem área" aparece **antes** de salvar; revogar a porta do Ops: `AlertDialog` |
-| `/admin/perfis` | Quais perfis existem, e quem está em cada um? | Excluir perfil: `AlertDialog` com "{n} pessoas perdem as áreas deste perfil" (o número já existe); `violet` → `StatusBadge neutro`; texto que cita o botão "Acessos" (removido) sai; erro da lista |
+| `/admin/perfis` | Quais perfis existem, e quem está em cada um? | **Revisto na aplicação (24/09):** o servidor (`deleteRole`) já recusa excluir perfil em uso, então ninguém perde área ao excluir. Excluir fica desabilitado com o motivo "N pessoas têm este perfil; troque o perfil delas antes" e, sem ninguém, o `AlertDialog` diz que ninguém perde acesso e que a configuração de áreas do perfil some junto. `violet` → `StatusBadge neutro`; texto que cita o botão "Acessos" (removido) aponta para Níveis de acesso; erro da lista. Fora: abrir a lista de quem tem o perfil (Usuários não filtra por perfil). |
 | `/admin/permissoes` | Quem vê o quê, em cada área? | Já é a referência; só a moldura |
 | `/admin/acessos-financeiro` | Quem acessa o Financeiro, e de quais empresas? | Revogar: `AlertDialog`; retorno em `toast` além do aviso |
 | `/admin/credenciais` | Quais chaves de integração estão cadastradas? | **Remover chave (inclusive a do Asaas) e sobrescrever: `AlertDialog`** com "a integração para até uma chave nova ser salva" |
@@ -30,6 +30,10 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Um arquivo, uma seção por
 ## Rotas órfãs (fora do menu desde 14/09; `PRODUCT.md` 5.11, decisão do Eliezek)
 - `/financeiro-partners` e `/pagamentos-unidades` ficam vivas e ganham só: `PageHeader` com a pergunta, aviso "tela fora do menu desde 14/09/2026" na `descricao` (N14), `AlertDialog` e `toast` em "validar pagamento", "Grand Total" → "Total", `tone="emerald/amber"` → tons do DS. "Pagamentos" de `/pagamentos-unidades` soma títulos pelo vencimento, pagos ou não: título "Títulos por vencimento".
 - Aposentar ou dar dono de menu: decisão do Eliezek.
+
+## O que não entra, e para onde manda
+- Não entram: regra de concessão, portão por chave, trilha de auditoria de acessos em `/atividade`, ícone `Plug` (é `areas.ts`), modais feitos à mão (diálogo de acessos, escopo, senha e Growth em Usuários) — próxima rodada.
+- Para onde manda: Perfis → Permissões e Níveis; Permissões → Usuários; Usuários → Acessos do Financeiro; órfãs → Receita e Repasses › Visão geral.
 
 ## Achados para o Eliezek (não mexidos)
 - O portão do layout confere só a área, nunca a `chave` do item; rotas órfãs não passam por portão nenhum.
