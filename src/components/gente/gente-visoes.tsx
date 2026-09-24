@@ -16,11 +16,12 @@ import { GenteLiderancaTab } from "@/components/gente/gente-lideranca-tab";
 import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
 import { ErroDaFonte, SemCadastroNaRede } from "@/components/gente/estados-gente";
+import { usePermissions } from "@/hooks/use-permissions";
 import type { Tela } from "@/routes/_authenticated/gente";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Carregando,
+  EstadoSemAcesso,
   EstadoVazio,
   Procedencia,
   Secao,
@@ -332,75 +333,113 @@ export function VisaoMeuTime() {
 
 // A tabela de quem implanta. Tudo agregado, sem nome dentro, porque quem
 // implanta precisa saber onde a ferramenta pegou e não quem respondeu o quê.
+//
+// Estados (contrato gente.md): a view já tem o gate dentro (`view.gente.agregado`
+// + escopo de unidade) e devolve zero linhas para quem não tem a chave. Por isso
+// a lista vazia se lê pela chave: sem ela é "sem acesso"; com ela, base vazia.
+// "Com login = 0" é número, não selo vermelho fixo (N9).
 export function Adocao() {
   const fn = useServerFn(listAdocao);
-  const { data } = useQuery<AdocaoRow[]>({ queryKey: ["gente-adocao"], queryFn: () => fn({}) });
-  if (!data?.length) return null;
+  const q = useQuery<AdocaoRow[]>({ queryKey: ["gente-adocao"], queryFn: () => fn({}) });
+  const perms = usePermissions();
+
+  if (q.isLoading) return <Carregando variante="tabela" />;
+  if (q.isError) {
+    return (
+      <ErroDaFonte fonte="a adoção por unidade" erro={q.error} tentar={() => q.refetch()} />
+    );
+  }
+  const linhas = q.data ?? [];
+  if (!linhas.length) {
+    if (perms.loading) return <Carregando variante="tabela" />;
+    if (!perms.can("view.gente.agregado")) {
+      return <EstadoSemAcesso oQueFalta="view.gente.agregado" />;
+    }
+    return (
+      <EstadoVazio
+        titulo="Nenhuma unidade com cadastro no People ainda"
+        descricao="A adoção aparece por unidade assim que a unidade tiver pessoas no Cadastro."
+      />
+    );
+  }
 
   const pct = (parte: number, todo: number) =>
     todo === 0 ? "—" : `${Math.round((parte / todo) * 100)}%`;
 
   return (
-    <Card className="p-4">
-      <h3 className="mb-1 font-semibold">Adoção por unidade</h3>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Onde a ferramenta pegou e onde não saiu do chão. Números agregados, sem nome: quem implanta
-        não precisa saber quem respondeu o quê.
-      </p>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Unidade</TableHead>
-              <TableHead className="text-right">Pessoas</TableHead>
-              <TableHead className="text-right">Com login</TableHead>
-              <TableHead className="text-right">Pulso na semana</TableHead>
-              <TableHead className="text-right">Pulso em 30 dias</TableHead>
-              <TableHead className="text-right">Prioridades</TableHead>
-              <TableHead className="text-right">1:1 em 90 dias</TableHead>
-              <TableHead className="text-right">PDI com meta</TableHead>
-              <TableHead className="text-right">Em ciclo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((linha) => (
-              <TableRow key={linha.unidadeId}>
-                <TableCell className="font-medium">{linha.unidade}</TableCell>
-                <TableCell className="text-right tabular-nums">{linha.pessoas}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {linha.comLogin === 0 ? <Badge variant="destructive">0</Badge> : linha.comLogin}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {linha.pulsoNaSemana}{" "}
-                  <span className="text-muted-foreground">
-                    ({pct(linha.pulsoNaSemana, linha.pessoas)})
-                  </span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {linha.pulsoEm30Dias}{" "}
-                  <span className="text-muted-foreground">
-                    ({pct(linha.pulsoEm30Dias, linha.pessoas)})
-                  </span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {linha.prioridadesNaSemana}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{linha.com1a1Em90Dias}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {linha.comPdiComMeta}{" "}
-                  <span className="text-muted-foreground">de {linha.comPdi}</span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{linha.avaliadosEmCiclo}</TableCell>
+    <div className="space-y-6">
+      <Secao
+        titulo="Onde a ferramenta pegou, e onde não saiu do chão?"
+        descricao={
+          <>
+            <span className="num">{linhas.length}</span> unidade(s). Números agregados, sem nome:
+            quem implanta não precisa saber quem respondeu o quê. Porcentagens sobre as pessoas da
+            unidade.
+          </>
+        }
+      >
+        <Card className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Unidade</TableHead>
+                <TableHead className="text-right">Pessoas</TableHead>
+                <TableHead className="text-right">Com login</TableHead>
+                <TableHead className="text-right">Pulso na semana</TableHead>
+                <TableHead className="text-right">Pulso em 30 dias</TableHead>
+                <TableHead className="text-right">Prioridades</TableHead>
+                <TableHead className="text-right">1:1 em 90 dias</TableHead>
+                <TableHead className="text-right">PDI com meta</TableHead>
+                <TableHead className="text-right">Em ciclo</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Coluna &quot;Com login&quot; é o gargalo conhecido: sem conta no Ops a pessoa não responde
-        nada, por mais que a unidade esteja cadastrada.
-      </p>
-    </Card>
+            </TableHeader>
+            <TableBody>
+              {linhas.map((linha) => (
+                <TableRow key={linha.unidadeId}>
+                  <TableCell className="font-medium">{linha.unidade}</TableCell>
+                  <TableCell className="num text-right">{linha.pessoas}</TableCell>
+                  <TableCell className="num text-right">
+                    {linha.comLogin}{" "}
+                    <span className="text-muted-foreground">
+                      ({pct(linha.comLogin, linha.pessoas)})
+                    </span>
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {linha.pulsoNaSemana}{" "}
+                    <span className="text-muted-foreground">
+                      ({pct(linha.pulsoNaSemana, linha.pessoas)})
+                    </span>
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {linha.pulsoEm30Dias}{" "}
+                    <span className="text-muted-foreground">
+                      ({pct(linha.pulsoEm30Dias, linha.pessoas)})
+                    </span>
+                  </TableCell>
+                  <TableCell className="num text-right">{linha.prioridadesNaSemana}</TableCell>
+                  <TableCell className="num text-right">{linha.com1a1Em90Dias}</TableCell>
+                  <TableCell className="num text-right">
+                    {linha.comPdiComMeta}{" "}
+                    <span className="text-muted-foreground">de {linha.comPdi}</span>
+                  </TableCell>
+                  <TableCell className="num text-right">{linha.avaliadosEmCiclo}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+        <p className="text-[13px] text-muted-foreground">
+          &quot;Com login&quot; é o gargalo conhecido: sem conta no Ops a pessoa não responde nada,
+          por mais que a unidade esteja cadastrada.
+        </p>
+      </Secao>
+
+      <Procedencia
+        fonte="Planning People: adoção por unidade (agregado, sem nome)"
+        atualizadoEm={q.dataUpdatedAt ? new Date(q.dataUpdatedAt) : null}
+        regua="porcentagem sobre as pessoas da unidade; janelas como no nome de cada coluna"
+      />
+    </div>
   );
 }
 
