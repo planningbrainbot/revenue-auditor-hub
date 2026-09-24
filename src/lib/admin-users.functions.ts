@@ -248,6 +248,9 @@ export const adminCreateUser = createServerFn({ method: "POST" })
       );
     if (portaErr) console.error("[adminCreateUser] produto_acesso upsert failed:", portaErr);
 
+    const { vincularCadastroDeGente } = await import("@/lib/gente-vinculo.server");
+    await vincularCadastroDeGente(supabaseAdmin, userId, data.email);
+
     // Para sócio (qualquer tipo), vincula a unidade em public.socios
     let unidade: string | null = null;
     if (data.role === "socio" || data.role === "socio_regional") {

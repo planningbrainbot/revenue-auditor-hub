@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
+import { gerarLinkDefinirSenha } from "@/lib/admin-users.functions";
+import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
+import { emailBoasVindas } from "@/lib/email-templates";
 
 // Cadastro de gente da rede. As 215 primeiras linhas vieram do export do
 // Qulture (migration 53 + tools/importar_qulture_gente.py no repo do wiki).
@@ -90,8 +93,7 @@ type UnidadeDB = {
 export const listGente = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<GenteResult> => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = context.supabase as any;
+    const supabase = context.supabase as Cliente;
 
     // Resolve pelo mesmo helper que `getMyPermissions` usa. Até 15/09/2026 esta
     // função lia `role_permissions` com a sua própria consulta; com a matriz
@@ -191,6 +193,217 @@ export const listGente = createServerFn({ method: "GET" })
     };
   });
 
+// ---------------------------------------------------------------------------
+// Cadastro e acesso
+// ---------------------------------------------------------------------------
+
+/**
+ * O que a pessoa recebe no Brain quando entra pelo Planning People.
+ * - `colaborador`: a rotina dela. As policies dessas chaves já recortam em
+ *   "eu e quem eu lidero", então o gestor enxerga o time sem chave a mais.
+ * - `gestao`: quem implanta o módulo na unidade (RH, sócio). Vira
+ *   administradora da área `people` no nível "sócio" (`area_admins`), presa à
+ *   unidade: tem a área inteira e pode convidar gente para ela em /equipe.
+ *   Não dá para ir por chave avulsa: por usuário só vale `view.*` e a exceção
+ *   `edit.gente.conversas` (migration 20260924210000, decisão de 24/09/2026).
+ * Clima fica fora do colaborador de propósito: ele responde pelo link do
+ * e-mail, e `view.gente.clima` mostra quem da unidade foi convidado.
+ */
+export type PerfilGente = "colaborador" | "gestao";
+
+const CHAVES_COLABORADOR = [
+  "view.gente",
+  "view.gente.um_a_um",
+  "view.gente.feedback",
+  "view.gente.elogios",
+  "view.gente.lideranca",
+  "view.gente.pdi",
+  "view.gente.avaliacao",
+  "edit.gente.conversas",
+];
+
+const PERFIS: PerfilGente[] = ["colaborador", "gestao"];
+const ROTULO_PERFIL: Record<PerfilGente, string> = {
+  colaborador: "Planning People",
+  gestao: "Planning People, gestão de gente da unidade",
+};
+
+export interface AcessoResult {
+  /** `criado`: conta nova com convite. `vinculado`: já tinha login, só ligou. */
+  situacao: "criado" | "vinculado" | "sem_acesso";
+  emailEnviado: boolean;
+  /** Só quando o e-mail não saiu, para repassar na mão. */
+  link: string | null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Cliente = any;
+
+/**
+ * Cadastro de gente vira pessoa no Brain. Antes de 24/09/2026 eram três passos
+ * soltos (cadastro, login, escopo) e qualquer um esquecido travava a pessoa.
+ *
+ * A AUTORIDADE sai do próprio usuário: a pessoa tem que estar visível para ele
+ * e o vínculo final (`update user_id`) roda com o cliente dele, então a RLS de
+ * `gente_pessoas` (manage.gente + unidade) decide. O service role só entra
+ * para o que o usuário comum não alcança: criar a conta e gravar a concessão.
+ * `acesso_adicionar_na_area` não serve aqui porque exige nível 2 na área, e o
+ * sócio regional tem nível 1 (a área vem do papel, não de delegação).
+ *
+ * Conta que já existe NÃO ganha nada além do vínculo: pode ser de outra
+ * unidade, de admin, ou um pedido de acesso pendente em /equipe.
+ */
+async function darAcesso(
+  db: Cliente,
+  ator: string,
+  chavesDoAtor: string[],
+  pessoaId: number,
+  perfil: PerfilGente,
+): Promise<AcessoResult> {
+  const { data: pessoa, error } = await db
+    .from("gente_pessoas")
+    .select("id,nome_completo,email,unidade_id,user_id")
+    .eq("id", pessoaId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!pessoa) throw new Error("Pessoa não encontrada no seu cadastro.");
+  if (pessoa.user_id) return { situacao: "vinculado", emailEnviado: false, link: null };
+  if (!pessoa.email) throw new Error("Cadastre o e-mail da pessoa antes de dar acesso.");
+  if (!pessoa.unidade_id) throw new Error("Defina a unidade da pessoa antes de dar acesso.");
+  if (!chavesDoAtor.includes("manage.gente")) {
+    throw new Error("Só quem gere o cadastro de gente pode dar acesso.");
+  }
+
+  const email = String(pessoa.email).trim().toLowerCase();
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const adm = supabaseAdmin as Cliente;
+
+  const ligar = async (userId: string) => {
+    const { data: ok, error: e } = await db
+      .from("gente_pessoas")
+      .update({ user_id: userId })
+      .eq("id", pessoa.id)
+      .is("user_id", null)
+      .select("id");
+    if (e || !ok?.length) {
+      throw new Error(e?.message ?? "Sem permissão para alterar esta pessoa.");
+    }
+  };
+
+  const { data: existente } = await adm
+    .from("profiles")
+    .select("user_id")
+    .ilike("email", email)
+    .maybeSingle();
+  if (existente?.user_id) {
+    await ligar(existente.user_id);
+    return { situacao: "vinculado", emailEnviado: false, link: null };
+  }
+
+  // Nunca concede o que o ator não tem.
+  const chaves =
+    perfil === "gestao" ? [] : CHAVES_COLABORADOR.filter((k) => chavesDoAtor.includes(k));
+
+  const { data: criado, error: eCriar } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    user_metadata: { nome: pessoa.nome_completo },
+  });
+  if (eCriar || !criado?.user) {
+    console.error("[gente.darAcesso] createUser falhou:", eCriar);
+    throw new Error("Não foi possível criar o login. Confira o e-mail.");
+  }
+  const userId = criado.user.id;
+
+  try {
+    // Primeiro o vínculo, que é a prova de autoridade: se a RLS recusar, a
+    // conta recém-criada é apagada e nada foi concedido.
+    await ligar(userId);
+
+    const passos = await Promise.all([
+      adm
+        .from("profiles")
+        .upsert({ user_id: userId, nome: pessoa.nome_completo, email }, { onConflict: "user_id" }),
+      adm
+        .schema("public")
+        .from("produto_acesso")
+        .upsert(
+          { user_id: userId, produto: "ops", concedido_por: ator },
+          { onConflict: "user_id,produto", ignoreDuplicates: true },
+        ),
+      adm
+        .from("usuario_escopo")
+        .upsert(
+          { user_id: userId, todas_unidades: false, todas_empresas: false },
+          { onConflict: "user_id", ignoreDuplicates: true },
+        ),
+      adm
+        .from("usuario_unidades")
+        .upsert(
+          { user_id: userId, unidade_id: pessoa.unidade_id },
+          { onConflict: "user_id,unidade_id", ignoreDuplicates: true },
+        ),
+      ...(perfil === "gestao"
+        ? [
+            adm
+              .from("area_admins")
+              .upsert(
+                { user_id: userId, area: "people", nivel: "socio", concedido_por: ator },
+                { onConflict: "user_id,area" },
+              ),
+          ]
+        : [
+            adm
+              .from("usuario_areas")
+              .upsert(
+                { user_id: userId, area: "people", allowed: true, concedido_por: ator },
+                { onConflict: "user_id,area" },
+              ),
+            adm.from("usuario_chaves").upsert(
+              chaves.map((k) => ({
+                user_id: userId,
+                permission_key: k,
+                allowed: true,
+                concedido_por: ator,
+              })),
+              { onConflict: "user_id,permission_key" },
+            ),
+          ]),
+    ]);
+    const falha = passos.find((r: { error?: { message: string } | null }) => r?.error);
+    if (falha) throw new Error(falha.error.message);
+  } catch (e) {
+    await db.from("gente_pessoas").update({ user_id: null }).eq("id", pessoa.id);
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+    throw e;
+  }
+
+  await adm.from("acessos_log").insert({
+    ator,
+    alvo: userId,
+    acao: "gente_dar_acesso",
+    area: "people",
+    detalhe: { pessoa_id: pessoa.id, unidade_id: pessoa.unidade_id, perfil, chaves },
+  });
+
+  let emailEnviado = false;
+  let link: string | null = null;
+  try {
+    link = await gerarLinkDefinirSenha(email);
+    const msg = emailBoasVindas({
+      nome: pessoa.nome_completo,
+      email,
+      link,
+      papel: ROTULO_PERFIL[perfil],
+    });
+    const envio = await enviarEmail({ to: email, ...msg });
+    emailEnviado = envio.enviado;
+  } catch (err) {
+    console.error("[gente.darAcesso] convite falhou:", err);
+  }
+  return { situacao: "criado", emailEnviado, link: emailEnviado ? null : link };
+}
+
 export interface NovaPessoaInput {
   nomeCompleto: string;
   email: string;
@@ -200,6 +413,8 @@ export interface NovaPessoaInput {
   tipoVinculo?: string;
   dataAdmissao?: string;
   gestorId?: number | null;
+  /** `null` cadastra sem login (quem não vai usar o Brain). */
+  acesso: PerfilGente | null;
 }
 
 const VINCULOS = ["socio", "clt", "pj", "estagio", "prolabore", "terceiro"];
@@ -225,6 +440,8 @@ export const criarPessoa = createServerFn({ method: "POST" })
     if (dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataAdmissao)) {
       throw new Error("Data de admissão inválida.");
     }
+    const acesso = input.acesso ?? null;
+    if (acesso && !PERFIS.includes(acesso)) throw new Error("Perfil de acesso inválido.");
     return {
       nomeCompleto,
       email,
@@ -234,11 +451,11 @@ export const criarPessoa = createServerFn({ method: "POST" })
       tipoVinculo,
       dataAdmissao,
       gestorId: input.gestorId ?? null,
+      acesso,
     };
   })
   .handler(async ({ data, context }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = context.supabase as any;
+    const supabase = context.supabase as Cliente;
 
     const { data: criada, error } = await supabase
       .from("gente_pessoas")
@@ -269,28 +486,63 @@ export const criarPessoa = createServerFn({ method: "POST" })
       throw new Error(error.message);
     }
 
-    // Login e cadastro são duas identidades. Sem `user_id` a pessoa entra no
-    // Ops e 1:1 e feedback barram em silêncio (memória de 22/09/2026). Se o
-    // e-mail já tem conta, liga agora. A busca em `profiles` precisa de service
-    // role porque o usuário comum só lê a própria linha; a escrita não. Quem
-    // ganhar login depois continua precisando do vínculo à mão.
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: perfil } = await (supabaseAdmin as any)
-      .from("profiles")
-      .select("user_id")
-      .ilike("email", data.email)
-      .maybeSingle();
-
-    let vinculouLogin = false;
-    if (perfil?.user_id) {
-      const { error: e2 } = await supabase
-        .from("gente_pessoas")
-        .update({ user_id: perfil.user_id })
-        .eq("id", criada.id)
-        .is("user_id", null);
-      vinculouLogin = !e2;
+    const id = criada.id as number;
+    if (!data.acesso) {
+      // Sem login novo, mas se o e-mail já tem conta, liga do mesmo jeito.
+      const r = await darAcessoSoVinculo(supabase, id);
+      return { id, ...r, erroAcesso: null as string | null };
     }
 
-    return { id: criada.id as number, vinculouLogin };
+    // O cadastro já está gravado. Se o acesso falhar, a pessoa fica sem login
+    // e a tela oferece "Dar acesso" na linha dela; não desfaz o cadastro.
+    try {
+      const acesso = await acessoDoUsuario(supabase, context.userId);
+      const r = await darAcesso(supabase, context.userId, acesso.permissions, id, data.acesso);
+      return { id, ...r, erroAcesso: null as string | null };
+    } catch (e) {
+      return {
+        id,
+        situacao: "sem_acesso" as const,
+        emailEnviado: false,
+        link: null,
+        erroAcesso: e instanceof Error ? e.message : "Falha ao criar o acesso.",
+      };
+    }
+  });
+
+/** Liga a pessoa a uma conta que já existe com o mesmo e-mail. Não cria nada. */
+async function darAcessoSoVinculo(db: Cliente, pessoaId: number): Promise<AcessoResult> {
+  const { data: pessoa } = await db
+    .from("gente_pessoas")
+    .select("email")
+    .eq("id", pessoaId)
+    .maybeSingle();
+  if (!pessoa?.email) return { situacao: "sem_acesso", emailEnviado: false, link: null };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: perfil } = await (supabaseAdmin as Cliente)
+    .from("profiles")
+    .select("user_id")
+    .ilike("email", String(pessoa.email).trim())
+    .maybeSingle();
+  if (!perfil?.user_id) return { situacao: "sem_acesso", emailEnviado: false, link: null };
+  const { error } = await db
+    .from("gente_pessoas")
+    .update({ user_id: perfil.user_id })
+    .eq("id", pessoaId)
+    .is("user_id", null);
+  return { situacao: error ? "sem_acesso" : "vinculado", emailEnviado: false, link: null };
+}
+
+/** "Dar acesso" na linha de quem está no cadastro e ainda não tem login. */
+export const darAcessoPessoa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pessoaId: number; perfil: PerfilGente }) => {
+    if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+    if (!PERFIS.includes(input?.perfil)) throw new Error("Perfil de acesso inválido.");
+    return { pessoaId: input.pessoaId, perfil: input.perfil };
+  })
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Cliente;
+    const acesso = await acessoDoUsuario(supabase, context.userId);
+    return darAcesso(supabase, context.userId, acesso.permissions, data.pessoaId, data.perfil);
   });

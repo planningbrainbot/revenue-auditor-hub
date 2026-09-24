@@ -141,7 +141,7 @@ export const listAvaliacao = createServerFn({ method: "GET" })
           .select("ciclo_id,competencia_id,ordem,peso,topico_id"),
         supabase.from("gente_ciclo_topicos").select("id,ciclo_id,nome,ordem"),
         supabase.from("gente_ciclo_campos").select("id,ciclo_id,titulo,ordem,obrigatorio"),
-        supabase.from("gente_pessoas").select("id,nome_completo"),
+        supabase.from("gente_diretorio").select("id,nome_completo"),
       ]);
 
     type Aval = {

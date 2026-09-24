@@ -138,7 +138,7 @@ export const listLideranca = createServerFn({ method: "GET" })
         .limit(50),
       supabase.from("gente_elogio_destinatarios").select("elogio_id,pessoa_id"),
       supabase
-        .from("gente_pessoas")
+        .from("gente_diretorio")
         .select("id,nome_completo,cargo,gestor_id,status")
         .eq("status", "ativo")
         .order("nome_completo"),

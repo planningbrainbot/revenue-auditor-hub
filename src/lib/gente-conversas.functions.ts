@@ -120,14 +120,14 @@ export const listConversas = createServerFn({ method: "GET" })
       supabase.from("gente_um_a_um_nota_privada").select("um_a_um_id,texto"),
       supabase.from("v_gente_1a1_cobertura").select("*"),
       supabase
-        .from("gente_pessoas")
+        .from("gente_diretorio")
         .select("id,nome_completo,cargo")
         .eq("gestor_id", eu.id)
         .eq("status", "ativo")
         .order("nome_completo"),
       eu.unidade_id
         ? supabase
-            .from("gente_pessoas")
+            .from("gente_diretorio")
             .select("id,nome_completo,cargo")
             .eq("unidade_id", eu.unidade_id)
             .eq("status", "ativo")

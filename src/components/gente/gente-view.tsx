@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { KpiCard } from "@/components/planning";
-import { NovaPessoaDialog } from "./nova-pessoa-dialog";
+import { DarAcessoDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 
 const NA = "—";
 const TODOS = "__todos__";
@@ -315,6 +315,8 @@ export function GenteView() {
                     <TableCell>
                       {p.temLogin ? (
                         <Badge className="text-xs">tem login</Badge>
+                      ) : podeCadastrar ? (
+                        <DarAcessoDialog pessoaId={p.id} nome={p.nomeCompleto} email={p.email} />
                       ) : (
                         <span className="text-xs text-muted-foreground">sem login</span>
                       )}

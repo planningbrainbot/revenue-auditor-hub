@@ -105,7 +105,7 @@ export const listPdi = createServerFn({ method: "GET" })
       supabase.from("gente_pdi_ciclos").select("id,nome,status").order("id", { ascending: false }),
       supabase.from("gente_pdi").select("id,ciclo_id,pessoa_id"),
       supabase.from("v_gente_pdi_andamento").select("*"),
-      supabase.from("gente_pessoas").select("id,nome_completo"),
+      supabase.from("gente_diretorio").select("id,nome_completo"),
     ]);
 
     const planosBrutos = (planosRes?.data ?? []) as {

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { UserPlus } from "lucide-react";
-import { criarPessoa } from "@/lib/gente.functions";
+import { KeyRound, UserPlus } from "lucide-react";
+import { criarPessoa, darAcessoPessoa, type AcessoResult } from "@/lib/gente.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,41 @@ import {
 } from "@/components/ui/select";
 
 const SEM_GESTOR = "__sem__";
+const SEM_LOGIN = "__sem_login__";
+
+export const PERFIS_ACESSO = [
+  {
+    v: "colaborador",
+    t: "Colaborador",
+    d: "Entra no Brain só no Planning People: a rotina dela e o time que ela lidera.",
+  },
+  {
+    v: "gestao",
+    t: "Gestão de gente da unidade",
+    d: "Para quem implanta o módulo (RH, sócio): cadastra, avalia, abre clima e PDI.",
+  },
+];
+
+/** Mensagem única para o resultado do acesso, usada no cadastro e no "Dar acesso". */
+export function avisarAcesso(r: AcessoResult & { erroAcesso?: string | null }) {
+  if (r.erroAcesso) {
+    toast.warning(`Pessoa cadastrada, mas o acesso falhou: ${r.erroAcesso}`);
+  } else if (r.situacao === "vinculado") {
+    toast.success("Pronto. Ela já tinha login no Brain e foi ligada ao cadastro.");
+  } else if (r.situacao === "criado" && r.emailEnviado) {
+    toast.success("Pronto. O convite para criar a senha foi enviado por e-mail.");
+  } else if (r.situacao === "criado") {
+    toast.warning("Login criado, mas o e-mail não saiu. Copie o link e envie para a pessoa.", {
+      description: r.link ?? undefined,
+      duration: 60_000,
+      action: r.link
+        ? { label: "Copiar link", onClick: () => navigator.clipboard.writeText(r.link!) }
+        : undefined,
+    });
+  } else {
+    toast.success("Pessoa cadastrada, sem login no Brain.");
+  }
+}
 
 const VINCULOS = [
   { v: "clt", t: "CLT" },
@@ -43,6 +78,7 @@ type Vazio = {
   tipoVinculo: string;
   dataAdmissao: string;
   gestorId: string;
+  acesso: string;
 };
 
 const VAZIO: Vazio = {
@@ -53,6 +89,7 @@ const VAZIO: Vazio = {
   tipoVinculo: "clt",
   dataAdmissao: "",
   gestorId: SEM_GESTOR,
+  acesso: "colaborador",
 };
 
 export function NovaPessoaDialog({
@@ -86,14 +123,11 @@ export function NovaPessoaDialog({
           tipoVinculo: f.tipoVinculo,
           dataAdmissao: f.dataAdmissao,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
+          acesso: f.acesso === SEM_LOGIN ? null : (f.acesso as "colaborador" | "gestao"),
         },
       }),
     onSuccess: (r) => {
-      toast.success(
-        r.vinculouLogin
-          ? "Pessoa cadastrada e ligada ao login que ela já tem."
-          : "Pessoa cadastrada. Ela ainda não tem login no Brain.",
-      );
+      avisarAcesso(r);
       setF(VAZIO);
       setAberto(false);
       qc.invalidateQueries({ queryKey: ["gente"] });
@@ -116,8 +150,8 @@ export function NovaPessoaDialog({
         <DialogHeader>
           <DialogTitle>Cadastrar pessoa</DialogTitle>
           <DialogDescription>
-            Entra no cadastro da unidade. Se o e-mail já tiver login no Brain, o vínculo é feito na
-            hora.
+            Entra no cadastro da unidade e, se tiver acesso, ganha login no Brain com convite por
+            e-mail para criar a senha. Se o e-mail já tiver login, o vínculo é feito na hora.
           </DialogDescription>
         </DialogHeader>
 
@@ -235,6 +269,27 @@ export function NovaPessoaDialog({
             </Select>
           </div>
 
+          <div className="grid gap-1.5">
+            <Label htmlFor="np-acesso">Acesso ao Brain</Label>
+            <Select value={f.acesso} onValueChange={set("acesso")}>
+              <SelectTrigger id="np-acesso">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERFIS_ACESSO.map((p) => (
+                  <SelectItem key={p.v} value={p.v}>
+                    {p.t}
+                  </SelectItem>
+                ))}
+                <SelectItem value={SEM_LOGIN}>Sem login, só no cadastro</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {PERFIS_ACESSO.find((p) => p.v === f.acesso)?.d ??
+                "Fica no cadastro e nos números da unidade, sem entrar no Brain."}
+            </p>
+          </div>
+
           <DialogFooter className="mt-2">
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
@@ -244,6 +299,78 @@ export function NovaPessoaDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Para quem está no cadastro sem login: cria a conta e manda o convite. */
+export function DarAcessoDialog({
+  pessoaId,
+  nome,
+  email,
+}: {
+  pessoaId: number;
+  nome: string;
+  email: string | null;
+}) {
+  const fn = useServerFn(darAcessoPessoa);
+  const qc = useQueryClient();
+  const [aberto, setAberto] = useState(false);
+  const [perfil, setPerfil] = useState("colaborador");
+
+  const dar = useMutation({
+    mutationFn: async () => fn({ data: { pessoaId, perfil: perfil as "colaborador" | "gestao" } }),
+    onSuccess: (r) => {
+      avisarAcesso(r);
+      setAberto(false);
+      qc.invalidateQueries({ queryKey: ["gente"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={aberto} onOpenChange={setAberto}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={!email}>
+          <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+          Dar acesso
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Dar acesso ao Brain</DialogTitle>
+          <DialogDescription>
+            {nome} recebe em {email} o convite para criar a senha. O acesso fica preso à unidade do
+            cadastro.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="da-perfil">Perfil</Label>
+          <Select value={perfil} onValueChange={setPerfil}>
+            <SelectTrigger id="da-perfil">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERFIS_ACESSO.map((p) => (
+                <SelectItem key={p.v} value={p.v}>
+                  {p.t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {PERFIS_ACESSO.find((p) => p.v === perfil)?.d}
+          </p>
+        </div>
+        <DialogFooter className="mt-2">
+          <Button type="button" variant="outline" onClick={() => setAberto(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => dar.mutate()} disabled={dar.isPending}>
+            {dar.isPending ? "Criando…" : "Criar login e enviar convite"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

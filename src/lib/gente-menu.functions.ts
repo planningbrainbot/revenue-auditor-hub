@@ -79,7 +79,7 @@ export const resumoMenuGente = createServerFn({ method: "GET" })
     // do dado, precisa do sim ou não.
     const [timeRes, cicloRes, pdiRes] = await Promise.all([
       supabase
-        .from("gente_pessoas")
+        .from("gente_diretorio")
         .select("id", { count: "exact", head: true })
         .eq("gestor_id", eu.id)
         .eq("status", "ativo"),

@@ -235,6 +235,9 @@ export const convidarParaEquipe = createServerFn({ method: "POST" })
       .from("produto_acesso")
       .upsert({ user_id: userId, produto: "ops", concedido_por: eu }, { onConflict: "user_id,produto", ignoreDuplicates: true });
 
+    const { vincularCadastroDeGente } = await import("@/lib/gente-vinculo.server");
+    await vincularCadastroDeGente(adm, userId, data.email);
+
     let emailEnviado = false;
     let emailErro: string | null = null;
     let link: string | null = null;
