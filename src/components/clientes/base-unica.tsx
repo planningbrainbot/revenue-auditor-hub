@@ -336,7 +336,7 @@ export function ClientesBase() {
     const aviso = !unidadesUrl.length
       ? null
       : falhou
-        ? "A unidade da URL não pôde ser resolvida (a carga da Base falhou): a lista abre sem filtro de unidade."
+        ? "A carga da Base falhou: a unidade da URL só é aplicada se for o nome de uma unidade regional."
         : nomes.length > 1
           ? "Contratos e churn filtra uma unidade por vez: a lista abre sem filtro de unidade."
           : null;
@@ -345,7 +345,13 @@ export function ClientesBase() {
         <PageHeader
           titulo={meta.titulo}
           pergunta={meta.pergunta}
-          descricao="Clientes com contrato na base de empresas · churn pela Central de Tratativas"
+          descricao="Empresas de unidades regionais na base de empresas · MRR pela cascata Omie > Pipefy > Pipedrive · churn pela Central de Tratativas"
+          // Defeito de dado registrado no contrato (não corrigido aqui): a leitura da Central de
+          // Tratativas corta em 1.000 cards, e a contagem de churn pode estar baixa.
+          procedencia={{
+            fonte: "empresas, contratos e Central de Tratativas, lidos ao abrir",
+            regua: "churn lido em até 1.000 cards",
+          }}
         />
         {nav}
         {aviso && (
@@ -354,11 +360,11 @@ export function ClientesBase() {
           </p>
         )}
         <ContratosClientes
-          statusParam={search.status}
           // A Base guarda a CHAVE da unidade na URL (`monetizacao_unidades.key`), e a de
           // contratos filtra por nome (`empresas.unidade`). Sem traduzir aqui, trocar de visão
           // com uma unidade filtrada zerava a lista inteira.
           unidadeParam={nomes.length === 1 ? nomes[0] : ""}
+          unidadesUrl={unidadesUrl}
         />
       </main>
     );

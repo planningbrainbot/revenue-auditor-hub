@@ -60,6 +60,17 @@ export type BuscaClientes = {
    * trocar de visão ou de filtro volta à primeira.
    */
   pagina?: number;
+  /** Contratos e churn: "sim" = só churn, "nao" = só sem churn. */
+  churn?: "sim" | "nao";
+  /** Contratos e churn: ERP do cadastro (`empresas.erp`). */
+  erp?: string;
+  /**
+   * Contratos e churn: segmento de `empresas.segmento`. Chave própria, porque o `segmento` da
+   * Base é outra régua (o segmento da conta conciliada, múltipla escolha).
+   */
+  segmentoContrato?: string;
+  /** Contratos e churn: "com" ou "sem" data de assinatura do contrato. */
+  assinatura?: "com" | "sem";
 };
 
 const texto = (v: unknown) => (typeof v === "string" ? v : "");
@@ -100,6 +111,10 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     contato: lista(s.contato),
     sobreposicao: s.sobreposicao === true || s.sobreposicao === "true" ? true : undefined,
     pagina: paginaDe(s.pagina),
+    churn: umDe(["sim", "nao"], s.churn),
+    erp: texto(s.erp) || undefined,
+    segmentoContrato: texto(s.segmentoContrato) || undefined,
+    assinatura: umDe(["com", "sem"], s.assinatura),
   };
 }
 
