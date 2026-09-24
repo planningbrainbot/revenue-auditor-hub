@@ -1,25 +1,54 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  BarChart,
   Bar,
+  BarChart,
   CartesianGrid,
-  ComposedChart,
   Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { Carregando, PageHeader } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  Secao,
+} from "@/components/planning";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { chaveMes, rotuloMes } from "@/lib/rede/mes";
+
+// Contrato da tela: docs/design/contratos/rede-headcount.md (arquétipo
+// Lista/Relatório). Em 24/09/2026 `headcount_mensal` tem 0 linhas: em
+// produção a tela mostra o estado vazio até o super admin lançar.
+
+type BuscaHeadcount = { mes?: string };
+
+const RE_CHAVE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function validarBusca(s: Record<string, unknown>): BuscaHeadcount {
+  return typeof s.mes === "string" && RE_CHAVE.test(s.mes) ? { mes: s.mes } : {};
+}
 
 export const Route = createFileRoute("/_authenticated/rede-headcount")({
+  validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => validarBusca(s),
   component: RedeHeadcountPage,
 });
 
@@ -39,26 +68,39 @@ type ReconcRow = {
 };
 
 const fmtBRL = (v: number | null | undefined) =>
-  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  v == null
+    ? "—"
+    : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-const fmtPct = (v: number | null | undefined) =>
-  v == null ? "—" : `${v.toFixed(1)}%`;
-
-const fmtMes = (m: string | null | undefined) => {
-  if (!m) return "—";
-  const d = new Date(m);
-  return d.toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
+const fmtBRLCompacto = (v: number) => {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `R$ ${(v / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  if (a >= 1_000) return `R$ ${(v / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;
+  return `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 };
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
+const fmtPct = (v: number | null | undefined) =>
+  v == null ? "—" : `${v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+
+const fmtInt = (v: number) => v.toLocaleString("pt-BR");
+
+// Turnover sem headcount não é 0%: é não apurado.
+const turnoverDe = (demissoes: number, headcount: number) =>
+  headcount > 0 ? (demissoes / headcount) * 100 : null;
+
 function RedeHeadcountPage() {
   const [rows, setRows] = useState<HeadcountRow[]>([]);
   const [reconcRows, setReconcRows] = useState<ReconcRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableExists, setTableExists] = useState(true);
+  const [erroHc, setErroHc] = useState<string | null>(null);
+  const [erroRecon, setErroRecon] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  const [mesUrl, setMesUrl] = useFiltroNaUrl("mes", "");
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
     (async () => {
       const [h, r] = await Promise.all([
         (supabase as any).from("headcount_mensal").select("unidade,mes,headcount,admissoes,demissoes").order("mes"),
@@ -67,254 +109,326 @@ function RedeHeadcountPage() {
       if (!mounted) return;
       if (h.error?.code === "42P01" || h.error?.message?.includes("does not exist")) {
         setTableExists(false);
+        setErroHc(null);
       } else {
+        setTableExists(true);
+        setErroHc(h.error ? h.error.message : null);
         setRows((h.data ?? []) as HeadcountRow[]);
       }
+      setErroRecon(r.error ? r.error.message : null);
       setReconcRows((r.data ?? []) as ReconcRow[]);
       setLoading(false);
     })();
-    return () => { mounted = false; };
-  }, []);
+    return () => {
+      mounted = false;
+    };
+  }, [recarga]);
+
+  const tentarDeNovo = () => setRecarga((n) => n + 1);
+
+  // Mês normalizado: `date` da tabela e `timestamptz` da view viram "aaaa-mm"
+  // e casam (antes o MRR por pessoa saía vazio).
+  const linhas = useMemo(
+    () =>
+      rows
+        .map((r) => ({ ...r, chave: chaveMes(r.mes) }))
+        .filter((r): r is HeadcountRow & { chave: string } => !!r.chave),
+    [rows],
+  );
 
   const byMes = useMemo(() => {
-    const map = new Map<string, { headcount: number; admissoes: number; demissoes: number }>();
-    for (const r of rows) {
-      const cur = map.get(r.mes) ?? { headcount: 0, admissoes: 0, demissoes: 0 };
+    const map = new Map<
+      string,
+      { headcount: number; admissoes: number; demissoes: number; unidades: Set<string> }
+    >();
+    for (const r of linhas) {
+      const cur =
+        map.get(r.chave) ?? { headcount: 0, admissoes: 0, demissoes: 0, unidades: new Set<string>() };
       cur.headcount += r.headcount;
       cur.admissoes += r.admissoes;
       cur.demissoes += r.demissoes;
-      map.set(r.mes, cur);
+      cur.unidades.add(r.unidade);
+      map.set(r.chave, cur);
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({
         mes,
-        label: fmtMes(mes),
-        ...v,
-        turnover: v.headcount > 0 ? ((v.demissoes / v.headcount) * 100) : 0,
+        label: rotuloMes(mes),
+        headcount: v.headcount,
+        admissoes: v.admissoes,
+        demissoes: v.demissoes,
+        lancaram: v.unidades.size,
+        turnover: turnoverDe(v.demissoes, v.headcount),
       }));
-  }, [rows]);
+  }, [linhas]);
 
   const reconcByMes = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of reconcRows) {
-      const m = r.mes ?? "";
+      const m = chaveMes(r.mes);
       if (!m) continue;
       map.set(m, (map.get(m) ?? 0) + (r.mrr_contratado ?? 0));
     }
     return map;
   }, [reconcRows]);
 
-  const combinedChart = useMemo(() =>
-    byMes.map((r) => {
-      const mrr = reconcByMes.get(r.mes) ?? null;
-      const receitaPerHead = mrr && r.headcount > 0 ? mrr / r.headcount : null;
-      return { ...r, mrr, receitaPerHead };
-    }),
+  const combinedChart = useMemo(
+    () =>
+      byMes.map((r) => {
+        const mrr = reconcByMes.get(r.mes) ?? null;
+        const receitaPerHead = mrr && r.headcount > 0 ? mrr / r.headcount : null;
+        return { ...r, mrr, receitaPerHead };
+      }),
     [byMes, reconcByMes],
   );
 
-  const ultimo = byMes[byMes.length - 1];
+  const mesesLancados = byMes.map((m) => m.mes);
+  // Padrão: o último mês lançado.
+  const mesRef =
+    mesUrl && mesesLancados.includes(mesUrl) ? mesUrl : mesesLancados[mesesLancados.length - 1];
+  const doMes = combinedChart.find((m) => m.mes === mesRef);
 
+  const totalUnidades = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of linhas) s.add(r.unidade);
+    for (const r of reconcRows) if (r.unidade) s.add(r.unidade);
+    return s.size;
+  }, [linhas, reconcRows]);
+
+  // Última linha de cada unidade até o mês de referência, com o mês dela.
   const byUnidade = useMemo(() => {
-    const map = new Map<string, HeadcountRow>();
-    for (const r of rows) {
+    const map = new Map<string, HeadcountRow & { chave: string }>();
+    for (const r of linhas) {
+      if (mesRef && r.chave > mesRef) continue;
       const cur = map.get(r.unidade);
-      if (!cur || r.mes > cur.mes) map.set(r.unidade, r);
+      if (!cur || r.chave > cur.chave) map.set(r.unidade, r);
     }
     return Array.from(map.values()).sort((a, b) => b.headcount - a.headcount);
-  }, [rows]);
+  }, [linhas, mesRef]);
 
-  if (!tableExists) {
+  const rotuloRef = mesRef ? rotuloMes(mesRef) : "—";
+
+  const cabecalho = (
+    <PageHeader
+      titulo="Headcount"
+      pergunta="Quantas pessoas cada unidade tem, e quanto o time gira?"
+      descricao={`Unidades que lançaram headcount · ${mesRef ? rotuloRef : "sem mês lançado"} · pessoas, admissões e demissões lançadas à mão`}
+      procedencia={{
+        fonte: "headcount_mensal · v_reconciliacao_mensal",
+        regua: "turnover = demissões ÷ headcount do mês",
+      }}
+      filtros={
+        mesesLancados.length > 0 ? (
+          <Select value={mesRef} onValueChange={(v) => setMesUrl(v)}>
+            <SelectTrigger className="h-9 w-[140px]" aria-label="Mês de referência">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[...mesesLancados].reverse().map((m) => (
+                <SelectItem key={m} value={m}>
+                  {rotuloMes(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : undefined
+      }
+    />
+  );
+
+  if (loading) {
     return (
-      <div className="space-y-4 p-4 md:p-6">
-        <PageHeader
-          titulo="Headcount"
-          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
-        />
-        <Card className="p-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-warning mt-0.5 shrink-0" />
-            <div>
-              <div className="font-semibold text-sm mb-1">Tabela de headcount não configurada</div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Execute o SQL abaixo no Supabase (SQL Editor) para criar a tabela e começar a alimentar os dados de headcount:
-              </p>
-              <pre className="rounded-md bg-muted p-4 text-xs overflow-x-auto whitespace-pre-wrap">
-{`-- Crie a tabela de headcount mensal por unidade
-CREATE TABLE IF NOT EXISTS headcount_mensal (
-  id SERIAL PRIMARY KEY,
-  unidade TEXT NOT NULL,
-  mes DATE NOT NULL,
-  headcount INTEGER NOT NULL DEFAULT 0,
-  admissoes INTEGER NOT NULL DEFAULT 0,
-  demissoes INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT headcount_mensal_unidade_mes_key UNIQUE (unidade, mes)
-);
-
--- Índice para performance
-CREATE INDEX IF NOT EXISTS idx_headcount_mensal_mes ON headcount_mensal (mes);
-CREATE INDEX IF NOT EXISTS idx_headcount_mensal_unidade ON headcount_mensal (unidade);
-
--- Ativar RLS (opcional, mas recomendado)
-ALTER TABLE headcount_mensal ENABLE ROW LEVEL SECURITY;
-
--- Política de leitura para usuários autenticados
-CREATE POLICY "Headcount leitura autenticados"
-  ON headcount_mensal FOR SELECT
-  TO authenticated
-  USING (true);`}
-              </pre>
-              <p className="text-sm text-muted-foreground mt-4">
-                Após criar a tabela, insira os dados de headcount por unidade e mês. O formato do campo <code className="bg-muted px-1 rounded">mes</code> deve ser a primeira data do mês, ex: <code className="bg-muted px-1 rounded">2026-01-01</code>.
-              </p>
-            </div>
-          </div>
-        </Card>
+      <div className="space-y-6 p-4 md:p-6">
+        {cabecalho}
+        <Carregando variante="kpis" />
+        <Carregando variante="grafico" />
       </div>
     );
   }
 
-  if (loading) {
-    return <Carregando variante="pagina" className="p-4 md:p-6" />;
+  if (!tableExists) {
+    return (
+      <div className="space-y-6 p-4 md:p-6">
+        {cabecalho}
+        <EstadoErro
+          titulo="A tabela de headcount não existe neste banco"
+          detalhe="headcount_mensal não foi encontrada. Avise quem administra o Brain."
+          tentarNovamente={tentarDeNovo}
+        />
+      </div>
+    );
   }
 
-  if (rows.length === 0) {
+  if (erroHc) {
     return (
-      <div className="space-y-4 p-4 md:p-6">
-        <PageHeader
-          titulo="Headcount"
-          descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
+      <div className="space-y-6 p-4 md:p-6">
+        {cabecalho}
+        <EstadoErro detalhe={`headcount_mensal: ${erroHc}`} tentarNovamente={tentarDeNovo} />
+      </div>
+    );
+  }
+
+  if (byMes.length === 0) {
+    return (
+      <div className="space-y-6 p-4 md:p-6">
+        {cabecalho}
+        <EstadoVazio
+          titulo="Nenhuma unidade lançou headcount ainda."
+          descricao="O lançamento é feito pelo super admin."
         />
-        <Card className="p-6 text-center text-sm text-muted-foreground">
-          Tabela criada mas sem dados. Insira registros na tabela <code className="bg-muted px-1 rounded">headcount_mensal</code>.
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <PageHeader
-        titulo="Headcount"
-        descricao="Gestão da Rede: admissões, demissões e turnover por unidade"
-      />
+    <div className="space-y-6 p-4 md:p-6">
+      {cabecalho}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Headcount Mês</div>
-          <div className="mt-1 text-2xl font-bold">{ultimo?.headcount ?? "—"}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">{ultimo ? fmtMes(ultimo.mes) : ""}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Turnover Mês</div>
-          <div className={`mt-1 text-2xl font-bold ${(ultimo?.turnover ?? 0) > 5 ? "text-danger" : "text-foreground"}`}>
-            {ultimo ? fmtPct(ultimo.turnover) : "—"}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Admissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-success">{ultimo?.admissoes ?? "—"}</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Demissões Mês</div>
-          <div className="mt-1 text-2xl font-bold text-danger">{ultimo?.demissoes ?? "—"}</div>
-        </Card>
+      <KpiGrade colunas={4}>
+        <KpiCard
+          rotulo={`Headcount em ${rotuloRef}`}
+          valor={doMes ? fmtInt(doMes.headcount) : "—"}
+          unidade="pessoas"
+          nota={doMes ? `${doMes.lancaram} de ${totalUnidades} unidades lançaram` : undefined}
+          estado={doMes ? "ok" : "nao-apurado"}
+        />
+        <KpiCard
+          rotulo={`Turnover em ${rotuloRef}`}
+          valor={fmtPct(doMes?.turnover)}
+          nota="demissões ÷ headcount"
+          estado={doMes?.turnover != null ? "ok" : "nao-apurado"}
+        />
+        <KpiCard
+          rotulo={`Admissões em ${rotuloRef}`}
+          valor={doMes ? fmtInt(doMes.admissoes) : "—"}
+          unidade="pessoas"
+          estado={doMes ? "ok" : "nao-apurado"}
+        />
+        <KpiCard
+          rotulo={`Demissões em ${rotuloRef}`}
+          valor={doMes ? fmtInt(doMes.demissoes) : "—"}
+          unidade="pessoas"
+          estado={doMes ? "ok" : "nao-apurado"}
+        />
+      </KpiGrade>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Secao titulo="Quantas pessoas a rede tem por mês? (pessoas)" descricao="Soma das unidades que lançaram o mês.">
+          <Card className="p-4">
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={combinedChart} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis dataKey="label" {...eixoProps} />
+                  <YAxis allowDecimals={false} width={48} {...eixoProps} />
+                  <Tooltip {...tooltipProps} formatter={(v: number) => `${fmtInt(v)} pessoas`} />
+                  <Bar dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </Secao>
+
+        <Secao titulo="Quanto o time gira por mês? (%)" descricao="Demissões ÷ headcount. Mês com headcount 0 fica sem ponto.">
+          <Card className="p-4">
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={combinedChart} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis dataKey="label" {...eixoProps} />
+                  <YAxis
+                    width={56}
+                    tickFormatter={(v: number) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                    {...eixoProps}
+                  />
+                  <Tooltip {...tooltipProps} formatter={(v: number) => fmtPct(v)} />
+                  <Line type="monotone" dataKey="turnover" name="Turnover" stroke={CORES_SERIE[0]} strokeWidth={2} dot={{ r: 2 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </Secao>
+
+        <Secao titulo="Quantas pessoas entraram e saíram? (pessoas)" descricao="Admissões e demissões lançadas no mês.">
+          <Card className="p-4">
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={combinedChart} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis dataKey="label" {...eixoProps} />
+                  <YAxis allowDecimals={false} width={48} {...eixoProps} />
+                  <Tooltip {...tooltipProps} formatter={(v: number) => `${fmtInt(v)} pessoas`} />
+                  <Legend {...legendaProps} />
+                  <Bar dataKey="admissoes" name="Admissões" fill={CORES_SERIE[0]} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="demissoes" name="Demissões" fill={CORES_SERIE[1]} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </Secao>
+
+        <Secao titulo="Quanto MRR cada pessoa sustenta? (R$)" descricao="MRR por pessoa: MRR contratado da rede ÷ headcount do mês.">
+          {erroRecon ? (
+            <EstadoErro
+              titulo="Fonte indisponível"
+              detalhe={`v_reconciliacao_mensal: ${erroRecon}`}
+              tentarNovamente={tentarDeNovo}
+            />
+          ) : (
+            <Card className="p-4">
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={combinedChart} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="label" {...eixoProps} />
+                    <YAxis width={80} tickFormatter={(v: number) => fmtBRLCompacto(v)} {...eixoProps} />
+                    <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
+                    <Line type="monotone" dataKey="receitaPerHead" name="MRR por pessoa" stroke={CORES_SERIE[0]} strokeWidth={2} dot={{ r: 2 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
+        </Secao>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Headcount e Turnover */}
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">Headcount e Turnover Mensal</div>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={combinedChart}>
-                <CartesianGrid {...gradeProps} />
-                <XAxis dataKey="label" {...eixoProps} />
-                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v?.toFixed(1)}%`} {...eixoProps} />
-                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
-                  name === "Turnover %" ? fmtPct(v) : v
-                } />
-                <Legend {...legendaProps} />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.7} />
-                <Line yAxisId="right" type="monotone" dataKey="turnover" name="Turnover %" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Admissões vs Demissões */}
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">Admissões vs Demissões</div>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byMes}>
-                <CartesianGrid {...gradeProps} />
-                <XAxis dataKey="label" {...eixoProps} />
-                <YAxis allowDecimals={false} {...eixoProps} />
-                <Tooltip {...tooltipProps} />
-                <Legend {...legendaProps} />
-                <Bar dataKey="admissoes" name="Admissões" fill={CORES_SERIE[0]} />
-                <Bar dataKey="demissoes" name="Demissões" fill={CORES_SERIE[1]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Receita / Headcount */}
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">Receita / Headcount</div>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={combinedChart}>
-                <CartesianGrid {...gradeProps} />
-                <XAxis dataKey="label" {...eixoProps} />
-                <YAxis yAxisId="left" allowDecimals={false} {...eixoProps} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} {...eixoProps} />
-                <Tooltip {...tooltipProps} formatter={(v: number, name: string) =>
-                  name === "Receita/HC" ? fmtBRL(v) : v
-                } />
-                <Legend {...legendaProps} />
-                <Bar yAxisId="left" dataKey="headcount" name="Headcount" fill={CORES_SERIE[0]} fillOpacity={0.4} />
-                <Line yAxisId="right" type="monotone" dataKey="receitaPerHead" name="Receita/HC" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Resumo por unidade */}
-        <Card className="overflow-hidden">
-          <div className="border-b p-3 text-sm font-semibold">Resumo por Unidade</div>
+      <Secao
+        titulo={`Qual unidade gira mais? (até ${rotuloRef})`}
+        descricao="Última linha lançada de cada unidade até o mês de referência, com o mês dela."
+      >
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Unidade</TableHead>
-                <TableHead className="text-right">HC</TableHead>
-                <TableHead className="text-right">Adm.</TableHead>
-                <TableHead className="text-right">Dem.</TableHead>
+                <TableHead>Mês</TableHead>
+                <TableHead className="text-right">Headcount</TableHead>
+                <TableHead className="text-right">Admissões</TableHead>
+                <TableHead className="text-right">Demissões</TableHead>
                 <TableHead className="text-right">Turnover</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {byUnidade.map((r) => (
-                <TableRow key={r.unidade}>
-                  <TableCell className="font-medium">{r.unidade}</TableCell>
-                  <TableCell className="text-right">{r.headcount}</TableCell>
-                  <TableCell className="text-right text-success">{r.admissoes || "—"}</TableCell>
-                  <TableCell className="text-right text-danger">{r.demissoes || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {r.headcount > 0 ? fmtPct((r.demissoes / r.headcount) * 100) : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {byUnidade.map((r) => {
+                const t = turnoverDe(r.demissoes, r.headcount);
+                return (
+                  <TableRow key={r.unidade}>
+                    <TableCell className="font-medium">{r.unidade}</TableCell>
+                    <TableCell>{rotuloMes(r.chave)}</TableCell>
+                    <TableCell className="num text-right">{fmtInt(r.headcount)}</TableCell>
+                    <TableCell className="num text-right">{fmtInt(r.admissoes)}</TableCell>
+                    <TableCell className="num text-right">{fmtInt(r.demissoes)}</TableCell>
+                    <TableCell className="num text-right">
+                      {t == null ? <span className="text-muted-foreground">não apurado</span> : fmtPct(t)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
-      </div>
+      </Secao>
     </div>
   );
 }
