@@ -248,13 +248,11 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
   const { dataIni, dataFim } = monthBounds(mes);
   const emAndamento = mesEmAndamento(mes);
   const nomeMes = rotuloMes(mes);
-  // O card abre as faturas em Contas a Receber quando o recorte cabe num link:
-  // todas as unidades ou uma só. Três de onze não se escrevem na URL de lá.
-  const recorteDestino: Record<string, string> | null = todas
-    ? {}
-    : selected.length === 1
-      ? { unidade: selected[0] }
-      : null;
+  // O card abre as faturas em Contas a Receber só com UMA unidade no recorte.
+  // Com a rede inteira o total do destino não bate: o Funil conta só franquias
+  // com contrato ativo e exclui fatura CANCELADA, e Contas a Receber não (N2).
+  const recorteDestino: Record<string, string> | null =
+    selected.length === 1 ? { unidade: selected[0] } : null;
   const hrefFaturas = (extra: Record<string, string> = {}) =>
     recorteDestino
       ? `/contas-receber?${new URLSearchParams({ ...recorteDestino, dataIni, dataFim, ...extra }).toString()}`
@@ -276,7 +274,9 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
               disabled={allUnidades.length === 0}
             >
               <span className="text-muted-foreground">Unidades:</span>
-              {todas ? `Todas (${allUnidades.length})` : `${selected.length} de ${allUnidades.length}`}
+              {todas
+                ? `Todas (${allUnidades.length})`
+                : `${selected.length} de ${allUnidades.length}`}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-2" align="start">
@@ -292,11 +292,12 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                   className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted"
                 >
                   <Checkbox
-                    checked={!todas && selected.includes(u)}
+                    checked={todas || selected.includes(u)}
                     onCheckedChange={(c) => {
-                      // Com "todas", marcar uma começa um recorte só com ela.
-                      if (todas) setUnidadesUrl(c ? [u] : allUnidades.filter((x) => x !== u));
-                      else alternarUnidade(u, Boolean(c));
+                      // Com "todas" tudo está marcado: desmarcar uma tira só ela.
+                      if (todas) {
+                        if (!c) setUnidadesUrl(allUnidades.filter((x) => x !== u));
+                      } else alternarUnidade(u, Boolean(c));
                     }}
                   />
                   <span className="text-sm">{u}</span>
@@ -320,9 +321,13 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
       pergunta="Onde o MRR contratado deixa de virar faturado e recebido?"
       descricao={
         <>
-          {escopoUnidade ? userUnidade : `${NUM.format(selected.length)} unidades`} · {nomeMes}
-          {emAndamento && " (mês corrente, parcial)"} · MRR dos contratos ativos; faturado e
-          recebido pelas notas do Omie com <strong>competência</strong> no mês, bruto de nota.
+          {escopoUnidade
+            ? userUnidade
+            : `${NUM.format(selected.length)} ${selected.length === 1 ? "unidade" : "unidades"}`}{" "}
+          · {nomeMes}
+          {emAndamento && " (mês corrente, parcial)"} · MRR dos contratos ativos hoje (foto de hoje,
+          não do mês); faturado e recebido pelas notas do Omie com <strong>competência</strong> no
+          mês, bruto de nota.
         </>
       }
       procedencia={{
@@ -337,11 +342,7 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
         {!permLoading && !pode ? (
           <EstadoSemAcesso oQueFalta={CHAVES} />
         ) : q.error ? (
-          <ErroDaConsulta
-            erro={q.error}
-            chaves={CHAVES}
-            tentarNovamente={() => void q.refetch()}
-          />
+          <ErroDaConsulta erro={q.error} chaves={CHAVES} tentarNovamente={() => void q.refetch()} />
         ) : carregando ? (
           <>
             <Carregando variante="kpis" />
@@ -369,9 +370,7 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                 nota={`${NUM.format(totals.faturas)} faturas emitidas · ${pctOuTraco(convMF)} do MRR`}
                 tom={tomKpi(tomMrrFat(convMF))}
                 procedencia={{ fonte: "Omie" }}
-                abrir={
-                  hrefFaturas() ? { href: hrefFaturas(), rotulo: "Abrir faturas" } : undefined
-                }
+                abrir={hrefFaturas() ? { href: hrefFaturas(), rotulo: "Abrir faturas" } : undefined}
               />
               <KpiCard
                 rotulo="Recebido"
@@ -389,7 +388,9 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                 rotulo="Conversão total"
                 valor={pctOuTraco(convMR)}
                 estado={convMR === null ? "nao-apurado" : "ok"}
-                nota={convMR === null ? "sem MRR contratado no recorte" : "recebido ÷ MRR contratado"}
+                nota={
+                  convMR === null ? "sem MRR contratado no recorte" : "recebido ÷ MRR contratado"
+                }
                 tom={tomKpi(tomMrrFat(convMR))}
               />
             </KpiGrade>
@@ -430,7 +431,9 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{r.unidade}</span>
-                              {semDados && <StatusBadge tom="neutro">Sem faturas no Omie</StatusBadge>}
+                              {semDados && (
+                                <StatusBadge tom="neutro">Sem faturas no Omie</StatusBadge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="num text-right">
@@ -455,7 +458,9 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                               <button
                                 type="button"
                                 className="rounded-sm underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => setGapDialog({ unidade: unidadeStr, mes, gap: gapF })}
+                                onClick={() =>
+                                  setGapDialog({ unidade: unidadeStr, mes, gap: gapF })
+                                }
                               >
                                 {brlOuTraco(gapF)}
                               </button>

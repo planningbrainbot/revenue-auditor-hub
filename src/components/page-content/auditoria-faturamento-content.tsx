@@ -156,8 +156,8 @@ export function AuditoriaFaturamentoContent({ abas }: { abas?: ReactNode }) {
           {esperado.length ? `${NUM.format(esperado.length)} unidades` : "Unidades da rede"} ·{" "}
           {nomeMes}
           {mesEmAndamento(mes) && " (em andamento, parcial)"} · esperado pelos contratos ativos no
-          Pipedrive; recebido pelos títulos pagos com <strong>data de emissão</strong> no mês,
-          outra régua que a do Funil e a da Visão geral.
+          Pipedrive; recebido pelos títulos pagos com <strong>data de emissão</strong> no mês, outra
+          régua que a do Funil e a da Visão geral.
         </>
       }
       procedencia={{
@@ -214,8 +214,12 @@ export function AuditoriaFaturamentoContent({ abas }: { abas?: ReactNode }) {
                 rotulo="Delta (recebido − esperado)"
                 valor={brlOuTraco(delta)}
                 estado={cortado ? "parcial" : "ok"}
-                tom={delta >= 0 ? "sucesso" : "perigo"}
-                tomRotulo={delta >= 0 ? "acima do esperado" : "abaixo do esperado"}
+                // Com a leitura cortada o recebido está subestimado: o sinal do delta
+                // não é confiável e o card fica sem tom.
+                tom={cortado ? undefined : delta >= 0 ? "sucesso" : "perigo"}
+                tomRotulo={
+                  cortado ? undefined : delta >= 0 ? "acima do esperado" : "abaixo do esperado"
+                }
               />
             </KpiGrade>
 
