@@ -548,16 +548,37 @@ function OperacaoDiaria({
   const procedencia = procedenciaMonetizacao(data);
   const mes = rotuloMes(filter.to.slice(0, 7));
   // Z2 sobre o recorte da barra: produto filtrado e, com responsável, a carteira dele (negócio
-  // sem histórico não tem autor de movimento; o dono atual é o único vínculo que ele tem).
-  const recorteZ2 = data.cards.filter(
+  // sem histórico não tem autor de movimento; o dono atual é o único vínculo que ele tem). E o
+  // período: carregado até `ate` e, no dia de `de`, ainda aberto ou fechado depois dele. Ganho
+  // usa a data do ganho; outro fechamento não tem data no card, então vale o evento no período.
+  const noPeriodo = (c: Negocio) => {
+    const carregado =
+      c.events.loaded.map((e) => e.date).sort()[0] ?? c.created_at?.slice(0, 10) ?? "";
+    if (carregado > filter.to) return false;
+    if (c.status === "open") return true;
+    const ganhoEm = c.status === "won" ? (c.won_on ?? c.signed_on) : null;
+    if (ganhoEm) return ganhoEm >= filter.from;
+    return Object.values(c.events).some((es) =>
+      es.some((e) => e.date >= filter.from && e.date <= filter.to),
+    );
+  };
+  const semHistoricoRecorte = data.cards.filter(
     (c) =>
+      !c.history_known &&
       (!filter.product || c.route === filter.product) &&
-      (!filter.owner || c.owner_id === filter.owner),
+      (!filter.owner || c.owner_id === filter.owner) &&
+      noPeriodo(c),
   );
-  const evento = estadoKpiEvento(data, recorteZ2);
+  const evento = estadoKpiEvento(data, semHistoricoRecorte);
+  // O ganho existe mesmo sem histórico lido (`signed` vem do status): só a carga pesa (Z1).
+  const eventoGanho = estadoKpiEvento(data, []);
   const juntar = (...partes: (string | undefined | false)[]) =>
     partes.filter(Boolean).join(" · ") || undefined;
-  const semPlano = plan ? undefined : `sem plano para ${mes}`;
+  const semPlano = plan
+    ? undefined
+    : filter.owner === null
+      ? `sem plano da frente para ${mes}; os planos são por responsável`
+      : `sem plano para ${mes}`;
   const abrirMetrica = (k: Metrica) =>
     abrir({ title: rotuloMetrica(k), rows: view.rows[k], ordenarPor: ultimoEvento(k, filter) });
 
@@ -594,7 +615,7 @@ function OperacaoDiaria({
           nota={juntar(
             evento.nota,
             view.conversion === null
-              ? "Reunião → oportunidade — · sem reunião no período"
+              ? "Reunião → oportunidade: sem reunião no período"
               : `Reunião → oportunidade ${number(view.conversion * 100)}% · ${convertidas} de ${reunioes}`,
           )}
           procedencia={procedencia}
@@ -611,8 +632,8 @@ function OperacaoDiaria({
         <KpiCard
           rotulo={rotuloMetrica("signed")}
           valor={view.rows.signed.length}
-          estado={evento.estado}
-          nota={juntar(evento.nota, semPlano)}
+          estado={eventoGanho.estado}
+          nota={juntar(eventoGanho.nota, semPlano)}
           meta={plan ? { valor: plan.target_contracts, rotulo: "meta do mês" } : undefined}
           procedencia={procedencia}
           abrir={{ onClick: () => abrirMetrica("signed") }}
@@ -700,7 +721,7 @@ function OperacaoDiaria({
                   y={plan.daily_target}
                   {...linhaMetaProps}
                   label={{
-                    value: `Meta ${plan.daily_target}/dia`,
+                    value: `Meta de trabalhados ${plan.daily_target}/dia`,
                     fontSize: 12,
                     fill: "var(--muted-foreground)",
                     position: "insideTopRight",
@@ -711,8 +732,9 @@ function OperacaoDiaria({
           </ResponsiveContainer>
           <NotaApoio>
             Negócios distintos por dia. Um negócio que volta à etapa em dias diferentes aparece nos
-            dois dias; no total do período conta uma vez.
-            {!plan && ` Sem plano para ${mes}: o gráfico fica sem a meta diária.`}
+            dois dias; no total do período conta uma vez. Marcadas ÷ trabalhados é razão do período,
+            não conversão de coorte, e pode passar de 100%.
+            {semPlano && ` Sem meta diária: ${semPlano}.`}
           </NotaApoio>
         </SecaoCartao>
 
@@ -784,6 +806,7 @@ function OperacaoDiaria({
                   <TableCell key={m.key} className="text-right num">
                     <button
                       type="button"
+                      aria-label={`${NOMES[p.product]} · ${m.label}: ${p[m.key]}, abrir negócios`}
                       className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO}`}
                       onClick={() =>
                         abrir({
@@ -814,23 +837,25 @@ function OperacaoDiaria({
         <p className="mt-1">
           Sobre toda a carga: {data.cards.filter((c) => c.route === "sem_produto").length} negócios
           sem produto · {data.cards.filter((c) => !c.org_id).length} sem organização ·{" "}
-          {semHistoricoCarga.length ? (
+          {semHistoricoCarga.length} sem histórico lido. No recorte ({responsavel} · {produto} ·{" "}
+          {rotuloPeriodo(filter.from, filter.to)}):{" "}
+          {semHistoricoRecorte.length ? (
             <button
               type="button"
               className={`text-primary-text underline underline-offset-2 ${FOCO}`}
               onClick={() =>
                 abrir({
-                  title: "Negócios sem histórico lido",
-                  rows: semHistoricoCarga,
+                  title: "Negócios sem histórico lido no recorte",
+                  rows: semHistoricoRecorte,
                   estoque: true,
-                  recorte: "Toda a frente · Todos os produtos · toda a carga",
+                  recorte: `${responsavel} · ${produto} · ${rotuloPeriodo(filter.from, filter.to)} · sem histórico lido`,
                 })
               }
             >
-              {semHistoricoCarga.length} sem histórico lido
+              {semHistoricoRecorte.length} no recorte
             </button>
           ) : (
-            "0 sem histórico lido"
+            "0 no recorte"
           )}
           .
         </p>
