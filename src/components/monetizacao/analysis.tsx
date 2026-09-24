@@ -126,7 +126,7 @@ export function Analysis(props: Props) {
   if (aba === "funil") return <Funnel data={data} filter={filter} openDeals={openDeals} />;
   if (aba === "pessoas") return <People data={data} filter={filter} />;
   if (aba === "roteiros") return <Scripts data={data} />;
-  return <Distribution data={data} filter={filter} />;
+  return <Distribution data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
 }
 
 type Cut = Pick<Props, "data" | "filter" | "openDeals">;
@@ -1610,7 +1610,12 @@ function Scripts({ data }: { data: BaseMonetizacao }) {
   );
 }
 
-function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
+/**
+ * Distribuição (contrato `monetizacao-distribuicao.md`, Lista/Relatório com registro de
+ * decisão): uma linha por dono atual, mais abertas primeiro; toda célula abre os negócios que
+ * conta e a capacidade leva ao plano do responsável. Números iguais aos de antes (`operacao()`).
+ */
+function Distribution({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">) {
   const [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false);
   const fn = useServerFn(salvarRegistroMonetizacao),
@@ -1618,19 +1623,28 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
   const owners = [
     ...new Map(data.cards.filter((c) => c.owner_id).map((c) => [c.owner_id!, c.owner])).entries(),
   ];
-  const rows = owners.map(([id, name]) => {
-    const v = operacao(data.cards, { ...filter, owner: id }),
-      plan = data.plans.find((p) => p.month === filter.to.slice(0, 7) && p.owner_id === id);
-    return {
-      id,
-      name,
-      open: v.current.length,
-      loaded: v.rows.loaded.length,
-      started: v.rows.started.length,
-      validated: v.rows.validated.length,
-      capacity: plan?.capacity ?? null,
-    };
-  });
+  const produto = filter.product ? NOMES[filter.product] : "Todos os produtos";
+  const linhas = owners
+    .map(([id, name]) => {
+      const f = { ...filter, owner: id };
+      const v = operacao(data.cards, f),
+        plan = data.plans.find((p) => p.month === filter.to.slice(0, 7) && p.owner_id === id);
+      return { id, name, f, v, capacity: plan?.capacity ?? null };
+    })
+    .sort((a, b) => b.v.current.length - a.v.current.length || a.name.localeCompare(b.name));
+  // A foto salva com a decisão: mesmas colunas de sempre, na ordem da tela.
+  const rows = linhas.map(({ id, name, v, capacity }) => ({
+    id,
+    name,
+    open: v.current.length,
+    loaded: v.rows.loaded.length,
+    started: v.rows.started.length,
+    validated: v.rows.validated.length,
+    capacity,
+  }));
+  const semHistorico = linhas.flatMap((l) => semHistoricoNoRecorte(data, l.f));
+  const evento = estadoKpiEvento(data, semHistorico);
+  const motivoEscrita = motivoSemEscopo(data);
   const save = async () => {
     setBusy(true);
     try {
@@ -1649,55 +1663,132 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
       });
       await invalidate();
       setReason("");
-      toast.success("Critério e decisão registrados.");
+      toast.success("Decisão de distribuição registrada; ela aparece no histórico.");
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`A decisão não foi registrada: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
   };
+  const colunas: [string, "loaded" | "started" | "validated"][] = [
+    ["Carregadas", "loaded"],
+    ["Trabalhadas", "started"],
+    ["Validadas", "validated"],
+  ];
   return (
-    <div className="space-y-4">
-      <SecaoCartao titulo="Carga e resultado por responsável">
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr>
-              {[
-                "Responsável",
-                "Abertas hoje",
-                "Carregadas",
-                "Trabalhadas",
-                "Validadas",
-                "Capacidade mensal",
-              ].map((s) => (
-                <th key={s}>{s}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr className="border-t" key={r.id}>
-                <th className="py-3 text-left font-medium">{r.name}</th>
-                <td>{r.open}</td>
-                <td>{r.loaded}</td>
-                <td>{r.started}</td>
-                <td>{r.validated}</td>
-                <td>{r.capacity ?? "A definir"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-6">
+      <SecaoCartao
+        titulo="Quem está com carga demais, e quem está sem base?"
+        descricao={`Uma linha por dono atual · abertas hoje ignoram o período · ${produto} · clique no número para abrir os negócios`}
+      >
+        {!linhas.length ? (
+          <EstadoVazio titulo="Nenhum responsável com negócio aberto neste recorte." />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead className="num text-right">Abertas hoje</TableHead>
+                  {colunas.map(([rotulo]) => (
+                    <TableHead key={rotulo} className="num text-right">
+                      {rotulo}
+                    </TableHead>
+                  ))}
+                  <TableHead className="num text-right">Capacidade mensal</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {linhas.map(({ id, name, f, v, capacity }) => (
+                  <TableRow key={id}>
+                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell className="num text-right">
+                      <CelulaQueAbre
+                        valor={v.current.length}
+                        rotulo={`${name} · Abertas hoje`}
+                        onClick={() =>
+                          openDeals(`${name} · Abertas hoje`, v.current, undefined, {
+                            estoque: true,
+                            recorte: `${name} · ${produto} · abertas hoje`,
+                          })
+                        }
+                      />
+                    </TableCell>
+                    {colunas.map(([rotulo, k]) => (
+                      <TableCell key={k} className="num text-right">
+                        <CelulaQueAbre
+                          valor={v.rows[k].length}
+                          rotulo={`${name} · ${rotulo}`}
+                          onClick={() =>
+                            openDeals(
+                              `${name} · ${rotulo}`,
+                              v.rows[k],
+                              { from: filter.from, to: filter.to },
+                              {
+                                ordenarPor: ultimoEventoNoPeriodo(k, f),
+                                recorte: `${name} · ${produto} · ${date(filter.from)} a ${date(filter.to)}`,
+                              },
+                            )
+                          }
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell className="num text-right">
+                      <Link
+                        to="/monetizacao"
+                        search={{
+                          aba: "capacidade",
+                          responsavel: id,
+                          de: busca?.de,
+                          ate: busca?.ate,
+                        }}
+                        aria-label={`${name}: capacidade mensal ${capacity ?? "a definir"}, abrir o plano em Capacidade e alocação`}
+                        className={FOCO_LINK}
+                      >
+                        {capacity === null ? "A definir" : number(capacity)}
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <div className="mt-3">
+          <NotaApoio>
+            {evento.nota && `Números parciais: ${evento.nota}. `}
+            Carregadas, trabalhadas e validadas são movimentos do período feitos pelo responsável;
+            quem fez movimento e não é dono de nenhum negócio hoje não aparece. Capacidade mensal é
+            o plano de {rotuloMes(filter.to.slice(0, 7))}; &quot;A definir&quot; quando não há plano
+            salvo.
+          </NotaApoio>
+        </div>
       </SecaoCartao>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <SecaoCartao titulo="Regra de distribuição">
-          <ol className="list-inside list-decimal space-y-3 text-sm">
-            <li>Preservar o vínculo da empresa com a unidade.</li>
-            <li>Priorizar Consultoria nas carteiras das unidades.</li>
-            <li>Mostrar Finance quando o perfil também atende à regra.</li>
-            <li>Validar com o sócio e conferir a capacidade do hunter.</li>
-            <li>Enviar a oferta selecionada com produto e responsável explícitos.</li>
-          </ol>
-          <div className="mt-5 space-y-3">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SecaoCartao
+          titulo="Qual é a decisão de distribuição deste período?"
+          descricao={`${date(filter.from)} a ${date(filter.to)} · a tabela acima é salva junto com a decisão`}
+          acoes={
+            <Link
+              to="/clientes"
+              search={{ view: "produtos" }}
+              className={`text-sm font-medium ${FOCO_LINK}`}
+            >
+              Abrir as listas em Produtos e listas →
+            </Link>
+          }
+        >
+          <div className="space-y-4">
+            <NotaApoio>
+              <span className="font-medium text-foreground">Regra de distribuição</span>
+              <ol className="mt-1 list-inside list-decimal space-y-1">
+                <li>Preservar o vínculo da empresa com a unidade.</li>
+                <li>Priorizar Consultoria nas carteiras das unidades.</li>
+                <li>Mostrar Finance quando o perfil também atende à regra.</li>
+                <li>Validar com o sócio e conferir a capacidade do hunter.</li>
+                <li>Enviar a oferta selecionada com produto e responsável explícitos.</li>
+              </ol>
+            </NotaApoio>
             <Field label="Decisão e motivo desta distribuição">
               <textarea
                 className={`${inputClass} h-28 py-2`}
@@ -1706,20 +1797,67 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
                 placeholder="Ex.: priorizar a carteira de Curitiba para Consultoria; sócio confirmou disponibilidade nesta semana."
               />
             </Field>
-            <Button
-              disabled={
-                busy || !(data.permissions.view && data.permissions.all_units) || !reason.trim()
-              }
+            <BotaoComMotivo
               onClick={save}
+              disabled={busy || !!motivoEscrita || !reason.trim()}
+              motivo={[motivoEscrita, !reason.trim() && "Escreva a decisão e o motivo."]}
             >
-              Registrar decisão
-            </Button>
-            <Link to="/aquario" className="ml-3 text-sm text-primary-text underline">
-              Abrir as listas no Aquário
-            </Link>
+              {busy ? "Registrando" : "Registrar decisão"}
+            </BotaoComMotivo>
           </div>
         </SecaoCartao>
         <RecordList data={data} kind="distribuicao" title="Histórico de decisões" />
+      </div>
+    </div>
+  );
+}
+
+/** A tabela por responsável como estava quando a decisão foi registrada. */
+function FotoDistribuicao({
+  rows,
+}: {
+  rows: {
+    id: number;
+    name: string;
+    open: number;
+    loaded: number;
+    started: number;
+    validated: number;
+    capacity: number | null;
+  }[];
+}) {
+  return (
+    <div>
+      <span className="text-xs font-medium text-muted-foreground">
+        Tabela no momento da decisão
+      </span>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Responsável</TableHead>
+              <TableHead className="num text-right">Abertas</TableHead>
+              <TableHead className="num text-right">Carregadas</TableHead>
+              <TableHead className="num text-right">Trabalhadas</TableHead>
+              <TableHead className="num text-right">Validadas</TableHead>
+              <TableHead className="num text-right">Capacidade</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((l) => (
+              <TableRow key={l.id}>
+                <TableCell>{l.name}</TableCell>
+                <TableCell className="num text-right">{number(l.open)}</TableCell>
+                <TableCell className="num text-right">{number(l.loaded)}</TableCell>
+                <TableCell className="num text-right">{number(l.started)}</TableCell>
+                <TableCell className="num text-right">{number(l.validated)}</TableCell>
+                <TableCell className="num text-right">
+                  {l.capacity === null ? "A definir" : number(l.capacity)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -1771,6 +1909,7 @@ function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string
                       <p className="whitespace-pre-wrap text-sm">{String(r.body[k])}</p>
                     </div>
                   ))}
+                {Array.isArray(r.body.rows) && <FotoDistribuicao rows={r.body.rows} />}
                 {r.body.scores && typeof r.body.scores === "object" ? (
                   <ul className="space-y-1 text-xs">
                     {Object.entries(r.body.scores).map(([c, n]) => (
