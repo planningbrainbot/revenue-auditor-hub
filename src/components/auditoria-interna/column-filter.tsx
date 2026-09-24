@@ -40,7 +40,7 @@ function Shell({
             type="button"
             aria-label={`Filtrar e ordenar por ${titulo}`}
             className={cn(
-              "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-muted",
+              "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               (ativo || dirOrdem) && "bg-primary/10 text-primary-text",
             )}
           >
