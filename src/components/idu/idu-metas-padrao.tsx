@@ -62,7 +62,7 @@ export function ComMotivo({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex cursor-not-allowed rounded-sm">
+        <span tabIndex={0} className="inline-flex cursor-not-allowed rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
           {children}
         </span>
       </TooltipTrigger>
@@ -142,6 +142,7 @@ export function IduMetasPadrao({
   const [rascunho, setRascunho] = useState("");
   const [copiando, setCopiando] = useState(false);
   const [apagar, setApagar] = useState<Apagar | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   const valor = (escopo: string, indicador: string) =>
     padrao.find((p) => p.escopo === escopo && p.indicador === indicador)?.meta ?? null;
@@ -163,6 +164,8 @@ export function IduMetasPadrao({
       toast.error(`Meta inválida: "${limpo}" não é um número.`);
       return;
     }
+    if (salvando) return;
+    setSalvando(true);
     const { error } = await supabase.from("idu_metas_padrao").upsert(
       {
         periodo_inicio: periodo.ini,
@@ -174,6 +177,7 @@ export function IduMetasPadrao({
       },
       { onConflict: "periodo_inicio,escopo,indicador" },
     );
+    setSalvando(false);
     // Erro fica no campo: a edição continua aberta com o que foi digitado.
     if (error) {
       toast.error(`Não foi possível salvar a meta de ${ind.rotulo}: ${error.message}`);
@@ -314,6 +318,7 @@ export function IduMetasPadrao({
                           />
                           <Button
                             size="sm"
+                            disabled={salvando}
                             onClick={() => void salvar(ind, e.escopo, tituloEscopo, rascunho)}
                           >
                             ok
@@ -329,7 +334,7 @@ export function IduMetasPadrao({
                               setRascunho(v === null ? "" : String(v));
                             }}
                             className={cn(
-                              "inline-flex items-center gap-1 rounded-sm",
+                              "inline-flex items-center gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                               podeEditar && "hover:underline",
                               !podeEditar && "pointer-events-none",
                               v === null && "text-muted-foreground",

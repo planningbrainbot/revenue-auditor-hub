@@ -96,6 +96,9 @@ const FAIXA_TOM: Record<string, TomStatus> = {
   "sem base": "neutro",
 };
 
+/** Faixas que cruzaram o corte de 75: "cruzou" sai da faixa, não de falta_corte === 0. */
+const CRUZOU = new Set(["Na meta", "Superação"]);
+
 const PERGUNTA = "Qual unidade está abaixo do corte de 75 neste trimestre, e em qual pilar?";
 
 const PROCEDENCIA = {
@@ -168,6 +171,7 @@ export function IduView() {
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState("");
   const [voltar, setVoltar] = useState<VoltarPadrao | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   const { can, loading: permLoading } = usePermissions();
   const temAcesso = can("view.idu");
@@ -231,6 +235,8 @@ export function IduView() {
       );
       return;
     }
+    if (salvando) return;
+    setSalvando(true);
     const { error } = await supabase.from("idu_metas").upsert(
       {
         unidade_id: l.unidade_id,
@@ -242,6 +248,7 @@ export function IduView() {
       },
       { onConflict: "unidade_id,periodo_inicio,indicador" },
     );
+    setSalvando(false);
     // Erro fica no campo: a edição continua aberta e a página não muda.
     if (error) {
       toast.error(`Não foi possível salvar a meta de ${l.rotulo}: ${error.message}`);
@@ -270,6 +277,24 @@ export function IduView() {
     toast.success(`${alvo.unidade} voltou a seguir a meta padrão de ${alvo.rotulo}`);
     await recarregar();
   }
+
+  // Linha aberta na URL pelo unidade_id; o nome (links antigos) vale como
+  // fallback e é trocado pelo id. Valor que não acha unidade sai da URL.
+  const achada = useMemo(
+    () =>
+      unidadeUrl
+        ? (rank.find((r) => String(r.unidade_id) === unidadeUrl) ??
+          rank.find((r) => r.unidade === unidadeUrl) ??
+          null)
+        : null,
+    [rank, unidadeUrl],
+  );
+  const aberta = achada?.unidade_id ?? null;
+  useEffect(() => {
+    if (loading || erro || !unidadeUrl) return;
+    if (!achada) setUnidadeUrl("");
+    else if (String(achada.unidade_id) !== unidadeUrl) setUnidadeUrl(String(achada.unidade_id));
+  }, [loading, erro, unidadeUrl, achada, setUnidadeUrl]);
 
   const semAcesso = !permLoading && !temAcesso;
   const carregando = permLoading || (temAcesso && loading);
@@ -385,7 +410,6 @@ export function IduView() {
   const unidadesPorTier: Record<string, number> = {};
   for (const r of rank) unidadesPorTier[r.curva] = (unidadesPorTier[r.curva] ?? 0) + 1;
   const idx = periodos.findIndex((p) => p.key === periodo.key);
-  const aberta = rank.find((r) => r.unidade === unidadeUrl)?.unidade_id ?? null;
 
   return (
     <>
@@ -428,7 +452,7 @@ export function IduView() {
               {rank.map((r) => {
                 const aberto = aberta === r.unidade_id;
                 const linhas = det.filter((d) => d.unidade_id === r.unidade_id);
-                const alternar = () => setUnidadeUrl(aberto ? "" : r.unidade);
+                const alternar = () => setUnidadeUrl(aberto ? "" : String(r.unidade_id));
                 const sb = semBase(r);
                 return (
                   <Fragment key={r.unidade_id}>
@@ -437,13 +461,13 @@ export function IduView() {
                         <button
                           type="button"
                           aria-expanded={aberto}
-                          aria-controls={`idu-det-${r.unidade_id}`}
+                          aria-controls={aberto ? `idu-det-${r.unidade_id}` : undefined}
                           aria-label={`${aberto ? "Fechar" : "Abrir"} indicadores de ${r.unidade}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             alternar();
                           }}
-                          className="inline-flex rounded-sm text-muted-foreground"
+                          className="inline-flex rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         >
                           {aberto ? (
                             <ChevronDown className="size-4" aria-hidden />
@@ -469,7 +493,7 @@ export function IduView() {
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {sb || r.falta_corte === null
                           ? "sem base"
-                          : r.falta_corte === 0
+                          : CRUZOU.has(r.faixa)
                             ? "cruzou"
                             : fmtNum(r.falta_corte)}
                       </TableCell>
@@ -506,6 +530,7 @@ export function IduView() {
                                     l={l}
                                     editando={editando === `${l.unidade_id}:${l.indicador}`}
                                     rascunho={rascunho}
+                                    salvando={salvando}
                                     podeEditar={podeEditarMetas}
                                     onEditar={() => {
                                       setEditando(`${l.unidade_id}:${l.indicador}`);
@@ -575,6 +600,7 @@ function LinhaIndicador({
   l,
   editando,
   rascunho,
+  salvando,
   podeEditar,
   onEditar,
   onRascunho,
@@ -585,6 +611,7 @@ function LinhaIndicador({
   l: DetRow;
   editando: boolean;
   rascunho: string;
+  salvando: boolean;
   podeEditar: boolean;
   onEditar: () => void;
   onRascunho: (v: string) => void;
@@ -612,7 +639,7 @@ function LinhaIndicador({
               }}
               className="h-8 w-24 text-right"
             />
-            <Button size="sm" onClick={onSalvar}>
+            <Button size="sm" disabled={salvando} onClick={onSalvar}>
               ok
             </Button>
           </div>
@@ -624,7 +651,7 @@ function LinhaIndicador({
                 disabled={!podeEditar}
                 onClick={onEditar}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-sm",
+                  "inline-flex items-center gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   podeEditar && "hover:underline",
                   !podeEditar && "pointer-events-none",
                   l.meta === null && "text-warning",
