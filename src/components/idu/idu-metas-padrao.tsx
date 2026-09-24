@@ -170,7 +170,7 @@ export function IduMetasPadrao({
               {ESCOPOS.map((e) => (
                 <TableHead key={e.escopo} className="text-right">
                   <div>{e.titulo}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">
+                  <div className="text-xs font-normal text-muted-foreground">
                     {e.dica}
                     {e.escopo !== "rede" &&
                       ` · ${unidadesPorTier[e.escopo] ?? 0} unidade${
