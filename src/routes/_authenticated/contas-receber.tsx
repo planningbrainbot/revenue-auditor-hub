@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Search, X, CalendarIcon } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Search, X, CalendarIcon, ChevronLeft, ChevronRight, Building2, TriangleAlert } from "lucide-react";
+import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,12 +27,12 @@ import {
 } from "@/components/ui/table";
 import { useContasReceber } from "@/hooks/use-contas-receber";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { brl, date, num } from "@/components/audit/format";
+import { date, num } from "@/components/audit/format";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataProvider, BaseFilterSelect, RefreshButton } from "@/components/audit/data-context";
 import { OmieLastSync } from "@/components/omie-last-sync";
 import { SafraFatoFilter } from "@/components/safra-fato-filter";
-import { useSafraFato } from "@/hooks/use-safra-fato";
+import type { SafraFatoMode } from "@/hooks/use-safra-fato";
 import { MensalidadesTab } from "@/components/audit/mensalidades-tab";
 import {
   Bar,
@@ -47,25 +46,87 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
+import {
+  CORES_SERIE,
+  COR_NEGATIVO,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
+import {
+  Carregando,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import {
+  brlOuTraco,
+  eixoMoeda,
+  ehMes,
+  ErroDaConsulta,
+  mesCorrente,
+  MolduraReceita,
+  rotuloDia,
+  rotuloMesCurto,
+  TooltipMoeda,
+} from "@/components/receita/moldura";
+import type { ContaReceber } from "@/lib/contas-receber.functions";
 
 const ALL = "__all__";
+const POR_PAGINA = 100;
+const CHAVES = "view.contas_receber";
+
+const texto = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+
+/**
+ * Tudo que define a tela mora na URL (N7) e é gravado de volta: antes a
+ * página lia `unidade`/`status`/`dataIni`/`dataFim`/`dataTipo` uma vez e
+ * seguia em `useState`, e recarregar perdia busca, aba e mês. As chaves
+ * antigas continuam valendo (o Funil de Receita linka com elas). O filtro por
+ * mês usa `mesFiltro`/`modo`, não `mes`/`modo`: o hook antigo gravava
+ * `?mes=` mesmo com o filtro desligado, e um link velho ligaria o filtro.
+ */
+type Busca = {
+  unidade?: string;
+  status?: string;
+  dataIni?: string;
+  dataFim?: string;
+  dataTipo?: string;
+  q?: string;
+  aba?: string;
+  mesFiltro?: string;
+  modo?: string;
+};
 
 export const Route = createFileRoute("/_authenticated/contas-receber")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    unidade: typeof search.unidade === "string" ? search.unidade : "",
-    status: typeof search.status === "string" ? search.status : "",
-    dataIni: typeof search.dataIni === "string" ? search.dataIni : "",
-    dataFim: typeof search.dataFim === "string" ? search.dataFim : "",
-    dataTipo: typeof search.dataTipo === "string" ? search.dataTipo : "",
+  validateSearch: (search: Record<string, unknown>): Busca => ({
+    unidade: texto(search.unidade),
+    status: texto(search.status),
+    dataIni: texto(search.dataIni),
+    dataFim: texto(search.dataFim),
+    dataTipo: texto(search.dataTipo),
+    q: texto(search.q),
+    aba: texto(search.aba),
+    mesFiltro: texto(search.mesFiltro),
+    modo: texto(search.modo),
+  }),
+  head: () => ({
+    meta: [
+      { title: "Contas a Receber – Planning" },
+      {
+        name: "description",
+        content: "Faturas das unidades no Omie: o que está em atraso e de quem cobrar.",
+      },
+    ],
   }),
   component: ContasReceberPage,
 });
 
-type StatusKey = "RECEBIDO" | "ATRASADO" | "A VENCER";
-
 type DataTipo = "competencia" | "vencimento" | "pagamento";
+type Aba = "resumo" | "faturas" | "mensalidades";
 
 const DATA_TIPO_FIELD: Record<DataTipo, "data_competencia" | "data_vencimento" | "data_pagamento"> = {
   competencia: "data_competencia",
@@ -79,27 +140,21 @@ const DATA_TIPO_LABEL: Record<DataTipo, string> = {
   pagamento: "Pagamento",
 };
 
+const STATUS_VALIDOS = ["A VENCER", "ATRASADO", "RECEBIDO", "NAO_RECEBIDO"];
+
 function statusBadge(s: string | null) {
-  if (s === "RECEBIDO")
-    return <Badge className="bg-success-soft text-success hover:bg-success-soft">Recebido</Badge>;
-  if (s === "ATRASADO")
-    return <Badge className="bg-danger-soft text-danger hover:bg-danger-soft">Atrasado</Badge>;
-  if (s === "A VENCER")
-    return <Badge className="bg-warning-soft text-warning hover:bg-warning-soft">A vencer</Badge>;
-  return <Badge variant="outline">{s ?? "—"}</Badge>;
+  if (s === "RECEBIDO") return <StatusBadge tom="sucesso">Recebido</StatusBadge>;
+  if (s === "ATRASADO") return <StatusBadge tom="perigo">Atrasado</StatusBadge>;
+  if (s === "A VENCER") return <StatusBadge tom="atencao">A vencer</StatusBadge>;
+  if (s === "CANCELADO") return <StatusBadge tom="neutro">Cancelado</StatusBadge>;
+  return <StatusBadge tom="neutro">{s ?? "—"}</StatusBadge>;
 }
 
-function diasAtraso(venc: string | null): number | null {
-  if (!venc) return null;
-  const d = new Date(venc);
-  if (Number.isNaN(d.getTime())) return null;
-  const diff = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
-  return diff > 0 ? diff : null;
-}
-
-function parseDate(d: string | null): Date | null {
+function parseDate(d: string | null | undefined): Date | null {
   if (!d) return null;
   try {
+    // parseISO lê "YYYY-MM-DD" no fuso de quem usa; `new Date()` leria meia-noite
+    // UTC e, no Brasil, o dia anterior.
     const dt = parseISO(d);
     return Number.isNaN(dt.getTime()) ? null : dt;
   } catch {
@@ -107,18 +162,112 @@ function parseDate(d: string | null): Date | null {
   }
 }
 
-function parseSearchDate(s: string): Date | undefined {
-  if (!s) return undefined;
-  const d = parseISO(s);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+/** Dias corridos desde o vencimento, pelo calendário local (não por UTC). */
+function diasAtraso(venc: string | null): number | null {
+  const d = parseDate(venc);
+  if (!d) return null;
+  const diff = differenceInCalendarDays(startOfDay(new Date()), d);
+  return diff > 0 ? diff : null;
 }
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
+/**
+ * Ordem de trabalho da aba Faturas (contrato §3): em atraso primeiro, a mais
+ * antiga no topo; depois a vencer, a mais próxima primeiro; o resto (recebido,
+ * cancelado) por vencimento mais recente. `id` desempata, para a ordem não
+ * mudar entre renderizações.
+ */
+function prioridade(s: string | null): number {
+  if (s === "ATRASADO") return 0;
+  if (s === "A VENCER") return 1;
+  return 2;
+}
+function ordemDeTrabalho(a: ContaReceber, b: ContaReceber): number {
+  const pa = prioridade(a.status_pagamento);
+  const pb = prioridade(b.status_pagamento);
+  if (pa !== pb) return pa - pb;
+  const va = a.data_vencimento ?? "";
+  const vb = b.data_vencimento ?? "";
+  if (va !== vb) {
+    if (!va) return 1;
+    if (!vb) return -1;
+    return pa === 2 ? vb.localeCompare(va) : va.localeCompare(vb);
+  }
+  return a.id - b.id;
+}
+
+/** O que fazer com a fatura, com a data que manda (Fila: próxima ação com data). */
+function proximaAcao(r: ContaReceber): { texto: string; tom?: "perigo" } | null {
+  if (r.status_pagamento === "ATRASADO") {
+    const d = diasAtraso(r.data_vencimento);
+    return {
+      texto: d ? `Cobrar · vencida há ${num(d)} ${d === 1 ? "dia" : "dias"}` : "Cobrar",
+      tom: "perigo",
+    };
+  }
+  if (r.status_pagamento === "A VENCER") {
+    const dia = rotuloDia(r.data_vencimento);
+    return { texto: dia ? `Acompanhar · vence ${dia}` : "Acompanhar" };
+  }
+  return null;
+}
+
+/** Busca da Base de clientes: CNPJ quando há (casa exato), senão o nome. */
+function buscaCliente(r: { cliente: string | null; cpf_cnpj: string | null }): string {
+  const digitos = (r.cpf_cnpj ?? "").replace(/\D/g, "");
+  return digitos.length >= 11 ? digitos : (r.cliente ?? "");
+}
+
+function DataFiltro({
+  valor,
+  aoMudar,
+  rotulo,
+}: {
+  valor: Date | undefined;
+  aoMudar: (d: Date | undefined) => void;
+  rotulo: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn("w-[160px] justify-start text-left font-normal", !valor && "text-muted-foreground")}
+        >
+          <CalendarIcon className="mr-2 size-4" aria-hidden />
+          {valor ? format(valor, "dd/MM/yyyy") : rotulo}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={valor}
+          onSelect={aoMudar}
+          initialFocus
+          locale={ptBR}
+          className="pointer-events-auto p-3"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * Contas a Receber (Fila de trabalho; contrato
+ * `docs/design/contratos/receita-e-repasses.md` §3). Responde "quais faturas
+ * estão em atraso, e de quem cobro?". Não há ação de cobrança no Ops, e nenhuma
+ * foi inventada: a próxima ação de cada linha é abrir o cliente na Base.
+ *
+ * A consulta (`listContasReceber`) não mudou. A paginação dela ordena por
+ * `data_vencimento`, que repete, e pode pular ou duplicar linhas entre páginas:
+ * é defeito de dado registrado para o dono (contrato, "Defeitos" 2). Aqui só a
+ * exibição é paginada, para não renderizar ~29 mil linhas de uma vez.
+ */
 function ContasReceberPage() {
   const search = Route.useSearch();
-  const { data, isLoading } = useContasReceber();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { data, isLoading, error, refetch } = useContasReceber();
   const perms = usePermissions();
-  const allRows = data?.rows ?? [];
+  const allRows = useMemo(() => data?.rows ?? [], [data]);
   // Sócio regional só enxerga a própria unidade. Recorta na origem para que
   // KPIs, resumo, faturas e gráficos herdem o escopo.
   const rows = useMemo(
@@ -130,17 +279,38 @@ function ContasReceberPage() {
   );
   const escopoUnidade = perms.scopedToOwnUnit && !!perms.unidade;
 
-  const [q, setQ] = useState("");
-  const [unidade, setUnidade] = useState(search.unidade || ALL);
-  const [status, setStatus] = useState(search.status || ALL);
-  const [dataIni, setDataIni] = useState<Date | undefined>(parseSearchDate(search.dataIni));
-  const [dataFim, setDataFim] = useState<Date | undefined>(parseSearchDate(search.dataFim));
-  const [dataTipo, setDataTipo] = useState<DataTipo>(
-    (search.dataTipo as DataTipo) || "competencia",
-  );
-  const [defaultTab] = useState(search.unidade || search.status || search.dataIni ? "faturas" : "resumo");
-  const sf = useSafraFato();
-  const [usarSafraFato, setUsarSafraFato] = useState(false);
+  /** Grava na URL; valor vazio sai dela. `replace`: filtro não empilha histórico. */
+  const mudar = (patch: Partial<Busca>) => {
+    const limpo = Object.fromEntries(
+      Object.entries(patch).map(([k, v]) => [k, v === "" || v === ALL ? undefined : v]),
+    ) as Partial<Busca>;
+    void navigate({
+      search: (prev: Busca) => ({ ...prev, ...limpo }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+
+  const unidade = search.unidade ?? ALL;
+  const status = search.status && STATUS_VALIDOS.includes(search.status) ? search.status : ALL;
+  const dataTipo: DataTipo =
+    search.dataTipo && search.dataTipo in DATA_TIPO_FIELD ? (search.dataTipo as DataTipo) : "competencia";
+  const dataIni = parseDate(search.dataIni) ?? undefined;
+  const dataFim = parseDate(search.dataFim) ?? undefined;
+  const q = search.q ?? "";
+  const mesFiltro = ehMes(search.mesFiltro) ? search.mesFiltro : undefined;
+  const usarSafraFato = !!mesFiltro;
+  const modo: SafraFatoMode = search.modo === "safra" ? "safra" : "fato";
+
+  // A busca digitada vai para a URL com uma pausa curta, não a cada tecla.
+  const [busca, setBusca] = useState(q);
+  useEffect(() => setBusca(q), [q]);
+  useEffect(() => {
+    if (busca === q) return;
+    const t = setTimeout(() => mudar({ q: busca.trim() ? busca : undefined }), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca]);
 
   const unidades = useMemo(
     () => Array.from(new Set(rows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
@@ -149,19 +319,26 @@ function ContasReceberPage() {
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const ini = dataIni ? new Date(dataIni.getFullYear(), dataIni.getMonth(), dataIni.getDate()).getTime() : null;
-    const fim = dataFim ? new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate(), 23, 59, 59, 999).getTime() : null;
-    const sfIni = usarSafraFato ? sf.range.start.getTime() : null;
-    const sfFim = usarSafraFato ? sf.range.end.getTime() - 1 : null;
+    const ini = dataIni ? startOfDay(dataIni).getTime() : null;
+    const fim = dataFim
+      ? new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate(), 23, 59, 59, 999).getTime()
+      : null;
+    let sfIni: number | null = null;
+    let sfFim: number | null = null;
+    if (mesFiltro) {
+      const [y, m] = mesFiltro.split("-").map(Number);
+      sfIni = new Date(y, m - 1, 1).getTime();
+      sfFim = new Date(y, m, 1).getTime() - 1;
+    }
     return rows.filter((r) => {
       if (unidade !== ALL && r.unidade !== unidade) return false;
       if (status === "NAO_RECEBIDO") {
         if (r.status_pagamento === "RECEBIDO" || r.status_pagamento === "CANCELADO") return false;
       } else if (status !== ALL && r.status_pagamento !== status) return false;
-      if (usarSafraFato) {
+      if (mesFiltro) {
         // Safra: data_competencia. Fato: data_pagamento ?? data_vencimento.
         const d =
-          sf.mode === "safra"
+          modo === "safra"
             ? parseDate(r.data_competencia)
             : (parseDate(r.data_pagamento) ?? parseDate(r.data_vencimento));
         const t = d ? d.getTime() : null;
@@ -184,25 +361,41 @@ function ContasReceberPage() {
       }
       return true;
     });
-  }, [rows, q, unidade, status, dataIni, dataFim, dataTipo, usarSafraFato, sf.mode, sf.range]);
+    // As datas entram pela string da URL: `Date` novo a cada render não re-filtra.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, q, unidade, status, search.dataIni, search.dataFim, dataTipo, mesFiltro, modo]);
+
+  const faturasOrdenadas = useMemo(() => [...filtered].sort(ordemDeTrabalho), [filtered]);
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => setPagina(1), [filtered]);
+  const totalPaginas = Math.max(1, Math.ceil(faturasOrdenadas.length / POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const visiveis = faturasOrdenadas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
   const kpis = useMemo(() => {
     let aVencer = 0;
+    let aVencerQtd = 0;
     let atrasado = 0;
     let atrasadoQtd = 0;
     let recebido = 0;
+    let recebidoQtd = 0;
     let total = 0;
     for (const r of filtered) {
       const v = Number(r.valor ?? 0);
       total += v;
-      if (r.status_pagamento === "A VENCER") aVencer += v;
-      else if (r.status_pagamento === "ATRASADO") {
+      if (r.status_pagamento === "A VENCER") {
+        aVencer += v;
+        aVencerQtd += 1;
+      } else if (r.status_pagamento === "ATRASADO") {
         atrasado += v;
         atrasadoQtd += 1;
-      } else if (r.status_pagamento === "RECEBIDO") recebido += v;
+      } else if (r.status_pagamento === "RECEBIDO") {
+        recebido += v;
+        recebidoQtd += 1;
+      }
     }
-    const ticket = filtered.length ? total / filtered.length : 0;
-    return { aVencer, atrasado, atrasadoQtd, recebido, ticket };
+    const ticket = filtered.length ? total / filtered.length : null;
+    return { aVencer, aVencerQtd, atrasado, atrasadoQtd, recebido, recebidoQtd, ticket };
   }, [filtered]);
 
   const porUnidade = useMemo(() => {
@@ -212,8 +405,7 @@ function ContasReceberPage() {
     >();
     for (const r of filtered) {
       const u = r.unidade ?? "—";
-      const cur =
-        map.get(u) ?? { qtd: 0, total: 0, atrasado: 0, recebido: 0, aVencer: 0 };
+      const cur = map.get(u) ?? { qtd: 0, total: 0, atrasado: 0, recebido: 0, aVencer: 0 };
       const v = Number(r.valor ?? 0);
       cur.qtd += 1;
       cur.total += v;
@@ -252,354 +444,634 @@ function ContasReceberPage() {
       else if (r.status_pagamento === "ATRASADO") cur.atrasado += v;
       map.set(key, cur);
     }
-    return Array.from(map.values()).sort((a, b) => a.mes.localeCompare(b.mes));
+    return Array.from(map.values())
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .map((p) => ({ ...p, rotulo: rotuloMesCurto(p.mes) }));
   }, [filtered]);
 
+  // De quem cobro primeiro: o maior valor em atraso por cliente, no recorte.
   const topAtrasados = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { cliente: string; cpf_cnpj: string | null; valor: number; qtd: number }>();
     for (const r of filtered) {
       if (r.status_pagamento !== "ATRASADO") continue;
       const k = r.cliente ?? "—";
-      map.set(k, (map.get(k) ?? 0) + Number(r.valor ?? 0));
+      const cur = map.get(k) ?? { cliente: k, cpf_cnpj: r.cpf_cnpj, valor: 0, qtd: 0 };
+      cur.valor += Number(r.valor ?? 0);
+      cur.qtd += 1;
+      map.set(k, cur);
     }
-    return Array.from(map.entries())
-      .map(([cliente, valor]) => ({ cliente, valor }))
+    return Array.from(map.values())
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 5);
   }, [filtered]);
 
   const hasFilters =
-    q !== "" || unidade !== ALL || status !== ALL || dataIni !== undefined || dataFim !== undefined;
+    q !== "" ||
+    unidade !== ALL ||
+    status !== ALL ||
+    dataIni !== undefined ||
+    dataFim !== undefined ||
+    usarSafraFato;
   const clearFilters = () => {
-    setQ("");
-    setUnidade(ALL);
-    setStatus(ALL);
-    setDataIni(undefined);
-    setDataFim(undefined);
-    setDataTipo("competencia");
+    setBusca("");
+    mudar({
+      q: undefined,
+      unidade: undefined,
+      status: undefined,
+      dataIni: undefined,
+      dataFim: undefined,
+      dataTipo: undefined,
+      mesFiltro: undefined,
+      modo: undefined,
+    });
   };
 
-  return (
-    <div className="space-y-6 p-6">
-      <PageHeader
-        titulo="Contas a Receber"
-        descricao="Faturas emitidas pelas unidades — origem: Omie."
-        acoes={<OmieLastSync />}
-      />
+  // Sem `?aba=`: quem chega com filtro (o Funil de Receita linka assim) cai
+  // nas Faturas; sem filtro, no Resumo. A aba escolhida é gravada sempre, para
+  // não pular de aba quando o filtro muda.
+  const abaPadrao: Aba = search.unidade || search.status || search.dataIni ? "faturas" : "resumo";
+  const aba: Aba =
+    search.aba === "resumo" || search.aba === "faturas" || search.aba === "mensalidades"
+      ? search.aba
+      : abaPadrao;
+  const irParaFaturas = (patch: Partial<Busca>) => mudar({ ...patch, aba: "faturas" });
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />
-        <KpiCard label="A vencer" value={brl(kpis.aVencer)} tone="amber" />
-        <KpiCard
-          label="Em atraso"
-          value={brl(kpis.atrasado)}
-          hint={`${num(kpis.atrasadoQtd)} fatura(s)`}
-          tone="red"
+  const regua = mesFiltro
+    ? modo === "safra"
+      ? "competência"
+      : "pagamento (ou vencimento, se em aberto)"
+    : dataIni || dataFim
+      ? DATA_TIPO_LABEL[dataTipo].toLowerCase()
+      : "todo o histórico";
+
+  const descricao = isLoading ? (
+    "Faturas emitidas pelas unidades no Omie."
+  ) : hasFilters ? (
+    <>
+      <span className="num">{num(filtered.length)}</span> de{" "}
+      <span className="num">{num(rows.length)}</span> faturas no recorte · títulos das unidades no
+      Omie, valor bruto do título · os cards somam só o recorte.
+    </>
+  ) : (
+    <>
+      <span className="num">{num(rows.length)}</span> faturas · títulos das unidades no Omie, valor
+      bruto do título · <strong>sem filtro, os cards somam todo o histórico</strong>.
+    </>
+  );
+
+  const filtros = (
+    <>
+      <label className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+        <Checkbox
+          checked={usarSafraFato}
+          onCheckedChange={(c) =>
+            mudar(c ? { mesFiltro: mesCorrente() } : { mesFiltro: undefined, modo: undefined })
+          }
         />
-        <KpiCard label="Ticket médio" value={brl(kpis.ticket)} tone="slate" />
+        Filtrar por mês
+      </label>
+      {usarSafraFato && mesFiltro && (
+        <SafraFatoFilter
+          mode={modo}
+          mes={mesFiltro}
+          onModeChange={(m) => mudar({ modo: m === "fato" ? undefined : m })}
+          onMesChange={(m) => mudar({ mesFiltro: m })}
+        />
+      )}
+      <div className="h-6 w-px bg-border" aria-hidden />
+
+      <div className="relative min-w-[240px] flex-1">
+        <Search
+          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          placeholder="Buscar cliente, CNPJ ou documento..."
+          aria-label="Buscar cliente, CNPJ ou documento"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="pl-9"
+        />
       </div>
-
-      <Card className="p-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Checkbox
-            checked={usarSafraFato}
-            onCheckedChange={(c) => setUsarSafraFato(Boolean(c))}
-          />
-          Filtrar por mês
-        </label>
-        {usarSafraFato && (
-          <SafraFatoFilter
-            mode={sf.mode}
-            mes={sf.mes}
-            onModeChange={sf.setMode}
-            onMesChange={sf.setMes}
-          />
-        )}
-        <div className="h-6 w-px bg-border" />
-
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar cliente, CNPJ ou documento..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {escopoUnidade ? (
-          <Badge variant="secondary" className="h-9 px-3">{perms.unidade}</Badge>
-        ) : (
-          <Select value={unidade} onValueChange={setUnidade}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as unidades</SelectItem>
-              {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        )}
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+      {escopoUnidade ? (
+        <Badge variant="secondary" className="h-9 px-3">
+          {perms.unidade}
+        </Badge>
+      ) : (
+        <Select value={unidade} onValueChange={(v) => mudar({ unidade: v })}>
+          <SelectTrigger className="w-[180px]" aria-label="Unidade">
+            <SelectValue placeholder="Unidade" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>Todos os status</SelectItem>
-            <SelectItem value="A VENCER">A vencer</SelectItem>
-            <SelectItem value="ATRASADO">Atrasado</SelectItem>
-            <SelectItem value="RECEBIDO">Recebido</SelectItem>
-            <SelectItem value="NAO_RECEBIDO">Não recebido (a vencer + atrasado)</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={dataTipo} onValueChange={(v) => setDataTipo(v as DataTipo)}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Tipo de data" /></SelectTrigger>
-          <SelectContent>
-            {(Object.keys(DATA_TIPO_LABEL) as DataTipo[]).map((k) => (
-              <SelectItem key={k} value={k}>{DATA_TIPO_LABEL[k]}</SelectItem>
+            <SelectItem value={ALL}>Todas as unidades</SelectItem>
+            {unidade !== ALL && !unidades.includes(unidade) && (
+              <SelectItem value={unidade}>{unidade}</SelectItem>
+            )}
+            {unidades.map((u) => (
+              <SelectItem key={u} value={u}>
+                {u}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-[160px] justify-start text-left font-normal",
-                !dataIni && "text-muted-foreground",
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dataIni ? format(dataIni, "dd/MM/yyyy") : `${DATA_TIPO_LABEL[dataTipo]} de`}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dataIni}
-              onSelect={setDataIni}
-              initialFocus
-              locale={ptBR}
-              className={cn("p-3 pointer-events-auto")}
-            />
-          </PopoverContent>
-        </Popover>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-[160px] justify-start text-left font-normal",
-                !dataFim && "text-muted-foreground",
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dataFim ? format(dataFim, "dd/MM/yyyy") : `${DATA_TIPO_LABEL[dataTipo]} até`}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dataFim}
-              onSelect={setDataFim}
-              initialFocus
-              locale={ptBR}
-              className={cn("p-3 pointer-events-auto")}
-            />
-          </PopoverContent>
-        </Popover>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="h-4 w-4 mr-1" /> Limpar
-          </Button>
+      )}
+      <Select value={status} onValueChange={(v) => mudar({ status: v })}>
+        <SelectTrigger className="w-[160px]" aria-label="Status">
+          <SelectValue placeholder="Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Todos os status</SelectItem>
+          <SelectItem value="A VENCER">A vencer</SelectItem>
+          <SelectItem value="ATRASADO">Atrasado</SelectItem>
+          <SelectItem value="RECEBIDO">Recebido</SelectItem>
+          <SelectItem value="NAO_RECEBIDO">Não recebido (a vencer + atrasado)</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={dataTipo}
+        onValueChange={(v) => mudar({ dataTipo: v === "competencia" ? undefined : v })}
+      >
+        <SelectTrigger className="w-[150px]" aria-label="Tipo de data">
+          <SelectValue placeholder="Tipo de data" />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(DATA_TIPO_LABEL) as DataTipo[]).map((k) => (
+            <SelectItem key={k} value={k}>
+              {DATA_TIPO_LABEL[k]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <DataFiltro
+        valor={dataIni}
+        aoMudar={(d) => mudar({ dataIni: d ? format(d, "yyyy-MM-dd") : undefined })}
+        rotulo={`${DATA_TIPO_LABEL[dataTipo]} de`}
+      />
+      <DataFiltro
+        valor={dataFim}
+        aoMudar={(d) => mudar({ dataFim: d ? format(d, "yyyy-MM-dd") : undefined })}
+        rotulo={`${DATA_TIPO_LABEL[dataTipo]} até`}
+      />
+      {hasFilters && (
+        <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto text-muted-foreground">
+          <X className="size-4" aria-hidden /> Limpar filtros
+        </Button>
+      )}
+    </>
+  );
+
+  return (
+    <MolduraReceita
+      titulo="Contas a Receber"
+      pergunta="Quais faturas estão em atraso, e de quem cobro?"
+      descricao={descricao}
+      procedencia={{ fonte: "Omie · contas_receber", regua }}
+      acoes={<OmieLastSync />}
+      filtros={filtros}
+    >
+      <div className="space-y-6 p-4 md:p-6">
+        {error ? (
+          <ErroDaConsulta erro={error} chaves={CHAVES} tentarNovamente={() => void refetch()} />
+        ) : isLoading ? (
+          <>
+            <Carregando variante="kpis" />
+            <Carregando variante="tabela" />
+          </>
+        ) : (
+          <>
+            <KpiGrade colunas={4}>
+              <KpiCard
+                rotulo="Em atraso (filtro)"
+                valor={brlOuTraco(kpis.atrasado)}
+                nota={`${num(kpis.atrasadoQtd)} fatura(s) vencida(s) e não paga(s)`}
+                tom={kpis.atrasado > 0 ? "perigo" : undefined}
+                abrir={
+                  kpis.atrasadoQtd > 0
+                    ? { onClick: () => irParaFaturas({ status: "ATRASADO" }), rotulo: "Ver faturas" }
+                    : undefined
+                }
+              />
+              <KpiCard
+                rotulo="A vencer (filtro)"
+                valor={brlOuTraco(kpis.aVencer)}
+                nota={`${num(kpis.aVencerQtd)} fatura(s) em aberto no prazo`}
+                abrir={
+                  kpis.aVencerQtd > 0
+                    ? { onClick: () => irParaFaturas({ status: "A VENCER" }), rotulo: "Ver faturas" }
+                    : undefined
+                }
+              />
+              <KpiCard
+                rotulo="Recebido (filtro)"
+                valor={brlOuTraco(kpis.recebido)}
+                nota={`${num(kpis.recebidoQtd)} fatura(s) paga(s)`}
+                abrir={
+                  kpis.recebidoQtd > 0
+                    ? { onClick: () => irParaFaturas({ status: "RECEBIDO" }), rotulo: "Ver faturas" }
+                    : undefined
+                }
+              />
+              <KpiCard
+                rotulo="Ticket médio (filtro)"
+                valor={brlOuTraco(kpis.ticket)}
+                estado={kpis.ticket === null ? "nao-apurado" : "ok"}
+                nota={kpis.ticket === null ? "nenhuma fatura no recorte" : "valor ÷ faturas do recorte"}
+              />
+            </KpiGrade>
+
+            <Tabs value={aba} onValueChange={(v) => mudar({ aba: v })} className="w-full">
+              <TabsList>
+                <TabsTrigger value="faturas">
+                  Faturas <span className="num">({num(filtered.length)})</span>
+                </TabsTrigger>
+                <TabsTrigger value="resumo">Resumo por unidade</TabsTrigger>
+                <TabsTrigger value="mensalidades">Mensalidades</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="resumo" className="space-y-6">
+                <Secao
+                  titulo="De quem cobro primeiro?"
+                  descricao="Os cinco clientes com mais valor em atraso no recorte."
+                >
+                  {topAtrasados.length === 0 ? (
+                    <EstadoVazio titulo="Nenhuma fatura em atraso no recorte" />
+                  ) : (
+                    <div className="overflow-auto rounded-xl border bg-card">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="text-right">Faturas em atraso</TableHead>
+                            <TableHead className="text-right">Em atraso</TableHead>
+                            <TableHead className="text-right">Próxima ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {topAtrasados.map((c) => (
+                            <TableRow key={c.cliente}>
+                              <TableCell className="font-medium">{c.cliente}</TableCell>
+                              <TableCell className="num text-right">{num(c.qtd)}</TableCell>
+                              <TableCell className="num text-right font-medium text-danger">
+                                {brlOuTraco(c.valor)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setBusca(c.cliente);
+                                      irParaFaturas({ q: c.cliente, status: "ATRASADO" });
+                                    }}
+                                  >
+                                    Ver faturas
+                                  </Button>
+                                  <Button variant="ghost" size="sm" asChild>
+                                    <Link to="/clientes" search={{ q: buscaCliente(c) }}>
+                                      <Building2 className="size-4" aria-hidden />
+                                      Abrir cliente
+                                    </Link>
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </Secao>
+
+                <Secao
+                  titulo="Quanto cada unidade tem a receber, em atraso e recebido?"
+                  descricao="Clique na unidade para abrir as faturas dela."
+                >
+                  {porUnidade.length === 0 ? (
+                    <EstadoVazio titulo="Nenhuma fatura no recorte" total={rows.length} />
+                  ) : (
+                    <div className="overflow-auto rounded-xl border bg-card">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Unidade</TableHead>
+                            <TableHead className="text-right">Faturas</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-right">A vencer</TableHead>
+                            <TableHead className="text-right">Em atraso</TableHead>
+                            <TableHead className="text-right">Recebido</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {porUnidade.map((u) => (
+                            <TableRow key={u.unidade}>
+                              <TableCell>
+                                {u.unidade === "—" ? (
+                                  <span className="text-muted-foreground">Sem unidade</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="rounded-sm font-medium underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() => irParaFaturas({ unidade: u.unidade })}
+                                  >
+                                    {u.unidade}
+                                  </button>
+                                )}
+                              </TableCell>
+                              <TableCell className="num text-right">{num(u.qtd)}</TableCell>
+                              <TableCell className="num text-right">{brlOuTraco(u.total)}</TableCell>
+                              <TableCell className="num text-right">{brlOuTraco(u.aVencer)}</TableCell>
+                              <TableCell className="num text-right text-danger">
+                                {brlOuTraco(u.atrasado)}
+                              </TableCell>
+                              <TableCell className="num text-right">{brlOuTraco(u.recebido)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </Secao>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Secao
+                    titulo="Onde a inadimplência pesa mais?"
+                    descricao="% do valor do recorte em atraso, dez maiores unidades."
+                  >
+                    <div className="rounded-xl border bg-card p-4">
+                      {inadimplenciaUnidade.length === 0 ? (
+                        <p className="py-12 text-center text-sm text-muted-foreground">
+                          Sem inadimplência no filtro atual.
+                        </p>
+                      ) : (
+                        <ResponsiveContainer
+                          width="100%"
+                          height={Math.max(220, inadimplenciaUnidade.length * 32)}
+                        >
+                          <BarChart
+                            data={inadimplenciaUnidade}
+                            layout="vertical"
+                            margin={{ left: 8, right: 16 }}
+                          >
+                            <CartesianGrid {...gradeProps} vertical horizontal={false} />
+                            <XAxis
+                              type="number"
+                              {...eixoProps}
+                              tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+                            />
+                            <YAxis type="category" dataKey="unidade" {...eixoProps} width={90} />
+                            <Tooltip
+                              {...tooltipProps}
+                              formatter={(value: number, _name, item) => [
+                                `${value.toFixed(1)}% (${brlOuTraco(item?.payload?.atrasado)})`,
+                                "Em atraso",
+                              ]}
+                            />
+                            <Bar dataKey="pct" fill={COR_NEGATIVO} radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </Secao>
+
+                  <Secao
+                    titulo="Como o recebido e o atraso evoluíram por mês?"
+                    descricao="R$ por mês de competência (ou vencimento, se a fatura não tem competência)."
+                  >
+                    <div className="rounded-xl border bg-card p-4">
+                      {evolucaoMensal.length === 0 ? (
+                        <p className="py-12 text-center text-sm text-muted-foreground">
+                          Sem dados para o filtro atual.
+                        </p>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <LineChart data={evolucaoMensal} margin={{ left: 8, right: 16 }}>
+                            <CartesianGrid {...gradeProps} />
+                            <XAxis dataKey="rotulo" {...eixoProps} />
+                            <YAxis {...eixoProps} tickFormatter={eixoMoeda} />
+                            <Tooltip cursor={tooltipProps.cursor} content={<TooltipMoeda />} />
+                            <Legend {...legendaProps} />
+                            <Line
+                              type="monotone"
+                              dataKey="recebido"
+                              name="Recebido"
+                              stroke={CORES_SERIE[0]}
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="aVencer"
+                              name="A vencer"
+                              stroke={CORES_SERIE[1]}
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="atrasado"
+                              name="Em atraso"
+                              stroke={COR_NEGATIVO}
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </Secao>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="faturas" className="space-y-3">
+                {faturasOrdenadas.length === 0 ? (
+                  <EstadoVazio
+                    titulo="Nenhuma fatura encontrada"
+                    total={rows.length}
+                    acao={
+                      hasFilters ? (
+                        <Button variant="outline" size="sm" onClick={clearFilters}>
+                          Limpar filtros
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ) : (
+                  <div className="overflow-hidden rounded-xl border bg-card">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 text-sm">
+                      <span>
+                        <span className="num font-medium">{num(faturasOrdenadas.length)}</span>{" "}
+                        fatura(s) · em atraso primeiro, a mais antiga no topo
+                      </span>
+                      <Paginacao
+                        pagina={paginaAtual}
+                        total={totalPaginas}
+                        linhas={faturasOrdenadas.length}
+                        aoMudar={setPagina}
+                      />
+                    </div>
+                    <div className="relative max-h-[calc(100vh-340px)] overflow-auto">
+                      <table className="w-full caption-bottom border-separate border-spacing-0 text-sm">
+                        <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
+                          <TableRow>
+                            <TableHead className="bg-card">Status</TableHead>
+                            <TableHead className="bg-card">Cliente</TableHead>
+                            <TableHead className="bg-card">Unidade</TableHead>
+                            <TableHead className="bg-card">Documento</TableHead>
+                            <TableHead className="bg-card">Competência</TableHead>
+                            <TableHead className="bg-card">Vencimento</TableHead>
+                            <TableHead className="bg-card">Pagamento</TableHead>
+                            <TableHead className="bg-card text-right">Valor</TableHead>
+                            <TableHead className="bg-card text-right">Atraso (dias)</TableHead>
+                            <TableHead className="bg-card">Próxima ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {visiveis.map((r) => {
+                            const atraso =
+                              r.status_pagamento === "ATRASADO" ? diasAtraso(r.data_vencimento) : null;
+                            const acao = proximaAcao(r);
+                            return (
+                              <TableRow key={r.id}>
+                                <TableCell>{statusBadge(r.status_pagamento)}</TableCell>
+                                <TableCell>
+                                  <div className="font-medium">{r.cliente || "—"}</div>
+                                  {r.cpf_cnpj && (
+                                    <div className="font-mono text-xs text-muted-foreground">
+                                      {r.cpf_cnpj}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {r.unidade ? <Badge variant="secondary">{r.unidade}</Badge> : "—"}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">{r.num_documento || "—"}</TableCell>
+                                <TableCell className="num">{date(r.data_competencia)}</TableCell>
+                                <TableCell className="num">{date(r.data_vencimento)}</TableCell>
+                                <TableCell className="num">{date(r.data_pagamento)}</TableCell>
+                                <TableCell className="num whitespace-nowrap text-right">
+                                  {brlOuTraco(r.valor)}
+                                </TableCell>
+                                <TableCell className="num text-right">
+                                  {atraso != null ? (
+                                    <span className="font-medium text-danger">{atraso}</span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {acao && (
+                                      <span
+                                        className={cn(
+                                          "whitespace-nowrap text-[13px]",
+                                          acao.tom === "perigo" ? "text-danger" : "text-muted-foreground",
+                                        )}
+                                      >
+                                        {acao.texto}
+                                      </span>
+                                    )}
+                                    {(r.cliente || r.cpf_cnpj) && (
+                                      <Button variant="ghost" size="sm" asChild className="ml-auto">
+                                        <Link to="/clientes" search={{ q: buscaCliente(r) }}>
+                                          <Building2 className="size-4" aria-hidden />
+                                          Abrir cliente
+                                        </Link>
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </table>
+                    </div>
+                    {totalPaginas > 1 && (
+                      <div className="flex justify-end border-t px-4 py-2">
+                        <Paginacao
+                          pagina={paginaAtual}
+                          total={totalPaginas}
+                          linhas={faturasOrdenadas.length}
+                          aoMudar={setPagina}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="mensalidades" className="space-y-4">
+                <DataProvider>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Defeito de dado 1 do contrato: o DataProvider lê contas_receber com
+                        limit(50000), cortado em 1.000 pelo PostgREST. Até o dono corrigir a
+                        consulta, a tela avisa em vez de parecer completa (N2). */}
+                    <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                      <TriangleAlert className="size-4 shrink-0 text-warning" aria-hidden />
+                      Os recebimentos são lidos em até 1.000 títulos: “Sem recebimento” pode estar
+                      errado.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Base:
+                      </span>
+                      <BaseFilterSelect />
+                      <RefreshButton />
+                    </div>
+                  </div>
+                  <MensalidadesTab />
+                </DataProvider>
+              </TabsContent>
+            </Tabs>
+          </>
         )}
-      </Card>
-
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList>
-          <TabsTrigger value="resumo">Resumo por unidade</TabsTrigger>
-          <TabsTrigger value="faturas">
-            Faturas {isLoading ? "" : `(${num(filtered.length)})`}
-          </TabsTrigger>
-          <TabsTrigger value="mensalidades">Mensalidades</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resumo" className="space-y-4">
-          <Card className="overflow-hidden">
-            <div className="border-b px-4 py-3 text-sm font-medium">Resumo por unidade</div>
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Unidade</TableHead>
-                    <TableHead className="text-right">Faturas</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">A vencer</TableHead>
-                    <TableHead className="text-right">Em atraso</TableHead>
-                    <TableHead className="text-right">Recebido</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {porUnidade.map((u) => (
-                    <TableRow key={u.unidade}>
-                      <TableCell><Badge variant="secondary">{u.unidade}</Badge></TableCell>
-                      <TableCell className="text-right">{num(u.qtd)}</TableCell>
-                      <TableCell className="text-right">{brl(u.total)}</TableCell>
-                      <TableCell className="text-right">{brl(u.aVencer)}</TableCell>
-                      <TableCell className="text-right text-danger">{brl(u.atrasado)}</TableCell>
-                      <TableCell className="text-right text-success">{brl(u.recebido)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {porUnidade.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
-                        Sem dados para o filtro atual.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="p-4">
-              <div className="mb-3 text-sm font-medium">Inadimplência por unidade (% em atraso)</div>
-              {inadimplenciaUnidade.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Sem inadimplência no filtro atual.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={Math.max(220, inadimplenciaUnidade.length * 32)}>
-                  <BarChart data={inadimplenciaUnidade} layout="vertical" margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid {...gradeProps} vertical horizontal={false} />
-                    <XAxis type="number" {...eixoProps} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-                    <YAxis type="category" dataKey="unidade" {...eixoProps} width={90} />
-                    <Tooltip
-                      {...tooltipProps}
-                      formatter={(value: number, _name, item) => [
-                        `${value.toFixed(1)}% (${brl(item?.payload?.atrasado ?? 0)})`,
-                        "Em atraso",
-                      ]}
-                    />
-                    <Bar dataKey="pct" fill={COR_NEGATIVO} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </Card>
-
-            <Card className="p-4">
-              <div className="mb-3 text-sm font-medium">Evolução mensal</div>
-              {evolucaoMensal.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Sem dados para o filtro atual.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={evolucaoMensal} margin={{ left: 8, right: 16 }}>
-                    <CartesianGrid {...gradeProps} />
-                    <XAxis dataKey="mes" {...eixoProps} />
-                    <YAxis {...eixoProps} tickFormatter={(v) => brl(v).replace("R$", "")} />
-                    <Tooltip
-                      {...tooltipProps}
-                      formatter={(value: number) => brl(value)}
-                    />
-                    <Legend {...legendaProps} />
-                    <Line type="monotone" dataKey="recebido" name="Recebido" stroke={CORES_SERIE[0]} strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="aVencer" name="A vencer" stroke={CORES_SERIE[1]} strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="atrasado" name="Em atraso" stroke={COR_NEGATIVO} strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="faturas">
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-medium">
-                {isLoading ? "Carregando..." : `${num(filtered.length)} fatura(s)`}
-              </span>
-            </div>
-            <div className="relative max-h-[calc(100vh-340px)] overflow-auto">
-              <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
-                  <TableRow>
-                    <TableHead className="bg-card">Status</TableHead>
-                    <TableHead className="bg-card">Documento</TableHead>
-                    <TableHead className="bg-card">Cliente</TableHead>
-                    <TableHead className="bg-card">Unidade</TableHead>
-                    <TableHead className="bg-card">Competência</TableHead>
-                    <TableHead className="bg-card">Vencimento</TableHead>
-                    <TableHead className="bg-card">Pagamento</TableHead>
-                    <TableHead className="bg-card text-right">Valor</TableHead>
-                    <TableHead className="bg-card text-right">Atraso (dias)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((r) => {
-                    const atraso = r.status_pagamento === "ATRASADO" ? diasAtraso(r.data_vencimento) : null;
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell>{statusBadge(r.status_pagamento)}</TableCell>
-                        <TableCell className="font-mono text-xs">{r.num_documento || "—"}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{r.cliente || "—"}</div>
-                          {r.cpf_cnpj && <div className="text-xs text-muted-foreground font-mono">{r.cpf_cnpj}</div>}
-                        </TableCell>
-                        <TableCell>
-                          {r.unidade ? <Badge variant="secondary">{r.unidade}</Badge> : "—"}
-                        </TableCell>
-                        <TableCell>{date(r.data_competencia)}</TableCell>
-                        <TableCell>{date(r.data_vencimento)}</TableCell>
-                        <TableCell>{date(r.data_pagamento)}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">{brl(Number(r.valor ?? 0))}</TableCell>
-                        <TableCell className="text-right">
-                          {atraso != null ? (
-                            <span className="text-danger font-medium">{atraso}</span>
-                          ) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {!isLoading && filtered.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
-                        Nenhuma fatura encontrada.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </table>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="mensalidades" className="space-y-4">
-          <DataProvider>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Base:</span>
-              <BaseFilterSelect />
-              <RefreshButton />
-            </div>
-            <MensalidadesTab />
-          </DataProvider>
-        </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+    </MolduraReceita>
   );
 }
 
-// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` era o fundo do card e vira o `tom` do KpiCard (amber →
-// atenção, red → perigo, emerald → sucesso, slate → neutro): valor na cor,
-// ícone de status e filete, nunca cor sozinha (V7).
-function KpiCard({
-  tone,
-  label,
-  value,
-  hint,
+function Paginacao({
+  pagina,
+  total,
+  linhas,
+  aoMudar,
 }: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone: "amber" | "red" | "emerald" | "slate";
+  pagina: number;
+  total: number;
+  linhas: number;
+  aoMudar: (p: number) => void;
 }) {
-  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
+  if (total <= 1) return null;
+  const de = (pagina - 1) * POR_PAGINA + 1;
+  const ate = Math.min(pagina * POR_PAGINA, linhas);
+  return (
+    <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+      <span className="num">
+        {num(de)}–{num(ate)} de {num(linhas)}
+      </span>
+      <Button
+        variant="outline"
+        size="icon"
+        className="size-8"
+        onClick={() => aoMudar(pagina - 1)}
+        disabled={pagina <= 1}
+        aria-label="Página anterior"
+      >
+        <ChevronLeft className="size-4" aria-hidden />
+      </Button>
+      <span className="num">
+        {pagina} / {total}
+      </span>
+      <Button
+        variant="outline"
+        size="icon"
+        className="size-8"
+        onClick={() => aoMudar(pagina + 1)}
+        disabled={pagina >= total}
+        aria-label="Próxima página"
+      >
+        <ChevronRight className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
 }
