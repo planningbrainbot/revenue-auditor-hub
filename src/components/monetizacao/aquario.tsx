@@ -73,10 +73,18 @@ import type {
   Situacao,
 } from "@/lib/monetizacao/portfolio";
 import { FieldMulti, MultiSelect } from "./multi-select";
-import { EstadoVazio, KpiCard, KpiGrade, Secao, type TomKpi } from "@/components/planning";
+import {
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  type TomKpi,
+} from "@/components/planning";
 import {
   BotaoComMotivo,
   date,
+  estadoDaCarga,
   FOCO_VISIVEL,
   downloadCsv,
   FalhaDeCarga,
@@ -260,13 +268,22 @@ export function Aquario({
           <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
         </div>
       )}
-      <FalhaDeCarga data={data} />
-      {!data.permissions.all_units && !data.units.length && (
-        <Notice>
-          Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
-          definir suas carteiras.
-        </Notice>
-      )}
+      {/* Dentro de /clientes, os estados do DS com o motivo, como na Monetização (dashboard.tsx);
+          fora da casca, o aviso de antes. */}
+      {embedded ? <CargaNaBase data={data} /> : <FalhaDeCarga data={data} />}
+      {!data.permissions.all_units &&
+        !data.units.length &&
+        (embedded ? (
+          <EstadoVazio
+            titulo="Nenhuma unidade liberada para você"
+            descricao="Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa definir suas carteiras."
+          />
+        ) : (
+          <Notice>
+            Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração
+            precisa definir suas carteiras.
+          </Notice>
+        ))}
       {secao === "produtos" && (
         <>
           <Secao
@@ -1404,6 +1421,51 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
       )}
     </div>
   );
+}
+
+/**
+ * A carga do CRM vista da Base de clientes: nunca concluída → EstadoVazio com o motivo; parada
+ * (Z1) → EstadoErro dizendo desde quando e o que continua valendo. Mesmo texto da Monetização.
+ */
+function CargaNaBase({ data }: { data: BaseMonetizacao }) {
+  const carga = estadoDaCarga(data);
+  const catalogoOk =
+    !!data.catalog_at &&
+    (!data.measured_at || Date.parse(data.catalog_at) > Date.parse(data.measured_at));
+  if (carga.nuncaSincronizou)
+    return (
+      <EstadoVazio
+        titulo="O CRM ainda não concluiu a primeira carga"
+        descricao={
+          <>
+            Negócios, reservas e disponibilidade dependem dela; a lista de empresas não.
+            {carga.motivo && (
+              <>
+                {" "}
+                A última tentativa falhou porque{" "}
+                <span title={data.sync_error ?? undefined}>{carga.motivo}</span>.
+              </>
+            )}
+          </>
+        }
+      />
+    );
+  if (carga.parada)
+    return (
+      <EstadoErro
+        titulo={`A leitura do CRM está parada desde ${carga.desde}`}
+        detalhe={
+          <>
+            A última tentativa falhou porque{" "}
+            <span title={data.sync_error ?? undefined}>{carga.motivo}</span>. Negócios e
+            disponibilidade são dessa última carga concluída, não de agora.
+            {catalogoOk &&
+              " A lista de empresas não foi afetada: ela vem de outra carga, que concluiu normalmente."}
+          </>
+        }
+      />
+    );
+  return null;
 }
 
 // Uma linha de "Entenda os números". `filtro` só existe quando a tabela da Base reproduz o
