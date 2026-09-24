@@ -121,8 +121,8 @@ export function TratativasTab() {
   const [loading, setLoading] = useState(true);
   const [erros, setErros] = useState<string[]>([]);
   // Filtros na URL (N7): recarregar ou colar o link reproduz o recorte.
-  const [unidadeFilter, setUnidadeFilter] = useFiltroNaUrl("unidade", TODOS);
-  const [statusFilter, setStatusFilter] = useFiltroNaUrl("status", TODOS);
+  const [unidadeNaUrl, setUnidadeFilter] = useFiltroNaUrl("unidade", TODOS);
+  const [statusNaUrl, setStatusFilter] = useFiltroNaUrl("status", TODOS);
   const [q, setQ] = useFiltroNaUrl("q", "");
   const [dateFrom, setDateFrom] = useFiltroNaUrl("de", "");
   const [dateTo, setDateTo] = useFiltroNaUrl("ate", "");
@@ -229,12 +229,16 @@ export function TratativasTab() {
     () => Array.from(new Set(visiveis.map((r) => r.status ?? NA))).sort(),
     [visiveis],
   );
+  // Link com ?unidade= ou ?status= fora das opções (colado à mão, unidade
+  // fora do escopo) cai em "todos", em vez de zerar a tela sem explicar.
+  const unidadeFilter = unidades.includes(unidadeNaUrl) ? unidadeNaUrl : TODOS;
+  const statusFilter = statuses.includes(statusNaUrl) ? statusNaUrl : TODOS;
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return visiveis.filter((r) => {
-      if (unidadeFilter !== "__all__" && (r.unidade ?? NA) !== unidadeFilter) return false;
-      if (statusFilter !== "__all__" && (r.status ?? NA) !== statusFilter) return false;
+      if (unidadeFilter !== TODOS && (r.unidade ?? NA) !== unidadeFilter) return false;
+      if (statusFilter !== TODOS && (r.status ?? NA) !== statusFilter) return false;
       if (term && !(r.titulo ?? "").toLowerCase().includes(term)) return false;
       // Filtro de período: aplica só sobre quem tem data de churn — abertos/recuperados
       // sem essa data não são afetados pelo range selecionado.
@@ -253,7 +257,7 @@ export function TratativasTab() {
   const churnedIdsEscopo = useMemo(() => {
     const perdidosEscopo = visiveis.filter(
       (r) =>
-        (unidadeFilter === "__all__" || (r.unidade ?? NA) === unidadeFilter) &&
+        (unidadeFilter === TODOS || (r.unidade ?? NA) === unidadeFilter) &&
         (r.status ?? "").toLowerCase() === "lost",
     );
     return new Set(perdidosEscopo.map((r) => String(r.pipedrive_deal_id)).filter((id) => id !== "null"));
@@ -262,7 +266,7 @@ export function TratativasTab() {
   const baseNovaStats = useMemo(() => {
     const escopo = empresasBaseNova.filter((e) => {
       if (perms.scopedToOwnUnit && perms.unidade && !unitMatches(perms.unidade, e.unidade ?? "")) return false;
-      if (unidadeFilter !== "__all__" && (e.unidade ?? NA) !== unidadeFilter) return false;
+      if (unidadeFilter !== TODOS && (e.unidade ?? NA) !== unidadeFilter) return false;
       return true;
     });
     const ativos = escopo.filter(
@@ -397,6 +401,7 @@ export function TratativasTab() {
             </ul>
           }
           tentarNovamente={() => {
+            setErros([]);
             setLoading(true);
             void carregar();
           }}
@@ -454,8 +459,9 @@ export function TratativasTab() {
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden />
             <Input
+              aria-label="Buscar por título"
               placeholder="Buscar por título…"
               className="pl-8"
               value={q}
@@ -463,22 +469,23 @@ export function TratativasTab() {
             />
           </div>
           <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-            <SelectTrigger><SelectValue placeholder="Unidade" /></SelectTrigger>
+            <SelectTrigger aria-label="Unidade"><SelectValue placeholder="Unidade" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={TODOS}>Todas as unidades</SelectItem>
               {unidades.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={TODOS}>Todos os status</SelectItem>
               {statuses.map((s) => (<SelectItem key={s} value={s}>{rotuloStatus(s)}</SelectItem>))}
             </SelectContent>
           </Select>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] text-muted-foreground shrink-0">Churn de</span>
+            <label htmlFor="cs-churn-de" className="text-[13px] text-muted-foreground shrink-0">Churn de</label>
             <Input
+              id="cs-churn-de"
               type="date"
               className="text-sm"
               value={dateFrom}
@@ -486,8 +493,9 @@ export function TratativasTab() {
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] text-muted-foreground shrink-0">até</span>
+            <label htmlFor="cs-churn-ate" className="text-[13px] text-muted-foreground shrink-0">até</label>
             <Input
+              id="cs-churn-ate"
               type="date"
               className="text-sm"
               value={dateTo}
@@ -572,8 +580,8 @@ export function TratativasTab() {
                 {motivosPerda.map((m) => (
                   <TableRow key={m.motivo}>
                     <TableCell className="font-medium">{m.motivo}</TableCell>
-                    <TableCell className="text-right">{m.count}</TableCell>
-                    <TableCell className="text-right">{fmtMoney(m.mrr)}</TableCell>
+                    <TableCell className="num text-right">{m.count}</TableCell>
+                    <TableCell className="num text-right">{fmtMoney(m.mrr)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -606,10 +614,10 @@ export function TratativasTab() {
                 return (
                   <TableRow key={u.unidade}>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
-                    <TableCell className="text-right">{u.total}</TableCell>
-                    <TableCell className="text-right text-destructive">{u.perdidos}</TableCell>
-                    <TableCell className="text-right text-success">{u.recuperados}</TableCell>
-                    <TableCell className="text-right">{fmtMoney(u.mrrPerdido)}</TableCell>
+                    <TableCell className="num text-right">{u.total}</TableCell>
+                    <TableCell className="num text-right text-danger">{u.perdidos}</TableCell>
+                    <TableCell className="num text-right text-success">{u.recuperados}</TableCell>
+                    <TableCell className="num text-right">{fmtMoney(u.mrrPerdido)}</TableCell>
                     <TableCell className="num text-right">{fmtPct(taxa)}</TableCell>
                   </TableRow>
                 );
@@ -646,7 +654,7 @@ export function TratativasTab() {
                   <TableCell className="font-medium">{r.titulo ?? NA}</TableCell>
                   <TableCell>{r.unidade ?? NA}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="text-right">{fmtMoney(r.mrr)}</TableCell>
+                  <TableCell className="num text-right">{fmtMoney(r.mrr)}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={r.motivo ?? undefined}>
                     {r.motivo ?? NA}
                   </TableCell>

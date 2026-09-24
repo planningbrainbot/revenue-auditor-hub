@@ -35,14 +35,20 @@ function PainelCsPage() {
   const { aba } = Route.useSearch();
   const navigate = Route.useNavigate();
   const abaAtual: Aba = aba ?? "onboarding";
-  const recorte = perms.scopedToOwnUnit && perms.unidade ? perms.unidade : "todas as unidades";
+  // Enquanto as permissões carregam o recorte não é conhecido: omite, em vez
+  // de dizer "todas as unidades" para quem só vê a própria.
+  const recorte = perms.loading
+    ? null
+    : perms.scopedToOwnUnit && perms.unidade
+      ? perms.unidade
+      : "todas as unidades";
 
   return (
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader
         titulo="CS"
         pergunta="Quais clientes estão travados no onboarding, e quanto perdemos em churn?"
-        descricao={`Cards do Pipefy de onboarding e da Central de Tratativas · unidades da rede · ${recorte}`}
+        descricao={`Cards do Pipefy de onboarding e da Central de Tratativas · unidades da rede${recorte ? ` · ${recorte}` : ""}`}
         procedencia={{ fonte: "Pipefy: onboarding e Central de Tratativas" }}
       />
 

@@ -173,6 +173,7 @@ export function OnboardingTab() {
         <EstadoErro
           detalhe={`Fonte: cs_onboarding_cards (Pipefy, onboarding). ${erro}`}
           tentarNovamente={() => {
+            setErro(null);
             setLoading(true);
             void carregar();
           }}
@@ -263,7 +264,7 @@ export function OnboardingTab() {
                     <TableCell className="font-medium">{r.titulo ?? NA}</TableCell>
                     <TableCell>{r.unidade ?? NA}</TableCell>
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
-                    <TableCell className="text-right">{fmtDate(r.entrou_fase_atual_em)}</TableCell>
+                    <TableCell className="num text-right">{fmtDate(r.entrou_fase_atual_em)}</TableCell>
                     <TableCell className="num text-right font-semibold text-danger">{dias}d</TableCell>
                   </TableRow>
                 ))}
@@ -298,7 +299,7 @@ export function OnboardingTab() {
                     <TableCell className="font-medium">{r.titulo ?? NA}</TableCell>
                     <TableCell>{r.unidade ?? NA}</TableCell>
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
-                    <TableCell className="text-right">{fmtDate(r.criado_em)}</TableCell>
+                    <TableCell className="num text-right">{fmtDate(r.criado_em)}</TableCell>
                     <TableCell className="num text-right">{fmtDias(diasDesde(r.entrou_fase_atual_em))}</TableCell>
                   </TableRow>
                 ))}
