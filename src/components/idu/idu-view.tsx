@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Pencil, RotateCcw, Trophy } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Pencil, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -15,8 +20,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  PageHeader,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { cn } from "@/lib/utils";
-import { IduMetasPadrao, type Indicador, type PadraoRow } from "./idu-metas-padrao";
+import {
+  ComMotivo,
+  ConfirmarApagar,
+  IduMetasPadrao,
+  MOTIVO_SEM_EDICAO,
+  type Indicador,
+  type PadraoRow,
+  type Periodo,
+} from "./idu-metas-padrao";
 
 const NA = "—";
 
@@ -57,30 +81,43 @@ type DetRow = {
 };
 
 const ORIGEM_ROTULO: Record<string, string> = {
+  unidade: "unidade",
   tier: "tier",
   rede: "rede",
   fixa: "fixa",
 };
 
-const FAIXA_ESTILO: Record<string, string> = {
-  Crítico: "bg-destructive/10 text-destructive border-destructive/30",
-  Abaixo: "bg-warning/10 text-warning border-warning/30",
-  "Na meta": "bg-success/10 text-success border-success/30",
-  Superação: "bg-info/10 text-info border-info/30",
-  "sem base": "bg-muted text-muted-foreground border-border",
+/** Faixa do IDU em StatusBadge (contrato idu.md): ícone + palavra, cinco tons. */
+const FAIXA_TOM: Record<string, TomStatus> = {
+  Crítico: "perigo",
+  Abaixo: "atencao",
+  "Na meta": "sucesso",
+  Superação: "info",
+  "sem base": "neutro",
 };
 
-/** Trimestres com fim EXCLUSIVO — é o que idu_apuracao espera. */
-function trimestres() {
-  const out: { key: string; label: string; ini: string; fim: string }[] = [];
+const PERGUNTA = "Qual unidade está abaixo do corte de 75 neste trimestre, e em qual pilar?";
+
+const PROCEDENCIA = {
+  fonte:
+    "RPC idu_ranking e idu_apuracao (contratos, tratativas, NPS, auditorias) · metas em idu_metas e idu_metas_padrao",
+  regua: "corte 75, piso 50%, teto 120%",
+};
+
+/**
+ * Trimestres civis (chave aaaa-Tn), do mais recente para o mais antigo, com fim
+ * EXCLUSIVO: é o que idu_apuracao espera.
+ */
+function trimestres(): Periodo[] {
+  const out: Periodo[] = [];
   const hoje = new Date();
   let ano = hoje.getFullYear();
   let q = Math.floor(hoje.getMonth() / 3) + 1;
   for (let i = 0; i < 8; i += 1) {
     const iso = (d: Date) => d.toISOString().slice(0, 10);
     out.push({
-      key: `${ano}-Q${q}`,
-      label: `Q${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
+      key: `${ano}-T${q}`,
+      label: `T${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
       ini: iso(new Date(Date.UTC(ano, (q - 1) * 3, 1))),
       fim: iso(new Date(Date.UTC(ano, q * 3, 1))),
     });
@@ -110,114 +147,236 @@ function fmtValor(v: number | null, medida: string) {
   return fmtNum(v, 0);
 }
 
+/** Unidade sem base efetiva: nenhum indicador com meta e dado, IDU nulo. */
+const semBase = (r: RankRow) => r.idu === null || !r.base_efetiva;
+
+type VoltarPadrao = { unidadeId: number; unidade: string; indicador: string; rotulo: string };
+
 export function IduView() {
   const periodos = useMemo(trimestres, []);
-  // Default: trimestre anterior ao corrente — o último fechado.
-  const [periodo, setPeriodo] = useState(periodos[1] ?? periodos[0]);
+  // Padrão: trimestre anterior ao corrente, o último fechado.
+  const padraoTri = periodos[1] ?? periodos[0];
+  const [trimestreUrl, setTrimestreUrl] = useFiltroNaUrl("trimestre", padraoTri.key);
+  const periodo = periodos.find((p) => p.key === trimestreUrl) ?? padraoTri;
+  const [unidadeUrl, setUnidadeUrl] = useFiltroNaUrl("unidade", "");
+
   const [rank, setRank] = useState<RankRow[]>([]);
   const [det, setDet] = useState<DetRow[]>([]);
   const [padrao, setPadrao] = useState<PadraoRow[]>([]);
-  const [aberta, setAberta] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState("");
+  const [voltar, setVoltar] = useState<VoltarPadrao | null>(null);
 
   const { can, loading: permLoading } = usePermissions();
+  const temAcesso = can("view.idu");
   const podeEditarMetas = can("edit.idu_metas");
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    const args = { p_inicio: periodo.ini, p_fim: periodo.fim };
-    const [r, d, p] = await Promise.all([
-      supabase.rpc("idu_ranking", args),
-      supabase.rpc("idu_apuracao", args),
-      supabase
-        .from("idu_metas_padrao")
-        .select("escopo, indicador, meta")
-        .eq("periodo_inicio", periodo.ini),
-    ]);
-    if (r.error || d.error || p.error) {
-      setErro(r.error?.message ?? d.error?.message ?? p.error?.message ?? "erro desconhecido");
-      setRank([]);
-      setDet([]);
-      setPadrao([]);
-    } else {
-      setRank((r.data ?? []) as RankRow[]);
-      setDet((d.data ?? []) as DetRow[]);
-      setPadrao((p.data ?? []) as PadraoRow[]);
-    }
-    setLoading(false);
-  }, [periodo]);
+  /**
+   * `silencioso` recarrega depois de salvar sem trocar a página pelo
+   * esqueleto: a tabela fica, a linha aberta fica, e uma falha vira toast.
+   */
+  const carregar = useCallback(
+    async (silencioso = false) => {
+      if (!silencioso) {
+        setLoading(true);
+        setErro(null);
+      }
+      const args = { p_inicio: periodo.ini, p_fim: periodo.fim };
+      const [r, d, p] = await Promise.all([
+        supabase.rpc("idu_ranking", args),
+        supabase.rpc("idu_apuracao", args),
+        supabase
+          .from("idu_metas_padrao")
+          .select("escopo, indicador, meta")
+          .eq("periodo_inicio", periodo.ini),
+      ]);
+      const falha = r.error?.message ?? d.error?.message ?? p.error?.message ?? null;
+      if (falha) {
+        if (silencioso) {
+          toast.error(`Salvo, mas não foi possível recarregar o IDU: ${falha}`);
+        } else {
+          setErro(falha);
+          setRank([]);
+          setDet([]);
+          setPadrao([]);
+        }
+      } else {
+        setRank((r.data ?? []) as RankRow[]);
+        setDet((d.data ?? []) as DetRow[]);
+        setPadrao((p.data ?? []) as PadraoRow[]);
+      }
+      if (!silencioso) setLoading(false);
+    },
+    [periodo.ini, periodo.fim],
+  );
+
+  const recarregar = useCallback(() => carregar(true), [carregar]);
 
   useEffect(() => {
-    if (!permLoading) void carregar();
-  }, [carregar, permLoading]);
+    // Sem view.idu as RPCs devolvem zero linhas, que pareciam "sem apuração":
+    // nem chama, e a tela diz o que falta.
+    if (!permLoading && temAcesso) void carregar();
+  }, [carregar, permLoading, temAcesso]);
 
-  async function salvarMeta(unidadeId: number, indicador: string, valor: string) {
-    const meta = Number(valor.replace(",", "."));
-    if (!Number.isFinite(meta)) return;
+  async function salvarMeta(l: DetRow, valor: string) {
+    const limpo = valor.trim();
+    const meta = Number(limpo.replace(",", "."));
+    if (limpo === "" || !Number.isFinite(meta)) {
+      toast.error(
+        limpo === ""
+          ? `Informe a meta de ${l.rotulo}. Para seguir o tier ou a rede, use "Voltar ao padrão".`
+          : `Meta inválida: "${limpo}" não é um número.`,
+      );
+      return;
+    }
     const { error } = await supabase.from("idu_metas").upsert(
       {
-        unidade_id: unidadeId,
+        unidade_id: l.unidade_id,
         periodo_inicio: periodo.ini,
         periodo_fim: periodo.fim,
-        indicador,
+        indicador: l.indicador,
         meta,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "unidade_id,periodo_inicio,indicador" },
     );
+    // Erro fica no campo: a edição continua aberta e a página não muda.
+    if (error) {
+      toast.error(`Não foi possível salvar a meta de ${l.rotulo}: ${error.message}`);
+      return;
+    }
     setEditando(null);
-    if (error) setErro(error.message);
-    else await carregar();
+    toast.success(`Meta de ${l.rotulo} salva para ${l.unidade}`);
+    await recarregar();
   }
 
   /** Apaga a meta própria da unidade: ela volta a seguir o tier ou a rede. */
-  async function voltarAoPadrao(unidadeId: number, indicador: string) {
+  async function confirmarVoltar() {
+    if (!voltar) return;
+    const alvo = voltar;
+    setVoltar(null);
     const { error } = await supabase
       .from("idu_metas")
       .delete()
-      .eq("unidade_id", unidadeId)
+      .eq("unidade_id", alvo.unidadeId)
       .eq("periodo_inicio", periodo.ini)
-      .eq("indicador", indicador);
-    if (error) setErro(error.message);
-    else await carregar();
+      .eq("indicador", alvo.indicador);
+    if (error) {
+      toast.error(`Não foi possível voltar ao padrão em ${alvo.rotulo}: ${error.message}`);
+      return;
+    }
+    toast.success(`${alvo.unidade} voltou a seguir a meta padrão de ${alvo.rotulo}`);
+    await recarregar();
   }
 
-  if (permLoading || loading) {
+  const semAcesso = !permLoading && !temAcesso;
+  const carregando = permLoading || (temAcesso && loading);
+  const pronto = !semAcesso && !carregando && !erro;
+
+  // Selo de metas faltando: conta indicadores, não pares unidade × indicador.
+  const semMeta = useMemo(() => {
+    const porIndicador = new Map<string, { rotulo: string; unidades: string[] }>();
+    for (const d of det) {
+      if (d.meta !== null) continue;
+      const item = porIndicador.get(d.indicador) ?? { rotulo: d.rotulo, unidades: [] };
+      item.unidades.push(d.unidade);
+      porIndicador.set(d.indicador, item);
+    }
+    return [...porIndicador.values()];
+  }, [det]);
+
+  const filtros = semAcesso ? undefined : (
+    <>
+      <Select value={periodo.key} onValueChange={(v) => setTrimestreUrl(v)}>
+        <SelectTrigger className="w-[200px]" aria-label="Trimestre">
+          <SelectValue placeholder="Trimestre" />
+        </SelectTrigger>
+        <SelectContent>
+          {periodos.map((p) => (
+            <SelectItem key={p.key} value={p.key}>
+              {p.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {pronto && semMeta.length > 0 ? (
+        <StatusBadge tom="atencao">
+          {semMeta.length} indicador{semMeta.length > 1 ? "es" : ""} sem meta, fora do
+          denominador
+        </StatusBadge>
+      ) : null}
+    </>
+  );
+
+  const universo = pronto && rank.length ? `${rank.length} unidades · ` : "";
+  const cabecalho = (
+    <PageHeader
+      titulo="IDU"
+      pergunta={PERGUNTA}
+      descricao={`${universo}${periodo.label} · nota 0–100 sobre a base efetiva de pesos; indicador sem meta ou sem dado sai do denominador`}
+      procedencia={PROCEDENCIA}
+      filtros={filtros}
+    >
+      {pronto && semMeta.length > 0 ? (
+        <p className="text-[13px] text-muted-foreground">
+          Sem meta em nenhum nível:{" "}
+          {semMeta
+            .map((s) =>
+              s.unidades.length === rank.length
+                ? `${s.rotulo} (todas as ${rank.length} unidades)`
+                : `${s.rotulo} (${s.unidades.join(", ")})`,
+            )
+            .join(" · ")}
+          .
+        </p>
+      ) : null}
+    </PageHeader>
+  );
+
+  if (semAcesso) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-56" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <>
+        {cabecalho}
+        <EstadoSemAcesso oQueFalta="view.idu" />
+      </>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <>
+        {cabecalho}
+        <Carregando variante="tabela" />
+      </>
     );
   }
 
   if (erro) {
     return (
-      <Card className="border-destructive/40 p-6">
-        <p className="text-sm font-medium text-destructive">Não foi possível carregar o IDU.</p>
-        <p className="mt-1 text-xs text-muted-foreground">{erro}</p>
-      </Card>
+      <>
+        {cabecalho}
+        <EstadoErro
+          titulo="Não foi possível carregar o IDU"
+          detalhe={erro}
+          tentarNovamente={() => void carregar()}
+        />
+      </>
     );
   }
 
   if (!rank.length) {
     return (
-      <Card className="p-6">
-        <p className="text-sm font-medium">Sem apuração para este trimestre.</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Se você acabou de ganhar acesso, confira se a permissão{" "}
-          <code className="rounded bg-muted px-1">view.idu</code> está liberada para o seu perfil em
-          Administração › Permissões.
-        </p>
-      </Card>
+      <>
+        {cabecalho}
+        <EstadoVazio
+          titulo="Sem apuração neste trimestre"
+          descricao={`Nenhuma unidade apurada em ${periodo.label}. Escolha outro trimestre no filtro acima.`}
+        />
+      </>
     );
   }
-
-  const semMeta = det.filter((d) => d.meta === null).length;
 
   // Catálogo e contagem por tier saem da própria apuração: a ordem é a da tela de detalhe.
   const indicadores: Indicador[] = [];
@@ -226,27 +385,11 @@ export function IduView() {
   const unidadesPorTier: Record<string, number> = {};
   for (const r of rank) unidadesPorTier[r.curva] = (unidadesPorTier[r.curva] ?? 0) + 1;
   const idx = periodos.findIndex((p) => p.key === periodo.key);
+  const aberta = rank.find((r) => r.unidade === unidadeUrl)?.unidade_id ?? null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={periodo.key}
-          onChange={(e) => setPeriodo(periodos.find((p) => p.key === e.target.value) ?? periodo)}
-          className="h-9 rounded-md border bg-background px-3 text-sm"
-        >
-          {periodos.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        {semMeta > 0 && (
-          <Badge variant="outline" className="border-warning/40 text-warning">
-            {semMeta} indicador{semMeta > 1 ? "es" : ""} sem meta — fora do denominador
-          </Badge>
-        )}
-      </div>
+    <>
+      {cabecalho}
 
       <IduMetasPadrao
         periodo={periodo}
@@ -256,22 +399,20 @@ export function IduView() {
         unidadesPorTier={unidadesPorTier}
         podeEditar={podeEditarMetas}
         fmtValor={fmtValor}
-        onSalvo={carregar}
+        onSalvo={recarregar}
       />
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center gap-2 border-b px-4 py-3">
-          <Trophy className="h-4 w-4 text-primary-text" />
-          <h2 className="text-sm font-semibold">Ranking da rede</h2>
-          <span className="text-xs text-muted-foreground">
-            a nota mede quanto do combinado foi entregue, não o tamanho da unidade
-          </span>
-        </div>
-        <div className="overflow-x-auto">
+      <Secao
+        titulo="Como cada unidade ficou no ranking da rede?"
+        descricao="A nota mede quanto do combinado foi entregue, não o tamanho da unidade. Clique na unidade para abrir os indicadores e pactuar a meta dela."
+      >
+        <div className="overflow-x-auto rounded-xl border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10" />
+                <TableHead className="w-10">
+                  <span className="sr-only">Abrir</span>
+                </TableHead>
                 <TableHead className="w-12 text-right">#</TableHead>
                 <TableHead>Unidade</TableHead>
                 <TableHead>Curva</TableHead>
@@ -287,194 +428,125 @@ export function IduView() {
               {rank.map((r) => {
                 const aberto = aberta === r.unidade_id;
                 const linhas = det.filter((d) => d.unidade_id === r.unidade_id);
-                return [
-                  <TableRow
-                    key={r.unidade_id}
-                    className="cursor-pointer"
-                    onClick={() => setAberta(aberto ? null : r.unidade_id)}
-                  >
-                    <TableCell>
-                      {aberto ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.posicao}
-                    </TableCell>
-                    <TableCell className="font-medium">{r.unidade}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.curva}</TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {fmtNum(r.idu)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cn("text-xs", FAIXA_ESTILO[r.faixa])}>
-                        {r.faixa}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {r.liberado_pct === null ? NA : `${fmtNum(r.liberado_pct, 0)}%`}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.falta_corte === null || r.falta_corte === 0
-                        ? "cruzou"
-                        : fmtNum(r.falta_corte)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.base_efetiva ?? NA}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {r.pilar_fraco ?? NA}
-                    </TableCell>
-                  </TableRow>,
-                  aberto && (
-                    <TableRow key={`${r.unidade_id}-det`} className="bg-muted/30 hover:bg-muted/30">
-                      <TableCell colSpan={10} className="p-0">
-                        <div className="overflow-x-auto p-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Indicador</TableHead>
-                                <TableHead>Pilar</TableHead>
-                                <TableHead className="text-right">Peso</TableHead>
-                                <TableHead className="text-right">Meta</TableHead>
-                                <TableHead className="text-right">Realizado</TableHead>
-                                <TableHead className="text-right">Ating.</TableHead>
-                                <TableHead className="text-right">Pontos</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {linhas.map((l) => {
-                                const chave = `${l.unidade_id}:${l.indicador}`;
-                                return (
-                                  <TableRow key={chave}>
-                                    <TableCell className="font-medium">{l.rotulo}</TableCell>
-                                    <TableCell className="text-xs text-muted-foreground">
-                                      {l.pilar}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                      {l.peso}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                      {editando === chave ? (
-                                        <div className="flex items-center justify-end gap-1">
-                                          <Input
-                                            autoFocus
-                                            value={rascunho}
-                                            onChange={(e) => setRascunho(e.target.value)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter")
-                                                void salvarMeta(
-                                                  l.unidade_id,
-                                                  l.indicador,
-                                                  rascunho,
-                                                );
-                                              if (e.key === "Escape") setEditando(null);
-                                            }}
-                                            className="h-7 w-24 text-right"
-                                          />
-                                          <Button
-                                            size="sm"
-                                            className="h-7"
-                                            onClick={() =>
-                                              void salvarMeta(l.unidade_id, l.indicador, rascunho)
-                                            }
-                                          >
-                                            ok
-                                          </Button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          disabled={!podeEditarMetas}
-                                          onClick={() => {
-                                            setEditando(chave);
-                                            setRascunho(l.meta === null ? "" : String(l.meta));
-                                          }}
-                                          className={cn(
-                                            "inline-flex items-center gap-1",
-                                            podeEditarMetas && "hover:underline",
-                                            l.meta === null && "text-warning",
-                                          )}
-                                        >
-                                          {l.meta === null
-                                            ? "definir meta"
-                                            : fmtValor(l.meta, l.unidade_medida)}
-                                          {l.meta_origem && ORIGEM_ROTULO[l.meta_origem] && (
-                                            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                                              {ORIGEM_ROTULO[l.meta_origem]}
-                                            </span>
-                                          )}
-                                          {podeEditarMetas && (
-                                            <Pencil className="h-3 w-3 opacity-50" />
-                                          )}
-                                        </button>
-                                      )}
-                                      {editando !== chave &&
-                                        podeEditarMetas &&
-                                        l.meta_origem === "unidade" && (
-                                          <button
-                                            type="button"
-                                            title="Apagar a meta própria e voltar a seguir o tier ou a rede"
-                                            onClick={() =>
-                                              void voltarAoPadrao(l.unidade_id, l.indicador)
-                                            }
-                                            className="ml-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
-                                          >
-                                            <RotateCcw className="h-3 w-3" />
-                                          </button>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                      {fmtValor(l.realizado, l.unidade_medida)}
-                                    </TableCell>
-                                    <TableCell
-                                      className={cn(
-                                        "text-right tabular-nums",
-                                        l.ajuste === "piso" && "text-destructive",
-                                        l.ajuste === "teto" && "text-info",
-                                        l.ajuste === "sem dado" && "text-muted-foreground",
-                                      )}
-                                    >
-                                      {l.atingimento === null
-                                        ? l.meta === null
-                                          ? "sem meta"
-                                          : "sem dado"
-                                        : `${fmtNum(l.atingimento, 0)}%${
-                                            l.ajuste === "piso"
-                                              ? " ↓piso"
-                                              : l.ajuste === "teto"
-                                                ? " ↑teto"
-                                                : ""
-                                          }`}
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium tabular-nums">
-                                      {l.pontos === null ? NA : fmtNum(l.pontos, 1)}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                              <TableRow className="bg-muted/50">
-                                <TableCell colSpan={6} className="font-medium">
-                                  Soma sobre base efetiva de {r.base_efetiva ?? 0} pontos
-                                </TableCell>
-                                <TableCell className="text-right font-semibold tabular-nums">
-                                  {fmtNum(r.soma_pontos)}
-                                </TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </div>
+                const alternar = () => setUnidadeUrl(aberto ? "" : r.unidade);
+                const sb = semBase(r);
+                return (
+                  <Fragment key={r.unidade_id}>
+                    <TableRow className="cursor-pointer" onClick={alternar}>
+                      <TableCell>
+                        <button
+                          type="button"
+                          aria-expanded={aberto}
+                          aria-controls={`idu-det-${r.unidade_id}`}
+                          aria-label={`${aberto ? "Fechar" : "Abrir"} indicadores de ${r.unidade}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            alternar();
+                          }}
+                          className="inline-flex rounded-sm text-muted-foreground"
+                        >
+                          {aberto ? (
+                            <ChevronDown className="size-4" aria-hidden />
+                          ) : (
+                            <ChevronRight className="size-4" aria-hidden />
+                          )}
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {r.posicao}
+                      </TableCell>
+                      <TableCell className="font-medium">{r.unidade}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{r.curva}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {fmtNum(r.idu)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tom={FAIXA_TOM[r.faixa] ?? "neutro"}>{r.faixa}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {r.liberado_pct === null ? NA : `${fmtNum(r.liberado_pct, 0)}%`}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {sb || r.falta_corte === null
+                          ? "sem base"
+                          : r.falta_corte === 0
+                            ? "cruzou"
+                            : fmtNum(r.falta_corte)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {sb ? "sem base" : r.base_efetiva}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.pilar_fraco ?? NA}
                       </TableCell>
                     </TableRow>
-                  ),
-                ];
+                    {aberto && (
+                      <TableRow
+                        id={`idu-det-${r.unidade_id}`}
+                        className="bg-muted/30 hover:bg-muted/30"
+                      >
+                        <TableCell colSpan={10} className="p-0">
+                          <div className="overflow-x-auto p-4">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Indicador</TableHead>
+                                  <TableHead>Pilar</TableHead>
+                                  <TableHead className="text-right">Peso</TableHead>
+                                  <TableHead className="text-right">Meta</TableHead>
+                                  <TableHead className="text-right">Realizado</TableHead>
+                                  <TableHead className="text-right">Ating.</TableHead>
+                                  <TableHead className="text-right">Pontos</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {linhas.map((l) => (
+                                  <LinhaIndicador
+                                    key={`${l.unidade_id}:${l.indicador}`}
+                                    l={l}
+                                    editando={editando === `${l.unidade_id}:${l.indicador}`}
+                                    rascunho={rascunho}
+                                    podeEditar={podeEditarMetas}
+                                    onEditar={() => {
+                                      setEditando(`${l.unidade_id}:${l.indicador}`);
+                                      setRascunho(l.meta === null ? "" : String(l.meta));
+                                    }}
+                                    onRascunho={setRascunho}
+                                    onSalvar={() => void salvarMeta(l, rascunho)}
+                                    onCancelar={() => setEditando(null)}
+                                    onVoltar={() =>
+                                      setVoltar({
+                                        unidadeId: l.unidade_id,
+                                        unidade: l.unidade,
+                                        indicador: l.indicador,
+                                        rotulo: l.rotulo,
+                                      })
+                                    }
+                                  />
+                                ))}
+                                <TableRow className="bg-muted/50">
+                                  <TableCell colSpan={6} className="font-medium">
+                                    {sb
+                                      ? "Sem base efetiva: nenhum indicador com meta e dado neste trimestre"
+                                      : `Soma sobre base efetiva de ${r.base_efetiva} pontos`}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold tabular-nums">
+                                    {fmtNum(r.soma_pontos)}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
               })}
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </Secao>
 
       <p className="text-xs text-muted-foreground">
         Piso de 50% zera o indicador · teto de 120% · nota limitada a 100 · abaixo de 75 a nota é o
@@ -482,6 +554,133 @@ export function IduView() {
         unidade vence a do tier, que vence a da rede. Indicador sem meta em nenhum nível ou sem dado
         sai do denominador. Churn é o que está lançado no pipe de Tratativas.
       </p>
-    </div>
+
+      <ConfirmarApagar
+        aberto={!!voltar}
+        titulo={voltar ? `Voltar ${voltar.unidade} ao padrão em ${voltar.rotulo}?` : ""}
+        descricao={
+          voltar
+            ? `A meta própria da unidade em ${periodo.label.split(" ·")[0]} é apagada, e ela passa a seguir a meta do tier ou da rede.`
+            : ""
+        }
+        rotuloAcao="Voltar ao padrão"
+        onCancelar={() => setVoltar(null)}
+        onConfirmar={() => void confirmarVoltar()}
+      />
+    </>
+  );
+}
+
+function LinhaIndicador({
+  l,
+  editando,
+  rascunho,
+  podeEditar,
+  onEditar,
+  onRascunho,
+  onSalvar,
+  onCancelar,
+  onVoltar,
+}: {
+  l: DetRow;
+  editando: boolean;
+  rascunho: string;
+  podeEditar: boolean;
+  onEditar: () => void;
+  onRascunho: (v: string) => void;
+  onSalvar: () => void;
+  onCancelar: () => void;
+  onVoltar: () => void;
+}) {
+  const origem = l.meta_origem ? ORIGEM_ROTULO[l.meta_origem] : undefined;
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{l.rotulo}</TableCell>
+      <TableCell className="text-xs text-muted-foreground">{l.pilar}</TableCell>
+      <TableCell className="text-right tabular-nums">{l.peso}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {editando ? (
+          <div className="flex items-center justify-end gap-1">
+            <Input
+              autoFocus
+              value={rascunho}
+              aria-label={`Meta de ${l.rotulo} para ${l.unidade}`}
+              onChange={(e) => onRascunho(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSalvar();
+                if (e.key === "Escape") onCancelar();
+              }}
+              className="h-8 w-24 text-right"
+            />
+            <Button size="sm" onClick={onSalvar}>
+              ok
+            </Button>
+          </div>
+        ) : (
+          <span className="inline-flex items-center justify-end gap-1">
+            <ComMotivo ativo={!podeEditar} motivo={MOTIVO_SEM_EDICAO}>
+              <button
+                type="button"
+                disabled={!podeEditar}
+                onClick={onEditar}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-sm",
+                  podeEditar && "hover:underline",
+                  !podeEditar && "pointer-events-none",
+                  l.meta === null && "text-warning",
+                )}
+              >
+                {l.meta === null
+                  ? podeEditar
+                    ? "definir meta"
+                    : "sem meta"
+                  : fmtValor(l.meta, l.unidade_medida)}
+                {origem && (
+                  <span className="rounded bg-muted px-1 text-xs text-muted-foreground">
+                    {origem}
+                  </span>
+                )}
+                {podeEditar && <Pencil className="size-3 text-muted-foreground" aria-hidden />}
+              </button>
+            </ComMotivo>
+            {podeEditar && l.meta_origem === "unidade" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground"
+                title="Voltar ao padrão: apagar a meta própria e seguir o tier ou a rede"
+                aria-label={`Voltar ao padrão em ${l.rotulo}`}
+                onClick={onVoltar}
+              >
+                <RotateCcw className="size-4" aria-hidden />
+              </Button>
+            )}
+          </span>
+        )}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        {fmtValor(l.realizado, l.unidade_medida)}
+      </TableCell>
+      <TableCell
+        className={cn(
+          "text-right tabular-nums",
+          l.ajuste === "piso" && "text-danger",
+          l.ajuste === "teto" && "text-info",
+          l.ajuste === "sem dado" && "text-muted-foreground",
+        )}
+      >
+        {l.atingimento === null
+          ? l.meta === null
+            ? "sem meta"
+            : "sem dado"
+          : `${fmtNum(l.atingimento, 0)}%${
+              l.ajuste === "piso" ? " ↓piso" : l.ajuste === "teto" ? " ↑teto" : ""
+            }`}
+      </TableCell>
+      <TableCell className="text-right font-medium tabular-nums">
+        {l.pontos === null ? NA : fmtNum(l.pontos, 1)}
+      </TableCell>
+    </TableRow>
   );
 }

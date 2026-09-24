@@ -1,10 +1,20 @@
-import { useState } from "react";
-import { Copy, Pencil, Target } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Copy, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -13,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Secao } from "@/components/planning";
 import { cn } from "@/lib/utils";
 
 /** Linha de ops.idu_metas_padrao. */
@@ -30,6 +41,72 @@ export type Indicador = {
 };
 
 export type Periodo = { key: string; label: string; ini: string; fim: string };
+
+/** Motivo mostrado no tooltip de todo campo de meta desabilitado (N8). */
+export const MOTIVO_SEM_EDICAO = "Editar metas exige a permissão edit.idu_metas.";
+
+/**
+ * Controle desabilitado não recebe hover nem foco: o tooltip fica num `span`
+ * focável em volta dele, para o motivo aparecer com mouse e com teclado.
+ */
+export function ComMotivo({
+  ativo,
+  motivo,
+  children,
+}: {
+  ativo: boolean;
+  motivo: string;
+  children: ReactNode;
+}) {
+  if (!ativo) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="inline-flex cursor-not-allowed rounded-sm">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{motivo}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Confirmação de ação que apaga valor (V6): nunca `confirm()` nativo. */
+export function ConfirmarApagar({
+  aberto,
+  titulo,
+  descricao,
+  rotuloAcao,
+  onCancelar,
+  onConfirmar,
+}: {
+  aberto: boolean;
+  titulo: string;
+  descricao: ReactNode;
+  rotuloAcao: string;
+  onCancelar: () => void;
+  onConfirmar: () => void;
+}) {
+  return (
+    <AlertDialog open={aberto} onOpenChange={(v) => !v && onCancelar()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{titulo}</AlertDialogTitle>
+          <AlertDialogDescription>{descricao}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className={buttonVariants({ variant: "destructive" })}
+            onClick={onConfirmar}
+          >
+            {rotuloAcao}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 /** Ordem da cascata, da mais larga para a mais específica. A unidade vence todas. */
 const ESCOPOS: { escopo: string; titulo: string; dica: string }[] = [
@@ -49,6 +126,8 @@ type Props = {
   onSalvo: () => Promise<void>;
 };
 
+type Apagar = { escopo: string; indicador: string; rotulo: string; tituloEscopo: string };
+
 export function IduMetasPadrao({
   periodo,
   anterior,
@@ -62,41 +141,65 @@ export function IduMetasPadrao({
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState("");
   const [copiando, setCopiando] = useState(false);
+  const [apagar, setApagar] = useState<Apagar | null>(null);
 
   const valor = (escopo: string, indicador: string) =>
     padrao.find((p) => p.escopo === escopo && p.indicador === indicador)?.meta ?? null;
 
-  async function salvar(escopo: string, indicador: string, texto: string) {
-    setEditando(null);
+  const nomeAnterior = anterior?.label.split(" ·")[0];
+
+  async function salvar(ind: Indicador, escopo: string, tituloEscopo: string, texto: string) {
     const limpo = texto.trim();
     // Campo vazio apaga a meta padrão: o nível volta a não existir na cascata.
+    // Apaga valor, então confirma antes.
     if (limpo === "") {
-      if (valor(escopo, indicador) === null) return;
-      const { error } = await supabase
-        .from("idu_metas_padrao")
-        .delete()
-        .eq("periodo_inicio", periodo.ini)
-        .eq("escopo", escopo)
-        .eq("indicador", indicador);
-      if (error) toast.error(error.message);
-      else await onSalvo();
+      setEditando(null);
+      if (valor(escopo, ind.indicador) === null) return;
+      setApagar({ escopo, indicador: ind.indicador, rotulo: ind.rotulo, tituloEscopo });
       return;
     }
     const meta = Number(limpo.replace(",", "."));
-    if (!Number.isFinite(meta)) return;
+    if (!Number.isFinite(meta)) {
+      toast.error(`Meta inválida: "${limpo}" não é um número.`);
+      return;
+    }
     const { error } = await supabase.from("idu_metas_padrao").upsert(
       {
         periodo_inicio: periodo.ini,
         periodo_fim: periodo.fim,
         escopo,
-        indicador,
+        indicador: ind.indicador,
         meta,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "periodo_inicio,escopo,indicador" },
     );
-    if (error) toast.error(error.message);
-    else await onSalvo();
+    // Erro fica no campo: a edição continua aberta com o que foi digitado.
+    if (error) {
+      toast.error(`Não foi possível salvar a meta de ${ind.rotulo}: ${error.message}`);
+      return;
+    }
+    setEditando(null);
+    toast.success(`Meta ${tituloEscopo} de ${ind.rotulo} salva`);
+    await onSalvo();
+  }
+
+  async function confirmarApagar() {
+    if (!apagar) return;
+    const alvo = apagar;
+    setApagar(null);
+    const { error } = await supabase
+      .from("idu_metas_padrao")
+      .delete()
+      .eq("periodo_inicio", periodo.ini)
+      .eq("escopo", alvo.escopo)
+      .eq("indicador", alvo.indicador);
+    if (error) {
+      toast.error(`Não foi possível apagar a meta de ${alvo.rotulo}: ${error.message}`);
+      return;
+    }
+    toast.success(`Meta ${alvo.tituloEscopo} de ${alvo.rotulo} apagada`);
+    await onSalvo();
   }
 
   /** Traz as metas padrão do trimestre anterior. Não sobrescreve o que já foi definido neste. */
@@ -123,9 +226,7 @@ export function IduMetasPadrao({
       }));
     if (!novas.length) {
       setCopiando(false);
-      toast.info(
-        `Nada a copiar: ${anterior.label.split(" ·")[0]} não tem meta padrão que falte neste trimestre.`,
-      );
+      toast.info(`Nada a copiar: ${nomeAnterior} não tem meta padrão que falte neste trimestre.`);
       return;
     }
     const ins = await supabase.from("idu_metas_padrao").insert(novas);
@@ -140,28 +241,26 @@ export function IduMetasPadrao({
   }
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <Target className="h-4 w-4 text-primary-text" />
-        <h2 className="text-sm font-semibold">Metas do trimestre</h2>
-        <span className="text-xs text-muted-foreground">
-          valem para várias unidades de uma vez; a meta definida na unidade vence o tier, e o tier
-          vence a rede
-        </span>
-        {podeEditar && anterior && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="ml-auto h-7 gap-1 text-xs"
-            disabled={copiando}
-            onClick={() => void copiarAnterior()}
-          >
-            <Copy className="h-3 w-3" />
-            Copiar de {anterior.label.split(" ·")[0]}
-          </Button>
-        )}
-      </div>
-      <div className="overflow-x-auto">
+    <Secao
+      titulo="Quais metas valem para a rede neste trimestre?"
+      descricao="Valem para várias unidades de uma vez; a meta definida na unidade vence o tier, e o tier vence a rede."
+      acoes={
+        anterior ? (
+          <ComMotivo ativo={!podeEditar} motivo={MOTIVO_SEM_EDICAO}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!podeEditar || copiando}
+              onClick={() => void copiarAnterior()}
+            >
+              <Copy className="size-4" aria-hidden />
+              Copiar de {nomeAnterior}
+            </Button>
+          </ComMotivo>
+        ) : null
+      }
+    >
+      <div className="overflow-x-auto rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -170,7 +269,7 @@ export function IduMetasPadrao({
               {ESCOPOS.map((e) => (
                 <TableHead key={e.escopo} className="text-right">
                   <div>{e.titulo}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">
+                  <div className="text-xs font-normal normal-case tracking-normal text-muted-foreground">
                     {e.dica}
                     {e.escopo !== "rede" &&
                       ` · ${unidadesPorTier[e.escopo] ?? 0} unidade${
@@ -192,6 +291,7 @@ export function IduMetasPadrao({
                 {ESCOPOS.map((e) => {
                   const chave = `${e.escopo}:${ind.indicador}`;
                   const v = valor(e.escopo, ind.indicador);
+                  const tituloEscopo = e.escopo === "rede" ? "da rede" : `do tier ${e.titulo}`;
                   // Churn sem meta em nenhum nível cai no 5% fixo da rede.
                   const vazio =
                     e.escopo === "rede" && ind.indicador === "churn" ? "5% (fixa)" : "—";
@@ -203,39 +303,44 @@ export function IduMetasPadrao({
                             autoFocus
                             value={rascunho}
                             placeholder="vazio apaga"
+                            aria-label={`Meta ${tituloEscopo} de ${ind.rotulo}`}
                             onChange={(ev) => setRascunho(ev.target.value)}
                             onKeyDown={(ev) => {
                               if (ev.key === "Enter")
-                                void salvar(e.escopo, ind.indicador, rascunho);
+                                void salvar(ind, e.escopo, tituloEscopo, rascunho);
                               if (ev.key === "Escape") setEditando(null);
                             }}
-                            className="h-7 w-24 text-right"
+                            className="h-8 w-24 text-right"
                           />
                           <Button
                             size="sm"
-                            className="h-7"
-                            onClick={() => void salvar(e.escopo, ind.indicador, rascunho)}
+                            onClick={() => void salvar(ind, e.escopo, tituloEscopo, rascunho)}
                           >
                             ok
                           </Button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          disabled={!podeEditar}
-                          onClick={() => {
-                            setEditando(chave);
-                            setRascunho(v === null ? "" : String(v));
-                          }}
-                          className={cn(
-                            "inline-flex items-center gap-1",
-                            podeEditar && "hover:underline",
-                            v === null && "text-muted-foreground",
-                          )}
-                        >
-                          {v === null ? vazio : fmtValor(v, ind.unidade_medida)}
-                          {podeEditar && <Pencil className="h-3 w-3 opacity-50" />}
-                        </button>
+                        <ComMotivo ativo={!podeEditar} motivo={MOTIVO_SEM_EDICAO}>
+                          <button
+                            type="button"
+                            disabled={!podeEditar}
+                            onClick={() => {
+                              setEditando(chave);
+                              setRascunho(v === null ? "" : String(v));
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-sm",
+                              podeEditar && "hover:underline",
+                              !podeEditar && "pointer-events-none",
+                              v === null && "text-muted-foreground",
+                            )}
+                          >
+                            {v === null ? vazio : fmtValor(v, ind.unidade_medida)}
+                            {podeEditar && (
+                              <Pencil className="size-3 text-muted-foreground" aria-hidden />
+                            )}
+                          </button>
+                        </ComMotivo>
                       )}
                     </TableCell>
                   );
@@ -245,6 +350,19 @@ export function IduMetasPadrao({
           </TableBody>
         </Table>
       </div>
-    </Card>
+
+      <ConfirmarApagar
+        aberto={!!apagar}
+        titulo={apagar ? `Apagar a meta ${apagar.tituloEscopo} de ${apagar.rotulo}?` : ""}
+        descricao={
+          apagar
+            ? `${periodo.label.split(" ·")[0]}: as unidades que seguiam esta meta passam a seguir o nível acima na cascata, ou ficam sem meta e o indicador sai do denominador delas.`
+            : ""
+        }
+        rotuloAcao="Apagar meta"
+        onCancelar={() => setApagar(null)}
+        onConfirmar={() => void confirmarApagar()}
+      />
+    </Secao>
   );
 }
