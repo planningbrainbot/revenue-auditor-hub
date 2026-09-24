@@ -18,9 +18,11 @@ import {
   StatusBadge,
   type TomStatus,
 } from "@/components/planning";
+import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
 import {
   brlOuTraco,
   ErroDaConsulta,
+  mesCorrente,
   mesEmAndamento,
   rotuloDia,
   rotuloMes,
@@ -196,7 +198,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
           {emAndamento
-            ? "Mês em andamento: a apuração só fecha depois que o mês termina, e a fatura só sai depois do fechamento."
+            ? "Mês em andamento: fechar antes do fim do mês é possível; recebimentos posteriores ficam fora. A fatura só sai depois do fim do mês."
             : "Feche a apuração de cada unidade e emita as faturas do mês no Omie."}
         </p>
         <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />
@@ -345,6 +347,16 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
+                            {/* Mês futuro colado na URL: abrir a ficha criaria a
+                                apuração no banco antes de o mês existir. */}
+                            {!ap && mes > mesCorrente() ? (
+                              <BotaoComMotivo
+                                rotulo="Iniciar apuração"
+                                motivo="Mês futuro: a apuração ainda não pode começar."
+                                variant="outline"
+                                size="sm"
+                              />
+                            ) : (
                             <Button size="sm" variant="outline" asChild>
                               <Link
                                 to="/royalties/$unidadeId/$mes"
@@ -353,6 +365,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                                 {fechada ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
                               </Link>
                             </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

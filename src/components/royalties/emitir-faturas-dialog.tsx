@@ -126,6 +126,8 @@ export function EmitirFaturasDialog({
       void queryClient.invalidateQueries({ queryKey: ["royalties", "faturas", competencia] });
       void queryClient.invalidateQueries({ queryKey: ["royalties", "unidades", competencia] });
       void queryClient.invalidateQueries({ queryKey: ["royalties", "apuracao"] });
+      // A Visão geral soma "faturado e não recebido" pelas faturas do Omie.
+      void queryClient.invalidateQueries({ queryKey: ["receita-overview"] });
       const { faturadas, criadas, erros } = r.resumo;
       if (erros > 0) toast.error(`${erros} fatura(s) com erro na emissão. Veja a lista.`);
       else toast.success(`${faturadas + criadas} fatura(s) emitida(s) no Omie.`);
