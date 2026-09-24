@@ -13,6 +13,8 @@ Contratos: `docs/design/contratos/{gente,broker,minha-unidade}.md`. Aprovação:
 7. Relate arquivos, o que ficou fora e por quê, portão, hashes.
 
 ## Tarefas (sequenciais neste worktree)
+| # | Tela |
+|---|---|
 | P1 | People: moldura + Minha vez, Meu time, 1:1, Feedback |
 | P2 | People: Sentimento, Elogios, Avaliação, PDI |
 | P3 | People: Cadastro, Clima, Adoção |
