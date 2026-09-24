@@ -17,7 +17,7 @@ import {
   adminRevokeGrowthAccess,
   adminUpdateUser,
 } from "@/lib/admin-users.functions";
-import { getSocioUnidadeByEmail } from "@/lib/permissions.functions";
+import { getAcessosDoUsuario, getSocioUnidadeByEmail } from "@/lib/permissions.functions";
 import { listRoles } from "@/lib/roles.functions";
 import { generatePassword } from "@/lib/password-utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -100,42 +100,47 @@ function listar(itens: string[]): string {
 }
 
 /**
- * O que muda nas áreas quando o papel troca, com o que o cliente já tem: a
- * lista de papéis traz as áreas que cada um abre (`listRoles`). Conta só o que
- * vem do papel; o que foi dado à pessoa na pílula Ops não muda com o papel.
- * O papel `admin` abre todas as áreas.
+ * O que muda nas áreas quando o papel troca, na mesma regra do servidor
+ * (`ops.acesso_do_usuario`, migration 20260917220000): áreas do papel menos as
+ * bloqueadas para a pessoa (o super admin não sofre bloqueio), mais as que ela
+ * tem por delegação (`area_admins`, `usuario_areas` liberada). O papel `admin`
+ * entra como qualquer outro, pelas áreas que `role_areas` dá a ele.
+ *
+ * Entra o que o cliente já carrega: áreas por papel (`listRoles`, por nome) e
+ * os acessos da pessoa (`getAcessosDoUsuario`, o mesmo do diálogo de acessos).
+ * Sem os dois, a tela não afirma efeito nenhum.
  */
-type EfeitoPapel = { passa: string[]; deixa: string[]; todasEntram: boolean; todasSaem: boolean };
+type EfeitoPapel = { passa: string[]; deixa: string[] };
+
+const NIVEIS_DELEGADOS = new Set(["usuario", "socio", "admin"]);
 
 function efeitoDaTroca(
   roles: { key: string; areas: string[] }[],
+  acessos: { areas: { nome: string; pelo_papel: boolean; nivel: string }[] },
   de: string,
   para: string,
 ): EfeitoPapel {
-  const areasDe = (k: string) => (k ? roles.find((r) => r.key === k)?.areas ?? [] : []);
-  const todasEntram = para === "admin" && de !== "admin";
-  const todasSaem = de === "admin" && para !== "admin";
-  if (todasEntram) return { passa: [], deixa: [], todasEntram, todasSaem };
-  const antes = areasDe(de);
-  const depois = areasDe(para);
-  return {
-    passa: todasSaem ? [] : depois.filter((a) => !antes.includes(a)),
-    deixa: todasSaem ? [] : antes.filter((a) => !depois.includes(a)),
-    todasEntram,
-    todasSaem,
-  };
+  const doPapel = (k: string) => new Set(k ? roles.find((r) => r.key === k)?.areas ?? [] : []);
+  const antes = doPapel(de);
+  const depois = doPapel(para);
+  const ve = (a: { nome: string; nivel: string }, papel: Set<string>, superAdmin: boolean) =>
+    NIVEIS_DELEGADOS.has(a.nivel) || (papel.has(a.nome) && (superAdmin || a.nivel !== "bloqueado"));
+  const passa: string[] = [];
+  const deixa: string[] = [];
+  for (const a of acessos.areas) {
+    const via = ve(a, antes, de === "admin");
+    const vera = ve(a, depois, para === "admin");
+    if (!via && vera) passa.push(a.nome);
+    if (via && !vera) deixa.push(a.nome);
+  }
+  return { passa, deixa };
 }
 
-function textoDoEfeito(e: EfeitoPapel, areasNovas: string[]): string {
-  if (e.todasEntram) return "Passa a ver todas as áreas.";
-  if (e.todasSaem)
-    return areasNovas.length
-      ? `Deixa de ver todas as áreas, menos ${listar(areasNovas)}.`
-      : "Deixa de ver todas as áreas que vinham do papel.";
+function textoDoEfeito(e: EfeitoPapel): string {
   const partes: string[] = [];
   if (e.passa.length) partes.push(`Passa a ver ${listar(e.passa)}.`);
   if (e.deixa.length) partes.push(`Deixa de ver ${listar(e.deixa)}.`);
-  return partes.length ? partes.join(" ") : "As áreas que vêm do papel continuam as mesmas.";
+  return partes.length ? partes.join(" ") : "As áreas que ela vê continuam as mesmas.";
 }
 
 type GrowthAlvo = {
@@ -165,6 +170,7 @@ function UsersPage() {
   const growthGrantFn = useServerFn(adminGrantGrowthAccess);
   const growthRevokeFn = useServerFn(adminRevokeGrowthAccess);
   const portaOpsFn = useServerFn(adminDefinirPortaOps);
+  const acessosFn = useServerFn(getAcessosDoUsuario);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) navigate({ to: "/" });
@@ -261,7 +267,9 @@ function UsersPage() {
     user_id: string;
     nome: string;
     role: string | null;
-    efeito: string;
+    efeito?: string;
+    /** Os acessos da pessoa não carregaram: confirma sem afirmar efeito. */
+    semEfeito?: boolean;
   } | null>(null);
   const [busca, setBusca] = useFiltroNaUrl("q", "");
   const [unidadeSel, setUnidadeSel] = useState("");
@@ -339,6 +347,7 @@ function UsersPage() {
     mutationFn: (email: string) => growthRevokeFn({ data: { email } }),
     onSuccess: (res) => {
       toast.success(`${res.email} deixa de entrar no Growth. Ops e Financeiro continuam como estavam.`);
+      setRevogarGrowth(false);
       setGrowthAlvo(null);
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
@@ -437,19 +446,29 @@ function UsersPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: (input: { user_id: string; nome: string; role?: string | null; efeito?: string }) =>
+    mutationFn: (input: {
+      user_id: string;
+      nome: string;
+      role?: string | null;
+      efeito?: string;
+      semEfeito?: boolean;
+    }) =>
       updateFn({ data: { user_id: input.user_id, nome: input.nome, role: input.role } }),
     onSuccess: (_res, input) => {
       toast.success(
         input.efeito
           ? `${input.nome}: papel trocado. ${input.efeito} Vale no próximo carregamento.`
-          : `${input.nome} atualizado.`,
+          : input.role !== undefined
+            ? `${input.nome}: papel trocado. Vale no próximo carregamento.`
+            : `${input.nome} atualizado.`,
       );
       setEditingId(null);
       setEditingNome("");
       setEditingRole("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["acessos-usuario", input.user_id] });
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
     },
     onError: (e) => {
       const msg = e instanceof Error ? e.message : "Erro ao atualizar";
@@ -462,6 +481,24 @@ function UsersPage() {
   const [editingNome, setEditingNome] = useState("");
   // "" é sem papel. O papel só existia no cadastro: mudar depois pedia SQL.
   const [editingRole, setEditingRole] = useState("");
+
+  // Os acessos de quem está em edição, para dizer o efeito da troca de papel.
+  const acessosEdicao = useQuery({
+    queryKey: ["acessos-usuario", editingId],
+    queryFn: () => acessosFn({ data: { userId: editingId as string } }),
+    enabled: isAdmin && !!editingId,
+  });
+  const calculandoEfeito = rolesQuery.isPending || acessosEdicao.isPending;
+  const efeitoFalhou = rolesQuery.isError || acessosEdicao.isError;
+
+  /** O efeito da troca em texto, ou por que não há efeito para mostrar. */
+  function efeitoDaEdicao(roleAtual: string): { texto: string; efeito?: EfeitoPapel } {
+    if (efeitoFalhou) return { texto: "Não foi possível calcular o efeito desta troca." };
+    if (calculandoEfeito || !rolesQuery.data || !acessosEdicao.data)
+      return { texto: "Calculando o efeito…" };
+    const efeito = efeitoDaTroca(rolesQuery.data, acessosEdicao.data, roleAtual, editingRole);
+    return { texto: textoDoEfeito(efeito), efeito };
+  }
 
   function abrirEdicao(u: { user_id: string; nome: string | null; role: string | null }) {
     setEditingId(u.user_id);
@@ -480,11 +517,16 @@ function UsersPage() {
       updateMut.mutate({ user_id: u.user_id, nome });
       return;
     }
-    const efeito = efeitoDaTroca(roles, roleAtual, editingRole);
-    const texto = textoDoEfeito(efeito, roles.find((r) => r.key === editingRole)?.areas ?? []);
-    const input = { user_id: u.user_id, nome, role: editingRole || null, efeito: texto };
-    // Confirma só quando tira área; alargar ou manter salva direto.
-    if (efeito.deixa.length || efeito.todasSaem) setTrocaComPerda(input);
+    const base = { user_id: u.user_id, nome, role: editingRole || null };
+    const { texto, efeito } = efeitoDaEdicao(roleAtual);
+    // Sem o cálculo, não afirma efeito: pede confirmação dizendo isso.
+    if (!efeito) {
+      if (efeitoFalhou) setTrocaComPerda({ ...base, semEfeito: true });
+      return;
+    }
+    const input = { ...base, efeito: texto };
+    // Confirma só quando uma área realmente some; alargar ou manter salva direto.
+    if (efeito.deixa.length) setTrocaComPerda(input);
     else updateMut.mutate(input);
   }
 
@@ -771,6 +813,15 @@ function UsersPage() {
           </form>
         )}
 
+        {/* Motivo visível da pílula Growth desabilitada (N8), uma vez para a tabela. */}
+        {!growthConfigurado && (
+          <p id="motivo-growth" aria-live="polite" className="text-xs text-muted-foreground">
+            {growthQuery.isPending
+              ? "Conferindo a conexão com o Growth…"
+              : "O Growth não está conectado neste ambiente: a pílula Growth fica desabilitada."}
+          </p>
+        )}
+
         {usersQuery.isLoading ? (
           <Carregando variante="tabela" />
         ) : usersQuery.isError ? (
@@ -822,10 +873,14 @@ function UsersPage() {
                   <td className="px-4 py-2">
                     {editingId === u.user_id ? (
                       <>
+                        <label htmlFor={`papel-${u.user_id}`} className="sr-only">
+                          Papel de {u.nome || u.email}
+                        </label>
                         <select
+                          id={`papel-${u.user_id}`}
                           value={editingRole}
                           onChange={(e) => setEditingRole(e.target.value)}
-                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <option value="">sem papel</option>
                           {roles.map((r) => (
@@ -833,12 +888,17 @@ function UsersPage() {
                           ))}
                         </select>
                         {editingRole !== (u.role ?? "") && (
-                          <p className="mt-1 max-w-56 text-xs leading-tight text-muted-foreground">
-                            {textoDoEfeito(
-                              efeitoDaTroca(roles, u.role ?? "", editingRole),
-                              roles.find((r) => r.key === editingRole)?.areas ?? [],
-                            )}{" "}
-                            O que foi dado a ela na pílula Ops continua igual.
+                          <p
+                            id={`efeito-${u.user_id}`}
+                            aria-live="polite"
+                            className="mt-1 max-w-56 text-xs leading-tight text-muted-foreground"
+                          >
+                            {(() => {
+                              const { texto, efeito } = efeitoDaEdicao(u.role ?? "");
+                              return efeito
+                                ? `${texto} O que foi dado a ela na pílula Ops continua igual.`
+                                : texto;
+                            })()}
                           </p>
                         )}
                       </>
@@ -921,6 +981,9 @@ function UsersPage() {
                             type="button"
                             title={titulo}
                             disabled={prod.slug === "growth" && !growthConfigurado}
+                            aria-describedby={
+                              prod.slug === "growth" && !growthConfigurado ? "motivo-growth" : undefined
+                            }
                             onClick={() => {
                               if (prod.slug === "ops") {
                                 setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email, tem });
@@ -953,20 +1016,39 @@ function UsersPage() {
                   <td className="px-4 py-2 text-right space-x-2">
                     {editingId === u.user_id ? (
                       <>
-                        <button
-                          onClick={() => salvarEdicao(u)}
-                          disabled={updateMut.isPending || !editingNome.trim()}
-                          title={!editingNome.trim() ? "Preencha o nome para salvar" : undefined}
-                          className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                        >
-                          {updateMut.isPending ? "Salvando..." : "Salvar"}
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                        >
-                          Cancelar
-                        </button>
+                        {(() => {
+                          const trocouPapel = editingRole !== (u.role ?? "");
+                          const motivo = !editingNome.trim()
+                            ? "Preencha o nome para salvar."
+                            : trocouPapel && calculandoEfeito && !efeitoFalhou
+                              ? "Calculando o efeito…"
+                              : null;
+                          return (
+                            <>
+                              <button
+                                onClick={() => salvarEdicao(u)}
+                                disabled={updateMut.isPending || !!motivo}
+                                aria-describedby={
+                                  motivo ? `motivo-${u.user_id}` : trocouPapel ? `efeito-${u.user_id}` : undefined
+                                }
+                                className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                              >
+                                {updateMut.isPending ? "Salvando..." : "Salvar"}
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              >
+                                Cancelar
+                              </button>
+                              {motivo && (
+                                <p id={`motivo-${u.user_id}`} aria-live="polite" className="mt-1 text-xs text-muted-foreground">
+                                  {motivo}
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </>
                     ) : (
                       <>
@@ -1263,13 +1345,13 @@ function UsersPage() {
               <AlertDialogCancel>Voltar</AlertDialogCancel>
               <AlertDialogAction
                 disabled={growthRevokeMut.isPending}
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
                   if (growthAlvo) growthRevokeMut.mutate(growthAlvo.email);
-                  setRevogarGrowth(false);
                 }}
                 className={buttonVariants({ variant: "destructive" })}
               >
-                Revogar acesso
+                {growthRevokeMut.isPending ? "Revogando…" : "Revogar acesso"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -1278,10 +1360,15 @@ function UsersPage() {
         <AlertDialog open={!!trocaComPerda} onOpenChange={(o) => !o && setTrocaComPerda(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Isto tira áreas de {trocaComPerda?.nome}</AlertDialogTitle>
+              <AlertDialogTitle>
+                {trocaComPerda?.semEfeito
+                  ? `Trocar o papel de ${trocaComPerda.nome} sem ver o efeito?`
+                  : `Isto tira áreas de ${trocaComPerda?.nome}`}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                {trocaComPerda?.efeito} Vale no próximo carregamento. Área dada a ela na pílula Ops
-                continua, mesmo que o papel novo não abra.
+                {trocaComPerda?.semEfeito
+                  ? "Não foi possível calcular o efeito: os acessos desta pessoa não carregaram. A troca pode tirar áreas que ela vê hoje. Vale no próximo carregamento."
+                  : `${trocaComPerda?.efeito ?? ""} Vale no próximo carregamento.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
