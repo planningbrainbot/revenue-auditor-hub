@@ -53,6 +53,7 @@ import {
   estadoDaCarga,
   estadoKpiEvento,
   Field,
+  FOCO_VISIVEL,
   Freshness,
   inputClass,
   money,
@@ -520,7 +521,7 @@ export function DashboardMonetizacao({
 
 const pct = (n: number, d: number) => (d ? `${number((n / d) * 100)}%` : "—");
 const rotuloMetrica = (k: Metrica) => METRICAS.find((m) => m.key === k)!.label;
-const FOCO = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const FOCO = FOCO_VISIVEL;
 
 /**
  * Operação diária (contrato `monetizacao-operacao.md`, arquétipo Lista/Relatório): quatro KPIs
@@ -958,7 +959,7 @@ function DealDetails({
                 estoque ? "abertas hoje" : `${date(filter.from)} a ${date(filter.to)}`
               }`}
           </DialogDescription>
-          {!estoque && !detail?.recorte && (
+          {!estoque && (
             <p className="text-xs text-muted-foreground">
               Resultado atribuído a quem registrou o movimento; “Dono atual” é o responsável de hoje
               no CRM.

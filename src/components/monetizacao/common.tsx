@@ -22,6 +22,9 @@ export const date = (v: string | null | undefined) =>
         timeZone: "America/Sao_Paulo",
       })
     : "A preencher";
+/** Foco visível dos controles locais (V12): o mesmo anel do `Button`, com afastamento do fundo. */
+export const FOCO_VISIVEL =
+  "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 export const inputClass =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50";
 export function Field({ label, children }: { label: string; children: ReactNode }) {

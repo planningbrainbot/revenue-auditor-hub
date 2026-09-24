@@ -53,6 +53,7 @@ import { Forecast } from "./forecast";
 import {
   BotaoComMotivo,
   date,
+  FOCO_VISIVEL,
   estadoKpiEvento,
   Field,
   inputClass,
@@ -93,6 +94,15 @@ export function Analysis(props: Props) {
     );
   if (aba === "temporal")
     return <Temporal data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
+  // Os planos são por responsável: com "Toda a frente" não há plano a mostrar nem a editar
+  // (salvar os padrões aqui gravaria sobre o plano de outra pessoa).
+  if (aba === "capacidade" && filter.owner === null)
+    return (
+      <EstadoVazio
+        titulo="Escolha um responsável para ver e editar o plano"
+        descricao="Os planos de capacidade e alocação são por responsável. Escolha um no filtro Responsável acima; com Toda a frente não há plano a mostrar."
+      />
+    );
   if (aba === "capacidade")
     return (
       <Capacity
@@ -136,8 +146,7 @@ const MESES_CURTOS = [
 ];
 /** "set/2026" a partir de "2026-09". */
 const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
-const FOCO_LINK =
-  "rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const FOCO_LINK = `text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`;
 /** Nome do responsável da barra: "Toda a frente" sem filtro. */
 const nomeDoDono = (data: BaseMonetizacao, owner: number | null) =>
   owner === null
@@ -439,11 +448,14 @@ function CampoPlano({
   rotulo,
   ajuda,
   erro,
+  anunciar = false,
   children,
 }: {
   rotulo: string;
   ajuda?: string;
   erro?: string | null;
+  /** Anuncia o erro ao leitor de tela (`role="alert"`): só um campo por erro, para não repetir. */
+  anunciar?: boolean;
   children: (a11y: { id: string; "aria-describedby"?: string; "aria-invalid"?: true }) => ReactNode;
 }) {
   const id = useId();
@@ -461,7 +473,11 @@ function CampoPlano({
         "aria-invalid": erro ? true : undefined,
       })}
       {erro && (
-        <p id={erroId} role="alert" className="text-xs font-medium text-danger">
+        <p
+          id={erroId}
+          role={anunciar ? "alert" : undefined}
+          className="text-xs font-medium text-danger"
+        >
           {erro}
         </p>
       )}
@@ -561,9 +577,12 @@ function Capacity({ data, filter, openDeals }: Cut) {
           : `Meta de ${mes} passa de ${antes} para ${plan.target_contracts} contratos.`,
       );
     for (const p of PRODUTOS) {
-      const a = saved?.allocation[p] ?? 0;
-      if (a !== plan.allocation[p])
-        linhas.push(`Alocação de ${NOMES[p]} passa de ${a} para ${plan.allocation[p]} ofertas.`);
+      const depois = plan.allocation[p];
+      if (!saved) linhas.push(`Alocação de ${NOMES[p]} passa a ser ${depois} ofertas.`);
+      else if (saved.allocation[p] !== depois)
+        linhas.push(
+          `Alocação de ${NOMES[p]} passa de ${saved.allocation[p]} para ${depois} ofertas.`,
+        );
     }
     return linhas;
   };
@@ -640,7 +659,10 @@ function Capacity({ data, filter, openDeals }: Cut) {
           value={number(rows.reduce((n, r) => n + r.gap, 0))}
           estado={saved ? "ok" : "nao-apurado"}
           nota={saved ? "alocação restante acima da base disponível no mês" : semPlano}
-          procedencia={procedencia}
+          procedencia={{
+            fonte: "Plano + Base + carga do CRM",
+            atualizadoEm: data.measured_at,
+          }}
         />
       </KpiGrade>
       <SecaoCartao
@@ -707,7 +729,7 @@ function Capacity({ data, filter, openDeals }: Cut) {
                     {!saved ? (
                       "—"
                     ) : r.gap ? (
-                      <StatusBadge tom="atencao">{number(r.gap)}</StatusBadge>
+                      <StatusBadge tom="atencao">{number(r.gap)} faltam</StatusBadge>
                     ) : (
                       number(r.gap)
                     )}
@@ -776,6 +798,7 @@ function Capacity({ data, filter, openDeals }: Cut) {
                   rotulo={label}
                   ajuda={ajuda}
                   erro={key === "capacity" ? excesso : null}
+                  anunciar={key === "capacity"}
                 >
                   {(a11y) => (
                     <Input
