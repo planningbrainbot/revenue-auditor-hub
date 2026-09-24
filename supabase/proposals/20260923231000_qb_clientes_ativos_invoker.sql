@@ -1,0 +1,11 @@
+-- PROPOSTA, NÃO APLICADA (23/09/2026). Decisão do dono do Ops (Eliezek).
+--
+-- `ops.qb_clientes_ativos` roda como o dono (postgres): um sócio regional com escopo por unidade vê
+-- 1.236 empresas de 18 unidades pela view, contra 304 pela RLS de `empresas` (medido em 22/09).
+--
+-- ATENÇÃO — dependentes (pg_depend, 23/09): qb_c3_churn_sem_tratativa, qb_c4_cliente_sem_contrato,
+-- qb_c5_cliente_sem_cadastro_pipefy, qb_c7_cliente_sem_contato_completo e v_qualidade_base_resumo.
+-- Com security_invoker, quem as lê passa a ver só o que a RLS dele permite. Isso é o desejado para
+-- tela, mas muda o número de qualquer job que as leia com papel sem acesso total. Antes de aplicar,
+-- confirmar que a gravação de `qualidade_base_historico` roda como service_role/postgres.
+alter view ops.qb_clientes_ativos set (security_invoker = true);
