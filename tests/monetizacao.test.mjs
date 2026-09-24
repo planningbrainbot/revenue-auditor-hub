@@ -9,6 +9,9 @@ import {
   dias,
   csv,
   capacidade,
+  funil,
+  metasOperacao,
+  taxa,
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
@@ -355,4 +358,88 @@ test("Assinatura preenchida não fabrica ganho; reaberto/perdido sai do realizad
     assert.equal(c.won_on, null);
     assert.equal(c.events.signed.length, 0);
   }
+});
+
+test("Carga v4 grava a entrada em cada etapa e a data da perda", () => {
+  const c = card();
+  assert.equal(c.metric_version, 4);
+  assert.deepEqual(
+    c.moves.map((m) => [m.stage_id, m.date, m.actor_id]),
+    [
+      [1, "2026-09-01", 20],
+      [2, "2026-09-02", 20],
+      [4, "2026-09-03", 20],
+      [5, "2026-09-04", 20],
+    ],
+  );
+  assert.equal(c.lost_on, null);
+  const lost = card(raw({ status: "lost", lost_time: "2026-09-10 15:00:00" }));
+  assert.equal(lost.lost_on, "2026-09-10");
+});
+
+test("Funil: entraram pelo período e pelo farmer; parados é o pipe de hoje; Stand by fora da sequência", () => {
+  const st = [
+    { id: 1, name: "1 · Base elegível", order: 1 },
+    { id: 2, name: "2 · Abordagem em curso", order: 2 },
+    { id: 4, name: "4 · Reunião realizada", order: 4 },
+    { id: 5, name: "6 · Em negociação", order: 5 },
+    { id: 8, name: "8 · Stand by", order: 8 },
+  ];
+  const a = card();
+  const b = card(raw({ id: 101, stage_id: 2 }), [change(1, 2, "2026-08-20 12:00:00")]);
+  const outro = card(raw({ id: 102, stage_id: 2, user_id: { id: 99, name: "Outro" } }), [
+    change(1, 2, "2026-09-05 12:00:00", 99),
+  ]);
+  const f = funil([a, b, outro], st, filter);
+  const linha = (k) => f.etapas.find((e) => e.key === k);
+  assert.equal(f.porEtapa, true);
+  assert.deepEqual(
+    f.etapas.map((e) => e.nome),
+    [
+      "1 · Base elegível",
+      "2 · Abordagem em curso",
+      "4 · Reunião realizada",
+      "6 · Em negociação",
+      "Ganho",
+    ],
+  );
+  assert.equal(f.espera[0].nome, "8 · Stand by");
+  // b entrou em agosto; outro foi movido por outra pessoa
+  assert.equal(linha("2").entraram.length, 1);
+  // parados não filtra data nem dono: bate com o pipe
+  assert.equal(linha("2").parados.length, 2);
+  assert.equal(linha("5").parados.length, 1);
+  assert.equal(linha("ganho").parados, null);
+  assert.equal(taxa(1, 0), null);
+  assert.equal(taxa(1, 4), 0.25);
+});
+
+test("Funil sem a carga v4 mede só as etapas com evento próprio", () => {
+  const velho = { ...card(), moves: undefined, lost_on: undefined };
+  const st = [
+    { id: 1, name: "1 · Base elegível", order: 1 },
+    { id: 3, name: "3 · Gatilho identificado", order: 3 },
+    { id: 4, name: "5 · Reunião realizada", order: 5 },
+  ];
+  const f = funil([velho], st, filter);
+  assert.equal(f.porEtapa, false);
+  assert.equal(f.perdidos, null);
+  assert.equal(f.etapas[1].entraram, null);
+  assert.equal(f.etapas[2].entraram.length, 1);
+});
+
+test("Metas: ritmo por dia útil, contrato proporcional ao mês, dia em curso não é fora", () => {
+  const plan = { daily_target: 7, target_contracts: 8 };
+  const f = { ...filter, from: "2026-09-01", to: "2026-09-12" }; // 9 dias úteis (01/09 é terça)
+  const { quadros, uteis: n } = metasOperacao(operacao([card()], f), plan, f, "2026-09-24");
+  assert.equal(n, 9);
+  const q = Object.fromEntries(quadros.map((x) => [x.chave, x]));
+  assert.equal(q.started.valor, 0.1);
+  assert.equal(q.started.status, "fora");
+  assert.equal(q.scheduled.status, "sem-meta");
+  // setembro/2026 tem 22 dias úteis: 8 × 9/22 = 3,3
+  assert.equal(q.signed.meta, 3.3);
+  const hojeF = { ...filter, from: "2026-09-24", to: "2026-09-24" };
+  const h = metasOperacao(operacao([card()], hojeF), plan, hojeF, "2026-09-24");
+  assert.equal(h.quadros[0].status, "dia-em-curso");
 });

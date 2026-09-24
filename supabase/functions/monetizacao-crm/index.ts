@@ -121,7 +121,7 @@ async function collect() {
     const old = cache.get(d.id) as Row | undefined;
     return (
       !sameStages ||
-      old?.metric_version !== 3 ||
+      old?.metric_version !== 4 ||
       !old?.history_known ||
       !d.update_time ||
       old.updated_at !== d.update_time ||

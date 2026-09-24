@@ -43,10 +43,32 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         events[kind].push({ at, date, actor_id: actor, source });
     };
     add("loaded", d.add_time, ownerAt(d.add_time), "created");
+    // Entrada em cada etapa do pipe, para o funil da Operação contar por etapa. A criação conta
+    // como entrada na etapa em que o card nasceu; cada movimento, como entrada no destino.
+    const moves = [];
     if (known) {
       const initial = movements.length
         ? id(movements[0].old_value) || id(movements[0].new_value)
         : d.stage_id;
+      if (initial) {
+        const at = d.add_time;
+        moves.push({
+          stage_id: initial,
+          at,
+          date: localDate(at),
+          actor_id: ownerAt(at),
+        });
+      }
+      for (const e of movements) {
+        const dest = id(e.new_value);
+        if (dest)
+          moves.push({
+            stage_id: dest,
+            at: e.log_time,
+            date: localDate(e.log_time),
+            actor_id: id(e.user_id) || ownerAt(e.log_time),
+          });
+      }
       if ((order.get(initial) || 0) > order.get(first))
         add(
           "started",
@@ -89,7 +111,7 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         METRICS.map((k) => [k, events[k].some((e) => e.date.startsWith(month))]),
       );
     return {
-      metric_version: 3,
+      metric_version: 4,
       id: d.id,
       title: d.title.replace(/\s*\[(?:CO|HU|AQ):[a-f0-9-]+\]/g, ""),
       org: d.org_id?.name || null,
@@ -108,6 +130,8 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
       validated_at: events.validated[0]?.at || null,
       signed_on: d[SIGN] || null,
       won_on: localDate(wonAt),
+      lost_on: d.status === "lost" ? localDate(d.lost_time) : null,
+      moves,
       expected_close: d.expected_close_date || null,
       revenue: expected,
       expected_revenue: expected.total.amount ?? expected.sum,

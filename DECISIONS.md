@@ -2950,3 +2950,24 @@ conceder quem é sócio ou admin da área, o que gestor comum não é.
 
 **Em aberto:** 49 pessoas do Gente usam `@br.planning.com.br`, que ficou de
 fora da lista de domínios.
+
+## [2026-09-24] Operação da Monetização no molde do painel do Recon, com a identidade da Planning
+
+**Contexto:** o dono pediu a aba Operação "mais parecida com o dash do Recon": metas com cara de meta, funil com o número de hoje congelado como no pipe, funil pelo filtro, conversão etapa a etapa e ícone por etapa, e a tabela por produto com hierarquia. Pediu também que a identidade da Planning não mudasse. Dois relatos vieram junto: "tem 2 contratos ganhos e um não conta" e "troquei as etapas 2 e 3 de lugar".
+
+**Decisão — forma do Recon, marca da Planning.** Copiado o método (quadros de meta por ritmo, funil "entraram × hoje × conversão" com seta entre linhas, "Como contamos", gráfico de leads e reuniões por dia com um eixo só). Nenhum token, fonte ou cor do Recon: os quadros são `KpiCard` com `meta` e `tom` (ícone + palavra), a rampa do funil é `color-mix` de `--primary-text` com `--muted`, as séries seguem `CORES_SERIE`. O gráfico perdeu o segundo eixo (a razão marcadas/trabalhados), que violava o V8.
+
+**Decisão — metas.** Leads, reuniões marcadas e realizadas são ritmo por dia útil (seg–sex, sem feriado). Só leads e contratos têm meta no plano (7/dia; 8/mês). Contrato conta o total contra a meta do mês proporcional aos dias úteis do período. O "teto de 60 reuniões" do plano é teto, não meta, e não vira selo.
+
+**Decisão — Matheus é o único farmer (fala do dono, 24/09).** O seletor "Responsável pelo movimento" saiu, com a Samira fixa no código. A Operação mede `FARMER` (`model.ts`). O "Hoje" do funil não filtra dono nem data, para bater com o pipe (100 abertos contra 99 do Matheus: dois cards do usuário da API).
+
+**Decisão — a carga passa a gravar a entrada por etapa (`metric_version` 4).** O snapshot só tinha seis eventos; Gatilho identificado e Proposta enviada não tinham contagem. `summarize` grava `moves` (criação = entrada na etapa inicial, atribuída ao dono naquele momento; cada troca de etapa = entrada no destino) e `lost_on`. Sem a carga nova, o funil mostra "—" nessas etapas e diz por quê. Rodada local contra o Pipedrive em 24/09: 178 negócios, 178 com histórico por etapa.
+
+**Os dois relatos, medidos:**
+- O segundo ganho é o Rh Numbers (94478), ganho às 17:04 de 24/09 pelo Matheus. A carga das 16:50 ainda não o tinha; a das 17:10 já trouxe. Não havia defeito na régua.
+- O outro "ganho" do pipe 39, TECH MED (78988), foi ganho em 07/04 pela Thalissa em outro pipe e trazido para cá já ganho em 01/09. Não é ganho da Monetização e continua fora.
+- A troca de etapas já estava no snapshot (a ordem vem de `order_nr`); o funil novo usa a ordem da carga.
+
+**Filtros na URL (N7):** `de`, `ate` e `produto` entram no `validateSearch` de `/monetizacao`, com presets Hoje, 7 dias, 30 dias e Mês.
+
+**Status:** local, na branch `feat/monetizacao-operacao-recon-20260924`. Testes: 23/23. `design:lint:changed`: 0 no escopo. **Não publicado**: o front (CLI no `ops-brain`) e a Edge Function `monetizacao-crm` esperam o aceite do dono.
