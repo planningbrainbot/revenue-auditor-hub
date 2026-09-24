@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CheckCheck, Download, Plus, Presentation, Save, Send, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +32,18 @@ import type {
   Unidade,
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
-import { date, downloadCsv, Field, inputClass, Notice, OfertaTag, Panel } from "./common";
+import { EstadoVazio } from "@/components/planning";
+import {
+  BotaoComMotivo,
+  date,
+  downloadCsv,
+  Field,
+  FOCO_VISIVEL,
+  inputClass,
+  Notice,
+  OfertaTag,
+  SecaoCartao,
+} from "./common";
 
 type Initial = { unit: Unidade | null; accounts: string[]; product: Produto };
 type Draft = {
@@ -79,6 +100,9 @@ export function ListWorkspace({
     [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set()),
     [confirmSend, setConfirmSend] = useState(false);
+  // Trocar de lista com alterações não salvas pede confirmação (antes, `confirm()` nativo).
+  // `null` = nada pendente; `{ abrir: id }` abre a lista salva; `{ abrir: null }` começa outra.
+  const [descartar, setDescartar] = useState<{ abrir: string | null } | null>(null);
   const save = useServerFn(salvarListaAquario),
     action = useServerFn(acionarMonetizacao),
     invalidate = useAtualizarMonetizacao();
@@ -94,13 +118,13 @@ export function ListWorkspace({
       data.units.find((u) => u.id && initial.accounts.every((k) => u.account_keys.includes(k))) ||
       null;
     const novos: ItemLista[] = initial.accounts.map((key) => ({
-        id: crypto.randomUUID(),
-        account_key: key,
-        product: initial.product,
-        review: {},
-        status: "draft",
-        deal_id: null,
-        reason: null,
+      id: crypto.randomUUID(),
+      account_key: key,
+      product: initial.product,
+      review: {},
+      status: "draft",
+      deal_id: null,
+      reason: null,
     }));
     const aberta = draftRef.current;
     if (!aberta.id) {
@@ -109,10 +133,10 @@ export function ListWorkspace({
         nome: `${NOMES[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
         unidade_id: inferred?.id || null,
         items: novos,
-    });
-    setSelected(new Set());
-    setDirty(true);
-    onConsume();
+      });
+      setSelected(new Set());
+      setDirty(true);
+      onConsume();
       return;
     }
     // Com uma lista salva aberta, "Preparar lista" SOMA a ela. Antes daqui saía
@@ -171,6 +195,19 @@ export function ListWorkspace({
       setSelected(new Set());
     }
   };
+  // `null` começa uma lista nova; um id abre a lista salva.
+  const trocarPara = (id: string | null) => {
+    if (id) return reloadList(id);
+    setDraft(empty());
+    setDirty(false);
+    setSelected(new Set());
+  };
+  // Por que não dá para editar: sem a chave, ou lista com item já no Pipedrive.
+  const motivoTravada = !data.permissions.manage
+    ? "Editar lista exige a permissão manage.aquario"
+    : locked
+      ? "A lista tem oportunidade enviada ao Pipedrive e não pode mais ser editada"
+      : null;
   const persist = async (mode: "draft" | "validate") => {
     setBusy(true);
     try {
@@ -319,9 +356,9 @@ export function ListWorkspace({
   };
   return (
     <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
-      <Panel
-        title="Listas compartilhadas"
-        action={
+      <SecaoCartao
+        titulo="Listas compartilhadas"
+        acoes={
           <Button
             size="icon"
             variant="ghost"
@@ -329,11 +366,8 @@ export function ListWorkspace({
             onClick={() => {
               // Mesmo portão do botão de trocar de lista, logo abaixo: abrir uma lista nova
               // descarta o rascunho em andamento, e isso não pode acontecer em silêncio.
-              if (dirty && !window.confirm("Há alterações não salvas. Descartar e começar outra?"))
-                return;
-              setDraft(empty());
-              setDirty(false);
-              setSelected(new Set());
+              if (dirty) setDescartar({ abrir: null });
+              else trocarPara(null);
             }}
           >
             <Plus className="h-4 w-4" />
@@ -345,15 +379,13 @@ export function ListWorkspace({
             [...data.lists].reverse().map((l) => (
               <button
                 key={l.id}
+                type="button"
+                aria-current={draft.id === l.id ? "true" : undefined}
                 onClick={() => {
-                  if (
-                    dirty &&
-                    !window.confirm("Há alterações não salvas. Descartar e abrir outra lista?")
-                  )
-                    return;
-                  reloadList(l.id);
+                  if (dirty) setDescartar({ abrir: l.id });
+                  else trocarPara(l.id);
                 }}
-                className={`w-full rounded-lg border p-3 text-left hover:border-primary ${draft.id === l.id ? "border-primary bg-primary/5" : ""}`}
+                className={`w-full rounded-lg border p-3 text-left hover:border-input ${FOCO_VISIVEL} ${draft.id === l.id ? "border-primary bg-primary/5" : ""}`}
               >
                 <strong className="block text-sm">{l.nome}</strong>
                 <span className="mt-1 block text-xs text-muted-foreground">
@@ -366,34 +398,37 @@ export function ListWorkspace({
             ))
           ) : (
             <p className="text-xs text-muted-foreground">
-              Abra uma unidade, selecione as empresas e prepare a primeira lista.
+              Nenhuma lista salva. Abra uma unidade, selecione as empresas e prepare a primeira
+              lista.
             </p>
           )}
         </div>
-      </Panel>
+      </SecaoCartao>
       <div className="space-y-4">
-        <Panel
-          title={draft.nome || "1. Preparar lista"}
-          action={
+        <SecaoCartao
+          titulo={draft.nome || "1. Preparar lista"}
+          acoes={
             <div className="flex flex-wrap gap-2">
-              <Button
+              <BotaoComMotivo
                 variant="outline"
                 size="sm"
                 disabled={!draft.items.length}
+                motivo={!draft.items.length ? "A lista ainda não tem empresas" : null}
                 onClick={presentation}
               >
                 <Presentation className="mr-1 h-4 w-4" />
                 Apresentação
-              </Button>
-              <Button
+              </BotaoComMotivo>
+              <BotaoComMotivo
                 variant="outline"
                 size="sm"
                 disabled={!draft.items.length}
+                motivo={!draft.items.length ? "A lista ainda não tem empresas" : null}
                 onClick={() => downloadCsv("lista-para-socio.csv", exportRows())}
               >
                 <Download className="mr-1 h-4 w-4" />
                 CSV
-              </Button>
+              </BotaoComMotivo>
             </div>
           }
         >
@@ -444,7 +479,10 @@ export function ListWorkspace({
             {dirty ? "Alterações não salvas" : statusNames[draft.status]}
           </p>
           {!draft.items.length ? (
-            <Notice>Selecione empresas em Base de clientes e clique em Preparar lista.</Notice>
+            <EstadoVazio
+              titulo="Lista sem empresas"
+              descricao="Selecione empresas em Base de clientes e clique em Preparar lista, ou abra uma lista compartilhada."
+            />
           ) : (
             <div className="space-y-3">
               {draft.items.map((i, idx) => {
@@ -458,7 +496,8 @@ export function ListWorkspace({
                     <div className="mb-3 flex items-start justify-between gap-2">
                       <div>
                         <button
-                          className="text-left text-sm font-semibold hover:text-primary-text hover:underline"
+                          type="button"
+                          className={`text-left text-sm font-semibold hover:text-primary-text hover:underline ${FOCO_VISIVEL}`}
                           onClick={() => a && showAccount(a)}
                         >
                           {a?.name || "Conta fora do escopo"}
@@ -574,7 +613,7 @@ export function ListWorkspace({
                         <div>
                           {savedItem.deal_id ? (
                             <a
-                              className="text-primary-text underline"
+                              className={`text-primary-text underline ${FOCO_VISIVEL}`}
                               href={`https://grupoplanning.pipedrive.com/deal/${savedItem.deal_id}`}
                               target="_blank"
                               rel="noreferrer"
@@ -627,16 +666,24 @@ export function ListWorkspace({
           )}
           {!!draft.items.length && (
             <div className="mt-4">
-              <Button onClick={() => persist("draft")} disabled={busy || locked || !dirty}>
+              <BotaoComMotivo
+                onClick={() => persist("draft")}
+                disabled={busy || locked || !dirty}
+                motivo={[
+                  busy && "Aguarde: há uma gravação ou envio em andamento",
+                  motivoTravada,
+                  !dirty && "Nada mudou desde o último salvamento",
+                ]}
+              >
                 <Save className="mr-2 h-4 w-4" />
                 Salvar lista
-              </Button>
+              </BotaoComMotivo>
             </div>
           )}
-        </Panel>
+        </SecaoCartao>
         {!!draft.items.length && (
           <details className="rounded-lg border bg-card p-4">
-            <summary className="cursor-pointer text-sm font-medium">
+            <summary className={`cursor-pointer text-sm font-medium ${FOCO_VISIVEL}`}>
               Registrar validação com o sócio · opcional
             </summary>
             <div className="space-y-3">
@@ -658,6 +705,7 @@ export function ListWorkspace({
               <label className="flex gap-2 text-xs">
                 <input
                   type="checkbox"
+                  className={FOCO_VISIVEL}
                   checked={draft.origin_confirmed}
                   disabled={locked}
                   onChange={(e) => change({ origin_confirmed: e.target.checked })}
@@ -675,7 +723,7 @@ export function ListWorkspace({
                   </ul>
                 </details>
               )}
-              <Button
+              <BotaoComMotivo
                 onClick={() => persist("validate")}
                 disabled={
                   busy ||
@@ -684,10 +732,18 @@ export function ListWorkspace({
                   !draft.origin_confirmed ||
                   draft.partner.trim().length < 3
                 }
+                motivo={[
+                  busy && "Aguarde: há uma gravação ou envio em andamento",
+                  motivoTravada,
+                  !!issues.length &&
+                    `Resolva ${issues.length} pendência(s) antes (lista acima do botão)`,
+                  draft.partner.trim().length < 3 && "Informe o sócio que validou (3+ letras)",
+                  !draft.origin_confirmed && "Marque a confirmação do sócio",
+                ]}
               >
                 <CheckCheck className="mr-2 h-4 w-4" />
                 Registrar validação
-              </Button>
+              </BotaoComMotivo>
               <p className="text-xs text-muted-foreground">
                 Este registro é opcional e não bloqueia o envio direto. As regras do produto e os
                 dados da oportunidade são conferidos no envio.
@@ -696,17 +752,21 @@ export function ListWorkspace({
           </details>
         )}
         {persisted && (
-          <Panel title="Enviar oportunidades selecionadas ao Pipedrive">
+          <SecaoCartao titulo="Enviar oportunidades selecionadas ao Pipedrive">
             <div className="space-y-2">
               {!!sendable.length && (
-                <Button
+                <BotaoComMotivo
                   size="sm"
                   variant="outline"
                   onClick={() => setSelected(new Set(sendable.map((i) => i.id)))}
                   disabled={busy || !data.permissions.send}
+                  motivo={[
+                    !data.permissions.send && "Enviar exige a permissão send.monetizacao",
+                    busy && "Aguarde: há uma gravação ou envio em andamento",
+                  ]}
                 >
                   Selecionar todas as aptas ({sendable.length})
-                </Button>
+                </BotaoComMotivo>
               )}
               {sendable.map((i) => {
                 const a = by.get(i.account_key),
@@ -721,6 +781,7 @@ export function ListWorkspace({
                     <span className="flex items-center gap-2">
                       <input
                         type="checkbox"
+                        className={FOCO_VISIVEL}
                         checked={selected.has(i.id)}
                         disabled={!data.permissions.send || busy}
                         onChange={(e) => {
@@ -743,22 +804,53 @@ export function ListWorkspace({
                     : "Nenhuma oportunidade apta aguardando envio. Confira os dados e os motivos acima."}
                 </p>
               )}
-              <Button
+              <BotaoComMotivo
                 disabled={!sendingItems.length || busy || !data.permissions.send}
+                motivo={[
+                  !data.permissions.send && "Enviar exige a permissão send.monetizacao",
+                  busy && "Aguarde: há uma gravação ou envio em andamento",
+                  !sendingItems.length && "Marque ao menos uma oportunidade apta acima",
+                ]}
                 onClick={() => setConfirmSend(true)}
               >
                 <Send className="mr-2 h-4 w-4" />
                 Enviar ao Pipedrive ({sendingItems.length})
-              </Button>
+              </BotaoComMotivo>
               <p className="text-xs text-muted-foreground">
                 O campo “Caixa · Produto” receberá o produto exibido em cada oportunidade. Somente
                 os itens selecionados serão enviados à etapa de entrada. Negócios existentes são
                 vinculados; respostas incertas ficam bloqueadas para conferência.
               </p>
             </div>
-          </Panel>
+          </SecaoCartao>
         )}
       </div>
+      <AlertDialog open={!!descartar} onOpenChange={(o) => !o && setDescartar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Descartar as alterações de “{draft.nome || "lista sem nome"}”?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {descartar?.abrir
+                ? "Há alterações não salvas. Abrir outra lista joga fora o que mudou desde o último salvamento."
+                : "Há alterações não salvas. Começar outra lista joga fora o que mudou desde o último salvamento."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={() => {
+                if (descartar) trocarPara(descartar.abrir);
+                setDescartar(null);
+              }}
+            >
+              Descartar alterações
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog open={confirmSend} onOpenChange={setConfirmSend}>
         <DialogContent>
           <DialogHeader>

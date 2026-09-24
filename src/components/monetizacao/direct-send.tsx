@@ -16,7 +16,7 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import { soNoOmie } from "@/lib/monetizacao/portfolio";
-import { Field, inputClass, Notice } from "./common";
+import { BotaoComMotivo, Field, FOCO_VISIVEL, inputClass, Notice } from "./common";
 
 export function DirectSend({
   data,
@@ -196,7 +196,7 @@ export function DirectSend({
               </p>
               {available?.deal && (
                 <a
-                  className="mt-2 block text-xs text-primary-text underline"
+                  className={`mt-2 block text-xs text-primary-text underline ${FOCO_VISIVEL}`}
                   href={available.deal.url}
                   target="_blank"
                   rel="noreferrer"
@@ -214,7 +214,7 @@ export function DirectSend({
                     type="button"
                     disabled={busy || !!saved}
                     onClick={() => setProduct(p)}
-                    className="mt-2 mr-3 text-xs text-primary-text underline disabled:opacity-50"
+                    className={`mt-2 mr-3 text-xs text-primary-text underline disabled:opacity-50 ${FOCO_VISIVEL}`}
                   >
                     Conferir para {NOMES[p]}
                   </button>
@@ -254,7 +254,7 @@ export function DirectSend({
                   : r.reason || "Conferir envio na lista salva"}
                 {r.deal_id && (
                   <a
-                    className="ml-2 text-primary-text underline"
+                    className={`ml-2 text-primary-text underline ${FOCO_VISIVEL}`}
                     target="_blank"
                     rel="noreferrer"
                     href={`https://grupoplanning.pipedrive.com/deal/${r.deal_id}`}
@@ -280,7 +280,7 @@ export function DirectSend({
             ))}
           </ul>
         )}
-        <Button
+        <BotaoComMotivo
           onClick={send}
           disabled={
             busy ||
@@ -290,6 +290,17 @@ export function DirectSend({
               results.length === saved?.items.length &&
               results.every((r) => r.status === "sent" && r.handoff?.status === "complete"))
           }
+          // Mesma condição do `disabled`, só dita em palavras: o envio em si não muda.
+          motivo={[
+            busy && "Envio em andamento",
+            !data.permissions.send && "Enviar exige a permissão send.monetizacao",
+            !saved && !product && "Escolha o produto",
+            !saved && !!product && !ready.length && "Nenhuma conta apta e disponível neste produto",
+            !!results.length &&
+              results.length === saved?.items.length &&
+              results.every((r) => r.status === "sent" && r.handoff?.status === "complete") &&
+              "Todas as oportunidades já estão no Pipedrive com os dados preparados",
+          ]}
         >
           <Send className="mr-2 h-4 w-4" />
           {busy
@@ -297,7 +308,7 @@ export function DirectSend({
             : results.length
               ? "Retomar preenchimento / conferir pendências"
               : `Enviar ${saved?.items.length ?? ready.length} oportunidade(s) ao Pipedrive`}
-        </Button>
+        </BotaoComMotivo>
         {!!results.length && (
           <Button variant="outline" disabled={busy} onClick={done}>
             Concluir e voltar à base
