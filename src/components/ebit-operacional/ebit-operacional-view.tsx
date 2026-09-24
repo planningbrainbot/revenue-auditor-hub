@@ -3,15 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 import {
   syncVendasServicos,
@@ -21,13 +13,7 @@ import {
 } from "@/lib/ebit-operacional.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Carregando,
   EstadoErro,
@@ -72,7 +58,11 @@ type CustoRow = {
 
 function fmtMoney(v: number | null | undefined) {
   if (v == null) return NA;
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  return v.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0,
+  });
 }
 
 function mesAtualISO() {
@@ -91,7 +81,9 @@ export function EbitOperacionalView() {
     const [vendasRes, custosRes] = await Promise.all([
       supabase
         .from("vendas_servicos_unidades")
-        .select("pipefy_card_id,titulo,solucao,unidade,fase_atual,venda_feita,valor_mensal_1_mes,valor_teto_rampa,gatilho_reajuste,negociacao")
+        .select(
+          "pipefy_card_id,titulo,solucao,unidade,fase_atual,venda_feita,valor_mensal_1_mes,valor_teto_rampa,gatilho_reajuste,negociacao",
+        )
         .limit(2000),
       supabase.from("custo_operacional_mensal").select("despesa,categoria,mes,valor").limit(5000),
     ]);
@@ -187,7 +179,10 @@ export function EbitOperacionalView() {
       ? semCustoNota
       : estadoGap === "indisponivel"
         ? "uma das fontes não carregou"
-        : `${(pctCoberto * 100).toFixed(0)}% do custo coberto`;
+        : custoMesAtual > 0
+          ? `${(pctCoberto * 100).toFixed(0)}% do custo coberto`
+          : // Custo lançado que soma zero: "0% coberto" seria falso, e não há base.
+            "custo lançado soma R$ 0; sem base para a cobertura";
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6">
@@ -283,57 +278,77 @@ export function EbitOperacionalView() {
         </Secao>
       )}
 
-      <Secao titulo="Quais serviços cada unidade comprou?" descricao="Ordenado pela fase do pipe.">
-        {erroVendas ? null : loading ? (
-          <Carregando variante="tabela" />
-        ) : listaOrdenada.length === 0 ? (
-          <EstadoVazio titulo="Nenhum card no pipe ainda" />
-        ) : (
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="max-h-[480px] overflow-auto">
-              <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
-                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
-                  <TableRow>
-                    <TableHead className="bg-card">Solução</TableHead>
-                    <TableHead className="bg-card">Unidade</TableHead>
-                    <TableHead className="bg-card">Fase</TableHead>
-                    <TableHead className="bg-card text-right">Valor atual</TableHead>
-                    <TableHead className="bg-card text-right">Teto da rampa</TableHead>
-                    <TableHead className="bg-card">Gatilho do reajuste</TableHead>
-                    <TableHead className="bg-card">Negociação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {listaOrdenada.map((v) => {
-                    const vendida = isVendida(v.fase_atual, v.venda_feita);
-                    return (
-                      <TableRow key={v.pipefy_card_id}>
-                        <TableCell className="font-medium">{v.solucao ?? v.titulo ?? NA}</TableCell>
-                        <TableCell>{v.unidade ?? NA}</TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            tom={vendida ? "sucesso" : v.fase_atual === "Perdido" ? "perigo" : "neutro"}
+      {!erroVendas && (
+        <Secao
+          titulo="Quais serviços cada unidade comprou?"
+          descricao="Ordenado pela fase do pipe."
+        >
+          {loading ? (
+            <Carregando variante="tabela" />
+          ) : listaOrdenada.length === 0 ? (
+            <EstadoVazio titulo="Nenhum card no pipe ainda" />
+          ) : (
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <div className="max-h-[480px] overflow-auto">
+                <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
+                  <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
+                    <TableRow>
+                      <TableHead className="bg-card">Solução</TableHead>
+                      <TableHead className="bg-card">Unidade</TableHead>
+                      <TableHead className="bg-card">Fase</TableHead>
+                      <TableHead className="bg-card text-right">Valor atual</TableHead>
+                      <TableHead className="bg-card text-right">Teto da rampa</TableHead>
+                      <TableHead className="bg-card">Gatilho do reajuste</TableHead>
+                      <TableHead className="bg-card">Negociação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {listaOrdenada.map((v) => {
+                      const vendida = isVendida(v.fase_atual, v.venda_feita);
+                      return (
+                        <TableRow key={v.pipefy_card_id}>
+                          <TableCell className="font-medium">
+                            {v.solucao ?? v.titulo ?? NA}
+                          </TableCell>
+                          <TableCell>{v.unidade ?? NA}</TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              tom={
+                                vendida
+                                  ? "sucesso"
+                                  : v.fase_atual === "Perdido"
+                                    ? "perigo"
+                                    : "neutro"
+                              }
+                            >
+                              {v.fase_atual ?? NA}
+                            </StatusBadge>
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {fmtMoney(v.valor_mensal_1_mes)}
+                          </TableCell>
+                          <TableCell className="num text-right text-muted-foreground">
+                            {v.valor_teto_rampa != null ? fmtMoney(v.valor_teto_rampa) : NA}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {v.gatilho_reajuste ?? NA}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[280px] truncate text-xs text-muted-foreground"
+                            title={v.negociacao ?? ""}
                           >
-                            {v.fase_atual ?? NA}
-                          </StatusBadge>
-                        </TableCell>
-                        <TableCell className="num text-right">{fmtMoney(v.valor_mensal_1_mes)}</TableCell>
-                        <TableCell className="num text-right text-muted-foreground">
-                          {v.valor_teto_rampa != null ? fmtMoney(v.valor_teto_rampa) : NA}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{v.gatilho_reajuste ?? NA}</TableCell>
-                        <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground" title={v.negociacao ?? ""}>
-                          {v.negociacao || NA}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </table>
+                            {v.negociacao || NA}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
-      </Secao>
+          )}
+        </Secao>
+      )}
     </div>
   );
 }
