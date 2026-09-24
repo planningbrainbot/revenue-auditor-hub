@@ -846,6 +846,24 @@ export function NpsExecucaoTab() {
     return STATUS_ORDEM.filter((k) => presentes.has(k));
   }, [data]);
 
+  // Frescor = o evento mais recente que a fonte devolve (envio, status do
+  // webhook ou ligação registrada), não a hora em que a tela leu.
+  const ultimoEvento = useMemo(() => {
+    if (!data) return null;
+    // Date.parse, não comparação de texto: timestamptz pode vir com "Z" ou "+00:00".
+    let max = 0;
+    const ver = (iso: string | null) => {
+      const t = iso ? Date.parse(iso) : NaN;
+      if (Number.isFinite(t) && t > max) max = t;
+    };
+    for (const r of data.rows) {
+      ver(r.enviadoEm);
+      ver(r.statusAtualizadoEm);
+    }
+    for (const l of data.ligacoes) ver(l.criadoEm);
+    return max > 0 ? new Date(max) : null;
+  }, [data]);
+
   const temFiltro =
     rodada !== TODAS || unidade !== TODAS || status !== TODOS || situacaoLigacao !== TODAS || soNaoRespondidos;
 
@@ -1051,7 +1069,7 @@ export function NpsExecucaoTab() {
               </Table>
             </div>
           )}
-          <Procedencia fonte={FONTE} atualizadoEm={dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : null} />
+          <Procedencia fonte={FONTE} atualizadoEm={ultimoEvento} />
         </Secao>
       </>
     );
