@@ -6,9 +6,9 @@ import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
-import { AREAS, areaDoItem, primeiraTelaAcessivel, type Area } from "@/lib/areas";
+import { AREAS, areaDoItem, partesDoLink, primeiraTelaAcessivel, type Area } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
-import { Carregando, EstadoVazio } from "@/components/planning";
+import { Carregando, EstadoVazio, Filete } from "@/components/planning";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -104,7 +104,7 @@ function InicioPage() {
 
   if (loading || growth.isLoading || acessoProdutos.isLoading) {
     return (
-      <Moldura>
+      <Moldura semPergunta>
         <Carregando variante="kpis" className="w-full max-w-4xl" />
       </Moldura>
     );
@@ -189,13 +189,19 @@ function InicioPage() {
     // Overview sem acesso (mesmo defeito de 22/09/2026). Só o Growth fica na
     // tela, com um card, pelo motivo acima.
     if (unico.interno) {
-      return <Navigate to={primeiraTelaAcessivel(temArea, can) ?? unico.href} replace />;
+      // A URL do item pode trazer query ("/gente?visao=minha-vez"): o roteador
+      // quer path e busca separados.
+      const d = partesDoLink(primeiraTelaAcessivel(temArea, can) ?? unico.href);
+      return <Navigate to={d.to} search={d.search} replace />;
     }
   }
 
   function abrir(p: Produto, fixar: boolean) {
     if (fixar) gravarProdutoPadrao(p.slug);
-    if (p.interno) navigate({ to: p.href });
+    if (p.interno) {
+      const d = partesDoLink(p.href);
+      navigate({ to: d.to, search: d.search });
+    }
     else window.location.href = p.href;
   }
 
@@ -214,33 +220,39 @@ function InicioPage() {
     <Moldura>
       <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {produtos.map((p) => (
+          // O card não aninha controle: o botão principal (nome e descrição)
+          // estica sobre o card inteiro, e "sempre começar por aqui" é irmão
+          // dele, por cima. Filete da área no hover e no foco (DESIGN §8).
           <Card
             key={p.slug}
-            className="group flex cursor-pointer flex-col gap-3 p-5 transition-colors hover:border-input hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            onClick={() => abrir(p, false)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                abrir(p, false);
-              }
-            }}
+            className="group relative flex flex-col gap-3 p-5 transition-colors hover:border-input hover:bg-accent has-[:focus-visible]:border-input"
           >
-            <span aria-hidden>
-              <p.Icone className="size-5 text-primary-text" />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-3 left-0 flex opacity-0 transition-opacity duration-[120ms] ease-out group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
+            >
+              <Filete area={p.interno ? p.slug : undefined} className="rounded-l-none" />
             </span>
-            <div>
-              <h2 className="text-base font-semibold text-foreground">{p.nome}</h2>
-              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{p.descricao}</p>
-            </div>
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                abrir(p, true);
-              }}
-              className="mt-auto self-start rounded-sm text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              onClick={() => abrir(p, false)}
+              className="flex flex-col gap-3 rounded-sm text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-offset-2 focus-visible:after:ring-offset-background"
+            >
+              <span aria-hidden>
+                <p.Icone className="size-5 text-primary-text" />
+              </span>
+              <span className="block">
+                <span className="block text-base font-semibold text-foreground">{p.nome}</span>
+                <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+                  {p.descricao}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => abrir(p, true)}
+              aria-label={`Sempre começar por ${p.nome}`}
+              className="relative z-10 mt-auto self-start rounded-sm text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               sempre começar por aqui
             </button>
@@ -265,17 +277,26 @@ function InicioPage() {
 }
 
 /** Logo e pergunta centralizados; o conteúdo (cards, carregando, vazio) abaixo. */
-function Moldura({ children }: { children: React.ReactNode }) {
+function Moldura({
+  children,
+  semPergunta = false,
+}: {
+  children: React.ReactNode;
+  /** Carregando: sem a pergunta, que ainda pode não valer (redirect, vazio). */
+  semPergunta?: boolean;
+}) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4 py-12">
       <div className="flex flex-col items-center gap-3 text-center">
         <PlanningLogo className="h-9 w-auto" />
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Onde você quer entrar?</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Dá para trocar a qualquer momento, no topo do menu.
-          </p>
-        </div>
+        {!semPergunta && (
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Onde você quer entrar?</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Dá para trocar a qualquer momento, no topo do menu.
+            </p>
+          </div>
+        )}
       </div>
       {children}
     </div>
