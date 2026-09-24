@@ -10,7 +10,7 @@ Worktree `PM Work/execution/planning-brain-ds-v2-migracao`, branch `feat/ds-v2-m
 ## Módulos
 | # | Módulo | Contratos | Contrato ok | Código | Portão | Capturas | PR |
 |---|---|---|---|---|---|---|---|
-| 1 | Monetização + Fila Cella | 11 escritos em 23/09 | aguardando | — | — | — | — |
+| 1 | Monetização (Fila Cella aposentada) | 11 escritos em 23/09 | **ok 24/09** (propostas aprovadas em bloco) | plano `docs/superpowers/plans/2026-09-24-ds-v2-migracao-monetizacao.md`; T0 aposentar Fila Cella `fdd77a1`; V4 IDU `1bb0341` | — | — | — |
 | 2 | Rede | — | — | — | — | — | — |
 | 3 | Base de clientes | — | — | — | — | — | — |
 | 4 | Receita e Repasses | — | — | — | — | — | — |
@@ -23,3 +23,13 @@ Perguntas (N1) das 10 telas · Z0 padrão do responsável · Z1 carga parada · 
 ## Medições feitas (só leitura)
 - 23/09 20h: `ops.v_fila_cella` 0 linhas; `fila_cella_toques` 0; `fila_cella_ciclos` 0 (projeto `npknehhyyzelmrbbxvtu`).
 - 23/09 20h: `ops.monetizacao_deals` 178, 0 sem histórico; última carga 23/09 20h20; 1 plano; 4 registros (todos `roteiro`).
+
+## Pendências fora do módulo
+- Growth segregado (outro app, `brain-web`, casca própria): casca única é decisão do Eliezek + Mika. Anotado pelo Pedro em 24/09.
+- `KpiCard` compacto para drawers: era para a ficha da Fila Cella, que saiu. Entra no primeiro módulo que tiver drawer com KPI.
+- Build exige `NODE_OPTIONS=--max-old-space-size=8192` (o heap padrão estoura já na main).
+
+## Tarefas do módulo 1
+| # | Tarefa | Commit | Revisão |
+|---|---|---|---|
+| T0 | Fila Cella aposentada | `fdd77a1` | orquestrador |
