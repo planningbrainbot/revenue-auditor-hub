@@ -297,7 +297,7 @@ function ProfilesPage() {
                         <button
                           onClick={() => updateMut.mutate({ id: r.id, label: editingLabel, description: editingDescription })}
                           disabled={updateMut.isPending || !editingLabel.trim()}
-                          title={!editingLabel.trim() ? "Preencha o nome para salvar" : undefined}
+                          aria-describedby={!editingLabel.trim() ? `motivo-salvar-${r.id}` : undefined}
                           className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
                         >
                           Salvar
@@ -308,6 +308,11 @@ function ProfilesPage() {
                         >
                           Cancelar
                         </button>
+                        {!editingLabel.trim() && (
+                          <p id={`motivo-salvar-${r.id}`} aria-live="polite" className="mt-1 text-xs text-muted-foreground">
+                            Preencha o nome para salvar.
+                          </p>
+                        )}
                       </>
                     ) : r.is_system ? (
                       <span className="text-xs text-muted-foreground">Perfil de sistema</span>
@@ -322,15 +327,18 @@ function ProfilesPage() {
                         <button
                           onClick={() => setExcluirAlvo({ id: r.id, label: r.label, areas: r.areas })}
                           disabled={deleteMut.isPending || r.pessoas > 0}
-                          title={
-                            r.pessoas > 0
-                              ? `${r.pessoas} ${r.pessoas === 1 ? "pessoa tem" : "pessoas têm"} este perfil. Troque o perfil delas em Usuários antes de excluir.`
-                              : undefined
-                          }
-                          className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                          aria-describedby={r.pessoas > 0 ? `motivo-excluir-${r.id}` : undefined}
+                          className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
                         >
                           Excluir
                         </button>
+                        {/* O servidor recusa excluir perfil em uso; o motivo fica visível. */}
+                        {r.pessoas > 0 && (
+                          <p id={`motivo-excluir-${r.id}`} className="mt-1 text-xs text-muted-foreground">
+                            Em uso por {r.pessoas} {r.pessoas === 1 ? "pessoa" : "pessoas"}: troque o perfil delas em
+                            Usuários antes de excluir.
+                          </p>
+                        )}
                       </>
                     )}
                   </td>
