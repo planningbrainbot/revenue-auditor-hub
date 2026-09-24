@@ -63,9 +63,10 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09: "padronizar e melhorar TODAS
 
 ## 8. Apuração de Comissões (`/comissoes`)
 - **Pergunta:** "Quais vendas já pagaram e têm closer e SDR para comissionar?" Lista.
-- Título único "Apuração de comissões" (menu, cabeçalho; o `h2` repetido sai).
+- `titulo` "Comissões", igual ao item do menu (N1); a pergunta carrega o sentido de apuração; o `h2` repetido sai. `src/lib/areas.ts` é do Eliezek e não muda nesta migração: **proposta ao Eliezek** renomear o item do menu para "Apuração de comissões" (NAVEGACAO §4.2), e aí o `titulo` acompanha.
 - `<select>`/`<input>` nativos → `Select`/`Input`; filtros na URL.
 - **Aviso na tela (N2):** enquanto o defeito de dado abaixo não for corrigido, a `procedencia` diz "os recebimentos são lidos em até 1.000 títulos; 'Sem pagamento' pode estar errado". É o "não, e a tela avisa".
+- **Pendência:** carregando e erro de Comissões são os do `DataProvider` compartilhado (`audit/data-context.tsx`: tela cheia com spinner e botão próprios, fora do DS). Mudam junto com a correção do defeito de dado 1, no mesmo PR, porque o provider também serve a aba Mensalidades de Contas a Receber.
 
 ## 9. EBIT Operacional (`/ebit-operacional`)
 - **Pergunta:** "O que foi vendido cobre o custo operacional do mês?" Visão geral.

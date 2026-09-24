@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/comissoes")({
     return out;
   },
   head: () => ({
-    meta: [{ title: "Apuração de comissões – Planning" }],
+    meta: [{ title: "Comissões · Planning Brain" }],
   }),
   component: ComissoesPage,
 });
@@ -27,7 +27,7 @@ function ComissoesPage() {
   useAuth();
   return (
     <MolduraReceita
-      titulo="Apuração de comissões"
+      titulo="Comissões"
       pergunta="Quais vendas já pagaram e têm closer e SDR para comissionar?"
       descricao="Vendas ganhas no Pipedrive (franquias) × 1º pagamento recebido no Omie, por Closer e SDR. Todo o histórico, sem recorte de mês."
       procedencia={{

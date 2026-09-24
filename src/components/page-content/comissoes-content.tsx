@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { DataProvider, useData, type OrigemFilter } from "@/components/audit/data-context";
 import { brl, date, num } from "@/components/audit/format";
@@ -37,7 +37,7 @@ import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url
 const PIPEDRIVE_DEAL_URL = "https://grupoplanning.pipedrive.com/deal/";
 
 const ALL = "__all__";
-/** Valor do filtro para "sem Closer/SDR": a comparação usa `?? "—"`. */
+/** Valor do filtro para "sem Closer/SDR". */
 const SEM = "—";
 
 type Status = "all" | "pago" | "sem_pag";
@@ -110,7 +110,25 @@ function BotaoAtualizar() {
 
 function ComissoesTable() {
   const { registros } = useData();
-  const [q, setQ] = useFiltroNaUrl("q", "");
+  const [q, setQUrl] = useFiltroNaUrl("q", "");
+  // Rascunho local com pausa de 300 ms: gravar na URL a cada tecla empilha
+  // navegação e refiltra a tabela inteira (mesmo padrão de rede-content).
+  const [busca, setBusca] = useState(q);
+  const gravada = useRef(q);
+  useEffect(() => {
+    if (q === gravada.current) return;
+    gravada.current = q;
+    setBusca(q);
+  }, [q]);
+  useEffect(() => {
+    const v = busca.trim();
+    if (v === gravada.current) return;
+    const t = setTimeout(() => {
+      gravada.current = v;
+      setQUrl(v || undefined);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busca, setQUrl]);
   const [closerFilter, setCloserFilter] = useFiltroNaUrl("closer", ALL);
   const [sdrFilter, setSdrFilter] = useFiltroNaUrl("sdr", ALL);
   const [statusUrl, setStatusFilter] = useFiltroNaUrl("status", "all");
@@ -143,8 +161,9 @@ function ComissoesTable() {
     return vendas.filter((r) => {
       if (statusFilter === "pago" && !r.pagou) return false;
       if (statusFilter === "sem_pag" && r.pagou) return false;
-      if (closerFilter !== ALL && (r.closer ?? SEM) !== closerFilter) return false;
-      if (sdrFilter !== ALL && (r.sdr ?? SEM) !== sdrFilter) return false;
+      // Mesmo teste dos cards ("Sem Closer" = `!r.closer`, inclusive string vazia).
+      if (closerFilter !== ALL && !(closerFilter === SEM ? !r.closer : r.closer === closerFilter)) return false;
+      if (sdrFilter !== ALL && !(sdrFilter === SEM ? !r.sdr : r.sdr === sdrFilter)) return false;
       if (ql) {
         const hay = `${r.deal_titulo ?? ""} ${r.razao_social ?? ""} ${r.cnpj ?? ""} ${r.deal_id ?? ""}`.toLowerCase();
         if (!hay.includes(ql)) return false;
@@ -168,8 +187,8 @@ function ComissoesTable() {
             className="w-64 pl-8"
             placeholder="Buscar nome, razão social, CNPJ ou deal"
             aria-label="Buscar venda"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
           />
         </div>
         <SeletorBase />
@@ -294,7 +313,7 @@ function ComissoesTable() {
                           className="num inline-flex items-center gap-1 rounded-sm text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           aria-label={`Abrir o deal ${r.deal_id} no Pipedrive (nova aba)`}
                         >
-                          {r.deal_id} <ExternalLink className="size-3.5" aria-hidden />
+                          {r.deal_id} <ExternalLink className="size-4" aria-hidden />
                         </a>
                       </TableCell>
                       <TableCell className="num whitespace-nowrap">{date(r.data_fechamento)}</TableCell>
@@ -306,7 +325,7 @@ function ComissoesTable() {
                       </TableCell>
                       <TableCell>
                         {r.pagou ? (
-                          <StatusBadge tom="sucesso">Recebido</StatusBadge>
+                          <StatusBadge tom="sucesso">Com 1º pagamento</StatusBadge>
                         ) : (
                           <StatusBadge tom="atencao">Sem pagamento</StatusBadge>
                         )}
