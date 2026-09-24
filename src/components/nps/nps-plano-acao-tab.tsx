@@ -31,7 +31,7 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { usePlanoAcaoContatos } from "@/hooks/use-nps";
 import type { EmpresaSemContatoRow } from "@/lib/contatos-cs.functions";
-import { cnpjDvValido } from "@/lib/fila-cella.types";
+import { cnpjDvValido } from "@/lib/cnpj";
 
 const ALL = "todas";
 const CHAVES_FILTRO = ["q", "unidade", "situacao"];
