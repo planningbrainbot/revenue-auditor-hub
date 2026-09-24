@@ -92,6 +92,14 @@ function ValidationAdminPage() {
   const pages = q.data?.pages ?? [];
   const map = new Map((q.data?.rows ?? []).map((r) => [r.page_key, r]));
   const validadas = pages.filter((p) => map.get(p.key)?.validated).length;
+  // Mesma herança do useIsPageValidated (a faixa): subpágina sem marcação
+  // própria segue a marcação do caminho pai mais longo; a raiz "/" fica fora.
+  const paiValidado = (key: string) => {
+    const pai = (q.data?.rows ?? [])
+      .filter((r) => r.page_key !== "/" && key.startsWith(r.page_key + "/"))
+      .sort((a, b) => b.page_key.length - a.page_key.length)[0];
+    return pai?.validated ?? false;
+  };
 
   return (
     <AppShell
@@ -130,9 +138,11 @@ function ValidationAdminPage() {
               </thead>
               <tbody>
                 {pages.map((p) => {
-                  const validated = map.get(p.key)?.validated ?? false;
+                  const propria = map.get(p.key);
+                  const validated = propria?.validated ?? false;
+                  const segueAPai = !propria && paiValidado(p.key);
                   const salvando = mut.isPending && mut.variables?.page_key === p.key;
-                  const id = `validada-${p.key}`;
+                  const id = `validada-${p.key.replace(/[^a-z0-9]+/gi, "-")}`;
                   return (
                     <tr key={p.key} className="border-t hover:bg-muted/40">
                       <td className="px-4 py-3 font-medium">{p.label}</td>
@@ -140,6 +150,8 @@ function ValidationAdminPage() {
                       <td className="px-4 py-3 text-center">
                         {validated ? (
                           <StatusBadge tom="sucesso">Validada</StatusBadge>
+                        ) : segueAPai ? (
+                          <StatusBadge tom="neutro">Segue a pai</StatusBadge>
                         ) : (
                           <StatusBadge tom="info">Em validação</StatusBadge>
                         )}
@@ -148,6 +160,8 @@ function ValidationAdminPage() {
                         <div className="flex items-start gap-2">
                           <Checkbox
                             id={id}
+                            aria-label={`Validar ${p.label}`}
+                            aria-describedby={`${id}-efeito`}
                             checked={validated}
                             disabled={mut.isPending}
                             onCheckedChange={(v) =>
@@ -155,13 +169,15 @@ function ValidationAdminPage() {
                             }
                             className="mt-0.5"
                           />
-                          <label htmlFor={id} className="cursor-pointer text-xs text-muted-foreground">
+                          <span id={`${id}-efeito`} className="text-xs text-muted-foreground">
                             {salvando
                               ? "Salvando…"
                               : validated
                                 ? "Desmarcar devolve a faixa de validação"
-                                : "Marcar tira a faixa de validação para todos"}
-                          </label>
+                                : segueAPai
+                                  ? "Sem faixa pela página pai; marcar fixa a validação desta"
+                                  : "Marcar tira a faixa de validação para todos"}
+                          </span>
                         </div>
                       </td>
                     </tr>
