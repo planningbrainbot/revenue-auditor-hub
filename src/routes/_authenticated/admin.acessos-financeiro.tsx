@@ -140,11 +140,14 @@ function AcessosFinanceiroPage() {
     mutationFn: (alvo: { userId: string; email: string }) => revogar({ data: { userId: alvo.userId } }),
     onSuccess: (res: { sincronizado: boolean }, alvo) => {
       setErro(null);
+      // sincronizado:false junta dois casos que a função não separa: a pessoa
+      // não tem conta no cockpit, ou a reescrita do app_metadata falhou.
       const msg = res.sincronizado
         ? `Acesso de ${alvo.email} revogado e já aplicado no cockpit.`
-        : `Acesso de ${alvo.email} revogado aqui. A pessoa ainda não tinha conta no cockpit, então não havia o que revogar lá.`;
+        : `${alvo.email}: revogado no Brain; o cockpit não confirmou (sem conta lá, ou a sincronização falhou).`;
       setAviso(msg);
-      toast.success(msg);
+      if (res.sincronizado) toast.success(msg);
+      else toast.warning(msg);
       setRevogarAlvo(null);
       qc.invalidateQueries({ queryKey: ["acessos-financeiro"] });
       qc.invalidateQueries({ queryKey: ["acessos-financeiro-candidatos"] });
