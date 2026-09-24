@@ -69,7 +69,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09: "padronizar e melhorar TODAS
 - **Pendência:** carregando e erro de Comissões são os do `DataProvider` compartilhado (`audit/data-context.tsx`: tela cheia com spinner e botão próprios, fora do DS). Mudam junto com a correção do defeito de dado 1, no mesmo PR, porque o provider também serve a aba Mensalidades de Contas a Receber.
 
 ## 9. EBIT Operacional (`/ebit-operacional`)
-- **Pergunta:** "O que foi vendido cobre o custo operacional do mês?" Visão geral.
+- **Pergunta:** "O que foi vendido cobre o custo operacional do mês?" Lista/Relatório (corrigido na revisão final de 24/09: a tela tem tabela; `ARQUETIPOS.md` já a lista assim).
 - Custo 0 por falta de dado aparecia como "EBIT zerado" em verde: `nao-apurado` com a nota "sem custo lançado para {mês}". Erros → `EstadoErro`.
 
 ## Defeitos de dado encontrados (não corrigidos: são query/cálculo; PR separado para o Eliezek)
@@ -81,3 +81,8 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09: "padronizar e melhorar TODAS
 6. **Meus Royalties** (Minha Unidade) mostra o previsto do `billing_esperado`, não a apuração que a matriz fatura.
 7. `partners_financeiro` com `.limit(20000)` na aba Esperado × Recebido (corte de 1.000).
 8. `carregarReceitaRepasses` preenche zeros em meses sem dado (repasse e receita): a tela não distingue zero de ausência. A Visão geral contorna na exibição (repasse sem apuração aberta e receita com os cinco campos zerados viram "não apurado"); a correção é o servidor devolver ausência.
+
+9. EBIT: `custo_operacional_mensal` `.limit(5000)` e `vendas_servicos_unidades` `.limit(2000)` cortam em 1.000; o custo do mês pode sumir (aparece "não apurado") ou vir subestimado.
+10. `v_cac_funil`, `v_cac_funil_resumo` e `v_split_cliente` com `select("*")` sem range: acima de 1.000 linhas o corte é silencioso.
+11. `listarFaturasRoyalties` devolve mais de uma fatura por unidade e competência; a tela escolhe a mais recente sem erro, o ideal é o servidor dizer qual vale.
+12. Funil → Contas a Receber: o Funil exclui fatura CANCELADA e conta só contrato ativo; Contas a Receber não. Falta um filtro equivalente no destino (a tela avisa).

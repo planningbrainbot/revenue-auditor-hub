@@ -2810,3 +2810,20 @@ Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
 qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
 inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
 tem `todas_unidades` lê tudo.
+
+## [2026-09-24] Receita e Repasses no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das nove telas de Receita e Repasses para o Design System v2 (contrato `docs/design/contratos/receita-e-repasses.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma consulta, fórmula, RLS ou função de servidor mudou (conferido na revisão final, cadeia a cadeia); as decisões abaixo são de exibição e navegação.
+
+**Decisão:**
+1. **`MolduraReceita` local em vez de mexer no `AppShell`**, que é casca de 19 telas e não aceitava pergunta nem procedência. É ponte: candidata a virar props opcionais do `AppShell` numa rodada do DS (o módulo de Administração acrescentou `pergunta` ao `AppShell` em paralelo; unificar ao integrar).
+2. **Mês padrão e limite da seta:** Visão geral, lista de royalties e Esperado × Recebido abrem no mês anterior; o Funil de Receita abre no corrente, marcado como parcial. A seta da Visão geral vai até o mês anterior; a da lista e da ficha, até o corrente, porque abrir a ficha cria a apuração no banco. Todo link entre elas leva `?mes=`.
+3. **Contas a Receber vira fila de cobrança:** em atraso primeiro, a mais antiga no topo; paginação na tela de 100 linhas; a próxima ação é "Abrir cliente" (não foi inventada ação de cobrança). O filtro por mês passou para `mesFiltro`/`modo`, porque o hook antigo gravava `?mes=` sempre e um link antigo ligaria o filtro sem querer. Datas date-only com `parseISO`.
+4. **Fatura que vale para a unidade no mês:** a mais recente sem erro, com a mesma regra na lista e na ficha (antes a lista pegava a última e a ficha a primeira).
+5. **Ficha de royalties:** uma ação principal por estado no cabeçalho; o Emitir da ficha marca só a unidade; a ficha só renderiza quando a apuração carregada é do mês e da unidade da URL (antes, ao trocar de mês, "Fechar" podia agir sobre o mês anterior). As travas reais (criar, fechar no mês em andamento, reabrir faturada) continuam do servidor; a tela avisa em `AlertDialog`.
+6. **Ausência não é zero:** valor ausente "—"; a Visão geral mostra "não apurado" quando não há apuração aberta no mês ou quando a receita do mês tem os cinco campos zerados (o servidor preenche zero em mês sem dado: defeito de dado 8).
+7. **Nomes únicos (N11):** "Recebido (por emissão)", "Em atraso (filtro)", "CSC (fixo ou base antiga)", "Mídia (tráfego pago)", "Cobrado (unidade do card)", "Cobrado / A cobrar", "Com 1º pagamento".
+8. **Comissões:** o cabeçalho diz "Comissões", igual ao menu (N1); renomear o item para "Apuração de comissões" é proposta ao Eliezek (`areas.ts` é dele). A procedência avisa o corte de 1.000 títulos até o defeito de dado 1 ser corrigido.
+9. **EBIT:** mês sem custo lançado aparece como "não apurado", não como "EBIT zerado" em verde.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-receita-20260924` (sem push). Os 12 defeitos de dado ficam no contrato e no PR para o Eliezek.
