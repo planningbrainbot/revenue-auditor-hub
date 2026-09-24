@@ -13,6 +13,8 @@ Contratos: `docs/design/contratos/administracao.md`. Aprovação: Pedro, 24/09 (
 7. Relate arquivos, o que ficou fora e por quê, portão, hashes.
 
 ## Tarefas (sequenciais neste worktree)
+| # | Tela |
+|---|---|
 | A1 | Usuários, Níveis de acesso, Perfis |
 | A2 | Permissões, Acessos do Financeiro, Chaves de Integração, Integrações |
 | A3 | Validação de páginas, Minha equipe, Atividade |
