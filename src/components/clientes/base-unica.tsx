@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -325,7 +333,8 @@ export function ClientesBase() {
   // a carga da Monetização, e uma falha dela não tranca esta visão.
   if (view === "contratos") {
     // Contratos filtra UMA unidade, por nome. A chave da URL só vira nome quando a carga chega;
-    // antes disso a visão abre sem unidade e sincroniza depois (useEffect em ContratosClientes).
+    // antes disso (ou se ela falhar) ContratosClientes usa o valor cru da URL quando ele já é o
+    // nome de uma unidade regional, e a unidade resolvida entra quando a carga chega.
     const falhou = !!query.error && !query.data;
     const nomes = query.data
       ? unidadesUrl.map(
@@ -605,54 +614,62 @@ export function ClientesBase() {
               detalhe="Fonte: contatos vinculados no seu escopo."
               tentarNovamente={() => void contacts.refetch()}
             />
+          ) : // Zero pessoas no recorte é vazio de filtro: diz quantas existem no seu escopo (N4).
+          !contactsRows.length ? (
+            <EstadoVazio
+              titulo="Nenhuma pessoa vinculada às empresas deste recorte"
+              total={contacts.data?.length ? contacts.data.length : undefined}
+              descricao={
+                contacts.data?.length
+                  ? undefined
+                  : "Nenhum contato vinculado a empresas no seu escopo."
+              }
+            />
           ) : (
             <section className="overflow-hidden rounded-xl border bg-card">
               <div className="border-b p-4 text-sm font-medium">
-                {number(contactsRows.length)} pessoas vinculadas às empresas deste recorte
+                <span className="num">{number(contactsRows.length)}</span> pessoas vinculadas às
+                empresas deste recorte
               </div>
-              {
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-                      <tr>
-                        {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
-                          <th key={h} className="p-3">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contactsRows.map((c) => (
-                        <tr key={c.id} className="border-t">
-                          <td className="p-3">
-                            {c.name}
-                            <div className="text-xs text-muted-foreground">{c.role}</div>
-                          </td>
-                          <td className="p-3">{c.email || "—"}</td>
-                          <td className="p-3">{c.phone || "—"}</td>
-                          <td className="p-3">
-                            {c.accounts
-                              .filter((k) => accountKeys.has(k))
-                              .map((k) => (
-                                <button
-                                  key={k}
-                                  type="button"
-                                  className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
-                                  onClick={() =>
-                                    setDetail(data.accounts.find((a) => a.key === k) || null)
-                                  }
-                                >
-                                  {data.accounts.find((a) => a.key === k)?.name}
-                                </button>
-                              ))}
-                          </td>
-                        </tr>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              }
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contactsRows.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          {c.name}
+                          <div className="text-xs text-muted-foreground">{c.role}</div>
+                        </TableCell>
+                        <TableCell>{c.email || "—"}</TableCell>
+                        <TableCell>{c.phone || "—"}</TableCell>
+                        <TableCell>
+                          {c.accounts
+                            .filter((k) => accountKeys.has(k))
+                            .map((k) => (
+                              <button
+                                key={k}
+                                type="button"
+                                className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
+                                onClick={() =>
+                                  setDetail(data.accounts.find((a) => a.key === k) || null)
+                                }
+                              >
+                                {data.accounts.find((a) => a.key === k)?.name}
+                              </button>
+                            ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </section>
           )
         ) : (
