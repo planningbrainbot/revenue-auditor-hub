@@ -1,12 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/meus-royalties")({
   head: () => ({ meta: [{ title: "Meus Royalties – Planning" }] }),
@@ -15,7 +21,15 @@ export const Route = createFileRoute("/_authenticated/meus-royalties")({
 
 const fmtBRL = (v: number | null) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const fmtData = (d: string | null) => (d ? new Date(d).toLocaleDateString("pt-BR") : "—");
+
+/** Data pura ("2021-03-15") no dia local: `new Date` a lia como UTC e mostrava o dia anterior. */
+function diaLocal(d: string | null): Date | null {
+  if (!d) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  const data = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d);
+  return Number.isNaN(data.getTime()) ? null : data;
+}
+const fmtData = (d: string | null) => diaLocal(d)?.toLocaleDateString("pt-BR") ?? "—";
 
 type UnidadeRegras = {
   nome_da_praca: string | null;
@@ -26,11 +40,21 @@ type UnidadeRegras = {
   midia_mensal: number | null;
 };
 
-type Repasse = { competencia: string; tipo: string; valor_recebido: number | null };
+type LinhaMes = {
+  mes: string;
+  /** Sem linha do billing_esperado para a unidade neste mês. */
+  semPrevisto: boolean;
+  mrrBase: number;
+  royaltiesPrev: number;
+  cscPrev: number;
+  midia: number;
+  totalPrev: number;
+  recebido: number | null;
+};
 
 function tempoDeCasa(d: string | null): string {
-  if (!d) return "—";
-  const ini = new Date(d);
+  const ini = diaLocal(d);
+  if (!ini) return "—";
   const hoje = new Date();
   const meses = (hoje.getFullYear() - ini.getFullYear()) * 12 + (hoje.getMonth() - ini.getMonth());
   if (meses < 12) return `${meses} mês(es)`;
@@ -40,18 +64,23 @@ function tempoDeCasa(d: string | null): string {
 function MeusRoyaltiesPage() {
   const { unidade: userUnidade, loading: permLoading } = usePermissions();
   const [loading, setLoading] = useState(true);
+  const [tentativa, setTentativa] = useState(0);
+  const [erros, setErros] = useState<string[]>([]);
   const [regras, setRegras] = useState<UnidadeRegras | null>(null);
-  const [historico, setHistorico] = useState<{ mes: string; mrrBase: number; royaltiesPrev: number; cscPrev: number; midia: number; totalPrev: number; recebido: number | null }[]>([]);
+  const [historico, setHistorico] = useState<LinhaMes[]>([]);
 
   useEffect(() => {
     if (permLoading || !userUnidade) return;
     let alive = true;
     setLoading(true);
+    setErros([]);
     (async () => {
-      const { data: unidadesData } = await supabase
+      const falhas: string[] = [];
+      const { data: unidadesData, error: erroUnidades } = await supabase
         .from("unidades")
         .select("nome_da_praca,data_inauguracao,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,midia_mensal")
         .limit(200);
+      if (erroUnidades) falhas.push(`regras da unidade: ${erroUnidades.message}`);
       const minhaUnidade = (unidadesData ?? []).find((u) => unitMatches(userUnidade, u.nome_da_praca));
 
       // últimos 12 meses
@@ -67,9 +96,14 @@ function MeusRoyaltiesPage() {
 
       // Esperado por mês via RPC billing_esperado
       const esperadoPorMes: Record<string, { mrr: number; royalties: number; csc: number; midia: number; total: number }> = {};
+      const mesesComErro: string[] = [];
       await Promise.all(
         meses.map(async (m) => {
-          const { data } = await supabase.rpc("billing_esperado", { mes_ref: m.iso });
+          const { data, error } = await supabase.rpc("billing_esperado", { mes_ref: m.iso });
+          if (error) {
+            mesesComErro.push(m.label);
+            return;
+          }
           const linha = (data ?? []).find((r: any) => unitMatches(userUnidade, r.unidade));
           if (linha) {
             esperadoPorMes[m.iso] = {
@@ -82,13 +116,15 @@ function MeusRoyaltiesPage() {
           }
         }),
       );
+      if (mesesComErro.length) falhas.push(`previsto (billing_esperado) de ${mesesComErro.length} mês(es)`);
 
       // Recebido (repasses_unidade) - filtra pela unidade
-      const { data: repassesData } = await supabase
+      const { data: repassesData, error: erroRepasses } = await supabase
         .from("repasses_unidade")
         .select("competencia,tipo,valor_recebido,unidade")
         .gte("competencia", meses[meses.length - 1].iso)
         .limit(1000);
+      if (erroRepasses) falhas.push(`repasses recebidos: ${erroRepasses.message}`);
       const recebidoPorMes: Record<string, number> = {};
       (repassesData ?? []).forEach((r: any) => {
         if (!unitMatches(userUnidade, r.unidade)) return;
@@ -97,13 +133,16 @@ function MeusRoyaltiesPage() {
       });
 
       if (!alive) return;
+      setErros(falhas);
       setRegras(minhaUnidade ?? null);
       setHistorico(
         meses.map((m) => {
-          const esp = esperadoPorMes[m.iso] ?? { mrr: 0, royalties: 0, csc: 0, midia: 0, total: 0 };
+          const e = esperadoPorMes[m.iso];
+          const esp = e ?? { mrr: 0, royalties: 0, csc: 0, midia: 0, total: 0 };
           const recebido = recebidoPorMes[m.iso] ?? null;
           return {
             mes: m.label,
+            semPrevisto: !e,
             mrrBase: esp.mrr,
             royaltiesPrev: esp.royalties,
             cscPrev: esp.csc,
@@ -116,71 +155,109 @@ function MeusRoyaltiesPage() {
       setLoading(false);
     })();
     return () => { alive = false; };
-  }, [permLoading, userUnidade]);
+  }, [permLoading, userUnidade, tentativa]);
 
-  function situacao(prev: number, rec: number | null) {
-    if (rec == null) return <Badge variant="outline">—</Badge>;
-    if (rec >= prev * 0.99) return <Badge variant="sucesso">Pago</Badge>;
-    if (rec > 0) return <Badge variant="atencao">Parcial</Badge>;
-    return <Badge variant="destructive">Em aberto</Badge>;
+  function situacao(h: LinhaMes) {
+    if (h.semPrevisto && h.recebido == null) return <span className="text-muted-foreground">—</span>;
+    // Nada previsto e nada repassado não é "Pago": não houve cobrança.
+    if (h.totalPrev === 0 && (h.recebido ?? 0) === 0) return <StatusBadge tom="neutro">Sem cobrança</StatusBadge>;
+    if (h.recebido == null) return <span className="text-muted-foreground">—</span>;
+    if (h.recebido >= h.totalPrev * 0.99) return <StatusBadge tom="sucesso">Pago</StatusBadge>;
+    if (h.recebido > 0) return <StatusBadge tom="atencao">Parcial</StatusBadge>;
+    return <StatusBadge tom="perigo">Em aberto</StatusBadge>;
   }
 
-  return (
-    <AppShell title="Meus Royalties" subtitle="Obrigações financeiras com a matriz">
-      <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Info label="Royalties" value={regras?.royalties_percentual != null ? `${regras.royalties_percentual}%` : "—"} />
-          <Info label="CSC (fixo)" value={fmtBRL(regras?.csc_valor_fixo ?? null)} sub={regras?.csc_percentual_base_antiga ? `Base antiga: ${regras.csc_percentual_base_antiga}%` : undefined} />
-          <Info label="Mídia mensal" value={fmtBRL(regras?.midia_mensal ?? null)} />
-          <Info label="Tempo de casa" value={tempoDeCasa(regras?.data_inauguracao ?? null)} sub={`Inauguração: ${fmtData(regras?.data_inauguracao ?? null)}`} />
-        </div>
+  const prev = (h: LinhaMes, v: number) => (h.semPrevisto ? "—" : fmtBRL(v));
+  const carregando = permLoading || (!!userUnidade && loading);
 
-        <Card className="overflow-hidden">
-          <div className="border-b px-4 py-3 text-sm font-semibold">Histórico mensal — últimos 12 meses</div>
-          {loading ? (
-            <div className="p-4"><Skeleton className="h-64 w-full" /></div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mês</TableHead>
-                  <TableHead className="text-right">MRR Base</TableHead>
-                  <TableHead className="text-right">Royalties</TableHead>
-                  <TableHead className="text-right">CSC</TableHead>
-                  <TableHead className="text-right">Mídia</TableHead>
-                  <TableHead className="text-right">Total Previsto</TableHead>
-                  <TableHead className="text-right">Recebido</TableHead>
-                  <TableHead>Situação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historico.map((h) => (
-                  <TableRow key={h.mes}>
-                    <TableCell className="font-medium capitalize">{h.mes}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBRL(h.mrrBase)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBRL(h.royaltiesPrev)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBRL(h.cscPrev)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBRL(h.midia)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{fmtBRL(h.totalPrev)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtBRL(h.recebido)}</TableCell>
-                    <TableCell>{situacao(h.totalPrev, h.recebido)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <PageHeader
+        titulo="Meus Royalties"
+        pergunta="Quanto a minha unidade repassou, e o que está em aberto?"
+        descricao={`${userUnidade ?? "Sem unidade vinculada"} · últimos 12 meses · previsto pelas regras da unidade contra o repasse recebido`}
+        procedencia={{
+          fonte: "Regras da unidade · previsto (billing_esperado) · repasses recebidos",
+          regua: "Pago quando o recebido cobre 99% do previsto; leitura de até 1.000 repasses",
+        }}
+      />
+
+      {carregando ? (
+        <Carregando variante="pagina" />
+      ) : !userUnidade ? (
+        <EstadoVazio
+          titulo="Seu usuário não tem unidade vinculada"
+          descricao="Os royalties são da unidade do seu usuário. Peça a quem administra os acessos para vincular a sua."
+        />
+      ) : (
+        <>
+          {erros.length > 0 && (
+            <EstadoErro
+              titulo="Parte dos dados não pôde ser lida"
+              detalhe={`Falhou: ${erros.join(" · ")}. Os meses afetados aparecem como "—".`}
+              tentarNovamente={() => setTentativa((x) => x + 1)}
+            />
           )}
-        </Card>
-      </div>
-    </AppShell>
-  );
-}
 
-function Info({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
-      {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
-    </Card>
+          <KpiGrade colunas={4}>
+            <KpiCard
+              rotulo="Royalties"
+              valor={regras?.royalties_percentual != null ? `${regras.royalties_percentual}%` : "—"}
+              estado={regras?.royalties_percentual != null ? "ok" : "nao-apurado"}
+            />
+            <KpiCard
+              rotulo="CSC (fixo)"
+              valor={fmtBRL(regras?.csc_valor_fixo ?? null)}
+              estado={regras?.csc_valor_fixo != null ? "ok" : "nao-apurado"}
+              nota={regras?.csc_percentual_base_antiga ? `Base antiga: ${regras.csc_percentual_base_antiga}%` : undefined}
+            />
+            <KpiCard
+              rotulo="Mídia mensal"
+              valor={fmtBRL(regras?.midia_mensal ?? null)}
+              estado={regras?.midia_mensal != null ? "ok" : "nao-apurado"}
+            />
+            <KpiCard
+              rotulo="Tempo de casa"
+              valor={tempoDeCasa(regras?.data_inauguracao ?? null)}
+              estado={diaLocal(regras?.data_inauguracao ?? null) ? "ok" : "nao-apurado"}
+              nota={`Inauguração: ${fmtData(regras?.data_inauguracao ?? null)}`}
+            />
+          </KpiGrade>
+
+          <Secao titulo="Mês a mês, o previsto foi repassado?" descricao="Últimos 12 meses, do mais recente para o mais antigo">
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Mês</TableHead>
+                    <TableHead className="text-right">MRR base</TableHead>
+                    <TableHead className="text-right">Royalties</TableHead>
+                    <TableHead className="text-right">CSC</TableHead>
+                    <TableHead className="text-right">Mídia</TableHead>
+                    <TableHead className="text-right">Total previsto</TableHead>
+                    <TableHead className="text-right">Recebido</TableHead>
+                    <TableHead>Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historico.map((h) => (
+                    <TableRow key={h.mes}>
+                      <TableCell className="font-medium capitalize">{h.mes}</TableCell>
+                      <TableCell className="text-right tabular-nums">{prev(h, h.mrrBase)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{prev(h, h.royaltiesPrev)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{prev(h, h.cscPrev)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{prev(h, h.midia)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{prev(h, h.totalPrev)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmtBRL(h.recebido)}</TableCell>
+                      <TableCell>{situacao(h)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Secao>
+        </>
+      )}
+    </div>
   );
 }
