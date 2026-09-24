@@ -2810,3 +2810,18 @@ Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
 qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
 inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
 tem `todas_unidades` lê tudo.
+
+## [2026-09-24] Base de clientes (relacionamento) no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das telas CS, NPS, Auditoria Interna, Reforma Tributária, Disparos de WhatsApp e Base de Contatos para o Design System v2 (contratos em `docs/design/contratos/`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma fórmula de servidor, RLS ou permissão mudou; a única mudança de consulta foi acrescentar a coluna `synced_at` ao select de `auditorias_internas` (e de `cs_onboarding_cards`) para mostrar a data de atualização (N3).
+
+**Decisão:**
+1. **Disparos:** o redirect silencioso para `/` sem `send.whatsapp` vira `EstadoSemAcesso` com a chave que falta. A checagem sai do `beforeLoad` para o componente, com a mesma RPC `can`, e as abas não montam sem a chave (nada de disparo fica alcançável; o servidor continua exigindo `send.whatsapp`). Registrar ligação/resposta sem `edit.nps` fica desabilitado com o motivo.
+2. **Base de Contatos:** "Sem contato (clientes ativos)" passa a ser a soma por unidade de (ativos − com WhatsApp): a conta antiga subtraía um total de todas as empresas de um total de ativos, misturava universos e podia dar negativo. A fórmula do servidor não mudou; mudou qual dos números já devolvidos a tela usa. Os rótulos declaram o universo ("todas as empresas" × "clientes ativos"); "Já disparadas" vira "Já receberam a pesquisa"; a aba `plano-acao` vira `plano`.
+3. **NPS:** com filtro de categoria ligado, NPS e CSAT ficam "não apurado" (o filtro mudava o próprio indicador); "Detratores recentes" vira "Detratores com a menor nota" (a lista ordena por nota); categoria usa cores de série, não de status (detrator em roxo); variação suprimida com menos de 10 respostas; mês pelo `created_at` do card.
+4. **Auditoria Interna:** "Concluídos (flag ou fase final)", "Projetos em 'Projeto Concluído'" e "Saúde da carteira" → "Exposição fiscal por unidade" (o nome era da tela que saiu em 23/09); valor ausente "—" com "{n} projetos sem valor", nunca "R$ 0".
+5. **CS:** taxas sem denominador "—"; o churn blended declara que ignora busca, status e período; barra "Outras fases" para fase fora da ordem conhecida; "Forçar atualização" desabilitado com motivo para quem não é admin (o servidor exige admin; vale também para a Auditoria).
+6. **Reforma Tributária:** exceção ao "o gerador de HTML não muda", só para o sinal da diferença (negativo sai "−R$ X", não "+R$ -X"); o campo mostra o 0 digitado e deixa o vazio vazio (o cálculo continua tratando vazio como 0); descartar a simulação pede confirmação.
+7. **Custos de WhatsApp:** "Acumulado (180 dias)" vira "Acumulado (histórico importado)", que é o que a leitura soma.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-base-cs-20260924` (sem push). Revisão do Eliezek no PR, com os achados de permissão e régua listados lá.
