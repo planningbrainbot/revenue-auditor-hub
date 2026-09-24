@@ -55,6 +55,11 @@ export type BuscaClientes = {
   contato?: string[];
   /** Só as aderentes a mais de um produto. */
   sobreposicao?: boolean;
+  /**
+   * Página da tabela da visão (Validar origem, Contratos e churn), a partir de 1. Ausente = 1;
+   * trocar de visão ou de filtro volta à primeira.
+   */
+  pagina?: number;
 };
 
 const texto = (v: unknown) => (typeof v === "string" ? v : "");
@@ -68,6 +73,11 @@ const lista = (v: unknown): string[] | undefined => {
 };
 const umDe = <T extends string>(opcoes: readonly T[], v: unknown): T | undefined =>
   typeof v === "string" && (opcoes as readonly string[]).includes(v) ? (v as T) : undefined;
+
+const paginaDe = (v: unknown): number | undefined => {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isInteger(n) && n > 1 ? n : undefined;
+};
 
 export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes {
   const chavesOrigem = Object.keys(ORIGENS_BASE);
@@ -89,6 +99,7 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     receita: lista(s.receita),
     contato: lista(s.contato),
     sobreposicao: s.sobreposicao === true || s.sobreposicao === "true" ? true : undefined,
+    pagina: paginaDe(s.pagina),
   };
 }
 

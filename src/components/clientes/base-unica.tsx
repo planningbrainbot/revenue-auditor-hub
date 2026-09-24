@@ -49,6 +49,7 @@ import {
   ChipFiltro,
   EstadoErro,
   EstadoSemAcesso,
+  EstadoVazio,
   KpiCard,
   KpiGrade,
   PageHeader,
@@ -128,6 +129,12 @@ const FUNIL = [
   ["contato", "Com contato"],
   ["ecd", "Com ECD registrada"],
 ] as const;
+const precisaValidar = (a: Conta) =>
+  !!(a.base?.needs_validation || a.base?.needs_source_correction);
+// Motivo de trabalho da linha: o que o catálogo diz (origin_reason) ou, sem ele, o passo.
+const motivoDe = (a: Conta) =>
+  a.base?.origin_reason ||
+  (a.base?.needs_source_correction ? "Corrigir origem no Pipefy" : "Validar origem com a unidade");
 const at = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
@@ -145,12 +152,13 @@ export function ClientesBase() {
     views.some(([v]) => v === search.view) || viewsOcultas.includes(search.view)
       ? search.view
       : "monetizacao";
+  // Toda mudança de visão ou de filtro volta à primeira página; a página só muda pelo rodapé.
   const change = (patch: Partial<BuscaClientes>) => {
-    setPage(1);
-    void navigate({ search: { ...search, ...patch }, replace: true });
+    void navigate({ search: { ...search, pagina: undefined, ...patch }, replace: true });
   };
-  const [page, setPage] = useState(1),
-    [detail, setDetail] = useState<Conta | null>(null),
+  const page = search.pagina ?? 1,
+    setPage = (p: number) => change({ pagina: p > 1 ? p : undefined });
+  const [detail, setDetail] = useState<Conta | null>(null),
     [validation, setValidation] = useState<Conta | null>(null);
   const healthFn = useServerFn(estadoSincronizacaoBase),
     contactsFn = useServerFn(contatosBase);
@@ -227,10 +235,25 @@ export function ClientesBase() {
     () => rows.filter((a) => passaRefinamento(a, search.gate as Refinamento)),
     [rows, search.gate],
   );
-  const visible =
-    view === "pendencias"
-      ? filtered.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
-      : filtered;
+  // Validar origem é Fila (N5): a ordem padrão é a de trabalho, por motivo e depois por unidade
+  // (antes era a do catálogo). Correção no Pipefy primeiro: ela já tem a evidência e só espera o
+  // espelho; depois as que pedem conversa com a unidade.
+  const visible = useMemo(
+    () =>
+      view === "pendencias"
+        ? filtered
+            .filter(precisaValidar)
+            .sort(
+              (a, b) =>
+                Number(!a.base?.needs_source_correction) -
+                  Number(!b.base?.needs_source_correction) ||
+                motivoDe(a).localeCompare(motivoDe(b), "pt-BR") ||
+                (a.unit_label || "\uffff").localeCompare(b.unit_label || "\uffff", "pt-BR") ||
+                a.name.localeCompare(b.name, "pt-BR"),
+            )
+        : filtered,
+    [filtered, view],
+  );
   const accountKeys = useMemo(() => new Set(filtered.map((a) => a.key)), [filtered]);
   const accountKeysSemOrigem = useMemo(
     () =>
@@ -264,10 +287,10 @@ export function ClientesBase() {
     [assinaturaFiltros],
   );
   const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario) => {
-    setPage(1);
     void navigate({
       search: {
         ...search,
+        pagina: undefined,
         ...buscaDosFiltros(f),
         ...(destino ? { view: VIEW_DA_SECAO[destino] } : {}),
       },
@@ -275,9 +298,9 @@ export function ClientesBase() {
     });
   };
   const meta = VISOES[view] ?? VISOES.monetizacao;
-  const pendentes = rows.filter(
-    (a) => a.base?.needs_validation || a.base?.needs_source_correction,
-  ).length;
+  // O selo da aba conta a mesma base do cabeçalho da visão: depois do recorte do topo e do
+  // refinamento (antes contava antes do refinamento, e os dois números não batiam).
+  const pendentes = filtered.filter(precisaValidar).length;
   const nav = (
     <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
       {views.map(([key, label]) => (
@@ -668,7 +691,8 @@ export function ClientesBase() {
                     <tr className="border-t hover:bg-muted/20" key={a.key}>
                       <td className="max-w-xs px-4 py-3">
                         <button
-                          className="text-left font-medium hover:text-primary-text hover:underline"
+                          type="button"
+                          className={`text-left font-medium hover:text-primary-text hover:underline ${FOCO_VISIVEL}`}
                           onClick={() => setDetail(a)}
                         >
                           {a.name}
@@ -724,14 +748,16 @@ export function ClientesBase() {
                       </td>
                       <td className="px-4 py-3">
                         {view === "pendencias" ? (
-                          <Button
+                          // Desabilitado diz o motivo (N8), em vez de um botão cinza mudo.
+                          <BotaoComMotivo
                             size="sm"
                             variant="outline"
                             disabled={!data.permissions.manage}
+                            motivo={data.permissions.manage ? null : "Exige manage.aquario"}
                             onClick={() => setValidation(a)}
                           >
                             Validar origem
-                          </Button>
+                          </BotaoComMotivo>
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").map((p) => (
@@ -760,32 +786,55 @@ export function ClientesBase() {
                 </tbody>
               </table>
               {!visible.length && (
-                <p className="p-8 text-center text-sm text-muted-foreground">
-                  Nenhuma empresa neste recorte. Limpe os filtros para revisar a base.
-                </p>
+                // Vazio com total (N4): sem filtro é a fila zerada; com filtro, diz quantas
+                // pendências existem fora dele.
+                <EstadoVazio
+                  className="m-4"
+                  titulo={
+                    view === "pendencias"
+                      ? temFiltroTopo
+                        ? "Nenhuma conta a validar neste recorte"
+                        : "Nenhuma conta com origem a validar"
+                      : "Nenhuma empresa neste recorte"
+                  }
+                  total={
+                    temFiltroTopo
+                      ? view === "pendencias"
+                        ? data.accounts.filter(precisaValidar).length
+                        : data.accounts.length
+                      : undefined
+                  }
+                  descricao={
+                    view === "pendencias" && !temFiltroTopo
+                      ? "Toda conta do seu escopo tem a origem confirmada ou já está com a correção na fila do Pipefy."
+                      : undefined
+                  }
+                />
               )}
             </div>
             <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
               <span>
-                Página {currentPage} de {pages} · 50 por página
+                Página {currentPage} de {pages} · 50 por página · {number(visible.length)} contas
               </span>
               <div className="flex gap-2">
-                <Button
+                <BotaoComMotivo
                   variant="outline"
                   size="sm"
                   disabled={currentPage === 1}
+                  motivo={currentPage === 1 ? "Já é a primeira página" : null}
                   onClick={() => setPage(currentPage - 1)}
                 >
                   Anterior
-                </Button>
-                <Button
+                </BotaoComMotivo>
+                <BotaoComMotivo
                   variant="outline"
                   size="sm"
                   disabled={currentPage === pages}
+                  motivo={currentPage === pages ? "Já é a última página" : null}
                   onClick={() => setPage(currentPage + 1)}
                 >
                   Próxima
-                </Button>
+                </BotaoComMotivo>
               </div>
             </footer>
           </section>
@@ -821,6 +870,9 @@ export function ClientesBase() {
     </main>
   );
 }
+// Os mínimos que o botão já exigia, agora ditos no diálogo (a régua não muda).
+const MIN_RESPONSAVEL = 3;
+const MIN_EVIDENCIA = 10;
 function ValidarOrigem({
   account,
   close,
@@ -887,7 +939,11 @@ function ValidarOrigem({
             value={responsible}
             onChange={(e) => setResponsible(e.target.value)}
             placeholder="Quem confirmou a origem"
+            aria-describedby="validar-min-responsavel"
           />
+          <span id="validar-min-responsavel" className="block text-muted-foreground">
+            Mínimo de {MIN_RESPONSAVEL} letras
+          </span>
         </label>
         <label className="space-y-1 text-xs">
           Evidência da confirmação
@@ -896,20 +952,36 @@ function ValidarOrigem({
             value={evidence}
             onChange={(e) => setEvidence(e.target.value)}
             placeholder="Como e quando a unidade confirmou esta carteira"
+            aria-describedby="validar-min-evidencia"
           />
+          <span id="validar-min-evidencia" className="block text-muted-foreground">
+            Mínimo de {MIN_EVIDENCIA} caracteres ·{" "}
+            <span className="num">{evidence.trim().length}</span> escritos
+          </span>
         </label>
         <p className="text-xs text-muted-foreground">
           O registro guarda seu usuário e a data. Se houver correção no Pipefy, o espelho muda após
           a confirmação da origem.
         </p>
-        <Button
+        <BotaoComMotivo
           disabled={
-            saving || !origin || responsible.trim().length < 3 || evidence.trim().length < 10
+            saving ||
+            !origin ||
+            responsible.trim().length < MIN_RESPONSAVEL ||
+            evidence.trim().length < MIN_EVIDENCIA
           }
+          motivo={[
+            saving && "Registrando a validação",
+            !origin && "Escolha a origem confirmada",
+            responsible.trim().length < MIN_RESPONSAVEL &&
+              `O responsável precisa de ${MIN_RESPONSAVEL}+ letras`,
+            evidence.trim().length < MIN_EVIDENCIA &&
+              `A evidência precisa de ${MIN_EVIDENCIA}+ caracteres`,
+          ]}
           onClick={submit}
         >
           {saving ? "Registrando…" : "Registrar validação"}
-        </Button>
+        </BotaoComMotivo>
       </DialogContent>
     </Dialog>
   );
