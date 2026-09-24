@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTab } from "@/components/painel-cs/onboarding-tab";
@@ -20,7 +21,8 @@ function texto(v: unknown): string | undefined {
 
 export const Route = createFileRoute("/_authenticated/painel-cs")({
   validateSearch: (s: Record<string, unknown>) => ({
-    aba: ABAS.includes(s.aba as Aba) ? (s.aba as Aba) : undefined,
+    // O padrão (onboarding) não vai para a URL: o link limpo é a tela padrão.
+    aba: s.aba === "tratativas" ? ("tratativas" as Aba) : undefined,
     q: texto(s.q),
     unidade: texto(s.unidade),
     status: texto(s.status),
@@ -35,6 +37,8 @@ function PainelCsPage() {
   const { aba } = Route.useSearch();
   const navigate = Route.useNavigate();
   const abaAtual: Aba = aba ?? "onboarding";
+  // Maior `synced_at` do onboarding, lido pela aba (setter estável do useState).
+  const [onboardingSincronizadoEm, setOnboardingSincronizadoEm] = useState<string | null>(null);
   // Enquanto as permissões carregam o recorte não é conhecido: omite, em vez
   // de dizer "todas as unidades" para quem só vê a própria.
   const recorte = perms.loading
@@ -49,14 +53,20 @@ function PainelCsPage() {
         titulo="CS"
         pergunta="Quais clientes estão travados no onboarding, e quanto perdemos em churn?"
         descricao={`Cards do Pipefy de onboarding e da Central de Tratativas · unidades da rede${recorte ? ` · ${recorte}` : ""}`}
-        procedencia={{ fonte: "Pipefy: onboarding e Central de Tratativas" }}
+        procedencia={
+          abaAtual === "onboarding"
+            ? { fonte: "Pipefy: onboarding", atualizadoEm: onboardingSincronizadoEm }
+            : // central_tratativas não grava data de sincronização; sem
+              // `atualizadoEm`, a Procedencia escreve "sem data de atualização".
+              { fonte: "Pipefy: Central de Tratativas" }
+        }
       />
 
       <Tabs
         value={abaAtual}
         onValueChange={(v) =>
           navigate({
-            search: (prev) => ({ ...prev, aba: v as Aba }),
+            search: (prev) => ({ ...prev, aba: v === "tratativas" ? "tratativas" : undefined }),
             replace: true,
             resetScroll: false,
           })
@@ -69,7 +79,7 @@ function PainelCsPage() {
         </TabsList>
 
         <TabsContent value="onboarding">
-          <OnboardingTab />
+          <OnboardingTab aoSincronizar={setOnboardingSincronizadoEm} />
         </TabsContent>
         <TabsContent value="tratativas">
           <TratativasTab />

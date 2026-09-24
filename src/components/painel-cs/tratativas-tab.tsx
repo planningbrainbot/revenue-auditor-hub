@@ -37,9 +37,20 @@ import {
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { isUnidadeDaRede } from "@/lib/unidades-rede";
 import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
-import { Carregando, EstadoErro, KpiCard, KpiGrade, StatusBadge, type TomStatus } from "@/components/planning";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
+import {
+  BarraFiltros,
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
 import { BotaoAtualizarPipefy } from "./botao-atualizar";
+import { LinkPipefy } from "./link-pipefy";
 
 type Tratativa = {
   id: number;
@@ -54,10 +65,12 @@ type Tratativa = {
   observacao: string | null;
   data_churn: string | null;
   pipedrive_deal_id: number | null;
+  pipefy_card_id: string | null;
 };
 
 const NA = "—";
 const TODOS = "__all__";
+const CHAVES_FILTRO = ["q", "unidade", "status", "de", "ate"];
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 function fmtMoney(v: number | null | undefined) {
@@ -126,12 +139,13 @@ export function TratativasTab() {
   const [q, setQ] = useFiltroNaUrl("q", "");
   const [dateFrom, setDateFrom] = useFiltroNaUrl("de", "");
   const [dateTo, setDateTo] = useFiltroNaUrl("ate", "");
+  const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
 
   const carregar = useCallback(async () => {
     const [tratativasRes, contratosRes, empresasRes] = await Promise.all([
       supabase
         .from("central_tratativas")
-        .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id")
+        .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id,pipefy_card_id")
         .limit(5000),
       supabase
         .from("contratos")
@@ -233,6 +247,8 @@ export function TratativasTab() {
   // fora do escopo) cai em "todos", em vez de zerar a tela sem explicar.
   const unidadeFilter = unidades.includes(unidadeNaUrl) ? unidadeNaUrl : TODOS;
   const statusFilter = statuses.includes(statusNaUrl) ? statusNaUrl : TODOS;
+  const filtroAtivo =
+    unidadeFilter !== TODOS || statusFilter !== TODOS || q.trim() !== "" || dateFrom !== "" || dateTo !== "";
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -455,60 +471,61 @@ export function TratativasTab() {
         />
       </KpiGrade>
 
-      {/* Filtros */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden />
-            <Input
-              aria-label="Buscar por título"
-              placeholder="Buscar por título…"
-              className="pl-8"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-            <SelectTrigger aria-label="Unidade"><SelectValue placeholder="Unidade" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as unidades</SelectItem>
-              {unidades.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
-            </SelectContent>
-          </Select>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os status</SelectItem>
-              {statuses.map((s) => (<SelectItem key={s} value={s}>{rotuloStatus(s)}</SelectItem>))}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-1.5">
-            <label htmlFor="cs-churn-de" className="text-[13px] text-muted-foreground shrink-0">Churn de</label>
-            <Input
-              id="cs-churn-de"
-              type="date"
-              className="text-sm"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <label htmlFor="cs-churn-ate" className="text-[13px] text-muted-foreground shrink-0">até</label>
-            <Input
-              id="cs-churn-ate"
-              type="date"
-              className="text-sm"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
+      {/* Filtros: estado na URL (N7); "Limpar" tira só as chaves da aba. */}
+      <BarraFiltros aoLimpar={filtroAtivo ? limparFiltros : undefined}>
+        <div className="relative w-full sm:w-56">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden />
+          <Input
+            aria-label="Buscar por título"
+            placeholder="Buscar por título…"
+            className="h-9 pl-8"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
         </div>
-      </Card>
+        <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
+          <SelectTrigger aria-label="Unidade" className="h-9 w-full sm:w-48"><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todas as unidades</SelectItem>
+            {unidades.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger aria-label="Status" className="h-9 w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todos os status</SelectItem>
+            {statuses.map((s) => (<SelectItem key={s} value={s}>{rotuloStatus(s)}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5">
+          <label htmlFor="cs-churn-de" className="text-[13px] text-muted-foreground shrink-0">Churn de</label>
+          <Input
+            id="cs-churn-de"
+            type="date"
+            className="h-9 w-40 text-sm"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <label htmlFor="cs-churn-ate" className="text-[13px] text-muted-foreground shrink-0">até</label>
+          <Input
+            id="cs-churn-ate"
+            type="date"
+            className="h-9 w-40 text-sm"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+      </BarraFiltros>
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Secao titulo="Onde estão as tratativas perdidas e recuperadas?" descricao="Tratativas por unidade, em cards">
+        {porUnidade.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma tratativa no recorte" total={filtroAtivo ? visiveis.length : undefined} />
+        ) : (
         <Card className="p-4">
-          <div className="mb-2 text-sm font-semibold">Tratativas por unidade</div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porUnidade}>
@@ -523,14 +540,17 @@ export function TratativasTab() {
             </ResponsiveContainer>
           </div>
         </Card>
+        )}
+        </Secao>
+        <Secao titulo="Quanto MRR perdemos em cada mês?" descricao="Perdidos com data de churn, em R$ por mês">
+        {mrrPerdidoPorMes.length === 0 ? (
+          <EstadoVazio
+            titulo="Nenhum churn com data registrada"
+            total={filtroAtivo ? visiveis.length : undefined}
+          />
+        ) : (
         <Card className="p-4">
-          <div className="mb-2 text-sm font-semibold">MRR perdido por mês</div>
           <div className="h-72">
-            {mrrPerdidoPorMes.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                Nenhum churn com data registrada para os filtros atuais.
-              </div>
-            ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mrrPerdidoPorMes}>
                   <CartesianGrid {...gradeProps} />
@@ -547,26 +567,28 @@ export function TratativasTab() {
                   <Bar dataKey="mrr" fill={COR_NEGATIVO} name="MRR perdido" />
                 </BarChart>
               </ResponsiveContainer>
-            )}
           </div>
         </Card>
+        )}
+        </Secao>
       </div>
 
       {/* Motivos de perda */}
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="text-sm font-semibold">Motivos de perda</div>
-          {perdidosSemMotivo > 0 && (
-            <div className="text-xs text-muted-foreground">
-              {perdidosSemMotivo} perdido(s) sem motivo registrado no Pipefy
-            </div>
-          )}
-        </div>
+      <Secao
+        titulo="Por que perdemos os clientes?"
+        descricao={
+          perdidosSemMotivo > 0
+            ? `Motivos registrados no Pipefy · ${perdidosSemMotivo} perdido(s) sem motivo registrado`
+            : "Motivos registrados no Pipefy, do mais frequente"
+        }
+      >
         {motivosPerda.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-6">
-            Nenhum motivo de perda registrado ainda para os filtros atuais.
-          </div>
+          <EstadoVazio
+            titulo="Nenhum motivo de perda registrado no recorte"
+            total={filtroAtivo ? visiveis.length : undefined}
+          />
         ) : (
+          <Card className="p-0 overflow-hidden">
           <div className="overflow-auto max-h-[320px]">
             <table className="w-full text-sm">
               <TableHeader className="sticky top-0 z-10">
@@ -587,14 +609,16 @@ export function TratativasTab() {
               </TableBody>
             </table>
           </div>
+          </Card>
         )}
-      </Card>
+      </Secao>
 
       {/* Resumo por unidade */}
+      <Secao titulo="Qual unidade recupera mais do que perde?" descricao="Cards por unidade; % de recuperação = recuperados ÷ (recuperados + perdidos)">
+      {porUnidade.length === 0 ? (
+        <EstadoVazio titulo="Nenhuma tratativa no recorte" total={filtroAtivo ? visiveis.length : undefined} />
+      ) : (
       <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <div className="text-sm font-semibold">Resumo por unidade</div>
-        </div>
         <div className="overflow-auto max-h-[360px]">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
@@ -626,13 +650,18 @@ export function TratativasTab() {
           </table>
         </div>
       </Card>
+      )}
+      </Secao>
 
       {/* Tabela detalhada */}
+      <Secao
+        titulo="Quais tratativas estão no recorte?"
+        descricao={`${tabela.length} de ${visiveis.length} tratativas · da última atualização para a mais antiga`}
+      >
+      {tabela.length === 0 ? (
+        <EstadoVazio titulo="Nenhuma tratativa encontrada" total={filtroAtivo ? visiveis.length : undefined} />
+      ) : (
       <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="text-sm font-semibold">Tratativas</div>
-          <div className="text-xs text-muted-foreground">{`${tabela.length} registros`}</div>
-        </div>
         <div className="overflow-auto max-h-[600px]">
           <table className="w-full text-sm">
             <TableHeader className="sticky top-0 z-10">
@@ -646,6 +675,7 @@ export function TratativasTab() {
                 <TableHead className="bg-background">Tempo como cliente</TableHead>
                 <TableHead className="bg-background">Data do ganho</TableHead>
                 <TableHead className="bg-background">Data do churn</TableHead>
+                <TableHead className="bg-background"><span className="sr-only">Pipefy</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -664,19 +694,15 @@ export function TratativasTab() {
                   <TableCell>{fmtTenure(tenureDias(r))}</TableCell>
                   <TableCell>{fmtDate(ganhoEmDe(r))}</TableCell>
                   <TableCell>{fmtDate(r.data_churn)}</TableCell>
+                  <TableCell><LinkPipefy cardId={r.pipefy_card_id} titulo={r.titulo} /></TableCell>
                 </TableRow>
               ))}
-              {tabela.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
-                    Nenhuma tratativa encontrada com os filtros atuais.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </table>
         </div>
       </Card>
+      )}
+      </Secao>
       </>
       )}
     </div>

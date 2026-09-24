@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { TriangleAlert, Hourglass } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { syncPainelCs, FASES_ORDEM } from "@/lib/painel-cs.functions";
 import {
@@ -26,8 +26,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { Carregando, EstadoErro, KpiCard, KpiGrade } from "@/components/planning";
+import { Carregando, EstadoErro, EstadoVazio, KpiCard, KpiGrade, Secao } from "@/components/planning";
 import { BotaoAtualizarPipefy } from "./botao-atualizar";
+import { LinkPipefy } from "./link-pipefy";
 
 type CardHistoryEntry = { fase: string | null; entrou_em: string | null; saiu_em: string | null };
 
@@ -41,11 +42,23 @@ type OnboardingCard = {
   concluido: boolean | null;
   unidade: string | null;
   fases_history: CardHistoryEntry[] | null;
+  synced_at: string | null;
 };
 
 const NA = "—";
 const DIAS_ALERTA_GARGALO = 7; // card parado há mais de 7 dias na fase atual entra na lista de atenção
 const OUTRAS_FASES = "Outras fases";
+const ID_GARGALOS = "cs-onboarding-gargalos";
+
+// Rola sem animação para quem pediu menos movimento (V16) e leva o foco junto,
+// para o leitor de tela e o teclado continuarem a partir da lista.
+function irParaGargalos() {
+  const alvo = document.getElementById(ID_GARGALOS);
+  if (!alvo) return;
+  const reduzir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  alvo.scrollIntoView({ behavior: reduzir ? "auto" : "smooth", block: "start" });
+  alvo.focus({ preventScroll: true });
+}
 
 function fmtDate(s: string | null) {
   if (!s) return NA;
@@ -75,7 +88,11 @@ function cicloDias(card: OnboardingCard): number | null {
   return Math.round((fim - inicio) / (1000 * 60 * 60 * 24));
 }
 
-export function OnboardingTab() {
+/**
+ * `aoSincronizar` devolve o maior `synced_at` lido (ou null), para a
+ * procedência do cabeçalho dizer de quando é o dado (N3).
+ */
+export function OnboardingTab({ aoSincronizar }: { aoSincronizar?: (quando: string | null) => void } = {}) {
   const perms = usePermissions();
   const [rows, setRows] = useState<OnboardingCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,13 +101,23 @@ export function OnboardingTab() {
   const carregar = useCallback(async () => {
     const { data, error } = await supabase
       .from("cs_onboarding_cards")
-      .select("pipefy_card_id,titulo,fase_atual,fase_atual_ordem,entrou_fase_atual_em,criado_em,concluido,unidade,fases_history")
+      .select("pipefy_card_id,titulo,fase_atual,fase_atual_ordem,entrou_fase_atual_em,criado_em,concluido,unidade,fases_history,synced_at")
       .limit(5000);
     // Erro de leitura era engolido e a tela mostrava zeros (N4).
     setErro(error ? error.message : null);
-    if (data) setRows(data as OnboardingCard[]);
+    if (data) {
+      const lidas = data as OnboardingCard[];
+      setRows(lidas);
+      // Date.parse, não comparação de texto: timestamptz pode vir com "Z" ou "+00:00".
+      let maior = 0;
+      for (const r of lidas) {
+        const t = r.synced_at ? Date.parse(r.synced_at) : NaN;
+        if (Number.isFinite(t) && t > maior) maior = t;
+      }
+      aoSincronizar?.(maior > 0 ? new Date(maior).toISOString() : null);
+    }
     setLoading(false);
-  }, []);
+  }, [aoSincronizar]);
 
   useEffect(() => {
     carregar();
@@ -195,6 +222,7 @@ export function OnboardingTab() {
           valor={kpis.gargalos}
           tom={kpis.gargalos > 0 ? "perigo" : undefined}
           nota={kpis.semDataDeFase > 0 ? `${kpis.semDataDeFase} sem data de fase` : undefined}
+          abrir={kpis.gargalos > 0 ? { onClick: irParaGargalos, rotulo: "Ver cards parados" } : undefined}
         />
         {/* Sem nenhum ciclo fechado o tempo médio não existe ainda: "não
             apurado", com o porquê na nota, e não um 0d (N4). */}
@@ -207,8 +235,8 @@ export function OnboardingTab() {
       </KpiGrade>
 
       {/* Funil */}
+      <Secao titulo="Em que fase estão os clientes em onboarding?" descricao="Cards ativos por fase atual, na ordem do pipe">
       <Card className="p-4">
-        <div className="mb-2 text-sm font-semibold">Funil por fase (cards ativos)</div>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={funil} layout="vertical" margin={{ left: 24 }}>
@@ -226,27 +254,32 @@ export function OnboardingTab() {
           </ResponsiveContainer>
         </div>
       </Card>
+      </Secao>
 
       {/* Throughput — aguardando dados */}
       {!kpis.temDadosDeCiclo && (
-        <Card className="p-4 flex items-center gap-3 border-dashed">
-          <Hourglass className="h-5 w-5 text-muted-foreground shrink-0" />
-          <p className="text-sm text-muted-foreground">
-            Throughput (onboardings concluídos por mês) ainda não tem dado real — nenhum card chegou em
-            "Concluído" até agora. Esse gráfico aparece assim que os primeiros clientes completarem o funil.
-          </p>
-        </Card>
+        <Secao titulo="Quantos onboardings fechamos por mês?">
+          <EstadoVazio
+            titulo="Ainda sem onboarding concluído"
+            descricao={'Nenhum card chegou em "Concluído" até agora. O gráfico de concluídos por mês aparece assim que os primeiros clientes completarem o funil.'}
+          />
+        </Secao>
       )}
 
       {/* Gargalos */}
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b flex items-center gap-2">
-          {gargalos.length > 0 && <TriangleAlert className="size-4 text-danger" aria-hidden />}
-          <div className="text-sm font-semibold">Atenção — cards parados há {DIAS_ALERTA_GARGALO}+ dias na fase atual</div>
-        </div>
+      <div id={ID_GARGALOS} tabIndex={-1} className="scroll-mt-4 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Secao
+        titulo={`Quais clientes estão parados há ${DIAS_ALERTA_GARGALO}+ dias na mesma fase?`}
+        descricao="Do mais parado para o menos; o card se destrava no Pipefy"
+        acoes={gargalos.length > 0 ? <TriangleAlert className="size-4 text-danger" aria-hidden /> : undefined}
+      >
         {gargalos.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Nenhum card parado além do esperado.</div>
+          <EstadoVazio
+            titulo="Nenhum card parado além do esperado"
+            descricao={kpis.semDataDeFase > 0 ? `${kpis.semDataDeFase} card(s) sem data de fase ficam fora desta conta.` : undefined}
+          />
         ) : (
+          <Card className="p-0 overflow-hidden">
           <div className="overflow-auto max-h-[320px]">
             <table className="w-full text-sm">
               <TableHeader className="sticky top-0 z-10">
@@ -256,6 +289,7 @@ export function OnboardingTab() {
                   <TableHead className="bg-background">Fase atual</TableHead>
                   <TableHead className="bg-background text-right">Entrou na fase em</TableHead>
                   <TableHead className="bg-background text-right">Dias na fase</TableHead>
+                  <TableHead className="bg-background"><span className="sr-only">Pipefy</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -266,22 +300,23 @@ export function OnboardingTab() {
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
                     <TableCell className="num text-right">{fmtDate(r.entrou_fase_atual_em)}</TableCell>
                     <TableCell className="num text-right font-semibold text-danger">{dias}d</TableCell>
+                    <TableCell><LinkPipefy cardId={r.pipefy_card_id} titulo={r.titulo} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </table>
           </div>
+          </Card>
         )}
-      </Card>
+      </Secao>
+      </div>
 
       {/* Lista operacional */}
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <div className="text-sm font-semibold">Clientes em onboarding</div>
-        </div>
+      <Secao titulo="Quem está em onboarding agora?" descricao="Todos os cards ativos, na ordem das fases do pipe">
         {listaOperacional.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Nenhum cliente em onboarding no momento.</div>
+          <EstadoVazio titulo="Nenhum cliente em onboarding no momento" />
         ) : (
+          <Card className="p-0 overflow-hidden">
           <div className="overflow-auto max-h-[420px]">
             <table className="w-full text-sm">
               <TableHeader className="sticky top-0 z-10">
@@ -291,6 +326,7 @@ export function OnboardingTab() {
                   <TableHead className="bg-background">Fase atual</TableHead>
                   <TableHead className="bg-background text-right">Criado em</TableHead>
                   <TableHead className="bg-background text-right">Dias na fase atual</TableHead>
+                  <TableHead className="bg-background"><span className="sr-only">Pipefy</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -301,13 +337,15 @@ export function OnboardingTab() {
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
                     <TableCell className="num text-right">{fmtDate(r.criado_em)}</TableCell>
                     <TableCell className="num text-right">{fmtDias(diasDesde(r.entrou_fase_atual_em))}</TableCell>
+                    <TableCell><LinkPipefy cardId={r.pipefy_card_id} titulo={r.titulo} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </table>
           </div>
+          </Card>
         )}
-      </Card>
+      </Secao>
       </>
       )}
     </div>
