@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
-import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
+import { Secao, KpiCard as KpiCardPlanning, type TomKpi } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -167,22 +167,22 @@ export function ContasReceberView() {
 
   return (
     <div className="space-y-6 p-6">
-      <PageHeader
+      <Secao
         titulo="Contas a Receber — Partners"
         descricao="Faturas emitidas pela conta Omie da Partners (Matriz) — origem: Omie."
-      />
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tone="emerald" />
-        <KpiCard label="A vencer" value={brl(kpis.aVencer)} tone="amber" />
-        <KpiCard
-          label="Em atraso"
-          value={brl(kpis.atrasado)}
-          hint={`${num(kpis.atrasadoQtd)} fatura(s)`}
-          tone="red"
-        />
-        <KpiCard label="Ticket médio" value={brl(kpis.ticket)} tone="slate" />
-      </div>
+      >
+        <div className="grid gap-3 md:grid-cols-4">
+          <KpiCard label="Recebido (filtro)" value={brl(kpis.recebido)} tom="sucesso" />
+          <KpiCard label="A vencer" value={brl(kpis.aVencer)} tom="atencao" />
+          <KpiCard
+            label="Em atraso"
+            value={brl(kpis.atrasado)}
+            hint={`${num(kpis.atrasadoQtd)} fatura(s)`}
+            tom="perigo"
+          />
+          <KpiCard label="Ticket médio" value={brl(kpis.ticket)} />
+        </div>
+      </Secao>
 
       <Card className="p-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[240px]">
@@ -318,11 +318,10 @@ export function ContasReceberView() {
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O `tone` era o fundo do card e vira o `tom` do KpiCard (amber →
-// atenção, red → perigo, emerald → sucesso, slate → neutro): valor na cor,
-// ícone de status e filete, nunca cor sozinha (V7).
+// §1.6). O tom é o do DS (sucesso, atenção, perigo; sem tom = neutro): valor
+// na cor, ícone de status e filete, nunca cor sozinha (V7).
 function KpiCard({
-  tone,
+  tom,
   label,
   value,
   hint,
@@ -330,7 +329,7 @@ function KpiCard({
   label: string;
   value: string;
   hint?: string;
-  tone: "amber" | "red" | "emerald" | "slate";
+  tom?: TomKpi;
 }) {
-  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tom} />;
 }

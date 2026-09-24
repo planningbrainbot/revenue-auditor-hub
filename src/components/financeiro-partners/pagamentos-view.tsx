@@ -25,9 +25,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { brl, date, num } from "@/components/audit/format";
-import { PageHeader, KpiCard as KpiCardPlanning, tomDoLegado } from "@/components/planning";
+import { Secao, KpiCard as KpiCardPlanning, type TomKpi } from "@/components/planning";
 
 const ALL = "__all__";
 
@@ -379,9 +390,19 @@ export function PagamentosView() {
       .upsert(payload, { onConflict: "apuracao_id,categoria" })
       .select("id,apuracao_id,categoria,status_validado,validado_em,validado_por,observacao_validacao")
       .single();
+    const oQue =
+      patch.status_validado !== undefined
+        ? `Validação de ${l.unidade} (${CATEGORIA_LABEL[l.categoria]}, ${fmtMes(l.mesReferencia)})`
+        : `Observação de ${l.unidade} (${CATEGORIA_LABEL[l.categoria]}, ${fmtMes(l.mesReferencia)})`;
     if (updErr) {
       setError(updErr.message);
+      toast.error(`Não foi possível salvar: ${oQue}. ${updErr.message}`);
     } else if (data) {
+      toast.success(
+        patch.status_validado !== undefined
+          ? `${oQue}: ${STATUS_LABEL[patch.status_validado]}.`
+          : `${oQue} salva.`,
+      );
       setPagamentos((prev) => {
         const next = prev.filter((p) => !(p.apuracao_id === l.apuracaoId && p.categoria === l.categoria));
         next.push(data as unknown as PagamentoRow);
@@ -390,6 +411,10 @@ export function PagamentosView() {
     }
     setSavingKey(null);
   };
+
+  // "Validar pagamento" confirma antes de gravar: a troca registra seu e-mail
+  // e a data, e move o valor entre Recebido e Pendente.
+  const [confirmar, setConfirmar] = useState<{ linha: Linha; status: StatusValidado } | null>(null);
 
   const hasFilters = q !== "" || unidadeFilter !== ALL || mesFilter !== ALL || categoriaFilter !== ALL || statusFilter !== ALL;
   const clearFilters = () => {
@@ -402,23 +427,23 @@ export function PagamentosView() {
 
   return (
     <div className="space-y-6 p-6">
-      <PageHeader
+      <Secao
         titulo="Recebimentos das Unidades"
         descricao="Faturas das apurações de royalties fechadas (confirmadas) — status do Omie como referência + validação manual contra o extrato bancário."
-      />
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <KpiCard icon={CircleDollarSign} label="Total a Receber" value={brl(kpis.total)} tone="slate" />
-        <KpiCard icon={CheckCircle2} label="Recebido (validado)" value={brl(kpis.recebido)} tone="emerald" />
-        <KpiCard icon={Clock} label="Pendente (validado)" value={brl(kpis.pendente)} tone="amber" />
-        <KpiCard
-          icon={AlertTriangle}
-          label="Não conferido / divergências"
-          value={brl(kpis.naoConferido)}
-          hint={kpis.divergencias > 0 ? `${num(kpis.divergencias)} divergência(s) Omie x validação` : undefined}
-          tone={kpis.divergencias > 0 ? "red" : "slate"}
-        />
-      </div>
+      >
+        <div className="grid gap-3 md:grid-cols-4">
+          <KpiCard icon={CircleDollarSign} label="Total a Receber" value={brl(kpis.total)} />
+          <KpiCard icon={CheckCircle2} label="Recebido (validado)" value={brl(kpis.recebido)} tom="sucesso" />
+          <KpiCard icon={Clock} label="Pendente (validado)" value={brl(kpis.pendente)} tom="atencao" />
+          <KpiCard
+            icon={AlertTriangle}
+            label="Não conferido / divergências"
+            value={brl(kpis.naoConferido)}
+            hint={kpis.divergencias > 0 ? `${num(kpis.divergencias)} divergência(s) Omie x validação` : undefined}
+            tom={kpis.divergencias > 0 ? "perigo" : undefined}
+          />
+        </div>
+      </Secao>
 
       <Card className="p-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px]">
@@ -518,10 +543,15 @@ export function PagamentosView() {
                     <TableCell>
                       <Select
                         value={statusValidado}
-                        onValueChange={(v) => updateLinha(l, { status_validado: v as StatusValidado })}
+                        onValueChange={(v) => {
+                          if (v !== statusValidado) setConfirmar({ linha: l, status: v as StatusValidado });
+                        }}
                         disabled={savingKey === l.key}
                       >
-                        <SelectTrigger className="w-[190px] h-8 text-xs">
+                        <SelectTrigger
+                          className="w-[190px] h-8 text-xs"
+                          aria-label={`Validação manual de ${l.unidade}, ${CATEGORIA_LABEL[l.categoria]}`}
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -556,6 +586,42 @@ export function PagamentosView() {
           </table>
         </div>
       </Card>
+
+      <AlertDialog open={confirmar !== null} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent>
+          {confirmar && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Marcar como “{STATUS_LABEL[confirmar.status]}”?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmar.linha.unidade} · {CATEGORIA_LABEL[confirmar.linha.categoria]} ·{" "}
+                  {fmtMes(confirmar.linha.mesReferencia)} · {brl(confirmar.linha.valor)}. Hoje está “
+                  {STATUS_LABEL[confirmar.linha.pagamento?.status_validado ?? "pendente"]}”. A validação
+                  grava seu e-mail e a data de agora, e o valor passa a contar em{" "}
+                  {confirmar.status === "confirmado_pago"
+                    ? "Recebido (validado)"
+                    : "Pendente (validado)"}
+                  .
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    const { linha, status } = confirmar;
+                    setConfirmar(null);
+                    void updateLinha(linha, { status_validado: status });
+                  }}
+                >
+                  Confirmar validação
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -566,7 +632,10 @@ function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: s
   return (
     <Popover onOpenChange={(open) => !open && draft !== (value ?? "") && onSave(draft)}>
       <PopoverTrigger asChild>
-        <button className="text-xs text-muted-foreground hover:text-foreground underline decoration-dotted max-w-[160px] truncate text-left">
+        <button
+          type="button"
+          className="max-w-[160px] truncate rounded-sm text-left text-xs text-muted-foreground underline decoration-dotted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
           {value ? value : "adicionar nota"}
         </button>
       </PopoverTrigger>
@@ -583,11 +652,10 @@ function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: s
 }
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). O ícone ao lado do rótulo sai; o `tone` vira o `tom` do KpiCard
-// (amber → atenção, red → perigo, emerald → sucesso, slate → neutro), com
-// ícone de status junto da cor (V7).
+// §1.6). O ícone ao lado do rótulo sai; o tom é o do DS (sucesso, atenção,
+// perigo; sem tom = neutro), com ícone de status junto da cor (V7).
 function KpiCard({
-  tone,
+  tom,
   label,
   value,
   hint,
@@ -596,7 +664,7 @@ function KpiCard({
   label: string;
   value: string;
   hint?: string;
-  tone: "amber" | "red" | "emerald" | "slate";
+  tom?: TomKpi;
 }) {
-  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tomDoLegado(tone)} />;
+  return <KpiCardPlanning rotulo={label} valor={value} nota={hint} tom={tom} />;
 }

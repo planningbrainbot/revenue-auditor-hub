@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/planning";
 import { DreProjetadaView } from "@/components/financeiro-partners/dre-projetada";
 import { FxcView } from "@/components/financeiro-partners/fxc-view";
 import { DreRealizadaView } from "@/components/financeiro-partners/dre-realizada-view";
@@ -11,7 +12,7 @@ type TabId = "dre" | "dre-realizada" | "fcx" | "contas-receber" | "pagamentos";
 export const Route = createFileRoute("/_authenticated/financeiro-partners")({
   head: () => ({
     meta: [
-      { title: "Financeiro Partners – Planning" },
+      { title: "Financeiro Partners · Planning Brain" },
       {
         name: "description",
         content:
@@ -40,6 +41,13 @@ function FinanceiroPartnersPage() {
 
   return (
     <div className="flex min-h-full flex-col">
+      <div className="px-4 pt-4 md:px-6 md:pt-6">
+        <PageHeader
+          titulo="Financeiro Partners"
+          pergunta="Como está o dinheiro da Planning Partners, projetado e realizado?"
+          descricao="Tela fora do menu desde 14/09/2026: a área Partners foi dissolvida, a DRE e o fluxo de caixa vivem no cockpit do Financeiro e o resto foi para Receita e Repasses. Continua aberta por link direto."
+        />
+      </div>
       <div className="border-b bg-card/50 px-4 pt-2">
         <nav className="flex items-center gap-1 overflow-x-auto">
           {TABS.map((t) => {
@@ -50,7 +58,7 @@ function FinanceiroPartnersPage() {
                 to="/financeiro-partners"
                 search={{ tab: t.id }}
                 className={cn(
-                  "rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                  "rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   active
                     ? "border-primary text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
