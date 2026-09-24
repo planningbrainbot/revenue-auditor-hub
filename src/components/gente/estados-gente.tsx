@@ -57,10 +57,13 @@ export function AvisoCorte({
   total,
   oQue,
   limiteDoServidor,
+  criterio = "as linhas mais recentes",
 }: {
   mostrando: number;
   total?: number;
   oQue: string;
+  /** Quais linhas ficaram na tela quando o corte é local (padrão: as mais recentes). */
+  criterio?: string;
   /** A consulta pede no máximo N linhas: com N devolvidas pode haver mais. */
   limiteDoServidor?: number;
 }) {
@@ -77,7 +80,7 @@ export function AvisoCorte({
   return (
     <p className="text-[13px] text-muted-foreground">
       Mostrando <span className="num">{NUM.format(mostrando)}</span> de{" "}
-      <span className="num">{NUM.format(total)}</span> {oQue} (as linhas mais recentes).
+      <span className="num">{NUM.format(total)}</span> {oQue} ({criterio}).
     </p>
   );
 }

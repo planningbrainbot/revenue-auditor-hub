@@ -9,10 +9,32 @@ import {
   responderAvaliacao,
   salvarCalibracao,
   type AvaliacaoResult,
+  type CalibracaoRow,
+  type CicloRow,
   type FilaRow,
 } from "@/lib/gente-avaliacao.functions";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { AvisoCorte, BotaoComMotivo, ErroDaFonte, dataSP } from "@/components/gente/estados-gente";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  Procedencia,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +72,78 @@ const STATUS_LABEL: Record<string, string> = {
   encerrado: "Encerrado",
   importado: "Importado do Qulture",
 };
+
+// Situação do ciclo é etapa, não alarme: em andamento é `info`, fechado é `neutro`.
+const STATUS_TOM: Record<string, TomStatus> = {
+  rascunho: "info",
+  coleta: "info",
+  calibracao: "info",
+  devolutiva: "info",
+  encerrado: "neutro",
+  importado: "neutro",
+};
+
+const FONTE = "as avaliações";
+const CORTE_CALIBRACAO = 80;
+const TODOS = "todos";
+
+// Nota digitada no comitê: vazio é "sem nota"; aceita vírgula decimal.
+function lerNota(v: string): number | null | "invalida" {
+  const limpo = v.trim().replace(",", ".");
+  if (!limpo) return null;
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : "invalida";
+}
+
+/**
+ * Liberar devolutiva abre a nota para todos os avaliados do ciclo, de uma vez
+ * (`liberarDevolutiva` sem `pessoaId`). Irreversível por aqui: confirma com o
+ * efeito escrito, e não aparece em ciclo encerrado nem quando já foi liberada
+ * para todos.
+ */
+function LiberarDevolutiva({
+  ciclo,
+  calibracao,
+  liberar,
+  pendente,
+}: {
+  ciclo: CicloRow;
+  calibracao: CalibracaoRow[];
+  liberar: (cicloId: number) => void;
+  pendente: boolean;
+}) {
+  if (ciclo.status === "encerrado") return <span className="text-muted-foreground">{NA}</span>;
+  const doCiclo = calibracao.filter((c) => c.cicloId === ciclo.id);
+  const liberados = doCiclo.filter((c) => c.devolutivaEm).length;
+  if (doCiclo.length > 0 && liberados === doCiclo.length)
+    return <StatusBadge tom="sucesso">Liberada</StatusBadge>;
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={pendente}>
+          Liberar
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Liberar a devolutiva de {ciclo.nome}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Todos os {ciclo.participantes} avaliados do ciclo passam a ver a devolutiva: a média das
+            avaliações que receberam, por competência.
+            {liberados > 0 ? ` ${liberados} já tinham a devolutiva liberada.` : ""} Não dá para
+            desfazer por aqui.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => liberar(ciclo.id)}>
+            Liberar devolutiva
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 const fmtData = (d: string | null) =>
   d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR") : NA;
@@ -109,8 +203,8 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
   return (
     <Card className="space-y-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{TIPO_LABEL[item.tipo] ?? item.tipo}</Badge>
         <span className="font-semibold">{item.avaliadoNome ?? NA}</span>
+        <span className="text-sm text-muted-foreground">{TIPO_LABEL[item.tipo] ?? item.tipo}</span>
         <span className="text-sm text-muted-foreground">· {item.cicloNome}</span>
       </div>
 
@@ -181,13 +275,18 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
         >
           Salvar rascunho
         </Button>
-        <Button
+        <BotaoComMotivo
           size="sm"
           onClick={() => enviar.mutate(true)}
           disabled={enviar.isPending || faltando > 0}
+          motivo={[
+            faltando > 0 &&
+              `Faltam ${faltando} de ${item.competencias.length} competências com nota ou "Não se aplica".`,
+            enviar.isPending && "Salvando…",
+          ]}
         >
           Concluir avaliação
-        </Button>
+        </BotaoComMotivo>
         {faltando > 0 && (
           <span className="text-xs text-muted-foreground">
             faltam {faltando} de {item.competencias.length}
@@ -207,11 +306,13 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
   const calibrarFn = useServerFn(salvarCalibracao);
   const devolutivaFn = useServerFn(liberarDevolutiva);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<AvaliacaoResult>({
+  const q = useQuery<AvaliacaoResult>({
     queryKey: ["gente-avaliacao"],
     queryFn: () => fn({}),
   });
-  const [cicloAberto, setCicloAberto] = useState<string>("");
+  const data = q.data;
+  // O ciclo da calibração mora na URL (N7): recarregar ou mandar o link mantém o recorte.
+  const [cicloAberto, setCicloAberto] = useFiltroNaUrl("ciclo", "");
   const [abertos, setAbertos] = useState<Record<number, boolean>>({});
 
   const calibrar = useMutation({
@@ -238,20 +339,41 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
     onError: (erro: Error) => toast.error(erro.message),
   });
 
-  if (isLoading) return <Card className="p-6 text-sm text-muted-foreground">Carregando…</Card>;
-  if (!data) return null;
-  if (!data.podeVer)
-    return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        Seu perfil não tem a permissão de ver ciclo de avaliação.
-      </Card>
-    );
+  // Em "Minha vez" o erro desta fonte já aparece em "O que espera por você".
+  if (q.isLoading) return <Carregando variante="tabela" linhas={3} />;
+  if (q.isError || !data) {
+    if (escopo !== "tudo") return null;
+    return <ErroDaFonte fonte={FONTE} erro={q.error} tentar={() => q.refetch()} />;
+  }
+  if (!data.podeVer) return <EstadoSemAcesso oQueFalta="view.gente.avaliacao" />;
+
+  // Nota do comitê grava só quando mudou (antes gravava a cada saída do campo).
+  const gravarNota = (
+    linha: CalibracaoRow,
+    eixo: "notaDesempenho" | "notaPotencial",
+    digitado: string,
+  ) => {
+    const nota = lerNota(digitado);
+    if (nota === "invalida") {
+      toast.error(`"${digitado}" não é uma nota. Use número, como 3 ou 3,5.`);
+      return;
+    }
+    if (nota === linha[eixo]) return;
+    calibrar.mutate({
+      cicloId: linha.cicloId,
+      pessoaId: linha.pessoaId,
+      notaDesempenho: eixo === "notaDesempenho" ? nota : linha.notaDesempenho,
+      notaPotencial: eixo === "notaPotencial" ? nota : linha.notaPotencial,
+      caixa: linha.caixa,
+    });
+  };
 
   const mostraEu = escopo !== "admin";
   const mostraAdmin = escopo !== "eu";
   const calibracaoDoCiclo = data.calibracao.filter(
     (c) => !cicloAberto || String(c.cicloId) === cicloAberto,
   );
+  const calibracaoMostrada = calibracaoDoCiclo.slice(0, CORTE_CALIBRACAO);
 
   return (
     <div className="space-y-4">
@@ -262,7 +384,10 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
             <h3 className="font-semibold">Ciclos</h3>
           </div>
           {data.ciclos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum ciclo cadastrado.</p>
+            <EstadoVazio
+              titulo="Nenhum ciclo de avaliação cadastrado"
+              descricao="Quem conduz o ciclo (manage.gente.avaliacao) cria o ciclo, a escala e quem avalia quem."
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -282,23 +407,21 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
                     <TableCell className="font-medium">{ciclo.nome}</TableCell>
                     <TableCell>{fmtData(ciclo.periodoInicio)}</TableCell>
                     <TableCell>
-                      <Badge variant={ciclo.origem === "qulture" ? "outline" : "secondary"}>
+                      <StatusBadge tom={STATUS_TOM[ciclo.status] ?? "neutro"}>
                         {STATUS_LABEL[ciclo.status] ?? ciclo.status}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
-                    <TableCell className="text-right">{ciclo.participantes}</TableCell>
-                    <TableCell className="text-right">{ciclo.avaliacoes}</TableCell>
-                    <TableCell className="text-right">{ciclo.concluidas}</TableCell>
+                    <TableCell className="num text-right">{ciclo.participantes}</TableCell>
+                    <TableCell className="num text-right">{ciclo.avaliacoes}</TableCell>
+                    <TableCell className="num text-right">{ciclo.concluidas}</TableCell>
                     {data.podeAdministrar && (
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => liberar.mutate(ciclo.id)}
-                          disabled={liberar.isPending}
-                        >
-                          Liberar
-                        </Button>
+                        <LiberarDevolutiva
+                          ciclo={ciclo}
+                          calibracao={data.calibracao}
+                          liberar={(id) => liberar.mutate(id)}
+                          pendente={liberar.isPending}
+                        />
                       </TableCell>
                     )}
                   </TableRow>
@@ -314,10 +437,16 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
           <div className="mb-3 flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Minha fila de avaliação</h3>
-            {data.fila.length > 0 && <Badge>{data.fila.length}</Badge>}
+            {data.fila.length > 0 && (
+              <StatusBadge tom="atencao">
+                <span className="num">{data.fila.length}</span> para responder
+              </StatusBadge>
+            )}
           </div>
           {data.fila.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nada pendente para você responder.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhuma avaliação esperando sua resposta.
+            </p>
           ) : (
             <div className="space-y-3">
               {data.fila.map((item) => (
@@ -358,28 +487,38 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ciclo</TableHead>
-                  <TableHead>Tópico</TableHead>
-                  <TableHead>Competência</TableHead>
-                  <TableHead className="text-right">Média</TableHead>
-                  <TableHead className="text-right">Respostas</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.meuResultado.map((linha, i) => (
-                  <TableRow key={`${linha.cicloId}-${linha.competencia}-${i}`}>
-                    <TableCell>{linha.cicloNome}</TableCell>
-                    <TableCell>{linha.topico ?? NA}</TableCell>
-                    <TableCell className="font-medium">{linha.competencia}</TableCell>
-                    <TableCell className="text-right">{fmtNota(linha.media)}</TableCell>
-                    <TableCell className="text-right">{linha.respostas}</TableCell>
+            <>
+              {/* Régua do código (view v_gente_avaliacao_media_competencia): só
+                avaliações concluídas, sem a autoavaliação, sem "não se aplica". */}
+              <p className="mb-3 text-xs text-muted-foreground">
+                Média por competência das avaliações concluídas que você recebeu, sem a sua
+                autoavaliação e sem as respostas "Não se aplica".
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ciclo</TableHead>
+                    <TableHead>Tópico</TableHead>
+                    <TableHead>Competência</TableHead>
+                    <TableHead className="text-right">
+                      Média das avaliações recebidas (sem autoavaliação)
+                    </TableHead>
+                    <TableHead className="text-right">Notas na média</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {data.meuResultado.map((linha, i) => (
+                    <TableRow key={`${linha.cicloId}-${linha.competencia}-${i}`}>
+                      <TableCell>{linha.cicloNome}</TableCell>
+                      <TableCell>{linha.topico ?? NA}</TableCell>
+                      <TableCell className="font-medium">{linha.competencia}</TableCell>
+                      <TableCell className="num text-right">{fmtNota(linha.media)}</TableCell>
+                      <TableCell className="num text-right">{linha.respostas}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           )}
         </Card>
       )}
@@ -389,11 +528,15 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <Grid3X3 className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Calibração e nine box</h3>
-            <Select value={cicloAberto} onValueChange={setCicloAberto}>
-              <SelectTrigger className="ml-auto w-72">
+            <Select
+              value={cicloAberto || TODOS}
+              onValueChange={(v) => setCicloAberto(v === TODOS ? "" : v)}
+            >
+              <SelectTrigger className="ml-auto w-72" aria-label="Ciclo da calibração">
                 <SelectValue placeholder="Todos os ciclos" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={TODOS}>Todos os ciclos</SelectItem>
                 {data.ciclos.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {c.nome}
@@ -406,61 +549,81 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
             A média é sugestão, calculada das competências que o RH marcou em cada eixo, sem a
             autoavaliação. Quem decide a posição é o comitê.
           </p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Pessoa</TableHead>
-                <TableHead className="text-right">Desempenho (sugerido)</TableHead>
-                <TableHead className="text-right">Potencial (sugerido)</TableHead>
-                <TableHead className="text-right">Desempenho (comitê)</TableHead>
-                <TableHead className="text-right">Potencial (comitê)</TableHead>
-                <TableHead>Caixa</TableHead>
-                <TableHead>Devolutiva</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {calibracaoDoCiclo.slice(0, 80).map((linha) => (
-                <TableRow key={`${linha.cicloId}-${linha.pessoaId}`}>
-                  <TableCell className="font-medium">{linha.pessoaNome ?? NA}</TableCell>
-                  <TableCell className="text-right">{fmtNota(linha.mediaDesempenho)}</TableCell>
-                  <TableCell className="text-right">{fmtNota(linha.mediaPotencial)}</TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      className="ml-auto w-20 text-right"
-                      defaultValue={linha.notaDesempenho ?? ""}
-                      onBlur={(e) =>
-                        calibrar.mutate({
-                          cicloId: linha.cicloId,
-                          pessoaId: linha.pessoaId,
-                          notaDesempenho: e.target.value ? Number(e.target.value) : null,
-                          notaPotencial: linha.notaPotencial,
-                          caixa: linha.caixa,
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      className="ml-auto w-20 text-right"
-                      defaultValue={linha.notaPotencial ?? ""}
-                      onBlur={(e) =>
-                        calibrar.mutate({
-                          cicloId: linha.cicloId,
-                          pessoaId: linha.pessoaId,
-                          notaDesempenho: linha.notaDesempenho,
-                          notaPotencial: e.target.value ? Number(e.target.value) : null,
-                          caixa: linha.caixa,
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>{linha.caixa ?? NA}</TableCell>
-                  <TableCell>{fmtData(linha.devolutivaEm)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {calibracaoDoCiclo.length === 0 ? (
+            <EstadoVazio
+              titulo="Ninguém para calibrar neste recorte"
+              total={cicloAberto ? data.calibracao.length : undefined}
+              descricao={
+                cicloAberto ? undefined : "Os participantes dos ciclos aparecem aqui para o comitê."
+              }
+            />
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pessoa</TableHead>
+                    <TableHead className="text-right">Desempenho (sugerido)</TableHead>
+                    <TableHead className="text-right">Potencial (sugerido)</TableHead>
+                    <TableHead className="text-right">Desempenho (comitê)</TableHead>
+                    <TableHead className="text-right">Potencial (comitê)</TableHead>
+                    <TableHead>Caixa</TableHead>
+                    <TableHead>Devolutiva</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {calibracaoMostrada.map((linha) => (
+                    <TableRow key={`${linha.cicloId}-${linha.pessoaId}`}>
+                      <TableCell className="font-medium">{linha.pessoaNome ?? NA}</TableCell>
+                      <TableCell className="num text-right">
+                        {fmtNota(linha.mediaDesempenho)}
+                      </TableCell>
+                      <TableCell className="num text-right">
+                        {fmtNota(linha.mediaPotencial)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          className="num ml-auto w-20 text-right"
+                          inputMode="decimal"
+                          aria-label={`Desempenho do comitê para ${linha.pessoaNome ?? "a pessoa"}`}
+                          defaultValue={linha.notaDesempenho ?? ""}
+                          onBlur={(e) => gravarNota(linha, "notaDesempenho", e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          className="num ml-auto w-20 text-right"
+                          inputMode="decimal"
+                          aria-label={`Potencial do comitê para ${linha.pessoaNome ?? "a pessoa"}`}
+                          defaultValue={linha.notaPotencial ?? ""}
+                          onBlur={(e) => gravarNota(linha, "notaPotencial", e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>{linha.caixa ?? NA}</TableCell>
+                      <TableCell>{dataSP(linha.devolutivaEm)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="mt-3">
+                <AvisoCorte
+                  mostrando={calibracaoMostrada.length}
+                  total={calibracaoDoCiclo.length}
+                  oQue="pessoas"
+                  criterio="na ordem do cadastro de participantes; escolha um ciclo para ver menos"
+                />
+              </div>
+            </>
+          )}
         </Card>
+      )}
+
+      {escopo === "tudo" && (
+        <Procedencia
+          fonte="Planning People: ciclos, avaliações e calibração"
+          atualizadoEm={q.dataUpdatedAt ? new Date(q.dataUpdatedAt) : null}
+          regua="médias só com avaliações concluídas, sem autoavaliação"
+        />
       )}
     </div>
   );
