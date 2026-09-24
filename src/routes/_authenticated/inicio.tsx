@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
+import { confirmarMeuPedido, meuPedidoDeAcesso } from "@/lib/pedidos-acesso.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
 import { AREAS, areaDoItem, type Area } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
@@ -153,6 +155,10 @@ function InicioPage() {
     });
   }
 
+  // Nenhum produto: conta nova de autocadastro esperando o sócio, ou alguém
+  // que perdeu o acesso. Era uma grade vazia sob "Onde você quer entrar?".
+  if (produtos.length === 0) return <SemAcessoAinda />;
+
   // Um produto só: nada a escolher. Chegar aqui por link direto não pode virar
   // uma tela com um botão — manda para onde a pessoa ia de qualquer jeito.
   // Quando o que sobrou é o Financeiro, é para ele: quem só tem o cockpit caía
@@ -216,6 +222,55 @@ function InicioPage() {
           </Card>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Quem entrou e ainda não tem produto. Se veio do /cadastro, este é o primeiro
+ * login depois de definir a senha: `confirmarMeuPedido` marca o e-mail como
+ * provado e só então o pedido chega ao sócio da unidade.
+ */
+function SemAcessoAinda() {
+  const confirmarFn = useServerFn(confirmarMeuPedido);
+  const pedidoFn = useServerFn(meuPedidoDeAcesso);
+  const pedido = useQuery({
+    queryKey: ["meu-pedido-acesso"],
+    queryFn: async () => {
+      await confirmarFn();
+      return pedidoFn();
+    },
+    retry: false,
+  });
+
+  async function sair() {
+    await supabase.auth.signOut();
+    window.location.replace("/auth");
+  }
+
+  if (pedido.isLoading) return null;
+  const p = pedido.data;
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-12 text-center">
+      <PlanningLogo className="h-9 w-auto" />
+      <div className="max-w-md space-y-2">
+        <h1 className="text-xl font-semibold text-foreground">
+          {p ? "Seu pedido está com o sócio da unidade" : "Você ainda não tem acesso"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {p
+            ? `O pedido para ${p.unidade} foi enviado em ${new Date(p.criadoEm).toLocaleDateString("pt-BR")}. Você recebe um e-mail quando ele liberar.`
+            : "Peça ao sócio da sua unidade para liberar seu acesso."}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={sair}
+        className="rounded-full border border-border px-4 py-1.5 text-sm hover:bg-accent"
+      >
+        Sair
+      </button>
     </div>
   );
 }

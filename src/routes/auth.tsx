@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getGrowthBrowserClient } from "@/integrations/supabase/client.growth";
@@ -284,7 +284,10 @@ function AuthPage() {
 
         {mode === "login" && (
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Não tem acesso? Solicite ao administrador do painel.
+            Não tem acesso?{" "}
+            <Link to="/cadastro" className="font-medium text-primary-text underline-offset-2 hover:underline">
+              Peça seu cadastro
+            </Link>
           </p>
         )}
       </div>

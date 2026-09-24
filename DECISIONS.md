@@ -2911,3 +2911,42 @@ tem `todas_unidades` lê tudo.
 Antes de aplicar, conferido que nenhum cron nem outro app local chama essas funções. Rollback em `supabase/rollback/`.
 
 **Continua pendente:** `security_invoker` em `ops.qb_clientes_ativos` (proposta, com o Eliezek, dono do Ops) e o "contrato ok" formal da revisão de tela.
+
+## [2026-09-24] Autocadastro: o colaborador pede acesso em /cadastro e o sócio da unidade libera em /equipe
+
+**Contexto:** pedido do usuário: "precisamos ter a opção de um colaborador criar
+seu cadastro e o líder desta pessoa liberar os acessos". Medido antes de
+desenhar: no Gente, 196 dos 215 ativos têm `gestor_id`, com 52 gestores, e só
+3 deles têm login. E a regra de não escalada (`ops.pode_administrar`) só deixa
+conceder quem é sócio ou admin da área, o que gestor comum não é.
+
+**Decisões do usuário (24/09):**
+1. O "líder" que libera é o **sócio/admin da unidade**, não o gestor do Gente.
+2. Só pedem cadastro e-mails **@planning.com.br e @grupoplanning.com.br**
+   (`DOMINIOS_CADASTRO` em `src/lib/pedidos-acesso.functions.ts`).
+
+**Como ficou:**
+- `ops.acesso_pedidos` (um pendente por pessoa). A conta nasce EM BRANCO, sem
+  papel, área, unidade nem porta: é o caso que `acesso_adicionar_na_area` já
+  deixa o sócio adotar. Aprovar chama essa mesma função com o cliente de quem
+  aprova, então a não escalada é a do convite, sem regra nova.
+- O pedido só chega ao líder depois que a pessoa definiu a senha pelo link do
+  e-mail (`confirmado_em`, marcado no primeiro login pelo /inicio). Sem isso,
+  qualquer endereço inventado do domínio disparava e-mail para sócios. A RLS
+  esconde o pedido não confirmado e `acesso_decidir_pedido` recusa decidir.
+- Aviso por e-mail: sócios da unidade; sem nenhum, admins das áreas de
+  unidade; sem nenhum, super admins. Em 24/09 não havia sócio em
+  `area_admins`, então todo pedido ia para Mateus Nunes, Julia Santos e
+  Heloísa Araújo.
+- Aprovar também liga `gente_pessoas.user_id` pelo e-mail, quando está nulo.
+- `pedirCadastro` é pública: responde sempre igual (não revela se a conta
+  existe) e só reenvia o e-mail depois de 15 minutos.
+
+- **Cargo obrigatório** no pedido (pedido do usuário, mesmo dia), em texto
+  livre: `gente_cargos` estava vazia e `gente_pessoas.cargo` tinha 82 valores
+  distintos, sem lista para escolher. Aparece para o sócio e no e-mail dele.
+  Ao aprovar, preenche o cargo no Gente só quando lá está nulo; nunca
+  sobrescreve o cadastro do RH.
+
+**Em aberto:** 49 pessoas do Gente usam `@br.planning.com.br`, que ficou de
+fora da lista de domínios.

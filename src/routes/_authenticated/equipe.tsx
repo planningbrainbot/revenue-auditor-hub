@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Mail, UserPlus, Users } from "lucide-react";
+import { Check, Mail, UserPlus, Users, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import {
   convidarParaEquipe,
@@ -15,6 +15,12 @@ import {
   type AreaAdministrada,
   type PessoaDaEquipe,
 } from "@/lib/equipe.functions";
+import {
+  aprovarPedidoAcesso,
+  listPedidosAcesso,
+  recusarPedidoAcesso,
+  type PedidoDeAcesso,
+} from "@/lib/pedidos-acesso.functions";
 import { cn } from "@/lib/utils";
 
 /**
@@ -122,6 +128,8 @@ function Equipe({ area }: { area: AreaAdministrada }) {
           Convidar pessoa
         </button>
       </div>
+
+      <Pedidos area={area} />
 
       {convidando && <Convite area={area} onFim={() => setConvidando(false)} />}
 
@@ -270,6 +278,132 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Pedidos de quem se cadastrou em /cadastro, das unidades desta área que eu
+ * alcanço. Só aparecem depois que a pessoa definiu a senha (o banco esconde os
+ * outros). Aprovar é o mesmo que convidar: mesma função, mesma não escalada.
+ */
+function Pedidos({ area }: { area: AreaAdministrada }) {
+  const listFn = useServerFn(listPedidosAcesso);
+  const q = useQuery({ queryKey: ["pedidos-acesso"], queryFn: () => listFn() });
+  const minhas = new Set(area.unidades.map((u) => u.id));
+  const pedidos = (q.data ?? []).filter((p) => minhas.has(p.unidadeId));
+  if (!pedidos.length) return null;
+
+  return (
+    <div className="space-y-2 rounded-xl border border-warning/40 bg-warning/5 p-4">
+      <h3 className="text-sm font-semibold text-foreground">
+        {pedidos.length === 1 ? "1 pedido de acesso" : `${pedidos.length} pedidos de acesso`}
+      </h3>
+      <ul className="divide-y rounded-lg border bg-card">
+        {pedidos.map((p) => (
+          <Pedido key={p.id} pedido={p} area={area} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Pedido({ pedido, area }: { pedido: PedidoDeAcesso; area: AreaAdministrada }) {
+  const qc = useQueryClient();
+  const aprovarFn = useServerFn(aprovarPedidoAcesso);
+  const recusarFn = useServerFn(recusarPedidoAcesso);
+  const [aberto, setAberto] = useState<"aprovar" | "recusar" | null>(null);
+  const [paginas, setPaginas] = useState<string[]>([]);
+  const [motivo, setMotivo] = useState("");
+
+  const recarregar = () => {
+    qc.invalidateQueries({ queryKey: ["pedidos-acesso"] });
+    qc.invalidateQueries({ queryKey: ["equipe", area.slug] });
+  };
+  const aprovar = useMutation({
+    mutationFn: () =>
+      aprovarFn({ data: { pedidoId: pedido.id, area: area.slug, unidades: [pedido.unidadeId], paginas } }),
+    onSuccess: recarregar,
+  });
+  const recusar = useMutation({
+    mutationFn: () => recusarFn({ data: { pedidoId: pedido.id, motivo } }),
+    onSuccess: recarregar,
+  });
+  const erro = (aprovar.error ?? recusar.error) as Error | null;
+  const id = `pedido-${pedido.id}`;
+
+  return (
+    <li className="px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="min-w-[12rem] flex-1">
+          <p className="text-sm font-medium text-foreground">
+            {pedido.nome} <span className="font-normal text-muted-foreground">· {pedido.cargo}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {pedido.email} · {pedido.unidade} · pediu em {new Date(pedido.criadoEm).toLocaleDateString("pt-BR")}
+          </p>
+          {pedido.observacao && <p className="mt-1 text-xs italic text-muted-foreground">"{pedido.observacao}"</p>}
+        </div>
+        <button
+          onClick={() => setAberto(aberto === "recusar" ? null : "recusar")}
+          aria-expanded={aberto === "recusar"}
+          className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs hover:bg-accent"
+        >
+          <X className="h-3.5 w-3.5" />
+          Recusar
+        </button>
+        <button
+          onClick={() => setAberto(aberto === "aprovar" ? null : "aprovar")}
+          aria-expanded={aberto === "aprovar"}
+          className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90"
+        >
+          <Check className="h-3.5 w-3.5" />
+          Liberar acesso
+        </button>
+      </div>
+
+      {aberto === "aprovar" && (
+        <div className="mt-3 space-y-3 rounded-lg bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground">
+            Entra em {area.nome}, na unidade {pedido.unidade}. Escolha o que {pedido.nome.split(" ")[0]} vê.
+          </p>
+          <SeletorPaginas id={id} area={area} valor={paginas} onChange={setPaginas} />
+          {erro && <p className="text-xs text-destructive">{erro.message}</p>}
+          <div className="flex justify-end">
+            <button
+              onClick={() => aprovar.mutate()}
+              disabled={paginas.length === 0 || aprovar.isPending}
+              className="rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+            >
+              {aprovar.isPending ? "Liberando..." : "Liberar e avisar por e-mail"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {aberto === "recusar" && (
+        <div className="mt-3 space-y-3 rounded-lg bg-muted/40 p-3">
+          <label htmlFor={`${id}-motivo`} className="block text-xs">
+            <span className="mb-1 block font-medium">Motivo (vai no e-mail para a pessoa, opcional)</span>
+            <input
+              id={`${id}-motivo`}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </label>
+          {erro && <p className="text-xs text-destructive">{erro.message}</p>}
+          <div className="flex justify-end">
+            <button
+              onClick={() => recusar.mutate()}
+              disabled={recusar.isPending}
+              className="rounded-full border border-destructive/40 px-4 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
+            >
+              {recusar.isPending ? "Recusando..." : "Recusar pedido"}
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }
 

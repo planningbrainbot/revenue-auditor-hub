@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VitrineRouteImport } from './routes/vitrine'
 import { Route as TrustRouteImport } from './routes/trust'
 import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
+import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -90,6 +91,11 @@ const TrustRoute = TrustRouteImport.update({
 const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
   id: '/redefinir-senha',
   path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -456,6 +462,7 @@ const AuthenticatedRoyaltiesUnidadeIdMesRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/cadastro': typeof CadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/vitrine': typeof VitrineRoute
@@ -523,6 +530,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/cadastro': typeof CadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/vitrine': typeof VitrineRoute
@@ -591,6 +599,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/cadastro': typeof CadastroRoute
   '/redefinir-senha': typeof RedefinirSenhaRoute
   '/trust': typeof TrustRoute
   '/vitrine': typeof VitrineRoute
@@ -662,6 +671,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/cadastro'
     | '/redefinir-senha'
     | '/trust'
     | '/vitrine'
@@ -729,6 +739,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/cadastro'
     | '/redefinir-senha'
     | '/trust'
     | '/vitrine'
@@ -796,6 +807,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/cadastro'
     | '/redefinir-senha'
     | '/trust'
     | '/vitrine'
@@ -866,6 +878,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  CadastroRoute: typeof CadastroRoute
   RedefinirSenhaRoute: typeof RedefinirSenhaRoute
   TrustRoute: typeof TrustRoute
   VitrineRoute: typeof VitrineRoute
@@ -893,6 +906,13 @@ declare module '@tanstack/react-router' {
       path: '/redefinir-senha'
       fullPath: '/redefinir-senha'
       preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -1507,6 +1527,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  CadastroRoute: CadastroRoute,
   RedefinirSenhaRoute: RedefinirSenhaRoute,
   TrustRoute: TrustRoute,
   VitrineRoute: VitrineRoute,
