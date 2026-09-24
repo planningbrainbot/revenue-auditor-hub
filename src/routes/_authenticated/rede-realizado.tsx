@@ -234,7 +234,7 @@ function DestinoLink({ to, rotulo }: { to: string; rotulo: string }) {
   return (
     <Link
       to={to}
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary-text hover:underline"
+      className="inline-flex items-center gap-1 rounded-sm text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
     >
       {rotulo} <ArrowRight className="size-4" aria-hidden />
     </Link>
