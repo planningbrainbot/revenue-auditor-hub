@@ -1,8 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { GuardaUnidades } from "@/components/unidades/guarda-unidades";
 import { RedeContent } from "@/components/page-content/rede-content";
+import { MolduraReceita } from "@/components/receita/moldura";
 
 // Enquanto foram abas, as outras quatro telas viviam em /unidades?tab=X. Esses
 // links já circularam em e-mail, favorito e notificação, então a URL antiga
@@ -16,9 +16,18 @@ const DESTINO_DA_ABA = {
   split: "/unidades/split",
 } as const;
 
+type BuscaRegras = { tab?: string; q?: string; status?: string };
+
 export const Route = createFileRoute("/_authenticated/unidades/")({
-  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
-    typeof search.tab === "string" ? { tab: search.tab } : {},
+  // Busca e status moram na URL (N7); `tab` só existe para o redirecionamento
+  // dos links antigos.
+  validateSearch: (search: Record<string, unknown>): BuscaRegras => {
+    const out: BuscaRegras = {};
+    if (typeof search.tab === "string") out.tab = search.tab;
+    if (typeof search.q === "string" && search.q) out.q = search.q;
+    if (typeof search.status === "string" && search.status) out.status = search.status;
+    return out;
+  },
   beforeLoad: ({ search }) => {
     const destino = DESTINO_DA_ABA[search.tab as keyof typeof DESTINO_DA_ABA];
     if (destino) throw redirect({ to: destino, replace: true });
@@ -41,13 +50,15 @@ export const Route = createFileRoute("/_authenticated/unidades/")({
 function RegrasDaRedePage() {
   useAuth();
   return (
-    <AppShell
-      title="Regras da Rede"
-      subtitle="Unidades da rede e o percentual de royalty que vale para cada contrato"
+    <MolduraReceita
+      titulo="Regras da Rede"
+      pergunta="Qual é a regra de repasse de cada unidade?"
+      descricao="Unidades da rede e a regra vigente hoje: percentual de royalties, CSC (fixo ou % da base antiga), mídia e CAC. Só leitura."
+      procedencia={{ fonte: "Cadastro de unidades e sócios (Supabase)", regua: "regra vigente hoje" }}
     >
       <GuardaUnidades permissao="view.unidades_rede" nome="as Regras da Rede">
         <RedeContent />
       </GuardaUnidades>
-    </AppShell>
+    </MolduraReceita>
   );
 }
