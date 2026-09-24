@@ -16,15 +16,24 @@ import { salvarPlanoMonetizacao, salvarRegistroMonetizacao } from "@/lib/monetiz
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
-import type { Aba } from "./dashboard";
+import type { Aba, OpcoesDetalhe } from "./dashboard";
+import type { BuscaMonetizacao } from "./busca";
 import { Forecast } from "./forecast";
-import { date, Field, inputClass, Kpi, money, Notice, number, Panel } from "./common";
+import { date, Field, inputClass, Kpi, money, NotaApoio, number, SecaoCartao } from "./common";
 
 type Props = {
   aba: Aba;
   data: BaseMonetizacao;
   filter: Filtro;
-  openDeals: (title: string, rows: Negocio[], period?: { from: string; to: string }) => void;
+  openDeals: (
+    title: string,
+    rows: Negocio[],
+    period?: { from: string; to: string },
+    opcoes?: OpcoesDetalhe,
+  ) => void;
+  /** Estado da tela na URL (`dias`, `mes`, `sinal`, `blocos`, `totais`, `arquivados`, `situacao`): as visões passam a usar nas T3–T8. */
+  busca?: BuscaMonetizacao;
+  mudarBusca?: (patch: Partial<BuscaMonetizacao>) => void;
 };
 export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
@@ -93,7 +102,7 @@ function Temporal({ data, filter, openDeals }: Cut) {
           hint="Valores previstos; ainda não são recebimentos"
         />
       </div>
-      <Panel title="Quando as oportunidades estão previstas">
+      <SecaoCartao titulo="Quando as oportunidades estão previstas">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr>
@@ -126,8 +135,8 @@ function Temporal({ data, filter, openDeals }: Cut) {
             Nenhuma oportunidade validada em aberto para este responsável/produto.
           </p>
         )}
-      </Panel>
-      <Panel title="Meta, cenário e previsão do CRM">
+      </SecaoCartao>
+      <SecaoCartao titulo="Meta, cenário e previsão do CRM">
         <div className="grid gap-3 md:grid-cols-3">
           {PRODUTOS.map((p) => {
             const dated = t.open.filter(
@@ -162,12 +171,12 @@ function Temporal({ data, filter, openDeals }: Cut) {
           oportunidades realmente validadas e datadas, com hipótese declarada. As taxas do Growth
           não são aplicadas à Monetização.
         </p>
-      </Panel>
-      <Notice>
+      </SecaoCartao>
+      <NotaApoio>
         Receita prevista é o valor informado para a oportunidade. Total deve fechar com Partners +
         unidade, na mesma moeda. A base de cobrança e a competência precisam estar definidas no
         contrato; este painel não transforma esses valores em MRR ou caixa.
-      </Notice>
+      </NotaApoio>
     </div>
   );
 }
@@ -224,10 +233,10 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
   return (
     <div className="space-y-4">
       {!saved && (
-        <Notice>
+        <NotaApoio>
           Parâmetros ainda não salvos para este mês/responsável. Os valores no editor são uma
           proposta baseada na régua conhecida; só passam a orientar os indicadores depois de salvar.
-        </Notice>
+        </NotaApoio>
       )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Capacidade mensal proposta" value={plan.capacity} hint={plan.owner_name} />
@@ -251,7 +260,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
           hint="Alocação restante acima da base disponível"
         />
       </div>
-      <Panel title="Estoque, esforço e capacidade por produto">
+      <SecaoCartao titulo="Estoque, esforço e capacidade por produto">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-muted-foreground">
@@ -292,10 +301,10 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
         <Link to="/aquario" className="mt-3 inline-block text-sm text-primary-text underline">
           Preparar a base nas carteiras dos clientes →
         </Link>
-      </Panel>
-      <Panel
-        title={`Plano · ${month} · ${plan.owner_name}`}
-        action={
+      </SecaoCartao>
+      <SecaoCartao
+        titulo={`Plano · ${month} · ${plan.owner_name}`}
+        acoes={
           <Button
             size="sm"
             variant="outline"
@@ -385,7 +394,7 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
             Capacidade de reuniões: {plan.meetings_capacity}/mês.
           </p>
         )}
-      </Panel>
+      </SecaoCartao>
     </div>
   );
 }
@@ -437,9 +446,9 @@ function FollowDay({ data, filter, openDeals }: Cut) {
           />
         ))}
       </div>
-      <Panel
-        title="O que precisa acontecer hoje"
-        action={
+      <SecaoCartao
+        titulo="O que precisa acontecer hoje"
+        acoes={
           <Field label="Dias sem movimento">
             <input
               className={`${inputClass} max-w-24`}
@@ -499,7 +508,7 @@ function FollowDay({ data, filter, openDeals }: Cut) {
           passagem de etapa disponível no CRM; não equivale automaticamente à última conversa com o
           cliente.
         </p>
-      </Panel>
+      </SecaoCartao>
     </div>
   );
 }
@@ -536,7 +545,7 @@ function Funnel({ data, filter, openDeals }: Cut) {
     );
   return (
     <div className="space-y-4">
-      <Panel title="Agendamento → reunião · mesma coorte">
+      <SecaoCartao titulo="Agendamento → reunião · mesma coorte">
         <div className="grid gap-3 sm:grid-cols-4">
           <Kpi
             label="Agendadas no período"
@@ -569,8 +578,8 @@ function Funnel({ data, filter, openDeals }: Cut) {
           Uma oportunidade sem passagem em Reunião realizada não é automaticamente no-show. Para
           medir ausência, recuperação e motivo, é preciso registrar o resultado da atividade no CRM.
         </p>
-      </Panel>
-      <Panel title="Oportunidade validada → assinatura · mesma coorte">
+      </SecaoCartao>
+      <SecaoCartao titulo="Oportunidade validada → assinatura · mesma coorte">
         <div className="grid gap-3 sm:grid-cols-3">
           <Kpi
             label="Validadas no período"
@@ -593,8 +602,8 @@ function Funnel({ data, filter, openDeals }: Cut) {
             hint="Não entram como fracasso definitivo"
           />
         </div>
-      </Panel>
-      <Panel title="Conversão por produto">
+      </SecaoCartao>
+      <SecaoCartao titulo="Conversão por produto">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr>
@@ -623,7 +632,7 @@ function Funnel({ data, filter, openDeals }: Cut) {
           As três primeiras métricas contam seus próprios eventos no período. Use as coortes acima
           para calcular conversão sem misturar denominadores.
         </p>
-      </Panel>
+      </SecaoCartao>
     </div>
   );
 }
@@ -679,12 +688,12 @@ function People({ data, filter }: Pick<Props, "data" | "filter">) {
   };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Panel title="Avaliar evidências e definir desenvolvimento">
+      <SecaoCartao titulo="Avaliar evidências e definir desenvolvimento">
         <div className="space-y-3">
-          <Notice>
+          <NotaApoio>
             Avaliação registrada pelo gestor, com evidências. Volume de atividade e nota de
             qualidade são medidas separadas.
-          </Notice>
+          </NotaApoio>
           <Field label="Título da avaliação / pessoa">
             <input
               className={inputClass}
@@ -762,7 +771,7 @@ function People({ data, filter }: Pick<Props, "data" | "filter">) {
             Salvar avaliação e PDI
           </Button>
         </div>
-      </Panel>
+      </SecaoCartao>
       <RecordList data={data} kind="pdi" title="PDIs e avaliações registrados" />
     </div>
   );
@@ -805,7 +814,7 @@ function Scripts({ data }: { data: BaseMonetizacao }) {
   };
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Panel title="Biblioteca de abordagens">
+      <SecaoCartao titulo="Biblioteca de abordagens">
         <div className="space-y-3">
           <Field label="Nome da abordagem">
             <input
@@ -879,7 +888,7 @@ function Scripts({ data }: { data: BaseMonetizacao }) {
             Modelo editável. Nada é enviado automaticamente ao cliente.
           </p>
         </div>
-      </Panel>
+      </SecaoCartao>
       <RecordList data={data} kind="roteiro" title="Abordagens da equipe" />
     </div>
   );
@@ -933,7 +942,7 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
   };
   return (
     <div className="space-y-4">
-      <Panel title="Carga e resultado por responsável">
+      <SecaoCartao titulo="Carga e resultado por responsável">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr>
@@ -962,9 +971,9 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
             ))}
           </tbody>
         </table>
-      </Panel>
+      </SecaoCartao>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Regra de distribuição">
+        <SecaoCartao titulo="Regra de distribuição">
           <ol className="list-inside list-decimal space-y-3 text-sm">
             <li>Preservar o vínculo da empresa com a unidade.</li>
             <li>Priorizar Consultoria nas carteiras das unidades.</li>
@@ -993,7 +1002,7 @@ function Distribution({ data, filter }: Pick<Props, "data" | "filter">) {
               Abrir as listas no Aquário
             </Link>
           </div>
-        </Panel>
+        </SecaoCartao>
         <RecordList data={data} kind="distribuicao" title="Histórico de decisões" />
       </div>
     </div>
@@ -1026,7 +1035,7 @@ function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string
     segment: "Segmento",
   };
   return (
-    <Panel title={title}>
+    <SecaoCartao titulo={title}>
       <div className="space-y-3">
         {records.length ? (
           records.map((r) => (
@@ -1083,6 +1092,6 @@ function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string
           </p>
         )}
       </div>
-    </Panel>
+    </SecaoCartao>
   );
 }

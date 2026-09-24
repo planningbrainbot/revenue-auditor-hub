@@ -15,7 +15,9 @@ import { disponibilidade, oferta } from "@/lib/monetizacao/model";
 import { forecastComparison } from "@/lib/monetizacao/forecast";
 import { NOMES } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
-import { date, Field, inputClass, Kpi, money, Notice, number, Panel } from "./common";
+import { date, Field, inputClass, Kpi, money, NotaApoio, number, SecaoCartao } from "./common";
+import type { OpcoesDetalhe } from "./dashboard";
+import { EstadoVazio } from "@/components/planning";
 
 export function Forecast({
   data,
@@ -24,17 +26,24 @@ export function Forecast({
 }: {
   data: BaseMonetizacao;
   month: string;
-  openDeals: (title: string, rows: Negocio[], period?: { from: string; to: string }) => void;
+  openDeals: (
+    title: string,
+    rows: Negocio[],
+    period?: { from: string; to: string },
+    opcoes?: OpcoesDetalhe,
+  ) => void;
 }) {
   const [chosen, setChosen] = useState(month);
   const source = [...data.forecasts].sort((a, b) => b.source_date.localeCompare(a.source_date))[0];
   if (!source)
     return (
-      <Notice>
-        {data.permissions.all_units
-          ? "Ainda não há uma versão do forecast importada."
-          : "O forecast consolidado exige acesso às carteiras de todas as unidades."}
-      </Notice>
+      <EstadoVazio
+        titulo={
+          data.permissions.all_units
+            ? "Ainda não há uma versão do forecast importada."
+            : "O forecast consolidado exige acesso às carteiras de todas as unidades."
+        }
+      />
     );
   const cutoff = data.measured_at
     ? new Intl.DateTimeFormat("en-CA", {
@@ -99,11 +108,11 @@ export function Forecast({
           </select>
         </Field>
       </div>
-      <Notice>
+      <NotaApoio>
         {source.note} O realizado acompanha o CRM
         {cutoff ? ` até ${date(cutoff)}` : " após a primeira sincronização"}.{" "}
         {selected.partial ? "O mês está em andamento; a diferença usa a meta do mês inteiro." : ""}
-      </Notice>
+      </NotaApoio>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {metrics.map(([key, label]) => (
           <Kpi
@@ -116,7 +125,7 @@ export function Forecast({
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="Contratos por mês">
+        <SecaoCartao titulo="Contratos por mês">
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chart}>
@@ -146,8 +155,8 @@ export function Forecast({
           <p className="mt-2 text-xs text-muted-foreground">
             Meses futuros ficam sem realizado. O mês corrente mostra o acumulado até a última carga.
           </p>
-        </Panel>
-        <Panel title="Diferença para o plano mensal">
+        </SecaoCartao>
+        <SecaoCartao titulo="Diferença para o plano mensal">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground">
               <tr>
@@ -183,9 +192,9 @@ export function Forecast({
               })}
             </tbody>
           </table>
-        </Panel>
+        </SecaoCartao>
       </div>
-      <Panel title="Produto por produto">
+      <SecaoCartao titulo="Produto por produto">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="text-xs text-muted-foreground">
@@ -245,12 +254,12 @@ export function Forecast({
         >
           Ajustar a alocação e as hipóteses por produto →
         </Link>
-      </Panel>
+      </SecaoCartao>
       {data.cards.some((c) => !c.history_known) && (
-        <Notice>
+        <NotaApoio>
           {data.cards.filter((c) => !c.history_known).length} negócios estão sem histórico completo.
           Os movimentos desses negócios não são inferidos da etapa atual.
-        </Notice>
+        </NotaApoio>
       )}
       <ForecastModel source={source} selectedMonth={selected.month} />
     </div>
