@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Table,
   TableBody,
   TableCell,
@@ -25,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  BarraFiltros,
   ChipFiltro,
   EstadoVazio,
   KpiGrade,
@@ -56,8 +64,8 @@ import type {
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
-import { DIAS_PADRAO } from "./busca";
-import type { BuscaMonetizacao, Sinal } from "./busca";
+import { DIAS_PADRAO, SITUACOES } from "./busca";
+import type { BuscaMonetizacao, ProdutoUrl, Sinal, Situacao } from "./busca";
 import { Forecast } from "./forecast";
 import {
   BotaoComMotivo,
@@ -134,7 +142,8 @@ export function Analysis(props: Props) {
   if (aba === "funil") return <Funnel data={data} filter={filter} openDeals={openDeals} />;
   if (aba === "pessoas")
     return <People data={data} filter={filter} busca={props.busca} mudarBusca={props.mudarBusca} />;
-  if (aba === "roteiros") return <Scripts data={data} />;
+  if (aba === "roteiros")
+    return <Scripts data={data} busca={props.busca} mudarBusca={props.mudarBusca} />;
   return <Distribution data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
 }
 
@@ -1560,15 +1569,57 @@ function People({
   );
 }
 
-function Scripts({ data }: { data: BaseMonetizacao }) {
+const SITUACAO_ROTEIRO: Record<Situacao, { rotulo: string; tom: TomStatus }> = {
+  rascunho: { rotulo: "Rascunho", tom: "info" },
+  aprovado: { rotulo: "Aprovada", tom: "sucesso" },
+  arquivado: { rotulo: "Arquivada", tom: "neutro" },
+};
+const situacaoDoRoteiro = (r: Registro): Situacao =>
+  r.body.status === "aprovado" || r.body.status === "arquivado" ? r.body.status : "rascunho";
+const produtoDoRoteiro = (r: Registro): Produto | "sem_produto" =>
+  (PRODUTOS as readonly string[]).includes(String(r.body.product))
+    ? (r.body.product as Produto)
+    : "sem_produto";
+
+/**
+ * Abordagens (contrato `monetizacao-roteiros.md`, Lista/Relatório com edição em `Sheet`):
+ * biblioteca em tabela com filtros de produto e situação na URL; "Nova abordagem" e a linha
+ * abrem o mesmo `Sheet` (formulário ou a abordagem salva, com Copiar, Aprovar e Arquivar).
+ */
+function Scripts({
+  data,
+  busca,
+  mudarBusca,
+}: {
+  data: BaseMonetizacao;
+  busca?: BuscaMonetizacao;
+  mudarBusca?: (patch: Partial<BuscaMonetizacao>) => void;
+}) {
   const [product, setProduct] = useState<Produto>("consultoria"),
     [segment, setSegment] = useState(""),
     [evidence, setEvidence] = useState(""),
     [text, setText] = useState(""),
     [title, setTitle] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [aberta, setAberta] = useState<{ modo: "nova" } | { modo: "ver"; id: string } | null>(null),
+    [arquivar, setArquivar] = useState<Registro | null>(null);
   const fn = useServerFn(salvarRegistroMonetizacao),
     invalidate = useAtualizarMonetizacao();
+  const motivoEscrita = motivoSemEscopo(data);
+  const filtroProduto = busca?.produto,
+    filtroSituacao = busca?.situacao;
+  const todas = data.records
+    .filter((r) => r.kind === "roteiro")
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  // Sem filtro de situação, as arquivadas ficam fora; "Arquivada" no filtro mostra só elas.
+  const lista = todas.filter(
+    (r) =>
+      (!filtroProduto || produtoDoRoteiro(r) === filtroProduto) &&
+      (filtroSituacao
+        ? situacaoDoRoteiro(r) === filtroSituacao
+        : situacaoDoRoteiro(r) !== "arquivado"),
+  );
+  const vista = aberta?.modo === "ver" ? todas.find((r) => r.id === aberta.id) : undefined;
   const compose = () =>
     setText(
       product === "consultoria"
@@ -1577,102 +1628,319 @@ function Scripts({ data }: { data: BaseMonetizacao }) {
           ? `Olá, [nome]. Já temos um contrato da empresa na Planning. Gostaria de entender se existe uma necessidade de capital de giro, investimento ou troca de dívida.\n\n${evidence || "Confirmar objetivo, volume e prazo da necessidade, sem prometer aprovação."}\n\nPróximo passo: validar o cenário com o especialista de Finance e combinar a data de retorno.`
           : `Olá, [nome]. Queremos verificar se há uma oportunidade de revisão tributária que faça sentido para a empresa.\n\n${evidence || "Confirmar cenário, documentos disponíveis e disponibilidade para avaliação técnica."}\n\nPróximo passo: avaliar com o especialista, sem prometer crédito ou resultado antes da análise.`,
     );
+  const limpar = () => {
+    setProduct("consultoria");
+    setSegment("");
+    setEvidence("");
+    setText("");
+    setTitle("");
+  };
+  const copiar = (t: string) =>
+    navigator.clipboard.writeText(t).then(
+      () => toast.success("Copiado."),
+      () => toast.error("Não foi possível copiar; selecione o texto e copie à mão."),
+    );
   const save = async () => {
     setBusy(true);
     try {
       await fn({
         data: {
           kind: "roteiro",
-          title,
+          title: title.trim(),
           body: { product, segment, evidence, text, status: "rascunho", version: 1 },
         },
       });
       await invalidate();
-      toast.success("Abordagem salva para revisão e uso pela equipe.");
+      toast.success("Abordagem salva como rascunho para revisão e uso pela equipe.");
+      limpar();
+      setAberta(null);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`A abordagem não foi salva: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
   };
+  const mudarSituacao = async (r: Registro, status: Situacao, mensagem: string) => {
+    setBusy(true);
+    try {
+      await fn({ data: { id: r.id, kind: r.kind, title: r.title, body: { ...r.body, status } } });
+      await invalidate();
+      toast.success(mensagem);
+      if (status === "arquivado") setAberta(null);
+    } catch (e) {
+      toast.error(`A abordagem não foi atualizada: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const motivosSalvar = [
+    motivoEscrita,
+    title.trim().length < 3 && "Dê um nome à abordagem (3 caracteres ou mais).",
+    !text.trim() && "Monte ou escreva o texto antes de salvar.",
+  ];
+  const temFiltro = !!filtroProduto || !!filtroSituacao;
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <SecaoCartao titulo="Biblioteca de abordagens">
-        <div className="space-y-3">
-          <Field label="Nome da abordagem">
-            <input
-              className={inputClass}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Produto">
-              <select
-                className={inputClass}
-                value={product}
-                onChange={(e) => setProduct(e.target.value as Produto)}
-              >
-                {PRODUTOS.map((p) => (
-                  <option key={p} value={p}>
-                    {NOMES[p]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Segmento">
-              <input
-                className={inputClass}
-                value={segment}
-                onChange={(e) => setSegment(e.target.value)}
-              />
-            </Field>
-          </div>
-          <Field label="Evidência / necessidade observada">
-            <textarea
-              className={`${inputClass} h-20 py-2`}
-              value={evidence}
-              onChange={(e) => setEvidence(e.target.value)}
-            />
-          </Field>
-          <Button variant="outline" onClick={compose}>
-            Montar roteiro a partir do modelo
+    <div className="space-y-4">
+      <BarraFiltros
+        className="items-end"
+        aoLimpar={
+          temFiltro ? () => mudarBusca?.({ produto: undefined, situacao: undefined }) : undefined
+        }
+      >
+        <Field label="Produto">
+          <select
+            className={inputClass}
+            value={filtroProduto ?? ""}
+            onChange={(e) =>
+              mudarBusca?.({ produto: (e.target.value || undefined) as ProdutoUrl | undefined })
+            }
+          >
+            <option value="">Todos os produtos</option>
+            {PRODUTOS.map((p) => (
+              <option key={p} value={p}>
+                {NOMES[p]}
+              </option>
+            ))}
+            <option value="sem_produto">Sem produto</option>
+          </select>
+        </Field>
+        <Field label="Situação">
+          <select
+            className={inputClass}
+            value={filtroSituacao ?? ""}
+            onChange={(e) =>
+              mudarBusca?.({ situacao: (e.target.value || undefined) as Situacao | undefined })
+            }
+          >
+            <option value="">Rascunho e aprovada</option>
+            {SITUACOES.map((k) => (
+              <option key={k} value={k}>
+                {SITUACAO_ROTEIRO[k].rotulo}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </BarraFiltros>
+      <SecaoCartao
+        titulo="Qual abordagem usar para este produto e segmento?"
+        descricao={`${number(lista.length)} de ${number(todas.length)} abordagens${filtroSituacao ? "" : " · arquivadas ficam fora; filtre a situação Arquivada para vê-las"} · clique na linha para abrir`}
+        acoes={
+          <Button size="sm" onClick={() => setAberta({ modo: "nova" })}>
+            <Plus />
+            Nova abordagem
           </Button>
-          <Field label="Texto para revisar">
-            <textarea
-              className={`${inputClass} h-64 py-2`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-          </Field>
-          <div className="flex gap-2">
-            <Button
-              onClick={save}
-              disabled={
-                busy ||
-                !(data.permissions.view && data.permissions.all_units) ||
-                title.trim().length < 3 ||
-                !text
-              }
-            >
-              Salvar abordagem
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!text}
-              onClick={() =>
-                navigator.clipboard.writeText(text).then(() => toast.success("Texto copiado."))
-              }
-            >
-              Copiar texto
-            </Button>
+        }
+      >
+        {!todas.length ? (
+          <EstadoVazio
+            titulo="Nenhuma abordagem salva ainda."
+            descricao="Monte a primeira a partir do modelo em Nova abordagem."
+          />
+        ) : !lista.length ? (
+          <EstadoVazio titulo="Nenhuma abordagem neste filtro." total={todas.length} />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Segmento</TableHead>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="num text-right">Atualizada em</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lista.map((r) => {
+                  const sit = SITUACAO_ROTEIRO[situacaoDoRoteiro(r)];
+                  const abrir = () => setAberta({ modo: "ver", id: r.id });
+                  return (
+                    <TableRow
+                      key={r.id}
+                      className="cursor-pointer outline-none focus-visible:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      tabIndex={0}
+                      aria-label={`Abrir a abordagem ${r.title}`}
+                      onClick={abrir}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          abrir();
+                        }
+                      }}
+                    >
+                      <TableCell>{NOMES[produtoDoRoteiro(r)]}</TableCell>
+                      <TableCell>{String(r.body.segment || "—")}</TableCell>
+                      <TableCell className="font-medium">{r.title}</TableCell>
+                      <TableCell>
+                        <StatusBadge tom={sit.tom}>{sit.rotulo}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="num text-right">{date(r.updated_at)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Modelo editável. Nada é enviado automaticamente ao cliente.
-          </p>
+        )}
+        <div className="mt-3">
+          <NotaApoio>Modelo editável. Nada é enviado automaticamente ao cliente.</NotaApoio>
         </div>
       </SecaoCartao>
-      <RecordList data={data} kind="roteiro" title="Abordagens da equipe" />
+
+      <Sheet open={!!aberta} onOpenChange={(o) => !o && setAberta(null)}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+          {aberta?.modo === "nova" ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Nova abordagem</SheetTitle>
+                <SheetDescription>
+                  Monte a partir do modelo, revise o texto e salve como rascunho.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 space-y-3">
+                <Field label="Nome da abordagem">
+                  <input
+                    className={inputClass}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Produto">
+                    <select
+                      className={inputClass}
+                      value={product}
+                      onChange={(e) => setProduct(e.target.value as Produto)}
+                    >
+                      {PRODUTOS.map((p) => (
+                        <option key={p} value={p}>
+                          {NOMES[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Segmento">
+                    <input
+                      className={inputClass}
+                      value={segment}
+                      onChange={(e) => setSegment(e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field label="Evidência / necessidade observada">
+                  <textarea
+                    className={`${inputClass} h-20 py-2`}
+                    value={evidence}
+                    onChange={(e) => setEvidence(e.target.value)}
+                  />
+                </Field>
+                <Button variant="outline" size="sm" onClick={compose}>
+                  Montar a partir do modelo
+                </Button>
+                <Field label="Texto para revisar">
+                  <textarea
+                    className={`${inputClass} h-64 py-2`}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                  />
+                </Field>
+                <div className="flex flex-wrap gap-2">
+                  <BotaoComMotivo
+                    onClick={save}
+                    disabled={busy || motivosSalvar.some(Boolean)}
+                    motivo={motivosSalvar}
+                  >
+                    {busy ? "Salvando" : "Salvar abordagem"}
+                  </BotaoComMotivo>
+                  <BotaoComMotivo
+                    variant="outline"
+                    disabled={!text}
+                    motivo={text ? null : "Ainda não há texto para copiar."}
+                    onClick={() => copiar(text)}
+                  >
+                    Copiar texto
+                  </BotaoComMotivo>
+                </div>
+                <NotaApoio>Modelo editável. Nada é enviado automaticamente ao cliente.</NotaApoio>
+              </div>
+            </>
+          ) : vista ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>{vista.title}</SheetTitle>
+                <SheetDescription>
+                  {NOMES[produtoDoRoteiro(vista)]}
+                  {vista.body.segment ? ` · ${String(vista.body.segment)}` : ""} · atualizada em{" "}
+                  {date(vista.updated_at)}
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 space-y-4">
+                <StatusBadge tom={SITUACAO_ROTEIRO[situacaoDoRoteiro(vista)].tom}>
+                  {SITUACAO_ROTEIRO[situacaoDoRoteiro(vista)].rotulo}
+                </StatusBadge>
+                {vista.body.evidence ? (
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Evidência / necessidade observada
+                    </span>
+                    <p className="whitespace-pre-wrap text-sm">{String(vista.body.evidence)}</p>
+                  </div>
+                ) : null}
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Texto</span>
+                  <p className="whitespace-pre-wrap rounded-lg border p-3 text-sm">
+                    {String(vista.body.text || "—")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {situacaoDoRoteiro(vista) === "rascunho" && (
+                    <BotaoComMotivo
+                      disabled={busy || !!motivoEscrita}
+                      motivo={motivoEscrita}
+                      onClick={() => mudarSituacao(vista, "aprovado", "Abordagem aprovada.")}
+                    >
+                      Aprovar
+                    </BotaoComMotivo>
+                  )}
+                  <BotaoComMotivo
+                    variant="outline"
+                    disabled={!vista.body.text}
+                    motivo={vista.body.text ? null : "Esta abordagem não tem texto."}
+                    onClick={() => copiar(String(vista.body.text))}
+                  >
+                    Copiar texto
+                  </BotaoComMotivo>
+                  {situacaoDoRoteiro(vista) !== "arquivado" && (
+                    <BotaoComMotivo
+                      variant="ghost"
+                      disabled={busy || !!motivoEscrita}
+                      motivo={motivoEscrita}
+                      onClick={() => setArquivar(vista)}
+                    >
+                      Arquivar
+                    </BotaoComMotivo>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <SheetHeader>
+              <SheetTitle>Abordagem não encontrada</SheetTitle>
+              <SheetDescription>Ela pode ter sido removida na última carga.</SheetDescription>
+            </SheetHeader>
+          )}
+        </SheetContent>
+      </Sheet>
+      <ConfirmarArquivar
+        registro={arquivar}
+        oQue="a abordagem"
+        onCancelar={() => setArquivar(null)}
+        onConfirmar={(r) => {
+          setArquivar(null);
+          void mudarSituacao(r, "arquivado", "Abordagem arquivada.");
+        }}
+      />
     </div>
   );
 }
@@ -1948,7 +2216,7 @@ function RecordList({
   mudarArquivados,
 }: {
   data: BaseMonetizacao;
-  kind: "pdi" | "roteiro" | "distribuicao";
+  kind: "pdi" | "distribuicao";
   title: string;
   arquivados?: boolean;
   mudarArquivados?: (mostrar: boolean) => void;
@@ -1981,11 +2249,8 @@ function RecordList({
     goal: "Objetivo",
     action: "Ação",
     due: "Prazo",
-    text: "Abordagem",
-    evidence: "Evidência",
     reason: "Decisão",
     rule: "Regra",
-    segment: "Segmento",
   };
   const valorDoCampo = (k: string, v: RegistroValor) =>
     k === "due" && typeof v === "string" ? date(v) : String(v);
@@ -2025,9 +2290,7 @@ function RecordList({
               typeof r.body.from === "string" && typeof r.body.to === "string"
                 ? `${date(r.body.from)} a ${date(r.body.to)}`
                 : null;
-            const aberto =
-              r.body.status !== (kind === "pdi" ? "concluido" : "aprovado") &&
-              r.body.status !== "arquivado";
+            const aberto = r.body.status !== "concluido" && r.body.status !== "arquivado";
             return (
               <details key={r.id} className="rounded-lg border p-3">
                 <summary className={`cursor-pointer text-sm font-medium ${FOCO_VISIVEL}`}>
@@ -2065,7 +2328,7 @@ function RecordList({
                       ))}
                     </ul>
                   ) : null}
-                  {kind !== "distribuicao" && r.body.status !== "arquivado" && (
+                  {kind === "pdi" && r.body.status !== "arquivado" && (
                     <div className="flex flex-wrap gap-2">
                       {aberto && (
                         <BotaoComMotivo
@@ -2074,12 +2337,10 @@ function RecordList({
                           disabled={!!motivoEscrita || busy === r.id}
                           motivo={motivoEscrita}
                           onClick={() =>
-                            kind === "pdi"
-                              ? changeStatus(r, "concluido", "PDI marcado como concluído.")
-                              : changeStatus(r, "aprovado", "Abordagem aprovada.")
+                            changeStatus(r, "concluido", "PDI marcado como concluído.")
                           }
                         >
-                          {kind === "pdi" ? "Marcar concluído" : "Aprovar abordagem"}
+                          Marcar concluído
                         </BotaoComMotivo>
                       )}
                       <BotaoComMotivo
@@ -2101,15 +2362,11 @@ function RecordList({
       </div>
       <ConfirmarArquivar
         registro={arquivar}
-        oQue={kind === "pdi" ? "o PDI" : "a abordagem"}
+        oQue="o PDI"
         onCancelar={() => setArquivar(null)}
         onConfirmar={(r) => {
           setArquivar(null);
-          void changeStatus(
-            r,
-            "arquivado",
-            kind === "pdi" ? "PDI arquivado." : "Abordagem arquivada.",
-          );
+          void changeStatus(r, "arquivado", "PDI arquivado.");
         }}
       />
     </SecaoCartao>
