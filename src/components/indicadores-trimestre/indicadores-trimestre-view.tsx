@@ -379,6 +379,7 @@ export function IndicadoresTrimestreView() {
               variant="outline"
               size="sm"
               aria-expanded={mostrarRede}
+              aria-controls="comparativo-rede"
               onClick={() => setComparativo(mostrarRede ? "fechado" : "aberto")}
             >
               {mostrarRede ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
@@ -388,7 +389,7 @@ export function IndicadoresTrimestreView() {
         >
           {mostrarRede ? (
             <div className="space-y-2">
-              <div className="overflow-x-auto rounded-xl border bg-card">
+              <div id="comparativo-rede" className="overflow-x-auto rounded-xl border bg-card">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -442,11 +443,10 @@ export function IndicadoresTrimestreView() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {rampa && r.take_rate_pct !== null ? (
-                              <span
-                                className="text-muted-foreground"
-                                title="Unidade em rampa: CSC fixo domina o cálculo"
-                              >
-                                {fmtPct(r.take_rate_pct)}*
+                              <span className="text-muted-foreground">
+                                {fmtPct(r.take_rate_pct)}
+                                <span aria-hidden>*</span>
+                                <span className="sr-only"> unidade em rampa</span>
                               </span>
                             ) : (
                               fmtPct(r.take_rate_pct)
@@ -467,7 +467,7 @@ export function IndicadoresTrimestreView() {
                               <span className="inline-flex items-center justify-end gap-2">
                                 {fmtNum(r.churn_faturamento_n)}
                                 {r.churn_faturamento_n > r.churn_pipefy_n ? (
-                                  <StatusBadge tom="atencao">
+                                  <StatusBadge tom="neutro">
                                     Tratativas: {fmtNum(r.churn_pipefy_n)}
                                   </StatusBadge>
                                 ) : null}
@@ -518,7 +518,9 @@ function DetalheUnidade({ row: r, mat }: { row: Row; mat: { madura: boolean; dia
             procedencia={F.apuracao}
             parcial={rampa}
             hint={[
-              "Base das apurações de royalties confirmadas",
+              !temApuracao
+                ? "Nenhuma apuração confirmada no trimestre — não é zero, é ausência de fonte"
+                : "Base das apurações de royalties confirmadas",
               r.clientes_base_nova > 0 ? `${fmtNum(r.clientes_base_nova)} clientes` : null,
               (r.fat_total ?? 0) > (r.fat_base_nova ?? 0)
                 ? `com base antiga ${fmtBRL(r.fat_total)}`
@@ -527,9 +529,7 @@ function DetalheUnidade({ row: r, mat }: { row: Row; mat: { madura: boolean; dia
               .filter(Boolean)
               .join(" · ")}
             alerta={
-              !temApuracao
-                ? "Nenhuma apuração confirmada no trimestre — não é zero, é ausência de fonte."
-                : rampa
+              temApuracao && rampa
                   ? `Só ${r.meses_apurados} de 3 meses confirmados na apuração — o trimestre está subrepresentado.`
                   : undefined
             }
@@ -608,13 +608,17 @@ function DetalheUnidade({ row: r, mat }: { row: Row; mat: { madura: boolean; dia
             label={R.roas}
             valor={fmtX(r.roas)}
             procedencia={F.roas}
-            hint={r.midia ? `Valor 12m ÷ ${fmtBRL(r.midia)} de mídia` : undefined}
+            hint={
+              r.midia
+                ? `Valor 12m ÷ ${fmtBRL(r.midia)} de mídia`
+                : r.roas === null && !temApuracao
+                  ? "Sem apuração confirmada no trimestre: a mídia vem da apuração."
+                  : undefined
+            }
             alerta={
-              r.roas !== null
-                ? undefined
-                : temApuracao
-                  ? "Sem investimento de mídia registrado no período."
-                  : "Sem apuração confirmada no trimestre: a mídia vem da apuração."
+              r.roas === null && temApuracao
+                ? "Sem investimento de mídia registrado no período."
+                : undefined
             }
           />
           <CardKPI
