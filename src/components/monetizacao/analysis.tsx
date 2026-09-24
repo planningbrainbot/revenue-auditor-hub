@@ -28,6 +28,7 @@ import {
   ChipFiltro,
   EstadoVazio,
   KpiGrade,
+  Secao,
   StatusBadge,
   type EstadoKpi,
   type TomStatus,
@@ -44,7 +45,7 @@ import {
 import type { Filtro } from "@/lib/monetizacao/model";
 import { salvarPlanoMonetizacao, salvarRegistroMonetizacao } from "@/lib/monetizacao/functions";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { BaseMonetizacao, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
+import type { BaseMonetizacao, Metrica, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
 import { DIAS_PADRAO } from "./busca";
@@ -1116,6 +1117,60 @@ function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
   );
 }
 
+/**
+ * Z2 no recorte da barra (mesma régua da Operação diária): negócio sem histórico lido não tem
+ * autor de movimento, então o vínculo é o dono atual; entra se foi carregado até `ate` e estava
+ * aberto no período (aberto hoje, ganho a partir de `de` ou com evento no período).
+ */
+const semHistoricoNoRecorte = (data: BaseMonetizacao, f: Filtro) =>
+  data.cards.filter((c) => {
+    if (c.history_known) return false;
+    if (f.product && c.route !== f.product) return false;
+    if (f.owner && c.owner_id !== f.owner) return false;
+    const carregado =
+      c.events.loaded.map((e) => e.date).sort()[0] ?? c.created_at?.slice(0, 10) ?? "";
+    if (carregado > f.to) return false;
+    if (c.status === "open") return true;
+    const ganhoEm = c.status === "won" ? (c.won_on ?? c.signed_on) : null;
+    if (ganhoEm) return ganhoEm >= f.from;
+    return Object.values(c.events).some((es) => es.some((e) => e.date >= f.from && e.date <= f.to));
+  });
+
+/** Data mais recente do evento `k` no período, pelo autor filtrado: ordena o detalhe. */
+const ultimoEventoNoPeriodo = (k: Metrica, f: Filtro) => (c: Negocio) =>
+  c.events[k]
+    .filter((e) => e.date >= f.from && e.date <= f.to && (!f.owner || e.actor_id === f.owner))
+    .map((e) => e.date)
+    .sort()
+    .at(-1);
+
+/** Número de célula que abre o detalhe (N2): link com foco visível e rótulo completo. */
+function CelulaQueAbre({
+  valor,
+  rotulo,
+  onClick,
+}: {
+  valor: number;
+  rotulo: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`${rotulo}: ${valor}, abrir negócios`}
+      className={`font-semibold ${FOCO_LINK}`}
+      onClick={onClick}
+    >
+      {number(valor)}
+    </button>
+  );
+}
+
+/**
+ * Funil comercial (contrato `monetizacao-funil.md`, Lista/Relatório): duas coortes do período,
+ * cada uma com a pergunta dela, e a conversão por produto com toda célula abrindo o detalhe.
+ * Só apresentação: os conjuntos são os mesmos de antes (`operacao()` e os filtros da coorte).
+ */
 function Funnel({ data, filter, openDeals }: Cut) {
   const v = operacao(data.cards, filter);
   const scheduled = v.rows.scheduled,
@@ -1134,6 +1189,8 @@ function Funnel({ data, filter, openDeals }: Cut) {
   const pending = scheduled.filter((c) => !realized.some((r) => r.id === c.id)),
     lost = pending.filter((c) => c.status === "lost"),
     stillOpen = pending.filter((c) => c.status === "open");
+  // N11: agendada ganha sem passar por "Reunião realizada" não cai em nenhum dos três desfechos.
+  const foraDosDesfechos = pending.length - lost.length - stillOpen.length;
   const validated = v.rows.validated,
     signed = validated.filter(
       (c) =>
@@ -1145,96 +1202,152 @@ function Funnel({ data, filter, openDeals }: Cut) {
             e.date <= c.won_on! &&
             (!filter.owner || e.actor_id === filter.owner),
         ),
-    );
+    ),
+    validatedOpen = validated.filter((c) => c.status === "open");
+  const evento = estadoKpiEvento(data, semHistoricoNoRecorte(data, filter));
+  const procedencia = procedenciaMonetizacao(data);
+  const periodo = { from: filter.from, to: filter.to };
+  const porAgendamento = ultimoEventoNoPeriodo("scheduled", filter),
+    porReuniao = ultimoEventoNoPeriodo("meeting", filter),
+    porValidacao = ultimoEventoNoPeriodo("validated", filter),
+    porGanho = (c: Negocio) => c.won_on ?? c.signed_on;
+  const abrir = (
+    titulo: string,
+    lista: Negocio[],
+    ordenarPor: (c: Negocio) => string | null | undefined,
+  ) => openDeals(titulo, lista, periodo, { ordenarPor });
+  const kpi = (nota?: string) => ({
+    estado: evento.estado,
+    nota: juntarNotas(evento.nota, nota),
+    procedencia,
+  });
+  // Com produto filtrado, só a linha dele (as outras seriam zero por estarem fora do recorte).
+  const produtos = filter.product
+    ? v.products.filter((p) => p.product === filter.product)
+    : v.products;
   return (
-    <div className="space-y-4">
-      <SecaoCartao titulo="Agendamento → reunião · mesma coorte">
-        <div className="grid gap-3 sm:grid-cols-4">
+    <div className="space-y-6">
+      <Secao
+        titulo="Das reuniões agendadas no período, quantas aconteceram?"
+        descricao="Agendamento → reunião · mesma coorte; a realização conta até o fim do período"
+      >
+        <KpiGrade colunas={4}>
           <Kpi
             label="Agendadas no período"
-            value={scheduled.length}
-            onClick={() => openDeals("Coorte agendada", scheduled)}
+            value={number(scheduled.length)}
+            {...kpi(
+              foraDosDesfechos > 0
+                ? `${number(foraDosDesfechos)} fora dos três desfechos (ganhas sem reunião registrada)`
+                : undefined,
+            )}
+            onClick={() => abrir("Coorte agendada", scheduled, porAgendamento)}
           />
           <Kpi
             label="Depois realizadas"
-            value={realized.length}
-            hint={
+            value={number(realized.length)}
+            {...kpi(
               scheduled.length
                 ? `${number((realized.length / scheduled.length) * 100)}% desta coorte`
-                : "Sem amostra"
-            }
-            onClick={() => openDeals("Agendadas depois realizadas", realized)}
+                : "Sem amostra",
+            )}
+            onClick={() => abrir("Agendadas depois realizadas", realized, porReuniao)}
           />
           <Kpi
             label="Sem realização · em aberto"
-            value={stillOpen.length}
-            hint="Ainda podem realizar"
-            onClick={() => openDeals("Agendadas ainda em aberto", stillOpen)}
+            value={number(stillOpen.length)}
+            {...kpi("Ainda podem realizar")}
+            onClick={() => abrir("Agendadas ainda em aberto", stillOpen, porAgendamento)}
           />
           <Kpi
             label="Sem realização · perdidas"
-            value={lost.length}
-            onClick={() => openDeals("Agendadas perdidas sem realização", lost)}
+            value={number(lost.length)}
+            {...kpi()}
+            onClick={() => abrir("Agendadas perdidas sem realização", lost, porAgendamento)}
           />
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
+        </KpiGrade>
+        <NotaApoio>
           Uma oportunidade sem passagem em Reunião realizada não é automaticamente no-show. Para
           medir ausência, recuperação e motivo, é preciso registrar o resultado da atividade no CRM.
-        </p>
-      </SecaoCartao>
-      <SecaoCartao titulo="Oportunidade validada → assinatura · mesma coorte">
-        <div className="grid gap-3 sm:grid-cols-3">
+        </NotaApoio>
+      </Secao>
+      <Secao
+        titulo="Das oportunidades validadas no período, quantas viraram contrato?"
+        descricao="Oportunidade validada → assinatura · mesma coorte; o ganho conta até o fim do período"
+      >
+        <KpiGrade colunas={3}>
           <Kpi
             label="Validadas no período"
-            value={validated.length}
-            onClick={() => openDeals("Coorte validada", validated)}
+            value={number(validated.length)}
+            {...kpi()}
+            onClick={() => abrir("Coorte validada", validated, porValidacao)}
           />
           <Kpi
             label="Ganhos até o fim do período"
-            value={signed.length}
-            hint={
+            value={number(signed.length)}
+            {...kpi(
               validated.length
                 ? `${number((signed.length / validated.length) * 100)}% · coorte ainda pode amadurecer`
-                : "Sem amostra"
-            }
-            onClick={() => openDeals("Ganhos da coorte validada", signed)}
+                : "Sem amostra",
+            )}
+            onClick={() => abrir("Ganhos da coorte validada", signed, porGanho)}
           />
           <Kpi
             label="Ainda em aberto"
-            value={validated.filter((c) => c.status === "open").length}
-            hint="Não entram como fracasso definitivo"
+            value={number(validatedOpen.length)}
+            {...kpi("Não entram como fracasso definitivo")}
+            onClick={() => abrir("Validadas ainda em aberto", validatedOpen, porValidacao)}
           />
+        </KpiGrade>
+      </Secao>
+      <SecaoCartao
+        titulo="Como cada produto converte no período?"
+        descricao="Reuniões realizadas, validadas e ganhos contam os próprios eventos no período · abertas são da coorte validada · clique no número para abrir os negócios"
+      >
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead className="num text-right">Reuniões realizadas</TableHead>
+                <TableHead className="num text-right">Validadas</TableHead>
+                <TableHead className="num text-right">Ganhos</TableHead>
+                <TableHead className="num text-right">Abertas da coorte validada</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {produtos.map((p) => {
+                const nome = NOMES[p.product];
+                const doProduto = (lista: Negocio[]) => lista.filter((c) => c.route === p.product);
+                const celulas: [string, Negocio[], (c: Negocio) => string | null | undefined][] = [
+                  ["Reuniões realizadas", doProduto(v.rows.meeting), porReuniao],
+                  ["Validadas", doProduto(v.rows.validated), porValidacao],
+                  ["Ganhos", doProduto(v.rows.signed), ultimoEventoNoPeriodo("signed", filter)],
+                  ["Abertas da coorte validada", doProduto(validatedOpen), porValidacao],
+                ];
+                return (
+                  <TableRow key={p.product}>
+                    <TableCell className="font-medium">{nome}</TableCell>
+                    {celulas.map(([rotulo, lista, ordem]) => (
+                      <TableCell key={rotulo} className="num text-right">
+                        <CelulaQueAbre
+                          valor={lista.length}
+                          rotulo={`${nome} · ${rotulo}`}
+                          onClick={() => abrir(`${nome} · ${rotulo}`, lista, ordem)}
+                        />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
-      </SecaoCartao>
-      <SecaoCartao titulo="Conversão por produto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr>
-              <th>Produto</th>
-              <th>Reuniões realizadas</th>
-              <th>Validadas</th>
-              <th>Ganhos</th>
-              <th>Abertas da coorte validada</th>
-            </tr>
-          </thead>
-          <tbody>
-            {v.products.map((p) => (
-              <tr key={p.product} className="border-t">
-                <th className="py-3">{NOMES[p.product]}</th>
-                <td>{p.meeting}</td>
-                <td>{p.validated}</td>
-                <td>{p.signed}</td>
-                <td>
-                  {validated.filter((c) => c.route === p.product && c.status === "open").length}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-3 text-xs text-muted-foreground">
-          As três primeiras métricas contam seus próprios eventos no período. Use as coortes acima
-          para calcular conversão sem misturar denominadores.
-        </p>
+        <div className="mt-3">
+          <NotaApoio>
+            As três primeiras colunas contam seus próprios eventos no período. Use as coortes acima
+            para calcular conversão sem misturar denominadores.
+          </NotaApoio>
+        </div>
       </SecaoCartao>
     </div>
   );
