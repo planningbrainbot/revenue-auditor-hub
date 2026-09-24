@@ -27,6 +27,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Régua e fontes não mudam.
 3. `fontSize={11}` (V4) e grade/tooltip/legenda locais → `eixoProps`, `gradeProps`, `tooltipProps`, `legendaProps`. Eixo com a unidade (R$, %).
 4. Cores: `CORES_SERIE` sem ciclar o neutro. Com mais de 5 unidades, a linha mostra as 5 maiores e as outras ficam na legenda como "outras" desligadas por padrão (o leitor liga a que quiser).
 5. Mês sem título mostrava R$ 0 (COALESCE da view): o ponto sem título fica sem valor, e `connectNulls` sai, para o buraco aparecer.
+   Efeito na aba Crescimento (registrado na aplicação, 24/09): o mês sem título, que antes aparecia como −100% (recebido 0 contra o mês anterior), agora fica sem ponto; o mês seguinte já ficava sem ponto (divisão por 0). A fórmula da variação não mudou; mudou o que conta como recebido do mês.
 
 ## Estados
 Carregando `Carregando variante="grafico"` · erro `EstadoErro` · vazio `EstadoVazio` · sem acesso: portão da área.

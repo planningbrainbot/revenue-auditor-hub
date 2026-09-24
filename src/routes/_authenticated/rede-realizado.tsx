@@ -446,14 +446,24 @@ function RedeRealizadoPage() {
           ))}
         </TabsList>
 
-        {METRICAS_DEF.map((m) => (
+        {METRICAS_DEF.map((m) => {
+          // CAC e NPS tiram unidades e meses de v_reconciliacao_mensal: se a
+          // view cai, a aba também não tem como desenhar.
+          const fonteCaida: Fonte | undefined = erros[m.fonte]
+            ? m.fonte
+            : m.fonte !== "recon" && erros.recon
+              ? "recon"
+              : undefined;
+          return (
           <TabsContent key={m.key} value={m.key} className="mt-4">
             {loading ? (
               <Carregando variante="grafico" />
-            ) : erros[m.fonte] ? (
+            ) : fonteCaida ? (
               <EstadoErro
                 titulo="Fonte indisponível"
-                detalhe={`${NOME_FONTE[m.fonte]}: ${erros[m.fonte]}`}
+                detalhe={`${NOME_FONTE[fonteCaida]}: ${erros[fonteCaida]}${
+                  fonteCaida !== m.fonte ? ` (esta aba usa as unidades e os meses dessa view)` : ""
+                }`}
                 tentarNovamente={() => setRecarga((n) => n + 1)}
               />
             ) : (
@@ -466,7 +476,7 @@ function RedeRealizadoPage() {
                   <GraficoFoto
                     def={m}
                     unidades={escolhidas.length > 0 ? escolhidas : unidades}
-                    ultimoMes={meses[meses.length - 1]}
+                    mesFoto={atePadrao}
                     porMesUnidade={porMesUnidade}
                   />
                 ) : (
@@ -483,7 +493,8 @@ function RedeRealizadoPage() {
               </Secao>
             )}
           </TabsContent>
-        ))}
+          );
+        })}
       </Tabs>
     </div>
   );
@@ -525,7 +536,7 @@ function Filtros({
     <BarraFiltros aoLimpar={aoLimpar}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9" aria-label="Unidades">
+          <Button variant="outline" size="sm" className="h-9" aria-label={`Unidades: ${rotuloUnidades}`}>
             {rotuloUnidades}
             <ChevronDown className="size-4 text-muted-foreground" aria-hidden />
           </Button>
@@ -626,6 +637,20 @@ function GraficoLinhas({
     );
   }
 
+  if (ligadas.length === 0) {
+    return (
+      <EstadoVazio
+        titulo="As unidades escolhidas não têm dado desta métrica no período"
+        descricao={`${comDado.length} unidades têm dado. Mostre as maiores ou mude o filtro de unidades.`}
+        acao={
+          <Button type="button" variant="outline" size="sm" onClick={() => aoEscolher([])}>
+            Mostrar as 5 maiores
+          </Button>
+        }
+      />
+    );
+  }
+
   const dados = meses.map((mes) => {
     const entrada: Record<string, string | number | null> = { mes, label: rotuloMes(mes) };
     for (const u of ligadas) entrada[u] = porMesUnidade.get(mes)?.get(u)?.[def.key] ?? null;
@@ -674,7 +699,7 @@ function GraficoLinhas({
 
       {/* Legenda que liga e desliga: botões para funcionar no teclado (V12).
           Até 5 linhas ao mesmo tempo, uma cor da marca por linha, sem ciclar. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" aria-label="Unidades no gráfico">
+      <div role="group" className="mt-3 flex flex-wrap items-center gap-2 text-xs" aria-label="Unidades no gráfico">
         {ligadas.map((u, i) => (
           <button
             key={u}
@@ -726,21 +751,20 @@ function GraficoLinhas({
 function GraficoFoto({
   def,
   unidades,
-  ultimoMes,
+  mesFoto,
   porMesUnidade,
 }: {
   def: DefMetrica;
   unidades: string[];
-  ultimoMes: string | undefined;
+  mesFoto: string;
   porMesUnidade: Map<string, Map<string, Record<Metrica, number | null>>>;
 }) {
-  // A view repete a foto de hoje em todos os meses: vale a do último mês.
-  const dados = ultimoMes
-    ? unidades
-        .map((u) => ({ unidade: u, valor: porMesUnidade.get(ultimoMes)?.get(u)?.[def.key] ?? null }))
-        .filter((d): d is { unidade: string; valor: number } => d.valor != null)
-        .sort((a, b) => b.valor - a.valor)
-    : [];
+  // A view repete a foto de hoje em todos os meses e sempre inclui o mês
+  // corrente (date_trunc de now()): vale a linha do mês de hoje.
+  const dados = unidades
+    .map((u) => ({ unidade: u, valor: porMesUnidade.get(mesFoto)?.get(u)?.[def.key] ?? null }))
+    .filter((d): d is { unidade: string; valor: number } => d.valor != null)
+    .sort((a, b) => b.valor - a.valor);
 
   if (dados.length === 0) {
     return <EstadoVazio titulo="Nenhuma unidade com contrato ativo hoje" />;
@@ -759,9 +783,7 @@ function GraficoFoto({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {ultimoMes && (
-        <p className="mt-2 text-[13px] text-muted-foreground">Foto de {rotuloMes(ultimoMes)}.</p>
-      )}
+      <p className="mt-2 text-[13px] text-muted-foreground">Foto de {rotuloMes(mesFoto)}.</p>
     </Card>
   );
 }
