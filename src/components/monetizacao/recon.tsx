@@ -81,9 +81,25 @@ export function ReconAquario({
   const foraDoFiltro = selected.filter((a) => !chavesDoFiltro.has(a.key)).length;
   const rotuloCabecalho = todasDoFiltro
     ? `Desmarcar as ${number(rows.length)} contas do filtro`
-    : `Selecionar as ${number(rows.length)} contas do filtro, não só as ${number(visiveis)} desta página`;
-  // Cartão ou grupo filtra a tabela e leva até ela.
+    : rows.length > limit
+      ? `Selecionar as ${number(rows.length)} contas do filtro, não só as ${number(visiveis)} desta página`
+      : `Selecionar as ${number(rows.length)} contas do filtro`;
+  // Marcar soma o filtro ao que já está selecionado; desmarcar tira só as contas do filtro.
+  const marcarFiltro = (marcar: boolean) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      for (const a of rows) {
+        if (marcar) next.add(a.key);
+        else next.delete(a.key);
+      }
+      return next;
+    });
+  // Cartão ou grupo filtra a tabela e leva até ela. O cartão conta sobre todas as contas, então
+  // busca, unidade e contato são limpos para o total da tabela bater com o do cartão.
   const filtrar = (s: string[]) => {
+    setQuery("");
+    setUnit([]);
+    setContact([]);
     setStatus(s);
     setLimit(50);
     document.getElementById("recon-tabela")?.scrollIntoView({ behavior: "smooth" });
@@ -268,8 +284,8 @@ export function ReconAquario({
           empresa para ver os detalhes e as fontes.
           {selected.length > 0 &&
             ` ${number(selected.length)} selecionada(s)${foraDoFiltro ? `, ${number(foraDoFiltro)} fora deste filtro (entram na exportação da seleção)` : ""}.`}{" "}
-          O quadrado do cabeçalho marca todas as contas do filtro, inclusive as que ainda não
-          aparecem na página.
+          {rows.length > limit &&
+            "O quadrado do cabeçalho marca todas as contas do filtro, inclusive as que ainda não aparecem na página."}
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -286,9 +302,7 @@ export function ReconAquario({
                     ref={(el) => {
                       if (el) el.indeterminate = !todasDoFiltro && algumaDoFiltro;
                     }}
-                    onChange={(e) =>
-                      setPicked(e.target.checked ? new Set(rows.map((a) => a.key)) : new Set())
-                    }
+                    onChange={(e) => marcarFiltro(e.target.checked)}
                   />
                 </th>
                 <th className="p-3">Empresa / unidade</th>
@@ -373,7 +387,13 @@ export function ReconAquario({
             </tbody>
           </table>
         </div>
-        {!rows.length && (
+        {!rows.length && !accounts.length && (
+          <EstadoVazio
+            titulo="Nenhuma conta analisada pelo Recon"
+            descricao="O recorte da página não tem contas. Ajuste a unidade ou a origem no topo."
+          />
+        )}
+        {!rows.length && !!accounts.length && (
           <EstadoVazio
             titulo="Nenhuma conta neste filtro"
             total={accounts.length}
