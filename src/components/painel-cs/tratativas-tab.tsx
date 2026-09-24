@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, Search } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { syncTratativas } from "@/lib/tratativas.functions";
 import {
@@ -18,7 +19,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -36,9 +36,10 @@ import {
 } from "@/components/ui/table";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { isUnidadeDaRede } from "@/lib/unidades-rede";
-import { cn } from "@/lib/utils";
 import { CORES_SERIE, COR_NEGATIVO, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
-import { KpiCard, KpiGrade } from "@/components/planning";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { Carregando, EstadoErro, KpiCard, KpiGrade, StatusBadge, type TomStatus } from "@/components/planning";
+import { BotaoAtualizarPipefy } from "./botao-atualizar";
 
 type Tratativa = {
   id: number;
@@ -56,6 +57,8 @@ type Tratativa = {
 };
 
 const NA = "—";
+const TODOS = "__all__";
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 function fmtMoney(v: number | null | undefined) {
   if (v == null) return NA;
@@ -64,23 +67,50 @@ function fmtMoney(v: number | null | undefined) {
 
 function fmtDate(s: string | null) {
   if (!s) return NA;
+  // Data pura ("aaaa-mm-dd") sai da própria string: `new Date` a leria em UTC
+  // e, no fuso de Brasília, mostraria o dia anterior.
+  const soData = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (soData) return `${soData[3]}/${soData[2]}/${soData[1]}`;
   const d = new Date(s);
   if (isNaN(d.getTime())) return NA;
   return d.toLocaleDateString("pt-BR");
 }
 
+// Mês do eixo a partir da string "aaaa-mm", sem passar por Date.
 function fmtMesLabel(mesKey: string): string {
-  const [ano, mes] = mesKey.split("-").map(Number);
-  const d = new Date(ano, mes - 1, 1);
-  return d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+  const [ano, mes] = mesKey.split("-");
+  const nome = MESES[Number(mes) - 1];
+  return nome && ano ? `${nome}/${ano.slice(2)}` : mesKey;
+}
+
+// Chave de mês da data de churn tirada da string: `new Date("2026-08-01")` é
+// meia-noite UTC, que em Brasília ainda é 31/07 e jogava o churn no mês errado.
+function mesDaData(s: string): string | null {
+  const m = /^(\d{4})-(\d{2})/.exec(s);
+  if (m) return `${m[1]}-${m[2]}`;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function fmtPct(v: number | null): string {
+  return v == null ? NA : `${v.toFixed(1).replace(".", ",")}%`;
+}
+
+const STATUS: Record<string, { tom: TomStatus; rotulo: string }> = {
+  open: { tom: "info", rotulo: "Aberto" },
+  lost: { tom: "perigo", rotulo: "Perdido" },
+  won: { tom: "sucesso", rotulo: "Recuperado" },
+};
+
+function rotuloStatus(status: string): string {
+  return STATUS[status.toLowerCase()]?.rotulo ?? status;
 }
 
 function statusBadge(status: string | null) {
-  const s = (status ?? "").toLowerCase();
-  if (s === "won") return <Badge variant="sucesso">Ganho</Badge>;
-  if (s === "lost") return <Badge variant="destructive">Perdido</Badge>;
-  if (s === "open") return <Badge variant="secondary">Aberto</Badge>;
-  return <Badge variant="outline">{status ?? NA}</Badge>;
+  const conhecido = STATUS[(status ?? "").toLowerCase()];
+  if (conhecido) return <StatusBadge tom={conhecido.tom}>{conhecido.rotulo}</StatusBadge>;
+  return <StatusBadge tom="neutro">{status ?? NA}</StatusBadge>;
 }
 
 export function TratativasTab() {
@@ -89,11 +119,13 @@ export function TratativasTab() {
   const [ganhoEmPorDealId, setGanhoEmPorDealId] = useState<Map<string, string>>(new Map());
   const [empresasBaseNova, setEmpresasBaseNova] = useState<{ pipedrive_id: string | null; unidade: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [unidadeFilter, setUnidadeFilter] = useState<string>("__all__");
-  const [statusFilter, setStatusFilter] = useState<string>("__all__");
-  const [q, setQ] = useState("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [erros, setErros] = useState<string[]>([]);
+  // Filtros na URL (N7): recarregar ou colar o link reproduz o recorte.
+  const [unidadeFilter, setUnidadeFilter] = useFiltroNaUrl("unidade", TODOS);
+  const [statusFilter, setStatusFilter] = useFiltroNaUrl("status", TODOS);
+  const [q, setQ] = useFiltroNaUrl("q", "");
+  const [dateFrom, setDateFrom] = useFiltroNaUrl("de", "");
+  const [dateTo, setDateTo] = useFiltroNaUrl("ate", "");
 
   const carregar = useCallback(async () => {
     const [tratativasRes, contratosRes, empresasRes] = await Promise.all([
@@ -113,6 +145,13 @@ export function TratativasTab() {
         .eq("tipo_unidade", "franquia")
         .limit(5000),
     ]);
+    // Erro de leitura era engolido e a tela mostrava zeros (N4): cada fonte
+    // que falhou é nomeada no EstadoErro.
+    const falhas: string[] = [];
+    if (tratativasRes.error) falhas.push(`central_tratativas (Central de Tratativas): ${tratativasRes.error.message}`);
+    if (contratosRes.error) falhas.push(`contratos (data do ganho): ${contratosRes.error.message}`);
+    if (empresasRes.error) falhas.push(`empresas (base para o churn blended): ${empresasRes.error.message}`);
+    setErros(falhas);
     if (tratativasRes.data) setRows(tratativasRes.data as Tratativa[]);
     if (contratosRes.data) {
       const map = new Map<string, string>();
@@ -237,6 +276,7 @@ export function TratativasTab() {
     let recuperados = 0;
     let abertos = 0;
     let mrrPerdido = 0;
+    let perdidosSemMrr = 0;
     let mrrRecuperado = 0;
     const tenures: number[] = [];
     for (const r of filtered) {
@@ -245,6 +285,7 @@ export function TratativasTab() {
       if (s === "lost") {
         perdidos += 1;
         mrrPerdido += mrr;
+        if (r.mrr == null) perdidosSemMrr += 1;
         const t = tenureDias(r);
         if (t != null) tenures.push(t);
       } else if (s === "won") {
@@ -261,9 +302,11 @@ export function TratativasTab() {
       recuperados,
       abertos,
       mrrPerdido,
+      perdidosSemMrr,
       mrrRecuperado,
-      taxaRecuperacao: perdidos + recuperados > 0 ? (recuperados / (perdidos + recuperados)) * 100 : 0,
-      taxaChurnBlended: baseNovaStats.ativos > 0 ? (churnedIdsEscopo.size / baseNovaStats.ativos) * 100 : 0,
+      // Sem denominador a taxa não existe: "—", não 0% (N4).
+      taxaRecuperacao: perdidos + recuperados > 0 ? (recuperados / (perdidos + recuperados)) * 100 : null,
+      taxaChurnBlended: baseNovaStats.ativos > 0 ? (churnedIdsEscopo.size / baseNovaStats.ativos) * 100 : null,
       churnBlendedNum: churnedIdsEscopo.size,
       churnBlendedDenom: baseNovaStats.ativos,
       tenureMedioDias,
@@ -312,9 +355,8 @@ export function TratativasTab() {
     const map = new Map<string, { mes: string; mrr: number; qtd: number }>();
     for (const r of filtered) {
       if ((r.status ?? "").toLowerCase() !== "lost" || !r.data_churn) continue;
-      const d = new Date(r.data_churn);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const key = mesDaData(r.data_churn);
+      if (!key) continue;
       const g = map.get(key) ?? { mes: key, mrr: 0, qtd: 0 };
       g.mrr += r.mrr ?? 0;
       g.qtd += 1;
@@ -335,18 +377,38 @@ export function TratativasTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={sync.isPending}
-          onClick={() => sync.mutate()}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-          Forçar atualização
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button asChild variant="ghost" size="sm" className="gap-1.5">
+          <Link to="/clientes" search={{ view: "contratos" }}>
+            Contratos e churn
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
         </Button>
+        <BotaoAtualizarPipefy atualizando={sync.isPending} onClick={() => sync.mutate()} />
       </div>
+
+      {erros.length > 0 ? (
+        <EstadoErro
+          detalhe={
+            <ul className="list-disc pl-4">
+              {erros.map((e) => (
+                <li key={e}>Fonte: {e}</li>
+              ))}
+            </ul>
+          }
+          tentarNovamente={() => {
+            setLoading(true);
+            void carregar();
+          }}
+        />
+      ) : loading ? (
+        <div className="space-y-4">
+          <Carregando variante="kpis" />
+          <Carregando variante="grafico" />
+          <Carregando variante="tabela" />
+        </div>
+      ) : (
+      <>
 
       {/* KPIs — oito números em duas linhas de quatro: a grade do design system
           vai até seis por linha, e oito cards de 30px numa só não cabem. As
@@ -357,17 +419,29 @@ export function TratativasTab() {
         <KpiCard rotulo="Em aberto" valor={kpis.abertos} />
         <KpiCard rotulo="Perdidos" valor={kpis.perdidos} tom="perigo" />
         <KpiCard rotulo="Recuperados" valor={kpis.recuperados} tom="sucesso" />
-        <KpiCard rotulo="MRR perdido" valor={fmtMoney(kpis.mrrPerdido)} tom="perigo" />
-        <KpiCard rotulo="Taxa de recuperação" valor={`${kpis.taxaRecuperacao.toFixed(1)}%`} />
+        <KpiCard
+          rotulo="MRR perdido"
+          valor={fmtMoney(kpis.mrrPerdido)}
+          tom="perigo"
+          nota={kpis.perdidosSemMrr > 0 ? `${kpis.perdidosSemMrr} perdidos sem MRR` : undefined}
+        />
+        <KpiCard
+          rotulo="Taxa de recuperação"
+          valor={fmtPct(kpis.taxaRecuperacao)}
+          estado={kpis.taxaRecuperacao == null ? "nao-apurado" : "ok"}
+          nota="recuperados ÷ (recuperados + perdidos)"
+        />
         <KpiCard
           rotulo="Taxa de churn (blended)"
-          valor={`${kpis.taxaChurnBlended.toFixed(1)}%`}
+          valor={fmtPct(kpis.taxaChurnBlended)}
+          estado={kpis.taxaChurnBlended == null ? "nao-apurado" : "ok"}
           tom="perigo"
-          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova)`}
+          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova) · ignora busca, status e período`}
         />
         <KpiCard
           rotulo="Tempo médio até churn"
           valor={fmtTenure(kpis.tenureMedioDias)}
+          estado={kpis.tenureMedioDias == null ? "nao-apurado" : "ok"}
           nota={
             kpis.tenureAmostra > 0
               ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn`
@@ -391,19 +465,19 @@ export function TratativasTab() {
           <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
             <SelectTrigger><SelectValue placeholder="Unidade" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Todas as unidades</SelectItem>
+              <SelectItem value={TODOS}>Todas as unidades</SelectItem>
               {unidades.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Todos os status</SelectItem>
-              {statuses.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+              <SelectItem value={TODOS}>Todos os status</SelectItem>
+              {statuses.map((s) => (<SelectItem key={s} value={s}>{rotuloStatus(s)}</SelectItem>))}
             </SelectContent>
           </Select>
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground shrink-0">Churn de</span>
+            <span className="text-[13px] text-muted-foreground shrink-0">Churn de</span>
             <Input
               type="date"
               className="text-sm"
@@ -412,7 +486,7 @@ export function TratativasTab() {
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground shrink-0">até</span>
+            <span className="text-[13px] text-muted-foreground shrink-0">até</span>
             <Input
               type="date"
               className="text-sm"
@@ -528,7 +602,7 @@ export function TratativasTab() {
             <TableBody>
               {porUnidade.map((u) => {
                 const denom = u.perdidos + u.recuperados;
-                const taxa = denom > 0 ? (u.recuperados / denom) * 100 : 0;
+                const taxa = denom > 0 ? (u.recuperados / denom) * 100 : null;
                 return (
                   <TableRow key={u.unidade}>
                     <TableCell className="font-medium">{u.unidade}</TableCell>
@@ -536,7 +610,7 @@ export function TratativasTab() {
                     <TableCell className="text-right text-destructive">{u.perdidos}</TableCell>
                     <TableCell className="text-right text-success">{u.recuperados}</TableCell>
                     <TableCell className="text-right">{fmtMoney(u.mrrPerdido)}</TableCell>
-                    <TableCell className="text-right">{taxa.toFixed(1)}%</TableCell>
+                    <TableCell className="num text-right">{fmtPct(taxa)}</TableCell>
                   </TableRow>
                 );
               })}
@@ -549,7 +623,7 @@ export function TratativasTab() {
       <Card className="p-0 overflow-hidden">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <div className="text-sm font-semibold">Tratativas</div>
-          <div className="text-xs text-muted-foreground">{loading ? "Carregando…" : `${tabela.length} registros`}</div>
+          <div className="text-xs text-muted-foreground">{`${tabela.length} registros`}</div>
         </div>
         <div className="overflow-auto max-h-[600px]">
           <table className="w-full text-sm">
@@ -580,11 +654,11 @@ export function TratativasTab() {
                     {r.observacao ?? NA}
                   </TableCell>
                   <TableCell>{fmtTenure(tenureDias(r))}</TableCell>
-                  <TableCell>{ganhoEmDe(r) ? fmtDate(ganhoEmDe(r)) : ""}</TableCell>
-                  <TableCell>{r.data_churn ? fmtDate(r.data_churn) : ""}</TableCell>
+                  <TableCell>{fmtDate(ganhoEmDe(r))}</TableCell>
+                  <TableCell>{fmtDate(r.data_churn)}</TableCell>
                 </TableRow>
               ))}
-              {!loading && tabela.length === 0 && (
+              {tabela.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
                     Nenhuma tratativa encontrada com os filtros atuais.
@@ -595,6 +669,8 @@ export function TratativasTab() {
           </table>
         </div>
       </Card>
+      </>
+      )}
     </div>
   );
 }

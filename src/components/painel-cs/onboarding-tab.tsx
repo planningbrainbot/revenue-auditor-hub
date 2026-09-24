@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, AlertTriangle, Hourglass } from "lucide-react";
+import { TriangleAlert, Hourglass } from "lucide-react";
 import { toast } from "sonner";
 import { syncPainelCs, FASES_ORDEM } from "@/lib/painel-cs.functions";
 import {
@@ -14,10 +14,9 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { CORES_SERIE } from "@/lib/planning/grafico";
+import { CORES_SERIE, COR_NEUTRA, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -27,8 +26,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { cn } from "@/lib/utils";
-import { KpiCard, KpiGrade } from "@/components/planning";
+import { Carregando, EstadoErro, KpiCard, KpiGrade } from "@/components/planning";
+import { BotaoAtualizarPipefy } from "./botao-atualizar";
 
 type CardHistoryEntry = { fase: string | null; entrou_em: string | null; saiu_em: string | null };
 
@@ -46,9 +45,14 @@ type OnboardingCard = {
 
 const NA = "—";
 const DIAS_ALERTA_GARGALO = 7; // card parado há mais de 7 dias na fase atual entra na lista de atenção
+const OUTRAS_FASES = "Outras fases";
 
 function fmtDate(s: string | null) {
   if (!s) return NA;
+  // Data pura ("aaaa-mm-dd") sai da própria string: `new Date` a leria em UTC
+  // e, no fuso de Brasília, mostraria o dia anterior.
+  const soData = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (soData) return `${soData[3]}/${soData[2]}/${soData[1]}`;
   const d = new Date(s);
   if (isNaN(d.getTime())) return NA;
   return d.toLocaleDateString("pt-BR");
@@ -75,12 +79,15 @@ export function OnboardingTab() {
   const perms = usePermissions();
   const [rows, setRows] = useState<OnboardingCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("cs_onboarding_cards")
       .select("pipefy_card_id,titulo,fase_atual,fase_atual_ordem,entrou_fase_atual_em,criado_em,concluido,unidade,fases_history")
       .limit(5000);
+    // Erro de leitura era engolido e a tela mostrava zeros (N4).
+    setErro(error ? error.message : null);
     if (data) setRows(data as OnboardingCard[]);
     setLoading(false);
   }, []);
@@ -114,12 +121,16 @@ export function OnboardingTab() {
 
   const kpis = useMemo(() => {
     const gargalos = ativos.filter((r) => (diasDesde(r.entrou_fase_atual_em) ?? 0) >= DIAS_ALERTA_GARGALO).length;
+    // Sem data de entrada na fase não dá para dizer se está parado: conta à
+    // parte, na nota, em vez de sumir como se tivesse 0 dia.
+    const semDataDeFase = ativos.filter((r) => diasDesde(r.entrou_fase_atual_em) == null).length;
     const ciclos = concluidos.map(cicloDias).filter((d): d is number => d != null);
     const cicloMedio = ciclos.length > 0 ? Math.round(ciclos.reduce((s, d) => s + d, 0) / ciclos.length) : null;
     return {
       ativos: ativos.length,
       concluidos: concluidos.length,
       gargalos,
+      semDataDeFase,
       cicloMedio,
       temDadosDeCiclo: ciclos.length > 0,
     };
@@ -132,7 +143,12 @@ export function OnboardingTab() {
       const f = (r.fase_atual ?? NA).trim();
       map.set(f, (map.get(f) ?? 0) + 1);
     }
-    return FASES_ORDEM.map((name) => ({ name, value: map.get(name) ?? 0 }));
+    const conhecidas = FASES_ORDEM.map((name) => ({ name, value: map.get(name) ?? 0 }));
+    // Fase fora da ordem conhecida (renomeada no Pipefy, ou sem fase) sumia do
+    // gráfico e o funil não fechava com "Clientes em onboarding".
+    let outras = 0;
+    for (const [f, n] of map) if (!FASES_ORDEM.includes(f)) outras += n;
+    return outras > 0 ? [...conhecidas, { name: OUTRAS_FASES, value: outras }] : conhecidas;
   }, [ativos]);
 
   const gargalos = useMemo(
@@ -151,27 +167,33 @@ export function OnboardingTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          disabled={sync.isPending}
-          onClick={() => sync.mutate()}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-          Forçar atualização
-        </Button>
-      </div>
+      <BotaoAtualizarPipefy atualizando={sync.isPending} onClick={() => sync.mutate()} />
 
+      {erro ? (
+        <EstadoErro
+          detalhe={`Fonte: cs_onboarding_cards (Pipefy, onboarding). ${erro}`}
+          tentarNovamente={() => {
+            setLoading(true);
+            void carregar();
+          }}
+        />
+      ) : loading ? (
+        <div className="space-y-4">
+          <Carregando variante="kpis" />
+          <Carregando variante="grafico" />
+          <Carregando variante="tabela" />
+        </div>
+      ) : (
+      <>
       {/* KPIs */}
       <KpiGrade colunas={4}>
         <KpiCard rotulo="Clientes em onboarding" valor={kpis.ativos} />
         <KpiCard rotulo="Onboardings concluídos" valor={kpis.concluidos} tom="sucesso" />
         <KpiCard
-          rotulo={`Gargalos (parado ≥ ${DIAS_ALERTA_GARGALO}d na fase)`}
+          rotulo={`Parados há ${DIAS_ALERTA_GARGALO}+ dias na fase`}
           valor={kpis.gargalos}
           tom={kpis.gargalos > 0 ? "perigo" : undefined}
+          nota={kpis.semDataDeFase > 0 ? `${kpis.semDataDeFase} sem data de fase` : undefined}
         />
         {/* Sem nenhum ciclo fechado o tempo médio não existe ainda: "não
             apurado", com o porquê na nota, e não um 0d (N4). */}
@@ -189,11 +211,16 @@ export function OnboardingTab() {
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={funil} layout="vertical" margin={{ left: 24 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={220} />
-              <Tooltip />
-              <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
+              {/* Barra horizontal: a grade acompanha o eixo de valor (vertical). */}
+              <CartesianGrid {...gradeProps} vertical horizontal={false} />
+              <XAxis {...eixoProps} type="number" allowDecimals={false} />
+              <YAxis {...eixoProps} type="category" dataKey="name" width={220} />
+              <Tooltip {...tooltipProps} formatter={(v: number) => [v, "Cards"]} />
+              <Bar dataKey="value" name="Cards" radius={[0, 4, 4, 0]}>
+                {funil.map((f) => (
+                  <Cell key={f.name} fill={f.name === OUTRAS_FASES ? COR_NEUTRA : CORES_SERIE[0]} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -213,12 +240,10 @@ export function OnboardingTab() {
       {/* Gargalos */}
       <Card className="p-0 overflow-hidden">
         <div className="px-4 py-3 border-b flex items-center gap-2">
-          {gargalos.length > 0 && <AlertTriangle className="h-4 w-4 text-destructive" />}
+          {gargalos.length > 0 && <TriangleAlert className="size-4 text-danger" aria-hidden />}
           <div className="text-sm font-semibold">Atenção — cards parados há {DIAS_ALERTA_GARGALO}+ dias na fase atual</div>
         </div>
-        {loading ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Carregando…</div>
-        ) : gargalos.length === 0 ? (
+        {gargalos.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-6">Nenhum card parado além do esperado.</div>
         ) : (
           <div className="overflow-auto max-h-[320px]">
@@ -239,7 +264,7 @@ export function OnboardingTab() {
                     <TableCell>{r.unidade ?? NA}</TableCell>
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
                     <TableCell className="text-right">{fmtDate(r.entrou_fase_atual_em)}</TableCell>
-                    <TableCell className="text-right text-destructive font-semibold">{dias}d</TableCell>
+                    <TableCell className="num text-right font-semibold text-danger">{dias}d</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -253,9 +278,7 @@ export function OnboardingTab() {
         <div className="px-4 py-3 border-b">
           <div className="text-sm font-semibold">Clientes em onboarding</div>
         </div>
-        {loading ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Carregando…</div>
-        ) : listaOperacional.length === 0 ? (
+        {listaOperacional.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-6">Nenhum cliente em onboarding no momento.</div>
         ) : (
           <div className="overflow-auto max-h-[420px]">
@@ -276,7 +299,7 @@ export function OnboardingTab() {
                     <TableCell>{r.unidade ?? NA}</TableCell>
                     <TableCell>{r.fase_atual ?? NA}</TableCell>
                     <TableCell className="text-right">{fmtDate(r.criado_em)}</TableCell>
-                    <TableCell className="text-right">{diasDesde(r.entrou_fase_atual_em) ?? NA}d</TableCell>
+                    <TableCell className="num text-right">{fmtDias(diasDesde(r.entrou_fase_atual_em))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -284,6 +307,13 @@ export function OnboardingTab() {
           </div>
         )}
       </Card>
+      </>
+      )}
     </div>
   );
+}
+
+// "—d" não é número: sem data de fase, só o travessão (N4).
+function fmtDias(dias: number | null): string {
+  return dias == null ? NA : `${dias}d`;
 }
