@@ -82,7 +82,15 @@ type Props = {
 export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
   if (aba === "forecast")
-    return <Forecast data={data} month={filter.to.slice(0, 7)} openDeals={openDeals} />;
+    return (
+      <Forecast
+        data={data}
+        month={filter.to.slice(0, 7)}
+        openDeals={openDeals}
+        busca={props.busca}
+        mudarBusca={props.mudarBusca}
+      />
+    );
   if (aba === "temporal")
     return <Temporal data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
   if (aba === "capacidade")

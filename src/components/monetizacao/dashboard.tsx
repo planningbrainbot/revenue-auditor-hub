@@ -36,6 +36,7 @@ import type { Filtro } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Metrica, Negocio, Plano } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
+import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
   DIAS_PADRAO,
@@ -887,13 +888,11 @@ function descricaoDaAba(
     case "temporal":
       return `Oportunidades validadas em aberto · dono atual: ${v.responsavel} · ${v.produto} · estoque de hoje; ciclo e cenário no período ${v.periodo} · receita declarada no CRM, não é MRR nem caixa`;
     case "forecast": {
-      const fonte = [...data.forecasts].sort((a, b) =>
-        b.source_date.localeCompare(a.source_date),
-      )[0];
+      const fonte = fonteDoForecast(data);
       const corte = data.measured_at ? date(data.measured_at) : null;
       return [
         "Toda a frente",
-        rotuloMes(v.mesForecast),
+        rotuloMes(fonte ? mesDoForecast(fonte, v.mesForecast) : v.mesForecast),
         fonte
           ? `projetado: planilha ${fonte.version} de ${date(fonte.source_date)}`
           : "sem planilha importada",
