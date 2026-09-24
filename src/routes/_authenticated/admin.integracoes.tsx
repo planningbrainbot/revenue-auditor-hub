@@ -31,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/integracoes")({
@@ -117,7 +117,7 @@ function IntegracoesPage() {
       toast.success(
         input.ativo
           ? `${input.unidade} ativada. Volta aos syncs do Omie na próxima rodada.`
-          : `${input.unidade} desativada. Sai dos syncs do Omie a partir da próxima rodada.`,
+          : `${input.unidade} desativada. Sai dos syncs do Omie a partir da próxima rodada; o sync da base de clientes registra erro para ela a cada rodada até ser reativada.`,
       );
       qc.invalidateQueries({ queryKey: ["omie-credentials"] });
     },
@@ -132,7 +132,9 @@ function IntegracoesPage() {
   const deleteMut = useMutation({
     mutationFn: (alvo: { id: string; unidade: string }) => deleteFn({ data: { id: alvo.id } }),
     onSuccess: (_r, alvo) => {
-      toast.success(`Credencial de ${alvo.unidade} excluída.`);
+      toast.success(
+        `Credencial de ${alvo.unidade} excluída. O sync da base de clientes registra erro para ela a cada rodada até uma credencial nova ser cadastrada.`,
+      );
       setExcluirAlvo(null);
       qc.invalidateQueries({ queryKey: ["omie-credentials"] });
     },
@@ -168,8 +170,10 @@ function IntegracoesPage() {
   const status = statusQuery.data as IntegracaoStatus[] | undefined;
   const creds = credsQuery.data ?? [];
   const ativas = creds.filter((c) => c.ativo).length;
+  // A coluna `unidade` é UNIQUE e diferencia maiúsculas: o upsert só substitui
+  // quando o nome bate caractere a caractere (tirados os espaços das pontas).
   const unidadeExistente = unidade.trim()
-    ? creds.find((c) => c.unidade.trim().toLowerCase() === unidade.trim().toLowerCase())
+    ? creds.find((c) => c.unidade.trim() === unidade.trim())
     : undefined;
 
   function statusIntegracao(i: IntegracaoStatus): { label: string; tom: TomStatus } {
@@ -198,7 +202,8 @@ function IntegracoesPage() {
           {status ? `${status.length} syncs monitorados · ` : ""}
           {credsQuery.data ? `${ativas} de ${creds.length} credenciais Omie ativas · ` : ""}
           Desativar ou excluir a credencial de uma unidade tira essa unidade dos syncs do Omie a
-          partir da próxima rodada. O status se atualiza a cada minuto.
+          partir da próxima rodada, e o sync da base de clientes passa a registrar erro para ela a
+          cada rodada até ser reativada. O status se atualiza a cada minuto.
         </>
       }
     >
@@ -312,6 +317,7 @@ function IntegracoesPage() {
                 Já existe credencial de <strong className="text-foreground">{unidadeExistente.unidade}</strong>:
                 salvar substitui a APP_KEY e o APP_SECRET dela, e o secret anterior não volta. Se o novo
                 estiver errado, o sync dessa unidade para até uma credencial certa ser salva.
+                {!unidadeExistente.ativo && " Ela está inativa: salvar substitui a credencial e a unidade volta a ficar ativa."}
               </p>
             )}
             <div className="sm:col-span-4 flex justify-end">
@@ -363,7 +369,9 @@ function IntegracoesPage() {
                     {c.updated_at ? new Date(c.updated_at).toLocaleString("pt-BR") : "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => toggleMut.mutate({ id: c.id, ativo: !c.ativo, unidade: c.unidade })}
                       disabled={toggleMut.isPending}
                       title={
@@ -371,17 +379,19 @@ function IntegracoesPage() {
                           ? "Tira a unidade dos syncs do Omie a partir da próxima rodada"
                           : "Devolve a unidade aos syncs do Omie na próxima rodada"
                       }
-                      className="mr-2 rounded-full border border-border px-3 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                      className="mr-2"
                     >
                       {c.ativo ? "Desativar" : "Ativar"}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setExcluirAlvo({ id: c.id, unidade: c.unidade, ativo: c.ativo })}
                       disabled={deleteMut.isPending}
-                      className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      className="text-destructive hover:text-destructive"
                     >
                       Excluir
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -397,7 +407,7 @@ function IntegracoesPage() {
             <AlertDialogTitle>Excluir a credencial Omie de {excluirAlvo?.unidade}?</AlertDialogTitle>
             <AlertDialogDescription>
               {excluirAlvo?.ativo
-                ? "A unidade sai dos syncs do Omie (contratos de serviço e base de clientes) a partir da próxima rodada. "
+                ? "A unidade sai dos syncs do Omie (contratos de serviço e base de clientes) a partir da próxima rodada, e o sync da base de clientes registra erro para ela a cada rodada até uma credencial nova ser cadastrada. "
                 : "Ela já está inativa e fora dos syncs. "}
               A APP_KEY e o APP_SECRET são apagados e não voltam: para reativar, é preciso cadastrar a
               unidade de novo. Se a ideia é só pausar, use Desativar.
