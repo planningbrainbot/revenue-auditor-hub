@@ -15,7 +15,8 @@ export type FonteRls =
   | "contratos"
   | "central_tratativas"
   | "royalties_apuracao"
-  | "unidades";
+  | "unidades"
+  | "cs_onboarding_cards";
 
 export const PORTAS: Record<FonteRls, { papeis: string[]; chaves: string[]; nome: string }> = {
   omie_contratos_servico: { papeis: [], chaves: ["view.clientes"], nome: "contratos do Omie" },
@@ -56,6 +57,12 @@ export const PORTAS: Record<FonteRls, { papeis: string[]; chaves: string[]; nome
     chaves: ["view.clientes", "view.base_contatos", "view.disparos_whatsapp"],
     nome: "cadastro de unidades",
   },
+  // Policy lida em 23/09/2026: só `can('view.painel_cs') or can('view.fila_cella')`, sem papel.
+  cs_onboarding_cards: {
+    papeis: [],
+    chaves: ["view.painel_cs", "view.fila_cella"],
+    nome: "fila de onboarding",
+  },
 };
 
 export interface AcessoMin {
@@ -83,6 +90,19 @@ export const FONTES_DEFINICAO: Record<IdDefinicao, FonteRls[]> = {
 
 export const FONTES_COORTES: FonteRls[] = ["contratos", "central_tratativas", "unidades"];
 export const FONTES_REDE: FonteRls[] = ["royalties_apuracao", "unidades"];
+/** Operação: fila de onboarding e a venda que a originou. */
+export const FONTES_OPERACAO: FonteRls[] = ["cs_onboarding_cards", "contratos"];
+/**
+ * Cadeia: venda, cadastro (CNPJ de reserva), onboarding, títulos das unidades e saída registrada.
+ * O elo do faturamento no grupo tem a porta do Financeiro (financeiro-porta.ts).
+ */
+export const FONTES_CADEIA: FonteRls[] = [
+  "contratos",
+  "empresas",
+  "cs_onboarding_cards",
+  "contas_receber",
+  "central_tratativas",
+];
 
 export function faltasDasDefinicoes(a: AcessoMin): Record<IdDefinicao, FonteRls[]> {
   return Object.fromEntries(
