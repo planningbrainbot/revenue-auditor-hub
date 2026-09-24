@@ -32,7 +32,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { Button } from "@/components/ui/button";
@@ -98,8 +97,9 @@ function lerNota(v: string): number | null | "invalida" {
 /**
  * Liberar devolutiva abre a nota para todos os avaliados do ciclo, de uma vez
  * (`liberarDevolutiva` sem `pessoaId`). Irreversível por aqui: confirma com o
- * efeito escrito, e não aparece em ciclo encerrado nem quando já foi liberada
- * para todos.
+ * efeito escrito, e não aparece em ciclo encerrado nem importado do Qulture, nem
+ * quando já foi liberada para todos. Liberar de novo regrava `devolutiva_em` de
+ * todos, inclusive de quem já tinha, e o texto diz isso.
  */
 function LiberarDevolutiva({
   ciclo,
@@ -112,26 +112,40 @@ function LiberarDevolutiva({
   liberar: (cicloId: number) => void;
   pendente: boolean;
 }) {
-  if (ciclo.status === "encerrado") return <span className="text-muted-foreground">{NA}</span>;
+  const [aberto, setAberto] = useState(false);
+  if (ciclo.status === "encerrado" || ciclo.status === "importado")
+    return <span className="text-muted-foreground">{NA}</span>;
   const doCiclo = calibracao.filter((c) => c.cicloId === ciclo.id);
   const liberados = doCiclo.filter((c) => c.devolutivaEm).length;
   if (doCiclo.length > 0 && liberados === doCiclo.length)
     return <StatusBadge tom="sucesso">Liberada</StatusBadge>;
+  const semAvaliados = ciclo.participantes === 0;
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button size="sm" variant="outline" disabled={pendente}>
-          Liberar
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={aberto} onOpenChange={setAberto}>
+      {/* Gatilho controlado: o BotaoComMotivo bloqueia o clique quando
+          desabilitado, e o diálogo só abre pelo onClick dele. */}
+      <BotaoComMotivo
+        size="sm"
+        variant="outline"
+        disabled={pendente || semAvaliados}
+        motivo={[
+          pendente && "Liberando…",
+          semAvaliados && "Nenhum avaliado no ciclo: não há devolutiva para liberar.",
+        ]}
+        onClick={() => setAberto(true)}
+      >
+        {pendente ? "Liberando…" : "Liberar"}
+      </BotaoComMotivo>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Liberar a devolutiva de {ciclo.nome}?</AlertDialogTitle>
           <AlertDialogDescription>
             Todos os {ciclo.participantes} avaliados do ciclo passam a ver a devolutiva: a média das
             avaliações que receberam, por competência.
-            {liberados > 0 ? ` ${liberados} já tinham a devolutiva liberada.` : ""} Não dá para
-            desfazer por aqui.
+            {liberados > 0
+              ? ` ${liberados} já tinham a devolutiva liberada (a data deles passa a ser hoje).`
+              : ""}{" "}
+            Não dá para desfazer por aqui.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -313,6 +327,11 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
   const data = q.data;
   // O ciclo da calibração mora na URL (N7): recarregar ou mandar o link mantém o recorte.
   const [cicloAberto, setCicloAberto] = useFiltroNaUrl("ciclo", "");
+  // Última nota aceita por pessoa e eixo, na sessão: o eixo que não foi editado
+  // sai daqui (e não do cache da linha, que só atualiza depois do refetch).
+  const [notasLocais, setNotasLocais] = useState<
+    Record<string, { notaDesempenho: number | null; notaPotencial: number | null }>
+  >({});
   const [abertos, setAbertos] = useState<Record<number, boolean>>({});
 
   const calibrar = useMutation({
@@ -348,24 +367,54 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
   if (!data.podeVer) return <EstadoSemAcesso oQueFalta="view.gente.avaliacao" />;
 
   // Nota do comitê grava só quando mudou (antes gravava a cada saída do campo).
+  // Nota inválida ou fora da escala do ciclo não grava e repõe o valor anterior.
   const gravarNota = (
     linha: CalibracaoRow,
     eixo: "notaDesempenho" | "notaPotencial",
-    digitado: string,
+    campo: HTMLInputElement,
   ) => {
+    const chave = `${linha.cicloId}-${linha.pessoaId}`;
+    const atual = notasLocais[chave] ?? {
+      notaDesempenho: linha.notaDesempenho,
+      notaPotencial: linha.notaPotencial,
+    };
+    const anterior = atual[eixo];
+    const repor = () => {
+      campo.value = anterior == null ? "" : String(anterior);
+    };
+    const digitado = campo.value;
     const nota = lerNota(digitado);
     if (nota === "invalida") {
       toast.error(`"${digitado}" não é uma nota. Use número, como 3 ou 3,5.`);
+      repor();
       return;
     }
-    if (nota === linha[eixo]) return;
-    calibrar.mutate({
-      cicloId: linha.cicloId,
-      pessoaId: linha.pessoaId,
-      notaDesempenho: eixo === "notaDesempenho" ? nota : linha.notaDesempenho,
-      notaPotencial: eixo === "notaPotencial" ? nota : linha.notaPotencial,
-      caixa: linha.caixa,
-    });
+    const ciclo = data.ciclos.find((c) => c.id === linha.cicloId);
+    if (ciclo && nota != null && (nota < ciclo.escalaMin || nota > ciclo.escalaMax)) {
+      toast.error(
+        `A nota vai de ${ciclo.escalaMin} a ${ciclo.escalaMax} neste ciclo; ${digitado} está fora da escala.`,
+      );
+      repor();
+      return;
+    }
+    if (nota === anterior) return;
+    const novo = { ...atual, [eixo]: nota };
+    setNotasLocais((m) => ({ ...m, [chave]: novo }));
+    calibrar.mutate(
+      {
+        cicloId: linha.cicloId,
+        pessoaId: linha.pessoaId,
+        notaDesempenho: novo.notaDesempenho,
+        notaPotencial: novo.notaPotencial,
+        caixa: linha.caixa,
+      },
+      {
+        onError: () => {
+          setNotasLocais((m) => ({ ...m, [chave]: atual }));
+          repor();
+        },
+      },
+    );
   };
 
   const mostraEu = escopo !== "admin";
@@ -587,7 +636,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
                           inputMode="decimal"
                           aria-label={`Desempenho do comitê para ${linha.pessoaNome ?? "a pessoa"}`}
                           defaultValue={linha.notaDesempenho ?? ""}
-                          onBlur={(e) => gravarNota(linha, "notaDesempenho", e.target.value)}
+                          onBlur={(e) => gravarNota(linha, "notaDesempenho", e.currentTarget)}
                         />
                       </TableCell>
                       <TableCell className="text-right">
@@ -596,7 +645,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
                           inputMode="decimal"
                           aria-label={`Potencial do comitê para ${linha.pessoaNome ?? "a pessoa"}`}
                           defaultValue={linha.notaPotencial ?? ""}
-                          onBlur={(e) => gravarNota(linha, "notaPotencial", e.target.value)}
+                          onBlur={(e) => gravarNota(linha, "notaPotencial", e.currentTarget)}
                         />
                       </TableCell>
                       <TableCell>{linha.caixa ?? NA}</TableCell>

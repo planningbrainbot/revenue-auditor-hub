@@ -316,6 +316,8 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
                     <TableCell>
                       {cadencia ? `${cadencia.intervaloDias} dias` : "sem combinado"}
                     </TableCell>
+                    {/* `v_gente_1a1_atraso.ultimo_em` é `date` (conferido no banco em
+                        24/09): dia de calendário, sem fuso; `fmtData` fixa meio-dia. */}
                     <TableCell>{fmtData(cadencia?.ultimoEm ?? null)}</TableCell>
                     <TableCell>
                       {cadencia?.diasDesde != null ? (
