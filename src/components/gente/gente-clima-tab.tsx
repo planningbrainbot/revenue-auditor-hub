@@ -580,6 +580,17 @@ export function GenteClimaTab() {
                         Não foi possível contar os destinatários agora. O convite vai por e-mail
                         para todas as pessoas ativas com e-mail no cadastro que você enxerga.
                       </p>
+                    ) : totalEnviados > 0 ? (
+                      // Não dá para dizer N − X: os convites já feitos podem ser
+                      // de gente que saiu do recorte (desligada, sem e-mail).
+                      <p>
+                        Vai para quem, entre as{" "}
+                        <strong className="num">{NUM.format(comEmail)}</strong> pessoa(s) ativa(s)
+                        com e-mail no cadastro que você enxerga, ainda não recebeu o convite desta
+                        rodada (<span className="num">{NUM.format(totalEnviados)}</span> já
+                        receberam)
+                        {semEmail ? `; ${NUM.format(semEmail)} sem e-mail ficam de fora` : ""}.
+                      </p>
                     ) : (
                       <p>
                         Vai por e-mail para <strong className="num">{NUM.format(comEmail)}</strong>{" "}
