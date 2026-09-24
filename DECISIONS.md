@@ -2810,3 +2810,78 @@ Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
 qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
 inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
 tem `todas_unidades` lê tudo.
+
+## [2026-09-23] Cockpit do CEO passa a cobrir a empresa inteira, e o faturamento sai da fonte que a tela do Financeiro lê
+
+**Contexto:** o dono corrigiu o escopo. A meta é R$ 1 bi de **faturamento anual da Planning**, não de Monetização nem de valuation, e o cockpit precisa responder pela empresa: Growth, comercial, Ops, unidades, clientes, Financeiro e Monetização. Pediu varredura, PRD, implementação em lotes e validação, sem publicar. Branch `feat/cockpit-ceo-empresa-20260923`, a partir da `main` `b5c44d7`. Diagnóstico, PRD, contratos e homologação estão em `docs/dev_notes/cockpit-ceo-empresa/`.
+
+**Achado que mudou a fonte:**
+- A tela do Brain Financeiro em produção lê o projeto **Financial Brain** (`itpddzjfrgrbathcqbpo`), conferido no bundle, e o cron grava lá.
+- O schema `financeiro` do banco único é uma cópia congelada no corte de 02/09, com função e dados diferentes.
+- A série que o cockpit publicado mostrava ficava de −7,6% a −10,8% abaixo da tela, **inclusive nos meses fechados**. A homologação da rodada 2 comparou o cockpit com a mesma cópia, por isso não pegou a diferença.
+
+**Decisão — o cockpit lê o Financeiro canônico pelo servidor:**
+- Credencial: `getFinanceiroAdmin()`, a mesma que o Ops já usa para emitir a sessão do Financeiro. `FINANCEIRO_SUPABASE_URL` e a service role já existem em Production e Preview do `ops-brain`.
+- Porta, conferida antes de qualquer chamada: produto Financeiro + todas as empresas (`financeiro-porta.ts`).
+- Do servidor só desce agregado.
+- Enquanto o Financeiro não migrar de fato para o banco único, esta é a fonte.
+
+**Decisão — ponte de faturamento por cliente:**
+- Cada cliente cai num só movimento: novo, retorno, expansão, contração ou sem faturamento no mês. A linha sem cliente é parcela própria.
+- A ponte fecha em centavos. Cada mês confere sozinho com a série da função; soma que não fecha não é mostrada.
+- "Novo" quer dizer sem faturamento desde jan/2026, o começo do histórico.
+- Unidade nova, monetização e aquisições ficam **não modeladas** até existir vínculo de receita por cliente.
+- MRR vendido não entra na ponte.
+
+**Decisão — motores cada um na sua régua, nunca somados:**
+- Inside Sales: série e plano do Growth.
+- Base existente e clientes novos: ponte.
+- Unidades: `growth.dist_metas`.
+- Monetização: indicador existente.
+- **Sócios** fica sem série: os 203 contratos foram importados em lotes (15/06, 10/08 e 10/09), e a data de ganho não marca a venda.
+- Aquisições: não modelado.
+
+**Decisão — forecast vigente em camadas, sem inventar probabilidade:**
+- Forecast do mês do Inside Sales: o próprio `growth.mes_corrente` (ritmo e pipeline), sem recálculo.
+- Pipeline aberto não ponderado. Medido: **nenhum dos 861 negócios abertos tem data de fechamento esperada**.
+- Forecast v10 da Monetização como recorte, marcado como valor assinado.
+- Previsão empresarial de faturamento é lacuna (CFO + RevOps).
+
+**Decisão — onboarding como sinal de capacidade:**
+- Faixas de 30 e 60 dias na fase são de **leitura, não SLA**: nenhum prazo foi decidido. A decisão "definir o prazo de onboarding" entra entre as três do CEO.
+- O card liga à venda pelo último ganho da empresa até a criação do card. O primeiro ganho media outra coisa (202 dias).
+
+**Decisão — cadeia venda → ativação → faturamento → recebimento → saída, só por chave:**
+- CNPJ do contrato e, na falta, o da empresa.
+- A venda do Inside Sales é faturada pelo **Omie da unidade** (`ops.contas_receber`, com máscara no CNPJ). Nenhuma venda da safra aparece nas notas do grupo.
+- O grupo entra por CNPJ → contraparte do Omie → nome normalizado único. `fn_norm_contraparte` foi portada e conferida: 7.067 de 7.067 nomes.
+
+**Decisão — nove frentes na lateral**, com as chaves antigas preservadas e três novas (`operacao`, `portfolio`, `caixa`). O Jev ficou com as **seis frentes avaliadas** (`FRENTES_JEV`): a taxonomia muda só com nova avaliação.
+
+**Decisão — registro único de perguntas** (`perguntas.ts`), que alimenta tela, CSV e `atualizacao-para-artifact.md`:
+- ids preservados;
+- 8 pilares do artifact (principal e apoios);
+- origem (mapa, PRD ou desdobramento);
+- papel de Growth e Ops;
+- estados separados de dado, implementação, homologação, adoção e decisão.
+
+**Homologação** (somente leitura; `scripts/cockpit-ceo/homologar-empresa.mjs`): 10 de 10 conferências com SQL independente.
+- Números de 23/09:
+  - faturamento jan–ago/2026: média de R$ 6,58 mi/mês (12,7× abaixo de R$ 83,3 mi);
+  - margem bruta de 44,4% no ano;
+  - R$ 4,98 mi vencidos;
+  - 71 onboardings há mais de 30 dias;
+  - cadeia: 139 ganhos → 27 com onboarding → 11 faturados na unidade → 4 pagos. **96 contratos sem CNPJ.**
+- Testes: 209/209. `tsc` com os 7 erros preexistentes.
+- `design:lint:changed`: 0 no escopo. A catraca global reprova por V4 em `idu-*.tsx`, que já estava na `main` e não foi mexido.
+
+**Achados operacionais (não corrigidos aqui):**
+1. Os crons do Financeiro (`pedroluca-prog/brain-financeiro-planning`) não rodam desde 21/09: "recent account payments have failed or your spending limit needs to be increased". Sem carga desde 20/09.
+2. `supabase/config.toml` ainda aponta para o Ops antigo (`ulgiochewwpmmssksqlw`).
+
+**Propostas de segurança** (em `supabase/proposals/`, com rollback; **não aplicadas**, decisão do Eliezek e do dono do Financeiro):
+- revogar EXECUTE das 115 funções da cópia `financeiro` do banco único para `authenticated`/`anon`. O app não as chama mais; o sócio regional simulado recebe hoje 8 meses de faturamento;
+- `security_invoker` em `ops.qb_clientes_ativos` (1.237 pela view contra 305 pela RLS), com a lista de views dependentes.
+- Verificador: `scripts/cockpit-ceo/verificar-financeiro-execute.mjs`.
+
+**Status:** local e em PR de revisão. **Não publicado.** Falta o "contrato ok" formal da revisão do contrato de tela.

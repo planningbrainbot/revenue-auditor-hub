@@ -5,7 +5,8 @@ import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/planning";
 import { Panel } from "@/components/monetizacao/common";
-import { FRENTES, ORDEM_FRENTES } from "@/lib/cockpit-ceo/contrato";
+import { FRENTES } from "@/lib/cockpit-ceo/contrato";
+import { FRENTES_JEV } from "@/lib/cockpit-ceo/jev/contrato";
 import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import { rotearPerguntaCeo, statusJevCockpit } from "@/lib/cockpit-ceo/jev.functions";
 import { IDS_PERGUNTAS_CEO, PERGUNTAS_CEO_FICTICIAS } from "@/lib/cockpit-ceo/jev/contrato";
@@ -18,7 +19,7 @@ import type { IdPerguntaCeo, RespostaJev } from "@/lib/cockpit-ceo/jev/contrato"
 // fornecedor aparece como falha — sem resultado de reserva.
 
 const ROTULO_OPCAO: Record<string, string> = {
-  ...Object.fromEntries(ORDEM_FRENTES.map((f) => [f, FRENTES[f].titulo])),
+  ...Object.fromEntries(Object.keys(FRENTES_JEV).map((f) => [f, FRENTES[f as Frente].titulo])),
   fora_de_escopo: "Fora do escopo do cockpit",
   insuficiente: "Pergunta vaga demais",
 };
@@ -47,7 +48,7 @@ export function JevRoteador({ irParaFrente }: { irParaFrente: (f: Frente) => voi
     r?.estado === "ok" ? (r.respostas.frente as Extract<RespostaJev, { type: "choice" }>) : null;
   const pedeDado =
     r?.estado === "ok" ? (r.respostas.pede_dado as Extract<RespostaJev, { type: "noul" }>) : null;
-  const escolhaEhFrente = !!frente && (ORDEM_FRENTES as string[]).includes(frente.choice);
+  const escolhaEhFrente = !!frente && Object.keys(FRENTES_JEV).includes(frente.choice);
   const confiancaBaixa = frente?.confidence != null && frente.confidence < CONFIANCA_MINIMA;
   const orcamento = st.data?.orcamento;
 

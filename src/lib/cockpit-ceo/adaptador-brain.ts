@@ -11,6 +11,7 @@ import type { FonteCockpit } from "./indicadores.ts";
 import type { LeituraReceita } from "./receita.ts";
 import type { DefinicaoCliente } from "./clientes-ativos.ts";
 import type { RespostaRetencao } from "./coortes.ts";
+import type { Frescor, Ponte } from "./financeiro.ts";
 
 export function mensagemDeErro(
   erro: unknown,
@@ -27,7 +28,7 @@ export function mensagemDeErro(
  * estado de acesso; aqui só se decide se a chamada inteira respondeu.
  */
 export function receitaDaCarga(q: {
-  data?: { leituras: LeituraReceita[] };
+  data?: { leituras: LeituraReceita[]; ponte?: Ponte | null; frescorFinanceiro?: Frescor | null };
   error?: unknown;
   isLoading: boolean;
 }): NonNullable<FonteCockpit["receita"]> {
@@ -38,7 +39,26 @@ export function receitaDaCarga(q: {
       leituras: [],
     };
   if (q.isLoading || !q.data) return { estado: "carregando", erro: null, leituras: [] };
-  return { estado: "ok", erro: null, leituras: q.data.leituras };
+  return {
+    estado: "ok",
+    erro: null,
+    leituras: q.data.leituras,
+    ponte: q.data.ponte ?? null,
+    frescorFinanceiro: q.data.frescorFinanceiro ?? null,
+  };
+}
+
+/**
+ * Estado de uma leitura da empresa inteira (caixa, aquisição, operação). Cada resposta já traz o
+ * próprio estado de acesso por parte; aqui só se decide se a chamada respondeu.
+ */
+export function cargaDaEmpresa<T>(
+  q: { data?: T; error?: unknown; isLoading: boolean },
+  padrao: string,
+): { estado: "ok" | "erro" | "carregando"; erro: string | null; resposta: T | null } {
+  if (q.error) return { estado: "erro", erro: mensagemDeErro(q.error, padrao), resposta: null };
+  if (q.isLoading || !q.data) return { estado: "carregando", erro: null, resposta: null };
+  return { estado: "ok", erro: null, resposta: q.data };
 }
 
 export interface AcessoCockpit {

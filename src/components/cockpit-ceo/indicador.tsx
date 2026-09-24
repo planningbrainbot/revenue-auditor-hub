@@ -16,8 +16,12 @@ const ESTADO_KPI: Record<Estado, NonNullable<KpiCardProps["estado"]>> = {
   acesso_insuficiente: "sem-acesso",
 };
 
-const ehAnterior = (c: Comparacao) => c.rotulo.startsWith("Período anterior");
-const ehMeta = (c: Comparacao) => c.rotulo.startsWith("Ritmo esperado da meta");
+// Base da variação: o período anterior de mesma duração (eventos) ou o mês anterior (faturamento).
+const ehAnterior = (c: Comparacao) =>
+  c.rotulo.startsWith("Período anterior") || c.rotulo.startsWith("Mês anterior");
+// Meta ao lado do valor (N13): o ritmo do plano da Monetização ou o plano do Growth.
+const ehMeta = (c: Comparacao) =>
+  c.rotulo.startsWith("Ritmo esperado da meta") || c.rotulo.startsWith("Plano do Growth");
 
 const curto = (c: Comparacao, i: Indicador) =>
   `${c.rotulo.replace("Ritmo esperado da", "Ritmo da")} ${valorCurto(c.referencia, i.unidade)}`;
@@ -38,7 +42,9 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
     anterior && anteriorInteiro && i.valor !== null && anterior.referencia
       ? {
           valor: ((i.valor - anterior.referencia) / anterior.referencia) * 100,
-          rotulo: "vs período anterior",
+          rotulo: anterior.rotulo.startsWith("Mês anterior")
+            ? "vs mês anterior"
+            : "vs período anterior",
         }
       : undefined;
 
@@ -71,7 +77,7 @@ export function cartaoDoIndicador(i: Indicador, onAbrir: () => void): KpiCardPro
     meta: meta
       ? {
           valor: valorCurto(meta.referencia, i.unidade),
-          rotulo: "ritmo da meta",
+          rotulo: meta.rotulo.startsWith("Plano") ? "plano" : "ritmo da meta",
           progresso: i.valor !== null && meta.referencia ? i.valor / meta.referencia : undefined,
         }
       : metaAnual && i.valor !== null

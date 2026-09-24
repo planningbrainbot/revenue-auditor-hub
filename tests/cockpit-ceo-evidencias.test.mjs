@@ -18,7 +18,7 @@ test("Matriz de evidências: uma linha por pergunta, com cobertura, fonte, estad
   assert.equal(linhas.length, PERGUNTAS.length + 1);
   assert.match(
     linhas[0],
-    /^pergunta;frente;texto;cobertura;fonte;responsavel;pendencia;exigencia_mapa;indicadores;paineis;dados;gerado_em$/,
+    /^pergunta;frente;texto;origem;exigencia_mapa;pilar;apoios;roadmap;cobertura;estado_dado;implementacao;homologacao;adocao;decisao_pendente;resposta_atual;fonte;responsavel;papel_growth;papel_ops;pendencia;indicadores;paineis;dados;gerado_em$/,
   );
   const r1 = linhas.find((l) => l.startsWith("R1;"));
   assert.match(r1, /meta-bilhao=Não apurado/);
@@ -27,6 +27,10 @@ test("Matriz de evidências: uma linha por pergunta, com cobertura, fonte, estad
   const t1 = linhas.find((l) => l.startsWith("T1;"));
   assert.match(t1, /coortes=/);
   assert.doesNotMatch(csv, /\d{14}/, "nenhum CNPJ");
+  assert.doesNotMatch(csv, /Cliente Sintético/, "nenhum nome de cliente");
+  const r6 = linhas.find((l) => l.startsWith("R6;"));
+  assert.match(r6, /ponte: \d+ meses, todos fecham/);
+  assert.match(r6, /Desdobramento|desdobramento/);
 });
 
 test("Campo com ponto e vírgula, aspas ou quebra de linha sai entre aspas", () => {

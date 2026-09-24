@@ -1,0 +1,981 @@
+{
+  "lidoEm": "2026-09-24T00:41:01.774Z",
+  "hoje": "2026-09-23",
+  "conferencias": {
+    "ponte TS × SQL (parcelas e clientes)": {
+      "ok": true,
+      "meses": 7,
+      "diferencas": []
+    },
+    "ponte fecha com a série da fonte em todos os meses": {
+      "ok": true,
+      "naoFecham": []
+    },
+    "margem por grupo TS × SQL": {
+      "ok": true,
+      "grupos": 10,
+      "diferencas": []
+    },
+    "inadimplência: faixas somam o vencido": {
+      "ok": true,
+      "atrasado": 4983455.2,
+      "somaFaixas": 4983455.2,
+      "sincronizadoEm": "2026-09-19T18:50:30.979861+00:00"
+    },
+    "Growth: série mensal × ganhos contados em growth.deals": {
+      "ok": true,
+      "diferencas": []
+    },
+    "pipeline aberto TS × SQL": {
+      "ok": true,
+      "negocios": 861,
+      "mrr": 1411847.24,
+      "semData": {
+        "negocios": 861,
+        "mrr": 1411847.24
+      },
+      "vencidos": {
+        "negocios": 0,
+        "mrr": 0
+      }
+    },
+    "onboarding TS × SQL": {
+      "ok": true,
+      "ts": {
+        "emCurso": 147,
+        "p30": 71,
+        "p60": 22,
+        "concluidos": 36
+      },
+      "sql": {
+        "em_curso": 147,
+        "p30": 71,
+        "p60": 22,
+        "concluidos": 36
+      }
+    },
+    "onboarding: mediana do ganho à conclusão TS × SQL": {
+      "ok": true,
+      "ts": {
+        "mediana": 202,
+        "casos": 25,
+        "semVinculo": 11
+      },
+      "sql": {
+        "casos": 25,
+        "mediana": 202
+      }
+    },
+    "cadeia TS × SQL (venda, ativação, título e pagamento na unidade, saída)": {
+      "ok": true,
+      "ts": {
+        "vendas": 139,
+        "iniciada": 27,
+        "concluida": 0,
+        "naUnidade": 11,
+        "recebidas": 4,
+        "saidas": 0
+      },
+      "sql": {
+        "vendas": 139,
+        "iniciada": 27,
+        "concluida": 0,
+        "saidas": 0,
+        "na_unidade": 11,
+        "recebidas": 4
+      }
+    },
+    "porta abre ⇒ RLS entrega a tabela inteira": {
+      "ok": true,
+      "divergencias": [],
+      "totais": {
+        "midia": 17019,
+        "onboarding": 198
+      }
+    }
+  },
+  "financeiro": {
+    "serie": [
+      {
+        "mes": "2026-01",
+        "valor": 6759176.73,
+        "parcial": false
+      },
+      {
+        "mes": "2026-02",
+        "valor": 5993942.53,
+        "parcial": false
+      },
+      {
+        "mes": "2026-03",
+        "valor": 6643317.49,
+        "parcial": false
+      },
+      {
+        "mes": "2026-04",
+        "valor": 6669305.22,
+        "parcial": false
+      },
+      {
+        "mes": "2026-05",
+        "valor": 5470409.03,
+        "parcial": false
+      },
+      {
+        "mes": "2026-06",
+        "valor": 7024511.19,
+        "parcial": false
+      },
+      {
+        "mes": "2026-07",
+        "valor": 6595985.43,
+        "parcial": false
+      },
+      {
+        "mes": "2026-08",
+        "valor": 7455047.01,
+        "parcial": false
+      },
+      {
+        "mes": "2026-09",
+        "valor": 6539297.7,
+        "parcial": true
+      }
+    ],
+    "fechados": [
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08"
+    ],
+    "ponte": [
+      {
+        "mes": "2026-02",
+        "anterior": 6759176.73,
+        "atual": 5993942.53,
+        "novos": {
+          "clientes": 49,
+          "valor": 549869.33
+        },
+        "retornos": {
+          "clientes": 0,
+          "valor": 0
+        },
+        "expansao": {
+          "clientes": 62,
+          "valor": 160533.4
+        },
+        "contracao": {
+          "clientes": 78,
+          "valor": -613389.07
+        },
+        "semFaturamento": {
+          "clientes": 84,
+          "valor": -866809.86
+        },
+        "estaveis": 599,
+        "semCliente": 4562,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 788
+      },
+      {
+        "mes": "2026-03",
+        "anterior": 5993942.53,
+        "atual": 6643317.49,
+        "novos": {
+          "clientes": 81,
+          "valor": 769010
+        },
+        "retornos": {
+          "clientes": 3,
+          "valor": 149336.94
+        },
+        "expansao": {
+          "clientes": 56,
+          "valor": 501332.82
+        },
+        "contracao": {
+          "clientes": 77,
+          "valor": -265869.61
+        },
+        "semFaturamento": {
+          "clientes": 81,
+          "valor": -531569.58
+        },
+        "estaveis": 574,
+        "semCliente": 27134.39,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 791
+      },
+      {
+        "mes": "2026-04",
+        "anterior": 6643317.49,
+        "atual": 6669305.22,
+        "novos": {
+          "clientes": 38,
+          "valor": 469188.53
+        },
+        "retornos": {
+          "clientes": 15,
+          "valor": 92704.37
+        },
+        "expansao": {
+          "clientes": 99,
+          "valor": 629170.46
+        },
+        "contracao": {
+          "clientes": 66,
+          "valor": -391807.96
+        },
+        "semFaturamento": {
+          "clientes": 43,
+          "valor": -773267.67
+        },
+        "estaveis": 583,
+        "semCliente": 0,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 801
+      },
+      {
+        "mes": "2026-05",
+        "anterior": 6669305.22,
+        "atual": 5470409.03,
+        "novos": {
+          "clientes": 46,
+          "valor": 236342.12
+        },
+        "retornos": {
+          "clientes": 7,
+          "valor": 45224.48
+        },
+        "expansao": {
+          "clientes": 65,
+          "valor": 117813.42
+        },
+        "contracao": {
+          "clientes": 96,
+          "valor": -733219.72
+        },
+        "semFaturamento": {
+          "clientes": 80,
+          "valor": -865056.49
+        },
+        "estaveis": 560,
+        "semCliente": 0,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 774
+      },
+      {
+        "mes": "2026-06",
+        "anterior": 5470409.03,
+        "atual": 7024511.19,
+        "novos": {
+          "clientes": 85,
+          "valor": 360179.96
+        },
+        "retornos": {
+          "clientes": 68,
+          "valor": 1086393.08
+        },
+        "expansao": {
+          "clientes": 97,
+          "valor": 575573.85
+        },
+        "contracao": {
+          "clientes": 62,
+          "valor": -212280.46
+        },
+        "semFaturamento": {
+          "clientes": 65,
+          "valor": -255764.27
+        },
+        "estaveis": 550,
+        "semCliente": 0,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 862
+      },
+      {
+        "mes": "2026-07",
+        "anterior": 7024511.19,
+        "atual": 6595985.43,
+        "novos": {
+          "clientes": 66,
+          "valor": 412475.87
+        },
+        "retornos": {
+          "clientes": 5,
+          "valor": 391680.77
+        },
+        "expansao": {
+          "clientes": 67,
+          "valor": 229848.18
+        },
+        "contracao": {
+          "clientes": 133,
+          "valor": -814197.81
+        },
+        "semFaturamento": {
+          "clientes": 110,
+          "valor": -648332.77
+        },
+        "estaveis": 552,
+        "semCliente": 0,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 823
+      },
+      {
+        "mes": "2026-08",
+        "anterior": 6595985.43,
+        "atual": 7455047.01,
+        "novos": {
+          "clientes": 64,
+          "valor": 220384.29
+        },
+        "retornos": {
+          "clientes": 19,
+          "valor": 73649.21
+        },
+        "expansao": {
+          "clientes": 105,
+          "valor": 1563895.68
+        },
+        "contracao": {
+          "clientes": 83,
+          "valor": -594750.14
+        },
+        "semFaturamento": {
+          "clientes": 47,
+          "valor": -404117.46
+        },
+        "estaveis": 588,
+        "semCliente": 0,
+        "fecha": true,
+        "diferencaFonte": 0,
+        "clientesNoMes": 859
+      }
+    ],
+    "copiaCongelada": [
+      {
+        "mes": "2026-01",
+        "copia": 6028585.58,
+        "canonico": 6759176.73,
+        "diferencaPct": -10.8
+      },
+      {
+        "mes": "2026-02",
+        "copia": 5421692.98,
+        "canonico": 5993942.53,
+        "diferencaPct": -9.5
+      },
+      {
+        "mes": "2026-03",
+        "copia": 5990308.92,
+        "canonico": 6643317.49,
+        "diferencaPct": -9.8
+      },
+      {
+        "mes": "2026-04",
+        "copia": 6078586,
+        "canonico": 6669305.22,
+        "diferencaPct": -8.9
+      },
+      {
+        "mes": "2026-05",
+        "copia": 4971696.19,
+        "canonico": 5470409.03,
+        "diferencaPct": -9.1
+      },
+      {
+        "mes": "2026-06",
+        "copia": 6370699.8,
+        "canonico": 7024511.19,
+        "diferencaPct": -9.3
+      },
+      {
+        "mes": "2026-07",
+        "copia": 5982224.16,
+        "canonico": 6595985.43,
+        "diferencaPct": -9.3
+      },
+      {
+        "mes": "2026-08",
+        "copia": 6890014.46,
+        "canonico": 7455047.01,
+        "diferencaPct": -7.6
+      }
+    ],
+    "frescor": {
+      "carregado": "2026-09-20 13:59:44.788529+00",
+      "cobre": "2026-09-18"
+    }
+  },
+  "caixa": {
+    "receitaBruta": 58811813.35,
+    "lucroBruto": 26090461.5,
+    "margem": 0.443626,
+    "porGrupo": [
+      {
+        "grupo": "BPO",
+        "receitaBruta": 29608505.16,
+        "lucroBruto": 11115467.35,
+        "resultado": 2504136.43,
+        "empresas": 4
+      },
+      {
+        "grupo": "PAT",
+        "receitaBruta": 10528320.18,
+        "lucroBruto": 6213910.81,
+        "resultado": 3396457.96,
+        "empresas": 2
+      },
+      {
+        "grupo": "EXPANSÃO",
+        "receitaBruta": 7930471,
+        "lucroBruto": 4513165.67,
+        "resultado": 2070811.67,
+        "empresas": 2
+      },
+      {
+        "grupo": "MAROX",
+        "receitaBruta": 6813767.28,
+        "lucroBruto": 3154244.69,
+        "resultado": 967125.4,
+        "empresas": 2
+      },
+      {
+        "grupo": "SP",
+        "receitaBruta": 1758862.18,
+        "lucroBruto": 624868.98,
+        "resultado": 151575.16,
+        "empresas": 1
+      },
+      {
+        "grupo": "DOC",
+        "receitaBruta": 840509.04,
+        "lucroBruto": 272256.95,
+        "resultado": 433896.97,
+        "empresas": 1
+      },
+      {
+        "grupo": "PIS",
+        "receitaBruta": 645722.03,
+        "lucroBruto": 289891.88,
+        "resultado": -181931.53,
+        "empresas": 1
+      },
+      {
+        "grupo": "AGRO",
+        "receitaBruta": 485768.78,
+        "lucroBruto": -7214.39,
+        "resultado": -242970.29,
+        "empresas": 1
+      },
+      {
+        "grupo": "ROIT",
+        "receitaBruta": 193652.7,
+        "lucroBruto": -91467.67,
+        "resultado": -176361.14,
+        "empresas": 1
+      },
+      {
+        "grupo": "NEO",
+        "receitaBruta": 6235,
+        "lucroBruto": 5337.23,
+        "resultado": 7680.63,
+        "empresas": 1
+      }
+    ],
+    "caixaLivre": {
+      "valor": 1897337.79,
+      "mesReferencia": "2026-08",
+      "semDado": false,
+      "defasado": false,
+      "empresasSemSaldo": [
+        "AGRO",
+        "NEO",
+        "PARTNERS"
+      ],
+      "definicao": "Caixa livre = SALDO BANCÁRIO. Decisão do dono em 2026-08-26, sobre o pedido da Ana Laura (\"Caixa livre do final do périodo\"). NÃO é o \"saldo + recebíveis − compromissos\" do mockup cockpitv2.html."
+    },
+    "inadimplencia": {
+      "emAberto": 11835146.97,
+      "atrasado": 4983455.2,
+      "titulos": 801,
+      "faixas": [
+        {
+          "faixa": "1 a 30 dias",
+          "valor": 1710176.45,
+          "titulos": 220
+        },
+        {
+          "faixa": "31 a 60 dias",
+          "valor": 475856.96,
+          "titulos": 104
+        },
+        {
+          "faixa": "61 a 90 dias",
+          "valor": 279728.24,
+          "titulos": 61
+        },
+        {
+          "faixa": "91 a 180 dias",
+          "valor": 663429.68,
+          "titulos": 148
+        },
+        {
+          "faixa": "181 a 365 dias",
+          "valor": 798536.44,
+          "titulos": 174
+        },
+        {
+          "faixa": "mais de 365 dias",
+          "valor": 1055727.43,
+          "titulos": 94
+        }
+      ],
+      "semSync": [
+        "AGRO",
+        "NEO"
+      ]
+    }
+  },
+  "aquisicao": {
+    "meses": [
+      {
+        "mes": "2025-08",
+        "investimento": 105621.6811,
+        "leads": 979,
+        "mql": 334,
+        "vendas": 10,
+        "mrrNovo": 71108.08,
+        "custoMidiaPorVenda": 10562.17,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2025-09",
+        "investimento": 109638.5093,
+        "leads": 1166,
+        "mql": 382,
+        "vendas": 19,
+        "mrrNovo": 110389.91,
+        "custoMidiaPorVenda": 5770.45,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2025-10",
+        "investimento": 183621.0364,
+        "leads": 1880,
+        "mql": 544,
+        "vendas": 17,
+        "mrrNovo": 117470.34,
+        "custoMidiaPorVenda": 10801.24,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2025-11",
+        "investimento": 183130.732,
+        "leads": 1313,
+        "mql": 419,
+        "vendas": 20,
+        "mrrNovo": 160844.49,
+        "custoMidiaPorVenda": 9156.54,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2025-12",
+        "investimento": 146695.7097,
+        "leads": 1392,
+        "mql": 556,
+        "vendas": 19,
+        "mrrNovo": 126395.08,
+        "custoMidiaPorVenda": 7720.83,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-01",
+        "investimento": 166569.1851,
+        "leads": 1741,
+        "mql": 496,
+        "vendas": 18,
+        "mrrNovo": 151663.93,
+        "custoMidiaPorVenda": 9253.84,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-02",
+        "investimento": 171748.5639,
+        "leads": 1410,
+        "mql": 422,
+        "vendas": 30,
+        "mrrNovo": 131414.4,
+        "custoMidiaPorVenda": 5724.95,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-03",
+        "investimento": 183917.6777,
+        "leads": 1896,
+        "mql": 643,
+        "vendas": 20,
+        "mrrNovo": 137169.32,
+        "custoMidiaPorVenda": 9195.88,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-04",
+        "investimento": 224858.2944,
+        "leads": 2045,
+        "mql": 692,
+        "vendas": 15,
+        "mrrNovo": 114007.96,
+        "custoMidiaPorVenda": 14990.55,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-05",
+        "investimento": 265899.3735,
+        "leads": 2360,
+        "mql": 744,
+        "vendas": 23,
+        "mrrNovo": 171176.47,
+        "custoMidiaPorVenda": 11560.84,
+        "plano": null,
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-06",
+        "investimento": 219346.4636,
+        "leads": 1922,
+        "mql": 791,
+        "vendas": 40,
+        "mrrNovo": 223166.68,
+        "custoMidiaPorVenda": 5483.66,
+        "plano": {
+          "investimento": null,
+          "mql": null,
+          "vendas": null,
+          "mrrNovo": 244800
+        },
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-07",
+        "investimento": 228719.6418,
+        "leads": 1740,
+        "mql": 762,
+        "vendas": 48,
+        "mrrNovo": 215703.16,
+        "custoMidiaPorVenda": 4764.99,
+        "plano": {
+          "investimento": 220000,
+          "mql": 733,
+          "vendas": 33,
+          "mrrNovo": 220000
+        },
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-08",
+        "investimento": 256102.4806,
+        "leads": 2547,
+        "mql": 1112,
+        "vendas": 56,
+        "mrrNovo": 267178.49,
+        "custoMidiaPorVenda": 4573.26,
+        "plano": {
+          "investimento": 250000,
+          "mql": 833,
+          "vendas": 46,
+          "mrrNovo": 230000
+        },
+        "emAndamento": false
+      },
+      {
+        "mes": "2026-09",
+        "investimento": 237318.6283,
+        "leads": 2265,
+        "mql": 908,
+        "vendas": 55,
+        "mrrNovo": 284247.1,
+        "custoMidiaPorVenda": 4314.88,
+        "plano": {
+          "investimento": 300000,
+          "mql": 1250,
+          "vendas": 68,
+          "mrrNovo": 340300
+        },
+        "emAndamento": true
+      }
+    ],
+    "pipeline": {
+      "negocios": 861,
+      "mrr": 1411847.24,
+      "semData": {
+        "negocios": 861,
+        "mrr": 1411847.24
+      },
+      "vencidos": {
+        "negocios": 0,
+        "mrr": 0
+      },
+      "porMes": []
+    },
+    "unidadesPorTrimestre": [
+      [
+        "2026-T1",
+        {
+          "unidades": 6,
+          "meta": 420000,
+          "vendido": 0
+        }
+      ],
+      [
+        "2026-T2",
+        {
+          "unidades": 10,
+          "meta": 540000,
+          "vendido": 0
+        }
+      ],
+      [
+        "2026-T3",
+        {
+          "unidades": 13,
+          "meta": 550000,
+          "vendido": 748137.91
+        }
+      ],
+      [
+        "2026-T4",
+        {
+          "unidades": 13,
+          "meta": 600000,
+          "vendido": 0
+        }
+      ]
+    ]
+  },
+  "onboarding": {
+    "desde": "2026-07-16",
+    "total": 198,
+    "emCurso": 147,
+    "concluidos": 36,
+    "churnNoOnboarding": 15,
+    "parados30": 71,
+    "parados60": 22,
+    "fases": [
+      {
+        "fase": "Pré Kickoff [ops + cs]",
+        "ordem": 4,
+        "cards": 7,
+        "idadeMediana": 5,
+        "acima30": 0,
+        "acima60": 0
+      },
+      {
+        "fase": "Setup técnico",
+        "ordem": 6,
+        "cards": 77,
+        "idadeMediana": 56,
+        "acima30": 54,
+        "acima60": 16
+      },
+      {
+        "fase": "Check-out Onboarding",
+        "ordem": 7,
+        "cards": 5,
+        "idadeMediana": 2,
+        "acima30": 2,
+        "acima60": 0
+      },
+      {
+        "fase": "Concluído",
+        "ordem": 8,
+        "cards": 36,
+        "idadeMediana": 56,
+        "acima30": 27,
+        "acima60": 0
+      },
+      {
+        "fase": "Nova Onboarding",
+        "ordem": 999,
+        "cards": 48,
+        "idadeMediana": 30,
+        "acima30": 12,
+        "acima60": 5
+      },
+      {
+        "fase": "Churn no Onboarding",
+        "ordem": 999,
+        "cards": 15,
+        "idadeMediana": 56,
+        "acima30": 13,
+        "acima60": 3
+      },
+      {
+        "fase": "Clientes Curitiba",
+        "ordem": 999,
+        "cards": 4,
+        "idadeMediana": 7,
+        "acima30": 1,
+        "acima60": 1
+      },
+      {
+        "fase": "Boas-vindas [CS + Cliente]",
+        "ordem": 999,
+        "cards": 3,
+        "idadeMediana": 36,
+        "acima30": 2,
+        "acima60": 0
+      },
+      {
+        "fase": "Pesquisa de Esforço (CES)",
+        "ordem": 999,
+        "cards": 3,
+        "idadeMediana": 0,
+        "acima30": 0,
+        "acima60": 0
+      }
+    ],
+    "concluidosNoPeriodo": 10,
+    "ganhoAteConclusao": {
+      "mediana": 202,
+      "casos": 25,
+      "semVinculo": 11
+    },
+    "criacaoAteConclusao": {
+      "mediana": 27,
+      "casos": 36
+    },
+    "semEmpresa": 87
+  },
+  "cadeia": {
+    "safra": {
+      "de": "2026-07-17",
+      "ate": "2026-09-22"
+    },
+    "vendas": 139,
+    "semEmpresa": 16,
+    "semCnpj": 96,
+    "ativacaoIniciada": 27,
+    "ativacaoConcluida": 0,
+    "faturadas": 11,
+    "faturadasNoGrupo": 0,
+    "faturadasNaUnidade": 11,
+    "recebidasNaUnidade": 4,
+    "faturamentoAmbiguo": 0,
+    "semContraparte": 32,
+    "saidas": 0
+  },
+  "permissoes": [
+    {
+      "perfil": "super admin",
+      "financeiro": true,
+      "todas_empresas": true,
+      "todas_unidades": true,
+      "growth": true,
+      "membro_growth": true,
+      "painel_cs": true,
+      "fila_cella": true,
+      "midia_visivel": 17019,
+      "onboarding_visivel": 198,
+      "portas": {
+        "financeiro": "abre",
+        "growth": "abre",
+        "onboarding": "abre"
+      }
+    },
+    {
+      "perfil": "financeiro (rede toda)",
+      "financeiro": true,
+      "todas_empresas": true,
+      "todas_unidades": true,
+      "growth": false,
+      "membro_growth": false,
+      "painel_cs": false,
+      "fila_cella": false,
+      "midia_visivel": 0,
+      "onboarding_visivel": 0,
+      "portas": {
+        "financeiro": "abre",
+        "growth": "acesso insuficiente",
+        "onboarding": "acesso insuficiente"
+      }
+    },
+    {
+      "perfil": "cs (rede toda)",
+      "financeiro": false,
+      "todas_empresas": true,
+      "todas_unidades": true,
+      "growth": true,
+      "membro_growth": true,
+      "painel_cs": true,
+      "fila_cella": false,
+      "midia_visivel": 17019,
+      "onboarding_visivel": 198,
+      "portas": {
+        "financeiro": "acesso insuficiente",
+        "growth": "abre",
+        "onboarding": "abre"
+      }
+    },
+    {
+      "perfil": "sócio regional",
+      "financeiro": false,
+      "todas_empresas": true,
+      "todas_unidades": false,
+      "growth": false,
+      "membro_growth": false,
+      "painel_cs": true,
+      "fila_cella": false,
+      "midia_visivel": 0,
+      "onboarding_visivel": 48,
+      "portas": {
+        "financeiro": "acesso insuficiente",
+        "growth": "acesso insuficiente",
+        "onboarding": "acesso insuficiente"
+      }
+    },
+    {
+      "perfil": "conta sem papel",
+      "financeiro": false,
+      "todas_empresas": false,
+      "todas_unidades": false,
+      "growth": true,
+      "membro_growth": true,
+      "painel_cs": false,
+      "fila_cella": false,
+      "midia_visivel": 17019,
+      "onboarding_visivel": 0,
+      "portas": {
+        "financeiro": "acesso insuficiente",
+        "growth": "abre",
+        "onboarding": "acesso insuficiente"
+      }
+    }
+  ],
+  "tempos": {
+    "fn_faturamento_mensal (sem limite)": 9271,
+    "fn_cockpit_indicadores": 3397,
+    "fn_inadimplencia_live": 975
+  }
+}

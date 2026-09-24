@@ -7,32 +7,56 @@
 // Estados distintos, e nenhum deles vira zero (PRD, "Contrato de cada indicador"): ausência de
 // apuração, fonte fora do ar e falta de permissão têm respostas diferentes de "nenhum registro".
 
-export type Frente = "receita" | "clientes" | "comercial" | "rede" | "retencao" | "capital";
+// As chaves antigas (`receita` … `capital`) ficam: são URLs em uso. Em 23/09 o escopo passou da
+// Monetização para a empresa inteira, e três frentes entraram (operação, portfólio, caixa); os
+// títulos das antigas mudaram para o assunto que cada uma passou a cobrir.
+export type Frente =
+  | "receita"
+  | "comercial"
+  | "clientes"
+  | "retencao"
+  | "operacao"
+  | "rede"
+  | "portfolio"
+  | "caixa"
+  | "capital";
 
 export const FRENTES: Record<Frente, { titulo: string; pergunta: string }> = {
   receita: {
-    titulo: "Receita e crescimento",
-    pergunta: "Quanto faturamos, quanto falta para a meta e de onde vem o próximo incremento?",
-  },
-  clientes: {
-    titulo: "Clientes e produtos",
-    pergunta: "Quantos clientes temos de verdade, quem consome cada vertical e onde há oferta?",
+    titulo: "Receita e trajetória",
+    pergunta: "Quanto faturamos, de onde veio a variação e quanto falta para o bilhão?",
   },
   comercial: {
-    titulo: "Execução comercial",
-    pergunta: "A demanda está sendo trabalhada? Qual produto e unidade convertem?",
+    titulo: "Aquisição e conversão",
+    pergunta: "Quanta demanda geramos, quanto ela converte e a aquisição cumpre o plano?",
   },
-  rede: {
-    titulo: "Saúde da rede",
-    pergunta: "Quais unidades crescem com margem? O sócio da unidade está satisfeito?",
+  clientes: {
+    titulo: "Clientes",
+    pergunta: "Quantos clientes temos de verdade, e por qual régua?",
   },
   retencao: {
-    titulo: "Retenção e entrega",
-    pergunta: "Quem permanece, expande ou sai? A entrega comporta crescer?",
+    titulo: "Retenção e expansão",
+    pergunta: "Quem permanece, quem expande, quem encolhe e quem sai?",
+  },
+  operacao: {
+    titulo: "Operação e capacidade",
+    pergunta: "Conseguimos ativar o que vendemos, e onde a entrega trava?",
+  },
+  rede: {
+    titulo: "Unidades",
+    pergunta: "Quais unidades crescem, cumprem a meta e contribuem para a matriz?",
+  },
+  portfolio: {
+    titulo: "Portfólio e monetização",
+    pergunta: "Quanto cada vertical acrescenta, e quanto do potencial já virou contrato?",
+  },
+  caixa: {
+    titulo: "Caixa e margem",
+    pergunta: "O faturamento vira caixa, e com que margem?",
   },
   capital: {
-    titulo: "Capital e evidências",
-    pergunta: "O que podemos consolidar e o que conseguimos demonstrar a investidores?",
+    titulo: "Evidências e capital",
+    pergunta: "O que conseguimos demonstrar a investidores, e o que falta para a consolidação?",
   },
 };
 export const ORDEM_FRENTES = Object.keys(FRENTES) as Frente[];
@@ -48,9 +72,13 @@ export const ESTADOS: Record<Estado, string> = {
   acesso_insuficiente: "Acesso insuficiente",
 };
 
-export type UnidadeContagem = "contas" | "negócios" | "eventos" | "reais" | "percentual";
+export type UnidadeContagem =
+  "contas" | "negócios" | "eventos" | "reais" | "percentual" | "clientes" | "dias";
 
-/** Os indicadores da primeira fatia. Ids estáveis: a URL e o catálogo de perguntas apontam para eles. */
+/**
+ * Ids estáveis: a URL e o catálogo de perguntas apontam para eles. Os seis primeiros são os da
+ * primeira fatia (Monetização e Base); os demais entraram com o escopo da empresa inteira (23/09).
+ */
 export const IDS_INDICADORES = [
   "meta-bilhao",
   "contratos-ganhos",
@@ -58,6 +86,11 @@ export const IDS_INDICADORES = [
   "leads-trabalhados",
   "receita-prevista-aberta",
   "contas-prontas",
+  "faturamento-mes",
+  "mrr-vendido",
+  "vencido-em-aberto",
+  "onboarding-parado",
+  "faturamento-saiu",
 ] as const;
 export type IdIndicador = (typeof IDS_INDICADORES)[number];
 

@@ -29,6 +29,9 @@ import { resumirRedeUnidades } from "./rede.ts";
 import type { RedeUnidades } from "./rede.ts";
 import { dataBr, mesDoPeriodo, periodoAnterior } from "./periodo.ts";
 import type { Periodo } from "./periodo.ts";
+import { montarEmpresa } from "./empresa.ts";
+import type { Empresa, FonteEmpresa } from "./empresa.ts";
+import type { Frescor, Ponte } from "./financeiro.ts";
 
 export const VERSAO_REGRA = "2026-09-22";
 
@@ -55,7 +58,16 @@ export interface FonteCockpit {
     estado: "ok" | "erro" | "carregando" | "sem_acesso";
     erro: string | null;
     leituras: LeituraReceita[];
+    /** Ponte do faturamento do grupo por cliente (agregada no servidor). */
+    ponte?: Ponte | null;
+    frescorFinanceiro?: Frescor | null;
   };
+  /** Caixa e margem do grupo (Financial Brain). Ausente = não carregada. */
+  caixa?: FonteEmpresa["caixa"];
+  /** Aquisição (Growth). Ausente = não carregada. */
+  aquisicao?: FonteEmpresa["aquisicao"];
+  /** Operação (onboarding) e cadeia venda → faturamento. Ausente = não carregada. */
+  operacao?: FonteEmpresa["operacao"];
   /** Definições candidatas de cliente ativo (CNPJs por definição). Ausente = não carregada. */
   clientesAtivos?: {
     estado: "ok" | "erro" | "carregando" | "sem_acesso";
@@ -90,6 +102,8 @@ export interface Decisao {
 }
 
 export interface Ameaca {
+  /** De onde a regra vem: empresa (Financeiro, Growth, Ops) ou Monetização. */
+  origem?: "empresa" | "monetizacao";
   id: string;
   titulo: string;
   detalhe: string;
@@ -118,6 +132,8 @@ export interface PontoDiario {
 
 export interface Cockpit {
   sintetico: boolean;
+  /** "AAAA-MM-DD" de referência (fuso de São Paulo): trimestre, mês em andamento. */
+  hoje: string;
   universo: string;
   perimetroRotulo: string;
   perimetros: { chave: string; rotulo: string }[];
@@ -136,6 +152,10 @@ export interface Cockpit {
   coortesAviso: string | null;
   /** Rede por unidade na janela de meses completos da leitura "rede". */
   rede: RedeUnidades | null;
+  /** Ids dos seis números da Visão executiva, na ordem. Os demais aparecem nas frentes. */
+  primeiraDobra: string[];
+  /** A visão da empresa inteira: ponte, caixa, aquisição, operação, cadeia, motores, frescor. */
+  empresa: Empresa;
   avisos: string[];
 }
 
@@ -445,7 +465,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     return {
       ...comum,
       id,
-      frente: "comercial",
+      frente: "portfolio",
       pergunta: pergunta(idPergunta),
       titulo,
       definicao,
@@ -557,7 +577,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const receita: Indicador = {
     ...comum,
     id: "receita-prevista-aberta",
-    frente: "receita",
+    frente: "portfolio",
     pergunta: pergunta("R4"),
     titulo: "Receita prevista em oportunidades abertas",
     definicao:
@@ -627,7 +647,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const prontas: Indicador = {
     ...comum,
     id: "contas-prontas",
-    frente: "clientes",
+    frente: "portfolio",
     pergunta: pergunta("C2"),
     titulo: "Contas prontas para trabalhar",
     definicao:
@@ -782,8 +802,6 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     },
   };
 
-  const indicadores = [meta, contratos, validadas, trabalhados, receita, prontas];
-
   // ── De onde vem o crescimento: por produto ────────────────────────────
   const porProduto: LinhaProduto[] = [...PRODUTOS, "sem_produto" as const].map((prod) => {
     const r = soma ? porProdutoReceita(prod) : null;
@@ -933,7 +951,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   if (dados && baseComNumero)
     partes.push(`${plural(contas.length, "conta conciliada", "contas conciliadas")}`);
   if (op) partes.push(`${plural(negocios.length, "negócio", "negócios")} do pipe de Monetização`);
-  partes.push("Financeiro fora deste recorte");
+  partes.push("Financeiro, Growth e Ops na rede inteira");
 
   // ── Clientes ativos: definições candidatas, rede inteira ──────────────
   const ca = fonte.clientesAtivos;
@@ -978,17 +996,74 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
   const rede =
     iRede >= 0 && trajetoria ? resumirRedeUnidades(r!.leituras[iRede], trajetoria[iRede]) : null;
 
+  // ── A empresa inteira: Financeiro, Growth, Ops ─────────────────────────
+  const iGrupo = r?.estado === "ok" ? r.leituras.findIndex((l) => l.id === "grupo") : -1;
+  const leituraGrupo = iGrupo >= 0 ? r!.leituras[iGrupo] : null;
+  const planoContratos = contratos.comparacoes.find(
+    (c) => c.estado === "disponivel" && c.referencia !== null && !/Ritmo/.test(c.rotulo),
+  );
+  const empresa = montarEmpresa(
+    {
+      sintetico,
+      hoje: fonte.hoje,
+      agora: fonte.agora,
+      ponte: r?.estado === "ok" ? (r.ponte ?? null) : null,
+      frescorFinanceiro: r?.estado === "ok" ? (r.frescorFinanceiro ?? null) : null,
+      estadoGrupo: leituraGrupo ? leituraGrupo.estado : null,
+      notaGrupo: leituraGrupo?.nota ?? null,
+      caixa: fonte.caixa,
+      aquisicao: fonte.aquisicao,
+      operacao: fonte.operacao,
+    } satisfies FonteEmpresa,
+    {
+      periodo: p,
+      grupo: iGrupo >= 0 && trajetoria ? trajetoria[iGrupo] : null,
+      monetizacao: {
+        valor: contratos.valor,
+        estado: contratos.estado,
+        plano: planoContratos?.referencia ?? null,
+      },
+    },
+  );
+  const [decisaoPerimetro, ...decisoesMonetizacao] = decisoes;
+  const decisoesFinais: Decisao[] = [decisaoPerimetro, ...empresa.decisoes, ...decisoesMonetizacao];
+  const ameacasFinais: Ameaca[] = [
+    ...empresa.ameacas.map((a) => ({
+      ...a,
+      origem: "empresa" as const,
+      indicador: (a.indicador ?? null) as IdIndicador | null,
+    })),
+    ...ameacas.map((a) => ({ ...a, origem: "monetizacao" as const })),
+  ];
   return {
     sintetico,
+    hoje: fonte.hoje,
     universo: partes.join(" · "),
     perimetroRotulo,
     perimetros: unidades
       .filter((u) => u.account_keys.length > 0)
       .map((u) => ({ chave: u.key, rotulo: u.name }))
       .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR")),
-    indicadores,
-    decisoes: decisoes.slice(0, 3),
-    ameacas,
+    indicadores: [
+      meta,
+      ...empresa.indicadores,
+      contratos,
+      validadas,
+      trabalhados,
+      receita,
+      prontas,
+    ],
+    primeiraDobra: [
+      "meta-bilhao",
+      "faturamento-mes",
+      "faturamento-saiu",
+      "mrr-vendido",
+      "vencido-em-aberto",
+      "onboarding-parado",
+    ],
+    empresa,
+    decisoes: decisoesFinais.slice(0, 3),
+    ameacas: ameacasFinais,
     porProduto,
     trajetoria,
     trajetoriaAviso,

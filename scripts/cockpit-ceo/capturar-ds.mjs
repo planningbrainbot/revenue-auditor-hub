@@ -21,7 +21,10 @@ const ALTURA = 900;
 const TEMAS = { escuro: "escuro", claro: "claro" };
 const VISTAS = [
   ["executiva", ""],
-  ...["receita", "clientes", "comercial", "rede", "retencao", "capital"].map((f) => [f, `?frente=${f}`]),
+  // As nove frentes da versão empresarial (23/09), na ordem da lateral.
+  ...["receita", "comercial", "clientes", "retencao", "operacao", "rede", "portfolio", "caixa", "capital"].map(
+    (f) => [f, `?frente=${f}`],
+  ),
 ];
 
 const rotulo = process.argv[2];

@@ -6,6 +6,57 @@ Estado: **aprovado pelo Pedro em 23/09/2026** (frentes na lateral, pergunta do t
 
 Base: piloto `feat/cockpit-ceo-piloto` (rodadas 1 e 2, relatório `docs/dev_notes/cockpit-ceo-piloto/relatorio-rodada-2.md`), PRD do cockpit e as entradas de 22/09 do `DECISIONS.md`. Regras de cálculo, consultas, `portas.ts`, RLS e homologação **não mudam** nesta etapa: o contrato descreve o que já existe e como ele passa a ser mostrado.
 
+## Revisão de 23/09/2026 — escopo da empresa inteira
+
+**Estado: revisão pedida pelo Pedro em 23/09.** Implementada na branch `feat/cockpit-ceo-empresa-20260923` sob instrução explícita dele ("implemente as mudanças em lotes"). **Falta o "contrato ok" formal** antes do merge (PROCESSO §4). As seções abaixo desta revisão descrevem a versão publicada em 23/09 e ficam como histórico.
+
+**O que muda:**
+- A meta é o faturamento anual da **empresa** (R$ 1 bi, 2030). Monetização vira uma frente e um motor.
+- **Primeira dobra**, com seis números:
+  1. Faturamento anual × meta (inalterado);
+  2. Faturamento do último mês fechado;
+  3. Faturamento que saiu da base;
+  4. MRR novo vendido do Inside Sales contra o plano do Growth;
+  5. Vencido e não recebido;
+  6. Onboardings há mais de 30 dias na mesma fase.
+- Contratos de cada número: `docs/dev_notes/cockpit-ceo-empresa/contratos-indicadores.md`.
+- **Anatomia da Visão executiva**, nesta ordem:
+  1. seis cartões;
+  2. decisões (até 3, o perímetro sempre primeiro);
+  3. ameaças (as 5 mais graves; da empresa antes das da Monetização);
+  4. "De onde veio a variação do faturamento em MM/AAAA?", com a ponte do mês;
+  5. "Quais motores sustentam o crescimento?", uma linha por motor, cada um na sua régua;
+  6. navegação das frentes, com a contagem de perguntas respondidas, parciais e lacunas.
+- A demanda por produto da Monetização saiu da Visão executiva e foi para a frente Portfólio.
+- **Nove frentes na lateral.** As chaves antigas da URL foram mantidas.
+
+| Chave | Título | Painéis |
+|---|---|---|
+| `receita` | Receita e trajetória | trajetória (grupo e rede lado a lado), ponte mês a mês, pipeline e previsão (camadas) |
+| `comercial` | Aquisição e conversão | aquisição plano × realizado, funil do mês, forecast do Growth, pipeline |
+| `clientes` | Clientes | réguas de cliente ativo |
+| `retencao` | Retenção e expansão | coortes, ponte da base |
+| `operacao` | Operação e capacidade | onboarding, cadeia venda → faturamento, capacidade como lacuna |
+| `rede` | Unidades | rede por unidade, meta × vendido do trimestre |
+| `portfolio` | Portfólio e monetização | os cinco números da Monetização, demanda por produto, eventos diários |
+| `caixa` | Caixa e margem | caixa livre, emitido × recebido, vencido por faixa, margem por grupo |
+| `capital` | Evidências e capital | frescor das fontes, pilares e as 11 exigências, matriz CSV |
+
+- **Procedência do cabeçalho:** Financeiro, Growth, Ops e Monetização, com a data da última carga do Financeiro.
+- **Permissões novas, todas conferidas no servidor antes de ler:**
+  - Financeiro: produto Financeiro + todas as empresas;
+  - Growth: produto Growth + membro;
+  - Onboarding: `view.painel_cs` ou `view.fila_cella` + todas as unidades;
+  - cadeia: portas de `contratos`, `empresas`, `cs_onboarding_cards`, `contas_receber` e `central_tratativas`.
+- **O que continua fora:**
+  - previsão empresarial de faturamento (não existe fonte);
+  - receita por vertical;
+  - capacidade e SLA;
+  - aquisições;
+  - satisfação dos sócios.
+
+  Tudo isso aparece como lacuna com dono.
+
 ## Propósito
 - **Pergunta que responde (vira o `<h1>`, N1):** "Estamos no plano para o bilhão, o que mudou e o que é decisão minha?" *(aprovada pelo Pedro em 23/09)*
 - **Público:** CEO e sócios da matriz. Hoje só o papel `admin` tem a área `cockpit_ceo`.

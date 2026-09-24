@@ -504,9 +504,10 @@ export const AREAS: Area[] = [
     // primeiro, para não virar a área padrão da lateral de quem a receber. Área própria com card no
     // /inicio, e não dentro de "Estratégia & Execução": decisão do Pedro em 23/09/2026.
     //
-    // As seis frentes são itens da lateral (`?frente=`), como Monetização faz com `?aba=`: a
-    // página não desenha abas que trocam de assunto (NAVEGACAO.md N6; contrato
-    // docs/design/contratos/cockpit-ceo.md, aprovado em 23/09).
+    // As frentes são itens da lateral (`?frente=`), como Monetização faz com `?aba=`: a página
+    // não desenha abas que trocam de assunto (NAVEGACAO.md N6). Em 23/09 o escopo passou da
+    // Monetização para a empresa inteira: nove frentes, com as chaves antigas preservadas
+    // (contrato docs/design/contratos/cockpit-ceo.md, revisão de 23/09).
     slug: "cockpit_ceo",
     nome: "Cockpit do CEO",
     descricao: "Plano, crescimento, ameaças e decisões, com a composição de cada número.",
@@ -520,15 +521,18 @@ export const AREAS: Area[] = [
         label: "Frentes",
         items: [
           {
-            title: "Receita e crescimento",
+            title: "Receita e trajetória",
             url: "/cockpit-ceo?frente=receita",
             icon: CircleDollarSign,
           },
-          { title: "Clientes e produtos", url: "/cockpit-ceo?frente=clientes", icon: Building2 },
-          { title: "Execução comercial", url: "/cockpit-ceo?frente=comercial", icon: Briefcase },
-          { title: "Saúde da rede", url: "/cockpit-ceo?frente=rede", icon: Store },
-          { title: "Retenção e entrega", url: "/cockpit-ceo?frente=retencao", icon: UserX },
-          { title: "Capital e evidências", url: "/cockpit-ceo?frente=capital", icon: Database },
+          { title: "Aquisição e conversão", url: "/cockpit-ceo?frente=comercial", icon: TrendingUp },
+          { title: "Clientes", url: "/cockpit-ceo?frente=clientes", icon: Building2 },
+          { title: "Retenção e expansão", url: "/cockpit-ceo?frente=retencao", icon: UserX },
+          { title: "Operação e capacidade", url: "/cockpit-ceo?frente=operacao", icon: ListChecks },
+          { title: "Unidades", url: "/cockpit-ceo?frente=rede", icon: Store },
+          { title: "Portfólio e monetização", url: "/cockpit-ceo?frente=portfolio", icon: Briefcase },
+          { title: "Caixa e margem", url: "/cockpit-ceo?frente=caixa", icon: Wallet },
+          { title: "Evidências e capital", url: "/cockpit-ceo?frente=capital", icon: Database },
         ],
       },
     ],

@@ -5,21 +5,30 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes";
 import type { ApuracaoRede, UnidadeRede } from "./receita-fontes";
 import type { LeituraReceita } from "./receita";
+import { extrairFrescor, extrairPorCliente, montarPonte } from "./financeiro";
+import type { Frescor, Ponte } from "./financeiro";
+import { clienteFinancialBrain, conferirPortaFinanceiro } from "./financeiro-porta";
 import { todasAsPaginas } from "./paginar";
 import { FONTES_REDE, fontesSemAcesso, motivoSemAcesso } from "./portas";
 import type { AcessoMin } from "./portas";
 
-// Leituras candidatas do faturamento para a trajetória de R$ 1 bi. Somente leitura, com a sessão
-// da pessoa: nenhuma service role, nenhum dado que a tela de origem não mostraria a ela.
+// Leituras candidatas do faturamento para a trajetória de R$ 1 bi, e a ponte mensal do grupo.
 //
-// Grupo: a função do Faturamento é SECURITY DEFINER e não confere acesso por dentro (medido em
-// 22/09: um sócio regional sem Financeiro recebe a série). Por isso a porta é conferida AQUI antes
-// da chamada, com as mesmas regras do Financeiro: `tem_produto('financeiro')` — a da RLS de
-// `financeiro.lancamentos` — e escopo de todas as empresas, que é o que o Financeiro exige para o
-// consolidado. Do payload só sai agregado mensal; linha de cliente não deixa o servidor.
+// Grupo: a fonte é o projeto Financial Brain — o mesmo que a tela de Faturamento lê em produção.
+// A cópia do schema `financeiro` no banco único parou no corte de 02/09 e diverge ~10% da tela
+// (docs/dev_notes/cockpit-ceo-empresa/diagnostico.md §0); o cockpit deixou de lê-la em 23/09.
+// A leitura usa a credencial de servidor que o Ops já tem para emitir a sessão do Financeiro
+// (`getFinanceiroAdmin`), e por isso a porta é conferida AQUI, antes, com a sessão da pessoa:
+// `tem_produto('financeiro')` — a regra da RLS dos lançamentos — e escopo de todas as empresas, que
+// é o que o Financeiro exige para o consolidado. Sem as duas, a chamada nem sai. Do payload só desce
+// agregado: série mensal e ponte em contagens e reais. Nome de cliente não deixa o servidor.
 //
 // Rede: apuração de royalties, só para quem enxerga todas as unidades e passa na porta da tabela
 // (portas.ts); em cima disso vale a RLS. Leitura paginada, até o mês corrente.
+
+// Cliente do Supabase e erro do PostgREST sem tipo gerado para estes schemas.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Db = any;
 
 const JANELA_MESES = 24;
 
@@ -36,57 +45,85 @@ const falha = (onde: string, e: any) => {
   return `consulta de ${onde} falhou${e?.code ? ` (código ${e.code})` : ""}`;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function lerGrupo(db: any, todasEmpresas: boolean, de: string, ate: string) {
-  const { data: temFinanceiro, error: eAcesso } = await db
-    .schema("public")
-    .rpc("tem_produto", { _produto: "financeiro" });
-  if (eAcesso)
-    return montarLeituraGrupo({
-      acesso: true,
-      erro: falha("acesso ao Financeiro", eAcesso),
-      faturamento: null,
-    });
-  if (!temFinanceiro)
-    return montarLeituraGrupo({
-      acesso: false,
-      motivo: "Sua conta não tem acesso ao Brain Financeiro.",
-      faturamento: null,
-    });
-  if (!todasEmpresas)
-    return montarLeituraGrupo({
-      acesso: false,
-      motivo:
-        "O consolidado do grupo exige ver todas as empresas no Financeiro; seu escopo é por empresa.",
-      faturamento: null,
-    });
-  const { data, error } = await db.schema("financeiro").rpc("fn_faturamento_mensal", {
-    p_comp_de: de,
-    p_comp_ate: ate,
-    // O ranking de clientes não é usado: 1 é o mínimo que a função aceita, e a linha é descartada.
-    p_limite_clientes: 1,
-  });
-  if (error)
-    return montarLeituraGrupo({
-      acesso: true,
-      erro: falha("faturamento", error),
-      faturamento: null,
-    });
-  try {
-    return montarLeituraGrupo({ acesso: true, faturamento: extrairFaturamento(data) });
-  } catch (e) {
-    return montarLeituraGrupo({ acesso: true, erro: falha("faturamento", e), faturamento: null });
-  }
+export interface LeituraGrupo {
+  leitura: LeituraReceita;
+  ponte: Ponte | null;
+  frescor: Frescor | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function lerRede(
-  db: any,
-  acesso: AcessoMin,
-  todasUnidades: boolean,
+/** Meses que a ponte pode usar: fechados na fonte e anteriores ao mês corrente. */
+export function mesesFechadosDaFonte(
+  f: ReturnType<typeof extrairFaturamento>,
+  mesCorrente: string,
+): string[] {
+  const parciais = new Set([
+    ...f.serie.filter((s) => s.parcial).map((s) => s.mes),
+    ...f.meses.filter((m) => m.parcial || m.semCobertura).map((m) => m.mes),
+  ]);
+  return f.serie.map((s) => s.mes).filter((m) => m < mesCorrente && !parciais.has(m));
+}
+
+async function lerGrupo(
+  db: Db,
+  todasEmpresas: boolean,
   de: string,
   ate: string,
-) {
+): Promise<LeituraGrupo> {
+  const sem = (leitura: LeituraReceita): LeituraGrupo => ({ leitura, ponte: null, frescor: null });
+  const porta = await conferirPortaFinanceiro(db, todasEmpresas);
+  if (!porta.aberta)
+    return sem(
+      porta.estado === "acesso_insuficiente"
+        ? montarLeituraGrupo({ acesso: false, motivo: porta.motivo, faturamento: null })
+        : montarLeituraGrupo({ acesso: true, erro: porta.motivo, faturamento: null }),
+    );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fin = (await clienteFinancialBrain()) as any;
+  if (!fin)
+    return sem(
+      montarLeituraGrupo({
+        acesso: true,
+        erro: "a credencial do Financial Brain não está configurada neste ambiente",
+        faturamento: null,
+      }),
+    );
+  // Sem limite de clientes: a ponte precisa de todas as linhas (medido em 23/09: 1.274 clientes,
+  // 2,6 s no banco, teto do service_role de 30 s).
+  const [fat, fr] = await Promise.all([
+    fin.rpc("fn_faturamento_mensal", { p_comp_de: de, p_comp_ate: ate }),
+    fin.from("dado_frescor").select("carregado_em, cobre_ate").eq("dataset", "lancamentos"),
+  ]);
+  if (fat.error)
+    return sem(
+      montarLeituraGrupo({
+        acesso: true,
+        erro: falha("faturamento", fat.error),
+        faturamento: null,
+      }),
+    );
+  const frescor = fr.error ? null : extrairFrescor(fr.data ?? []);
+  let faturamento;
+  try {
+    faturamento = extrairFaturamento(fat.data);
+  } catch (e) {
+    return sem(
+      montarLeituraGrupo({ acesso: true, erro: falha("faturamento", e), faturamento: null }),
+    );
+  }
+  const leitura = montarLeituraGrupo({ acesso: true, faturamento });
+  let ponte: Ponte | null = null;
+  try {
+    ponte = montarPonte(
+      extrairPorCliente(fat.data),
+      mesesFechadosDaFonte(faturamento, `${hojeSaoPaulo().slice(0, 7)}`),
+    );
+  } catch (e) {
+    console.error("[cockpit-ceo] ponte:", e);
+  }
+  return { leitura, ponte, frescor };
+}
+
+async function lerRede(db: Db, acesso: AcessoMin, todasUnidades: boolean, de: string, ate: string) {
   const sem = (motivo: string) =>
     montarLeituraRede({ acesso: false, motivo, unidades: [], apuracoes: [] });
   if (!todasUnidades)
@@ -145,38 +182,54 @@ async function lerRede(
 
 export const carregarReceitaCockpit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ leituras: LeituraReceita[]; lidoEm: string }> => {
-    const { supabase, userId } = context;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
-    const [acesso, escopo] = await Promise.all([
-      acessoDoUsuario(db, userId),
-      db
-        .from("usuario_escopo")
-        .select("todas_unidades, todas_empresas")
-        .eq("user_id", userId)
-        .maybeSingle(),
-    ]);
-    if (!acesso.areas.includes("cockpit_ceo"))
-      throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
-    const lidoEm = new Date().toISOString();
-    // Sem ler o escopo não dá para saber se a pessoa vê o todo: falha, não "escopo por empresa".
-    if (escopo?.error) {
-      const erro = falha("escopo de acesso", escopo.error);
+  .handler(
+    async ({
+      context,
+    }): Promise<{
+      leituras: LeituraReceita[];
+      lidoEm: string;
+      ponte: Ponte | null;
+      frescorFinanceiro: Frescor | null;
+    }> => {
+      const { supabase, userId } = context;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [acesso, escopo] = await Promise.all([
+        acessoDoUsuario(db, userId),
+        db
+          .from("usuario_escopo")
+          .select("todas_unidades, todas_empresas")
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
+      if (!acesso.areas.includes("cockpit_ceo"))
+        throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
+      const lidoEm = new Date().toISOString();
+      // Sem ler o escopo não dá para saber se a pessoa vê o todo: falha, não "escopo por empresa".
+      if (escopo?.error) {
+        const erro = falha("escopo de acesso", escopo.error);
+        return {
+          lidoEm,
+          ponte: null,
+          frescorFinanceiro: null,
+          leituras: [
+            montarLeituraGrupo({ acesso: true, erro, faturamento: null }),
+            montarLeituraRede({ acesso: true, erro, unidades: [], apuracoes: [] }),
+          ],
+        };
+      }
+      const hoje = hojeSaoPaulo();
+      const de = inicioDaJanela(hoje);
+      const ate = `${hoje.slice(0, 7)}-01`;
+      const [grupo, rede] = await Promise.all([
+        lerGrupo(db, Boolean(escopo?.data?.todas_empresas), de, ate),
+        lerRede(db, acesso, Boolean(escopo?.data?.todas_unidades), de, ate),
+      ]);
       return {
+        leituras: [grupo.leitura, rede],
         lidoEm,
-        leituras: [
-          montarLeituraGrupo({ acesso: true, erro, faturamento: null }),
-          montarLeituraRede({ acesso: true, erro, unidades: [], apuracoes: [] }),
-        ],
+        ponte: grupo.ponte,
+        frescorFinanceiro: grupo.frescor,
       };
-    }
-    const hoje = hojeSaoPaulo();
-    const de = inicioDaJanela(hoje);
-    const ate = `${hoje.slice(0, 7)}-01`;
-    const [grupo, rede] = await Promise.all([
-      lerGrupo(db, Boolean(escopo?.data?.todas_empresas), de, ate),
-      lerRede(db, acesso, Boolean(escopo?.data?.todas_unidades), de, ate),
-    ]);
-    return { leituras: [grupo, rede], lidoEm };
-  });
+    },
+  );
