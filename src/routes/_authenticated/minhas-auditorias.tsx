@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -67,6 +68,8 @@ const TIPO_LABEL: Record<string, string> = {
 
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+// Valor não informado no card não é R$ 0 (N4).
+const fmtBRLouNA = (v: number | null) => (v == null ? NA : fmtBRL(v));
 
 function fmtData(s: string | null) {
   if (!s) return NA;
@@ -104,7 +107,8 @@ function MinhasAuditoriasPage() {
   const [rows, setRows] = useState<Auditoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<string>("todos");
+  // Tipo na URL (N7): recarregar ou colar o link mantém o recorte.
+  const [tipo, setTipo] = useFiltroNaUrl("tipo", "todos");
   const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
@@ -133,9 +137,13 @@ function MinhasAuditoriasPage() {
     [rows],
   );
 
+  // Link velho ou tipo que sumiu da base cai em "todos", em vez de filtrar para vazio.
+  const tipoAtivo =
+    tiposPresentes.length > 1 && (tiposPresentes as readonly string[]).includes(tipo) ? tipo : "todos";
+
   const filtradas = useMemo(
-    () => (tipo === "todos" ? rows : rows.filter((r) => r.tipo_projeto === tipo)),
-    [rows, tipo],
+    () => (tipoAtivo === "todos" ? rows : rows.filter((r) => r.tipo_projeto === tipoAtivo)),
+    [rows, tipoAtivo],
   );
 
   const { concluidas, andamento, kpis } = useMemo(() => {
@@ -190,7 +198,10 @@ function MinhasAuditoriasPage() {
             . Valores estimados, somados a partir dos relatórios de cada auditoria.
           </>
         }
-        procedencia={{ fonte: "Pipefy · pipe Auditoria Interna" }}
+        procedencia={{
+          fonte: "Pipefy · pipe Auditoria Interna",
+          regua: "leitura de até 1.000 auditorias",
+        }}
       />
 
       {carregando ? (
@@ -205,7 +216,7 @@ function MinhasAuditoriasPage() {
       ) : (
         <>
           {tiposPresentes.length > 1 && (
-            <Tabs value={tipo} onValueChange={setTipo}>
+            <Tabs value={tipoAtivo} onValueChange={setTipo}>
               <TabsList className="h-auto flex-wrap">
                 <TabsTrigger value="todos">Todos ({rows.length})</TabsTrigger>
                 {tiposPresentes.map((t) => (
@@ -315,14 +326,18 @@ function CartaoAuditoria({ r }: { r: Auditoria }) {
         <div className="flex gap-5 text-right shrink-0">
           <div>
             <div className="text-xs text-muted-foreground">Oportunidade</div>
-            <div className="font-semibold tabular-nums text-success">
-              {fmtBRL(r.oportunidades_valor ?? 0)}
+            <div
+              className={`font-semibold tabular-nums ${r.oportunidades_valor == null ? "text-muted-foreground" : "text-success"}`}
+            >
+              {fmtBRLouNA(r.oportunidades_valor)}
             </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Contingência</div>
-            <div className="font-semibold tabular-nums text-warning">
-              {fmtBRL(r.contingencias_valor ?? 0)}
+            <div
+              className={`font-semibold tabular-nums ${r.contingencias_valor == null ? "text-muted-foreground" : "text-warning"}`}
+            >
+              {fmtBRLouNA(r.contingencias_valor)}
             </div>
           </div>
         </div>
