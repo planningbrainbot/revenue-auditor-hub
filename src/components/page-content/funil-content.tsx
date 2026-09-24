@@ -397,7 +397,7 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
 
             <Secao
               titulo={`Em que unidade o MRR não virou faturado ou recebido em ${nomeMes}?`}
-              descricao="Clique no valor para abrir os registros: MRR na Base de clientes, faturado e recebido em Contas a Receber; o gap de faturamento abre os contratos sem fatura."
+              descricao="Clique no valor para abrir os registros: MRR na Base de clientes, faturado e recebido em Contas a Receber; o gap de faturamento abre os contratos sem fatura. O destino inclui faturas canceladas e contratos inativos; o total pode ser maior."
             >
               <div className="overflow-auto rounded-xl border bg-card">
                 <Table>
