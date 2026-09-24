@@ -94,14 +94,34 @@ function CelulaRecebimento({ f }: { f: FaturaDoMes | undefined }) {
   }
 }
 
+/**
+ * A fatura que vale para a unidade no mês, com a MESMA regra na lista e na
+ * ficha: a mais recente que não deu erro; só sem nenhuma dessas, a mais
+ * recente com erro. Antes a lista pegava a última do array e a ficha a
+ * primeira, e as duas podiam discordar.
+ */
+export function faturaDaUnidade(
+  faturas: FaturaDoMes[] | undefined,
+  unidadeId: number,
+): FaturaDoMes | undefined {
+  const daUnidade = (faturas ?? []).filter((f) => f.unidade_id === unidadeId);
+  const quando = (f: FaturaDoMes) => f.faturada_em ?? f.vence_em ?? "";
+  const maisRecente = (lista: FaturaDoMes[]) =>
+    lista.reduce<FaturaDoMes | undefined>((m, f) => (!m || quando(f) > quando(m) ? f : m), undefined);
+  return maisRecente(daUnidade.filter((f) => f.status !== "erro")) ?? maisRecente(daUnidade);
+}
+
 /** Botão "Emitir faturas" com o motivo quando não há o que emitir (N8). */
 export function motivoSemEmissao(
   mes: string,
   carregando: boolean,
   rows: { apuracao?: { status?: string | null } | null }[],
+  erro?: unknown,
 ): string | undefined {
   if (mesEmAndamento(mes))
     return "O mês ainda não terminou: fatura só sai depois do fim do mês, porque ainda entram recebimentos.";
+  if (erro)
+    return "Não foi possível carregar as apurações do mês; sem elas não dá para saber o que emitir.";
   if (carregando) return "Carregando as apurações do mês.";
   const fechadas = rows.filter(
     (u) => u.apuracao?.status === "confirmado" || u.apuracao?.status === "faturado",
@@ -129,10 +149,11 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
     enabled: !emAndamento,
     staleTime: 30_000,
   });
-  const faturaPorUnidade = useMemo(
-    () => new Map((faturasData?.faturas ?? []).map((f) => [f.unidade_id, f])),
-    [faturasData],
-  );
+  const faturaPorUnidade = useMemo(() => {
+    const faturas = faturasData?.faturas ?? [];
+    const ids = new Set(faturas.map((f) => f.unidade_id));
+    return new Map([...ids].map((id) => [id, faturaDaUnidade(faturas, id)]));
+  }, [faturasData]);
 
   const totais = useMemo(
     () =>
@@ -162,7 +183,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
       </div>
     );
 
-  const motivoEmitir = motivoSemEmissao(mes, isLoading, rows);
+  const motivoEmitir = motivoSemEmissao(mes, isLoading, rows, error);
   // Sem apuração no mês os totais não são zero, são ausência (N4).
   const estadoTotais = totais.comApuracao === 0 ? "nao-apurado" : emAndamento ? "parcial" : "ok";
   const notaTotais =

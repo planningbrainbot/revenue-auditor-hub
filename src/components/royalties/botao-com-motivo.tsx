@@ -5,18 +5,23 @@ import { cn } from "@/lib/utils";
 
 /**
  * Botão desabilitado que diz por quê (N8). Botão `disabled` não recebe foco
- * nem hover, então o motivo mora num invólucro focável com tooltip e
- * `aria-label`: quem navega por teclado ouve o motivo, quem passa o mouse lê.
+ * nem hover, então quem faz o papel de botão é o invólucro: focável,
+ * `role="button"` com `aria-disabled`, e o nome acessível leva o rótulo E o
+ * motivo ("Fechar apuração, indisponível: …"). O `<Button>` de dentro é só
+ * desenho (fora da árvore de acessibilidade); o motivo também aparece em
+ * tooltip para quem usa o mouse.
  */
 export function BotaoComMotivo({
+  rotulo,
   motivo,
-  children,
+  icone,
   variant = "default",
   size,
   className,
 }: {
+  rotulo: string;
   motivo: string;
-  children: ReactNode;
+  icone?: ReactNode;
   variant?: "default" | "outline" | "ghost" | "destructive" | "secondary";
   size?: "default" | "sm";
   className?: string;
@@ -26,10 +31,12 @@ export function BotaoComMotivo({
       <Tooltip>
         <TooltipTrigger asChild>
           <span
+            role="button"
             tabIndex={0}
-            aria-label={`Indisponível: ${motivo}`}
+            aria-disabled="true"
+            aria-label={`${rotulo}, indisponível: ${motivo}`}
             className={cn(
-              "inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "inline-flex cursor-not-allowed rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               className,
             )}
           >
@@ -42,7 +49,8 @@ export function BotaoComMotivo({
               aria-hidden
               className="pointer-events-none w-full gap-2"
             >
-              {children}
+              {icone}
+              {rotulo}
             </Button>
           </span>
         </TooltipTrigger>

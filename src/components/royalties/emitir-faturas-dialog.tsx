@@ -75,6 +75,7 @@ export function EmitirFaturasDialog({
   motivoIndisponivel,
   rotulo = "Emitir faturas no Omie",
   variante = "default",
+  aoMudarAberto,
 }: {
   competencia: string;
   /**
@@ -87,9 +88,15 @@ export function EmitirFaturasDialog({
   motivoIndisponivel?: string;
   rotulo?: string;
   variante?: "default" | "outline";
+  /** Avisa quem monta o diálogo, para não desmontá-lo enquanto está aberto. */
+  aoMudarAberto?: (aberto: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAbertoInterno] = useState(false);
+  const setAberto = (v: boolean) => {
+    setAbertoInterno(v);
+    aoMudarAberto?.(v);
+  };
   const [venceEm, setVenceEm] = useState("");
   const [escolhidas, setEscolhidas] = useState<number[]>([]);
   const [plano, setPlano] = useState<RespostaFaturamento | null>(null);
@@ -155,8 +162,21 @@ export function EmitirFaturasDialog({
 
   const jaFoi = linhas.filter((u) => u.status === "ja_existia" || u.status === "ja_registrada");
   const naoFechadas = linhas.filter((u) => u.status === "nao_fechada");
-  const podeEmitir = !!venceEm && escolhidas.length > 0 && !emitir.isPending && !resultado;
-  const motivoSemEmitir = !venceEm
+  // Só emite com a simulação desta abertura pronta: enquanto uma nova roda, a
+  // seleção ainda é a da anterior.
+  const podeEmitir =
+    !simular.isPending &&
+    !!plano &&
+    !!venceEm &&
+    escolhidas.length > 0 &&
+    !emitir.isPending &&
+    !resultado;
+  // Aberto pela ficha: se a unidade não está "a emitir", diz o porquê dela.
+  const linhaDaUnidade =
+    unidadeId === undefined ? undefined : linhas.find((u) => u.unidade_id === unidadeId);
+  const motivoSemEmitir = simular.isPending || !plano
+    ? "Aguarde a conferência no Omie"
+    : !venceEm
     ? "Escolha a data de vencimento do boleto"
     : emitiveis.length === 0
       ? "Nenhuma unidade pronta para emitir: todas estão abertas, sem valor ou já faturadas"
@@ -169,11 +189,13 @@ export function EmitirFaturasDialog({
   }
 
   return (
-    motivoIndisponivel ? (
-      <BotaoComMotivo motivo={motivoIndisponivel} variant={variante}>
-        <FileText className="h-4 w-4" aria-hidden />
-        {rotulo}
-      </BotaoComMotivo>
+    motivoIndisponivel && !aberto ? (
+      <BotaoComMotivo
+        rotulo={rotulo}
+        motivo={motivoIndisponivel}
+        variant={variante}
+        icone={<FileText className="h-4 w-4" aria-hidden />}
+      />
     ) : (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
@@ -209,6 +231,29 @@ export function EmitirFaturasDialog({
             <span>{erro}</span>
           </div>
         )}
+
+        {!simular.isPending && plano && unidadeId !== undefined && !resultado &&
+          (!linhaDaUnidade || linhaDaUnidade.status !== "a_emitir") && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted px-3 py-2 text-sm text-foreground">
+              {linhaDaUnidade ? (
+                <>
+                  <span className="font-medium">{linhaDaUnidade.unidade}</span>
+                  <StatusBadge tom={ROTULO[linhaDaUnidade.status]?.tom ?? "neutro"}>
+                    {ROTULO[linhaDaUnidade.status]?.texto ?? linhaDaUnidade.status}
+                  </StatusBadge>
+                  <span className="text-muted-foreground">
+                    não entra neste lote
+                    {linhaDaUnidade.motivo ? `: ${linhaDaUnidade.motivo}` : "."}
+                    {linhaDaUnidade.erro ? ` ${linhaDaUnidade.erro}` : ""}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  Esta unidade não aparece no lote de {rotuloMes(competencia)}.
+                </span>
+              )}
+            </div>
+          )}
 
         {!simular.isPending && linhas.length > 0 && (
           <>
