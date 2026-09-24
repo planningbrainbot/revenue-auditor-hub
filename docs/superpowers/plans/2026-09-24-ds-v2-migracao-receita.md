@@ -13,6 +13,8 @@ Contratos: `docs/design/contratos/receita-e-repasses.md`. Aprovação: Pedro, 24
 7. Relate arquivos, o que ficou fora e por quê, portão, hashes.
 
 ## Tarefas (sequenciais neste worktree)
+| # | Tela |
+|---|---|
 | RR1 | Moldura comum + Visão geral (`/receita-overview`) |
 | RR2 | Funil de Receita |
 | RR3 | Contas a Receber |
