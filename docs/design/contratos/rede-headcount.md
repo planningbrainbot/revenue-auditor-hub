@@ -37,3 +37,6 @@ Lançamento de headcount pela tela (não existe; é decisão de produto).
 
 ## Achado para o Eliezek
 RLS de leitura `using (true)`, fora das 15 tabelas com escopo de unidade; a chave `view.rede_headcount` existe e nenhuma policy a usa.
+
+## Para onde manda
+Nenhum: não existe tela de lançamento de headcount (o lançamento é do super admin, direto na tabela).

@@ -46,3 +46,6 @@ Série histórica (Overview da Rede); churn pela régua do IDU (só Tratativas).
 
 ## Achado para o Eliezek (não corrigido: permissão)
 A RPC é `SECURITY DEFINER` e devolve as 8 regionais a quem tem `view.indicadores_trimestre`; o "comparativo fechado" esconde só a tabela, e os botões de unidade mostram os 12 cards de qualquer unidade. Se a regra for "sócio vê só a sua", o recorte precisa estar na RPC.
+
+## Para onde manda
+Nenhum destino por número: a RPC `indicadores_trimestre` não devolve linhas. Série histórica → Overview da Rede; apuração do mês → Apuração de Royalties.

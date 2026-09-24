@@ -39,3 +39,6 @@ e-NPS (sem fonte); drill-down até a fonte de cada realizado (defeito aberto).
 - `ops.idu_pode_ver()` é referenciada em `20260923220000:207` e não está definida em nenhum arquivo do repo.
 - `edit.idu_metas` está em `area_chaves` da área `rede`: na prática, quem tem a área Rede edita metas, e DECISIONS 23/09 diz "admin e diretor". Confirmar.
 - Churn sem card de tratativa dá 0% e pontuação cheia (decidido em 28/08; é o zero que pode ser falta de lançamento).
+
+## Para onde manda
+A linha expande o detalhe da unidade (a soma bate com o IDU). Realizado → fonte: nenhum hoje (defeito aberto, funcionalidade nova). Metas: editadas na própria tela.
