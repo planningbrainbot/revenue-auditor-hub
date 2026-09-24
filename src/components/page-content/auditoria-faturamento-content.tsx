@@ -1,18 +1,35 @@
-import { useMemo, useState } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Info, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { KpiCard } from "@/components/audit/kpi-card";
-import { brl } from "@/components/audit/format";
-import { Badge } from "@/components/ui/badge";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/use-permissions";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import {
+  brlOuTraco,
+  ErroDaConsulta,
+  mesAnterior,
+  mesEmAndamento,
+  MolduraReceita,
+  rotuloMes,
+  SeletorMes,
+  useMesNaUrl,
+} from "@/components/receita/moldura";
 
 type BillingEsperadoRow = {
   unidade: string;
@@ -37,24 +54,10 @@ const CAT_CSC = "1.01.96";
 const CAT_MIDIA = "1.03.96";
 const CAT_OUTRAS = "1.01.94";
 
-function monthOptions(): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 18; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-    opts.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-  }
-  return opts;
-}
-
-function defaultMes(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+const CHAVES = "view.roas ou view.auditoria";
+/** O PostgREST devolve no máximo 1.000 linhas, apesar do `.limit(20000)` (defeito de dado 7). */
+const CORTE_POSTGREST = 1000;
+const NUM = new Intl.NumberFormat("pt-BR");
 
 function monthBounds(ym: string): { start: string; end: string; mesRef: string } {
   const [y, m] = ym.split("-").map(Number);
@@ -64,11 +67,17 @@ function monthBounds(ym: string): { start: string; end: string; mesRef: string }
   return { start, end, mesRef: start };
 }
 
-export function AuditoriaFaturamentoContent() {
+/**
+ * Aba Esperado × Recebido do Funil de Receita (contrato §2). O "Recebido" daqui
+ * é por **data de emissão** em `partners_financeiro`: a terceira régua com o
+ * mesmo nome na área (N11). Por isso o rótulo diz "Recebido (por emissão)".
+ * Mês padrão: o anterior (o esperado é de um mês fechado).
+ */
+export function AuditoriaFaturamentoContent({ abas }: { abas?: ReactNode }) {
   const { can, loading: permLoading } = usePermissions();
-  const [mes, setMes] = useState<string>(defaultMes());
-  const meses = useMemo(() => monthOptions(), []);
+  const [mes, setMes] = useMesNaUrl(mesAnterior());
   const { start, end, mesRef } = useMemo(() => monthBounds(mes), [mes]);
+  const pode = can("view.roas") || can("view.auditoria");
 
   const esperadoQ = useQuery({
     queryKey: ["billing-esperado", mesRef],
@@ -77,7 +86,7 @@ export function AuditoriaFaturamentoContent() {
       if (error) throw error;
       return (data ?? []) as BillingEsperadoRow[];
     },
-    enabled: !permLoading && (can("view.roas") || can("view.auditoria")),
+    enabled: !permLoading && pode,
   });
 
   const recebidoQ = useQuery({
@@ -93,10 +102,13 @@ export function AuditoriaFaturamentoContent() {
       if (error) throw error;
       return (data ?? []) as FinRow[];
     },
-    enabled: !permLoading && (can("view.roas") || can("view.auditoria")),
+    enabled: !permLoading && pode,
   });
 
-  const totalEsperado = (esperadoQ.data ?? []).reduce((s, r) => s + Number(r.total_esperado ?? 0), 0);
+  const totalEsperado = (esperadoQ.data ?? []).reduce(
+    (s, r) => s + Number(r.total_esperado ?? 0),
+    0,
+  );
 
   const recebidoPorCategoria = useMemo(() => {
     const map = new Map<string, number>();
@@ -114,16 +126,7 @@ export function AuditoriaFaturamentoContent() {
 
   const delta = totalRecebidoPrincipal - totalEsperado;
 
-  if (permLoading) {
-    return <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-muted-foreground">Carregando…</div>;
-  }
-  if (!can("view.roas") && !can("view.auditoria")) {
-    return <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-muted-foreground">Você não tem permissão para visualizar esta página.</div>;
-  }
-
-  const loading = esperadoQ.isLoading || recebidoQ.isLoading;
   const esperado = esperadoQ.data ?? [];
-
   const totals = esperado.reduce(
     (acc, r) => {
       acc.clientes += Number(r.clientes_ativos ?? 0);
@@ -137,165 +140,220 @@ export function AuditoriaFaturamentoContent() {
     { clientes: 0, mrr: 0, royalties: 0, csc: 0, midia: 0, total: 0 },
   );
 
+  const carregando = permLoading || esperadoQ.isLoading || recebidoQ.isLoading;
+  const erro = esperadoQ.error ?? recebidoQ.error;
+  // Resposta no teto do PostgREST: pode haver título a mais que não veio.
+  const cortado = (recebidoQ.data?.length ?? 0) >= CORTE_POSTGREST;
+  const nomeMes = rotuloMes(mes);
+  const semNada = esperado.length === 0 && (recebidoQ.data?.length ?? 0) === 0;
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mês:</span>
-          <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {meses.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+    <MolduraReceita
+      titulo="Funil de Receita"
+      pergunta="Onde o MRR contratado deixa de virar faturado e recebido?"
+      descricao={
+        <>
+          {esperado.length ? `${NUM.format(esperado.length)} unidades` : "Unidades da rede"} ·{" "}
+          {nomeMes}
+          {mesEmAndamento(mes) && " (em andamento, parcial)"} · esperado pelos contratos ativos no
+          Pipedrive; recebido pelos títulos pagos com <strong>data de emissão</strong> no mês,
+          outra régua que a do Funil e a da Visão geral.
+        </>
+      }
+      procedencia={{
+        fonte: "billing_esperado · partners_financeiro (Omie)",
+        regua: "emissão",
+      }}
+      filtros={<SeletorMes mes={mes} aoMudar={setMes} />}
+    >
+      <div className="space-y-6 p-4 md:p-6">
+        {abas}
 
-      <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info-soft p-3 text-sm text-info">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <p>
-          O "Esperado" é calculado a partir dos contratos ativos no Pipedrive. Unidades com base antiga (Curitiba e Patos de Minas) têm uma parcela de CSC não calculável pelo Pipedrive — ela aparece como "Sem categoria" no Omie.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard label="Total Esperado" value={loading ? "—" : brl(totalEsperado)} tone="indigo" />
-        <KpiCard label="Recebido" value={loading ? "—" : brl(totalRecebidoPrincipal)} sub="Royalties + CSC + Mídia" />
-        <KpiCard
-          label="Delta (Recebido − Esperado)"
-          value={loading ? "—" : brl(delta)}
-          tone={delta >= 0 ? "emerald" : "red"}
-        />
-      </div>
-
-      <section className="rounded-lg border bg-card">
-        <header className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Esperado por Unidade</h2>
-        </header>
-        {loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-          </div>
+        {!permLoading && !pode ? (
+          <EstadoSemAcesso oQueFalta={CHAVES} />
+        ) : erro ? (
+          <ErroDaConsulta
+            erro={erro}
+            chaves={CHAVES}
+            tentarNovamente={() => {
+              void esperadoQ.refetch();
+              void recebidoQ.refetch();
+            }}
+          />
+        ) : carregando ? (
+          <>
+            <Carregando variante="kpis" />
+            <Carregando variante="tabela" />
+          </>
+        ) : semNada ? (
+          <EstadoVazio
+            titulo={`Sem esperado nem recebido para ${nomeMes}`}
+            descricao="Nenhuma unidade com contrato ativo e nenhum título pago emitido no mês."
+          />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Unidade</TableHead>
-                <TableHead className="text-right">Clientes ativos</TableHead>
-                <TableHead className="text-right">MRR base</TableHead>
-                <TableHead className="text-right">Royalties</TableHead>
-                <TableHead className="text-right">CSC Expansão</TableHead>
-                <TableHead className="text-right">Mídia / CAC</TableHead>
-                <TableHead className="text-right">Total Esperado</TableHead>
-                <TableHead>Observação</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {esperado.map((r) => (
-                <TableRow key={r.unidade}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{r.unidade}</span>
-                      {r.paga_cac && (
-                        <Badge className="bg-info-soft text-info hover:bg-info-soft">CAC</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">{r.clientes_ativos}</TableCell>
-                  <TableCell className="text-right">{brl(r.mrr_base)}</TableCell>
-                  <TableCell className="text-right">
-                    <div>{brl(r.royalties_esp)}</div>
-                    <div className="text-xs text-muted-foreground">{Number(r.royalties_pct ?? 0)}%</div>
-                  </TableCell>
-                  <TableCell className="text-right">{brl(r.csc_fixo)}</TableCell>
-                  <TableCell className="text-right">
-                    {r.paga_cac ? <span className="text-muted-foreground">—</span> : brl(r.midia_mensal)}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">{brl(r.total_esperado)}</TableCell>
-                  <TableCell>
-                    {r.tem_base_antiga && (
-                      <Badge className="gap-1 bg-warning-soft text-warning hover:bg-warning-soft">
-                        <AlertTriangle className="h-3 w-3" />
-                        Base antiga não calculada
-                      </Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {esperado.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
-                    Sem dados para o mês.
-                  </TableCell>
-                </TableRow>
+          <>
+            <KpiGrade colunas={3}>
+              <KpiCard
+                rotulo="Total esperado"
+                valor={brlOuTraco(totalEsperado)}
+                nota="royalties + CSC + mídia, pelos contratos ativos"
+                procedencia={{ fonte: "billing_esperado" }}
+              />
+              <KpiCard
+                rotulo="Recebido (por emissão)"
+                valor={brlOuTraco(totalRecebidoPrincipal)}
+                estado={cortado ? "parcial" : "ok"}
+                nota={
+                  cortado
+                    ? "royalties + CSC + mídia · leitura cortada em 1.000 títulos: pode faltar recebido"
+                    : "royalties + CSC + mídia, títulos pagos emitidos no mês"
+                }
+                procedencia={{ fonte: "partners_financeiro" }}
+              />
+              <KpiCard
+                rotulo="Delta (recebido − esperado)"
+                valor={brlOuTraco(delta)}
+                estado={cortado ? "parcial" : "ok"}
+                tom={delta >= 0 ? "sucesso" : "perigo"}
+                tomRotulo={delta >= 0 ? "acima do esperado" : "abaixo do esperado"}
+              />
+            </KpiGrade>
+
+            <Secao
+              titulo={`Quanto cada unidade deveria repassar em ${nomeMes}?`}
+              descricao="O esperado sai dos contratos ativos no Pipedrive. Unidades com base antiga (Curitiba e Patos de Minas) têm uma parcela de CSC que o Pipedrive não calcula: ela aparece como “Sem categoria” no Omie."
+            >
+              {esperado.length === 0 ? (
+                <EstadoVazio titulo="Sem esperado para o mês" />
+              ) : (
+                <div className="overflow-auto rounded-xl border bg-card">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead className="text-right">Clientes ativos</TableHead>
+                        <TableHead className="text-right">MRR base</TableHead>
+                        <TableHead className="text-right">Royalties</TableHead>
+                        <TableHead className="text-right">CSC expansão</TableHead>
+                        <TableHead className="text-right">Mídia / CAC</TableHead>
+                        <TableHead className="text-right">Total esperado</TableHead>
+                        <TableHead>Observação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {esperado.map((r) => (
+                        <TableRow key={r.unidade}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{r.unidade}</span>
+                              {r.paga_cac && <StatusBadge tom="info">Paga CAC</StatusBadge>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {NUM.format(Number(r.clientes_ativos ?? 0))}
+                          </TableCell>
+                          <TableCell className="num text-right">{brlOuTraco(r.mrr_base)}</TableCell>
+                          <TableCell className="num text-right">
+                            <div>{brlOuTraco(r.royalties_esp)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {Number(r.royalties_pct ?? 0)}%
+                            </div>
+                          </TableCell>
+                          <TableCell className="num text-right">{brlOuTraco(r.csc_fixo)}</TableCell>
+                          <TableCell className="num text-right">
+                            {r.paga_cac ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              brlOuTraco(r.midia_mensal)
+                            )}
+                          </TableCell>
+                          <TableCell className="num text-right font-semibold">
+                            {brlOuTraco(r.total_esperado)}
+                          </TableCell>
+                          <TableCell>
+                            {r.tem_base_antiga && (
+                              <StatusBadge tom="atencao">Base antiga não calculada</StatusBadge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell className="font-semibold">Total</TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {NUM.format(totals.clientes)}
+                        </TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {brlOuTraco(totals.mrr)}
+                        </TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {brlOuTraco(totals.royalties)}
+                        </TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {brlOuTraco(totals.csc)}
+                        </TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {brlOuTraco(totals.midia)}
+                        </TableCell>
+                        <TableCell className="num text-right font-semibold">
+                          {brlOuTraco(totals.total)}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
               )}
-            </TableBody>
-            {esperado.length > 0 && (
-              <TableFooter>
-                <TableRow>
-                  <TableCell className="font-semibold">Total</TableCell>
-                  <TableCell className="text-right font-semibold">{totals.clientes}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.mrr)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.royalties)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.csc)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.midia)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.total)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableFooter>
-            )}
-          </Table>
-        )}
-      </section>
+            </Secao>
 
-      <section className="rounded-lg border bg-card">
-        <header className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Recebido no Omie (Mês)</h2>
-        </header>
-        {loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Categoria Omie</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead className="text-right">Valor recebido</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[
-                { label: "Royalties", code: CAT_ROYALTIES, key: CAT_ROYALTIES },
-                { label: "CSC Expansão", code: CAT_CSC, key: CAT_CSC },
-                { label: "CSC Tráfego Pago (Mídia)", code: CAT_MIDIA, key: CAT_MIDIA },
-                { label: "Outras Receitas", code: CAT_OUTRAS, key: CAT_OUTRAS },
-                { label: "Sem categoria (base antiga)", code: "NULL", key: "__null__" },
-              ].map((row) => (
-                <TableRow key={row.key}>
-                  <TableCell>{row.label}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.code}</TableCell>
-                  <TableCell className="text-right">{brl(recebidoPorCategoria.get(row.key) ?? 0)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell className="font-semibold">Total</TableCell>
-                <TableCell />
-                <TableCell className="text-right font-semibold">
-                  {brl(Array.from(recebidoPorCategoria.values()).reduce((s, v) => s + v, 0))}
-                </TableCell>
-              </TableRow>
-            </TableFooter>
-          </Table>
+            <Secao
+              titulo="Quanto entrou no Omie em cada categoria?"
+              descricao={`Recebido (por emissão): títulos pagos com data de emissão em ${nomeMes}.${cortado ? " A leitura parou em 1.000 títulos: os valores podem estar abaixo do real." : ""}`}
+            >
+              <div className="overflow-auto rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoria Omie</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead className="text-right">Recebido (por emissão)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[
+                      { label: "Royalties", code: CAT_ROYALTIES, key: CAT_ROYALTIES },
+                      { label: "CSC Expansão", code: CAT_CSC, key: CAT_CSC },
+                      { label: "CSC Tráfego Pago (Mídia)", code: CAT_MIDIA, key: CAT_MIDIA },
+                      { label: "Outras Receitas", code: CAT_OUTRAS, key: CAT_OUTRAS },
+                      { label: "Sem categoria (base antiga)", code: "NULL", key: "__null__" },
+                    ].map((row) => (
+                      <TableRow key={row.key}>
+                        <TableCell>{row.label}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.code}</TableCell>
+                        <TableCell className="num text-right">
+                          {brlOuTraco(recebidoPorCategoria.get(row.key) ?? 0)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell className="font-semibold">Total</TableCell>
+                      <TableCell />
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(
+                          Array.from(recebidoPorCategoria.values()).reduce((s, v) => s + v, 0),
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
+            </Secao>
+          </>
         )}
-      </section>
-    </div>
+      </div>
+    </MolduraReceita>
   );
 }

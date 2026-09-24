@@ -1,26 +1,46 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, FileText, Receipt, Wallet, Target, AlertTriangle, AlertCircle, Check } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { brl } from "@/components/audit/format";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import { FunilGapClientesDialog } from "@/components/funil-gap-clientes-dialog";
-import { KpiCard, tomDoLegado } from "@/components/planning";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomKpi,
+  type TomStatus,
+} from "@/components/planning";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import {
+  brlOuTraco,
+  ErroDaConsulta,
+  mesCorrente,
+  mesEmAndamento,
+  MolduraReceita,
+  pctOuTraco,
+  rotuloMes,
+  SeletorMes,
+  useMesNaUrl,
+} from "@/components/receita/moldura";
 
 type FunilRow = {
   mes: string | null;
@@ -36,72 +56,39 @@ type FunilRow = {
   conv_mrr_to_recebido_pct: number | null;
 };
 
+const CHAVES = "view.funil_receita ou view.auditoria";
+
 const N = (v: number | null | undefined) => Number(v ?? 0);
+const NUM = new Intl.NumberFormat("pt-BR");
 
-function defaultMes(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+// Réguas de cor das conversões (inalteradas): MRR→Faturado e MRR→Recebido
+// ficam verdes a partir de 90%, laranja de 70% a 90% e vermelhas abaixo;
+// Faturado→Recebido só tem verde (≥ 90%) e laranja.
+function tomMrrFat(p: number | null): TomStatus {
+  if (p === null) return "neutro";
+  if (p >= 90) return "sucesso";
+  if (p >= 70) return "atencao";
+  return "perigo";
+}
+function tomFatRec(p: number | null): TomStatus {
+  if (p === null) return "neutro";
+  return p >= 90 ? "sucesso" : "atencao";
+}
+function tomKpi(t: TomStatus): TomKpi | undefined {
+  return t === "neutro" ? undefined : t;
 }
 
-function monthLabel(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(y, m - 1, 1);
-  const s = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function convOuNull(v: number | null | undefined): number | null {
+  return v === null || v === undefined ? null : Number(v);
 }
 
-function toneMrrFat(p: number) {
-  if (p >= 90) return "emerald";
-  if (p >= 70) return "amber";
-  return "red";
-}
-function toneFatRec(p: number) {
-  if (p >= 90) return "emerald";
-  return "amber";
-}
-
-const TONE_BG: Record<string, string> = {
-  emerald: "bg-success-soft border-success/40",
-  amber: "bg-warning-soft border-warning/40",
-  red: "bg-danger-soft border-danger/40",
-  slate: "bg-card border-border",
-};
-const TONE_BADGE: Record<string, string> = {
-  emerald: "bg-success-soft text-success",
-  amber: "bg-warning-soft text-warning",
-  red: "bg-danger-soft text-danger",
-  slate: "bg-muted text-foreground",
-};
-
-// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). `source` era um selo solto e vira a procedência do número (N3); o
-// fundo por `tone` vira o `tom` do KpiCard (emerald → sucesso, amber →
-// atenção, red → perigo, slate → neutro), com ícone de status junto da cor
-// (V7). "—" é conversão sem MRR contratado: não apurada, não zero (N4).
-function FunilCard({
-  label, value, sub, source, tone,
-}: { icon: React.ReactNode; label: string; value: string; sub: string; tone?: string; source?: string }) {
+/** Percentual de conversão com o tom da régua: ícone e número, nunca cor sozinha (V7). */
+function Conversao({ pct, tom }: { pct: number | null; tom: TomStatus }) {
+  if (pct === null) return <span className="text-muted-foreground">—</span>;
   return (
-    <KpiCard
-      rotulo={label}
-      valor={value}
-      estado={value === "—" ? "nao-apurado" : "ok"}
-      nota={sub}
-      procedencia={source ? { fonte: source } : undefined}
-      tom={tomDoLegado(tone)}
-      className="flex-1"
-    />
-  );
-}
-
-function ConvArrow({ pct, tone }: { pct: number | null; tone: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center px-2">
-      <ArrowRight className="h-5 w-5 text-muted-foreground" />
-      <Badge className={cn("mt-1 text-xs", TONE_BADGE[tone])}>
-        {pct === null ? "—" : `${pct.toFixed(1)}%`}
-      </Badge>
-    </div>
+    <StatusBadge tom={tom} className="num">
+      {pctOuTraco(pct)}
+    </StatusBadge>
   );
 }
 
@@ -120,41 +107,46 @@ function monthBounds(mes: string): { dataIni: string; dataFim: string } {
   };
 }
 
-function CellLink({ to, search, className, children }: {
+function CellLink({
+  to,
+  search,
+  className,
+  children,
+}: {
   to: string;
   search: Record<string, string>;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Link
       to={to}
       search={search}
-      className={cn("underline-offset-2 hover:underline hover:text-primary-text", className)}
+      className={cn(
+        "rounded-sm underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
       {children}
     </Link>
   );
 }
 
-export function FunilContent() {
+/**
+ * Aba Funil do Funil de Receita (contrato §2): MRR contratado → faturado →
+ * recebido, por unidade. O mês padrão é o corrente (as outras telas da área
+ * abrem no anterior), e a descrição avisa que ele é parcial.
+ */
+export function FunilContent({ abas }: { abas?: ReactNode }) {
   const { can, loading: permLoading, scopedToOwnUnit, unidade: userUnidade } = usePermissions();
-  const [mes, setMes] = useState<string>(defaultMes());
-  const [unidadesSel, setUnidadesSel] = useState<string[] | null>(null);
-  const [gapDialog, setGapDialog] = useState<{ unidade: string; mes: string; gap: number } | null>(null);
-
-  const meses = useMemo(() => {
-    const out: { value: string; label: string }[] = [];
-    const now = new Date();
-    for (let i = 0; i < 18; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      out.push({ value: v, label: monthLabel(v) });
-    }
-    return out;
-  }, []);
+  const [mes, setMes] = useMesNaUrl(mesCorrente());
+  const [unidadesUrl, setUnidadesUrl] = useFiltroNaUrl("unidades", [] as string[]);
+  const [gapDialog, setGapDialog] = useState<{ unidade: string; mes: string; gap: number } | null>(
+    null,
+  );
 
   const mesIso = `${mes}-01`;
+  const pode = can("view.funil_receita") || can("view.auditoria");
 
   const q = useQuery({
     queryKey: ["v_funil_mensal", mesIso],
@@ -168,7 +160,7 @@ export function FunilContent() {
       if (error) throw error;
       return (data ?? []) as FunilRow[];
     },
-    enabled: !permLoading && (can("view.funil_receita") || can("view.auditoria")),
+    enabled: !permLoading && pode,
   });
 
   // Sócio regional enxerga só a própria unidade — o recorte vem antes da
@@ -187,8 +179,22 @@ export function FunilContent() {
     [baseRows],
   );
 
-  const selected = unidadesSel ?? allUnidades;
+  // Sem `?unidades=` na URL vale "todas". Unidade da URL que não existe no mês
+  // é ignorada; se nenhuma sobrar, também vale "todas".
+  const escolhidas = unidadesUrl.filter((u) => allUnidades.includes(u));
+  const todas = escolhidas.length === 0 || escolhidas.length === allUnidades.length;
+  const selected = todas ? allUnidades : escolhidas;
   const rows = baseRows.filter((r) => selected.includes(r.unidade ?? ""));
+
+  const alternarUnidade = (u: string, marcar: boolean) => {
+    const proxima = marcar
+      ? Array.from(new Set([...selected, u]))
+      : selected.filter((x) => x !== u);
+    // Desmarcar a última volta para "todas": a tabela vazia não responde nada.
+    setUnidadesUrl(
+      proxima.length === 0 || proxima.length === allUnidades.length ? undefined : proxima.sort(),
+    );
+  };
 
   const totals = rows.reduce(
     (a, r) => {
@@ -207,277 +213,357 @@ export function FunilContent() {
   const convFR = totals.faturado > 0 ? (totals.recebido / totals.faturado) * 100 : null;
   const convMR = totals.mrr > 0 ? (totals.recebido / totals.mrr) * 100 : null;
 
-  const insights: { kind: "warn" | "critical"; text: string }[] = [];
+  const insights: { tom: "perigo" | "atencao"; unidade: string; texto: string }[] = [];
   for (const r of rows) {
     const unit = r.unidade ?? "—";
     const mrr = N(r.mrr_contratado);
     const fat = N(r.faturado);
     const rec = N(r.recebido);
-    const mf = r.conv_mrr_to_faturado_pct == null ? null : Number(r.conv_mrr_to_faturado_pct);
-    const fr = r.conv_faturado_to_recebido_pct == null ? null : Number(r.conv_faturado_to_recebido_pct);
+    const mf = convOuNull(r.conv_mrr_to_faturado_pct);
+    const fr = convOuNull(r.conv_faturado_to_recebido_pct);
     if (mrr > 0 && fat === 0) {
-      insights.push({ kind: "critical", text: `🔴 ${unit}: tem MRR de ${brl(mrr)} mas zero faturas no Omie` });
+      insights.push({
+        tom: "perigo",
+        unidade: unit,
+        texto: `tem MRR de ${brlOuTraco(mrr)} e nenhuma fatura no Omie`,
+      });
       continue;
     }
     if (mf !== null && mf < 80) {
       insights.push({
-        kind: "warn",
-        text: `⚠ ${unit}: apenas ${mf.toFixed(1)}% do MRR foi faturado — ${brl(mrr - fat)} não cobrado`,
+        tom: "atencao",
+        unidade: unit,
+        texto: `só ${pctOuTraco(mf)} do MRR foi faturado: ${brlOuTraco(mrr - fat)} não cobrado`,
       });
     }
     if (fr !== null && fr < 85) {
       insights.push({
-        kind: "warn",
-        text: `⚠ ${unit}: ${brl(fat - rec)} faturado ainda não recebido`,
+        tom: "atencao",
+        unidade: unit,
+        texto: `${brlOuTraco(fat - rec)} faturado ainda não recebido`,
       });
     }
   }
 
-  if (permLoading) {
-    return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
-  }
-  if (!can("view.funil_receita") && !can("view.auditoria")) {
-    return <div className="p-6 text-sm text-muted-foreground">Você não tem permissão para visualizar esta página.</div>;
-  }
+  const { dataIni, dataFim } = monthBounds(mes);
+  const emAndamento = mesEmAndamento(mes);
+  const nomeMes = rotuloMes(mes);
+  // O card abre as faturas em Contas a Receber quando o recorte cabe num link:
+  // todas as unidades ou uma só. Três de onze não se escrevem na URL de lá.
+  const recorteDestino: Record<string, string> | null = todas
+    ? {}
+    : selected.length === 1
+      ? { unidade: selected[0] }
+      : null;
+  const hrefFaturas = (extra: Record<string, string> = {}) =>
+    recorteDestino
+      ? `/contas-receber?${new URLSearchParams({ ...recorteDestino, dataIni, dataFim, ...extra }).toString()}`
+      : undefined;
 
-  const loading = q.isLoading;
+  const carregando = permLoading || q.isLoading;
+  const semDadosNoMes = !carregando && !q.error && baseRows.length === 0;
+
+  const filtros = (
+    <>
+      <SeletorMes mes={mes} aoMudar={setMes} />
+      {!escopoUnidade && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-w-[12rem] justify-start"
+              disabled={allUnidades.length === 0}
+            >
+              <span className="text-muted-foreground">Unidades:</span>
+              {todas ? `Todas (${allUnidades.length})` : `${selected.length} de ${allUnidades.length}`}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="start">
+            <div className="mb-2 flex justify-between">
+              <Button variant="ghost" size="sm" onClick={() => setUnidadesUrl(undefined)}>
+                Todas
+              </Button>
+            </div>
+            <div className="max-h-64 space-y-1 overflow-auto">
+              {allUnidades.map((u) => (
+                <label
+                  key={u}
+                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted"
+                >
+                  <Checkbox
+                    checked={!todas && selected.includes(u)}
+                    onCheckedChange={(c) => {
+                      // Com "todas", marcar uma começa um recorte só com ela.
+                      if (todas) setUnidadesUrl(c ? [u] : allUnidades.filter((x) => x !== u));
+                      else alternarUnidade(u, Boolean(c));
+                    }}
+                  />
+                  <span className="text-sm">{u}</span>
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+      {!todas && (
+        <span className="num text-[13px] text-muted-foreground">
+          {selected.length} de {allUnidades.length} unidades
+        </span>
+      )}
+    </>
+  );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mês:</span>
-          <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {meses.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className={cn("flex items-center gap-2", escopoUnidade && "hidden")}>
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unidades:</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="min-w-[12rem] justify-start">
-                {unidadesSel === null || unidadesSel.length === allUnidades.length
-                  ? `Todas (${allUnidades.length})`
-                  : `${unidadesSel.length} selecionada(s)`}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-2" align="start">
-              <div className="mb-2 flex justify-between">
-                <Button variant="ghost" size="sm" onClick={() => setUnidadesSel(null)}>Todas</Button>
-                <Button variant="ghost" size="sm" onClick={() => setUnidadesSel([])}>Nenhuma</Button>
-              </div>
-              <div className="max-h-64 space-y-1 overflow-auto">
-                {allUnidades.map((u) => {
-                  const checked = selected.includes(u);
-                  return (
-                    <label key={u} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted">
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(c) => {
-                          const base = unidadesSel ?? allUnidades;
-                          setUnidadesSel(c ? Array.from(new Set([...base, u])) : base.filter((x) => x !== u));
-                        }}
-                      />
-                      <span className="text-sm">{u}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-
-      {loading ? (
-        <Skeleton className="h-32 w-full" />
-      ) : (
+    <MolduraReceita
+      titulo="Funil de Receita"
+      pergunta="Onde o MRR contratado deixa de virar faturado e recebido?"
+      descricao={
         <>
-          {/* O aviso de cobertura parcial saiu daqui em 22/09, junto com o selo dos cards do
-              Aquário: lacuna de fonte é assunto de auditoria, e auditoria mora numa tela só. */}
-          <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
-            <FunilCard
-              icon={<FileText className="h-4 w-4" />}
-              label="MRR Contratado"
-              value={brl(totals.mrr)}
-              sub={`${totals.contratos} contratos ativos`}
-              source="contratos"
-            />
-            <ConvArrow pct={convMF} tone={convMF === null ? "slate" : toneMrrFat(convMF)} />
-            <FunilCard
-              icon={<Receipt className="h-4 w-4" />}
-              label="Faturado"
-              value={brl(totals.faturado)}
-              sub={`${totals.faturas} faturas emitidas`}
-              tone={convMF === null ? "slate" : toneMrrFat(convMF)}
-              source="omie"
-            />
-            <ConvArrow pct={convFR} tone={convFR === null ? "slate" : toneFatRec(convFR)} />
-            <FunilCard
-              icon={<Wallet className="h-4 w-4" />}
-              label="Recebido"
-              value={brl(totals.recebido)}
-              sub={`${totals.recebidas} faturas recebidas`}
-              tone={convFR === null ? "slate" : toneFatRec(convFR)}
-              source="omie"
-            />
-            <ConvArrow pct={convMR} tone={convMR === null ? "slate" : toneMrrFat(convMR)} />
-            <FunilCard
-              icon={<Target className="h-4 w-4" />}
-              label="Conversão Total"
-              value={convMR === null ? "—" : `${convMR.toFixed(1)}%`}
-              sub="Recebido / MRR Contratado"
-              tone={convMR === null ? "slate" : toneMrrFat(convMR)}
-            />
-          </div>
+          {escopoUnidade ? userUnidade : `${NUM.format(selected.length)} unidades`} · {nomeMes}
+          {emAndamento && " (mês corrente, parcial)"} · MRR dos contratos ativos; faturado e
+          recebido pelas notas do Omie com <strong>competência</strong> no mês, bruto de nota.
         </>
-      )}
+      }
+      procedencia={{
+        fonte: "v_funil_mensal · contratos e títulos do Omie",
+        regua: "competência",
+      }}
+      filtros={filtros}
+    >
+      <div className="space-y-6 p-4 md:p-6">
+        {abas}
 
-      <section className="rounded-lg border bg-card">
-        <header className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Por unidade — {monthLabel(mes)}</h2>
-        </header>
-        {loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-          </div>
+        {!permLoading && !pode ? (
+          <EstadoSemAcesso oQueFalta={CHAVES} />
+        ) : q.error ? (
+          <ErroDaConsulta
+            erro={q.error}
+            chaves={CHAVES}
+            tentarNovamente={() => void q.refetch()}
+          />
+        ) : carregando ? (
+          <>
+            <Carregando variante="kpis" />
+            <Carregando variante="tabela" />
+          </>
+        ) : semDadosNoMes ? (
+          <EstadoVazio
+            titulo={`Sem funil para ${nomeMes}`}
+            descricao="Nenhuma unidade tem contrato ativo ou fatura neste mês."
+          />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Unidade</TableHead>
-                <TableHead className="text-right">MRR Contratado</TableHead>
-                <TableHead className="text-right">Faturado</TableHead>
-                <TableHead className="text-right">Gap Faturamento</TableHead>
-                <TableHead className="text-right">Recebido</TableHead>
-                <TableHead className="text-right">Gap Cobrança</TableHead>
-                <TableHead className="text-right">MRR→Fat</TableHead>
-                <TableHead className="text-right">Fat→Rec</TableHead>
-                <TableHead className="text-right">MRR→Rec</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => {
-                const mrr = N(r.mrr_contratado), fat = N(r.faturado), rec = N(r.recebido);
-                const gapF = mrr - fat;
-                const gapC = fat - rec;
-                const mf = r.conv_mrr_to_faturado_pct == null ? null : Number(r.conv_mrr_to_faturado_pct);
-                const fr = r.conv_faturado_to_recebido_pct == null ? null : Number(r.conv_faturado_to_recebido_pct);
-                const mr = r.conv_mrr_to_recebido_pct == null ? null : Number(r.conv_mrr_to_recebido_pct);
-                const semDados = mrr > 0 && fat === 0;
-                const unidadeStr = r.unidade ?? "";
-                const { dataIni, dataFim } = monthBounds(mes);
-                return (
-                  <TableRow key={r.unidade}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{r.unidade}</span>
-                        {semDados && (
-                          <Badge className="bg-muted text-foreground">
-                            Sem dados no Omie
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <CellLink to="/clientes" search={{ unidade: unidadeStr }}>{brl(mrr)}</CellLink>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <CellLink to="/contas-receber" search={{ unidade: unidadeStr, dataIni, dataFim }}>{brl(fat)}</CellLink>
-                    </TableCell>
-                    <TableCell className={cn("text-right", gapF > 0 && "text-danger font-medium")}>
-                      {Math.abs(gapF) < 0.01 ? (
-                        brl(gapF)
-                      ) : gapF > 0 ? (
-                        <button
-                          type="button"
-                          className="underline-offset-2 hover:underline hover:text-primary-text"
-                          onClick={() => setGapDialog({ unidade: unidadeStr, mes, gap: gapF })}
-                        >
-                          {brl(gapF)}
-                        </button>
-                      ) : (
-                        <CellLink to="/contas-receber" search={{ unidade: unidadeStr, dataIni, dataFim }}>{brl(gapF)}</CellLink>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <CellLink to="/contas-receber" search={{ unidade: unidadeStr, status: "RECEBIDO", dataIni, dataFim }}>{brl(rec)}</CellLink>
-                    </TableCell>
-                    <TableCell className={cn("text-right", gapC > 0 && "text-warning font-medium")}>
-                      <CellLink to="/contas-receber" search={{ unidade: unidadeStr, status: "NAO_RECEBIDO", dataIni, dataFim }}>{brl(gapC)}</CellLink>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge className={cn(TONE_BADGE[mf === null ? "slate" : toneMrrFat(mf)])}>
-                        {mf === null ? "—" : `${mf.toFixed(1)}%`}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge className={cn(TONE_BADGE[fr === null ? "slate" : toneFatRec(fr)])}>
-                        {fr === null ? "—" : `${fr.toFixed(1)}%`}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge className={cn(TONE_BADGE[mr === null ? "slate" : toneMrrFat(mr)])}>
-                        {mr === null ? "—" : `${mr.toFixed(1)}%`}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {rows.length === 0 && (
-                <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground">Sem dados para o mês.</TableCell></TableRow>
-              )}
-            </TableBody>
-            {rows.length > 0 && (
-              <TableFooter>
-                <TableRow>
-                  <TableCell className="font-semibold">Total</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.mrr)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.faturado)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.mrr - totals.faturado)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.recebido)}</TableCell>
-                  <TableCell className="text-right font-semibold">{brl(totals.faturado - totals.recebido)}</TableCell>
-                  <TableCell className="text-right font-semibold">{convMF === null ? "—" : `${convMF.toFixed(1)}%`}</TableCell>
-                  <TableCell className="text-right font-semibold">{convFR === null ? "—" : `${convFR.toFixed(1)}%`}</TableCell>
-                  <TableCell className="text-right font-semibold">{convMR === null ? "—" : `${convMR.toFixed(1)}%`}</TableCell>
-                </TableRow>
-              </TableFooter>
-            )}
-          </Table>
-        )}
-      </section>
+          <>
+            {/* O aviso de cobertura parcial saiu daqui em 22/09, junto com o selo dos cards do
+                Aquário: lacuna de fonte é assunto de auditoria, e auditoria mora numa tela só. */}
+            <KpiGrade colunas={4}>
+              <KpiCard
+                rotulo="MRR contratado"
+                valor={brlOuTraco(totals.mrr)}
+                nota={`${NUM.format(totals.contratos)} contratos ativos`}
+                procedencia={{ fonte: "contratos" }}
+              />
+              <KpiCard
+                rotulo="Faturado"
+                valor={brlOuTraco(totals.faturado)}
+                nota={`${NUM.format(totals.faturas)} faturas emitidas · ${pctOuTraco(convMF)} do MRR`}
+                tom={tomKpi(tomMrrFat(convMF))}
+                procedencia={{ fonte: "Omie" }}
+                abrir={
+                  hrefFaturas() ? { href: hrefFaturas(), rotulo: "Abrir faturas" } : undefined
+                }
+              />
+              <KpiCard
+                rotulo="Recebido"
+                valor={brlOuTraco(totals.recebido)}
+                nota={`${NUM.format(totals.recebidas)} faturas recebidas · ${pctOuTraco(convFR)} do faturado`}
+                tom={tomKpi(tomFatRec(convFR))}
+                procedencia={{ fonte: "Omie" }}
+                abrir={
+                  hrefFaturas({ status: "RECEBIDO" })
+                    ? { href: hrefFaturas({ status: "RECEBIDO" }), rotulo: "Abrir faturas" }
+                    : undefined
+                }
+              />
+              <KpiCard
+                rotulo="Conversão total"
+                valor={pctOuTraco(convMR)}
+                estado={convMR === null ? "nao-apurado" : "ok"}
+                nota={convMR === null ? "sem MRR contratado no recorte" : "recebido ÷ MRR contratado"}
+                tom={tomKpi(tomMrrFat(convMR))}
+              />
+            </KpiGrade>
 
-      <section className="rounded-lg border bg-card">
-        <header className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Insights automáticos</h2>
-        </header>
-        <div className="space-y-2 p-4">
-          {loading ? (
-            <Skeleton className="h-16 w-full" />
-          ) : insights.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-success">
-              <Check className="h-4 w-4" /> Nenhum alerta para o filtro atual.
-            </div>
-          ) : (
-            insights.map((it, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "flex items-start gap-2 rounded-md border p-3 text-sm",
-                  it.kind === "critical"
-                    ? "border-danger/40 bg-danger-soft text-danger"
-                    : "border-warning/40 bg-warning-soft text-warning",
-                )}
-              >
-                {it.kind === "critical" ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
-                <span>{it.text}</span>
+            <Secao
+              titulo={`Em que unidade o MRR não virou faturado ou recebido em ${nomeMes}?`}
+              descricao="Clique no valor para abrir os registros: MRR na Base de clientes, faturado e recebido em Contas a Receber; o gap de faturamento abre os contratos sem fatura."
+            >
+              <div className="overflow-auto rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead className="text-right">MRR contratado</TableHead>
+                      <TableHead className="text-right">Faturado</TableHead>
+                      <TableHead className="text-right">Gap faturamento</TableHead>
+                      <TableHead className="text-right">Recebido</TableHead>
+                      <TableHead className="text-right">Gap cobrança</TableHead>
+                      <TableHead className="text-right">MRR→Fat</TableHead>
+                      <TableHead className="text-right">Fat→Rec</TableHead>
+                      <TableHead className="text-right">MRR→Rec</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => {
+                      const mrr = N(r.mrr_contratado),
+                        fat = N(r.faturado),
+                        rec = N(r.recebido);
+                      const gapF = mrr - fat;
+                      const gapC = fat - rec;
+                      const mf = convOuNull(r.conv_mrr_to_faturado_pct);
+                      const fr = convOuNull(r.conv_faturado_to_recebido_pct);
+                      const mr = convOuNull(r.conv_mrr_to_recebido_pct);
+                      const semDados = mrr > 0 && fat === 0;
+                      const unidadeStr = r.unidade ?? "";
+                      return (
+                        <TableRow key={r.unidade}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{r.unidade}</span>
+                              {semDados && <StatusBadge tom="neutro">Sem faturas no Omie</StatusBadge>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            <CellLink to="/clientes" search={{ unidade: unidadeStr }}>
+                              {brlOuTraco(r.mrr_contratado)}
+                            </CellLink>
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            <CellLink
+                              to="/contas-receber"
+                              search={{ unidade: unidadeStr, dataIni, dataFim }}
+                            >
+                              {brlOuTraco(r.faturado)}
+                            </CellLink>
+                          </TableCell>
+                          <TableCell
+                            className={cn("num text-right", gapF > 0 && "font-medium text-danger")}
+                          >
+                            {Math.abs(gapF) < 0.01 ? (
+                              brlOuTraco(gapF)
+                            ) : gapF > 0 ? (
+                              <button
+                                type="button"
+                                className="rounded-sm underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setGapDialog({ unidade: unidadeStr, mes, gap: gapF })}
+                              >
+                                {brlOuTraco(gapF)}
+                              </button>
+                            ) : (
+                              <CellLink
+                                to="/contas-receber"
+                                search={{ unidade: unidadeStr, dataIni, dataFim }}
+                              >
+                                {brlOuTraco(gapF)}
+                              </CellLink>
+                            )}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            <CellLink
+                              to="/contas-receber"
+                              search={{ unidade: unidadeStr, status: "RECEBIDO", dataIni, dataFim }}
+                            >
+                              {brlOuTraco(r.recebido)}
+                            </CellLink>
+                          </TableCell>
+                          <TableCell
+                            className={cn("num text-right", gapC > 0 && "font-medium text-warning")}
+                          >
+                            <CellLink
+                              to="/contas-receber"
+                              search={{
+                                unidade: unidadeStr,
+                                status: "NAO_RECEBIDO",
+                                dataIni,
+                                dataFim,
+                              }}
+                            >
+                              {brlOuTraco(gapC)}
+                            </CellLink>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Conversao pct={mf} tom={tomMrrFat(mf)} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Conversao pct={fr} tom={tomFatRec(fr)} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Conversao pct={mr} tom={tomMrrFat(mr)} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell className="font-semibold">Total</TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(totals.mrr)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(totals.faturado)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(totals.mrr - totals.faturado)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(totals.recebido)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {brlOuTraco(totals.faturado - totals.recebido)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {pctOuTraco(convMF)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {pctOuTraco(convFR)}
+                      </TableCell>
+                      <TableCell className="num text-right font-semibold">
+                        {pctOuTraco(convMR)}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
               </div>
-            ))
-          )}
-        </div>
-      </section>
+            </Secao>
+
+            <Secao
+              titulo="O que pede atenção no recorte?"
+              descricao="Unidade com MRR e nenhuma fatura; menos de 80% do MRR faturado; menos de 85% do faturado recebido."
+            >
+              {insights.length === 0 ? (
+                <div className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm">
+                  <CircleCheck className="size-4 text-success" aria-hidden />
+                  Nenhum alerta para o filtro atual.
+                </div>
+              ) : (
+                <ul className="divide-y rounded-xl border bg-card">
+                  {insights.map((it, i) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
+                      <StatusBadge tom={it.tom}>
+                        {it.tom === "perigo" ? "Sem fatura" : "Atenção"}
+                      </StatusBadge>
+                      <span>
+                        <span className="font-medium">{it.unidade}</span>: {it.texto}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Secao>
+          </>
+        )}
+      </div>
 
       {gapDialog && (
         <FunilGapClientesDialog
@@ -485,9 +571,11 @@ export function FunilContent() {
           mes={gapDialog.mes}
           gap={gapDialog.gap}
           open={!!gapDialog}
-          onOpenChange={(o) => { if (!o) setGapDialog(null); }}
+          onOpenChange={(o) => {
+            if (!o) setGapDialog(null);
+          }}
         />
       )}
-    </div>
+    </MolduraReceita>
   );
 }
