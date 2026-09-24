@@ -10,7 +10,35 @@
 //
 // Arquivo puro (sem Node): é importado pelo servidor, pelos testes e pela tela, que só usa os
 // rótulos. Quem fala com a rede é `adaptador.server.ts`.
-import { FRENTES } from "../contrato.ts";
+// Taxonomia congelada nas seis frentes da avaliação rotulada de 22/09 (95%): ampliar as frentes
+// do cockpit não pode mudar, sem nova avaliação, o que o Jev recebe como opções.
+export const FRENTES_JEV = {
+  receita: {
+    titulo: "Receita e crescimento",
+    pergunta: "Quanto faturamos, quanto falta para a meta e de onde vem o próximo incremento?",
+  },
+  clientes: {
+    titulo: "Clientes e produtos",
+    pergunta: "Quantos clientes temos de verdade, quem consome cada vertical e onde há oferta?",
+  },
+  comercial: {
+    titulo: "Execução comercial",
+    pergunta: "A demanda está sendo trabalhada? Qual produto e unidade convertem?",
+  },
+  rede: {
+    titulo: "Saúde da rede",
+    pergunta: "Quais unidades crescem com margem? O sócio da unidade está satisfeito?",
+  },
+  retencao: {
+    titulo: "Retenção e entrega",
+    pergunta: "Quem permanece, expande ou sai? A entrega comporta crescer?",
+  },
+  capital: {
+    titulo: "Capital e evidências",
+    pergunta: "O que podemos consolidar e o que conseguimos demonstrar a investidores?",
+  },
+} as const;
+export type FrenteJev = keyof typeof FRENTES_JEV;
 
 export const JEV_ENDPOINT = "https://openrouter.ai/api/alpha/decisions";
 export const JEV_MODELO = "typesafe/jev-1.13";
@@ -114,7 +142,9 @@ export type IdPerguntaCeo = keyof typeof PERGUNTAS_CEO_FICTICIAS;
 export const IDS_PERGUNTAS_CEO = Object.keys(PERGUNTAS_CEO_FICTICIAS) as IdPerguntaCeo[];
 
 export const OPCOES_ROTEAMENTO: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(FRENTES).map(([k, f]) => [k, `${f.titulo}: ${f.pergunta}`])),
+  ...Object.fromEntries(
+    Object.entries(FRENTES_JEV).map(([k, f]) => [k, `${f.titulo}: ${f.pergunta}`]),
+  ),
   fora_de_escopo:
     "A pergunta não trata de receita, clientes, execução comercial, rede, retenção ou capital da empresa.",
   insuficiente: "A pergunta é vaga demais para escolher uma frente.",
