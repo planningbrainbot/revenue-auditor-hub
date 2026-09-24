@@ -144,7 +144,12 @@ export function GenteView() {
         <KpiCard
           rotulo="Pessoas cadastradas (todos os status)"
           valor={NUM.format(totais.pessoasTotal)}
-          nota={`${NUM.format(totais.ativos)} ativas`}
+          // Os totais vêm da view por unidade: quem está sem unidade fica fora.
+          nota={
+            q.data.semUnidade > 0
+              ? `${NUM.format(totais.ativos)} ativas · sem contar ${NUM.format(q.data.semUnidade)} sem unidade`
+              : `${NUM.format(totais.ativos)} ativas`
+          }
         />
         <KpiCard rotulo="Unidades com cadastro" valor={NUM.format(unidades.length)} />
         <KpiCard
@@ -361,7 +366,7 @@ export function GenteView() {
               titulo={
                 doStatus.length
                   ? "Nenhuma pessoa com esses filtros"
-                  : `Nenhuma pessoa ${qualStatus} no cadastro que você enxerga`
+                  : `Nenhuma pessoa no cadastro que você enxerga (${qualStatus})`
               }
               total={doStatus.length ? doStatus.length : undefined}
             />
