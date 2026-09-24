@@ -402,7 +402,7 @@ export function IduView() {
                                             ? "definir meta"
                                             : fmtValor(l.meta, l.unidade_medida)}
                                           {l.meta_origem && ORIGEM_ROTULO[l.meta_origem] && (
-                                            <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                                            <span className="rounded bg-muted px-1 text-xs text-muted-foreground">
                                               {ORIGEM_ROTULO[l.meta_origem]}
                                             </span>
                                           )}
