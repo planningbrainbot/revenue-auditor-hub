@@ -2885,3 +2885,29 @@ tem `todas_unidades` lê tudo.
 - Verificador: `scripts/cockpit-ceo/verificar-financeiro-execute.mjs`.
 
 **Status:** local e em PR de revisão. **Não publicado.** Falta o "contrato ok" formal da revisão do contrato de tela.
+
+## [2026-09-24] Cockpit do CEO empresarial publicado; crons do Financeiro passam para a planningbrainbot; cópia `financeiro` sem EXECUTE (adendo à entrada de 23/09)
+
+**Autorização:** o Pedro pediu "publica logo". Ele é dono do Financeiro e, junto com os sócios, da conta GitHub `planningbrainbot`.
+
+**Publicação:**
+- PR #20 mergeado na `main` (`6bab45d`). Antes do merge, a branch recebeu o `34e0f85` (IDU), que era o commit em produção.
+- Deploy `dpl_AijCYpg7aUyN6RXur3pcFcHynFnz` pela CLI da planningbrainbot-4862, projeto `ops-brain` do time `planning17`, feito de um worktree limpo nesse commit. `planningbrain.com.br` aponta para ele.
+- Conferido no bundle servido: o rótulo novo "Aquisição e conversão" está presente e não há referência à service role.
+- Rollback: promover `dpl_89xV64undW9UENYAWKAbYM74PbuW` (`34e0f85`).
+
+**Crons do Financeiro:** a conta que deve rodá-los é a `planningbrainbot`, não a `pedroluca-prog` (correção do Pedro).
+- Em `planningbrainbot/brain-financeiro-planning`, os quatro crons automáticos foram ligados: `sync-lancamentos`, `sync-titulos`, `sync-caixa` e `saude-frescor`.
+- Em `pedroluca-prog` os mesmos quatro foram desligados, para os dois não gravarem ao mesmo tempo no Financial Brain.
+- `fechamento-mensal` e `planilhas-auxiliares` continuam desligados: dependem de planilha local.
+- Primeira execução manual (run 36051502580): sucesso. 15 empresas carregadas e 1 recusada (HTTP 403, a credencial revogada da AGRO, ausência já declarada). `dado_frescor` foi de 20/09 para 24/09.
+
+**Cópia `financeiro` do banco único:** a proposta de 23/09 foi aplicada e movida para `supabase/migrations/`. Estado depois da aplicação:
+- nenhuma das 115 funções está aberta a `authenticated`;
+- a `service_role` executa as 115;
+- sócio e admin simulados recebem "permission denied";
+- `financeiro.empresas`, que a tela de permissões lê, continua legível pela RLS.
+
+Antes de aplicar, conferido que nenhum cron nem outro app local chama essas funções. Rollback em `supabase/rollback/`.
+
+**Continua pendente:** `security_invoker` em `ops.qb_clientes_ativos` (proposta, com o Eliezek, dono do Ops) e o "contrato ok" formal da revisão de tela.

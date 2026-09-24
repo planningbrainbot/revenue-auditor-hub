@@ -1,4 +1,4 @@
--- PROPOSTA, NÃO APLICADA (23/09/2026). Decisão do dono do Financeiro e do Ops (Eliezek).
+-- APLICADA em produção em 24/09/2026 (autorização do Pedro, dono do Financeiro). Era proposta de 23/09.
 --
 -- O schema `financeiro` do banco único é uma cópia do Brain Financeiro congelada no corte de 02/09:
 -- a tela do Financeiro lê o projeto Financial Brain, e o cron grava lá. Aqui, as 115 funções do
