@@ -183,12 +183,10 @@ export function Aquario({
   );
   return (
     <main className={embedded ? "space-y-4" : "mx-auto max-w-[1600px] space-y-4 p-4 md:p-6"}>
-      {/* Embutido na Base de clientes, o cabeçalho próprio era o segundo <h1> da mesma página.
-          O Freshness fica: é o único gatilho de sincronização do CRM nesta tela. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {embedded ? (
-          <span />
-        ) : (
+      {/* Embutido na Base de clientes, o cabeçalho e o Freshness são da casca: o "Atualizar" do
+          PageHeader é o do Freshness, e havia dois com efeitos diferentes. */}
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Fish className="h-6 w-6 text-primary-text" />
             <div>
@@ -198,9 +196,9 @@ export function Aquario({
               </p>
             </div>
           </div>
-        )}
-        <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
-      </div>
+          <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
+        </div>
+      )}
       <FalhaDeCarga data={data} />
       {!data.permissions.all_units && !data.units.length && (
         <Notice>
