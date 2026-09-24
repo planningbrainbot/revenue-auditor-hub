@@ -54,6 +54,7 @@ import {
   SeloRegua,
 } from "@/components/receita/moldura";
 import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
+import { faturaDaUnidade } from "@/components/royalties/apuracao-royalties-content";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
 import { listarFaturasRoyalties } from "@/lib/royalties-faturamento.functions";
 import { GruposFiliaisDialog } from "@/components/royalties/grupos-filiais-dialog";
@@ -277,8 +278,10 @@ function ApuracaoPage() {
 
   // Falha ao abrir ou gerar a apuração: antes a tela ficava em "Preparando
   // apuração…" para sempre, com um toast que sumia.
+  // `getOrCreate.error` é o da última abertura: ao trocar de mês com falha, o
+  // `apuracaoId` ainda é o do mês anterior e a tela não pode seguir nele.
   const erroAoAbrir = getOrCreate.error ?? (apuracaoId ? null : gerar.error);
-  if (!apuracaoId && erroAoAbrir)
+  if (erroAoAbrir)
     return (
       <div className="space-y-4 px-4 py-6 md:px-6">
         <ErroDaConsulta
@@ -295,7 +298,10 @@ function ApuracaoPage() {
   if (!apuracaoId) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
 
   return (
+    // A chave remonta a ficha a cada unidade/mês: edições locais (valor, %,
+    // MRR digitados) não vazam de um mês para o outro.
     <ApuracaoLoaded
+      key={`${unidadeId}-${mes}`}
       apuracaoId={apuracaoId}
       mes={mes}
       unidadeId={unidadeId}
@@ -320,7 +326,11 @@ function ApuracaoLoaded({
   // Fatura do mês desta unidade (mesma consulta da lista): diz se já saiu no
   // Omie, para o Reabrir avisar e o Emitir não aparecer duas vezes.
   const listarFaturas = useServerFn(listarFaturasRoyalties);
-  const { data: faturasData } = useQuery({
+  const {
+    data: faturasData,
+    isLoading: carregandoFaturas,
+    isError: erroFaturas,
+  } = useQuery({
     queryKey: ["royalties", "faturas", mes],
     queryFn: () => listarFaturas({ data: { competencia: mes } }),
     enabled: !mesEmAndamento(mes),
@@ -427,6 +437,9 @@ function ApuracaoLoaded({
   const [localValor, setLocalValor] = useState<Record<number, string>>({});
   const [localMrr, setLocalMrr] = useState<Record<number, string>>({});
   const [localPct, setLocalPct] = useState<Record<number, string>>({});
+  // O diálogo de emissão fica montado enquanto aberto, mesmo quando a fatura
+  // acaba de sair (a invalidação faria o botão sumir com o resultado na tela).
+  const [emissaoAberta, setEmissaoAberta] = useState(false);
 
   if (erroApuracao && !data) {
     return (
@@ -440,7 +453,14 @@ function ApuracaoLoaded({
       </div>
     );
   }
-  if (isLoading || !data) {
+  // Ao trocar de mês, o `apuracaoId` do mês anterior segue valendo até o
+  // getOrCreate do novo mês responder: sem esta guarda, a tela mostrava a
+  // apuração antiga sob o mês novo, e "Fechar" fecharia o mês errado.
+  const apuracaoDaUrl =
+    !!data &&
+    String(data.apuracao.mes_referencia ?? "").slice(0, 7) === mes &&
+    Number(data.apuracao.unidade_id) === Number(unidadeId);
+  if (isLoading || !data || !apuracaoDaUrl) {
     return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
   }
 
@@ -517,7 +537,9 @@ function ApuracaoLoaded({
   const totalFatura = cscEfetivo + royaltiesValor + cacValor + outras + trafegoPago;
   const statusAp = STATUS_APURACAO[apuracao.status] ?? { label: apuracao.status, tom: "neutro" as TomStatus };
   const emAndamento = mesEmAndamento(mes);
-  const fatura = (faturasData?.faturas ?? []).find((f) => f.unidade_id === Number(unidadeId));
+  const fatura = faturaDaUnidade(faturasData?.faturas, Number(unidadeId));
+  // Sem a consulta de faturas não dá para afirmar nem negar que a fatura saiu.
+  const faturaIncerta = !emAndamento && (carregandoFaturas || erroFaturas);
   const faturaSaiu = apuracao.status === "faturado" || (!!fatura && fatura.status !== "erro");
   const pendentesCount = ativos.length - confirmadosCount;
   const mesTexto = rotuloMes(mes).toLowerCase();
@@ -617,9 +639,10 @@ function ApuracaoLoaded({
 
   const botaoFechar =
     confirmadosCount === 0 ? (
-      <BotaoComMotivo motivo="Nenhum item confirmado: marque ao menos um item para fechar a apuração.">
-        Fechar apuração
-      </BotaoComMotivo>
+      <BotaoComMotivo
+        rotulo="Fechar apuração"
+        motivo="Nenhum item confirmado: marque ao menos um item para fechar a apuração."
+      />
     ) : (
       <ConfirmarAcao
         titulo={`Fechar a apuração de ${u.nome_da_praca} em ${mesTexto}?`}
@@ -645,6 +668,10 @@ function ApuracaoLoaded({
             {pendentesCount} item(ns) sem confirmação ficam fora do total.
           </p>
         )}
+        <p>
+          O CSC da tela usa a regra atual da unidade; o valor gravado usa o campo da apuração e pode
+          diferir.
+        </p>
         {emAndamento && (
           <AvisoConfirmacao>
             O mês ainda não terminou: recebimentos que entrarem até o fim de {mesTexto} não entram
@@ -670,12 +697,17 @@ function ApuracaoLoaded({
       }
     >
       <p>A apuração volta para Em revisão e as edições são liberadas.</p>
-      {faturaSaiu && (
+      {faturaSaiu ? (
         <AvisoConfirmacao>
           A fatura já saiu no Omie{fatura?.num_os ? ` (OS ${fatura.num_os})` : ""}; reabrir não
           cancela a fatura, e o que mudar aqui não chega a ela.
         </AvisoConfirmacao>
-      )}
+      ) : faturaIncerta ? (
+        <AvisoConfirmacao>
+          Não foi possível conferir se a fatura já saiu no Omie. Se saiu, reabrir não cancela a
+          fatura.
+        </AvisoConfirmacao>
+      ) : null}
     </ConfirmarAcao>
   );
 
@@ -694,10 +726,11 @@ function ApuracaoLoaded({
         Demonstrativo (Excel)
       </Button>
       {botaoReabrir}
-      {!faturaSaiu && (
+      {(!faturaSaiu || emissaoAberta) && (
         <EmitirFaturasDialog
           competencia={mes}
           unidadeId={Number(unidadeId)}
+          aoMudarAberto={setEmissaoAberta}
           rotulo="Emitir fatura no Omie"
           motivoIndisponivel={
             emAndamento
