@@ -1,9 +1,21 @@
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Briefcase } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -24,6 +36,7 @@ import {
   capacidade,
   distancia,
   hoje,
+  METRICAS,
   operacao,
   receitaSomada,
   temporal,
@@ -38,12 +51,14 @@ import { DIAS_PADRAO } from "./busca";
 import type { BuscaMonetizacao, Sinal } from "./busca";
 import { Forecast } from "./forecast";
 import {
+  BotaoComMotivo,
   date,
   estadoKpiEvento,
   Field,
   inputClass,
   Kpi,
   money,
+  motivoSemEscopo,
   NotaApoio,
   number,
   procedenciaMonetizacao,
@@ -72,7 +87,12 @@ export function Analysis(props: Props) {
     return <Temporal data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
   if (aba === "capacidade")
     return (
-      <Capacity key={`${filter.to.slice(0, 7)}-${filter.owner}`} data={data} filter={filter} />
+      <Capacity
+        key={`${filter.to.slice(0, 7)}-${filter.owner}`}
+        data={data}
+        filter={filter}
+        openDeals={openDeals}
+      />
     );
   if (aba === "follow-day")
     return (
@@ -92,7 +112,20 @@ export function Analysis(props: Props) {
 
 type Cut = Pick<Props, "data" | "filter" | "openDeals">;
 type CutBusca = Cut & Pick<Props, "busca" | "mudarBusca">;
-const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MESES_CURTOS = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 /** "set/2026" a partir de "2026-09". */
 const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
 const FOCO_LINK =
@@ -386,14 +419,58 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
       <NotaApoio>
         Receita prevista é o valor informado para a oportunidade no CRM. O total conciliado soma só
         os negócios com split completo em reais; quando o CRM não traz o total, ele é Partners +
-        unidade. Não é MRR, faturamento nem caixa: esses moram em Receita e Repasses e no Financeiro.
+        unidade. Não é MRR, faturamento nem caixa: esses moram em Receita e Repasses e no
+        Financeiro.
       </NotaApoio>
     </div>
   );
 }
 
-function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
+/** Campo do plano (Configuração §5): rótulo acima, ajuda abaixo, erro no próprio campo. */
+function CampoPlano({
+  rotulo,
+  ajuda,
+  erro,
+  children,
+}: {
+  rotulo: string;
+  ajuda?: string;
+  erro?: string | null;
+  children: (a11y: { id: string; "aria-describedby"?: string; "aria-invalid"?: true }) => ReactNode;
+}) {
+  const id = useId();
+  const ajudaId = `${id}-ajuda`,
+    erroId = `${id}-erro`;
+  const descritoPor = [erro ? erroId : null, ajuda ? ajudaId : null].filter(Boolean).join(" ");
+  return (
+    <div className="grid gap-1">
+      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {rotulo}
+      </Label>
+      {children({
+        id,
+        "aria-describedby": descritoPor || undefined,
+        "aria-invalid": erro ? true : undefined,
+      })}
+      {erro && (
+        <p id={erroId} role="alert" className="text-xs font-medium text-danger">
+          {erro}
+        </p>
+      )}
+      {ajuda && (
+        <p id={ajudaId} className="text-xs text-muted-foreground">
+          {ajuda}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const LEADS_TRABALHADOS = METRICAS.find((m) => m.key === "started")!.label;
+
+function Capacity({ data, filter, openDeals }: Cut) {
   const month = filter.to.slice(0, 7),
+    mes = rotuloMes(month),
     saved = data.plans.find((p) => p.month === month && p.owner_id === filter.owner);
   const [plan, setPlan] = useState<Plano>(
     saved || {
@@ -409,203 +486,399 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
     },
   );
   const [busy, setBusy] = useState(false),
-    [editing, setEditing] = useState(!saved);
+    [editing, setEditing] = useState(!saved),
+    [confirmar, setConfirmar] = useState<string[] | null>(null);
   const fn = useServerFn(salvarPlanoMonetizacao),
     invalidate = useAtualizarMonetizacao();
-  const rows = capacidade(
-      plan,
-      data.accounts,
-      data.cards,
-      {
-        ...filter,
-        from: month + "-01",
-        to: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
-          .toISOString()
-          .slice(0, 10),
-        owner: plan.owner_id,
-        product: "",
-      },
-      data.reservations,
-    ),
+  const doMes: Filtro = {
+    ...filter,
+    from: month + "-01",
+    to: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+      .toISOString()
+      .slice(0, 10),
+    owner: plan.owner_id,
+    product: "",
+  };
+  const rows = capacidade(plan, data.accounts, data.cards, doMes, data.reservations),
     allocated = PRODUTOS.reduce((n, p) => n + plan.allocation[p], 0);
+  // Os negócios que o "Leads trabalhados" conta: o mesmo `operacao()` que `capacidade()` usa,
+  // só os três produtos (a tabela não tem "Sem produto").
+  const trabalhados = operacao(data.cards, doMes).rows.started.filter((c) =>
+    (PRODUTOS as readonly string[]).includes(c.route),
+  );
+  const totalTrabalhado = rows.reduce((n, r) => n + r.started, 0);
+  const ultimoInicio = (c: Negocio) =>
+    c.events.started
+      .filter((e) => e.date >= doMes.from && e.date <= doMes.to && e.actor_id === doMes.owner)
+      .map((e) => e.date)
+      .sort()
+      .at(-1);
+  const abrirTrabalhados = (titulo: string, lista: Negocio[], produto: string) =>
+    openDeals(
+      titulo,
+      lista,
+      { from: doMes.from, to: doMes.to },
+      {
+        ordenarPor: ultimoInicio,
+        recorte: `${plan.owner_name} · ${produto} · ${date(doMes.from)} a ${date(doMes.to)}`,
+      },
+    );
+  // Z2: sem histórico lido não há `started`; o dono do plano é o único vínculo do negócio.
+  const semHistoricoRecorte = data.cards.filter(
+    (c) =>
+      !c.history_known &&
+      c.owner_id === plan.owner_id &&
+      (c.status === "open" ||
+        Object.values(c.events).some((es) =>
+          es.some((e) => e.date >= doMes.from && e.date <= doMes.to),
+        )),
+  );
+  const evento = estadoKpiEvento(data, semHistoricoRecorte);
+  const procedencia = procedenciaMonetizacao(data);
+  const procedenciaPlano = { fonte: "Plano da Monetização (ops.monetizacao_planos)" };
+  const semPlano = `plano de ${mes} não salvo`;
+  const excesso =
+    allocated > plan.capacity
+      ? `Alocação ${number(allocated)} supera a capacidade ${number(plan.capacity)}`
+      : null;
+  const motivoEscrita = motivoSemEscopo(data);
+
+  const mudancas = () => {
+    const linhas: string[] = [];
+    const antes = saved?.target_contracts;
+    if (antes !== plan.target_contracts)
+      linhas.push(
+        antes === undefined
+          ? `Meta de ${mes} passa a ser ${plan.target_contracts} contratos (não havia plano salvo).`
+          : `Meta de ${mes} passa de ${antes} para ${plan.target_contracts} contratos.`,
+      );
+    for (const p of PRODUTOS) {
+      const a = saved?.allocation[p] ?? 0;
+      if (a !== plan.allocation[p])
+        linhas.push(`Alocação de ${NOMES[p]} passa de ${a} para ${plan.allocation[p]} ofertas.`);
+    }
+    return linhas;
+  };
   const save = async () => {
+    setConfirmar(null);
     setBusy(true);
     try {
       await fn({ data: plan });
       await invalidate();
       setEditing(false);
-      toast.success("Capacidade e hipóteses salvas para este mês e responsável.");
+      toast.success(`Plano de ${mes} salvo para ${plan.owner_name}.`);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`O plano não foi salvo: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
   };
+  const pedirSalvar = () => {
+    const m = mudancas();
+    if (m.length) setConfirmar(m);
+    else void save();
+  };
+  const linkBase = (
+    <Link
+      to="/clientes"
+      search={{ view: "produtos" }}
+      className={`text-sm font-medium ${FOCO_LINK}`}
+    >
+      Preparar a base em Produtos e listas →
+    </Link>
+  );
+
   return (
     <div className="space-y-4">
       {!saved && (
         <NotaApoio>
-          Parâmetros ainda não salvos para este mês/responsável. Os valores no editor são uma
-          proposta baseada na régua conhecida; só passam a orientar os indicadores depois de salvar.
+          O plano de {mes} de {plan.owner_name} ainda não foi salvo. O editor abre com os valores
+          padrão; eles só orientam os indicadores, a Operação e a previsão depois de salvar.
         </NotaApoio>
       )}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Capacidade mensal proposta" value={plan.capacity} hint={plan.owner_name} />
+      <KpiGrade colunas={4}>
+        <Kpi
+          label="Capacidade mensal proposta"
+          value={`${number(plan.capacity)}`}
+          estado={saved ? "ok" : "nao-apurado"}
+          nota={saved ? `leads/mês · ${plan.owner_name}` : semPlano}
+          procedencia={procedenciaPlano}
+        />
         <Kpi
           label="Alocada entre produtos"
-          value={allocated}
-          hint={
-            allocated > plan.capacity
-              ? "Supera a capacidade"
-              : `${plan.capacity - allocated} vagas sem alocação`
+          value={number(allocated)}
+          estado={saved ? "ok" : "nao-apurado"}
+          nota={
+            !saved
+              ? semPlano
+              : allocated > plan.capacity
+                ? "Supera a capacidade"
+                : `${number(plan.capacity - allocated)} vagas sem alocação`
+          }
+          procedencia={procedenciaPlano}
+        />
+        <Kpi
+          label={LEADS_TRABALHADOS}
+          value={number(totalTrabalhado)}
+          estado={evento.estado}
+          nota={juntarNotas(evento.nota, `negócios com trabalho iniciado em ${mes}`)}
+          procedencia={procedencia}
+          onClick={() =>
+            abrirTrabalhados(LEADS_TRABALHADOS, trabalhados, "Cella, Consultoria e Finance")
           }
         />
         <Kpi
-          label="Trabalho realizado no mês"
-          value={rows.reduce((n, r) => n + r.started, 0)}
-          hint="Cards com trabalho iniciado no mês"
-        />
-        <Kpi
           label="Falta de base na alocação"
-          value={rows.reduce((n, r) => n + r.gap, 0)}
-          hint="Alocação restante acima da base disponível"
+          value={number(rows.reduce((n, r) => n + r.gap, 0))}
+          estado={saved ? "ok" : "nao-apurado"}
+          nota={saved ? "alocação restante acima da base disponível no mês" : semPlano}
+          procedencia={procedencia}
         />
-      </div>
-      <SecaoCartao titulo="Estoque, esforço e capacidade por produto">
+      </KpiGrade>
+      <SecaoCartao
+        titulo="Em que produto a base disponível não cobre a alocação?"
+        descricao={`Contas da Base por produto · plano de ${plan.owner_name} para ${mes} · negócios do mês`}
+        acoes={linkBase}
+      >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr>
-                {[
-                  "Produto",
-                  "Perfil aderente",
-                  "Disponível hoje",
-                  "Alocação mensal",
-                  "Trabalhadas no mês",
-                  "Base faltante",
-                ].map((s) => (
-                  <th key={s} className="pb-2">
-                    {s}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead className="num text-right">Perfil aderente</TableHead>
+                <TableHead className="num text-right">Disponível no mês</TableHead>
+                <TableHead className="num text-right">Alocação mensal</TableHead>
+                <TableHead className="num text-right">{LEADS_TRABALHADOS}</TableHead>
+                <TableHead className="num text-right">Base faltante</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r) => (
-                <tr key={r.product} className="border-t">
-                  <th className="py-3">{NOMES[r.product]}</th>
-                  <td>{r.eligible}</td>
-                  <td>{r.available}</td>
-                  <td>{r.planned}</td>
-                  <td>{r.started}</td>
-                  <td className={r.gap ? "text-warning" : ""}>{r.gap}</td>
-                </tr>
+                <TableRow key={r.product}>
+                  <TableCell className="font-medium">{NOMES[r.product]}</TableCell>
+                  <TableCell className="num text-right">
+                    <Link
+                      to="/clientes"
+                      search={{ view: "produtos" }}
+                      aria-label={`${NOMES[r.product]}: ${r.eligible} contas com perfil aderente, abrir Produtos e listas`}
+                      className={FOCO_LINK}
+                    >
+                      {number(r.eligible)}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    <Link
+                      to="/clientes"
+                      search={{ view: "produtos" }}
+                      aria-label={`${NOMES[r.product]}: ${r.available} contas disponíveis no mês, abrir Produtos e listas`}
+                      className={FOCO_LINK}
+                    >
+                      {number(r.available)}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {saved ? number(r.planned) : "—"}
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    <button
+                      type="button"
+                      aria-label={`${NOMES[r.product]}: ${r.started} leads trabalhados, abrir negócios`}
+                      className={`font-semibold ${FOCO_LINK}`}
+                      onClick={() =>
+                        abrirTrabalhados(
+                          `${NOMES[r.product]} · ${LEADS_TRABALHADOS}`,
+                          trabalhados.filter((c) => c.route === r.product),
+                          NOMES[r.product],
+                        )
+                      }
+                    >
+                      {number(r.started)}
+                    </button>
+                  </TableCell>
+                  <TableCell className="num text-right">
+                    {!saved ? (
+                      "—"
+                    ) : r.gap ? (
+                      <StatusBadge tom="atencao">{number(r.gap)}</StatusBadge>
+                    ) : (
+                      number(r.gap)
+                    )}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          A base faltante considera a alocação mensal menos o trabalho já iniciado. Esta tela usa o
-          mês inteiro e todos os produtos. Há empresas em mais de uma coluna. Antes de distribuir a
-          carga, valide as listas no Aquário e coordene as abordagens da mesma empresa.
-        </p>
-        <Link to="/aquario" className="mt-3 inline-block text-sm text-primary-text underline">
-          Preparar a base nas carteiras dos clientes →
-        </Link>
+        <div className="mt-3">
+          <NotaApoio>
+            Perfil aderente e Disponível abrem Produtos e listas sem o filtro de produto (o destino
+            ainda não recebe produto no link); escolha o produto lá. Os totais não batem com a Base:
+            ela conta a disponibilidade no dia, esta tela no mês do plano. Base faltante = alocação
+            menos o trabalho já iniciado, acima do disponível. Há empresas em mais de um produto:
+            coordene as abordagens da mesma empresa antes de distribuir a carga.
+            {!saved &&
+              ` Alocação e base faltante ficam em "—" até o ${semPlano.replace(" não salvo", "")} ser salvo.`}
+          </NotaApoio>
+        </div>
       </SecaoCartao>
       <SecaoCartao
-        titulo={`Plano · ${month} · ${plan.owner_name}`}
+        titulo={`Qual é o plano de ${mes} de ${plan.owner_name}?`}
+        descricao="Capacidade, metas, alocação por produto e hipóteses · alimenta a Operação diária e o cenário de Temporal e previsão"
         acoes={
-          <Button
+          <BotaoComMotivo
             size="sm"
             variant="outline"
             onClick={() => setEditing(!editing)}
-            disabled={!(data.permissions.view && data.permissions.all_units)}
+            disabled={!!motivoEscrita}
+            motivo={motivoEscrita}
           >
             {editing ? "Fechar editor" : "Editar plano"}
-          </Button>
+          </BotaoComMotivo>
         }
       >
         {editing ? (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {(
                 [
-                  ["capacity", "Leads / mês"],
-                  ["meetings_capacity", "Teto de reuniões / mês"],
-                  ["target_contracts", "Meta de contratos / mês"],
-                  ["daily_target", "Leads / dia útil"],
+                  [
+                    "capacity",
+                    "Leads / mês",
+                    "Capacidade mensal do responsável; a alocação não passa dela.",
+                  ],
+                  [
+                    "meetings_capacity",
+                    "Teto de reuniões / mês",
+                    "Quantas reuniões cabem na agenda do mês.",
+                  ],
+                  [
+                    "target_contracts",
+                    "Meta de contratos / mês",
+                    "Meta de contratos ganhos que a Operação diária mostra.",
+                  ],
+                  [
+                    "daily_target",
+                    "Leads / dia útil",
+                    "Linha de meta do dia a dia na Operação diária.",
+                  ],
                 ] as const
-              ).map(([key, label]) => (
-                <Field label={label} key={key}>
-                  <input
-                    type="number"
-                    min="0"
-                    className={inputClass}
-                    value={plan[key]}
-                    onChange={(e) => setPlan({ ...plan, [key]: Number(e.target.value) })}
-                  />
-                </Field>
+              ).map(([key, label, ajuda]) => (
+                <CampoPlano
+                  key={key}
+                  rotulo={label}
+                  ajuda={ajuda}
+                  erro={key === "capacity" ? excesso : null}
+                >
+                  {(a11y) => (
+                    <Input
+                      {...a11y}
+                      type="number"
+                      min="0"
+                      className="num"
+                      value={plan[key]}
+                      onChange={(e) => setPlan({ ...plan, [key]: Number(e.target.value) })}
+                    />
+                  )}
+                </CampoPlano>
               ))}
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               {PRODUTOS.map((p) => (
-                <div key={p} className="space-y-2 rounded-lg border p-3">
+                <div key={p} className="space-y-3 rounded-lg border p-3">
                   <h3 className="text-sm font-semibold">{NOMES[p]}</h3>
-                  <Field label="Ofertas a trabalhar no mês">
-                    <input
-                      type="number"
-                      min="0"
-                      className={inputClass}
-                      value={plan.allocation[p]}
-                      onChange={(e) =>
-                        setPlan({
-                          ...plan,
-                          allocation: { ...plan.allocation, [p]: Number(e.target.value) },
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Hipótese de validada → contrato (%)">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      className={inputClass}
-                      value={plan.rates[p] === null ? "" : plan.rates[p]! * 100}
-                      placeholder="Sem hipótese"
-                      onChange={(e) =>
-                        setPlan({
-                          ...plan,
-                          rates: {
-                            ...plan.rates,
-                            [p]: e.target.value === "" ? null : Number(e.target.value) / 100,
-                          },
-                        })
-                      }
-                    />
-                  </Field>
+                  <CampoPlano
+                    rotulo="Ofertas a trabalhar no mês"
+                    ajuda="Parte da capacidade reservada a este produto."
+                    erro={excesso}
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        type="number"
+                        min="0"
+                        className="num"
+                        value={plan.allocation[p]}
+                        onChange={(e) =>
+                          setPlan({
+                            ...plan,
+                            allocation: { ...plan.allocation, [p]: Number(e.target.value) },
+                          })
+                        }
+                      />
+                    )}
+                  </CampoPlano>
+                  <CampoPlano
+                    rotulo="Hipótese de validada → contrato (%)"
+                    ajuda="Vazio = sem hipótese; o cenário de Temporal e previsão não aparece."
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        type="number"
+                        min="0"
+                        max="100"
+                        className="num"
+                        value={plan.rates[p] === null ? "" : plan.rates[p]! * 100}
+                        placeholder="Sem hipótese"
+                        onChange={(e) =>
+                          setPlan({
+                            ...plan,
+                            rates: {
+                              ...plan.rates,
+                              [p]: e.target.value === "" ? null : Number(e.target.value) / 100,
+                            },
+                          })
+                        }
+                      />
+                    )}
+                  </CampoPlano>
                 </div>
               ))}
             </div>
-            <Button
-              disabled={
-                busy ||
-                !(data.permissions.view && data.permissions.all_units) ||
-                allocated > plan.capacity
-              }
-              onClick={save}
-            >
-              Salvar plano e hipóteses
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <BotaoComMotivo
+                disabled={busy || !!motivoEscrita || !!excesso}
+                motivo={[motivoEscrita, excesso && `${excesso}.`, busy && "Salvando o plano…"]}
+                onClick={pedirSalvar}
+              >
+                {busy ? "Salvando…" : "Salvar plano e hipóteses"}
+              </BotaoComMotivo>
+              <span className="text-xs text-muted-foreground">
+                Alocado <span className="num">{number(allocated)}</span> de{" "}
+                <span className="num">{number(plan.capacity)}</span>
+              </span>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Plano salvo. As metas da Operação e os cenários da previsão usam esta configuração.
-            Capacidade de reuniões: {plan.meetings_capacity}/mês.
+            Plano salvo. As metas da Operação diária e o cenário de Temporal e previsão usam esta
+            configuração. Capacidade de reuniões:{" "}
+            <span className="num">{number(plan.meetings_capacity)}</span>/mês.
           </p>
         )}
       </SecaoCartao>
+      <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Salvar o plano de {mes}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                {confirmar?.map((l) => (
+                  <p key={l}>{l}</p>
+                ))}
+                <p className="pt-1">
+                  A Operação diária e o cenário de Temporal e previsão passam a usar estes números
+                  para {plan.owner_name}.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar ao editor</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void save()}>Salvar plano</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
