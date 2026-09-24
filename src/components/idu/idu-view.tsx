@@ -70,19 +70,29 @@ const FAIXA_ESTILO: Record<string, string> = {
   "sem base": "bg-muted text-muted-foreground border-border",
 };
 
-/** Trimestres com fim EXCLUSIVO — é o que idu_apuracao espera. */
+/**
+ * Trimestres com fim EXCLUSIVO — é o que idu_apuracao espera.
+ * Começa no PRÓXIMO trimestre: as metas se pactuam antes de o trimestre abrir.
+ */
 function trimestres() {
-  const out: { key: string; label: string; ini: string; fim: string }[] = [];
+  const out: { key: string; label: string; ini: string; fim: string; futuro: boolean }[] = [];
   const hoje = new Date();
   let ano = hoje.getFullYear();
-  let q = Math.floor(hoje.getMonth() / 3) + 1;
-  for (let i = 0; i < 8; i += 1) {
+  let q = Math.floor(hoje.getMonth() / 3) + 2;
+  if (q === 5) {
+    q = 1;
+    ano += 1;
+  }
+  for (let i = 0; i < 9; i += 1) {
     const iso = (d: Date) => d.toISOString().slice(0, 10);
     out.push({
       key: `${ano}-Q${q}`,
-      label: `Q${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
+      label: `Q${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}${
+        i === 0 ? " (próximo)" : ""
+      }`,
       ini: iso(new Date(Date.UTC(ano, (q - 1) * 3, 1))),
       fim: iso(new Date(Date.UTC(ano, q * 3, 1))),
+      futuro: i === 0,
     });
     q -= 1;
     if (q === 0) {
@@ -112,8 +122,8 @@ function fmtValor(v: number | null, medida: string) {
 
 export function IduView() {
   const periodos = useMemo(trimestres, []);
-  // Default: trimestre anterior ao corrente — o último fechado.
-  const [periodo, setPeriodo] = useState(periodos[1] ?? periodos[0]);
+  // Default: trimestre anterior ao corrente — o último fechado. [0] é o próximo, [1] o corrente.
+  const [periodo, setPeriodo] = useState(periodos[2] ?? periodos[0]);
   const [rank, setRank] = useState<RankRow[]>([]);
   const [det, setDet] = useState<DetRow[]>([]);
   const [padrao, setPadrao] = useState<PadraoRow[]>([]);
@@ -262,9 +272,13 @@ export function IduView() {
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <Trophy className="h-4 w-4 text-primary-text" />
-          <h2 className="text-sm font-semibold">Ranking da rede</h2>
+          <h2 className="text-sm font-semibold">
+            {periodo.futuro ? "Unidades" : "Ranking da rede"}
+          </h2>
           <span className="text-xs text-muted-foreground">
-            a nota mede quanto do combinado foi entregue, não o tamanho da unidade
+            {periodo.futuro
+              ? "o trimestre ainda não começou, então não há nota; abra a unidade para definir uma meta só dela"
+              : "a nota mede quanto do combinado foi entregue, não o tamanho da unidade"}
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -301,31 +315,39 @@ export function IduView() {
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.posicao}
+                      {periodo.futuro ? NA : r.posicao}
                     </TableCell>
                     <TableCell className="font-medium">{r.unidade}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.curva}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
-                      {fmtNum(r.idu)}
+                      {periodo.futuro ? NA : fmtNum(r.idu)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={cn("text-xs", FAIXA_ESTILO[r.faixa])}>
-                        {r.faixa}
-                      </Badge>
+                      {periodo.futuro ? (
+                        NA
+                      ) : (
+                        <Badge variant="outline" className={cn("text-xs", FAIXA_ESTILO[r.faixa])}>
+                          {r.faixa}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
-                      {r.liberado_pct === null ? NA : `${fmtNum(r.liberado_pct, 0)}%`}
+                      {periodo.futuro || r.liberado_pct === null
+                        ? NA
+                        : `${fmtNum(r.liberado_pct, 0)}%`}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.falta_corte === null || r.falta_corte === 0
-                        ? "cruzou"
-                        : fmtNum(r.falta_corte)}
+                      {periodo.futuro
+                        ? NA
+                        : r.falta_corte === null || r.falta_corte === 0
+                          ? "cruzou"
+                          : fmtNum(r.falta_corte)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.base_efetiva ?? NA}
+                      {periodo.futuro ? NA : (r.base_efetiva ?? NA)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {r.pilar_fraco ?? NA}
+                      {periodo.futuro ? NA : (r.pilar_fraco ?? NA)}
                     </TableCell>
                   </TableRow>,
                   aberto && (
