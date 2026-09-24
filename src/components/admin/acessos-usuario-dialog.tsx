@@ -74,15 +74,20 @@ export function AcessosUsuarioDialog({
   });
   const [revogarPorta, setRevogarPorta] = useState(false);
 
-  // Sem perfil e sem outra área, tirar esta deixa a pessoa sem área nenhuma.
-  // É a mesma conta que o banco faz depois de salvar (`acesso_remover_da_area`
-  // devolve se sobrou algo em user_roles, area_admins ou usuario_areas), feita
-  // antes, com o que o diálogo já carregou, para o aviso chegar a tempo.
+  // Se nenhuma outra área fica visível, tirar ou bloquear esta deixa a pessoa
+  // sem área nenhuma. Visível segue `ops.acesso_do_usuario`: pelo perfil e não
+  // bloqueada, ou por delegação (usuário, sócio, admin). O aviso sai antes de
+  // salvar, com o que o diálogo já carregou.
+  // Conta só áreas ATIVAS: `getAcessosDoUsuario` lista só `areas.ativa`. Uma
+  // delegação numa área desativada não aparece aqui; é por isso que, raramente,
+  // o banco pode discordar do aviso (o toast depois de salvar usa a resposta dele).
+  const visivel = (a: AcessoPorArea) =>
+    a.nivel === "usuario" ||
+    a.nivel === "socio" ||
+    a.nivel === "admin" ||
+    (a.pelo_papel && a.nivel !== "bloqueado");
   const semOutraArea = (slug: string) =>
-    (q.data?.papeis ?? []).length === 0 &&
-    (q.data?.areas ?? []).every(
-      (a) => a.slug === slug || a.nivel === "nenhum" || a.nivel === "bloqueado",
-    );
+    (q.data?.areas ?? []).every((a) => a.slug === slug || !visivel(a));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
@@ -232,7 +237,7 @@ function LinhaDaArea({
   userId: string;
   nome: string;
   area: AcessoPorArea;
-  /** Sem perfil e sem nenhuma outra área: tirar esta deixa a pessoa sem área. */
+  /** Nenhuma outra área fica visível: tirar ou bloquear esta deixa a pessoa sem área. */
   unicaArea: boolean;
 }) {
   const qc = useQueryClient();
@@ -255,7 +260,10 @@ function LinhaDaArea({
     onSuccess: (r) => {
       const rotulo = NIVEIS.find((n) => n.valor === nivel)?.rotulo ?? nivel;
       const efeito =
-        nivel === "nenhum"
+        nivel === "nenhum" && area.nivel === "bloqueado"
+          ? // "Sem acesso" numa área bloqueada só tira o bloqueio (salvarAcessoNaArea).
+            `${area.nome} deixa de estar bloqueada para ${nome}${area.pelo_papel ? ", e volta a abrir pelo perfil" : ""}.`
+          : nivel === "nenhum"
           ? `${nome} sai de ${area.nome}${area.pelo_papel ? " (fica o que o perfil abre)" : ""}.`
           : nivel === "bloqueado"
             ? `${area.nome} some para ${nome}, mesmo com o perfil abrindo.`
@@ -271,6 +279,11 @@ function LinhaDaArea({
   });
 
   const idBase = `acesso-${userId}-${area.slug}`;
+  const visivelAntes =
+    area.nivel === "usuario" ||
+    area.nivel === "socio" ||
+    area.nivel === "admin" ||
+    (area.pelo_papel && area.nivel !== "bloqueado");
 
   return (
     <li className="px-5 py-3">
@@ -318,11 +331,14 @@ function LinhaDaArea({
         <button
           onClick={() => mut.mutate()}
           disabled={!mudou || mut.isPending}
-          title={!mudou && !mut.isPending ? "Nada mudou nesta área" : undefined}
-          className="h-8 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+          aria-describedby={!mudou ? `${idBase}-motivo` : undefined}
+          className="h-8 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-40"
         >
           {mut.isPending ? "Salvando..." : "Salvar"}
         </button>
+        <span id={`${idBase}-motivo`} className="sr-only">
+          Nada mudou nesta área.
+        </span>
       </div>
 
       <p className="mt-1 text-xs text-muted-foreground">
@@ -364,8 +380,11 @@ function LinhaDaArea({
       {mut.isError && (
         <p className="mt-2 text-xs text-destructive">{(mut.error as Error)?.message ?? "Erro ao salvar."}</p>
       )}
-      {unicaArea && mudou && nivel === "nenhum" && area.nivel !== "nenhum" && area.nivel !== "bloqueado" && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+      {unicaArea &&
+        mudou &&
+        visivelAntes &&
+        !(nivel === "usuario" || nivel === "socio" || nivel === "admin" || (area.pelo_papel && nivel !== "bloqueado")) && (
+        <p aria-live="polite" className="mt-2 flex items-start gap-1.5 text-xs text-warning">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
           Salvar deixa {nome} sem nenhuma área: ela entra e não vê nada. Se não precisa mais entrar,
           exclua a conta em Usuários.
