@@ -6,8 +6,10 @@ import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
-import { AREAS, areaDoItem, type Area } from "@/lib/areas";
+import { AREAS, areaDoItem, primeiraTelaAcessivel, type Area } from "@/lib/areas";
 import { PlanningLogo } from "@/components/planning-logo";
+import { Carregando, EstadoVazio } from "@/components/planning";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 /**
@@ -79,7 +81,7 @@ function IrParaOutraAplicacao({ href }: { href: string }) {
 
 function InicioPage() {
   const navigate = useNavigate();
-  const { temArea, can, loading, primaryRole } = usePermissions();
+  const { temArea, can, loading } = usePermissions();
 
   const acessoGrowthFn = useServerFn(meuAcessoGrowth);
   const growth = useQuery({
@@ -100,9 +102,13 @@ function InicioPage() {
     retry: false,
   });
 
-  if (loading || growth.isLoading || acessoProdutos.isLoading) return null;
-
-  const opsHref = primaryRole === "socio_regional" ? "/painel-unidade" : "/rede-overview";
+  if (loading || growth.isLoading || acessoProdutos.isLoading) {
+    return (
+      <Moldura>
+        <Carregando variante="kpis" className="w-full max-w-4xl" />
+      </Moldura>
+    );
+  }
 
   // As frentes deste app entram no MESMO nível de Growth e Financeiro. Não
   // existe mais um cartão "Ops" agrupando o resto: o guarda-chuva não
@@ -153,6 +159,20 @@ function InicioPage() {
     });
   }
 
+  // Card que não carregou não some (a pessoa concluiria que perdeu o acesso):
+  // aparece como "indisponível", com tentar de novo.
+  const indisponiveis: { slug: string; nome: string; tentar: () => void }[] = [];
+  if (growth.isError) {
+    indisponiveis.push({ slug: "growth", nome: "Growth", tentar: () => void growth.refetch() });
+  }
+  if (acessoProdutos.isError) {
+    indisponiveis.push({
+      slug: "financeiro",
+      nome: "Financeiro",
+      tentar: () => void acessoProdutos.refetch(),
+    });
+  }
+
   // Um produto só: nada a escolher. Chegar aqui por link direto não pode virar
   // uma tela com um botão — manda para onde a pessoa ia de qualquer jeito.
   // Quando o que sobrou é o Financeiro, é para ele: quem só tem o cockpit caía
@@ -160,10 +180,18 @@ function InicioPage() {
   // frentes" de dentro do cockpit (17/09/2026). Só o Financeiro porque o "Sair"
   // dele passa por /auth?sair=1 e desloga o Ops junto; o do Growth não se sabe,
   // e mandar de volta para ele com a sessão reemitida prenderia a pessoa lá.
-  if (produtos.length === 1 && produtos[0].slug === "financeiro") {
-    return <IrParaOutraAplicacao href={produtos[0].href} />;
+  // Com um card indisponível não há como saber se era mesmo um produto só.
+  if (produtos.length === 1 && indisponiveis.length === 0) {
+    const unico = produtos[0];
+    if (unico.slug === "financeiro") return <IrParaOutraAplicacao href={unico.href} />;
+    // Produto interno: a primeira tela que a pessoa abre, e não sempre o
+    // Overview da Rede ou o Painel da Unidade. Quem só tinha People caía no
+    // Overview sem acesso (mesmo defeito de 22/09/2026). Só o Growth fica na
+    // tela, com um card, pelo motivo acima.
+    if (unico.interno) {
+      return <Navigate to={primeiraTelaAcessivel(temArea, can) ?? unico.href} replace />;
+    }
   }
-  if (produtos.length === 1) return <Navigate to={opsHref} replace />;
 
   function abrir(p: Produto, fixar: boolean) {
     if (fixar) gravarProdutoPadrao(p.slug);
@@ -171,23 +199,24 @@ function InicioPage() {
     else window.location.href = p.href;
   }
 
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4 py-12">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <PlanningLogo className="h-9 w-auto" />
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Onde você quer entrar?</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Dá para trocar a qualquer momento, no topo do menu.
-          </p>
-        </div>
-      </div>
+  if (produtos.length === 0 && indisponiveis.length === 0) {
+    return (
+      <Moldura>
+        <EstadoVazio
+          className="w-full max-w-xl"
+          titulo="Seu usuário ainda não tem acesso a nenhum produto. Peça a um admin."
+        />
+      </Moldura>
+    );
+  }
 
+  return (
+    <Moldura>
       <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {produtos.map((p) => (
           <Card
             key={p.slug}
-            className="group flex cursor-pointer flex-col gap-3 p-5 transition-colors hover:border-primary/50 hover:bg-accent"
+            className="group flex cursor-pointer flex-col gap-3 p-5 transition-colors hover:border-input hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             onClick={() => abrir(p, false)}
             role="button"
             tabIndex={0}
@@ -198,7 +227,9 @@ function InicioPage() {
               }
             }}
           >
-            <p.Icone className="h-6 w-6 text-primary-text" />
+            <span aria-hidden>
+              <p.Icone className="size-5 text-primary-text" />
+            </span>
             <div>
               <h2 className="text-base font-semibold text-foreground">{p.nome}</h2>
               <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{p.descricao}</p>
@@ -209,13 +240,44 @@ function InicioPage() {
                 e.stopPropagation();
                 abrir(p, true);
               }}
-              className="mt-auto self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              className="mt-auto self-start rounded-sm text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               sempre começar por aqui
             </button>
           </Card>
         ))}
+        {indisponiveis.map((c) => (
+          <Card key={c.slug} className="flex flex-col gap-3 border-dashed p-5">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">{c.nome}</h2>
+              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+                Indisponível: não deu para conferir seu acesso agora.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" className="mt-auto self-start" onClick={c.tentar}>
+              Tentar de novo
+            </Button>
+          </Card>
+        ))}
       </div>
+    </Moldura>
+  );
+}
+
+/** Logo e pergunta centralizados; o conteúdo (cards, carregando, vazio) abaixo. */
+function Moldura({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4 py-12">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <PlanningLogo className="h-9 w-auto" />
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Onde você quer entrar?</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Dá para trocar a qualquer momento, no topo do menu.
+          </p>
+        </div>
+      </div>
+      {children}
     </div>
   );
 }
