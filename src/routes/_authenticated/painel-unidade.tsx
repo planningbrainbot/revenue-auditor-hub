@@ -34,6 +34,9 @@ const fmtData = (d: string | null) => {
 };
 const onlyDigits = (s: string | null | undefined) => (s ?? "").replace(/\D+/g, "");
 const NUM = new Intl.NumberFormat("pt-BR");
+// N2: o destino não recorta igual (Contratos e churn conta só franquias de
+// unidades regionais), então o card diz que o total pode ser outro.
+const AVISO_CONTRATOS = "Em Contratos e churn o recorte é outro (só franquias regionais) e o total pode diferir.";
 
 // Tetos das leituras (as consultas não mudam; a procedência diz o teto).
 const TETO = { empresas: 10000, contratos: 20000, tratativas: 10000, nps: 10000 } as const;
@@ -54,7 +57,8 @@ const NOME_FONTE: Record<Fonte, string> = {
 };
 
 function PainelUnidadePage() {
-  const { unidade: userUnidade, loading: permLoading } = usePermissions();
+  const { unidade: userUnidade, loading: permLoading, temArea } = usePermissions();
+  const [lidoEm, setLidoEm] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [tentativa, setTentativa] = useState(0);
   const [erros, setErros] = useState<Partial<Record<Fonte, string>>>({});
@@ -111,6 +115,7 @@ function PainelUnidadePage() {
       setTratativas((t.data ?? []) as Tratativa[]);
       setNps((n.data ?? []) as Nps[]);
       setCr(erroCr ? [] : allCr);
+      setLidoEm(new Date());
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -231,6 +236,7 @@ function PainelUnidadePage() {
   }, [empresasUnidade, crUnidade]);
 
   const carregando = loading || permLoading;
+  const destinoContratos = `/clientes?view=contratos&unidade=${encodeURIComponent(userUnidade ?? "")}`;
   const fontesComErro = (Object.keys(erros) as Fonte[]).filter((f) => erros[f]);
   const estado = (...fontes: Fonte[]) => (fontes.some((f) => erros[f]) ? "indisponivel" : "ok") as "indisponivel" | "ok";
   const cortes = [
@@ -248,12 +254,14 @@ function PainelUnidadePage() {
         descricao={`${userUnidade ?? "Sem unidade vinculada"} · ${mesLabel} · contratos, tratativas e títulos da unidade`}
         procedencia={{
           fonte: "Base única · contratos, central de tratativas, contas a receber, pesquisas",
-          regua: `leitura de até ${NUM.format(TETO.empresas)} empresas, ${NUM.format(TETO.contratos)} contratos, ${NUM.format(TETO.tratativas)} tratativas e ${NUM.format(TETO.nps)} pesquisas; títulos sem teto`,
+          // Hora da leitura desta tela: as tabelas não trazem data de sincronização aqui.
+          atualizadoEm: lidoEm,
+          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade; inadimplência = títulos ATRASADO ou VENCIDO",
         }}
       />
 
       {carregando ? (
-        <Carregando variante="pagina" />
+        <Carregando variante="kpis" />
       ) : !userUnidade ? (
         <EstadoVazio
           titulo="Seu usuário não tem unidade vinculada"
@@ -268,15 +276,27 @@ function PainelUnidadePage() {
               tentarNovamente={() => setTentativa((x) => x + 1)}
             />
           )}
-          {cortes.length > 0 && (
-            <p className="text-[13px] text-muted-foreground">
-              A leitura chegou ao teto de {cortes.join(", ")}: pode haver registros fora da conta.
-            </p>
-          )}
+          <p className="text-[13px] text-muted-foreground">
+            Leitura de até {NUM.format(TETO.empresas)} empresas, {NUM.format(TETO.contratos)} contratos,{" "}
+            {NUM.format(TETO.tratativas)} tratativas e {NUM.format(TETO.nps)} pesquisas; títulos sem teto.
+            {cortes.length > 0 && ` A leitura chegou ao teto de ${cortes.join(", ")}: pode haver registros fora da conta.`}
+          </p>
 
           <KpiGrade colunas={4}>
-            <KpiCard rotulo="MRR atual" valor={fmtBRL(mrr)} estado={estado("contratos")} nota="Soma do MRR dos contratos ativos" />
-            <KpiCard rotulo="Contratos ativos" valor={NUM.format(clientesAtivos)} estado={estado("contratos")} />
+            <KpiCard
+              rotulo="MRR atual"
+              valor={fmtBRL(mrr)}
+              estado={estado("contratos")}
+              nota={`Soma do MRR dos contratos ativos. ${AVISO_CONTRATOS}`}
+              abrir={{ href: destinoContratos, rotulo: "Abrir contratos" }}
+            />
+            <KpiCard
+              rotulo="Contratos ativos"
+              valor={NUM.format(clientesAtivos)}
+              estado={estado("contratos")}
+              nota={AVISO_CONTRATOS}
+              abrir={{ href: destinoContratos, rotulo: "Abrir contratos" }}
+            />
             <KpiCard
               rotulo="Tratativas perdidas movidas no mês"
               valor={NUM.format(churnMes)}
@@ -298,6 +318,9 @@ function PainelUnidadePage() {
                 valor={fmtBRL(inadValor)}
                 estado={erros.cr ? "indisponivel" : erros.empresas ? "parcial" : "ok"}
                 tom={inadValor > 0 ? "perigo" : undefined}
+                tomRotulo="em atraso"
+                // Contas a Receber é da área Financeiro da unidade: sem ela, o card não abre.
+                abrir={temArea("minha_unidade_financeiro") ? { href: "/contas-receber", rotulo: "Abrir contas a receber" } : undefined}
                 nota={
                   erros.empresas && !erros.cr
                     ? "Só títulos com a unidade no próprio registro: a leitura de empresas falhou"
@@ -309,7 +332,9 @@ function PainelUnidadePage() {
                 valor={NUM.format(emRisco)}
                 estado={estado("empresas")}
                 tom={emRisco > 0 ? "atencao" : undefined}
-                nota="Situação financeira EM_ATRASO ou INADIMPLENTE"
+                tomRotulo="em risco"
+                nota="Situação financeira EM_ATRASO ou INADIMPLENTE. A Base de clientes abre sem esse filtro."
+                abrir={{ href: "/clientes", rotulo: "Abrir a Base" }}
               />
             </KpiGrade>
           </Secao>

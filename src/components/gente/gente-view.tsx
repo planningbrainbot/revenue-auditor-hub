@@ -117,11 +117,11 @@ export function GenteView() {
     return { pessoasTotal, ativos, comGestor, gestores };
   }, [unidades]);
 
-  if (q.isLoading) return <Carregando variante="pagina" />;
+  if (q.isLoading) return <Carregando variante="kpis" />;
   if (q.isError) {
     return <ErroDaFonte fonte="o cadastro de gente" erro={q.error} tentar={() => q.refetch()} />;
   }
-  if (!q.data) return <Carregando variante="pagina" />;
+  if (!q.data) return <Carregando variante="kpis" />;
   if (!q.data.podeVer) return <EstadoSemAcesso oQueFalta="view.gente" />;
 
   if (!unidades.length && !pessoas.length) {
