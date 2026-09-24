@@ -204,7 +204,10 @@ function RedeHeadcountPage() {
       const cur = map.get(r.unidade);
       if (!cur || r.chave > cur.chave) map.set(r.unidade, r);
     }
-    return Array.from(map.values()).sort((a, b) => b.headcount - a.headcount);
+    // A pergunta é "quem gira mais": maior turnover primeiro; não apurado
+    // (headcount 0) vai para o fim, e o empate fica com o maior headcount.
+    const giro = (r: HeadcountRow) => turnoverDe(r.demissoes, r.headcount) ?? -1;
+    return Array.from(map.values()).sort((a, b) => giro(b) - giro(a) || b.headcount - a.headcount);
   }, [linhas, mesRef]);
 
   const rotuloRef = mesRef ? rotuloMes(mesRef) : "—";
