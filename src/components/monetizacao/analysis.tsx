@@ -190,7 +190,6 @@ const MESES_CURTOS = [
 ];
 /** "set/2026" a partir de "2026-09". */
 const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
-const FOCO_LINK = `text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`;
 /** Nome do responsável da barra: "Toda a frente" sem filtro. */
 const nomeDoDono = (data: BaseMonetizacao, owner: number | null) =>
   owner === null
@@ -316,7 +315,7 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
           {stale.length > 0 && (
             <button
               type="button"
-              className={FOCO_LINK}
+              className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
               onClick={() =>
                 openDeals("Validadas com data prevista vencida", stale, undefined, {
                   estoque: true,
@@ -330,7 +329,7 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
           {aPreencher.length > 0 && (
             <button
               type="button"
-              className={FOCO_LINK}
+              className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
               onClick={() =>
                 openDeals("Receita prevista a preencher", aPreencher, undefined, {
                   estoque: true,
@@ -370,7 +369,7 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
                         <button
                           type="button"
                           aria-label={`Semana ${semana}: ${w.rows.length} oportunidades, abrir`}
-                          className={`font-semibold ${FOCO_LINK}`}
+                          className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                           onClick={() =>
                             openDeals(`Previsão · semana ${semana}`, w.rows, undefined, {
                               estoque: true,
@@ -420,7 +419,7 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
               ate: busca?.ate,
               responsavel: busca?.responsavel,
             }}
-            className={`text-xs font-medium ${FOCO_LINK}`}
+            className={`text-xs font-medium text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
           >
             Hipóteses → Capacidade e alocação
           </Link>
@@ -442,7 +441,7 @@ function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">
                 <p className="mt-2 text-sm">
                   <button
                     type="button"
-                    className={`num font-semibold ${FOCO_LINK}`}
+                    className={`num font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                     aria-label={`${NOMES[p]}: ${dated.length} validadas com data no período, conferir`}
                     onClick={() =>
                       openDeals(`${NOMES[p]} · data prevista no período`, dated, undefined, {
@@ -653,7 +652,7 @@ function Capacity({ data, filter, openDeals }: Cut) {
     <Link
       to="/clientes"
       search={{ view: "produtos" }}
-      className={`text-sm font-medium ${FOCO_LINK}`}
+      className={`text-sm font-medium text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
     >
       Preparar a base em Produtos e listas →
     </Link>
@@ -733,9 +732,13 @@ function Capacity({ data, filter, openDeals }: Cut) {
                   <TableCell className="num text-right">
                     <Link
                       to="/clientes"
-                      search={{ view: "produtos" }}
-                      aria-label={`${NOMES[r.product]}: ${r.eligible} contas com perfil aderente, abrir Produtos e listas`}
-                      className={FOCO_LINK}
+                      search={{
+                        view: "monetizacao",
+                        produto: r.product,
+                        situacao: ["eligible"],
+                      }}
+                      aria-label={`${NOMES[r.product]}: ${r.eligible} contas com perfil aderente, abrir na Base de clientes`}
+                      className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                     >
                       {number(r.eligible)}
                     </Link>
@@ -743,9 +746,9 @@ function Capacity({ data, filter, openDeals }: Cut) {
                   <TableCell className="num text-right">
                     <Link
                       to="/clientes"
-                      search={{ view: "produtos" }}
-                      aria-label={`${NOMES[r.product]}: ${r.available} contas disponíveis no mês, abrir Produtos e listas`}
-                      className={FOCO_LINK}
+                      search={{ view: "monetizacao", produto: r.product, situacao: ["free"] }}
+                      aria-label={`${NOMES[r.product]}: ${r.available} contas disponíveis no mês, abrir as prontas na Base de clientes`}
+                      className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                     >
                       {number(r.available)}
                     </Link>
@@ -757,7 +760,7 @@ function Capacity({ data, filter, openDeals }: Cut) {
                     <button
                       type="button"
                       aria-label={`${NOMES[r.product]}: ${r.started} leads trabalhados, abrir negócios`}
-                      className={`font-semibold ${FOCO_LINK}`}
+                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                       onClick={() =>
                         abrirTrabalhados(
                           `${NOMES[r.product]} · ${LEADS_TRABALHADOS}`,
@@ -785,11 +788,11 @@ function Capacity({ data, filter, openDeals }: Cut) {
         </div>
         <div className="mt-3">
           <NotaApoio>
-            Perfil aderente e Disponível abrem Produtos e listas sem o filtro de produto (o destino
-            ainda não recebe produto no link); escolha o produto lá. Os totais não batem com a Base:
-            ela conta a disponibilidade no dia, esta tela no mês do plano. Base faltante = alocação
-            menos o trabalho já iniciado, acima do disponível. Há empresas em mais de um produto:
-            coordene as abordagens da mesma empresa antes de distribuir a carga.
+            Perfil aderente abre a Base de clientes no produto, com as aptas pelo perfil. Disponível
+            abre as prontas para enviar do produto, e o total não bate: a Base conta a
+            disponibilidade no dia (e deixa de fora as só no Omie), esta tela no mês do plano. Base
+            faltante = alocação menos o trabalho já iniciado, acima do disponível. Há empresas em
+            mais de um produto: coordene as abordagens da mesma empresa antes de distribuir a carga.
             {!saved &&
               ` Alocação e base faltante ficam em "—" até o ${semPlano.replace(" não salvo", "")} ser salvo.`}
           </NotaApoio>
@@ -1102,7 +1105,7 @@ function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
                   return (
                     <TableRow
                       key={c.id}
-                      className="cursor-pointer outline-none focus-visible:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                      className="cursor-pointer outline-none focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                       tabIndex={0}
                       aria-label={`Abrir detalhe de ${c.title}`}
                       onClick={abrir}
@@ -1201,7 +1204,7 @@ function CelulaQueAbre({
     <button
       type="button"
       aria-label={`${rotulo}: ${valor}, abrir negócios`}
-      className={`font-semibold ${FOCO_LINK}`}
+      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
       onClick={onClick}
     >
       {number(valor)}
@@ -2129,7 +2132,7 @@ function Distribution({ data, filter, openDeals, busca }: Cut & Pick<Props, "bus
                           ate: busca?.ate ?? filter.to,
                         }}
                         aria-label={`${name}: capacidade mensal ${capacity ?? "a definir"}, abrir o plano em Capacidade e alocação`}
-                        className={FOCO_LINK}
+                        className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                       >
                         {capacity === null ? "A definir" : number(capacity)}
                       </Link>
@@ -2158,7 +2161,7 @@ function Distribution({ data, filter, openDeals, busca }: Cut & Pick<Props, "bus
             <Link
               to="/clientes"
               search={{ view: "produtos" }}
-              className={`text-sm font-medium ${FOCO_LINK}`}
+              className={`text-sm font-medium text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
             >
               Abrir as listas em Produtos e listas →
             </Link>

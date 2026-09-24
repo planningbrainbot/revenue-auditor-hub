@@ -521,7 +521,6 @@ export function DashboardMonetizacao({
 
 const pct = (n: number, d: number) => (d ? `${number((n / d) * 100)}%` : "—");
 const rotuloMetrica = (k: Metrica) => METRICAS.find((m) => m.key === k)!.label;
-const FOCO = FOCO_VISIVEL;
 
 /**
  * Operação diária (contrato `monetizacao-operacao.md`, arquétipo Lista/Relatório): quatro KPIs
@@ -647,7 +646,7 @@ function OperacaoDiaria({
         <p className="-mt-1 text-xs text-muted-foreground">
           <button
             type="button"
-            className={`text-primary-text underline underline-offset-2 ${FOCO}`}
+            className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
             onClick={() =>
               abrir({
                 title: "Reuniões que viraram oportunidade",
@@ -749,7 +748,7 @@ function OperacaoDiaria({
               <button
                 key={s.id}
                 type="button"
-                className={`block w-full text-left ${FOCO}`}
+                className={`block w-full text-left ${FOCO_VISIVEL}`}
                 onClick={() => abrir({ title: s.name, rows: s.cards, estoque: true })}
               >
                 <span className="mb-1 flex justify-between text-xs">
@@ -777,7 +776,7 @@ function OperacaoDiaria({
                 responsavel: busca.responsavel,
                 produto: busca.produto,
               }}
-              className={`font-medium text-primary-text underline underline-offset-2 ${FOCO}`}
+              className={`font-medium text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
             >
               Quem está parado? → Follow Day
             </Link>
@@ -809,7 +808,7 @@ function OperacaoDiaria({
                     <button
                       type="button"
                       aria-label={`${NOMES[p.product]} · ${m.label}: ${p[m.key]}, abrir negócios`}
-                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO}`}
+                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                       onClick={() =>
                         abrir({
                           title: `${NOMES[p.product]} · ${m.label}`,
@@ -829,7 +828,9 @@ function OperacaoDiaria({
       </SecaoCartao>
 
       <details className="text-xs text-muted-foreground">
-        <summary className={`cursor-pointer ${FOCO}`}>Critérios e campos a preencher</summary>
+        <summary className={`cursor-pointer ${FOCO_VISIVEL}`}>
+          Critérios e campos a preencher
+        </summary>
         <p className="mt-2">
           Produto canônico: Caixa · Produto no Pipedrive (Cella, Consultoria, Finance). Validação:
           primeiro avanço a Negociação ou etapa posterior, atribuído a quem registrou o movimento.
@@ -844,7 +845,7 @@ function OperacaoDiaria({
           {semHistoricoRecorte.length ? (
             <button
               type="button"
-              className={`text-primary-text underline underline-offset-2 ${FOCO}`}
+              className={`text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
               onClick={() =>
                 abrir({
                   title: "Negócios sem histórico lido no recorte",
