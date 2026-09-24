@@ -2,10 +2,29 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { Info } from "lucide-react";
 import { createRole, deleteRole, listRoles, slugifyRoleKey, updateRole } from "@/lib/roles.functions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  StatusBadge,
+} from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin/perfis")({
@@ -55,10 +74,12 @@ function ProfilesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
+  const [excluirAlvo, setExcluirAlvo] = useState<{ id: string; label: string; areas: string[] } | null>(null);
 
   const createMut = useMutation({
     mutationFn: (input: { key: string; label: string; description?: string }) => createFn({ data: input }),
-    onSuccess: () => {
+    onSuccess: (_res, input) => {
+      toast.success(`Perfil ${input.label} criado, sem área nenhuma. Marque as áreas dele em Permissões.`);
       setLabel("");
       setKey("");
       setKeyTouched(false);
@@ -67,31 +88,66 @@ function ProfilesPage() {
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-roles"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao criar perfil"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao criar perfil";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const updateMut = useMutation({
     mutationFn: (input: { id: string; label: string; description?: string }) => updateFn({ data: input }),
-    onSuccess: () => {
+    onSuccess: (_res, input) => {
+      // Nome e descrição não mexem em acesso: ninguém ganha nem perde área.
+      toast.success(`Perfil ${input.label} atualizado. As áreas e as pessoas dele não mudam.`);
       setEditingId(null);
       qc.invalidateQueries({ queryKey: ["admin-roles"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao atualizar perfil"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao atualizar perfil"),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-roles"] }),
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao excluir perfil"),
+    mutationFn: (alvo: { id: string; label: string }) => deleteFn({ data: { id: alvo.id } }),
+    onSuccess: (_res, alvo) => {
+      toast.success(`Perfil ${alvo.label} excluído.`);
+      setExcluirAlvo(null);
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao excluir perfil"),
   });
 
-  if (roleLoading) return <div className="p-8 text-muted-foreground">Carregando...</div>;
-  if (!isAdmin) return null;
+  const titulo = "Perfis";
+  const pergunta = "Quais perfis existem, e quem está em cada um?";
+
+  if (roleLoading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="pagina" />
+      </div>
+    );
+  if (!isAdmin)
+    return (
+      <AppShell title={titulo} pergunta={pergunta}>
+        <div className="mx-auto max-w-5xl px-4 py-6">
+          <EstadoSemAcesso oQueFalta="admin (Administração)" />
+        </div>
+      </AppShell>
+    );
 
   const roles = rolesQuery.data ?? [];
 
   return (
-    <AppShell title="Perfis de usuário" subtitle="Cada perfil é um modelo: abre um conjunto de áreas para quem o recebe">
+    <AppShell
+      title={titulo}
+      pergunta={pergunta}
+      subtitle={
+        <>
+          {rolesQuery.data ? `${roles.length} perfis · ` : ""}
+          Cada perfil abre um conjunto de áreas para quem o recebe. Perfil novo nasce sem área; nome
+          e descrição não mudam o acesso de ninguém.
+        </>
+      }
+    >
       <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
           <Info className="mt-0.5 h-5 w-5 text-primary-text" />
@@ -101,7 +157,9 @@ function ProfilesPage() {
               O perfil diz quais <strong>áreas</strong> a pessoa abre, e quais áreas cada perfil abre se ajusta em{" "}
               <Link to="/admin/permissoes" className="underline underline-offset-2">Permissões</Link>. Perfil novo nasce
               sem área nenhuma. O <strong>nível</strong> da pessoa em cada área (admin, sócio, usuário) não é perfil:
-              fica em Usuários, no botão Acessos, e soma ao que o perfil já abre. O perfil Super admin tem acesso total.
+              fica em{" "}
+              <Link to="/admin/niveis" className="underline underline-offset-2">Níveis de acesso</Link> (ou na pílula
+              Ops, em Usuários) e soma ao que o perfil já abre. O perfil Super admin tem acesso total.
             </p>
           </div>
         </div>
@@ -112,8 +170,7 @@ function ProfilesPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Perfis ({roles.length})</h2>
+        <div className="flex items-center justify-end">
           <button
             onClick={() => { setShowForm((s) => !s); setError(null); }}
             className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
@@ -167,6 +224,17 @@ function ProfilesPage() {
           </form>
         )}
 
+        {rolesQuery.isLoading ? (
+          <Carregando variante="tabela" />
+        ) : rolesQuery.isError ? (
+          <EstadoErro
+            titulo="Não foi possível carregar os perfis"
+            detalhe={rolesQuery.error instanceof Error ? rolesQuery.error.message : undefined}
+            tentarNovamente={() => rolesQuery.refetch()}
+          />
+        ) : roles.length === 0 ? (
+          <EstadoVazio titulo="Nenhum perfil cadastrado" descricao="Use “Novo perfil” para criar o primeiro." />
+        ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="min-w-full text-sm">
             <thead className="bg-accent/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -181,9 +249,6 @@ function ProfilesPage() {
               </tr>
             </thead>
             <tbody>
-              {rolesQuery.isLoading && (
-                <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
-              )}
               {roles.map((r) => (
                 <tr key={r.id} className="border-t">
                   <td className="px-4 py-2 text-foreground">
@@ -200,15 +265,10 @@ function ProfilesPage() {
                   </td>
                   <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.key}</td>
                   <td className="px-4 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                        r.is_system
-                          ? "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
+                    {/* Tipo é categoria, não status: neutro nos dois, a palavra diz qual. */}
+                    <StatusBadge tom="neutro" icone={false}>
                       {r.is_system ? "Sistema" : "Customizado"}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {r.pessoas > 0 ? (
@@ -237,6 +297,7 @@ function ProfilesPage() {
                         <button
                           onClick={() => updateMut.mutate({ id: r.id, label: editingLabel, description: editingDescription })}
                           disabled={updateMut.isPending || !editingLabel.trim()}
+                          title={!editingLabel.trim() ? "Preencha o nome para salvar" : undefined}
                           className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
                         >
                           Salvar
@@ -259,8 +320,13 @@ function ProfilesPage() {
                           Editar
                         </button>
                         <button
-                          onClick={() => { if (confirm(`Excluir o perfil "${r.label}"?`)) deleteMut.mutate(r.id); }}
-                          disabled={deleteMut.isPending}
+                          onClick={() => setExcluirAlvo({ id: r.id, label: r.label, areas: r.areas })}
+                          disabled={deleteMut.isPending || r.pessoas > 0}
+                          title={
+                            r.pessoas > 0
+                              ? `${r.pessoas} ${r.pessoas === 1 ? "pessoa tem" : "pessoas têm"} este perfil. Troque o perfil delas em Usuários antes de excluir.`
+                              : undefined
+                          }
                           className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
                         >
                           Excluir
@@ -273,7 +339,36 @@ function ProfilesPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
+
+      <AlertDialog open={!!excluirAlvo} onOpenChange={(o) => !o && setExcluirAlvo(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir o perfil {excluirAlvo?.label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ninguém tem este perfil hoje, então ninguém perde acesso.{" "}
+              {excluirAlvo?.areas.length
+                ? `A configuração de áreas dele (${excluirAlvo.areas.join(", ")}) se perde com ele.`
+                : "Ele não abre área nenhuma."}{" "}
+              Não dá para desfazer: para voltar, é preciso criar o perfil e marcar as áreas de novo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMut.isPending}
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={(e) => {
+                e.preventDefault();
+                if (excluirAlvo) deleteMut.mutate({ id: excluirAlvo.id, label: excluirAlvo.label });
+              }}
+            >
+              {deleteMut.isPending ? "Excluindo…" : "Excluir perfil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
