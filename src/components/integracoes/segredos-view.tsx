@@ -35,6 +35,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const ASAAS_PRODUCAO = "https://api.asaas.com/v3";
+
+/**
+ * O efeito de remover ou trocar depende da chave: sem a chave de API ou o token
+ * do webhook a integração para; o ambiente sem valor cai no sandbox (é o padrão
+ * do testarAsaas); o meio de cobrança sem valor volta ao UNDEFINED.
+ */
+function efeitoDaMudanca(chave: string, grupo: string, tipo: "remover" | "sobrescrever", valor?: string) {
+  if (chave === "ASAAS_BASE_URL") {
+    if (tipo === "remover") return "O ambiente volta ao sandbox (cobranças de teste).";
+    return valor === ASAAS_PRODUCAO
+      ? "O ambiente passa a ser produção: as cobranças passam a ser reais."
+      : "O ambiente volta ao sandbox (cobranças de teste).";
+  }
+  if (chave === "ASAAS_BILLING_TYPE") {
+    if (tipo === "remover") return "O meio de cobrança volta ao padrão UNDEFINED (o pagador escolhe).";
+    return `As próximas cobranças passam a usar ${valor}.`;
+  }
+  return tipo === "remover"
+    ? `A integração ${grupo} para até uma chave nova ser salva.`
+    : `Se o novo valor estiver errado, a integração ${grupo} para até uma chave nova ser salva.`;
+}
+
 const quando = (v: string | null) =>
   v ? new Date(v).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 
@@ -79,7 +102,7 @@ export function SegredosView() {
     mutationFn: (d: { chave: string }) => fnApagar({ data: d }),
     onSuccess: (_r, d) => {
       const rotulo = CHAVES_CONHECIDAS.find((c) => c.chave === d.chave)?.rotulo ?? d.chave;
-      toast.success(`${rotulo} removida. A integração fica parada até uma chave nova ser salva.`);
+      toast.success(`Removido: ${rotulo}.`);
       setTeste(null);
       setConfirmar(null);
       recarregar();
@@ -250,12 +273,13 @@ export function SegredosView() {
                     disabled={!valor.trim() || mSalvar.isPending}
                     title={!valor.trim() ? (c.opcoes ? "Escolha uma opção para salvar" : "Cole o valor para salvar") : undefined}
                     onClick={() =>
-                      s?.configurado
+                      // Ir para produção confirma mesmo na primeira vez: sem valor o ambiente é o sandbox.
+                      s?.configurado || (c.chave === "ASAAS_BASE_URL" && valor === ASAAS_PRODUCAO)
                         ? setConfirmar({
                             tipo: "sobrescrever",
                             chave: c.chave,
                             rotulo: c.rotulo,
-                            final: s.final,
+                            final: s?.configurado ? s.final : null,
                             grupo: c.grupo,
                             valor,
                           })
@@ -314,14 +338,16 @@ export function SegredosView() {
             <AlertDialogDescription>
               {confirmar?.tipo === "remover" ? (
                 <>
-                  O valor salvo{confirmar.final ? ` (${confirmar.final})` : ""} é apagado e não volta.
-                  A integração {confirmar.grupo} para até uma chave nova ser salva.
+                  O valor salvo{confirmar.final ? ` (${confirmar.final})` : ""} é apagado e não volta.{" "}
+                  {efeitoDaMudanca(confirmar.chave, confirmar.grupo, "remover")}
                 </>
               ) : (
                 <>
-                  O valor salvo hoje{confirmar?.final ? ` (${confirmar.final})` : ""} é substituído e
-                  não volta. Se o novo estiver errado, a integração {confirmar?.grupo} para até uma
-                  chave nova ser salva.
+                  {confirmar?.final
+                    ? `O valor salvo hoje (${confirmar.final}) é substituído e não volta. `
+                    : ""}
+                  {confirmar?.tipo === "sobrescrever" &&
+                    efeitoDaMudanca(confirmar.chave, confirmar.grupo, "sobrescrever", confirmar.valor)}
                 </>
               )}
             </AlertDialogDescription>

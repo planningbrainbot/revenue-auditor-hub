@@ -23,8 +23,8 @@ function CredenciaisPage() {
         descricao={
           <>
             {data ? `${configuradas} de ${CHAVES_CONHECIDAS.length} configuradas · ` : ""}
-            O valor entra por aqui e não volta para a tela. Remover ou escrever por cima tira do ar
-            a chave que a integração usa hoje: ela para até uma chave nova ser salva.
+            O valor entra por aqui e não volta para a tela. Remover ou escrever por cima confirma
+            antes e diz o efeito, que muda de chave para chave.
           </>
         }
       />
