@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
@@ -34,12 +33,7 @@ function ReceitaOverviewPage() {
   if (loading) return null;
   if (!temArea("receita")) return <SemAcessoArea area="Receita e Repasses" />;
 
-  return (
-    <AppShell
-      title="Receita e Repasses"
-      subtitle="O repasse do mês, o que falta fechar e cobrar, e a receita da rede"
-    >
-      <ReceitaOverviewContent />
-    </AppShell>
-  );
+  // A moldura (PageHeader com pergunta, procedência e o seletor de mês) fica
+  // no conteúdo, que é quem conhece o mês da URL.
+  return <ReceitaOverviewContent />;
 }
