@@ -45,6 +45,8 @@ type Auditoria = {
 };
 
 const NA = "—";
+// Teto da leitura de `auditorias_internas` (a consulta pede .limit(1000)).
+const LIMITE = 1000;
 // Mesmas regras de /auditoria-interna: concluída é o flag do card ou uma das
 // fases finais do pipe.
 const FASES_CONCLUIDAS = new Set([
@@ -110,6 +112,7 @@ function MinhasAuditoriasPage() {
   // Tipo na URL (N7): recarregar ou colar o link mantém o recorte.
   const [tipo, setTipo] = useFiltroNaUrl("tipo", "todos");
   const [tentativa, setTentativa] = useState(0);
+  const [lidoEm, setLidoEm] = useState<Date | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -124,7 +127,10 @@ function MinhasAuditoriasPage() {
       .then(({ data, error }) => {
         if (!vivo) return;
         if (error) setErro(error.message);
-        else setRows((data ?? []) as Auditoria[]);
+        else {
+          setRows((data ?? []) as Auditoria[]);
+          setLidoEm(new Date());
+        }
         setLoading(false);
       });
     return () => {
@@ -200,6 +206,7 @@ function MinhasAuditoriasPage() {
         }
         procedencia={{
           fonte: "Pipefy · pipe Auditoria Interna",
+          atualizadoEm: lidoEm,
           regua: "leitura de até 1.000 auditorias",
         }}
       />
@@ -215,6 +222,12 @@ function MinhasAuditoriasPage() {
         />
       ) : (
         <>
+          {rows.length >= LIMITE && (
+            <p className="text-[13px] text-muted-foreground">
+              A leitura chegou ao teto de {LIMITE.toLocaleString("pt-BR")} auditorias: pode haver projetos da
+              unidade fora desta tela.
+            </p>
+          )}
           {tiposPresentes.length > 1 && (
             <Tabs value={tipoAtivo} onValueChange={setTipo}>
               <TabsList className="h-auto flex-wrap">
