@@ -36,6 +36,11 @@ import { cnpjDvValido } from "@/lib/cnpj";
 const ALL = "todas";
 const CHAVES_FILTRO = ["q", "unidade", "situacao"];
 const FONTE = "empresas e contatos (Pipefy)";
+// A fonte não devolve updated_at: a hora que há é a da leitura, e ela diz só
+// isso ("lido às"), sem se passar por frescor do dado.
+const HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const lidoAs = (ms: number) => (ms > 0 ? ` · lido às ${HORA.format(new Date(ms))}` : "");
+
 const NUM = new Intl.NumberFormat("pt-BR");
 
 const SITUACOES: { valor: EmpresaSemContatoRow["status"]; rotulo: string }[] = [
@@ -252,7 +257,7 @@ export function NpsPlanoAcaoTab() {
             </Table>
           </div>
         )}
-        <Procedencia fonte={FONTE} atualizadoEm={dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : null} />
+        <Procedencia fonte={`${FONTE}${lidoAs(dataUpdatedAt)}`} atualizadoEm={null} />
       </Secao>
 
       {data.contatosParaClassificar.length > 0 && (

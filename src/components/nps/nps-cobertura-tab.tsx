@@ -21,6 +21,11 @@ import { useNpsCoverage } from "@/hooks/use-nps";
 
 const NUM = new Intl.NumberFormat("pt-BR");
 const FONTE = "empresas, contatos e nps_pesquisas (Pipefy)";
+// A fonte não devolve updated_at: a hora que há é a da leitura, e ela diz só
+// isso ("lido às"), sem se passar por frescor do dado.
+const HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const lidoAs = (ms: number) => (ms > 0 ? ` · lido às ${HORA.format(new Date(ms))}` : "");
+
 
 function tomCobertura(pct: number): TomStatus {
   return pct >= 70 ? "sucesso" : pct >= 30 ? "atencao" : "perigo";
@@ -153,8 +158,8 @@ export function NpsCoberturaTab() {
           </div>
         )}
         <Procedencia
-          fonte={FONTE}
-          atualizadoEm={dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : null}
+          fonte={`${FONTE}${lidoAs(dataUpdatedAt)}`}
+          atualizadoEm={null}
           regua="cobertura = com WhatsApp ÷ clientes ativos · ok a partir de 70%, atenção de 30% a 69%, perigo abaixo de 30%"
         />
       </Secao>
