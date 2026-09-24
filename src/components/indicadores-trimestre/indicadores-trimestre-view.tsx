@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { usePermissions } from "@/hooks/use-permissions";
-import { Card } from "@/components/ui/card";
+import { unitMatches, usePermissions } from "@/hooks/use-permissions";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -14,7 +20,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "@/components/planning";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  Secao,
+  StatusBadge,
+  type EstadoKpi,
+} from "@/components/planning";
 
 const NA = "—";
 
@@ -48,6 +66,37 @@ type Row = {
   estoque_mais_1ano: number | null;
 };
 
+/**
+ * Rótulo único de cada número (N11): o card e a coluna do comparativo usam a
+ * mesma string, para a pessoa não achar que "Take rate" e "Take rate da rede"
+ * são números diferentes.
+ */
+const R = {
+  fat: "Faturamento da base nova",
+  inad: "Inadimplência",
+  roy: "Royalties + CSC",
+  take: "Take rate da unidade",
+  anual: "Receita anualizada",
+  bookada: "Receita bookada (MRR × 60)",
+  novos: "Novos contratos",
+  ticket: "Ticket médio mensal",
+  mrr: "MRR vendido no trimestre",
+  roas: "ROAS",
+  churnN: "Churn de clientes",
+  churnMrr: "Churn de receita",
+  estoque: "Estoque em aberto",
+  estoque1a: "Estoque em aberto > 1 ano",
+} as const;
+
+// Procedência por card (N3). Sem data: a RPC não devolve quando cada fonte foi
+// atualizada, e o Procedencia diz isso em vez de sumir.
+const F = {
+  apuracao: { fonte: "Apuração confirmada" },
+  contratos: { fonte: "Contratos" },
+  receber: { fonte: "Contas a receber" },
+  roas: { fonte: "Contratos + apuração" },
+} as const;
+
 const fmtBRL = (v: number | null | undefined, casas = 0) =>
   v === null || v === undefined
     ? NA
@@ -70,9 +119,11 @@ const fmtX = (v: number | null | undefined) =>
 const fmtNum = (v: number | null | undefined) =>
   v === null || v === undefined ? NA : v.toLocaleString("pt-BR");
 
-/** Trimestres civis disponíveis, do mais recente pro mais antigo. */
-function trimestresDisponiveis(): { key: string; label: string; ini: string; fim: string }[] {
-  const out: { key: string; label: string; ini: string; fim: string }[] = [];
+type Trimestre = { key: string; label: string; ini: string; fim: string };
+
+/** Trimestres civis disponíveis (chave aaaa-Tn), do mais recente pro mais antigo. */
+function trimestresDisponiveis(): Trimestre[] {
+  const out: Trimestre[] = [];
   const hoje = new Date();
   let ano = hoje.getFullYear();
   let q = Math.floor(hoje.getMonth() / 3) + 1;
@@ -82,8 +133,8 @@ function trimestresDisponiveis(): { key: string; label: string; ini: string; fim
     const fim = new Date(Date.UTC(ano, mesIni + 3, 0));
     const iso = (d: Date) => d.toISOString().slice(0, 10);
     out.push({
-      key: `${ano}-Q${q}`,
-      label: `Q${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
+      key: `${ano}-T${q}`,
+      label: `T${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
       ini: iso(ini),
       fim: iso(fim),
     });
@@ -105,26 +156,34 @@ function maturacao(fim: string): { madura: boolean; dias: number } {
   return { madura: dias >= 60, dias };
 }
 
-// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN
-// §1.6). `NA` é o "—" que os formatadores devolvem para null: vira o estado
-// "não apurado" em vez de um traço que parece número (N4). O alerta segue
-// com ícone e palavra (V7), na linha de nota.
+// Adaptador sobre o KpiCard do design system. `NA` é o "—" que os
+// formatadores devolvem para null: vira "não apurado" em vez de um traço que
+// parece número (N4). O alerta vai na nota do card, com ícone e palavra (V7,
+// N9), no lugar dos antigos cards âmbar soltos.
 function CardKPI({
   label,
   valor,
   hint,
   alerta,
+  parcial,
+  estado,
+  procedencia,
 }: {
   label: string;
   valor: string;
   hint?: string;
   alerta?: string;
+  parcial?: boolean;
+  estado?: EstadoKpi;
+  procedencia: { fonte: string };
 }) {
+  const est: EstadoKpi = estado ?? (valor === NA ? "nao-apurado" : parcial ? "parcial" : "ok");
   return (
     <KpiCard
       rotulo={label}
       valor={valor}
-      estado={valor === NA ? "nao-apurado" : "ok"}
+      estado={est}
+      procedencia={procedencia}
       nota={
         hint || alerta ? (
           <>
@@ -132,7 +191,10 @@ function CardKPI({
             {alerta ? (
               <span className={cn("flex items-start gap-1 text-warning", hint && "mt-1")}>
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                {alerta}
+                <span>
+                  <span className="sr-only">Atenção: </span>
+                  {alerta}
+                </span>
               </span>
             ) : null}
           </>
@@ -142,23 +204,35 @@ function CardKPI({
   );
 }
 
+const PERGUNTA = "Como cada unidade fechou o trimestre, em finanças e em vendas?";
+
 export function IndicadoresTrimestreView() {
   const trimestres = useMemo(trimestresDisponiveis, []);
-  // Default: trimestre anterior ao corrente — o último com apuração fechada e safra madura.
-  const [periodo, setPeriodo] = useState(trimestres[1] ?? trimestres[0]);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [unidadeSel, setUnidadeSel] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+  // Padrão: trimestre anterior ao corrente — o último com apuração fechada e safra madura.
+  const padrao = trimestres[1] ?? trimestres[0];
+  const [trimestreUrl, setTrimestreUrl] = useFiltroNaUrl("trimestre", padrao.key);
+  const periodo = trimestres.find((t) => t.key === trimestreUrl) ?? padrao;
+  const [unidadeUrl, setUnidadeUrl] = useFiltroNaUrl("unidade", "");
   // A página é usada para apresentar os números PARA a unidade, na reunião trimestral.
   // Por isso o comparativo da rede nasce fechado e é opt-in: ninguém abre a tela na frente
   // de um sócio regional e mostra, sem querer, o resultado dos outros. Mesma lógica da decisão
   // de 11/08/2026 em /rede-overview (dados agregados de rede ficam fechados por padrão).
-  const [mostrarRede, setMostrarRede] = useState(false);
-  const { can, loading: permLoading } = usePermissions();
+  const [comparativo, setComparativo] = useFiltroNaUrl("comparativo", "fechado");
+  const mostrarRede = comparativo === "aberto";
+
+  const { can, loading: permLoading, unidade: unidadeDoUsuario } = usePermissions();
+  const temAcesso = can("view.indicadores_trimestre");
   const podeVerRede = can("view.network.benchmarks");
 
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
+
   useEffect(() => {
+    // Sem a permissão a RPC devolve zero linhas, que pareciam "sem dados":
+    // nem chama, e a tela diz o que falta.
+    if (permLoading || !temAcesso) return;
     let alive = true;
     setLoading(true);
     setErro(null);
@@ -179,242 +253,270 @@ export function IndicadoresTrimestreView() {
     return () => {
       alive = false;
     };
-  }, [periodo]);
+  }, [periodo.ini, periodo.fim, permLoading, temAcesso, tentativa]);
 
+  // Unidade: a da URL; senão a do usuário, quando ele é de uma unidade; senão a primeira.
   const selecionada = useMemo(
-    () => rows.find((r) => r.unidade === unidadeSel) ?? rows[0] ?? null,
-    [rows, unidadeSel],
+    () =>
+      rows.find((r) => r.unidade === unidadeUrl) ??
+      (unidadeDoUsuario ? rows.find((r) => unitMatches(unidadeDoUsuario, r.unidade)) : undefined) ??
+      rows[0] ??
+      null,
+    [rows, unidadeUrl, unidadeDoUsuario],
   );
 
   const mat = maturacao(periodo.fim);
+  const carregando = permLoading || (temAcesso && loading);
+  const semAcesso = !permLoading && !temAcesso;
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full max-w-md" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-28" />
+  const filtros = semAcesso ? undefined : (
+    <>
+      <Select value={periodo.key} onValueChange={(v) => setTrimestreUrl(v)}>
+        <SelectTrigger className="w-[200px]" aria-label="Trimestre">
+          <SelectValue placeholder="Trimestre" />
+        </SelectTrigger>
+        <SelectContent>
+          {trimestres.map((t) => (
+            <SelectItem key={t.key} value={t.key}>
+              {t.label}
+            </SelectItem>
           ))}
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
+        </SelectContent>
+      </Select>
+      {!carregando && !erro && rows.length > 0 && selecionada ? (
+        <Select value={selecionada.unidade} onValueChange={(v) => setUnidadeUrl(v)}>
+          <SelectTrigger className="w-[220px]" aria-label="Unidade">
+            <SelectValue placeholder="Unidade" />
+          </SelectTrigger>
+          <SelectContent>
+            {rows.map((r) => (
+              <SelectItem key={r.unidade_id} value={r.unidade}>
+                {r.unidade}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+    </>
+  );
+
+  const nomeUnidade = selecionada?.unidade ?? unidadeUrl ?? "";
+  const descricao = `${nomeUnidade ? `${nomeUnidade} · ` : ""}${periodo.label} · faturamento e take rate da apuração de royalties confirmada; vendas pelos contratos ganhos no trimestre`;
+
+  const cabecalho = (
+    <PageHeader
+      titulo="Indicadores do Trimestre"
+      pergunta={PERGUNTA}
+      descricao={descricao}
+      procedencia={{
+        fonte: "RPC indicadores_trimestre (apuração de royalties, contratos, contas a receber)",
+      }}
+      filtros={filtros}
+    />
+  );
+
+  if (semAcesso) {
+    return (
+      <>
+        {cabecalho}
+        <EstadoSemAcesso oQueFalta="view.indicadores_trimestre" />
+      </>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <>
+        {cabecalho}
+        <Carregando variante="kpis" />
+      </>
     );
   }
 
   if (erro) {
     return (
-      <Card className="border-destructive/40 p-6">
-        <p className="text-sm font-medium text-destructive">
-          Não foi possível carregar os indicadores.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">{erro}</p>
-      </Card>
+      <>
+        {cabecalho}
+        <EstadoErro
+          titulo="Não foi possível carregar os indicadores"
+          detalhe={`RPC indicadores_trimestre: ${erro}`}
+          tentarNovamente={() => setTentativa((n) => n + 1)}
+        />
+      </>
     );
   }
 
   if (!rows.length) {
     return (
-      <Card className="p-6">
-        <p className="text-sm font-medium">Sem dados para este período.</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Se você acabou de ganhar acesso, confira se a permissão{" "}
-          <code className="rounded bg-muted px-1">view.indicadores_trimestre</code> está liberada
-          para o seu perfil em Administração › Permissões.
-        </p>
-      </Card>
+      <>
+        {cabecalho}
+        <EstadoVazio
+          titulo="Sem apuração confirmada neste trimestre"
+          descricao={`Nenhuma unidade com dado em ${periodo.label}. Escolha outro trimestre no filtro acima.`}
+        />
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* seletores */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={periodo.key}
-          onChange={(e) => setPeriodo(trimestres.find((t) => t.key === e.target.value) ?? periodo)}
-          className="h-9 rounded-md border bg-background px-3 text-sm"
-        >
-          {trimestres.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <div className="flex flex-wrap gap-1">
-          {rows.map((r) => (
-            <button
-              key={r.unidade_id}
-              type="button"
-              onClick={() => setUnidadeSel(r.unidade)}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                selecionada?.unidade === r.unidade
-                  ? "border-primary bg-primary/10 text-primary-text"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {r.unidade}
-            </button>
-          ))}
-        </div>
-      </div>
+    <>
+      {cabecalho}
 
-      {!mat.madura ? (
-        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <div className="text-sm">
-            <p className="font-medium">Trimestre ainda não maturou.</p>
-            <p className="text-muted-foreground">
-              Fechou há {mat.dias} dias. A inadimplência só estabiliza cerca de 60 dias depois do
-              vencimento — até lá ela mede fatura recente, não perda, e sai superestimada.
-            </p>
-          </div>
-        </Card>
-      ) : null}
+      {selecionada ? <DetalheUnidade row={selecionada} mat={mat} /> : null}
 
-      {selecionada ? <DetalheUnidade row={selecionada} /> : null}
-
-      {/* Comparativo da rede — fechado por padrão. Ver comentário em `mostrarRede`. */}
+      {/* Comparativo da rede — fechado por padrão. Ver comentário em `comparativo`. */}
       {permLoading || !podeVerRede ? null : (
-        <div>
-          <button
-            type="button"
-            onClick={() => setMostrarRede((v) => !v)}
-            className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
-            aria-expanded={mostrarRede}
-          >
-            {mostrarRede ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-            Comparativo da rede
-          </button>
-          {!mostrarRede ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Fechado por padrão — esta tela é usada para apresentar os números para a própria
-              unidade.
-            </p>
-          ) : null}
-        </div>
-      )}
-
-      {permLoading || !podeVerRede || !mostrarRede ? null : (
-        <div>
-          <Card className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Unidade</TableHead>
-                  <TableHead className="text-right">Faturamento base nova</TableHead>
-                  <TableHead className="text-right">Inadimplência</TableHead>
-                  <TableHead className="text-right">Royalties + CSC</TableHead>
-                  <TableHead className="text-right">Take rate</TableHead>
-                  <TableHead className="text-right">Novos</TableHead>
-                  <TableHead className="text-right">MRR vendido</TableHead>
-                  <TableHead className="text-right">Ticket médio</TableHead>
-                  <TableHead className="text-right">ROAS</TableHead>
-                  <TableHead className="text-right">Churn (clientes)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => {
-                  const rampa = r.meses_apurados < 3;
-                  return (
-                    <TableRow
-                      key={r.unidade_id}
-                      className={cn(
-                        "cursor-pointer",
-                        selecionada?.unidade === r.unidade && "bg-muted/50",
-                      )}
-                      onClick={() => setUnidadeSel(r.unidade)}
-                    >
-                      <TableCell className="font-medium">
-                        {r.unidade}
-                        {rampa ? (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {r.meses_apurados}/3 meses
-                          </Badge>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {r.fat_base_nova !== null ? (
-                          fmtBRL(r.fat_base_nova)
-                        ) : (
-                          <span className="text-muted-foreground">sem apuração</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtPct(r.inad_pct)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtBRL(r.roy_csc)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {rampa && r.take_rate_pct !== null ? (
-                          <span
-                            className="text-muted-foreground"
-                            title="Unidade em rampa: CSC fixo domina o cálculo"
-                          >
-                            {fmtPct(r.take_rate_pct)}*
-                          </span>
-                        ) : (
-                          fmtPct(r.take_rate_pct)
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtNum(r.novos_contratos)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtBRL(r.mrr_vendido)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {fmtBRL(r.ticket_medio)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtX(r.roas)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {r.tem_omie ? (
-                          <span
-                            className={cn(
-                              r.churn_faturamento_n > r.churn_pipefy_n &&
-                                "text-warning",
-                            )}
-                          >
-                            {fmtNum(r.churn_faturamento_n)}
-                          </span>
-                        ) : (
-                          fmtNum(r.churn_pipefy_n)
-                        )}
-                      </TableCell>
+        <Secao
+          titulo="Como as unidades se comparam neste trimestre?"
+          descricao={
+            mostrarRede
+              ? "Mesmos rótulos dos cards acima. Clique no nome para ver a unidade."
+              : "Fechado por padrão: esta tela é usada para apresentar os números para a própria unidade."
+          }
+          acoes={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={mostrarRede}
+              onClick={() => setComparativo(mostrarRede ? "fechado" : "aberto")}
+            >
+              {mostrarRede ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
+              {mostrarRede ? "Fechar comparativo" : "Abrir comparativo"}
+            </Button>
+          }
+        >
+          {mostrarRede ? (
+            <div className="space-y-2">
+              <div className="overflow-x-auto rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead className="text-right">{R.fat}</TableHead>
+                      <TableHead className="text-right">{R.inad}</TableHead>
+                      <TableHead className="text-right">{R.roy}</TableHead>
+                      <TableHead className="text-right">{R.take}</TableHead>
+                      <TableHead className="text-right">{R.novos}</TableHead>
+                      <TableHead className="text-right">{R.mrr}</TableHead>
+                      <TableHead className="text-right">{R.ticket}</TableHead>
+                      <TableHead className="text-right">{R.roas}</TableHead>
+                      <TableHead className="text-right">{R.churnN}</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
-          <p className="mt-2 text-xs text-muted-foreground">
-            * Take rate de unidade em rampa não é comparável — o CSC fixo domina uma base ainda
-            pequena.
-          </p>
-        </div>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => {
+                      const rampa = r.meses_apurados < 3;
+                      const ativa = selecionada?.unidade === r.unidade;
+                      return (
+                        <TableRow key={r.unidade_id} className={cn(ativa && "bg-muted/50")}>
+                          <TableCell className="font-medium">
+                            <Button
+                              type="button"
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 text-sm"
+                              aria-current={ativa ? "true" : undefined}
+                              onClick={() => setUnidadeUrl(r.unidade)}
+                            >
+                              {r.unidade}
+                            </Button>
+                            {rampa ? (
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {r.meses_apurados}/3 meses
+                              </Badge>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {r.fat_base_nova !== null ? (
+                              fmtBRL(r.fat_base_nova)
+                            ) : (
+                              <span className="text-muted-foreground">sem apuração</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtPct(r.inad_pct)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtBRL(r.roy_csc)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {rampa && r.take_rate_pct !== null ? (
+                              <span
+                                className="text-muted-foreground"
+                                title="Unidade em rampa: CSC fixo domina o cálculo"
+                              >
+                                {fmtPct(r.take_rate_pct)}*
+                              </span>
+                            ) : (
+                              fmtPct(r.take_rate_pct)
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtNum(r.novos_contratos)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtBRL(r.mrr_vendido)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {fmtBRL(r.ticket_medio)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{fmtX(r.roas)}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {r.tem_omie ? (
+                              <span className="inline-flex items-center justify-end gap-2">
+                                {fmtNum(r.churn_faturamento_n)}
+                                {r.churn_faturamento_n > r.churn_pipefy_n ? (
+                                  <StatusBadge tom="atencao">
+                                    Tratativas: {fmtNum(r.churn_pipefy_n)}
+                                  </StatusBadge>
+                                ) : null}
+                              </span>
+                            ) : (
+                              fmtNum(r.churn_pipefy_n)
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                * {R.take} em rampa não é comparável — o CSC fixo domina uma base ainda pequena.
+                {" "}
+                {R.churnN}: régua Omie quando a unidade tem, senão Tratativas.
+              </p>
+            </div>
+          ) : null}
+        </Secao>
       )}
-    </div>
+    </>
   );
 }
 
-function DetalheUnidade({ row: r }: { row: Row }) {
+function DetalheUnidade({ row: r, mat }: { row: Row; mat: { madura: boolean; dias: number } }) {
   const gapChurn = r.tem_omie && r.churn_faturamento_n > r.churn_pipefy_n;
   const rampa = r.meses_apurados < 3;
+  const temApuracao = r.fat_base_nova !== null;
+  const fonteChurn = r.tem_omie ? { fonte: "Omie" } : { fonte: "Tratativas (Pipefy)" };
+  const pctMais1Ano =
+    r.estoque_aberto && r.estoque_mais_1ano !== null
+      ? Math.round((100 * r.estoque_mais_1ano) / r.estoque_aberto)
+      : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {r.unidade} · Indicadores financeiros
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="space-y-8">
+      <Secao
+        titulo={`Como ${r.unidade} fechou o trimestre em finanças?`}
+        descricao="Apuração de royalties confirmada e contas a receber com vencimento no trimestre"
+      >
+        <KpiGrade colunas={6}>
           <CardKPI
-            label="Faturamento base nova"
+            label={R.fat}
             valor={fmtBRL(r.fat_base_nova)}
+            procedencia={F.apuracao}
+            parcial={rampa}
             hint={[
               "Base das apurações de royalties confirmadas",
               r.clientes_base_nova > 0 ? `${fmtNum(r.clientes_base_nova)} clientes` : null,
@@ -425,7 +527,7 @@ function DetalheUnidade({ row: r }: { row: Row }) {
               .filter(Boolean)
               .join(" · ")}
             alerta={
-              r.fat_base_nova === null
+              !temApuracao
                 ? "Nenhuma apuração confirmada no trimestre — não é zero, é ausência de fonte."
                 : rampa
                   ? `Só ${r.meses_apurados} de 3 meses confirmados na apuração — o trimestre está subrepresentado.`
@@ -433,22 +535,31 @@ function DetalheUnidade({ row: r }: { row: Row }) {
             }
           />
           <CardKPI
-            label="Inadimplência"
+            label={R.inad}
             valor={fmtPct(r.inad_pct)}
+            procedencia={F.receber}
+            parcial={!mat.madura}
             hint={
               r.inad_a_cobrar
                 ? `${fmtBRL(r.inad_aberto)} em aberto de ${fmtBRL(r.inad_a_cobrar)} a cobrar`
                 : undefined
             }
+            alerta={
+              mat.madura
+                ? undefined
+                : `${mat.dias < 0 ? "Trimestre ainda não fechou" : `Trimestre fechou há ${mat.dias} dias`}: a inadimplência só estabiliza ~60 dias depois do vencimento e até lá sai superestimada.`
+            }
           />
           <CardKPI
-            label="Royalties + CSC"
+            label={R.roy}
             valor={fmtBRL(r.roy_csc)}
+            procedencia={F.apuracao}
             hint={r.midia ? `Tráfego pago à parte: ${fmtBRL(r.midia)}` : undefined}
           />
           <CardKPI
-            label="Take rate da rede"
+            label={R.take}
             valor={fmtPct(r.take_rate_pct)}
+            procedencia={F.apuracao}
             hint="Royalties + CSC ÷ base apurada"
             alerta={
               rampa && r.take_rate_pct !== null
@@ -457,87 +568,110 @@ function DetalheUnidade({ row: r }: { row: Row }) {
             }
           />
           <CardKPI
-            label="Receita anualizada"
+            label={R.anual}
             valor={fmtBRL(r.receita_anualizada)}
+            procedencia={F.contratos}
             hint="MRR vendido no trimestre × 12"
           />
           <CardKPI
-            label="Receita bookada (LTV)"
+            label={R.bookada}
             valor={fmtBRL(r.receita_bookada_ltv)}
+            procedencia={F.contratos}
             hint="MRR vendido × 60 meses"
           />
-        </div>
-      </div>
+        </KpiGrade>
+      </Secao>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          {r.unidade} · Performance comercial
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <CardKPI label="Novos contratos" valor={fmtNum(r.novos_contratos)} />
-          <CardKPI label="Ticket médio mensal" valor={fmtBRL(r.ticket_medio)} />
+      <Secao
+        titulo={`Quanto ${r.unidade} vendeu e perdeu no trimestre?`}
+        descricao="Contratos ganhos no trimestre; churn pelo Omie quando a unidade tem, senão pelas Tratativas"
+      >
+        <KpiGrade colunas={6}>
           <CardKPI
-            label="Receita recorrente"
-            valor={fmtBRL(r.mrr_vendido)}
-            hint="MRR vendido no trimestre"
+            label={R.novos}
+            valor={fmtNum(r.novos_contratos)}
+            procedencia={F.contratos}
           />
           <CardKPI
-            label="ROAS"
+            label={R.ticket}
+            valor={fmtBRL(r.ticket_medio)}
+            procedencia={F.contratos}
+            hint="MRR vendido ÷ novos contratos"
+          />
+          <CardKPI
+            label={R.mrr}
+            valor={fmtBRL(r.mrr_vendido)}
+            procedencia={F.contratos}
+            hint="Σ MRR dos contratos ganhos"
+          />
+          <CardKPI
+            label={R.roas}
             valor={fmtX(r.roas)}
+            procedencia={F.roas}
             hint={r.midia ? `Valor 12m ÷ ${fmtBRL(r.midia)} de mídia` : undefined}
             alerta={
-              r.roas === null ? "Sem investimento de mídia registrado no período." : undefined
+              r.roas !== null
+                ? undefined
+                : temApuracao
+                  ? "Sem investimento de mídia registrado no período."
+                  : "Sem apuração confirmada no trimestre: a mídia vem da apuração."
             }
           />
           <CardKPI
-            label="Churn de clientes"
+            label={R.churnN}
             valor={fmtNum(r.tem_omie ? r.churn_faturamento_n : r.churn_pipefy_n)}
-            hint={r.tem_omie ? "Última fatura caiu no trimestre" : "Cards do pipe de Tratativas"}
+            procedencia={fonteChurn}
+            hint={
+              r.tem_omie
+                ? "Régua Omie: última fatura caiu no trimestre"
+                : "Régua Tratativas: cards do pipe no trimestre"
+            }
+            alerta={
+              gapChurn
+                ? `Tratativas registra só ${fmtNum(r.churn_pipefy_n)} card(s) (${fmtBRL(r.churn_pipefy_mrr)}); os que faltam nunca foram lançados. Vale o Omie, a fonte mais completa.`
+                : undefined
+            }
           />
           <CardKPI
-            label="Churn de receita"
+            label={R.churnMrr}
             valor={fmtBRL(r.tem_omie ? r.churn_faturamento_mrr : r.churn_pipefy_mrr)}
-            hint="MRR perdido no trimestre"
+            procedencia={fonteChurn}
+            hint={
+              r.tem_omie
+                ? "MRR perdido no trimestre · régua Omie"
+                : "MRR perdido no trimestre · régua Tratativas"
+            }
           />
-        </div>
-      </div>
+        </KpiGrade>
+      </Secao>
 
-      {gapChurn ? (
-        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <div className="text-sm">
-            <p className="font-medium">
-              O pipe de Tratativas registra menos churn do que o faturamento mostra.
-            </p>
-            <p className="text-muted-foreground">
-              {fmtNum(r.churn_pipefy_n)} card(s) no Pipefy ({fmtBRL(r.churn_pipefy_mrr)}) contra{" "}
-              {fmtNum(r.churn_faturamento_n)} cliente(s) cuja última fatura caiu no trimestre (
-              {fmtBRL(r.churn_faturamento_mrr)}). Os cards em falta nunca foram lançados — os
-              números acima usam o faturamento, que é a fonte mais completa.
-            </p>
-          </div>
-        </Card>
-      ) : null}
-
-      {r.tem_omie && (r.estoque_aberto ?? 0) > 0 ? (
-        <Card className="p-4">
-          <div className="flex items-start gap-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="font-medium">Estoque de contas a receber em aberto (foto de hoje)</p>
-              <p className="text-muted-foreground">
-                {fmtBRL(r.estoque_aberto)} no total, dos quais{" "}
-                <strong className="text-foreground">{fmtBRL(r.estoque_mais_1ano)}</strong> estão
-                vencidos há mais de um ano
-                {r.estoque_aberto
-                  ? ` (${Math.round((100 * (r.estoque_mais_1ano ?? 0)) / r.estoque_aberto)}%)`
-                  : ""}
-                . Esse saldo é independente do trimestre e não entra no card de inadimplência acima.
-              </p>
-            </div>
-          </div>
-        </Card>
-      ) : null}
+      <Secao
+        titulo={`Quanto ${r.unidade} tem vencido e não recebido hoje?`}
+        descricao="Foto de hoje, sem corte de período: não entra no card de inadimplência acima"
+      >
+        <KpiGrade colunas={2}>
+          <CardKPI
+            label={R.estoque}
+            valor={fmtBRL(r.estoque_aberto)}
+            procedencia={F.receber}
+            estado={r.tem_omie ? undefined : "indisponivel"}
+            hint={r.tem_omie ? "Σ títulos atrasados hoje" : "A unidade não tem contas a receber no Omie"}
+          />
+          <CardKPI
+            label={R.estoque1a}
+            valor={fmtBRL(r.estoque_mais_1ano)}
+            procedencia={F.receber}
+            estado={r.tem_omie ? undefined : "indisponivel"}
+            hint={
+              r.tem_omie
+                ? pctMais1Ano !== null
+                  ? `${pctMais1Ano}% do estoque em aberto`
+                  : undefined
+                : "A unidade não tem contas a receber no Omie"
+            }
+          />
+        </KpiGrade>
+      </Secao>
     </div>
   );
 }
