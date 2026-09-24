@@ -91,6 +91,13 @@ function tomEtapa(e: string): TomStatus {
   return "neutro";
 }
 
+/** Etapa exata, ou prefixo quando o filtro termina em ".*" ("5.*" = toda etapa 5). */
+function casaEtapa(etapa: string, filtro: string): boolean {
+  if (filtro === "todas") return true;
+  if (filtro.endsWith(".*")) return etapa.startsWith(filtro.slice(0, -1));
+  return etapa === filtro;
+}
+
 export function SplitRoyaltiesContent() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -131,10 +138,15 @@ export function SplitRoyaltiesContent() {
     [linhas],
   );
 
+  // "Pago sem reter royalty" abre a etapa 5 (pagou e nada foi retido). Se a
+  // view tiver mais de uma variante "5.x", o filtro vira o prefixo "5.*".
+  const etapas5 = etapas.filter((e) => e.startsWith("5."));
+  const filtroEtapa5 = etapas5.length === 1 ? etapas5[0] : "5.*";
+
   const filtradas = useMemo(
     () => linhas.filter(
       (r) => (unidade === "todas" || r.unidade === unidade)
-          && (etapaFiltro === "todas" || r.etapa === etapaFiltro),
+          && casaEtapa(r.etapa, etapaFiltro),
     ),
     [linhas, unidade, etapaFiltro],
   );
@@ -213,6 +225,9 @@ export function SplitRoyaltiesContent() {
           <SelectTrigger className="w-[280px]" aria-label="Etapa"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as etapas</SelectItem>
+            {etapaFiltro.endsWith(".*") && (
+              <SelectItem value={etapaFiltro}>Etapa {etapaFiltro.slice(0, -2)} (todas)</SelectItem>
+            )}
             {etapas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -249,6 +264,9 @@ export function SplitRoyaltiesContent() {
             tom={perdido > 0 ? "perigo" : undefined}
             tomRotulo={perdido > 0 ? "royalty perdido" : undefined}
             nota="títulos pagos sem split, da tabela por cliente"
+            abrir={
+              perdido > 0 ? { onClick: () => setEtapaFiltro(filtroEtapa5), rotulo: "Ver clientes" } : undefined
+            }
           />
         </KpiGrade>
       </Secao>
