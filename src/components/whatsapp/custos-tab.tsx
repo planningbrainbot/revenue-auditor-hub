@@ -142,7 +142,9 @@ export function CustosTab() {
       disabled={sync.isPending}
       onClick={() =>
         sync.mutate(undefined, {
-          onSuccess: (r) => toast.success(`Extrato atualizado — ${brl(r.custoTotal)} em 180 dias.`),
+          onSuccess: (r) => toast.success(
+              `Extrato atualizado: a sincronização buscou os últimos 180 dias (${brl(r.custoTotal)}); o acumulado mostra todo o histórico importado.`,
+            ),
           onError: (e) => toast.error((e as Error).message),
         })
       }

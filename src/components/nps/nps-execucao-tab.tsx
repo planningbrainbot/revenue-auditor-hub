@@ -49,7 +49,11 @@ import {
   type TomStatus,
 } from "@/components/planning";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
+import { getMyPermissions } from "@/lib/permissions.functions";
 import {
   useNpsExecucao,
   useAudienciaPorUnidade,
@@ -147,7 +151,11 @@ function statusBadge(row: NpsExecucaoRow) {
 }
 
 // Sem `edit.nps` o servidor recusa o registro; o botão diz isso antes do clique (N8).
+// Enquanto a permissão carrega, ou se a leitura falhou, o motivo é esse, não
+// "você não tem": dizer que falta a chave antes de saber seria falso.
 const MOTIVO_SEM_EDIT_NPS = "Sem a permissão edit.nps: só quem edita NPS registra ligação e resposta.";
+const MOTIVO_CONFERINDO = "Conferindo permissão…";
+const MOTIVO_FALHA_PERMISSAO = "Não foi possível conferir a permissão edit.nps. Recarregue a página.";
 
 function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
   if (!erro) return null;
@@ -171,11 +179,12 @@ type ResultadoLigacao = "" | "nao_atendeu" | "atendeu_retornar" | "atendeu_outro
 function RegistrarLigacaoForm({
   row,
   historico,
-  podeRegistrar,
+  motivoBloqueio,
 }: {
   row: NpsExecucaoRow;
   historico: NpsLigacaoRow[];
-  podeRegistrar: boolean;
+  /** `null` = pode registrar; texto = por que o botão está desabilitado. */
+  motivoBloqueio: string | null;
 }) {
   const registrar = useRegistrarLigacao();
   const [resultado, setResultado] = useState<ResultadoLigacao>("");
@@ -251,16 +260,16 @@ function RegistrarLigacaoForm({
 
       <Button
         onClick={handleSubmit}
-        disabled={registrar.isPending || !podeRegistrar}
+        disabled={registrar.isPending || motivoBloqueio !== null}
         variant="outline"
         className="w-full"
-        aria-describedby={podeRegistrar ? undefined : `motivo-ligacao-${row.id}`}
+        aria-describedby={motivoBloqueio === null ? undefined : `motivo-ligacao-${row.id}`}
       >
         {registrar.isPending ? "Registrando…" : "Registrar ligação"}
       </Button>
-      {!podeRegistrar && (
+      {motivoBloqueio !== null && (
         <p id={`motivo-ligacao-${row.id}`} className="text-[13px] text-muted-foreground">
-          {MOTIVO_SEM_EDIT_NPS}
+          {motivoBloqueio}
         </p>
       )}
 
@@ -297,11 +306,11 @@ function RegistrarLigacaoForm({
 function RegistrarRespostaLigacaoForm({
   row,
   onDone,
-  podeRegistrar,
+  motivoBloqueio,
 }: {
   row: NpsExecucaoRow;
   onDone: () => void;
-  podeRegistrar: boolean;
+  motivoBloqueio: string | null;
 }) {
   const registrar = useRegistrarRespostaPorLigacao();
   const [recebeuMensagem, setRecebeuMensagem] = useState("");
@@ -469,15 +478,15 @@ function RegistrarRespostaLigacaoForm({
 
       <Button
         onClick={handleSubmit}
-        disabled={registrar.isPending || enviandoArquivo || !podeRegistrar}
+        disabled={registrar.isPending || enviandoArquivo || motivoBloqueio !== null}
         className="w-full"
-        aria-describedby={podeRegistrar ? undefined : `motivo-resposta-${row.id}`}
+        aria-describedby={motivoBloqueio === null ? undefined : `motivo-resposta-${row.id}`}
       >
         {enviandoArquivo ? "Enviando gravação…" : registrar.isPending ? "Registrando…" : "Registrar resposta"}
       </Button>
-      {!podeRegistrar && (
+      {motivoBloqueio !== null && (
         <p id={`motivo-resposta-${row.id}`} className="text-[13px] text-muted-foreground">
-          {MOTIVO_SEM_EDIT_NPS}
+          {motivoBloqueio}
         </p>
       )}
     </div>
@@ -661,13 +670,34 @@ const FONTE = "nps_envio_map (webhook de status da Cloud API) · nps_ligacoes";
 // A próxima ação da linha (Fila, ARQUETIPOS §2): o que o CS faz com esse
 // contato agora, com data quando há retorno marcado. A ação em si acontece no
 // Sheet, que a linha abre.
-function proximaAcao(r: NpsExecucaoRow, ultima: NpsLigacaoRow | undefined): string {
-  if (r.respondido) return "Ver resposta";
-  if (statusKey(r) === "failed") return "Reenviar";
-  if (ultima?.retornarEm) return `Ligar em ${dataPura(ultima.retornarEm)}`;
-  if (ultima?.atendeu) return "Registrar resposta";
-  if (ultima) return "Ligar de novo";
-  return "Ligar";
+//
+// O retorno marcado vem antes da falha de envio: o cliente pediu a ligação, e
+// isso vale mais que o status do template. Sem `edit.nps` a pessoa não liga
+// nem registra por aqui, então a coluna não promete isso ("Ver contato").
+function hojeLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function proximaAcao(
+  r: NpsExecucaoRow,
+  ultima: NpsLigacaoRow | undefined,
+  podeRegistrar: boolean,
+): { rotulo: string; vencido: boolean } {
+  if (r.respondido) return { rotulo: "Ver resposta", vencido: false };
+  if (ultima?.retornarEm) {
+    // Comparação de "aaaa-mm-dd" como texto: sem fuso no meio.
+    const vencido = ultima.retornarEm.slice(0, 10) < hojeLocal();
+    return {
+      rotulo: podeRegistrar ? `Ligar em ${dataPura(ultima.retornarEm)}` : "Ver contato",
+      vencido,
+    };
+  }
+  if (statusKey(r) === "failed") return { rotulo: "Reenviar", vencido: false };
+  if (!podeRegistrar) return { rotulo: "Ver contato", vencido: false };
+  if (ultima?.atendeu) return { rotulo: "Registrar resposta", vencido: false };
+  if (ultima) return { rotulo: "Ligar de novo", vencido: false };
+  return { rotulo: "Ligar", vencido: false };
 }
 
 // "atualizado há Ns" que anda sozinho: sem o relógio, o número só mudava
@@ -728,7 +758,23 @@ const NUM = new Intl.NumberFormat("pt-BR");
 export function NpsExecucaoTab() {
   const { data, isLoading, error, dataUpdatedAt, refetch } = useNpsExecucao();
   const perms = usePermissions();
+  // Mesmo cache do usePermissions (mesma chave), sem buscar de novo: só para
+  // saber se a leitura falhou, que o hook não expõe.
+  const { user } = useAuth();
+  const permsFn = useServerFn(getMyPermissions);
+  const permsQuery = useQuery({
+    queryKey: ["my-perms", user?.id],
+    queryFn: () => permsFn(),
+    enabled: false,
+  });
   const podeRegistrar = !perms.loading && perms.can("edit.nps");
+  const motivoBloqueio: string | null = permsQuery.isError
+    ? MOTIVO_FALHA_PERMISSAO
+    : perms.loading
+      ? MOTIVO_CONFERINDO
+      : podeRegistrar
+        ? null
+        : MOTIVO_SEM_EDIT_NPS;
   const [rodada, setRodada] = useFiltroNaUrl("rodada", TODAS);
   const [unidade, setUnidade] = useFiltroNaUrl("unidade", TODAS);
   const [status, setStatus] = useFiltroNaUrl("status", TODOS);
@@ -932,10 +978,12 @@ export function NpsExecucaoTab() {
                     const ligacoesDoContato = ligacoesPorTelefone.get(validacao.digitos) ?? [];
                     const ultimaLigacao = ligacoesDoContato[0];
                     const abrir = () => setSelected(r);
+                    const acao = proximaAcao(r, ultimaLigacao, podeRegistrar);
                     return (
                       <TableRow
                         key={r.id}
                         tabIndex={0}
+                        aria-haspopup="dialog"
                         onClick={abrir}
                         onKeyDown={(e) => {
                           if (e.target !== e.currentTarget) return;
@@ -944,7 +992,9 @@ export function NpsExecucaoTab() {
                             abrir();
                           }
                         }}
-                        className="cursor-pointer focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                        // Outline no <tr> (Chrome/Firefox) e anel inset nas células,
+                        // porque o Safari não desenha outline em linha de tabela.
+                        className="cursor-pointer focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:[&>td]:shadow-[inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)] focus-visible:[&>td:first-child]:shadow-[inset_2px_0_0_0_var(--ring),inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)] focus-visible:[&>td:last-child]:shadow-[inset_-2px_0_0_0_var(--ring),inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)]"
                       >
                         <TableCell className="font-mono text-xs">
                           <span className="inline-flex items-center gap-1.5">
@@ -959,7 +1009,10 @@ export function NpsExecucaoTab() {
                             )}
                           </span>
                         </TableCell>
-                        <TableCell className="font-medium">{r.empresa ?? "—"}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="sr-only">Abrir </span>
+                          {r.empresa ?? "—"}
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.unidade ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.rodada ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(r.enviadoEm)}</TableCell>
@@ -984,10 +1037,11 @@ export function NpsExecucaoTab() {
                         </TableCell>
                         <TableCell className="num text-right">{r.npsRecomendacao ?? "—"}</TableCell>
                         <TableCell>
-                          {/* Rótulo, não botão: a linha inteira já é o controle
+                          {/* Texto, não botão: a linha inteira já é o controle
                               (um segundo alvo de Tab por linha dobraria o caminho). */}
-                          <span className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-input px-2.5 text-[13px] font-medium text-foreground">
-                            {proximaAcao(r, ultimaLigacao)} →
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-[13px] font-medium text-primary-text">{acao.rotulo} →</span>
+                            {acao.vencido && <StatusBadge tom="atencao">vencido</StatusBadge>}
                           </span>
                         </TableCell>
                       </TableRow>
@@ -1067,12 +1121,12 @@ export function NpsExecucaoTab() {
                     <RegistrarLigacaoForm
                       row={selected}
                       historico={ligacoesDoSelecionado}
-                      podeRegistrar={podeRegistrar}
+                      motivoBloqueio={motivoBloqueio}
                     />
                     <RegistrarRespostaLigacaoForm
                       row={selected}
                       onDone={() => setSelected(null)}
-                      podeRegistrar={podeRegistrar}
+                      motivoBloqueio={motivoBloqueio}
                     />
                   </>
                 ) : (
