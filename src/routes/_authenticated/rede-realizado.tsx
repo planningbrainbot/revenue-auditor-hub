@@ -627,7 +627,8 @@ function GraficoLinhas({
     return (
       <EstadoVazio
         titulo="As unidades escolhidas não têm dado desta métrica no período"
-        descricao={`${comDado.length} unidades têm dado. Mostre as maiores ou mude o filtro de unidades.`}
+        total={comDado.length}
+        descricao="O total conta as unidades com dado nesta métrica. Mostre as maiores ou mude o filtro de unidades."
         acao={
           <Button type="button" variant="outline" size="sm" onClick={() => aoEscolher([])}>
             Mostrar as 5 maiores
