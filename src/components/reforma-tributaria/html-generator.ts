@@ -461,7 +461,7 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     <div id="comp-tabela" class="tab-panel">
       <table class="dt"><thead><tr><th>Ano</th><th>Fase</th><th style="text-align:right;">Carga efetiva</th><th style="text-align:right;">Total impostos (R$)</th><th style="text-align:right;">Var. vs 2026</th></tr></thead>
       <tbody>
-        ${d.years.map((y, i) => { const delta = y.desembolso - first.desembolso; const deltaStr = i === 0 ? '—' : (delta >= 0 ? '+' : '') + 'R$ ' + fmtBRL(Math.abs(delta)); return '<tr' + (i === d.years.length - 1 ? ' class="last-row"' : '') + '><td>' + y.ano + '</td><td style="color:#777;font-size:.78rem;">' + getPhase(i) + '</td><td style="text-align:right;color:#5FB77F;font-weight:700;">' + fmtPct(y.carga) + '</td><td style="text-align:right;">' + fmtBRL(y.desembolso) + '</td><td style="text-align:right;color:' + (delta > 0 ? '#ff5252' : '#777') + ';">' + deltaStr + '</td></tr>'; }).join('')}
+        ${d.years.map((y, i) => { const delta = y.desembolso - first.desembolso; const deltaStr = i === 0 ? '—' : (delta > 0 ? '+' : delta < 0 ? '−' : '') + 'R$ ' + fmtBRL(Math.abs(delta)); return '<tr' + (i === d.years.length - 1 ? ' class="last-row"' : '') + '><td>' + y.ano + '</td><td style="color:#777;font-size:.78rem;">' + getPhase(i) + '</td><td style="text-align:right;color:#5FB77F;font-weight:700;">' + fmtPct(y.carga) + '</td><td style="text-align:right;">' + fmtBRL(y.desembolso) + '</td><td style="text-align:right;color:' + (delta > 0 ? '#ff5252' : '#777') + ';">' + deltaStr + '</td></tr>'; }).join('')}
       </tbody></table>
     </div>
   </div>

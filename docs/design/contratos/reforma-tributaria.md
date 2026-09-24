@@ -22,3 +22,6 @@ O HTML gerado (tem cor e fonte próprias, é material impresso, fora do lint); a
 
 ## Para onde manda
 Nenhum destino de negócio.
+
+## Achado para o dono
+Com diferença negativa (a carga ou o imposto caem), o sinal agora sai certo, mas o texto em volta do número no HTML gerado fica contraditório: "Acréscimo de −X pontos percentuais" e "Queda de −R$ X no resultado simulado". O texto do HTML está fora do escopo desta migração; a frase precisa mudar conforme o sentido da diferença (decisão do dono do material).

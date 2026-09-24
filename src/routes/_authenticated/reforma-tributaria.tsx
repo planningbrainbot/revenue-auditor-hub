@@ -126,6 +126,10 @@ function ReformaTributariaPage() {
   // campos numéricos recomeçam do valor novo.
   const [versaoCampos, setVersaoCampos] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Depois de "Descartar", o botão que abriu o diálogo some junto com o
+  // arquivo: o foco vai para o campo de arquivo que volta no lugar dele.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const descartouRef = useRef(false);
 
   const updatePreview = useCallback((d: ReformaTributariaData) => {
     setPreviewUpdating(true);
@@ -342,6 +346,7 @@ function ReformaTributariaPage() {
               >
                 {/* sr-only em vez de hidden: o campo continua alcançável pelo teclado. */}
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept=".xlsx,.xls"
                   className="sr-only"
@@ -377,7 +382,14 @@ function ReformaTributariaPage() {
                       <X aria-hidden />
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent
+                    onCloseAutoFocus={(e) => {
+                      if (!descartouRef.current) return;
+                      descartouRef.current = false;
+                      e.preventDefault();
+                      requestAnimationFrame(() => fileInputRef.current?.focus());
+                    }}
+                  >
                     <AlertDialogHeader>
                       <AlertDialogTitle>Descartar a simulação carregada?</AlertDialogTitle>
                       <AlertDialogDescription>
@@ -387,7 +399,11 @@ function ReformaTributariaPage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Manter</AlertDialogCancel>
-                      <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={clearFile}>
+                      <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={() => {
+                          descartouRef.current = true;
+                          clearFile();
+                        }}
+                      >
                         Descartar
                       </AlertDialogAction>
                     </AlertDialogFooter>
