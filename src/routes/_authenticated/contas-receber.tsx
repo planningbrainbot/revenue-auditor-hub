@@ -1,6 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Search, X, CalendarIcon, ChevronLeft, ChevronRight, Building2, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search,
+  X,
+  CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  TriangleAlert,
+} from "lucide-react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -128,11 +136,12 @@ export const Route = createFileRoute("/_authenticated/contas-receber")({
 type DataTipo = "competencia" | "vencimento" | "pagamento";
 type Aba = "resumo" | "faturas" | "mensalidades";
 
-const DATA_TIPO_FIELD: Record<DataTipo, "data_competencia" | "data_vencimento" | "data_pagamento"> = {
-  competencia: "data_competencia",
-  vencimento: "data_vencimento",
-  pagamento: "data_pagamento",
-};
+const DATA_TIPO_FIELD: Record<DataTipo, "data_competencia" | "data_vencimento" | "data_pagamento"> =
+  {
+    competencia: "data_competencia",
+    vencimento: "data_vencimento",
+    pagamento: "data_pagamento",
+  };
 
 const DATA_TIPO_LABEL: Record<DataTipo, string> = {
   competencia: "Competência",
@@ -231,7 +240,10 @@ function DataFiltro({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn("w-[160px] justify-start text-left font-normal", !valor && "text-muted-foreground")}
+          className={cn(
+            "w-[160px] justify-start text-left font-normal",
+            !valor && "text-muted-foreground",
+          )}
         >
           <CalendarIcon className="mr-2 size-4" aria-hidden />
           {valor ? format(valor, "dd/MM/yyyy") : rotulo}
@@ -278,12 +290,19 @@ function ContasReceberPage() {
     [allRows, perms.scopedToOwnUnit, perms.unidade],
   );
   const escopoUnidade = perms.scopedToOwnUnit && !!perms.unidade;
+  // /clientes mora em duas áreas: Base de clientes, ou Minha Unidade com a chave
+  // view.clientes (a mesma regra do menu, em lib/areas.ts).
+  const podeClientes =
+    perms.temArea("clientes") || (perms.temArea("minha_unidade") && perms.can("view.clientes"));
 
   /** Grava na URL; valor vazio sai dela. `replace`: filtro não empilha histórico. */
   const mudar = (patch: Partial<Busca>) => {
     const limpo = Object.fromEntries(
       Object.entries(patch).map(([k, v]) => [k, v === "" || v === ALL ? undefined : v]),
     ) as Partial<Busca>;
+    // Sem `?aba=` a aba vem do padrão, que depende dos filtros: grava a aba de
+    // agora junto, para mudar filtro não pular do Resumo para as Faturas.
+    if (!("aba" in limpo) && !search.aba) limpo.aba = aba;
     void navigate({
       search: (prev: Busca) => ({ ...prev, ...limpo }),
       replace: true,
@@ -294,7 +313,9 @@ function ContasReceberPage() {
   const unidade = search.unidade ?? ALL;
   const status = search.status && STATUS_VALIDOS.includes(search.status) ? search.status : ALL;
   const dataTipo: DataTipo =
-    search.dataTipo && search.dataTipo in DATA_TIPO_FIELD ? (search.dataTipo as DataTipo) : "competencia";
+    search.dataTipo && search.dataTipo in DATA_TIPO_FIELD
+      ? (search.dataTipo as DataTipo)
+      : "competencia";
   const dataIni = parseDate(search.dataIni) ?? undefined;
   const dataFim = parseDate(search.dataFim) ?? undefined;
   const q = search.q ?? "";
@@ -303,11 +324,30 @@ function ContasReceberPage() {
   const modo: SafraFatoMode = search.modo === "safra" ? "safra" : "fato";
 
   // A busca digitada vai para a URL com uma pausa curta, não a cada tecla.
+  // A URL só sobrescreve o campo quando muda por fora (link, "Limpar", "Ver
+  // faturas"): a volta da própria gravação não apaga o que foi digitado depois.
   const [busca, setBusca] = useState(q);
-  useEffect(() => setBusca(q), [q]);
+  const buscaAtual = useRef(q);
+  const gravada = useRef(q);
+  const digitar = (v: string) => {
+    buscaAtual.current = v;
+    setBusca(v);
+  };
   useEffect(() => {
-    if (busca === q) return;
-    const t = setTimeout(() => mudar({ q: busca.trim() ? busca : undefined }), 300);
+    if (q === gravada.current) return;
+    gravada.current = q;
+    buscaAtual.current = q;
+    setBusca(q);
+  }, [q]);
+  useEffect(() => {
+    if (busca.trim() === gravada.current) return;
+    const t = setTimeout(() => {
+      // Grava o valor do campo NA HORA, não o do render que agendou.
+      const v = buscaAtual.current.trim();
+      if (v === gravada.current) return;
+      gravada.current = v;
+      mudar({ q: v || undefined });
+    }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca]);
@@ -321,7 +361,15 @@ function ContasReceberPage() {
     const term = q.trim().toLowerCase();
     const ini = dataIni ? startOfDay(dataIni).getTime() : null;
     const fim = dataFim
-      ? new Date(dataFim.getFullYear(), dataFim.getMonth(), dataFim.getDate(), 23, 59, 59, 999).getTime()
+      ? new Date(
+          dataFim.getFullYear(),
+          dataFim.getMonth(),
+          dataFim.getDate(),
+          23,
+          59,
+          59,
+          999,
+        ).getTime()
       : null;
     let sfIni: number | null = null;
     let sfFim: number | null = null;
@@ -357,7 +405,10 @@ function ContasReceberPage() {
           .filter(Boolean)
           .map((v) => String(v).toLowerCase())
           .join(" ");
-        if (!hay.includes(term)) return false;
+        const digitosTermo = term.replace(/\D/g, "");
+        const casaDigitos =
+          digitosTermo.length >= 3 && (r.cpf_cnpj ?? "").replace(/\D/g, "").includes(digitosTermo);
+        if (!hay.includes(term) && !casaDigitos) return false;
       }
       return true;
     });
@@ -432,7 +483,10 @@ function ContasReceberPage() {
   }, [porUnidade]);
 
   const evolucaoMensal = useMemo(() => {
-    const map = new Map<string, { mes: string; recebido: number; aVencer: number; atrasado: number }>();
+    const map = new Map<
+      string,
+      { mes: string; recebido: number; aVencer: number; atrasado: number }
+    >();
     for (const r of filtered) {
       const d = parseDate(r.data_competencia) ?? parseDate(r.data_vencimento);
       if (!d) continue;
@@ -451,7 +505,10 @@ function ContasReceberPage() {
 
   // De quem cobro primeiro: o maior valor em atraso por cliente, no recorte.
   const topAtrasados = useMemo(() => {
-    const map = new Map<string, { cliente: string; cpf_cnpj: string | null; valor: number; qtd: number }>();
+    const map = new Map<
+      string,
+      { cliente: string; cpf_cnpj: string | null; valor: number; qtd: number }
+    >();
     for (const r of filtered) {
       if (r.status_pagamento !== "ATRASADO") continue;
       const k = r.cliente ?? "—";
@@ -473,7 +530,7 @@ function ContasReceberPage() {
     dataFim !== undefined ||
     usarSafraFato;
   const clearFilters = () => {
-    setBusca("");
+    digitar("");
     mudar({
       q: undefined,
       unidade: undefined,
@@ -549,7 +606,7 @@ function ContasReceberPage() {
           placeholder="Buscar cliente, CNPJ ou documento..."
           aria-label="Buscar cliente, CNPJ ou documento"
           value={busca}
-          onChange={(e) => setBusca(e.target.value)}
+          onChange={(e) => digitar(e.target.value)}
           className="pl-9"
         />
       </div>
@@ -613,7 +670,12 @@ function ContasReceberPage() {
         rotulo={`${DATA_TIPO_LABEL[dataTipo]} até`}
       />
       {hasFilters && (
-        <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearFilters}
+          className="ml-auto text-muted-foreground"
+        >
           <X className="size-4" aria-hidden /> Limpar filtros
         </Button>
       )}
@@ -639,45 +701,61 @@ function ContasReceberPage() {
           </>
         ) : (
           <>
-            <KpiGrade colunas={4}>
-              <KpiCard
-                rotulo="Em atraso (filtro)"
-                valor={brlOuTraco(kpis.atrasado)}
-                nota={`${num(kpis.atrasadoQtd)} fatura(s) vencida(s) e não paga(s)`}
-                tom={kpis.atrasado > 0 ? "perigo" : undefined}
-                abrir={
-                  kpis.atrasadoQtd > 0
-                    ? { onClick: () => irParaFaturas({ status: "ATRASADO" }), rotulo: "Ver faturas" }
-                    : undefined
-                }
-              />
-              <KpiCard
-                rotulo="A vencer (filtro)"
-                valor={brlOuTraco(kpis.aVencer)}
-                nota={`${num(kpis.aVencerQtd)} fatura(s) em aberto no prazo`}
-                abrir={
-                  kpis.aVencerQtd > 0
-                    ? { onClick: () => irParaFaturas({ status: "A VENCER" }), rotulo: "Ver faturas" }
-                    : undefined
-                }
-              />
-              <KpiCard
-                rotulo="Recebido (filtro)"
-                valor={brlOuTraco(kpis.recebido)}
-                nota={`${num(kpis.recebidoQtd)} fatura(s) paga(s)`}
-                abrir={
-                  kpis.recebidoQtd > 0
-                    ? { onClick: () => irParaFaturas({ status: "RECEBIDO" }), rotulo: "Ver faturas" }
-                    : undefined
-                }
-              />
-              <KpiCard
-                rotulo="Ticket médio (filtro)"
-                valor={brlOuTraco(kpis.ticket)}
-                estado={kpis.ticket === null ? "nao-apurado" : "ok"}
-                nota={kpis.ticket === null ? "nenhuma fatura no recorte" : "valor ÷ faturas do recorte"}
-              />
-            </KpiGrade>
+            {/* Os cards somam as faturas do recorte; a aba Mensalidades tem outra base. */}
+            {aba !== "mensalidades" && (
+              <KpiGrade colunas={4}>
+                <KpiCard
+                  rotulo="Em atraso (filtro)"
+                  valor={brlOuTraco(kpis.atrasado)}
+                  nota={`${num(kpis.atrasadoQtd)} fatura(s) vencida(s) e não paga(s)`}
+                  tom={kpis.atrasado > 0 ? "perigo" : undefined}
+                  abrir={
+                    kpis.atrasadoQtd > 0
+                      ? {
+                          onClick: () => irParaFaturas({ status: "ATRASADO" }),
+                          rotulo: "Ver faturas",
+                        }
+                      : undefined
+                  }
+                />
+                <KpiCard
+                  rotulo="A vencer (filtro)"
+                  valor={brlOuTraco(kpis.aVencer)}
+                  nota={`${num(kpis.aVencerQtd)} fatura(s) em aberto no prazo`}
+                  abrir={
+                    kpis.aVencerQtd > 0
+                      ? {
+                          onClick: () => irParaFaturas({ status: "A VENCER" }),
+                          rotulo: "Ver faturas",
+                        }
+                      : undefined
+                  }
+                />
+                <KpiCard
+                  rotulo="Recebido (filtro)"
+                  valor={brlOuTraco(kpis.recebido)}
+                  nota={`${num(kpis.recebidoQtd)} fatura(s) paga(s)`}
+                  abrir={
+                    kpis.recebidoQtd > 0
+                      ? {
+                          onClick: () => irParaFaturas({ status: "RECEBIDO" }),
+                          rotulo: "Ver faturas",
+                        }
+                      : undefined
+                  }
+                />
+                <KpiCard
+                  rotulo="Ticket médio (filtro)"
+                  valor={brlOuTraco(kpis.ticket)}
+                  estado={kpis.ticket === null ? "nao-apurado" : "ok"}
+                  nota={
+                    kpis.ticket === null
+                      ? "nenhuma fatura no recorte"
+                      : "valor ÷ faturas do recorte"
+                  }
+                />
+              </KpiGrade>
+            )}
 
             <Tabs value={aba} onValueChange={(v) => mudar({ aba: v })} className="w-full">
               <TabsList>
@@ -720,18 +798,14 @@ function ContasReceberPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                      setBusca(c.cliente);
-                                      irParaFaturas({ q: c.cliente, status: "ATRASADO" });
+                                      const alvo = buscaCliente(c);
+                                      digitar(alvo);
+                                      irParaFaturas({ q: alvo, status: "ATRASADO" });
                                     }}
                                   >
                                     Ver faturas
                                   </Button>
-                                  <Button variant="ghost" size="sm" asChild>
-                                    <Link to="/clientes" search={{ q: buscaCliente(c) }}>
-                                      <Building2 className="size-4" aria-hidden />
-                                      Abrir cliente
-                                    </Link>
-                                  </Button>
+                                  <AbrirCliente busca={buscaCliente(c)} pode={podeClientes} />
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -778,12 +852,18 @@ function ContasReceberPage() {
                                 )}
                               </TableCell>
                               <TableCell className="num text-right">{num(u.qtd)}</TableCell>
-                              <TableCell className="num text-right">{brlOuTraco(u.total)}</TableCell>
-                              <TableCell className="num text-right">{brlOuTraco(u.aVencer)}</TableCell>
+                              <TableCell className="num text-right">
+                                {brlOuTraco(u.total)}
+                              </TableCell>
+                              <TableCell className="num text-right">
+                                {brlOuTraco(u.aVencer)}
+                              </TableCell>
                               <TableCell className="num text-right text-danger">
                                 {brlOuTraco(u.atrasado)}
                               </TableCell>
-                              <TableCell className="num text-right">{brlOuTraco(u.recebido)}</TableCell>
+                              <TableCell className="num text-right">
+                                {brlOuTraco(u.recebido)}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -928,7 +1008,9 @@ function ContasReceberPage() {
                         <TableBody>
                           {visiveis.map((r) => {
                             const atraso =
-                              r.status_pagamento === "ATRASADO" ? diasAtraso(r.data_vencimento) : null;
+                              r.status_pagamento === "ATRASADO"
+                                ? diasAtraso(r.data_vencimento)
+                                : null;
                             const acao = proximaAcao(r);
                             return (
                               <TableRow key={r.id}>
@@ -944,7 +1026,9 @@ function ContasReceberPage() {
                                 <TableCell>
                                   {r.unidade ? <Badge variant="secondary">{r.unidade}</Badge> : "—"}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs">{r.num_documento || "—"}</TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {r.num_documento || "—"}
+                                </TableCell>
                                 <TableCell className="num">{date(r.data_competencia)}</TableCell>
                                 <TableCell className="num">{date(r.data_vencimento)}</TableCell>
                                 <TableCell className="num">{date(r.data_pagamento)}</TableCell>
@@ -964,19 +1048,20 @@ function ContasReceberPage() {
                                       <span
                                         className={cn(
                                           "whitespace-nowrap text-[13px]",
-                                          acao.tom === "perigo" ? "text-danger" : "text-muted-foreground",
+                                          acao.tom === "perigo"
+                                            ? "text-danger"
+                                            : "text-muted-foreground",
                                         )}
                                       >
                                         {acao.texto}
                                       </span>
                                     )}
                                     {(r.cliente || r.cpf_cnpj) && (
-                                      <Button variant="ghost" size="sm" asChild className="ml-auto">
-                                        <Link to="/clientes" search={{ q: buscaCliente(r) }}>
-                                          <Building2 className="size-4" aria-hidden />
-                                          Abrir cliente
-                                        </Link>
-                                      </Button>
+                                      <AbrirCliente
+                                        busca={buscaCliente(r)}
+                                        pode={podeClientes}
+                                        className="ml-auto"
+                                      />
                                     )}
                                   </div>
                                 </TableCell>
@@ -1073,5 +1158,48 @@ function Paginacao({
         <ChevronRight className="size-4" aria-hidden />
       </Button>
     </div>
+  );
+}
+
+/**
+ * Próxima ação da linha: abrir o cliente na Base. Sem acesso a /clientes o
+ * botão fica desabilitado e diz por quê (N8), em vez de sumir ou levar a uma
+ * tela de "sem permissão".
+ */
+function AbrirCliente({
+  busca,
+  pode,
+  className,
+}: {
+  busca: string;
+  pode: boolean;
+  className?: string;
+}) {
+  if (!pode) {
+    const motivo = "Sem acesso à Base de clientes (área Base de clientes ou chave view.clientes)";
+    return (
+      <span
+        tabIndex={0}
+        title={motivo}
+        aria-label={`Abrir cliente indisponível: ${motivo}`}
+        className={cn(
+          "inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          className,
+        )}
+      >
+        <Button variant="ghost" size="sm" disabled tabIndex={-1} aria-hidden>
+          <Building2 className="size-4" aria-hidden />
+          Abrir cliente
+        </Button>
+      </span>
+    );
+  }
+  return (
+    <Button variant="ghost" size="sm" asChild className={className}>
+      <Link to="/clientes" search={{ q: busca }}>
+        <Building2 className="size-4" aria-hidden />
+        Abrir cliente
+      </Link>
+    </Button>
   );
 }
