@@ -93,18 +93,25 @@ const mesLongo = (v: string) =>
 
 // Status da oportunidade: ícone + palavra (V7). "matriz" era violet
 // (V3-matiz) e passa a neutro, como "perdido".
-const STATUS_OPORTUNIDADE: Record<string, TomStatus> = {
-  disponivel: "sucesso",
-  reservado: "atencao",
-  comprado: "info",
-  perdido: "neutro",
-  matriz: "neutro",
+type Situacao = { rotulo: string; tom: TomStatus };
+
+const STATUS_OPORTUNIDADE: Record<string, Situacao> = {
+  disponivel: { rotulo: "Disponível", tom: "sucesso" },
+  reservado: { rotulo: "Reservada", tom: "atencao" },
+  comprado: { rotulo: "Comprada", tom: "info" },
+  perdido: { rotulo: "Perdida", tom: "neutro" },
+  matriz: { rotulo: "Matriz", tom: "neutro" },
 };
 
-const STATUS_FATURA: Record<string, TomStatus> = {
-  paga: "sucesso",
-  aberta: "atencao",
+const STATUS_FATURA: Record<string, Situacao> = {
+  aberta: { rotulo: "Aberta", tom: "atencao" },
+  paga: { rotulo: "Paga", tom: "sucesso" },
+  cancelada: { rotulo: "Cancelada", tom: "neutro" },
 };
+
+/** Valor fora do mapa aparece como veio, com inicial maiúscula, em neutro. */
+const situacao = (mapa: Record<string, Situacao>, v: string): Situacao =>
+  mapa[v] ?? { rotulo: v.charAt(0).toUpperCase() + v.slice(1), tom: "neutro" };
 
 const ABAS = ["fila", "saldos", "extrato", "multiplicador", "faturas", "cac"] as const;
 type Aba = (typeof ABAS)[number];
@@ -261,17 +268,38 @@ export function BrokerAdminView() {
     [data?.multiplicadores],
   );
 
-  if (isLoading) return <Carregando variante="kpis" />;
+  // Procedência (N3), visível também nos estados degradados.
+  const procedencia = (
+    <Procedencia
+      fonte="Broker da matriz: fila (Pipedrive, sync a cada 15 min), extrato imutável, faturas e CAC pós-pago"
+      atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+      regua="fila e saldos em CashBrain (1 CB = R$ 1,00); CAC em R$"
+    />
+  );
+
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        {procedencia}
+      </div>
+    );
   if (error) {
     const msg = error instanceof Error ? error.message : "Falha ao carregar.";
     // O servidor recusa com "Acesso negado: …" quando falta view.broker_admin.
-    if (msg.startsWith("Acesso negado")) return <EstadoSemAcesso oQueFalta="view.broker_admin" />;
     return (
-      <EstadoErro
-        titulo="Não foi possível ler o Broker da matriz"
-        detalhe={`Resposta do servidor: ${msg}`}
-        tentarNovamente={recarregar}
-      />
+      <div className="space-y-4">
+        {msg.startsWith("Acesso negado") ? (
+          <EstadoSemAcesso oQueFalta="view.broker_admin" />
+        ) : (
+          <EstadoErro
+            titulo="Não foi possível ler o Broker da matriz"
+            detalhe={`Resposta do servidor: ${msg}`}
+            tentarNovamente={recarregar}
+          />
+        )}
+        {procedencia}
+      </div>
     );
   }
   if (!data) return null;
@@ -389,8 +417,8 @@ export function BrokerAdminView() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge tom={STATUS_OPORTUNIDADE[o.status] ?? "neutro"}>
-                        {o.status}
+                      <StatusBadge tom={situacao(STATUS_OPORTUNIDADE, o.status).tom}>
+                        {situacao(STATUS_OPORTUNIDADE, o.status).rotulo}
                       </StatusBadge>
                       {o.reservado_por ? (
                         <span className="ml-2 text-xs text-muted-foreground">
@@ -609,8 +637,8 @@ export function BrokerAdminView() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{cb(f.valor_cb)}</TableCell>
                     <TableCell>
-                      <StatusBadge tom={STATUS_FATURA[f.status] ?? "neutro"}>
-                        {f.status}
+                      <StatusBadge tom={situacao(STATUS_FATURA, f.status).tom}>
+                        {situacao(STATUS_FATURA, f.status).rotulo}
                       </StatusBadge>
                       {f.meio_pagamento ? (
                         <span className="ml-2 text-xs text-muted-foreground">
@@ -787,11 +815,7 @@ export function BrokerAdminView() {
         </TabsContent>
       </Tabs>
 
-      <Procedencia
-        fonte="Broker da matriz: fila (Pipedrive, sync a cada 15 min), extrato imutável, faturas e CAC pós-pago"
-        atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
-        regua="fila e saldos em CashBrain (1 CB = R$ 1,00); CAC em R$"
-      />
+      {procedencia}
 
       <AlertDialog
         open={!!liberando}
@@ -815,7 +839,7 @@ export function BrokerAdminView() {
                 if (liberando) mLiberar.mutate({ oportunidade_id: liberando.id });
               }}
             >
-              Liberar
+              {mLiberar.isPending ? "Liberando…" : "Liberar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -843,7 +867,8 @@ export function BrokerAdminView() {
                 if (baixando) mPagar.mutate({ fatura_id: baixando.id, meio: "transferência" });
               }}
             >
-              <Landmark className="mr-1.5 h-3.5 w-3.5" /> Dar baixa
+              <Landmark className="mr-1.5 h-3.5 w-3.5" />
+              {mPagar.isPending ? "Dando baixa…" : "Dar baixa"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
