@@ -399,7 +399,11 @@ export function Aquario({
               })}
             </KpiGrade>
           </Secao>
-          <div id="painel-recon" tabIndex={-1} className="rounded-xl outline-none">
+          <div
+            id="painel-recon"
+            tabIndex={-1}
+            className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             <ReconAquario accounts={data.accounts} showAccount={setAccount} />
           </div>
         </>
