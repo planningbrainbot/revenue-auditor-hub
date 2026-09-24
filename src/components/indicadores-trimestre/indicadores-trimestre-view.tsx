@@ -286,6 +286,7 @@ export function IndicadoresTrimestreView() {
       descricao={descricao}
       procedencia={{
         fonte: "RPC indicadores_trimestre (apuração de royalties, contratos, contas a receber)",
+        regua: "apuração confirmada · caixa; contratos pela data de ganho",
       }}
       filtros={filtros}
     />
