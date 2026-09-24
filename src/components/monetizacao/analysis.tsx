@@ -45,7 +45,15 @@ import {
 import type { Filtro } from "@/lib/monetizacao/model";
 import { salvarPlanoMonetizacao, salvarRegistroMonetizacao } from "@/lib/monetizacao/functions";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { BaseMonetizacao, Metrica, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
+import type {
+  BaseMonetizacao,
+  Metrica,
+  Negocio,
+  Plano,
+  Produto,
+  Registro,
+  RegistroValor,
+} from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
 import { DIAS_PADRAO } from "./busca";
@@ -124,7 +132,8 @@ export function Analysis(props: Props) {
       />
     );
   if (aba === "funil") return <Funnel data={data} filter={filter} openDeals={openDeals} />;
-  if (aba === "pessoas") return <People data={data} filter={filter} />;
+  if (aba === "pessoas")
+    return <People data={data} filter={filter} busca={props.busca} mudarBusca={props.mudarBusca} />;
   if (aba === "roteiros") return <Scripts data={data} />;
   return <Distribution data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
 }
@@ -1360,7 +1369,16 @@ const CRITERIOS = [
   "Combinou próximo passo e prazo",
   "Preencheu produto, receita prevista e split",
 ];
-function People({ data, filter }: Pick<Props, "data" | "filter">) {
+/**
+ * Pessoas e PDI (contrato `monetizacao-pessoas.md`, Ficha): avaliação da amostra do responsável
+ * da barra e o histórico de PDI. Cada campo que falta diz, nele mesmo, que falta para salvar.
+ */
+function People({
+  data,
+  filter,
+  busca,
+  mudarBusca,
+}: Pick<Props, "data" | "filter" | "busca" | "mudarBusca">) {
   const [title, setTitle] = useState(""),
     [sample, setSample] = useState(""),
     [scores, setScores] = useState<Record<string, number>>({}),
@@ -1372,13 +1390,35 @@ function People({ data, filter }: Pick<Props, "data" | "filter">) {
     invalidate = useAtualizarMonetizacao();
   const values = Object.values(scores).filter((n) => n > 0),
     average = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const dono = nomeDoDono(data, filter.owner);
+  const falta = {
+    responsavel:
+      filter.owner === null
+        ? "Escolha um responsável na barra: com Toda a frente não há de quem seja o PDI."
+        : null,
+    title: title.trim().length < 3 ? "Falta o título (3 caracteres ou mais) para salvar." : null,
+    sample: !sample.trim() ? "Falta a amostra revisada para salvar." : null,
+    scores: !values.length ? "Falta dar nota a pelo menos um critério para salvar." : null,
+    goal: !goal.trim() ? "Falta o objetivo para salvar." : null,
+    action: !action.trim() ? "Falta a ação para salvar." : null,
+    due: !due ? "Falta o prazo para salvar." : null,
+  };
+  const motivos = [motivoSemEscopo(data), ...Object.values(falta)];
+  const limpar = () => {
+    setTitle("");
+    setSample("");
+    setScores({});
+    setGoal("");
+    setAction("");
+    setDue("");
+  };
   const save = async () => {
     setBusy(true);
     try {
       await fn({
         data: {
           kind: "pdi",
-          title,
+          title: title.trim(),
           body: {
             owner_id: filter.owner,
             from: filter.from,
@@ -1394,101 +1434,128 @@ function People({ data, filter }: Pick<Props, "data" | "filter">) {
         },
       });
       await invalidate();
-      toast.success("Avaliação e PDI registrados.");
-      setTitle("");
+      toast.success(`Avaliação e PDI de ${dono} registrados.`);
+      limpar();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`A avaliação não foi salva: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
   };
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <SecaoCartao titulo="Avaliar evidências e definir desenvolvimento">
+    <div className="grid gap-6 xl:grid-cols-2">
+      <SecaoCartao
+        titulo={`Como ${dono} foi na amostra do período?`}
+        descricao={`Amostra de ${date(filter.from)} a ${date(filter.to)} · 5 critérios, nota 1–5`}
+      >
         <div className="space-y-3">
           <NotaApoio>
             Avaliação registrada pelo gestor, com evidências. Volume de atividade e nota de
             qualidade são medidas separadas.
           </NotaApoio>
-          <Field label="Título da avaliação / pessoa">
-            <input
-              className={inputClass}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </Field>
-          <Field label="Amostra e evidências revisadas">
-            <textarea
-              className={`${inputClass} h-20 py-2`}
-              value={sample}
-              onChange={(e) => setSample(e.target.value)}
-              placeholder="IDs das oportunidades, calls ou links revisados"
-            />
-          </Field>
-          {CRITERIOS.map((c) => (
-            <Field key={c} label={c}>
-              <select
+          {falta.responsavel && (
+            <p className="text-xs font-medium text-muted-foreground">{falta.responsavel}</p>
+          )}
+          <CampoPlano rotulo="Título da avaliação / pessoa" ajuda={falta.title ?? undefined}>
+            {(a11y) => (
+              <input
+                {...a11y}
                 className={inputClass}
-                value={scores[c] || 0}
-                onChange={(e) => setScores({ ...scores, [c]: Number(e.target.value) })}
-              >
-                <option value="0">Não avaliado</option>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>
-                    {n} ·{" "}
-                    {n === 1
-                      ? "Não demonstrado"
-                      : n === 3
-                        ? "Parcial"
-                        : n === 5
-                          ? "Consistente"
-                          : "Intermediário"}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            )}
+          </CampoPlano>
+          <CampoPlano rotulo="Amostra e evidências revisadas" ajuda={falta.sample ?? undefined}>
+            {(a11y) => (
+              <textarea
+                {...a11y}
+                className={`${inputClass} h-20 py-2`}
+                value={sample}
+                onChange={(e) => setSample(e.target.value)}
+                placeholder="IDs das oportunidades, calls ou links revisados"
+              />
+            )}
+          </CampoPlano>
+          {CRITERIOS.map((c) => (
+            <CampoPlano key={c} rotulo={c}>
+              {(a11y) => (
+                <select
+                  {...a11y}
+                  className={inputClass}
+                  value={scores[c] || 0}
+                  onChange={(e) => setScores({ ...scores, [c]: Number(e.target.value) })}
+                >
+                  <option value="0">Não avaliado</option>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <option key={n} value={n}>
+                      {n} ·{" "}
+                      {n === 1
+                        ? "Não demonstrado"
+                        : n === 3
+                          ? "Parcial"
+                          : n === 5
+                            ? "Consistente"
+                            : "Intermediário"}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </CampoPlano>
           ))}
-          <p className="text-sm">
-            Média da amostra: <strong>{number(average)}</strong> · {values.length} de{" "}
-            {CRITERIOS.length} critérios avaliados
-          </p>
-          <Field label="Objetivo de desenvolvimento">
-            <input className={inputClass} value={goal} onChange={(e) => setGoal(e.target.value)} />
-          </Field>
-          <Field label="Ação observável para o próximo ciclo">
-            <textarea
-              className={`${inputClass} h-20 py-2`}
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-            />
-          </Field>
-          <Field label="Revisar até">
-            <input
-              type="date"
-              className={inputClass}
-              value={due}
-              onChange={(e) => setDue(e.target.value)}
-            />
-          </Field>
-          <Button
-            onClick={save}
-            disabled={
-              busy ||
-              !(data.permissions.view && data.permissions.all_units) ||
-              !filter.owner ||
-              !title ||
-              !sample ||
-              !goal ||
-              !action ||
-              !due ||
-              !values.length
-            }
+          <div>
+            <p className="text-sm">
+              Média da amostra: <strong className="num">{number(average)}</strong> · {values.length}{" "}
+              de {CRITERIOS.length} critérios avaliados
+            </p>
+            {falta.scores && <p className="text-xs text-muted-foreground">{falta.scores}</p>}
+          </div>
+          <CampoPlano rotulo="Objetivo de desenvolvimento" ajuda={falta.goal ?? undefined}>
+            {(a11y) => (
+              <input
+                {...a11y}
+                className={inputClass}
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+              />
+            )}
+          </CampoPlano>
+          <CampoPlano
+            rotulo="Ação observável para o próximo ciclo"
+            ajuda={falta.action ?? undefined}
           >
-            Salvar avaliação e PDI
-          </Button>
+            {(a11y) => (
+              <textarea
+                {...a11y}
+                className={`${inputClass} h-20 py-2`}
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+              />
+            )}
+          </CampoPlano>
+          <CampoPlano rotulo="Revisar até" ajuda={falta.due ?? undefined}>
+            {(a11y) => (
+              <input
+                {...a11y}
+                type="date"
+                className={inputClass}
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+              />
+            )}
+          </CampoPlano>
+          <BotaoComMotivo onClick={save} disabled={busy || motivos.some(Boolean)} motivo={motivos}>
+            {busy ? "Salvando" : "Salvar avaliação e PDI"}
+          </BotaoComMotivo>
         </div>
       </SecaoCartao>
-      <RecordList data={data} kind="pdi" title="PDIs e avaliações registrados" />
+      <RecordList
+        data={data}
+        kind="pdi"
+        title="Quais PDIs estão registrados, e em que pé?"
+        arquivados={busca?.arquivados === "mostrar"}
+        mudarArquivados={(mostrar) => mudarBusca?.({ arquivados: mostrar ? "mostrar" : undefined })}
+      />
     </div>
   );
 }
@@ -1863,18 +1930,50 @@ function FotoDistribuicao({
   );
 }
 
-function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string; title: string }) {
+const SITUACAO_PDI: Record<string, { rotulo: string; tom: TomStatus }> = {
+  em_andamento: { rotulo: "Em andamento", tom: "info" },
+  concluido: { rotulo: "Concluído", tom: "sucesso" },
+  arquivado: { rotulo: "Arquivado", tom: "neutro" },
+};
+
+/**
+ * Histórico de registros (PDI e decisões de distribuição). PDI mostra de quem é e o período
+ * avaliado, esconde arquivados por padrão (`?arquivados=mostrar`) e arquiva com confirmação.
+ */
+function RecordList({
+  data,
+  kind,
+  title,
+  arquivados = false,
+  mudarArquivados,
+}: {
+  data: BaseMonetizacao;
+  kind: "pdi" | "roteiro" | "distribuicao";
+  title: string;
+  arquivados?: boolean;
+  mudarArquivados?: (mostrar: boolean) => void;
+}) {
   const fn = useServerFn(salvarRegistroMonetizacao),
     invalidate = useAtualizarMonetizacao();
-  const records = data.records.filter((r) => r.kind === kind).reverse();
-  const changeStatus = async (id: string, status: string) => {
-    const r = records.find((r) => r.id === id)!;
+  const [arquivar, setArquivar] = useState<Registro | null>(null),
+    [busy, setBusy] = useState<string | null>(null);
+  const todos = data.records
+    .filter((r) => r.kind === kind)
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const nArquivados = todos.filter((r) => r.body.status === "arquivado").length;
+  const records =
+    kind === "pdi" && !arquivados ? todos.filter((r) => r.body.status !== "arquivado") : todos;
+  const motivoEscrita = motivoSemEscopo(data);
+  const changeStatus = async (r: Registro, status: string, mensagem: string) => {
+    setBusy(r.id);
     try {
-      await fn({ data: { ...r, body: { ...r.body, status } } });
+      await fn({ data: { id: r.id, kind: r.kind, title: r.title, body: { ...r.body, status } } });
       await invalidate();
-      toast.success("Registro atualizado.");
+      toast.success(mensagem);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`O registro não foi atualizado: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
     }
   };
   const fields: Record<string, string> = {
@@ -1888,65 +1987,165 @@ function RecordList({ data, kind, title }: { data: BaseMonetizacao; kind: string
     rule: "Regra",
     segment: "Segmento",
   };
+  const valorDoCampo = (k: string, v: RegistroValor) =>
+    k === "due" && typeof v === "string" ? date(v) : String(v);
   return (
-    <SecaoCartao titulo={title}>
+    <SecaoCartao
+      titulo={title}
+      acoes={
+        kind === "pdi" &&
+        (nArquivados > 0 || arquivados) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-pressed={arquivados}
+            onClick={() => mudarArquivados?.(!arquivados)}
+          >
+            {arquivados ? "Ocultar arquivados" : `Mostrar arquivados (${nArquivados})`}
+          </Button>
+        )
+      }
+    >
       <div className="space-y-3">
-        {records.length ? (
-          records.map((r) => (
-            <details key={r.id} className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                {r.title}
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {date(r.updated_at)} · {String(r.body.status || "Registrado")}
-                </span>
-              </summary>
-              <div className="mt-3 space-y-3">
-                {Object.entries(fields)
-                  .filter(([k]) => r.body[k])
-                  .map(([k, label]) => (
-                    <div key={k}>
-                      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                      <p className="whitespace-pre-wrap text-sm">{String(r.body[k])}</p>
-                    </div>
-                  ))}
-                {Array.isArray(r.body.rows) && <FotoDistribuicao rows={r.body.rows} />}
-                {r.body.scores && typeof r.body.scores === "object" ? (
-                  <ul className="space-y-1 text-xs">
-                    {Object.entries(r.body.scores).map(([c, n]) => (
-                      <li key={c}>
-                        {c}: {Number(n) || "Não avaliado"}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {data.permissions.view && data.permissions.all_units && kind !== "distribuicao" && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => changeStatus(r.id, kind === "pdi" ? "concluido" : "aprovado")}
-                    >
-                      {kind === "pdi" ? "Marcar concluído" : "Aprovar abordagem"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => changeStatus(r.id, "arquivado")}
-                    >
-                      Arquivar
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </details>
-          ))
+        {!todos.length ? (
+          <EstadoVazio
+            titulo="Nenhum registro ainda."
+            descricao="As avaliações, evidências e decisões salvas ficam disponíveis à equipe com acesso à operação geral."
+          />
+        ) : !records.length ? (
+          <EstadoVazio titulo="Todos os PDIs estão arquivados." total={todos.length} />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Nenhum registro ainda. As avaliações, evidências e decisões salvas ficam disponíveis à
-            equipe com acesso à operação geral.
-          </p>
+          records.map((r) => {
+            const situacao =
+              kind === "pdi"
+                ? (SITUACAO_PDI[String(r.body.status)] ?? SITUACAO_PDI.em_andamento)
+                : null;
+            const ownerId = typeof r.body.owner_id === "number" ? r.body.owner_id : null;
+            const periodo =
+              typeof r.body.from === "string" && typeof r.body.to === "string"
+                ? `${date(r.body.from)} a ${date(r.body.to)}`
+                : null;
+            const aberto =
+              r.body.status !== (kind === "pdi" ? "concluido" : "aprovado") &&
+              r.body.status !== "arquivado";
+            return (
+              <details key={r.id} className="rounded-lg border p-3">
+                <summary className={`cursor-pointer text-sm font-medium ${FOCO_VISIVEL}`}>
+                  <span className="inline-flex flex-wrap items-center gap-2 align-middle">
+                    {r.title}
+                    {situacao && <StatusBadge tom={situacao.tom}>{situacao.rotulo}</StatusBadge>}
+                  </span>
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                    {[
+                      kind === "pdi" &&
+                        `PDI de ${ownerId === null ? "responsável não registrado" : nomeDoDono(data, ownerId)}`,
+                      periodo && (kind === "pdi" ? `amostra de ${periodo}` : `período ${periodo}`),
+                      `atualizado em ${date(r.updated_at)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {Object.entries(fields)
+                    .filter(([k]) => r.body[k])
+                    .map(([k, label]) => (
+                      <div key={k}>
+                        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                        <p className="whitespace-pre-wrap text-sm">{valorDoCampo(k, r.body[k])}</p>
+                      </div>
+                    ))}
+                  {Array.isArray(r.body.rows) && <FotoDistribuicao rows={r.body.rows} />}
+                  {r.body.scores && typeof r.body.scores === "object" ? (
+                    <ul className="space-y-1 text-xs">
+                      {Object.entries(r.body.scores).map(([c, n]) => (
+                        <li key={c}>
+                          {c}: {Number(n) || "Não avaliado"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {kind !== "distribuicao" && r.body.status !== "arquivado" && (
+                    <div className="flex flex-wrap gap-2">
+                      {aberto && (
+                        <BotaoComMotivo
+                          size="sm"
+                          variant="outline"
+                          disabled={!!motivoEscrita || busy === r.id}
+                          motivo={motivoEscrita}
+                          onClick={() =>
+                            kind === "pdi"
+                              ? changeStatus(r, "concluido", "PDI marcado como concluído.")
+                              : changeStatus(r, "aprovado", "Abordagem aprovada.")
+                          }
+                        >
+                          {kind === "pdi" ? "Marcar concluído" : "Aprovar abordagem"}
+                        </BotaoComMotivo>
+                      )}
+                      <BotaoComMotivo
+                        size="sm"
+                        variant="ghost"
+                        disabled={!!motivoEscrita || busy === r.id}
+                        motivo={motivoEscrita}
+                        onClick={() => setArquivar(r)}
+                      >
+                        Arquivar
+                      </BotaoComMotivo>
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })
         )}
       </div>
+      <ConfirmarArquivar
+        registro={arquivar}
+        oQue={kind === "pdi" ? "o PDI" : "a abordagem"}
+        onCancelar={() => setArquivar(null)}
+        onConfirmar={(r) => {
+          setArquivar(null);
+          void changeStatus(
+            r,
+            "arquivado",
+            kind === "pdi" ? "PDI arquivado." : "Abordagem arquivada.",
+          );
+        }}
+      />
     </SecaoCartao>
+  );
+}
+
+/** Arquivar pede confirmação (V6): o registro sai da lista padrão. */
+function ConfirmarArquivar({
+  registro,
+  oQue,
+  onCancelar,
+  onConfirmar,
+}: {
+  registro: Registro | null;
+  /** "o PDI", "a abordagem". */
+  oQue: string;
+  onCancelar: () => void;
+  onConfirmar: (r: Registro) => void;
+}) {
+  return (
+    <AlertDialog open={!!registro} onOpenChange={(o) => !o && onCancelar()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Arquivar {registro?.title}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Arquivar tira {oQue} da lista padrão; ele continua salvo e pode ser visto filtrando os
+            arquivados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => registro && onConfirmar(registro)}>
+            Arquivar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
