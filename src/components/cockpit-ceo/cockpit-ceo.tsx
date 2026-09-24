@@ -33,11 +33,13 @@ import {
 } from "@/lib/planning/grafico";
 import type { Destino, Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
-import { perguntasDaFrente } from "@/lib/cockpit-ceo/perguntas";
+import { perguntasDaFrente, situacaoDaPergunta } from "@/lib/cockpit-ceo/perguntas";
+import { mesBr } from "@/lib/cockpit-ceo/receita";
 import { PRESETS } from "@/lib/cockpit-ceo/periodo";
 import type { BuscaCockpit, Periodo, PresetPeriodo } from "@/lib/cockpit-ceo/periodo";
 import { BotaoDestino, ComposicaoIndicador } from "./composicao";
 import { SinteticoBadge } from "./estado";
+import { Motores, PonteDoMes, SemPainel } from "./empresa";
 import { VistaFrente } from "./frentes";
 import { cartaoDoIndicador } from "./indicador";
 
@@ -176,32 +178,40 @@ function Linha({
   );
 }
 
-const DESTINO_PRODUTOS: Destino = {
-  rota: "/clientes",
-  search: { view: "produtos" },
-  rotulo: "Abrir Produtos e listas",
-  mesmoRecorte: false,
-  observacao: "Produtos e listas mostra as contas por produto, sem o período do cockpit.",
-};
+const ORDEM_GRAVIDADE = { alta: 0, media: 1 } as const;
+/** Quantas ameaças a Visão executiva lista; as demais ficam nas frentes. */
+const AMEACAS_NA_VISAO = 5;
 
 function VisaoExecutiva({
   cockpit,
   abrir,
   preview,
   jev,
+  irParaFrente,
 }: {
   cockpit: Cockpit;
   abrir: (id: string) => void;
   preview: boolean;
   jev?: ReactNode;
+  irParaFrente: (f: Frente) => void;
 }) {
+  const primeira = cockpit.primeiraDobra
+    .map((id) => cockpit.indicadores.find((i) => i.id === id))
+    .filter((i): i is Cockpit["indicadores"][number] => !!i);
   // O cartão com cadeado não abre nem mostra nota (não vaza número): o motivo fica aqui embaixo.
-  const semAcesso = cockpit.indicadores.filter((i) => i.estado === "acesso_insuficiente");
-  const produtos = cockpit.porProduto.filter((l) => l.produto !== "sem_produto");
+  const semAcesso = primeira.filter((i) => i.estado === "acesso_insuficiente");
+  const ameacas = [...cockpit.ameacas].sort(
+    (a, b) =>
+      ORDEM_GRAVIDADE[a.gravidade] - ORDEM_GRAVIDADE[b.gravidade] ||
+      Number(a.origem === "monetizacao") - Number(b.origem === "monetizacao"),
+  );
+  const visiveis = ameacas.slice(0, AMEACAS_NA_VISAO);
+  const e = cockpit.empresa;
+  const ultimo = e.ponte?.ultimo ?? null;
   return (
     <>
       <KpiGrade colunas={6}>
-        {cockpit.indicadores.map((i) => (
+        {primeira.map((i) => (
           <KpiCard key={i.id} {...cartaoDoIndicador(i, () => abrir(i.id))} />
         ))}
       </KpiGrade>
@@ -222,7 +232,7 @@ function VisaoExecutiva({
 
       <Secao
         titulo="O que é decisão sua?"
-        descricao="Até três, por regra fixa sobre os números acima. Cada uma abre a tela que resolve."
+        descricao="Até três, por regra fixa sobre os números acima. Cada uma diz quem decide e abre a tela que resolve."
       >
         <ol aria-label="Decisões" className="divide-y rounded-xl border bg-card">
           {cockpit.decisoes.map((d) => (
@@ -243,11 +253,11 @@ function VisaoExecutiva({
 
       <Secao
         titulo="O que ameaça o resultado?"
-        descricao="Regras fixas, não IA. Clique para ver o número por trás."
+        descricao={`Regras fixas, não IA, as mais graves primeiro.${ameacas.length > visiveis.length ? ` Mais ${ameacas.length - visiveis.length} nas frentes.` : ""}`}
       >
-        {cockpit.ameacas.length ? (
+        {visiveis.length ? (
           <ul className="divide-y rounded-xl border bg-card">
-            {cockpit.ameacas.map((a) => (
+            {visiveis.map((a) => (
               <Linha
                 key={a.id}
                 selo={
@@ -275,58 +285,54 @@ function VisaoExecutiva({
           </p>
         )}
       </Secao>
+
+      <Secao
+        titulo={
+          ultimo
+            ? `De onde veio a variação do faturamento em ${mesBr(ultimo.mes)}?`
+            : "De onde veio a variação do faturamento?"
+        }
+        descricao="Ponte por cliente sobre o Faturamento do grupo (emissão). Unidade nova, monetização e aquisições ainda não têm vínculo de receita."
+        acoes={
+          <Button variant="outline" size="sm" onClick={() => irParaFrente("receita")}>
+            Ver mês a mês
+            <ArrowRight className="size-4" aria-hidden />
+          </Button>
+        }
+      >
+        {ultimo?.fecha ? (
+          <PonteDoMes mes={ultimo} />
+        ) : (
+          <SemPainel
+            texto={
+              e.ponteAviso ?? "A ponte não fecha com a fonte neste mês; o número não é mostrado."
+            }
+          />
+        )}
+      </Secao>
+
+      <Secao
+        titulo="Quais motores sustentam o crescimento?"
+        descricao="Cada motor na régua dele: MRR vendido não é faturamento, e nada aqui é somado."
+      >
+        <Motores motores={e.motores} irParaFrente={irParaFrente} />
+      </Secao>
       {preview && (
         <p className="text-xs text-muted-foreground">
           No preview, os destinos não abrem: exigem login e dados reais.
         </p>
       )}
 
-      <Secao
-        titulo="Em qual produto está a demanda?"
-        descricao="Negócios do pipe de Monetização no período. Demanda, não faturamento."
-        acoes={<BotaoDestino destino={DESTINO_PRODUTOS} preview={preview} compacto />}
-      >
-        <div className="h-56 rounded-xl border bg-card p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={produtos}
-              layout="vertical"
-              margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
-            >
-              <CartesianGrid {...gradeProps} horizontal={false} vertical />
-              <XAxis type="number" allowDecimals={false} {...eixoProps} />
-              <YAxis type="category" dataKey="rotulo" width={96} {...eixoProps} />
-              <Tooltip {...tooltipProps} />
-              <Legend {...legendaProps} />
-              <Bar
-                isAnimationActive={false}
-                dataKey="validadas"
-                name="Oportunidades validadas"
-                fill={CORES_SERIE[0]}
-              />
-              <Bar
-                isAnimationActive={false}
-                dataKey="ganhos"
-                name="Contratos ganhos"
-                fill={CORES_SERIE[1]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Secao>
-
       {jev}
 
       <Secao
         titulo="Para onde ir em cada frente?"
-        descricao="Cada frente tem página própria, também na lateral. O número diz quantas perguntas já têm cálculo implementado."
+        descricao="Cada frente tem página própria, também na lateral. Respondida: dado integrado e sem decisão pendente."
       >
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {ORDEM_FRENTES.map((f) => {
             const perguntas = perguntasDaFrente(f);
-            const comNumero = perguntas.filter(
-              (p) => p.cobertura === "implementada_nao_homologada",
-            ).length;
+            const cont = (s: string) => perguntas.filter((p) => situacaoDaPergunta(p) === s).length;
             return (
               <li key={f}>
                 <Link
@@ -349,7 +355,8 @@ function VisaoExecutiva({
                   </span>
                   <span className="text-sm text-muted-foreground">{FRENTES[f].pergunta}</span>
                   <span className="num mt-auto pt-1 text-xs text-muted-foreground">
-                    {comNumero} de {perguntas.length} perguntas com cálculo
+                    {cont("respondida")} respondidas · {cont("parcial")} parciais · {cont("lacuna")}{" "}
+                    lacunas
                   </span>
                 </Link>
               </li>
@@ -404,9 +411,9 @@ export function CockpitCeo({
     ...(periodo.aviso ? [periodo.aviso] : []),
     ...cockpit.avisos.filter((a) => !/sintéticos/.test(a)),
   ];
-  // Procedência do cabeçalho: a carga que alimenta os números da primeira dobra. Cada número e cada
-  // painel de frente declara a sua ao lado (N3).
-  const base = cockpit.indicadores.find((i) => i.id === "contratos-ganhos");
+  // Procedência do cabeçalho: o Financeiro, fonte do faturamento da primeira dobra. Cada número e
+  // cada painel declara a sua ao lado (N3); a frente Evidências e capital lista o frescor de todas.
+  const fin = cockpit.empresa.frescor[0];
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
@@ -417,10 +424,10 @@ export function CockpitCeo({
         descricao={cockpit.universo}
         procedencia={{
           fonte: cockpit.sintetico
-            ? "SINTÉTICO · Monetização e Base de clientes"
-            : "Monetização e Base de clientes (carga do Brain)",
-          atualizadoEm: base?.dataDado ?? null,
-          regua: "eventos pela data do evento, fuso de São Paulo",
+            ? "SINTÉTICO · Financeiro, Growth, Ops e Monetização"
+            : "Financeiro (Financial Brain), Growth, Ops e Monetização",
+          atualizadoEm: fin?.atualizadoEm ?? null,
+          regua: "faturamento por emissão; eventos pela data do evento; fuso de São Paulo",
         }}
         acoes={
           <>
@@ -448,13 +455,21 @@ export function CockpitCeo({
       ))}
 
       {frente ? (
-        <VistaFrente cockpit={cockpit} frente={frente} onAbrirIndicador={abrir} preview={preview} />
+        <VistaFrente
+          cockpit={cockpit}
+          frente={frente}
+          onAbrirIndicador={abrir}
+          preview={preview}
+          hoje={cockpit.hoje}
+          irParaFrente={irParaFrente}
+        />
       ) : (
         <VisaoExecutiva
           cockpit={cockpit}
           abrir={abrir}
           preview={preview}
           jev={jev?.(irParaFrente)}
+          irParaFrente={irParaFrente}
         />
       )}
 
