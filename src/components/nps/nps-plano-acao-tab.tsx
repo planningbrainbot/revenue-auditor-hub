@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
-import { ClipboardList, Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,15 +17,77 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  BarraFiltros,
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Procedencia,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { usePlanoAcaoContatos } from "@/hooks/use-nps";
+import type { EmpresaSemContatoRow } from "@/lib/contatos-cs.functions";
 
 const ALL = "todas";
+const CHAVES_FILTRO = ["q", "unidade", "situacao"];
+const FONTE = "empresas e contatos (Pipefy)";
+const NUM = new Intl.NumberFormat("pt-BR");
+
+const SITUACOES: { valor: EmpresaSemContatoRow["status"]; rotulo: string }[] = [
+  { valor: "sem_contato", rotulo: "Sem nenhum contato" },
+  { valor: "contato_sem_whatsapp", rotulo: "Tem contato, sem WhatsApp" },
+  { valor: "contato_formato_invalido", rotulo: "WhatsApp com formato inválido" },
+];
+
+function situacaoBadge(status: EmpresaSemContatoRow["status"]) {
+  if (status === "sem_contato") return <StatusBadge tom="perigo">Sem contato</StatusBadge>;
+  if (status === "contato_formato_invalido") return <StatusBadge tom="atencao">Formato inválido</StatusBadge>;
+  return <StatusBadge tom="atencao">Sem WhatsApp</StatusBadge>;
+}
+
+function Filtro({
+  valor,
+  aoMudar,
+  todos,
+  opcoes,
+  rotulo,
+}: {
+  valor: string;
+  aoMudar: (v: string) => void;
+  todos: string;
+  opcoes: { valor: string; rotulo: string }[];
+  rotulo: string;
+}) {
+  // Valor da URL que não existe mais nas opções continua visível (e removível).
+  const lista =
+    valor !== ALL && !opcoes.some((o) => o.valor === valor) ? [...opcoes, { valor, rotulo: valor }] : opcoes;
+  return (
+    <Select value={valor} onValueChange={(v) => aoMudar(v)}>
+      <SelectTrigger className="h-8 w-auto min-w-[160px]" aria-label={rotulo}>
+        <SelectValue placeholder={rotulo} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{todos}</SelectItem>
+        {lista.map((o) => (
+          <SelectItem key={o.valor} value={o.valor}>
+            {o.rotulo}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function NpsPlanoAcaoTab() {
-  const { data, isLoading, error } = usePlanoAcaoContatos();
-  const [q, setQ] = useState("");
-  const [unidade, setUnidade] = useState<string>(ALL);
-  const [status, setStatus] = useState<string>(ALL);
+  const { data, isLoading, error, refetch, dataUpdatedAt } = usePlanoAcaoContatos();
+  const [q, setQ] = useFiltroNaUrl("q", "");
+  const [unidade, setUnidade] = useFiltroNaUrl("unidade", ALL);
+  const [status, setStatus] = useFiltroNaUrl("situacao", ALL);
+  const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -42,172 +103,183 @@ export function NpsPlanoAcaoTab() {
     });
   }, [data, q, unidade, status]);
 
+  const temFiltro = q !== "" || unidade !== ALL || status !== ALL;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        <Carregando variante="tabela" />
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <EstadoErro
+        titulo="Não foi possível carregar o plano de ação"
+        detalhe={`Fonte: ${FONTE}: ${error instanceof Error ? error.message : String(error ?? "sem resposta")}`}
+        tentarNovamente={() => void refetch()}
+      />
+    );
+  }
+
   const coberturaPct =
-    data && data.totalEmpresas > 0 ? Math.round((data.totalComContatoValido / data.totalEmpresas) * 100) : 0;
+    data.totalEmpresas > 0 ? Math.round((data.totalComContatoValido / data.totalEmpresas) * 100) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Lista de trabalho pro time de CS: toda empresa cliente ativa (Base Nova ou Antiga) precisa de pelo menos 1
-        contato com WhatsApp válido pra entrar nos disparos de NPS. Aqui estão as que ainda faltam.
+        Lista de trabalho do CS: todo cliente ativo (Base Nova ou Antiga) precisa de pelo menos 1 contato com
+        WhatsApp válido para entrar nos disparos de NPS. O contato se completa no Pipefy/CRM; cada linha leva à
+        empresa em Clientes.
       </p>
 
-      {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando plano de ação…</Card>}
-      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar plano de ação.</Card>}
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="Clientes ativos" valor={NUM.format(data.totalEmpresas)} nota="empresas ativas" />
+        <KpiCard
+          rotulo="Com WhatsApp válido (clientes ativos)"
+          valor={NUM.format(data.totalComContatoValido)}
+          unidade={coberturaPct === null ? undefined : `${coberturaPct}%`}
+          nota="ao menos 1 contato vinculado com WhatsApp válido"
+        />
+        <KpiCard
+          rotulo="Sem contato válido (clientes ativos)"
+          valor={NUM.format(data.empresasSemContato.length)}
+          nota="a lista abaixo"
+        />
+        <KpiCard
+          rotulo="Contatos para classificar"
+          valor={NUM.format(data.contatosParaClassificar.length)}
+          nota="contatos sem empresa vinculada, com ou sem WhatsApp"
+        />
+      </KpiGrade>
 
-      {data && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Clientes ativos</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums">{data.totalEmpresas}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Com WhatsApp válido</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-success">
-                {data.totalComContatoValido}
-                <span className="ml-1 text-sm font-normal text-muted-foreground">({coberturaPct}%)</span>
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Faltando contato</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-danger">
-                {data.empresasSemContato.length}
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Contatos p/ classificar</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-warning">
-                {data.contatosParaClassificar.length}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">têm WhatsApp mas sem empresa vinculada</div>
-            </Card>
+      <Secao
+        titulo="Quais clientes ativos ainda estão sem contato válido?"
+        descricao="Por unidade e nome · a última coluna abre a empresa em Clientes"
+        acoes={
+          <span className="num text-[13px] text-muted-foreground">
+            {NUM.format(filtered.length)} de {NUM.format(data.empresasSemContato.length)}
+          </span>
+        }
+      >
+        <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar empresa ou CNPJ"
+              aria-label="Buscar empresa ou CNPJ"
+              className="h-8 w-60 pl-8"
+            />
           </div>
+          <Filtro
+            rotulo="Unidade"
+            valor={unidade}
+            aoMudar={setUnidade}
+            todos="Todas as unidades"
+            opcoes={data.unidades.map((u) => ({ valor: u, rotulo: u }))}
+          />
+          <Filtro
+            rotulo="Situação"
+            valor={status}
+            aoMudar={setStatus}
+            todos="Todas as situações"
+            opcoes={SITUACOES}
+          />
+        </BarraFiltros>
 
-          <Card>
-            <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <ClipboardList className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Empresas sem contato válido</span>
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Buscar empresa ou CNPJ…"
-                    className="h-8 w-56 pl-7"
-                  />
-                </div>
-                <Select value={unidade} onValueChange={setUnidade}>
-                  <SelectTrigger className="h-8 w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Todas unidades</SelectItem>
-                    {data.unidades.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-8 w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Todos status</SelectItem>
-                    <SelectItem value="sem_contato">Sem nenhum contato</SelectItem>
-                    <SelectItem value="contato_sem_whatsapp">Tem contato, sem WhatsApp</SelectItem>
-                    <SelectItem value="contato_formato_invalido">WhatsApp com formato inválido</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="relative max-h-[600px] overflow-auto">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background">
-                  <TableRow>
-                    <TableHead className="bg-background">Empresa</TableHead>
-                    <TableHead className="bg-background">CNPJ</TableHead>
-                    <TableHead className="bg-background">Unidade</TableHead>
-                    <TableHead className="bg-background">Base</TableHead>
-                    <TableHead className="bg-background">Situação</TableHead>
-                    <TableHead className="bg-background">Contatos existentes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((e) => (
+        {data.empresasSemContato.length === 0 ? (
+          <EstadoVazio
+            titulo="Todo cliente ativo tem contato válido"
+            descricao="Nenhuma empresa ativa está sem WhatsApp válido."
+          />
+        ) : filtered.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma empresa com esses filtros" total={data.empresasSemContato.length} />
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-card [&>div]:max-h-[600px]">
+            <Table>
+              <TableHeader grudavel>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>CNPJ</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Base</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead>Contatos existentes</TableHead>
+                  <TableHead>Próxima ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((e) => {
+                  // /clientes não tem endereço de ficha por id: a busca por CNPJ
+                  // (ou pelo nome, sem CNPJ) deixa a empresa sozinha na lista.
+                  const busca = e.cnpj?.replace(/\D/g, "") || e.titulo || "";
+                  return (
                     <TableRow key={e.id}>
                       <TableCell className="font-medium">{e.titulo ?? "—"}</TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{e.cnpj ?? "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{e.unidade}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{e.origemDaBase ?? "—"}</TableCell>
-                      <TableCell>
-                        {e.status === "sem_contato" ? (
-                          <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">
-                            Sem contato
-                          </Badge>
-                        ) : e.status === "contato_formato_invalido" ? (
-                          <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">
-                            Formato inválido
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">
-                            Sem WhatsApp
-                          </Badge>
-                        )}
-                      </TableCell>
+                      <TableCell>{situacaoBadge(e.status)}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {e.contatosNomes.length > 0 ? e.contatosNomes.join(", ") : "—"}
                       </TableCell>
-                    </TableRow>
-                  ))}
-                  {filtered.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Nenhuma empresa com esses filtros.
+                      <TableCell>
+                        {busca ? (
+                          <Link
+                            to="/clientes"
+                            search={{ q: busca } as never}
+                            className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-input px-2.5 text-[13px] font-medium text-foreground outline-none transition-colors duration-120 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          >
+                            Abrir em Clientes →
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <Procedencia fonte={FONTE} atualizadoEm={dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : null} />
+      </Secao>
 
-          {data.contatosParaClassificar.length > 0 && (
-            <Card>
-              <div className="border-b p-3 text-sm font-medium">
-                Contatos com WhatsApp esperando classificação
-                <span className="ml-2 font-normal text-muted-foreground">
-                  — têm número mas não estão vinculados a nenhuma empresa em /clientes
-                </span>
-              </div>
-              <div className="relative max-h-[400px] overflow-auto">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-background">
-                    <TableRow>
-                      <TableHead className="bg-background">Nome</TableHead>
-                      <TableHead className="bg-background">WhatsApp</TableHead>
-                      <TableHead className="bg-background">Email</TableHead>
-                      <TableHead className="bg-background">Cargo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.contatosParaClassificar.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell>{c.nomeCompleto ?? "—"}</TableCell>
-                        <TableCell className="font-mono text-xs">{c.whatsapp ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{c.email ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{c.cargo ?? "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          )}
-        </>
+      {data.contatosParaClassificar.length > 0 && (
+        <Secao
+          titulo="Quais contatos ainda não têm empresa vinculada?"
+          descricao="Com ou sem WhatsApp · não estão ligados a nenhuma empresa em Clientes"
+        >
+          <div className="overflow-hidden rounded-xl border bg-card [&>div]:max-h-[400px]">
+            <Table>
+              <TableHeader grudavel>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Cargo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.contatosParaClassificar.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.nomeCompleto ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{c.whatsapp ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{c.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{c.cargo ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Secao>
       )}
     </div>
   );
