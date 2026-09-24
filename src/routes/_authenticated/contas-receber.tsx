@@ -107,7 +107,14 @@ type Busca = {
   aba?: string;
   mesFiltro?: string;
   modo?: string;
+  /** Página da lista (a partir de 2; a 1 não aparece na URL). */
+  pagina?: number;
 };
+
+function paginaDaUrl(v: unknown): number | undefined {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isInteger(n) && n > 1 ? n : undefined;
+}
 
 export const Route = createFileRoute("/_authenticated/contas-receber")({
   validateSearch: (search: Record<string, unknown>): Busca => ({
@@ -120,6 +127,7 @@ export const Route = createFileRoute("/_authenticated/contas-receber")({
     aba: texto(search.aba),
     mesFiltro: texto(search.mesFiltro),
     modo: texto(search.modo),
+    pagina: paginaDaUrl(search.pagina),
   }),
   head: () => ({
     meta: [
@@ -303,6 +311,8 @@ function ContasReceberPage() {
     // Sem `?aba=` a aba vem do padrão, que depende dos filtros: grava a aba de
     // agora junto, para mudar filtro não pular do Resumo para as Faturas.
     if (!("aba" in limpo) && !search.aba) limpo.aba = aba;
+    // Filtro ou aba mudou: a lista é outra, e a página volta para a 1.
+    if (!("pagina" in patch)) limpo.pagina = undefined;
     void navigate({
       search: (prev: Busca) => ({ ...prev, ...limpo }),
       replace: true,
@@ -417,8 +427,9 @@ function ContasReceberPage() {
   }, [rows, q, unidade, status, search.dataIni, search.dataFim, dataTipo, mesFiltro, modo]);
 
   const faturasOrdenadas = useMemo(() => [...filtered].sort(ordemDeTrabalho), [filtered]);
-  const [pagina, setPagina] = useState(1);
-  useEffect(() => setPagina(1), [filtered]);
+  // Página na URL (N7); `mudar` a zera quando qualquer filtro muda.
+  const pagina = search.pagina ?? 1;
+  const setPagina = (n: number) => mudar({ pagina: n > 1 ? n : undefined });
   const totalPaginas = Math.max(1, Math.ceil(faturasOrdenadas.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = faturasOrdenadas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
