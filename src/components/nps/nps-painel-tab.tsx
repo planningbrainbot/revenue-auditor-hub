@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ExternalLink, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,8 @@ const CHAVES_FILTRO = ["q", "unidade", "segmento", "categoria", "fase", "rodada"
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const FONTE = "Pipefy: pesquisa NPS (nps_pesquisas)";
 
+type Visao = "geral" | "segmento";
+
 type Categoria = "promotor" | "neutro" | "detrator" | null;
 
 function categorize(score: string | null): Categoria {
@@ -106,6 +108,13 @@ function fmtDate(d: string | null) {
   return dt.toLocaleDateString("pt-BR");
 }
 
+// NPS vai de −100 a 100: negativo sai com o sinal de menos tipográfico.
+function fmtNps(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return n < 0 ? `−${Math.abs(n)}` : String(n);
+}
+
 // Mês do eixo a partir da string "aaaa-mm", sem passar por Date.
 function fmtMes(mesKey: string): string {
   const [ano, mes] = String(mesKey).split("-");
@@ -134,9 +143,9 @@ function csatRatings(r: NpsRow): number[] {
 }
 
 // fill com hsl() em volta de var(--x) saía preto (as variáveis são hex). var(--x)
-// puro resolve e troca junto com o tema; o CSAT tem token próprio em styles.css.
+// puro resolve e troca junto com o tema. O CSAT é a segunda série da paleta.
 const NPS_FILL = CORES_SERIE[0];
-const CSAT_FILL = "var(--chart-csat)";
+const CSAT_FILL = CORES_SERIE[1];
 
 // Amostra pequena no mês corrente torna o delta ruído, não sinal — suprime
 // a variação (mostra só "amostra pequena") abaixo de AMOSTRA_MINIMA.
@@ -166,18 +175,25 @@ function renderDeltaLabel(serie: Array<{ [k: string]: string | number }>, key: s
             fontWeight={600}
             fill={positivo ? "var(--success)" : "var(--danger)"}
           >
-            {positivo ? "▲" : "▼"} {positivo ? "+" : ""}{delta}%
+            {positivo ? "▲" : "▼"} {positivo ? "+" : "−"}{Math.abs(delta)}%
           </text>
         )}
         <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight={600} className="fill-foreground">
-          {atual}{suffix}
+          {fmtNps(atual)}{suffix}
         </text>
       </g>
     );
   };
 }
 
-type DeltaMes = { delta: number; amostraPequena: boolean; mesAtual: string; mesAnterior: string; amostra: number };
+type DeltaMes = {
+  delta: number;
+  amostraPequena: boolean;
+  mesAtual: string;
+  mesAnterior: string;
+  amostra: number;
+  amostraRotulo: "respostas" | "notas";
+};
 
 // Entre os dois últimos meses com dado; a nota do card diz quais são.
 function deltaVsMesAnterior(
@@ -195,6 +211,7 @@ function deltaVsMesAnterior(
     mesAtual: serie[serie.length - 1].mes,
     mesAnterior: serie[serie.length - 2].mes,
     amostra: amostraAtual,
+    amostraRotulo: amostraKey === "respondentes" ? "respostas" : "notas",
   };
 }
 
@@ -205,7 +222,7 @@ function NotaDelta({ d, unidade, apoio }: { d: DeltaMes | null; unidade: "pts" |
   if (d.amostraPequena) {
     return (
       <>
-        {apoio} · variação suprimida: {fmtMes(d.mesAtual)} tem {d.amostra} (mínimo {AMOSTRA_MINIMA})
+        {apoio} · variação suprimida: {fmtMes(d.mesAtual)} tem {d.amostra} {d.amostra === 1 ? d.amostraRotulo.replace(/s$/, "") : d.amostraRotulo} (mínimo {AMOSTRA_MINIMA})
       </>
     );
   }
@@ -238,13 +255,15 @@ function Alternar<T extends string>({
   valor,
   opcoes,
   aoMudar,
+  rotulo,
 }: {
   valor: T;
   opcoes: { valor: T; rotulo: string }[];
   aoMudar: (v: T) => void;
+  rotulo: string;
 }) {
   return (
-    <div className="inline-flex rounded-full bg-muted p-0.5 text-xs" role="group">
+    <div className="inline-flex rounded-full bg-muted p-0.5 text-xs" role="group" aria-label={rotulo}>
       {opcoes.map((o) => (
         <button
           key={o.valor}
@@ -348,8 +367,13 @@ export function NpsPainelTab() {
   const [fase, setFase] = useFiltroNaUrl("fase", ALL);
   const [rodada, setRodada] = useFiltroNaUrl("rodada", ALL);
   const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
-  const [npsView, setNpsView] = useState<"geral" | "segmento">("geral");
-  const [csatView, setCsatView] = useState<"geral" | "segmento">("geral");
+  // Visão dos gráficos também na URL (N7): "?vnps=segmento", "?vcsat=segmento".
+  const [vnps, setVnps] = useFiltroNaUrl("vnps", "geral");
+  const [vcsat, setVcsat] = useFiltroNaUrl("vcsat", "geral");
+  const npsView: Visao = vnps === "segmento" ? "segmento" : "geral";
+  const csatView: Visao = vcsat === "segmento" ? "segmento" : "geral";
+  const setNpsView = (v: Visao) => setVnps(v);
+  const setCsatView = (v: Visao) => setVcsat(v);
   const abaAtual = (ABAS as readonly string[]).includes(aba) ? aba : "resumo";
 
   // Filtrar por categoria muda o próprio indicador (só promotores → NPS 100):
@@ -582,6 +606,12 @@ export function NpsPainelTab() {
   const tickMes = (v: string) => fmtMes(v);
   const rotuloMes = (v: unknown) => fmtMes(String(v));
 
+  // Enquanto carrega não há data a declarar: "sem data de atualização" antes
+  // da leitura terminar seria afirmação falsa.
+  const procedenciaHeader = isLoading
+    ? undefined
+    : { fonte: FONTE, atualizadoEm: ultimaAtualizacao, regua: "NPS = % promotores − % detratores" };
+
   let conteudo: ReactNode;
   if (isLoading) {
     conteudo = (
@@ -621,7 +651,7 @@ export function NpsPainelTab() {
           <KpiGrade colunas={3}>
             <KpiCard
               rotulo="NPS"
-              valor={kpis.nps}
+              valor={kpis.nps != null ? fmtNps(kpis.nps) : null}
               estado={categoriaAtiva || kpis.nps == null ? "nao-apurado" : "ok"}
               nota={
                 categoriaAtiva ? (
@@ -647,7 +677,7 @@ export function NpsPainelTab() {
                   <NotaDelta
                     d={csatDelta}
                     unidade="pp"
-                    apoio={`${csat.totalNotas} notas ≥ 8 de 0–10 (fiscal + contábil + folha)`}
+                    apoio={`% das ${csat.totalNotas} notas de serviço com nota ≥ 8 (fiscal + contábil + folha)`}
                   />
                 )
               }
@@ -665,6 +695,7 @@ export function NpsPainelTab() {
               descricao={npsView === "geral" ? "por mês de criação do card · escala −100 a 100" : "por segmento · escala −100 a 100"}
               acoes={
                 <Alternar
+                  rotulo="Ver NPS por"
                   valor={npsView}
                   aoMudar={setNpsView}
                   opcoes={[
@@ -687,8 +718,8 @@ export function NpsPainelTab() {
                       <BarChart data={evolucaoMensal} margin={{ top: 34 }}>
                         <CartesianGrid {...gradeProps} />
                         <XAxis {...eixoProps} dataKey="mes" tickFormatter={tickMes} />
-                        <YAxis {...eixoProps} domain={[-100, 100]} width={36} />
-                        <Tooltip {...tooltipProps} labelFormatter={rotuloMes} formatter={(v: number) => [v, "NPS"]} />
+                        <YAxis {...eixoProps} domain={[-100, 100]} width={36} tickFormatter={fmtNps} />
+                        <Tooltip {...tooltipProps} labelFormatter={rotuloMes} formatter={(v: number) => [fmtNps(v), "NPS"]} />
                         <Bar dataKey="nps" name="NPS" fill={NPS_FILL} radius={[2, 2, 0, 0]} maxBarSize={44}>
                           <LabelList content={renderDeltaLabel(evolucaoMensal, "nps")} />
                         </Bar>
@@ -700,9 +731,9 @@ export function NpsPainelTab() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={npsPorSegmento} layout="vertical" margin={{ left: 70 }}>
                         <CartesianGrid {...gradeProps} />
-                        <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                        <XAxis {...eixoProps} type="number" domain={[-100, 100]} tickFormatter={fmtNps} />
                         <YAxis {...eixoProps} type="category" dataKey="segmento" width={70} />
-                        <Tooltip {...tooltipProps} formatter={(v: number) => [v, "NPS"]} />
+                        <Tooltip {...tooltipProps} formatter={(v: number) => [fmtNps(v), "NPS"]} />
                         <Bar dataKey="nps" name="NPS" fill={NPS_FILL} radius={[0, 2, 2, 0]} maxBarSize={18} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -720,6 +751,7 @@ export function NpsPainelTab() {
               }
               acoes={
                 <Alternar
+                  rotulo="Ver CSAT por"
                   valor={csatView}
                   aoMudar={setCsatView}
                   opcoes={[
@@ -865,9 +897,9 @@ export function NpsPainelTab() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={npsPorUnidade} layout="vertical" margin={{ left: 60 }}>
                           <CartesianGrid {...gradeProps} />
-                          <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                          <XAxis {...eixoProps} type="number" domain={[-100, 100]} tickFormatter={fmtNps} />
                           <YAxis {...eixoProps} type="category" dataKey="unidade" width={110} />
-                          <Tooltip {...tooltipProps} />
+                          <Tooltip {...tooltipProps} formatter={(v: number) => [fmtNps(v), "NPS"]} />
                           <Bar dataKey="nps" name="NPS" fill={NPS_FILL} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -881,9 +913,9 @@ export function NpsPainelTab() {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={npsPorSegmento} layout="vertical" margin={{ left: 60 }}>
                           <CartesianGrid {...gradeProps} />
-                          <XAxis {...eixoProps} type="number" domain={[-100, 100]} />
+                          <XAxis {...eixoProps} type="number" domain={[-100, 100]} tickFormatter={fmtNps} />
                           <YAxis {...eixoProps} type="category" dataKey="segmento" width={110} />
-                          <Tooltip {...tooltipProps} />
+                          <Tooltip {...tooltipProps} formatter={(v: number) => [fmtNps(v), "NPS"]} />
                           <Bar dataKey="nps" name="NPS" fill={NPS_FILL} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -910,7 +942,7 @@ export function NpsPainelTab() {
                           <TableRow key={u.unidade}>
                             <TableCell className="font-medium">{u.unidade}</TableCell>
                             <TableCell className="num text-right">{u.respondentes}</TableCell>
-                            <TableCell className="num text-right font-semibold">{u.nps}</TableCell>
+                            <TableCell className="num text-right font-semibold">{fmtNps(u.nps)}</TableCell>
                             <TableCell>
                               <StatusBadge tom={c.tom}>{c.label}</StatusBadge>
                             </TableCell>
@@ -1003,11 +1035,7 @@ export function NpsPainelTab() {
         titulo="NPS"
         pergunta="O cliente recomenda a Planning, e quem está insatisfeito agora?"
         descricao={`Pesquisas NPS respondidas · ${recorteUnidade} · ${recorteRodada} · nota 0–10, promotor 9–10, detrator 0–6`}
-        procedencia={{
-          fonte: FONTE,
-          atualizadoEm: ultimaAtualizacao,
-          regua: "NPS = % promotores − % detratores",
-        }}
+        procedencia={procedenciaHeader}
       >
         <BarraFiltros aoLimpar={hasFilters ? limparFiltros : undefined}>
           <div className="relative">

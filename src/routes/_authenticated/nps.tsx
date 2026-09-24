@@ -27,6 +27,9 @@ export const Route = createFileRoute("/_authenticated/nps")({
       : undefined,
     fase: texto(s.fase),
     rodada: texto(s.rodada),
+    // Visão dos gráficos de NPS e CSAT: por mês (padrão, fora da URL) ou por segmento.
+    vnps: s.vnps === "segmento" ? ("segmento" as const) : undefined,
+    vcsat: s.vcsat === "segmento" ? ("segmento" as const) : undefined,
   }),
   component: NpsPage,
 });
