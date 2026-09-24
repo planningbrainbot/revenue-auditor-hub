@@ -141,9 +141,9 @@ export function partesDoLink(url: string): { to: string; search: Record<string, 
  * ("/gente?visao=..." é tudo Planning People).
  *
  * É lista, e não uma área só, porque **seis caminhos moram em duas áreas ao
- * mesmo tempo**: `/clientes`, `/painel-cs` e `/nps` estão em `clientes` e em
- * `minha_unidade`; `/idu` em `rede` e `minha_unidade`; `/funil-receita` e
- * `/contas-receber` em `receita` e `minha_unidade_financeiro`. (`/broker` saiu
+ * mesmo tempo**: `/clientes` está em `clientes` e em `minha_unidade`;
+ * `/painel-cs`, `/nps` e `/idu` em `rede` e `minha_unidade`; `/funil-receita`
+ * e `/contas-receber` em `receita` e `minha_unidade_financeiro`. (`/broker` saiu
  * da Minha Unidade em 23/09/2026: o sócio regional já tem a área `broker`.)
  * Isso é de propósito: a mesma tela é o trabalho da
  * matriz e o da unidade, e `ops.area_chaves` concede `view.clientes` pelos dois
@@ -218,7 +218,7 @@ export function primeiraTelaAcessivel(
 export const AREAS: Area[] = [
   {
     slug: "rede",
-    descricao: "Como a rede está indo: overview, IDU, indicadores e realizado.",
+    descricao: "Como a rede está indo: overview, IDU, realizado, CS e NPS.",
     nome: "Rede",
     icone: Activity,
     grupos: [
@@ -250,18 +250,12 @@ export const AREAS: Area[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    slug: "clientes",
-    descricao: "Carteira, CS, NPS, disparos e base de contatos.",
-    nome: "Base de clientes",
-    icone: Building2,
-    grupos: [
       {
+        // Moraram em Base de clientes até 23/09/2026. Vieram para a Rede junto
+        // com as chaves (migration 20260923190000): quem tem Rede abre, quem só
+        // tem Base de clientes deixa de ver.
         label: "Carteira",
         items: [
-          { title: "Base de clientes", url: "/clientes", icon: Building2 },
           { title: "CS", url: "/painel-cs", icon: UserCheck },
           {
             title: "Auditoria Interna",
@@ -290,6 +284,20 @@ export const AREAS: Area[] = [
             // por conversa e fala com o cliente em nome da rede.
             area: "disparos_whatsapp",
           },
+        ],
+      },
+    ],
+  },
+  {
+    slug: "clientes",
+    descricao: "Carteira de clientes e base de contatos.",
+    nome: "Base de clientes",
+    icone: Building2,
+    grupos: [
+      {
+        label: "Carteira",
+        items: [
+          { title: "Base de clientes", url: "/clientes", icon: Building2 },
           {
             title: "Base de Contatos",
             url: "/base-contatos",
