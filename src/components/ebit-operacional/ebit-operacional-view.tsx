@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, TrendingUp, TrendingDown, Target, Sparkles } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   BarChart,
@@ -11,9 +11,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
-import { CORES_SERIE } from "@/lib/planning/grafico";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 import {
   syncVendasServicos,
   syncCustoOperacional,
@@ -21,18 +20,33 @@ import {
   isVendida,
 } from "@/lib/ebit-operacional.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type EstadoKpi,
+} from "@/components/planning";
+import { rotuloMes } from "@/components/receita/moldura";
 import { cn } from "@/lib/utils";
+
+/**
+ * EBIT Operacional (contrato `docs/design/contratos/receita-e-repasses.md` §9).
+ * Custo zero por falta de lançamento aparecia como "EBIT zerado" em verde: sem
+ * custo lançado no mês, custo e gap ficam "não apurado" (N4). Erro de leitura
+ * vira `EstadoErro`, não card zerado nem "Nenhum card no pipe ainda".
+ */
 
 const NA = "—";
 
@@ -70,6 +84,8 @@ export function EbitOperacionalView() {
   const [vendas, setVendas] = useState<VendaRow[]>([]);
   const [custos, setCustos] = useState<CustoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroVendas, setErroVendas] = useState<string | null>(null);
+  const [erroCustos, setErroCustos] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const [vendasRes, custosRes] = await Promise.all([
@@ -79,6 +95,8 @@ export function EbitOperacionalView() {
         .limit(2000),
       supabase.from("custo_operacional_mensal").select("despesa,categoria,mes,valor").limit(5000),
     ]);
+    setErroVendas(vendasRes.error ? vendasRes.error.message : null);
+    setErroCustos(custosRes.error ? custosRes.error.message : null);
     if (vendasRes.data) setVendas(vendasRes.data as VendaRow[]);
     if (custosRes.data) setCustos(custosRes.data as CustoRow[]);
     setLoading(false);
@@ -87,6 +105,11 @@ export function EbitOperacionalView() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  const tentarDeNovo = () => {
+    setLoading(true);
+    void carregar();
+  };
 
   const syncVendasFn = useServerFn(syncVendasServicos);
   const syncCustoFn = useServerFn(syncCustoOperacional);
@@ -120,10 +143,14 @@ export function EbitOperacionalView() {
     [vendidas],
   );
 
-  const custoMesAtual = useMemo(() => {
-    const mes = mesAtualISO();
-    return custos.filter((c) => c.mes === mes).reduce((s, c) => s + (c.valor ?? 0), 0);
-  }, [custos]);
+  const mes = mesAtualISO();
+  const custosDoMes = useMemo(() => custos.filter((c) => c.mes === mes), [custos, mes]);
+  const custoMesAtual = useMemo(
+    () => custosDoMes.reduce((s, c) => s + (c.valor ?? 0), 0),
+    [custosDoMes],
+  );
+  // Sem nenhum lançamento no mês o custo não é zero: não foi lançado ainda.
+  const temCusto = custosDoMes.length > 0;
 
   const gap = custoMesAtual - mrrVendido;
   const pctCoberto = custoMesAtual > 0 ? mrrVendido / custoMesAtual : 0;
@@ -148,8 +175,22 @@ export function EbitOperacionalView() {
     [vendas],
   );
 
+  const nomeMes = rotuloMes(mes.slice(0, 7)).toLowerCase();
+  const semCustoNota = `sem custo lançado para ${nomeMes}`;
+
+  const estadoCusto: EstadoKpi = erroCustos ? "indisponivel" : temCusto ? "ok" : "nao-apurado";
+  const estadoVendas: EstadoKpi = erroVendas ? "indisponivel" : "ok";
+  const estadoGap: EstadoKpi =
+    estadoCusto !== "ok" ? estadoCusto : estadoVendas !== "ok" ? estadoVendas : "ok";
+  const notaGap =
+    estadoCusto === "nao-apurado"
+      ? semCustoNota
+      : estadoGap === "indisponivel"
+        ? "uma das fontes não carregou"
+        : `${(pctCoberto * 100).toFixed(0)}% do custo coberto`;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 px-4 py-6 md:px-6">
       <div className="flex justify-end">
         <Button
           variant="outline"
@@ -158,119 +199,141 @@ export function EbitOperacionalView() {
           disabled={sync.isPending}
           onClick={() => sync.mutate()}
         >
-          <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} />
-          Forçar atualização
+          <RefreshCw className={cn("size-4", sync.isPending && "animate-spin")} aria-hidden />
+          {sync.isPending ? "Atualizando…" : "Forçar atualização"}
         </Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Custo Operacional (mês atual)</div>
-          <div className="text-2xl font-bold">{fmtMoney(custoMesAtual)}</div>
-          <div className="text-xs text-muted-foreground mt-1">Soma dos itens · aba Controle de Gastos Geral</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">Vendido (MRR atual)</div>
-          <div className="text-2xl font-bold text-success">{fmtMoney(mrrVendido)}</div>
-          <div className="text-xs text-muted-foreground mt-1">{vendidas.length} venda(s) confirmada(s)</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
-            Gap a fechar
-            {gap <= 0 ? (
-              <TrendingUp className="h-3 w-3 text-success" />
-            ) : (
-              <TrendingDown className="h-3 w-3 text-destructive" />
-            )}
-          </div>
-          <div className={cn("text-2xl font-bold", gap <= 0 ? "text-success" : "text-destructive")}>
-            {gap <= 0 ? "EBIT zerado" : fmtMoney(gap)}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            <Target className="inline h-3 w-3 mr-0.5" />
-            {(pctCoberto * 100).toFixed(0)}% do custo coberto
-          </div>
-        </Card>
-        <Card className="p-4 border-dashed">
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <Sparkles className="h-3 w-3" />
-            Potencial pós-rampa
-          </div>
-          <div className="text-2xl font-bold text-muted-foreground">{fmtMoney(mrrPotencial)}</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Informativo — não conta pro gap oficial até acontecer
-          </div>
-        </Card>
-      </div>
-
-      {/* Funil */}
-      <Card className="p-4">
-        <div className="mb-2 text-sm font-semibold">Funil por fase (todos os cards)</div>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={funil} layout="vertical" margin={{ left: 24 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
-              <Tooltip />
-              <Bar dataKey="value" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
-      {/* Tabela */}
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <div className="text-sm font-semibold">Vendas de serviços por unidade</div>
-        </div>
+      <Secao
+        titulo={`O vendido cobre o custo de ${nomeMes}?`}
+        descricao="Custo operacional do mês corrente contra o MRR das vendas de serviço confirmadas hoje."
+      >
+        {erroCustos && (
+          <EstadoErro
+            titulo="Não foi possível ler o custo operacional; custo e gap ficam indisponíveis"
+            detalhe={erroCustos}
+            tentarNovamente={tentarDeNovo}
+          />
+        )}
+        {erroVendas && (
+          <EstadoErro
+            titulo="Não foi possível ler as vendas de serviço; vendido, gap e potencial ficam indisponíveis"
+            detalhe={erroVendas}
+            tentarNovamente={tentarDeNovo}
+          />
+        )}
         {loading ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Carregando…</div>
-        ) : listaOrdenada.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-6">Nenhum card no pipe ainda.</div>
+          <Carregando variante="kpis" />
         ) : (
-          <div className="overflow-auto max-h-[480px]">
-            <table className="w-full text-sm">
-              <TableHeader className="sticky top-0 z-10">
-                <TableRow>
-                  <TableHead className="bg-background">Solução</TableHead>
-                  <TableHead className="bg-background">Unidade</TableHead>
-                  <TableHead className="bg-background">Fase</TableHead>
-                  <TableHead className="bg-background text-right">Valor atual</TableHead>
-                  <TableHead className="bg-background text-right">Teto da rampa</TableHead>
-                  <TableHead className="bg-background">Gatilho do reajuste</TableHead>
-                  <TableHead className="bg-background">Negociação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {listaOrdenada.map((v) => {
-                  const vendida = isVendida(v.fase_atual, v.venda_feita);
-                  return (
-                    <TableRow key={v.pipefy_card_id}>
-                      <TableCell className="font-medium">{v.solucao ?? v.titulo ?? NA}</TableCell>
-                      <TableCell>{v.unidade ?? NA}</TableCell>
-                      <TableCell>
-                        <Badge variant={vendida ? "default" : v.fase_atual === "Perdido" ? "destructive" : "outline"}>
-                          {v.fase_atual ?? NA}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{fmtMoney(v.valor_mensal_1_mes)}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {v.valor_teto_rampa != null ? fmtMoney(v.valor_teto_rampa) : NA}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{v.gatilho_reajuste ?? NA}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-[280px] truncate" title={v.negociacao ?? ""}>
-                        {v.negociacao || NA}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </table>
+          <KpiGrade>
+            <KpiCard
+              rotulo="Custo operacional (mês corrente)"
+              valor={fmtMoney(custoMesAtual)}
+              estado={estadoCusto}
+              nota={
+                estadoCusto === "nao-apurado"
+                  ? semCustoNota
+                  : "soma dos itens · aba Controle de Gastos Geral"
+              }
+            />
+            <KpiCard
+              rotulo="Vendido (MRR atual)"
+              valor={fmtMoney(mrrVendido)}
+              estado={estadoVendas}
+              nota={`${vendidas.length} venda(s) confirmada(s)`}
+            />
+            <KpiCard
+              rotulo="Gap a fechar"
+              valor={gap <= 0 ? "EBIT zerado" : fmtMoney(gap)}
+              estado={estadoGap}
+              tom={gap <= 0 ? "sucesso" : "perigo"}
+              tomRotulo={gap <= 0 ? "custo coberto" : "custo não coberto"}
+              nota={notaGap}
+            />
+            <KpiCard
+              rotulo="Potencial pós-rampa"
+              valor={fmtMoney(mrrPotencial)}
+              estado={estadoVendas}
+              nota="informativo: não conta para o gap oficial até acontecer"
+            />
+          </KpiGrade>
+        )}
+      </Secao>
+
+      {!erroVendas && (
+        <Secao
+          titulo="Em que fase estão os cards de venda de serviço?"
+          descricao="Todos os cards do pipe, em quantidade de cards por fase."
+        >
+          {loading ? (
+            <Carregando variante="grafico" />
+          ) : (
+            <div className="h-64 rounded-xl border bg-card p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={funil} layout="vertical" margin={{ left: 24 }}>
+                  <CartesianGrid {...gradeProps} vertical horizontal={false} />
+                  <XAxis type="number" {...eixoProps} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" {...eixoProps} width={140} />
+                  <Tooltip {...tooltipProps} formatter={(v) => [v as number, "Cards"]} />
+                  <Bar dataKey="value" name="Cards" fill={CORES_SERIE[0]} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Secao>
+      )}
+
+      <Secao titulo="Quais serviços cada unidade comprou?" descricao="Ordenado pela fase do pipe.">
+        {erroVendas ? null : loading ? (
+          <Carregando variante="tabela" />
+        ) : listaOrdenada.length === 0 ? (
+          <EstadoVazio titulo="Nenhum card no pipe ainda" />
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="max-h-[480px] overflow-auto">
+              <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
+                <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
+                  <TableRow>
+                    <TableHead className="bg-card">Solução</TableHead>
+                    <TableHead className="bg-card">Unidade</TableHead>
+                    <TableHead className="bg-card">Fase</TableHead>
+                    <TableHead className="bg-card text-right">Valor atual</TableHead>
+                    <TableHead className="bg-card text-right">Teto da rampa</TableHead>
+                    <TableHead className="bg-card">Gatilho do reajuste</TableHead>
+                    <TableHead className="bg-card">Negociação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listaOrdenada.map((v) => {
+                    const vendida = isVendida(v.fase_atual, v.venda_feita);
+                    return (
+                      <TableRow key={v.pipefy_card_id}>
+                        <TableCell className="font-medium">{v.solucao ?? v.titulo ?? NA}</TableCell>
+                        <TableCell>{v.unidade ?? NA}</TableCell>
+                        <TableCell>
+                          <StatusBadge
+                            tom={vendida ? "sucesso" : v.fase_atual === "Perdido" ? "perigo" : "neutro"}
+                          >
+                            {v.fase_atual ?? NA}
+                          </StatusBadge>
+                        </TableCell>
+                        <TableCell className="num text-right">{fmtMoney(v.valor_mensal_1_mes)}</TableCell>
+                        <TableCell className="num text-right text-muted-foreground">
+                          {v.valor_teto_rampa != null ? fmtMoney(v.valor_teto_rampa) : NA}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{v.gatilho_reajuste ?? NA}</TableCell>
+                        <TableCell className="max-w-[280px] truncate text-xs text-muted-foreground" title={v.negociacao ?? ""}>
+                          {v.negociacao || NA}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </table>
+            </div>
           </div>
         )}
-      </Card>
+      </Secao>
     </div>
   );
 }
