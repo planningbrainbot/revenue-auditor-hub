@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, AlertTriangle, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { brl } from "@/components/audit/format";
+import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
+import { StatusBadge, type TomStatus } from "@/components/planning";
 import {
   emitirFaturasRoyalties,
   simularFaturamentoRoyalties,
@@ -34,16 +37,17 @@ import {
  * tráfego pago ficam de fora porque já saem pela rotina mensal do CSC.
  */
 
-const ROTULO: Record<string, { texto: string; cls: string }> = {
-  a_emitir: { texto: "A emitir", cls: "text-success" },
-  ja_existia: { texto: "Já no Omie", cls: "text-warning" },
-  ja_registrada: { texto: "Já emitida", cls: "text-warning" },
-  nao_fechada: { texto: "Não fechada", cls: "text-muted-foreground" },
-  sem_valor: { texto: "Sem valor", cls: "text-muted-foreground" },
-  sem_apuracao: { texto: "Sem apuração", cls: "text-muted-foreground" },
-  criada: { texto: "OS criada", cls: "text-info" },
-  faturada: { texto: "Faturada", cls: "text-success" },
-  erro: { texto: "Erro", cls: "text-destructive" },
+// Situação com ícone e palavra (StatusBadge), não só cor de texto (V7).
+const ROTULO: Record<string, { texto: string; tom: TomStatus }> = {
+  a_emitir: { texto: "A emitir", tom: "sucesso" },
+  ja_existia: { texto: "Já no Omie", tom: "atencao" },
+  ja_registrada: { texto: "Já emitida", tom: "atencao" },
+  nao_fechada: { texto: "Não fechada", tom: "neutro" },
+  sem_valor: { texto: "Sem valor", tom: "neutro" },
+  sem_apuracao: { texto: "Sem apuração", tom: "neutro" },
+  criada: { texto: "OS criada", tom: "info" },
+  faturada: { texto: "Faturada", tom: "sucesso" },
+  erro: { texto: "Erro", tom: "perigo" },
 };
 
 /** Quinto dia útil do mês seguinte à competência, a régua da rede. */
@@ -65,7 +69,26 @@ function rotuloMes(competencia: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
-export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
+export function EmitirFaturasDialog({
+  competencia,
+  unidadeId,
+  motivoIndisponivel,
+  rotulo = "Emitir faturas no Omie",
+  variante = "default",
+}: {
+  competencia: string;
+  /**
+   * Aberto da ficha de uma unidade: o lote nasce marcado só com ela (as outras
+   * continuam na lista e podem ser marcadas). Sem isso, emitir "desta
+   * unidade" mandaria a rede inteira.
+   */
+  unidadeId?: number;
+  /** Quando vem, o botão fica desabilitado e diz por quê (N8). */
+  motivoIndisponivel?: string;
+  rotulo?: string;
+  variante?: "default" | "outline";
+}) {
+  const queryClient = useQueryClient();
   const [aberto, setAberto] = useState(false);
   const [venceEm, setVenceEm] = useState("");
   const [escolhidas, setEscolhidas] = useState<number[]>([]);
@@ -77,7 +100,11 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
     mutationFn: () => simularFaturamentoRoyalties({ data: { competencia } }),
     onSuccess: (r) => {
       setPlano(r);
-      setEscolhidas(r.unidades.filter((u) => u.status === "a_emitir").map((u) => u.unidade_id));
+      setEscolhidas(
+        r.unidades
+          .filter((u) => u.status === "a_emitir" && (unidadeId === undefined || u.unidade_id === unidadeId))
+          .map((u) => u.unidade_id),
+      );
     },
     onError: (e: Error) => setErro(e.message),
   });
@@ -85,8 +112,21 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
   const emitir = useMutation({
     mutationFn: () =>
       emitirFaturasRoyalties({ data: { competencia, vence_em: venceEm, unidades: escolhidas } }),
-    onSuccess: (r) => setResultado(r),
-    onError: (e: Error) => setErro(e.message),
+    onSuccess: (r) => {
+      setResultado(r);
+      // A coluna "Fatura no Omie" da lista (e a ficha) lia a consulta antiga
+      // até o staleTime vencer: a fatura saía e a tela dizia "Não emitida".
+      void queryClient.invalidateQueries({ queryKey: ["royalties", "faturas", competencia] });
+      void queryClient.invalidateQueries({ queryKey: ["royalties", "unidades", competencia] });
+      void queryClient.invalidateQueries({ queryKey: ["royalties", "apuracao"] });
+      const { faturadas, criadas, erros } = r.resumo;
+      if (erros > 0) toast.error(`${erros} fatura(s) com erro na emissão. Veja a lista.`);
+      else toast.success(`${faturadas + criadas} fatura(s) emitida(s) no Omie.`);
+    },
+    onError: (e: Error) => {
+      setErro(e.message);
+      toast.error(e.message);
+    },
   });
 
   // Abrir o diálogo já simula: a tela nunca mostra número velho.
@@ -116,17 +156,30 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
   const jaFoi = linhas.filter((u) => u.status === "ja_existia" || u.status === "ja_registrada");
   const naoFechadas = linhas.filter((u) => u.status === "nao_fechada");
   const podeEmitir = !!venceEm && escolhidas.length > 0 && !emitir.isPending && !resultado;
+  const motivoSemEmitir = !venceEm
+    ? "Escolha a data de vencimento do boleto"
+    : emitiveis.length === 0
+      ? "Nenhuma unidade pronta para emitir: todas estão abertas, sem valor ou já faturadas"
+      : escolhidas.length === 0
+        ? "Marque ao menos uma unidade"
+        : null;
 
   function alternar(id: number) {
     setEscolhidas((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
   }
 
   return (
+    motivoIndisponivel ? (
+      <BotaoComMotivo motivo={motivoIndisponivel} variant={variante}>
+        <FileText className="h-4 w-4" aria-hidden />
+        {rotulo}
+      </BotaoComMotivo>
+    ) : (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button variant="default" className="gap-2">
-          <FileText className="h-4 w-4" />
-          Emitir faturas no Omie
+        <Button variant={variante} className="gap-2">
+          <FileText className="h-4 w-4" aria-hidden />
+          {rotulo}
         </Button>
       </DialogTrigger>
 
@@ -194,7 +247,7 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
                 </thead>
                 <tbody>
                   {linhas.map((u: LinhaFaturamento) => {
-                    const r = ROTULO[u.status] ?? { texto: u.status, cls: "" };
+                    const r = ROTULO[u.status] ?? { texto: u.status, tom: "neutro" as TomStatus };
                     const selecionavel = u.status === "a_emitir" && !resultado;
                     return (
                       <tr key={u.unidade_id} className="border-t">
@@ -226,7 +279,9 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
                         <td className="p-2 text-right font-medium tabular-nums">
                           {brl(u.total ?? 0)}
                         </td>
-                        <td className={`p-2 text-xs ${r.cls}`}>{r.texto}</td>
+                        <td className="p-2">
+                          <StatusBadge tom={r.tom}>{r.texto}</StatusBadge>
+                        </td>
                       </tr>
                     );
                   })}
@@ -275,6 +330,9 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
           <Button variant="outline" onClick={() => setAberto(false)}>
             {resultado ? "Fechar" : "Cancelar"}
           </Button>
+          {!resultado && !podeEmitir && !emitir.isPending && !simular.isPending && motivoSemEmitir && (
+            <span className="self-center text-xs text-muted-foreground">{motivoSemEmitir}</span>
+          )}
           {!resultado && (
             <Button
               disabled={!podeEmitir}
@@ -292,5 +350,6 @@ export function EmitirFaturasDialog({ competencia }: { competencia: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    )
   );
 }
