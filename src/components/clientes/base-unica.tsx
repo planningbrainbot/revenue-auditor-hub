@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Search, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,7 @@ import {
 } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS, type Conta } from "@/lib/monetizacao/types";
 import {
+  BotaoComMotivo,
   downloadCsv,
   FOCO_VISIVEL,
   Freshness,
@@ -52,8 +53,14 @@ import {
   KpiGrade,
   PageHeader,
 } from "@/components/planning";
-import { ORIGENS_BASE, origemBase, type PortfolioFilters } from "@/lib/monetizacao/portfolio";
-import { buscaDosFiltros, filtrosDaBusca } from "./busca";
+import {
+  ORIGENS_BASE,
+  origemBase,
+  type OrigemBase,
+  type PortfolioFilters,
+} from "@/lib/monetizacao/portfolio";
+import { MultiSelect } from "@/components/monetizacao/multi-select";
+import { buscaDosFiltros, filtrosDaBusca, type BuscaClientes } from "./busca";
 
 // UM menu só. Antes eram duas faixas empilhadas: estas seis abas mais as cinco do Aquário por
 // dentro. As do Aquário subiram para cá ("Base de clientes", "Produtos e listas", "Entenda os
@@ -121,11 +128,6 @@ const FUNIL = [
   ["contato", "Com contato"],
   ["ecd", "Com ECD registrada"],
 ] as const;
-const originNames: Record<string, string> = {
-  nova: "Base nova",
-  antiga: "Base antiga",
-  confirmar: "A confirmar",
-};
 const at = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
@@ -143,7 +145,7 @@ export function ClientesBase() {
     views.some(([v]) => v === search.view) || viewsOcultas.includes(search.view)
       ? search.view
       : "monetizacao";
-  const change = (patch: Record<string, string>) => {
+  const change = (patch: Partial<BuscaClientes>) => {
     setPage(1);
     void navigate({ search: { ...search, ...patch }, replace: true });
   };
@@ -165,20 +167,27 @@ export function ClientesBase() {
     enabled: view === "contatos" && perms.can("view.contatos"),
     staleTime: 30000,
   });
-  const rows = useMemo(() => {
+  // Unidades do topo resolvidas (a URL aceita chave ou nome; múltipla escolha, DECISIONS 18/09).
+  const unidadesUrl = search.unidade ?? [];
+  const origensUrl = search.origem ?? [];
+  const unidadesSelecionadas = useMemo(
+    () =>
+      unidadesUrl.length && query.data
+        ? query.data.units.filter((u) =>
+            unidadesUrl.some((v) => u.key === v || normal(u.name) === normal(v)),
+          )
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [query.data, JSON.stringify(unidadesUrl)],
+  );
+  // O recorte do topo sem a origem: os cartões de origem da gaveta da unidade contam sobre ele,
+  // para nunca mostrar 0 numa origem que o próprio clique vai aplicar (e abrir N).
+  const rowsSemOrigem = useMemo(() => {
     const data = query.data;
     if (!data) return [];
-    const selectedUnit = search.unidade
-      ? data.units.find(
-          (u) => u.key === search.unidade || normal(u.name) === normal(search.unidade),
-        )
-      : null;
-    const unitKeys = new Set(selectedUnit?.account_keys);
+    const unitKeys = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
     return data.accounts.filter((a) => {
-      if (search.unidade && !unitKeys.has(a.key)) return false;
-      // Origem pela régua da tabela (`origemBase`, 4 valores). A antiga lia `base.origin`, com 3
-      // valores e outro sentido: "A confirmar" do topo nunca casava conta sem `base`.
-      if (search.origem && origemBase(a) !== search.origem) return false;
+      if (unidadesUrl.length && !unitKeys.has(a.key)) return false;
       // A busca é uma só (a da tabela saiu): nome, segmento, unidade e CNPJ.
       if (
         search.q &&
@@ -193,7 +202,18 @@ export function ClientesBase() {
         return false;
       return true;
     });
-  }, [query.data, search.unidade, search.origem, search.q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.data, unidadesSelecionadas, search.q]);
+  // Origem pela régua da tabela (`origemBase`, 4 valores). A antiga lia `base.origin`, com 3
+  // valores e outro sentido: "A confirmar" do topo nunca casava conta sem `base`.
+  const rows = useMemo(
+    () =>
+      origensUrl.length
+        ? rowsSemOrigem.filter((a) => origensUrl.includes(origemBase(a)))
+        : rowsSemOrigem,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowsSemOrigem, JSON.stringify(origensUrl)],
+  );
   const counts = useMemo(
     () => ({
       raw: rows.length,
@@ -212,16 +232,20 @@ export function ClientesBase() {
       ? filtered.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
       : filtered;
   const accountKeys = useMemo(() => new Set(filtered.map((a) => a.key)), [filtered]);
+  const accountKeysSemOrigem = useMemo(
+    () =>
+      new Set(
+        rowsSemOrigem
+          .filter((a) => passaRefinamento(a, search.gate as Refinamento))
+          .map((a) => a.key),
+      ),
+    [rowsSemOrigem, search.gate],
+  );
   // Filtros da tabela da Base, lidos da URL. A assinatura segura a identidade do objeto: a
   // tabela recalcula a carteira inteira quando ele muda.
-  const unidadeKey =
-    (search.unidade &&
-      query.data?.units.find(
-        (u) => u.key === search.unidade || normal(u.name) === normal(search.unidade),
-      )?.key) ||
-    null;
+  const unidadeKeys = unidadesSelecionadas.map((u) => u.key);
   const assinaturaFiltros = JSON.stringify([
-    unidadeKey,
+    unidadeKeys,
     search.origem,
     search.produto,
     search.situacao,
@@ -235,7 +259,7 @@ export function ClientesBase() {
     search.sobreposicao,
   ]);
   const filtros = useMemo(
-    () => filtrosDaBusca(search, unidadeKey),
+    () => filtrosDaBusca(search, unidadeKeys),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [assinaturaFiltros],
   );
@@ -276,7 +300,23 @@ export function ClientesBase() {
   );
   // A visão Contratos e churn lê as próprias fontes (empresas, Central de Tratativas): não espera
   // a carga da Monetização, e uma falha dela não tranca esta visão.
-  if (view === "contratos")
+  if (view === "contratos") {
+    // Contratos filtra UMA unidade, por nome. A chave da URL só vira nome quando a carga chega;
+    // antes disso a visão abre sem unidade e sincroniza depois (useEffect em ContratosClientes).
+    const falhou = !!query.error && !query.data;
+    const nomes = query.data
+      ? unidadesUrl.map(
+          (v) =>
+            query.data!.units.find((u) => u.key === v || normal(u.name) === normal(v))?.name ?? v,
+        )
+      : [];
+    const aviso = !unidadesUrl.length
+      ? null
+      : falhou
+        ? "A unidade da URL não pôde ser resolvida (a carga da Base falhou): a lista abre sem filtro de unidade."
+        : nomes.length > 1
+          ? "Contratos e churn filtra uma unidade por vez: a lista abre sem filtro de unidade."
+          : null;
     return (
       <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
         <PageHeader
@@ -285,17 +325,21 @@ export function ClientesBase() {
           descricao="Clientes com contrato na base de empresas · churn pela Central de Tratativas"
         />
         {nav}
+        {aviso && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {aviso}
+          </p>
+        )}
         <ContratosClientes
           statusParam={search.status}
           // A Base guarda a CHAVE da unidade na URL (`monetizacao_unidades.key`), e a de
           // contratos filtra por nome (`empresas.unidade`). Sem traduzir aqui, trocar de visão
-          // com uma unidade filtrada zerava a lista inteira. Sem a carga, vale o que veio.
-          unidadeParam={
-            query.data?.units.find((u) => u.key === search.unidade)?.name ?? search.unidade
-          }
+          // com uma unidade filtrada zerava a lista inteira.
+          unidadeParam={nomes.length === 1 ? nomes[0] : ""}
         />
       </main>
     );
+  }
   if (!query.data) {
     const erro = query.error;
     return (
@@ -330,7 +374,7 @@ export function ClientesBase() {
       Empresa: a.name,
       CNPJ: a.base?.cnpjs.join(" / ") || "",
       Unidade: a.unit_label || "A confirmar",
-      Origem: originNames[a.base?.origin || "confirmar"],
+      Origem: ORIGENS_BASE[origemBase(a)],
       Motivo: a.base?.origin_reason || "",
       Origem_no_Pipefy: a.base?.declared_origin.join(" / ") || "",
       Omie: a.base?.omie_units.join(" / ") || "",
@@ -375,10 +419,10 @@ export function ClientesBase() {
       setRefreshing(false);
     }
   };
-  const unidadeAtual = search.unidade
-    ? data.units.find((u) => u.key === search.unidade || normal(u.name) === normal(search.unidade))
-    : undefined;
-  const perimetro = unidadeAtual ? unidadeAtual.name : "todas as unidades liberadas";
+  const perimetro = unidadesSelecionadas.length
+    ? unidadesSelecionadas.map((u) => u.name).join(", ")
+    : "todas as unidades liberadas";
+  const temFiltroTopo = !!(search.q || unidadesUrl.length || origensUrl.length || search.gate);
   const descricao =
     view === "produtos"
       ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · Consultoria, Cella, Finance e Recon, cada um pela própria régua · a mesma conta pode estar em mais de um produto`
@@ -407,13 +451,7 @@ export function ClientesBase() {
       />
       {nav}
       <>
-        <BarraFiltros
-          aoLimpar={
-            search.q || search.unidade || search.origem || search.gate
-              ? () => change({ q: "", unidade: "", origem: "", gate: "" })
-              : undefined
-          }
-        >
+        <BarraFiltros>
           {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
               Base não tem controle próprio para elas. */}
           <label className="relative min-w-56 flex-1">
@@ -426,32 +464,25 @@ export function ClientesBase() {
               onChange={(e) => change({ q: e.target.value })}
             />
           </label>
-          <select
-            aria-label="Unidade"
-            className={`${inputClass} w-auto`}
-            value={search.unidade}
-            onChange={(e) => change({ unidade: e.target.value })}
-          >
-            <option value="">Todas as unidades liberadas</option>
-            {units.map((u) => (
-              <option key={u.key} value={u.key}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Origem da base"
-            className={`${inputClass} w-auto`}
-            value={search.origem}
-            onChange={(e) => change({ origem: e.target.value })}
-          >
-            <option value="">Todas as origens</option>
-            {Object.entries(ORIGENS_BASE).map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
+          {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
+          <div className="w-56">
+            <MultiSelect
+              label="Unidade"
+              placeholder="Todas as unidades liberadas"
+              value={unidadeKeys}
+              onChange={(v) => change({ unidade: v.length ? v : undefined })}
+              options={units.map((u) => ({ value: u.key, label: u.name }))}
+            />
+          </div>
+          <div className="w-56">
+            <MultiSelect
+              label="Origem da base"
+              placeholder="Todas as origens"
+              value={origensUrl}
+              onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
+              options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
+            />
+          </div>
           {search.gate && (
             <ChipFiltro
               rotulo="Refinamento"
@@ -459,6 +490,19 @@ export function ClientesBase() {
               aoRemover={() => change({ gate: "" })}
             />
           )}
+          {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
+          <BotaoComMotivo
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-muted-foreground"
+            disabled={!temFiltroTopo}
+            motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
+            onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
+          >
+            <X className="size-4" aria-hidden />
+            Limpar filtros
+          </BotaoComMotivo>
         </BarraFiltros>
         <KpiGrade colunas={4}>
           {FUNIL.map(([gate, label], index) => {
@@ -468,14 +512,15 @@ export function ClientesBase() {
                 key={gate}
                 rotulo={`${index + 1} · ${label}`}
                 valor={number(counts[gate || "raw"])}
-                nota={
+                nota={`${
                   index === 0
                     ? "Contas conciliadas, sem multiplicar por contato"
                     : "Dentro do degrau anterior"
-                }
+                }${ativo && gate ? " · filtro aplicado" : ""}`}
                 abrir={{
-                  rotulo: ativo ? "Aplicado" : "Filtrar",
-                  onClick: () => change({ gate }),
+                  // Clicar de novo no degrau aplicado tira o filtro (volta à base bruta).
+                  rotulo: ativo && gate ? "Tirar o filtro" : "Filtrar",
+                  onClick: () => change({ gate: ativo ? "" : gate }),
                 }}
                 className={ativo ? "border-primary-text" : undefined}
               />
@@ -514,66 +559,73 @@ export function ClientesBase() {
             accountKeys={accountKeys}
             secao={SECOES_AQUARIO[view]}
             irPara={(s) => change({ view: VIEW_DA_SECAO[s] })}
+            accountKeysSemOrigem={accountKeysSemOrigem}
             filtros={filtros}
             mudarFiltros={mudarFiltros}
-            recorte={`${search.unidade}|${search.origem}|${search.gate}`}
+            recorte={JSON.stringify([unidadeKeys, origensUrl, search.gate])}
           />
         ) : view === "contatos" ? (
-          <section className="overflow-hidden rounded-xl border bg-card">
-            <div className="border-b p-4 text-sm font-medium">
-              {contactsRows.length} pessoas vinculadas às empresas deste recorte
-            </div>
-            {!perms.can("view.contatos") ? (
-              <p className="p-4 text-sm">Seu acesso não inclui os dados dos contatos.</p>
-            ) : contacts.isPending ? (
-              <p className="p-4">Carregando contatos…</p>
-            ) : contacts.isError ? (
-              <p className="p-4 text-destructive">
-                Não foi possível consultar os contatos. Atualize para tentar novamente.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-                    <tr>
-                      {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
-                        <th key={h} className="p-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contactsRows.map((c) => (
-                      <tr key={c.id} className="border-t">
-                        <td className="p-3">
-                          {c.name}
-                          <div className="text-xs text-muted-foreground">{c.role}</div>
-                        </td>
-                        <td className="p-3">{c.email || "—"}</td>
-                        <td className="p-3">{c.phone || "—"}</td>
-                        <td className="p-3">
-                          {c.accounts
-                            .filter((k) => accountKeys.has(k))
-                            .map((k) => (
-                              <button
-                                key={k}
-                                className="block text-left text-primary-text underline"
-                                onClick={() =>
-                                  setDetail(data.accounts.find((a) => a.key === k) || null)
-                                }
-                              >
-                                {data.accounts.find((a) => a.key === k)?.name}
-                              </button>
-                            ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          // O número de pessoas só aparece com o dado: sem acesso ou carregando, "0 pessoas"
+          // parecia recorte vazio (N4).
+          !perms.can("view.contatos") ? (
+            <EstadoSemAcesso oQueFalta="view.contatos" />
+          ) : contacts.isPending ? (
+            <Carregando variante="tabela" />
+          ) : contacts.isError ? (
+            <EstadoErro
+              detalhe="Fonte: contatos vinculados no seu escopo."
+              tentarNovamente={() => void contacts.refetch()}
+            />
+          ) : (
+            <section className="overflow-hidden rounded-xl border bg-card">
+              <div className="border-b p-4 text-sm font-medium">
+                {number(contactsRows.length)} pessoas vinculadas às empresas deste recorte
               </div>
-            )}
-          </section>
+              {
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                      <tr>
+                        {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
+                          <th key={h} className="p-3">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contactsRows.map((c) => (
+                        <tr key={c.id} className="border-t">
+                          <td className="p-3">
+                            {c.name}
+                            <div className="text-xs text-muted-foreground">{c.role}</div>
+                          </td>
+                          <td className="p-3">{c.email || "—"}</td>
+                          <td className="p-3">{c.phone || "—"}</td>
+                          <td className="p-3">
+                            {c.accounts
+                              .filter((k) => accountKeys.has(k))
+                              .map((k) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
+                                  onClick={() =>
+                                    setDetail(data.accounts.find((a) => a.key === k) || null)
+                                  }
+                                >
+                                  {data.accounts.find((a) => a.key === k)?.name}
+                                </button>
+                              ))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </section>
+          )
         ) : (
           <section className="overflow-hidden rounded-xl border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
@@ -627,8 +679,8 @@ export function ClientesBase() {
                       </td>
                       <td className="max-w-[180px] px-4 py-3">{a.unit_label || "A confirmar"}</td>
                       <td className="px-4 py-3">
-                        <Badge variant={a.base?.origin === "confirmar" ? "outline" : "secondary"}>
-                          {originNames[a.base?.origin || "confirmar"]}
+                        <Badge variant={origemBase(a) === "confirmar" ? "outline" : "secondary"}>
+                          {ORIGENS_BASE[origemBase(a)]}
                         </Badge>
                         {view === "pendencias" && (
                           <p className="mt-2 max-w-xs text-xs text-muted-foreground">

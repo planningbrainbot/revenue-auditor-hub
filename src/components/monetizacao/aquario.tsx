@@ -102,6 +102,7 @@ export function Aquario({
   filtros,
   mudarFiltros,
   recorte,
+  accountKeysSemOrigem,
 }: {
   embedded?: boolean;
   accountKeys?: Set<string>;
@@ -116,6 +117,11 @@ export function Aquario({
   mudarFiltros?: (f: Filters, destino?: SecaoAquario) => void;
   /** Assinatura do recorte do topo (unidade, origem, refinamento): mudou, a seleção é limpa. */
   recorte?: string;
+  /**
+   * Contas do recorte do topo SEM o filtro de origem: os cartões de origem da gaveta contam sobre
+   * elas, porque o clique aplica a origem (contar com ela mostraria 0 e abriria N).
+   */
+  accountKeysSemOrigem?: Set<string>;
 } = {}) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -157,6 +163,11 @@ export function Aquario({
   if (!data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
   const unitKeys = new Set(unit?.account_keys);
   const unitAccounts = unit ? data.accounts.filter((a) => unitKeys.has(a.key)) : data.accounts;
+  const unitAccountsSemOrigem = accountKeysSemOrigem
+    ? (q.data?.accounts ?? []).filter(
+        (a) => accountKeysSemOrigem.has(a.key) && (!unit || unitKeys.has(a.key)),
+      )
+    : unitAccounts;
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -524,7 +535,7 @@ export function Aquario({
                 <Kpi
                   key={key}
                   label={label}
-                  value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
+                  value={number(unitAccountsSemOrigem.filter((a) => origemBase(a) === key).length)}
                   // Na Base de clientes a origem é o filtro do topo, que fica atrás da gaveta:
                   // clicar de novo na origem aplicada tira o filtro, sem precisar fechar.
                   nota={
@@ -673,12 +684,17 @@ function PortfolioTable({
   );
   return (
     <SecaoCartao
-      titulo={
+      titulo={`${
         inUnit
           ? "Quais contas desta unidade você vai trabalhar?"
           : product
             ? `Quais contas de ${NOMES[product]} estão prontas para trabalhar?`
             : "Quais contas atendem ao recorte?"
+      } · ${number(rows.length)} de ${number(accounts.length)}`}
+      descricao={
+        product
+          ? "Os cinco cartões dividem as contas do filtro por situação no produto; o quinto, “Fora da regra”, são as que a régua do produto não aceita. Clique num cartão para filtrar a tabela e de novo para tirar."
+          : undefined
       }
       acoes={
         <div className="flex flex-wrap gap-2">
@@ -795,11 +811,19 @@ function PortfolioTable({
           </BotaoComMotivo>
           <BotaoComMotivo
             size="sm"
-            disabled={!data.permissions.send || !selected.length || acimaDoLimite}
+            disabled={
+              !data.permissions.send ||
+              !selected.length ||
+              acimaDoLimite ||
+              (!!product && !enviaveis.length)
+            }
             motivo={[
               !data.permissions.send &&
                 "Exige send.monetizacao: seu acesso não permite enviar ao Pipedrive.",
               !selected.length && "Selecione as contas para enviar.",
+              !!product &&
+                !enviaveis.length &&
+                `Nenhuma das selecionadas está apta e disponível em ${NOMES[product]}.`,
               acimaDoLimite &&
                 `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`,
             ]}

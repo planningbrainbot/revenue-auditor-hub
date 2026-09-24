@@ -223,6 +223,11 @@ export function ContratosClientes({
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [unidade, setUnidade] = useState(unidadeParam || ALL);
+  // A casca só resolve a chave da unidade em nome quando a carga da Base chega: o parâmetro muda
+  // depois da montagem, e sem sincronizar a lista ficava sem a unidade pedida (ou com a antiga).
+  useEffect(() => {
+    setUnidade(unidadeParam || ALL);
+  }, [unidadeParam]);
   const [statusFilter, setStatusFilter] = useState<StatusFinanceiro | null>(
     statusParam ? (statusParam as StatusFinanceiro) : null,
   );

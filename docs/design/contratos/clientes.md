@@ -8,7 +8,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Levantado em `b5c44d7` (`cl
 - **Um "Atualizar" só**: o do cabeçalho passa a ser o do `Freshness` (dispara a carga do CRM com escopo geral; sem ele, relê e diz o motivo). Hoje há dois com efeitos diferentes.
 - A visão **Contratos e churn não espera a carga da Monetização** para abrir (hoje uma falha de `carregarMonetizacao` tranca a visão que não usa esses dados).
 - Sem acesso: `EstadoSemAcesso` com a chave (hoje a mensagem do servidor aparece como erro).
-- Filtros da tabela da Base (unidade, origem, faturamento, Driva, segmento, regime, Receita, contato, produto, situação, abordagem, sobreposição) vão para a URL; **a busca, a unidade e a origem deixam de existir duas vezes** (topo em URL × tabela em estado): fica a do topo, e a origem passa a ter os 4 valores de `origemBase` com os mesmos rótulos.
+- Filtros da tabela da Base (unidade, origem, faturamento, Driva, segmento, regime, Receita, contato, produto, situação, abordagem, sobreposição) vão para a URL; **a busca, a unidade e a origem deixam de existir duas vezes** (topo em URL × tabela em estado): fica a do topo, e a origem passa a ter os 4 valores de `origemBase` com os mesmos rótulos. **Unidade e origem continuam de múltipla escolha** (DECISIONS 18/09, "Filtros de múltipla escolha"): no topo são `MultiSelect`, e na URL `unidade` e `origem` são listas (link antigo com valor único continua valendo). Contratos e churn filtra uma unidade por vez: com mais de uma, ou sem a carga para resolver a chave, abre sem unidade e diz por quê (revisão da C1, 24/09).
 
 | `view` | Título (menu interno) | Pergunta (N1) | Arquétipo |
 |---|---|---|---|

@@ -30,10 +30,14 @@ export const VIEWS_CLIENTES = [
 export type BuscaClientes = {
   view: string;
   status: string;
-  unidade: string;
+  /**
+   * Unidades do topo, múltipla escolha (DECISIONS 18/09): chave de `monetizacao_unidades` ou
+   * nome. Link antigo com valor único (`?unidade=abc`) vira lista de um.
+   */
+  unidade?: string[];
   q: string;
-  /** Uma das 4 chaves de `ORIGENS_BASE` (régua `origemBase`), ou "". */
-  origem: string;
+  /** Chaves de `ORIGENS_BASE` (régua `origemBase`), múltipla escolha; valor único antigo aceito. */
+  origem?: OrigemBase[];
   gate: string;
   produto?: Produto;
   /** Situação no produto. Ausente = a situação padrão do produto; `["todas"]` = todas. */
@@ -66,13 +70,14 @@ const umDe = <T extends string>(opcoes: readonly T[], v: unknown): T | undefined
   typeof v === "string" && (opcoes as readonly string[]).includes(v) ? (v as T) : undefined;
 
 export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes {
-  const origem = umDe(Object.keys(ORIGENS_BASE) as OrigemBase[], s.origem) ?? "";
+  const chavesOrigem = Object.keys(ORIGENS_BASE);
+  const origem = lista(s.origem)?.filter((o): o is OrigemBase => chavesOrigem.includes(o));
   return {
     view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "monetizacao",
     status: texto(s.status),
-    unidade: texto(s.unidade),
+    unidade: lista(s.unidade),
     q: texto(s.q),
-    origem,
+    origem: origem?.length ? origem : undefined,
     gate: umDe(["cnpj", "contato", "ecd"], s.gate) ?? "",
     produto: umDe(PRODUTOS, s.produto),
     situacao: lista(s.situacao),
@@ -88,15 +93,15 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
 }
 
 /**
- * Filtros da tabela da Base a partir da URL. `unidadeKey` é a unidade do topo já resolvida
+ * Filtros da tabela da Base a partir da URL. `unidadeKeys` são as unidades do topo já resolvidas
  * (a URL aceita chave ou nome); a busca não entra aqui porque o topo já recorta as contas antes
  * de a tabela recebê-las.
  */
-export function filtrosDaBusca(b: BuscaClientes, unidadeKey: string | null): PortfolioFilters {
+export function filtrosDaBusca(b: BuscaClientes, unidadeKeys: string[]): PortfolioFilters {
   return {
     ...EMPTY_PORTFOLIO_FILTERS,
-    unit: unidadeKey ? [unidadeKey] : [],
-    origin: b.origem ? [b.origem as OrigemBase] : [],
+    unit: unidadeKeys,
+    origin: b.origem ?? [],
     product: b.produto ?? "",
     status: b.situacao ?? [],
     approach: b.abordagem ?? [],
@@ -113,16 +118,17 @@ export function filtrosDaBusca(b: BuscaClientes, unidadeKey: string | null): Por
 const vazio = (l: string[]) => (l.length ? l : undefined);
 
 /**
- * O caminho inverso: o que a tabela gravou vira chaves da URL. Unidade e busca não são escritas
- * (são do topo); a origem é, porque o topo e os atalhos da tabela (KPIs de origem da gaveta,
- * "Conferir regime da base retroativa") mexem no mesmo filtro.
+ * O caminho inverso: o que a tabela gravou vira chaves da URL, sem descartar valor (múltipla
+ * escolha). Unidade e busca não são escritas (são do topo); a origem é, porque o topo e os
+ * atalhos da tabela (KPIs de origem da gaveta, "Conferir regime da base retroativa") mexem no
+ * mesmo filtro.
  */
 export function buscaDosFiltros(f: PortfolioFilters): Partial<BuscaClientes> {
   const padrao = situacoesIniciais(f.product);
   const situacaoPadrao =
     f.status.length === padrao.length && f.status.every((s, i) => s === padrao[i]);
   return {
-    origem: f.origin[0] ?? "",
+    origem: vazio(f.origin) as OrigemBase[] | undefined,
     produto: f.product || undefined,
     situacao: situacaoPadrao ? undefined : vazio(f.status),
     abordagem: vazio(f.approach) as Abordagem[] | undefined,
