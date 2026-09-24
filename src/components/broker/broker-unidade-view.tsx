@@ -49,10 +49,13 @@ import {
 import {
   Carregando,
   EstadoErro,
+  EstadoSemAcesso,
   EstadoVazio,
   KpiCard,
   KpiGrade,
   Procedencia,
+  StatusBadge,
+  type TomStatus,
 } from "@/components/planning";
 import { BotaoComMotivo } from "@/components/gente/estados-gente";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
@@ -68,6 +71,15 @@ const cb = (v: number | null | undefined) =>
   v === null || v === undefined
     ? NA
     : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} CB`;
+
+// Situação da fatura: ícone + palavra (V7), com acento.
+const STATUS_FATURA: Record<string, { rotulo: string; tom: TomStatus }> = {
+  aberta: { rotulo: "Aberta", tom: "atencao" },
+  paga: { rotulo: "Paga", tom: "sucesso" },
+  cancelada: { rotulo: "Cancelada", tom: "neutro" },
+};
+const statusFatura = (v: string) =>
+  STATUS_FATURA[v] ?? { rotulo: v.charAt(0).toUpperCase() + v.slice(1), tom: "neutro" as const };
 
 const dataCurta = (v: string | null) =>
   v ? new Date(v).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : NA;
@@ -303,34 +315,62 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
     };
   }, [data?.fila, busca]);
 
-  if (isLoading) return <Carregando variante="kpis" />;
-  if (error)
-    return (
-      <EstadoErro
-        titulo="Não foi possível ler o Broker da sua unidade"
-        detalhe={
-          error instanceof Error ? `Resposta do servidor: ${error.message}` : "Falha ao carregar."
-        }
-        tentarNovamente={recarregar}
+  // Procedência da fila (N3), visível também nos estados degradados.
+  const procedencia =
+    secao === "oportunidades" ? (
+      <Procedencia
+        fonte="Broker: fila da rede (Pipedrive, sync a cada 15 min) e saldo da unidade"
+        atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+        regua="1 CashBrain = R$ 1,00"
       />
+    ) : null;
+
+  if (isLoading)
+    return (
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        {procedencia}
+      </div>
     );
+  if (error) {
+    const msg = error instanceof Error ? error.message : "Falha ao carregar.";
+    // O servidor recusa com "Acesso negado: …" quando falta view.broker.
+    return (
+      <div className="space-y-4">
+        {msg.startsWith("Acesso negado") ? (
+          <EstadoSemAcesso oQueFalta="view.broker" />
+        ) : (
+          <EstadoErro
+            titulo="Não foi possível ler o Broker da sua unidade"
+            detalhe={`Resposta do servidor: ${msg}`}
+            tentarNovamente={recarregar}
+          />
+        )}
+        {procedencia}
+      </div>
+    );
+  }
   if (!data) return null;
 
   if (data.semVinculo)
     return (
-      <EstadoVazio
-        titulo="Seu usuário ainda não está vinculado a uma unidade"
-        descricao="Sem esse vínculo não dá para mostrar o seu saldo nem reservar cliente. Peça à matriz para fazer a ligação do seu login com a unidade."
-      />
+      <div className="space-y-4">
+        <EstadoVazio
+          titulo="Seu usuário ainda não está vinculado a uma unidade"
+          descricao="Sem esse vínculo não dá para mostrar o seu saldo nem reservar cliente. Peça à matriz para fazer a ligação do seu login com a unidade."
+        />
+        {procedencia}
+      </div>
     );
 
   const s = data.saldo;
   const cacSaldo = data.cacSaldo;
   // Saldo negativo é crédito da unidade: ela pagou mais do que foi cobrada.
   const cacDevendo = (cacSaldo?.a_pagar ?? 0) > 0;
-  // Apresentação só: com o saldo exibido abaixo do preço, o botão diz o motivo
-  // antes de o servidor recusar. A regra de saldo continua no servidor.
-  const saldoInsuficiente = (o: FilaUnidadeRow) =>
+  // Aviso, não trava (decisão da revisão de 24/09): a tela da unidade não sabe
+  // se `bloqueio_por_saldo` está ligado, então quem decide é o servidor, e a
+  // recusa volta pelo toast.
+  const saldoAbaixoDoPreco = (o: FilaUnidadeRow) =>
     o.preco_cb !== null &&
     s?.disponivel !== null &&
     s?.disponivel !== undefined &&
@@ -441,17 +481,18 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
                   </div>
                   <BotaoComMotivo
                     size="sm"
-                    disabled={simulando || saldoInsuficiente(o)}
-                    motivo={[
-                      simulando && motivoSimulacao,
-                      saldoInsuficiente(o) &&
-                        `Saldo insuficiente: o disponível é ${cb(s?.disponivel)} e o preço é ${cb(o.preco_cb)}.`,
-                    ]}
+                    disabled={simulando}
+                    motivo={simulando ? motivoSimulacao : null}
                     onClick={() => setConfirmando(o)}
                   >
                     <ShoppingCart className="mr-1.5 h-3.5 w-3.5" /> Reservar
                   </BotaoComMotivo>
                 </div>
+                {saldoAbaixoDoPreco(o) ? (
+                  <p className="text-[13px] text-muted-foreground">
+                    O saldo exibido é menor que o preço; a reserva pode ser recusada.
+                  </p>
+                ) : null}
               </Card>
             ))}
           </div>
@@ -473,11 +514,7 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
               />
             )
           ) : null}
-          <Procedencia
-            fonte="Broker: fila da rede (Pipedrive, sync a cada 15 min) e saldo da unidade"
-            atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
-            regua="1 CashBrain = R$ 1,00"
-          />
+          {procedencia}
         </div>
       ) : null}
 
@@ -700,15 +737,9 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
                         <span className="text-muted-foreground">· {cb(f.valor_cb)}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            f.status === "paga" && "bg-success/10 text-success",
-                            f.status === "aberta" && "bg-warning/10 text-warning",
-                          )}
-                        >
-                          {f.status}
-                        </Badge>
+                        <StatusBadge tom={statusFatura(f.status).tom}>
+                          {statusFatura(f.status).rotulo}
+                        </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
                         {f.status === "aberta" ? (

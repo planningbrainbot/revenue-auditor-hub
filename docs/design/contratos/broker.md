@@ -7,7 +7,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Saldo, preço, multiplicado
 - **Pergunta:** "Que oportunidade eu pego agora, e quanto de CashBrain ela custa?"
 - **Universo:** "Fila da rede · saldo da unidade em CashBrain (CB)".
 - Números: Disponível (saldo CB; nota crédito recebido e comprado) · Reservado (CB bloqueado · {n} clientes) · Investido. Cards crus → `KpiCard`.
-- Ação principal: **Reservar** (diálogo já diz quanto bloqueia). **[apresentação]** Com saldo menor que o preço, o botão fica desabilitado com o motivo "saldo insuficiente" (hoje o erro só volta do servidor). A regra de saldo continua no servidor.
+- Ação principal: **Reservar** (diálogo já diz quanto bloqueia). **[apresentação, revisto em 24/09]** O saldo não trava o botão: com o saldo exibido menor que o preço, a fila mostra ao lado o aviso não bloqueante "O saldo exibido é menor que o preço; a reserva pode ser recusada.", e a recusa continua vindo do servidor pelo toast. Motivo: a tela da unidade não sabe se `bloqueio_por_saldo` está ligado (só a Matriz lê essa configuração), e travar no cliente impediria uma reserva que o servidor aceita quando o bloqueio está desligado. O botão só fica desabilitado, com motivo, durante o "ver como". A regra de saldo continua no servidor.
 - Busca na URL. Estados já completos; passam para os componentes do DS.
 
 ## `/broker/admin` · Matriz (Configuração + Lista)
