@@ -68,7 +68,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 
 **Quando usar:** a pessoa entra para trabalhar uma lista de itens, um por vez, e registra o que fez. A ordem padrão é a ordem de trabalho (N5).
 
-**Pergunta típica:** "Quem eu ligo agora, com qual argumento, e onde parei?" (Fila Cella, `FC:1385-1442`).
+**Pergunta típica:** "Quem eu ligo agora, com qual argumento, e onde parei?" (Fila Cella, `FC:1385-1442`; tela aposentada em 24/09, hoje o exemplo vivo é o Follow Day).
 
 **Anatomia, em ordem:**
 1. `PageHeader` com pergunta, universo (quem opera, cadência), `procedencia`.
@@ -110,7 +110,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 - Botão sem permissão escondido em vez de desabilitado com motivo (N8).
 - Abas "Fila / Novos / Log / Dicionário" sem URL (`/fila-cella` hoje).
 
-**Rotas atuais que deveriam seguir:** `/fila-cella`, `/broker` (Fila de oportunidades), `/monetizacao?aba=operacao` e `?aba=follow-day`, `/nps` (execução: disparar e registrar ligação), a visão "Validar origem" de `/clientes`, tratativas de `/painel-cs`, `/contas-receber` (hoje é consulta sem ação; a spec diz "cobrar").
+**Rotas atuais que deveriam seguir:** `/broker` (Fila de oportunidades), `/monetizacao?aba=operacao` e `?aba=follow-day`, `/nps` (execução: disparar e registrar ligação), a visão "Validar origem" de `/clientes`, tratativas de `/painel-cs`, `/contas-receber` (hoje é consulta sem ação; a spec diz "cobrar").
 
 ---
 
@@ -198,7 +198,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 - Três botões `default` competindo.
 - Ficha que recalcula o total de outro jeito que a lista de origem (DECISIONS 22/09: "uma abertura que discorda da tela de detalhe destrói a confiança nas duas").
 
-**Rotas atuais que deveriam seguir:** `/royalties/$unidadeId/$mes`, ficha da empresa (hoje `Sheet` em `/clientes` e em `/fila-cella`), `/reforma-tributaria` (simulação para um cliente), `/gente?tela=pdi` e `?tela=avaliacao` quando abertos para uma pessoa.
+**Rotas atuais que deveriam seguir:** `/royalties/$unidadeId/$mes`, ficha da empresa (hoje `Sheet` em `/clientes`), `/reforma-tributaria` (simulação para um cliente), `/gente?tela=pdi` e `?tela=avaliacao` quando abertos para uma pessoa.
 
 ---
 

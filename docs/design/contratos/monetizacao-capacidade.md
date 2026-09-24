@@ -1,7 +1,7 @@
 # Contrato · Capacidade e alocação (`/monetizacao?aba=capacidade`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "A base disponível cobre o que planejamos trabalhar em cada produto neste mês?"

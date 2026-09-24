@@ -1,7 +1,7 @@
 # Contrato · Operação diária (`/monetizacao`, `?aba=operacao`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum (cabeçalho, filtros, estados, detalhe): `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum (cabeçalho, filtros, estados, detalhe): `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "O ritmo de hoje leva à meta do mês?"

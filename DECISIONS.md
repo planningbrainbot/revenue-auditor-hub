@@ -2821,3 +2821,20 @@ tem `todas_unidades` lê tudo.
 3. **Growth fica fora desta rodada.** O Pedro notou que o Growth parece segregado (outro menu, outra casca): é outro app (`brain-web`, Next.js, do Mika) montado em `/growth`. A casca única é decisão do Eliezek com o Mika (DECISIONS 14/09).
 
 **Status:** Fila Cella aposentada no código da branch `feat/ds-v2-migracao-monetizacao-20260923` (não publicada). Migração das nove visões em andamento; PR ao fim do módulo.
+
+
+## [2026-09-24] Base de clientes no DS v2: filtros na URL, busca única, cartões que batem com o destino
+
+**Contexto:** módulo 3b da migração (contrato docs/design/contratos/clientes.md, propostas aprovadas pelo Pedro em 24/09). Regras de oferta, disponibilidade, limite de 300, reserva, envio e RLS não mudam.
+
+**Decisões:**
+1. **Estado na URL** (components/clientes/busca.ts). Chaves antigas (view, status, unidade, q, origem, gate) continuam aceitas. Novas: produto, situacao (ausente = situação padrão do produto; "todas" = todas), abordagem, faixa, driva, segmento, regime, receita, contato, sobreposicao, pagina (Validar origem e Contratos; volta a 1 ao trocar de visão ou de filtro), churn, erp, segmentoContrato (chave própria, porque segmento da Base é outra régua), assinatura. Valor igual ao padrão não vai para a URL.
+2. **Unidade e origem continuam de múltipla escolha** (18/09): MultiSelect no topo, lista na URL; link antigo com valor único vira lista de um. Contratos e churn filtra uma unidade por vez e grava o nome; com mais de uma, ou sem a carga da Base, abre sem unidade e diz por quê.
+3. **A origem do topo passa a usar origemBase (4 valores)**, a mesma régua da tabela. Antes lia base.origin (3 valores) e "A confirmar" nunca casava conta sem base: o mesmo link ?origem=confirmar passa a trazer mais contas.
+4. **Busca única (q) para todas as visões**, inclusive Contratos. Em Contratos a busca é mais estreita: só razão social, título e CNPJ, sem segmento nem unidade, e dígitos soltos não casam com CNPJ formatado. O texto acompanha a troca de visão; se já houver texto em q ao abrir Contratos, a busca no Omie dispara; o selo "Validar origem (N)" conta sobre ele.
+5. **Cartões e números que filtram abrem o destino com o mesmo objeto de filtro**, e o total bate (N2). Não abrem, de propósito: "carteira retroativa (base inteira)" (nenhuma situação da tabela é esse conjunto) e as duas linhas de disponibilidade da matriz em "Entenda os números" (incluem os só no Omie).
+6. **"Enviar ao Pipedrive (N)" mostra o N do modal**, inclusive os só no Omie; o modal diz quantos são. Com produto escolhido e nenhuma selecionada enviável, o botão fica desabilitado com o motivo (antes abria o modal vazio).
+7. **Contratos e churn:** "Clientes sem churn" (sem card na Central de Tratativas) × "Pagou nos últimos 90 dias" (status_financeiro=ATIVO); 100 por página; falha na leitura de unidades ou de tratativas vira EstadoErro (antes lista vazia ou churn zerado com cara de dado).
+8. **Um "Atualizar" só (o do Freshness):** com escopo geral dispara a carga; sem ele relê e diz por quê. O selo de Validar origem conta depois do refinamento, como o cabeçalho. A fila ordena por correção no Pipefy, motivo, unidade e nome.
+
+**Status:** branch feat/ds-v2-migracao-monetizacao-20260923 (commits d6dba22..dc3cd17), não publicada.

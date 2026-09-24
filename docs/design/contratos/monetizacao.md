@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** Matheus Carvalho (hunter), Samira; gestão comercial na daily   **Dono do código:** Pedro Luca (telas) · Eliezek (casca, `areas.ts`, merge)   **Data:** 23/09/2026
 
-Estado: **rascunho, aguardando "contrato ok" do Pedro.**
+Estado: **aprovado pelas propostas** (Pedro, 24/09).
 
 Este arquivo vale para as nove visões de `/monetizacao`. Cada visão tem contrato próprio (`monetizacao-<aba>.md`) com pergunta, números e ações; aqui fica o que é igual em todas: cabeçalho, filtros, fonte, estados, permissões e o detalhe de oportunidades. Levantado no código em `b5c44d7` (`src/routes/_authenticated/monetizacao.tsx`, `src/components/monetizacao/{dashboard,analysis,forecast,forecast-model,common}.tsx`, `src/lib/monetizacao/{model,functions}.ts`, `supabase/functions/monetizacao-crm/crm.mjs`) e medido no banco em 23/09 (178 negócios, 0 sem histórico, última carga 23/09 20h20).
 
@@ -80,10 +80,10 @@ Hoje os quatro vivem em `useState` (`dashboard.tsx:85-91`) e se perdem ao recarr
 - A lista de contas e o envio ao CRM: moram em Base de clientes → Produtos e listas (DECISIONS 15/09, item 3).
 
 ## Para onde manda
-- Negócio → Pipedrive (nova aba). Base e envio → `/clientes?view=produtos`. Fila por conta da base instalada → `/fila-cella`.
+- Negócio → Pipedrive (nova aba). Base e envio → `/clientes?view=produtos`. A Fila Cella foi aposentada em 24/09 (`/fila-cella` mostra um aviso e manda para o Follow Day).
 
 ## Conflitos de produto que este módulo esbarra (decisão do Pedro, `PRODUCT.md` §5)
-- **5.2** Casa única da fila de ligação: Fila Cella × Operação diária/Follow Day × `/crm` (Bodra).
+- **5.2** Casa única da fila de ligação: Follow Day × `/crm` (Bodra). A Fila Cella saiu da disputa em 24/09 (aposentada por decisão do Pedro).
 - **5.7** Pessoas/PDI em três casas: `/monetizacao?aba=pessoas` × `/gente?tela=pdi` × Growth.
 - **5.8** Funil comercial e Distribuição em dois apps: Monetização (base) × Growth (inbound).
 

@@ -1,7 +1,7 @@
 # Contrato · Follow Day (`/monetizacao?aba=follow-day`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "Qual negócio aberto eu destravo hoje?"
@@ -19,7 +19,7 @@ Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
 | Sem movimento recente | abertos do dono com último movimento há `dias` ou mais | negócio | último entre criação, última atividade e qualquer evento | filtra a tabela | sim |
 | Sem movimento (coluna) | dias desde o último movimento | dias | idem | — | — |
 
-Os três números são a faixa de higiene do arquétipo Fila (contadores clicáveis que filtram a fila), não KPIs de ritmo. **[apresentação]** Passam de `KpiCard` para a mesma faixa de contadores da Fila Cella, e o filtro ativo vai para a URL (`sinal=`).
+Os três números são a faixa de higiene do arquétipo Fila (contadores clicáveis que filtram a fila), não KPIs de ritmo. **[apresentação]** Passam de `KpiCard` para uma faixa de contadores de higiene (o padrão que a Fila Cella usava antes de ser aposentada), e o filtro ativo vai para a URL (`sinal=`).
 
 ## A fila (N5)
 - Linha: Empresa · Produto / etapa · Sinal (`StatusBadge`: vencida = `perigo`, sem próximo passo = `atencao`, sem movimento = `atencao`) · Sem movimento · **Próxima atividade (data)** · ação.
@@ -37,11 +37,11 @@ Os três números são a faixa de higiene do arquétipo Fila (contadores clicáv
 Vazio com a régua: `EstadoVazio` "Nenhum negócio fora da régua de {dias} dias. {n} abertos no total." Demais: moldura.
 
 ## O que NÃO entra
-- Registrar toque ou atividade no Brain: a fila de toques por conta é a Fila Cella; aqui o registro é no Pipedrive.
+- Registrar toque ou atividade no Brain: o registro é no Pipedrive. A fila de toques por conta (Fila Cella) foi aposentada em 24/09.
 - Negócios em dia (saem da lista de propósito; o total aparece no vazio).
 
 ## Para onde manda
 Pipedrive (a ação). Ritmo do período → Operação diária.
 
 ## Conflito (PRODUCT §5.2)
-Mesma pessoa, dois lugares para "com quem eu falo hoje": este (por negócio) e a Fila Cella (por conta, só Cella). O contrato não funde; declara.
+Com a Fila Cella aposentada (24/09), o Follow Day é a casa da fila de ligação dentro do Brain. Resta o `/crm` do Bodra (PRODUCT 5.2).

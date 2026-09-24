@@ -1,7 +1,7 @@
 # Contrato · Projetado × realizado (`/monetizacao?aba=forecast`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "O mês está acima ou abaixo do que a planilha projetou?"

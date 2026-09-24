@@ -1,7 +1,7 @@
 # Contrato · Funil comercial (`/monetizacao?aba=funil`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?"

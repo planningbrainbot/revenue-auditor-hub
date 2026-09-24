@@ -1,7 +1,7 @@
 # Contrato · Abordagens (`/monetizacao?aba=roteiros`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".** Moldura comum: `monetizacao.md`.
+Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 
 ## Propósito
 - **Pergunta (N1, proposta):** "O que eu digo para este produto e este segmento?"
@@ -34,4 +34,4 @@ Editar uma abordagem salva não existe hoje (a versão nunca sobe). Não entra: 
 Envio ao cliente ("Nada é enviado automaticamente", texto atual, fica). Roteiros do Growth (`/roteiros`).
 
 ## Para onde manda
-Nenhum destino de negócio. Uso da abordagem: Fila Cella (toque) e Pipedrive.
+Nenhum destino de negócio. Uso da abordagem: Pipedrive (a Fila Cella foi aposentada em 24/09).
