@@ -55,6 +55,10 @@ export interface GenteResult {
   podeGerir: boolean;
   /** Pessoas visíveis sem unidade preenchida: contas administrativas do Qulture. */
   semUnidade: number;
+  /** Unidades em que quem está logado pode cadastrar gente. Vazio se não pode gerir. */
+  unidadesCadastro: { id: number; nome: string }[];
+  /** Candidatos a gestor no formulário de cadastro: ativos visíveis. */
+  gestores: { id: number; nome: string; unidadeId: number | null }[];
 }
 
 type PessoaDB = {
@@ -96,7 +100,7 @@ export const listGente = createServerFn({ method: "GET" })
     // antiga depois de alguém tirar a área na tela de permissões.
     const acesso = await acessoDoUsuario(supabase, context.userId);
 
-    const [pessoasRes, unidadesRes, praçasRes] = await Promise.all([
+    const [pessoasRes, unidadesRes, praçasRes, soMinhaRes, minhasRes] = await Promise.all([
       supabase
         .from("gente_pessoas")
         .select(
@@ -105,6 +109,10 @@ export const listGente = createServerFn({ method: "GET" })
         .order("nome_completo"),
       supabase.from("v_gente_por_unidade").select("*"),
       supabase.from("unidades").select("id,nome_da_praca"),
+      // As duas perguntas que a RLS de escrita faz, feitas antes para o
+      // formulário só oferecer unidade em que o insert vai passar.
+      supabase.rpc("can", { _key: "data.scope.own_unit_only" }),
+      supabase.rpc("minhas_unidades_gente"),
     ]);
 
     const chaves: string[] = acesso.permissions;
@@ -158,13 +166,131 @@ export const listGente = createServerFn({ method: "GET" })
       ? chaves.includes("view.gente.individual") || chaves.includes("manage.gente")
       : pessoas.length > 1;
 
+    const podeGerir = chaves.includes("manage.gente");
+    const minhas = new Set<number>((minhasRes?.data ?? []) as number[]);
+    const soMinha = soMinhaRes?.data === true;
+    const unidadesCadastro = podeGerir
+      ? Array.from(praças.entries())
+          .filter(([id]) => !soMinha || minhas.has(id))
+          .map(([id, nome]) => ({ id, nome }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+      : [];
+
     return {
       pessoas,
       unidades,
       podeVer: temChaves ? chaves.includes("view.gente") : pessoas.length > 0,
       podeIndividual,
       podeAgregado: temChaves ? chaves.includes("view.gente.agregado") : unidades.length > 0,
-      podeGerir: chaves.includes("manage.gente"),
+      podeGerir,
       semUnidade: pessoas.filter((p) => !p.unidade).length,
+      unidadesCadastro,
+      gestores: pessoasDB
+        .filter((p) => p.status === "ativo")
+        .map((p) => ({ id: p.id, nome: p.nome_completo, unidadeId: p.unidade_id })),
     };
+  });
+
+export interface NovaPessoaInput {
+  nomeCompleto: string;
+  email: string;
+  unidadeId: number;
+  cargo?: string;
+  departamento?: string;
+  tipoVinculo?: string;
+  dataAdmissao?: string;
+  gestorId?: number | null;
+}
+
+const VINCULOS = ["socio", "clt", "pj", "estagio", "prolabore", "terceiro"];
+
+// Cadastro manual, feito por quem implanta o módulo na unidade. Até 24/09/2026
+// não existia: as 215 pessoas vieram do import do Qulture e as unidades de
+// 2026 (Maceió, Fortaleza, São Luís, Campo Novo) não tinham como entrar.
+//
+// Quem pode é decidido pela RLS, não aqui: `gente_pessoas_write` pede
+// `manage.gente` e a RESTRICTIVE `gente_pessoas_escopo_unidade` prende o
+// sócio regional na unidade dele. O insert roda como o usuário.
+export const criarPessoa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: NovaPessoaInput) => {
+    const nomeCompleto = (input?.nomeCompleto ?? "").trim().replace(/\s+/g, " ");
+    if (nomeCompleto.split(" ").length < 2) throw new Error("Informe nome e sobrenome.");
+    const email = (input?.email ?? "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
+    if (!Number.isInteger(input?.unidadeId)) throw new Error("Escolha a unidade.");
+    const tipoVinculo = input.tipoVinculo || null;
+    if (tipoVinculo && !VINCULOS.includes(tipoVinculo)) throw new Error("Vínculo inválido.");
+    const dataAdmissao = input.dataAdmissao || null;
+    if (dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataAdmissao)) {
+      throw new Error("Data de admissão inválida.");
+    }
+    return {
+      nomeCompleto,
+      email,
+      unidadeId: input.unidadeId,
+      cargo: input.cargo?.trim() || null,
+      departamento: input.departamento?.trim() || null,
+      tipoVinculo,
+      dataAdmissao,
+      gestorId: input.gestorId ?? null,
+    };
+  })
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = context.supabase as any;
+
+    const { data: criada, error } = await supabase
+      .from("gente_pessoas")
+      .insert({
+        nome_completo: data.nomeCompleto,
+        email: data.email,
+        unidade_id: data.unidadeId,
+        cargo: data.cargo,
+        departamento: data.departamento,
+        tipo_vinculo: data.tipoVinculo,
+        data_admissao: data.dataAdmissao,
+        gestor_id: data.gestorId,
+        status: "ativo",
+        origem: "manual",
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        throw new Error(
+          "Já existe alguém com esse e-mail no cadastro da rede. Se for de outra unidade, peça à Matriz para transferir.",
+        );
+      }
+      if (error.code === "42501") {
+        throw new Error("Sem permissão para cadastrar gente nessa unidade.");
+      }
+      throw new Error(error.message);
+    }
+
+    // Login e cadastro são duas identidades. Sem `user_id` a pessoa entra no
+    // Ops e 1:1 e feedback barram em silêncio (memória de 22/09/2026). Se o
+    // e-mail já tem conta, liga agora. A busca em `profiles` precisa de service
+    // role porque o usuário comum só lê a própria linha; a escrita não. Quem
+    // ganhar login depois continua precisando do vínculo à mão.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: perfil } = await (supabaseAdmin as any)
+      .from("profiles")
+      .select("user_id")
+      .ilike("email", data.email)
+      .maybeSingle();
+
+    let vinculouLogin = false;
+    if (perfil?.user_id) {
+      const { error: e2 } = await supabase
+        .from("gente_pessoas")
+        .update({ user_id: perfil.user_id })
+        .eq("id", criada.id)
+        .is("user_id", null);
+      vinculouLogin = !e2;
+    }
+
+    return { id: criada.id as number, vinculouLogin };
   });

@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { KpiCard } from "@/components/planning";
+import { NovaPessoaDialog } from "./nova-pessoa-dialog";
 
 const NA = "—";
 const TODOS = "__todos__";
@@ -65,6 +66,10 @@ export function GenteView() {
   const pessoas = useMemo(() => q.data?.pessoas ?? [], [q.data]);
   const unidades = useMemo(() => q.data?.unidades ?? [], [q.data]);
   const podeIndividual = q.data?.podeIndividual ?? false;
+  const podeCadastrar = (q.data?.unidadesCadastro.length ?? 0) > 0;
+  const novaPessoa = podeCadastrar ? (
+    <NovaPessoaDialog unidades={q.data!.unidadesCadastro} gestores={q.data!.gestores} />
+  ) : null;
   const semNada = !unidades.length && !pessoas.length;
 
   const listaUnidades = useMemo(
@@ -132,15 +137,17 @@ export function GenteView() {
   return (
     <div className="space-y-4">
       {semNada ? (
-        <Card className="flex items-start gap-3 p-4">
+        <Card className="flex flex-wrap items-start gap-3 p-4">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-          <div className="text-sm">
+          <div className="flex-1 text-sm">
             <div className="font-medium">O cadastro ainda não tem ninguém da sua unidade.</div>
             <p className="mt-1 text-muted-foreground">
-              As 4 unidades que usavam o Qulture já foram carregadas. Campo Novo, São Luís,
-              Fortaleza e Maceió entram quando devolverem a planilha de cadastro.
+              {podeCadastrar
+                ? "Comece pela liderança: quem cuida de gente e os gestores. Os liderados entram depois, já apontando para o gestor."
+                : "Peça a quem implanta o Planning People na sua unidade para cadastrar o time."}
             </p>
           </div>
+          {novaPessoa}
         </Card>
       ) : null}
 
@@ -268,6 +275,7 @@ export function GenteView() {
                   <SelectItem value={TODOS}>Todos</SelectItem>
                 </SelectContent>
               </Select>
+              {semNada ? null : novaPessoa}
             </div>
           </div>
 
