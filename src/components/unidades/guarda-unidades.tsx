@@ -6,8 +6,8 @@ import { usePermissions } from "@/hooks/use-permissions";
  *
  * Enquanto eram abas de uma página só, quem não tinha a chave simplesmente não
  * via a aba. Agora cada uma tem URL própria e pode ser digitada à mão, então a
- * tela precisa dizer o que falta em vez de abrir em branco — mesmo padrão de
- * /fila-cella.
+ * tela precisa dizer o que falta em vez de abrir em branco — mesmo padrão que
+ * a Fila Cella usava (aposentada em 24/09).
  */
 export function GuardaUnidades({
   permissao,

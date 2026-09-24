@@ -2810,3 +2810,14 @@ Perdidas", "Reforma Tributária", "Matriz") ficam fora da vista do sócio.
 qualquer papel customizado (cs, financeiro, hunter_monetizacao…) ler a tabela
 inteira, sem chave. O escopo de unidade ainda recorta quem é travado, mas quem
 tem `todas_unidades` lê tudo.
+
+## [2026-09-24] Fila Cella aposentada; Monetização migra para o DS v2 pelas propostas dos contratos
+
+**Contexto:** na migração das telas para o Design System v2 (módulo 1, Monetização), a medição de 23/09 mostrou que a Fila Cella nunca operou em produção: `ops.v_fila_cella`, `ops.fila_cella_toques` e `ops.fila_cella_ciclos` com 0 linhas desde sempre (o sync da fase F1 nunca rodou). Os contratos das dez telas do módulo foram escritos em `docs/design/contratos/` e levados ao Pedro.
+
+**Decisão:**
+1. **A Fila Cella sai** ("ela tá obsoleta", Pedro, 24/09). O item sai do menu de Monetização (`areas.ts`, uma linha); a rota `/fila-cella` continua viva e explica a saída, com botão para o Follow Day (N14: rota aposentada explica, não some). Os componentes, hooks e server functions da tela saem do repositório. **Banco não muda:** tabelas, view, migrations e as chaves `view/manage.fila_cella*` ficam (a matriz de permissões e `cockpit-ceo/portas.ts` ainda citam a chave; remover é outra decisão). O trabalho por negócio fica no Follow Day; a pendência 5.2 do `PRODUCT.md` perde uma das três casas.
+2. **As propostas dos contratos valem como aprovadas** ("pode seguir conforme suas propostas; depois eu mudo"): perguntas das telas; zeros Z0–Z5 (responsável Matheus mantido como padrão, mas na URL e escrito no cabeçalho; carga parada, negócio sem histórico e receita parcial viram `parcial`; "Disponíveis agora" sem base e Capacidade sem plano viram "não apurado"); F1 (a faixa de abas dentro de `/monetizacao` sai, a lateral é o único menu); F5 (Follow Day em ordem de trabalho com botão "Abrir no Pipedrive"); nome único "Leads trabalhados" para o evento `started`; conflitos 5.7 e 5.8 migrados sem fusão, com o perímetro declarado na `descricao`.
+3. **Growth fica fora desta rodada.** O Pedro notou que o Growth parece segregado (outro menu, outra casca): é outro app (`brain-web`, Next.js, do Mika) montado em `/growth`. A casca única é decisão do Eliezek com o Mika (DECISIONS 14/09).
+
+**Status:** Fila Cella aposentada no código da branch `feat/ds-v2-migracao-monetizacao-20260923` (não publicada). Migração das nove visões em andamento; PR ao fim do módulo.

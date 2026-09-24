@@ -1,7 +1,7 @@
 # Contrato · Fila Cella (`/fila-cella`)
 
 **Dono de produto:** Pedro Luca (Monetização)   **Operação:** Matheus (escreve), daily das 13h30 (lê)   **Dono do código:** Pedro Luca · Eliezek (migration, merge)   **Data:** 23/09/2026
-Estado: **rascunho, aguardando "contrato ok".**
+Estado: **tela aposentada pelo Pedro em 24/09/2026** ("ela tá obsoleta"). A rota `/fila-cella` passou a explicar a saída e mandar para o Follow Day (N14); o item saiu do menu e o código da tela saiu do repositório. Tabelas `ops.fila_cella_*`, `ops.v_fila_cella`, migrations e chaves `*.fila_cella` ficam no banco. O contrato abaixo fica como registro do que a tela era.
 
 Base: exemplo do `CONTRATO-DE-TELA.md` §2, código em `b5c44d7` (`src/routes/_authenticated/fila-cella.tsx`, `src/components/fila-cella/*`, `src/lib/fila-cella.functions.ts`), DECISIONS 25/08 (duas entradas) e medição no banco em 23/09.
 
