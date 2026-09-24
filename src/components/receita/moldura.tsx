@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -286,6 +286,50 @@ export function NotaComAjuda({ nota, ajuda }: { nota?: ReactNode; ajuda: ReactNo
         {ajuda}
       </span>
     </>
+  );
+}
+
+/**
+ * "Como ler estes números": a explicação de cada card de um bloco, aberta sob
+ * demanda logo abaixo da grade. Existe para o card com `abrir`, que não pode
+ * levar o "O que significa?" (botão dentro de link é HTML inválido).
+ */
+export function ComoLer({
+  itens,
+  rotulo = "Como ler estes números",
+}: {
+  itens: { rotulo: string; texto: ReactNode }[];
+  rotulo?: string;
+}) {
+  const [aberta, setAberta] = useState(false);
+  const id = useId();
+  return (
+    <div className="text-[13px]">
+      <button
+        type="button"
+        aria-expanded={aberta}
+        aria-controls={id}
+        onClick={() => setAberta((s) => !s)}
+        className="inline-flex items-center gap-1 rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <ChevronDown
+          className={aberta ? "size-4 rotate-180 transition-transform" : "size-4 transition-transform"}
+          aria-hidden
+        />
+        {rotulo}
+      </button>
+      <dl
+        id={id}
+        className={aberta ? "mt-2 grid gap-2 rounded-xl border bg-card p-4 md:grid-cols-2" : "hidden"}
+      >
+        {itens.map((i) => (
+          <div key={i.rotulo} className="space-y-0.5">
+            <dt className="font-semibold text-foreground">{i.rotulo}</dt>
+            <dd className="leading-snug text-muted-foreground">{i.texto}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

@@ -49,6 +49,7 @@ import {
   mesAnterior,
   mesEmAndamento,
   MolduraReceita,
+  ComoLer,
   NotaComAjuda,
   pctOuTraco,
   rotuloDia,
@@ -328,6 +329,10 @@ export function ReceitaOverviewContent() {
   // "Resolver" abre a apuração no MESMO mês do seletor: sem o mês, o destino
   // abria no mês padrão dele e o total não batia com o da pendência (N2).
   const destinoApuracao = hrefComMes("/unidades/royalties", mes);
+  // Os cards abrem a tela dona no mesmo mês (N2). O CSC da apuração é "fixo
+  // ou base antiga" e pode não bater com a soma daqui: a explicação diz isso.
+  const hrefApuracao = destinoApuracao;
+  const hrefFunil = hrefComMes("/funil-receita", mes);
   const nomeMes = rotuloMes(mes);
 
   return (
@@ -385,59 +390,39 @@ export function ReceitaOverviewContent() {
                 valor={brlOuTraco(mesAtual?.total)}
                 estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
-                  <NotaComAjuda
-                    nota={
-                      repasseApurado
-                        ? `${mesAtual.comApuracao} unidade(s) com apuração aberta`
-                        : "nenhuma apuração aberta no mês"
-                    }
-                    ajuda={`Soma do total da fatura de cada apuração do mês: royalties + CSC + CAC + mídia + outras receitas. A nota de débito que cobra isso sai com competência ${nomeMes} e costuma ser emitida no mês seguinte. O que já foi emitido e ainda não entrou está em "Faturado e não recebido".`}
-                  />
+                  repasseApurado
+                    ? `${mesAtual.comApuracao} unidade(s) com apuração aberta`
+                    : "nenhuma apuração aberta no mês"
                 }
+                abrir={{ href: hrefApuracao, rotulo: "Abrir apuração" }}
               />
               <KpiCard
                 rotulo="Royalties"
                 valor={brlOuTraco(mesAtual?.royalties)}
                 estado={repasseApurado ? estadoValor : "nao-apurado"}
-                nota={
-                  <NotaComAjuda
-                    nota="% sobre o recebido do cliente"
-                    ajuda={`Percentual sobre o que o cliente pagou à unidade dentro de ${nomeMes}, por caixa e sobre o valor líquido de retenção. A competência da nota do cliente pode ser outro mês: fatura atrasada entra no mês em que foi paga, não no mês a que se refere.`}
-                  />
-                }
+                nota="% sobre o recebido do cliente"
+                abrir={{ href: hrefApuracao, rotulo: "Abrir apuração" }}
               />
               <KpiCard
                 rotulo="CSC"
                 valor={brlOuTraco(mesAtual?.csc)}
                 estado={repasseApurado ? estadoValor : "nao-apurado"}
-                nota={
-                  <NotaComAjuda
-                    nota="Fixo + percentual da base antiga"
-                    ajuda={`Duas parcelas com réguas diferentes: o valor fixo é da competência ${nomeMes} e não depende de recebimento nenhum; o percentual da base antiga incide sobre o que os clientes antigos pagaram dentro do mês (caixa).`}
-                  />
-                }
+                nota="Fixo + percentual da base antiga"
+                abrir={{ href: hrefApuracao, rotulo: "Abrir apuração" }}
               />
               <KpiCard
                 rotulo="CAC"
                 valor={brlOuTraco(mesAtual?.cac)}
                 estado={repasseApurado ? estadoValor : "nao-apurado"}
-                nota={
-                  <NotaComAjuda
-                    nota="Clientes vendidos pela matriz"
-                    ajuda={`Cobrança pelos clientes que a matriz vendeu, lançada na competência ${nomeMes}. Não é caixa: o gatilho é a fila do broker e o primeiro honorário do cliente, não o pagamento da unidade.`}
-                  />
-                }
+                nota="Clientes vendidos pela matriz"
+                abrir={{ href: hrefApuracao, rotulo: "Abrir apuração" }}
               />
               <KpiCard
                 rotulo="Mídia"
                 valor={brlOuTraco(mesAtual?.midia)}
                 estado={repasseApurado ? estadoValor : "nao-apurado"}
-                nota={
-                  <NotaComAjuda
-                    nota="Reembolso de tráfego pago"
-                    ajuda={`Reembolso do tráfego pago da competência ${nomeMes}, valor acordado por unidade. Não é caixa e fica fora do take rate: é repasse de custo, não remuneração da matriz.`}
-                  />
-                }
+                nota="Reembolso de tráfego pago"
+                abrir={{ href: hrefApuracao, rotulo: "Abrir apuração" }}
               />
               <KpiCard
                 rotulo="Take rate"
@@ -455,6 +440,15 @@ export function ReceitaOverviewContent() {
                 }
               />
             </KpiGrade>
+            <ComoLer
+              itens={[
+                { rotulo: "Total do repasse", texto: `Soma do total da fatura de cada apuração do mês: royalties + CSC + CAC + mídia + outras receitas. A nota de débito que cobra isso sai com competência ${nomeMes} e costuma ser emitida no mês seguinte. O que já foi emitido e ainda não entrou está em "Faturado e não recebido".` },
+                { rotulo: "Royalties", texto: `Percentual sobre o que o cliente pagou à unidade dentro de ${nomeMes}, por caixa e sobre o valor líquido de retenção. A competência da nota do cliente pode ser outro mês: fatura atrasada entra no mês em que foi paga, não no mês a que se refere.` },
+                { rotulo: "CSC", texto: `Duas parcelas com réguas diferentes: o valor fixo é da competência ${nomeMes} e não depende de recebimento nenhum; o percentual da base antiga incide sobre o que os clientes antigos pagaram dentro do mês (caixa). Na Apuração de Royalties a coluna é "CSC (fixo ou base antiga)" e o total pode não bater com este (defeito de dado 4 do contrato).` },
+                { rotulo: "CAC", texto: `Cobrança pelos clientes que a matriz vendeu, lançada na competência ${nomeMes}. Não é caixa: o gatilho é a fila do broker e o primeiro honorário do cliente, não o pagamento da unidade.` },
+                { rotulo: "Mídia", texto: `Reembolso do tráfego pago da competência ${nomeMes}, valor acordado por unidade. Não é caixa e fica fora do take rate: é repasse de custo, não remuneração da matriz.` },
+              ]}
+            />
 
             {/* ---- o que trava o fechamento ---- */}
             <div className="space-y-2">
@@ -620,44 +614,32 @@ export function ReceitaOverviewContent() {
                 rotulo="MRR contratado"
                 valor={brlOuTraco(receitaDoMes?.mrrContratado)}
                 estado={receitaApurada ? "ok" : "nao-apurado"}
-                nota={
-                  <NotaComAjuda
-                    nota={receitaApurada ? "Contratos ativos hoje (Pipedrive)" : "sem títulos no mês"}
-                    ajuda="Soma dos contratos que estão ativos hoje no Pipedrive. É foto do momento, sem data de corte: não muda ao trocar o mês do seletor, e por isso não serve para comparar com o faturado de um mês passado."
-                  />
-                }
+                nota={receitaApurada ? "Contratos ativos hoje (Pipedrive)" : "sem títulos no mês"}
+                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Faturado"
                 valor={brlOuTraco(receitaDoMes?.faturado)}
                 estado={receitaApurada ? estadoValor : "nao-apurado"}
                 nota={
-                  <NotaComAjuda
-                    nota={
-                      receitaApurada
-                        ? `Competência ${rotuloMesCurto(mes)}, bruto de nota`
-                        : "sem títulos no mês"
-                    }
-                    ajuda={`Títulos cuja competência no Omie cai em ${nomeMes}, independentemente de quando foram emitidos ou pagos. Valor bruto de nota: antes de retenção de imposto, ao contrário da base de royalties, que é líquida.`}
-                  />
+                  receitaApurada
+                    ? `Competência ${rotuloMesCurto(mes)}, bruto de nota`
+                    : "sem títulos no mês"
                 }
+                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Recebido"
                 valor={brlOuTraco(receitaDoMes?.recebido)}
                 estado={receitaApurada ? estadoValor : "nao-apurado"}
                 nota={
-                  <NotaComAjuda
-                    nota={
-                      !receitaApurada
-                        ? "sem títulos no mês"
-                        : receitaDoMes && receitaDoMes.faturado > 0
-                          ? `${((receitaDoMes.recebido / receitaDoMes.faturado) * 100).toFixed(0)}% do faturado`
-                          : "sem faturado na competência"
-                    }
-                    ajuda={`Quanto das notas de competência ${nomeMes} já foi baixado no Omie, em qualquer data de pagamento. Não é o caixa do mês: dinheiro que entrou em ${nomeMes} por nota de outra competência fica de fora daqui, e é justamente esse dinheiro, o que entrou no mês, que o bloco de repasse mede.`}
-                  />
+                  !receitaApurada
+                    ? "sem títulos no mês"
+                    : receitaDoMes && receitaDoMes.faturado > 0
+                      ? `${((receitaDoMes.recebido / receitaDoMes.faturado) * 100).toFixed(0)}% do faturado`
+                      : "sem faturado na competência"
                 }
+                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Em atraso"
@@ -677,13 +659,25 @@ export function ReceitaOverviewContent() {
                 }
               />
             </KpiGrade>
+            <ComoLer
+              itens={[
+                { rotulo: "MRR contratado", texto: "Soma dos contratos que estão ativos hoje no Pipedrive. É foto do momento, sem data de corte: não muda ao trocar o mês do seletor, e por isso não serve para comparar com o faturado de um mês passado." },
+                { rotulo: "Faturado", texto: `Títulos cuja competência no Omie cai em ${nomeMes}, independentemente de quando foram emitidos ou pagos. Valor bruto de nota: antes de retenção de imposto, ao contrário da base de royalties, que é líquida.` },
+                { rotulo: "Recebido", texto: `Quanto das notas de competência ${nomeMes} já foi baixado no Omie, em qualquer data de pagamento. Não é o caixa do mês: dinheiro que entrou em ${nomeMes} por nota de outra competência fica de fora daqui, e é justamente esse dinheiro, o que entrou no mês, que o bloco de repasse mede.` },
+              ]}
+            />
 
             <CartaoGrafico
               titulo="Quanto do faturado de cada competência já foi recebido? (R$)"
               descricao="Cada nota no mês da sua competência. A diferença entre as duas barras é o que a rede emitiu naquela competência e ainda não entrou. A barra de recebido conta o pagamento em qualquer data, não o caixa do mês."
               acao={
                 <Button asChild variant="link" size="sm" className="h-auto shrink-0 p-0">
-                  <Link to="/funil-receita">Ver o funil</Link>
+                  <Link
+                    to={partesDoLink(hrefFunil).to as never}
+                    search={partesDoLink(hrefFunil).search as never}
+                  >
+                    Ver o funil
+                  </Link>
                 </Button>
               }
             >
