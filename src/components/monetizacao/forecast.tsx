@@ -18,6 +18,7 @@ import type { BaseMonetizacao, ForecastSource, Metrica, Negocio } from "@/lib/mo
 import {
   estadoKpiEvento,
   Field,
+  FOCO_VISIVEL,
   inputClass,
   NotaApoio,
   number,
@@ -57,7 +58,6 @@ export const rotuloMesForecast = (m: string) =>
 /** "set/26": eixo do gráfico. */
 const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
 const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
-const FOCO = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** A versão do forecast em uso: a de fonte mais recente. */
 export const fonteDoForecast = (data: BaseMonetizacao): ForecastSource | undefined =>
@@ -173,7 +173,11 @@ export function Forecast({
     <div className="space-y-4">
       <BarraFiltros
         className="items-end"
-        aoLimpar={busca?.mes !== undefined ? () => mudarBusca?.({ mes: undefined }) : undefined}
+        aoLimpar={
+          busca?.mes !== undefined || busca?.blocos !== undefined || busca?.totais !== undefined
+            ? () => mudarBusca?.({ mes: undefined, blocos: undefined, totais: undefined })
+            : undefined
+        }
       >
         <Field label="Mês de comparação">
           <select
@@ -299,7 +303,7 @@ export function Forecast({
                         <button
                           type="button"
                           aria-label={`${label}: ${real}, abrir negócios`}
-                          className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO}`}
+                          className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                           onClick={() => show(key, label, rows)}
                         >
                           {real}
@@ -356,7 +360,7 @@ export function Forecast({
                     <button
                       type="button"
                       aria-label={`${NOMES[p.product]} · validadas com data prevista em ${mesRotulo}: ${p.scheduled.length}, abrir negócios`}
-                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO}`}
+                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
                       onClick={() =>
                         openDeals(
                           `${NOMES[p.product]} · validadas com data prevista em ${mesRotulo}`,
@@ -395,7 +399,7 @@ export function Forecast({
         <Link
           to="/monetizacao"
           search={{ aba: "capacidade" }}
-          className={`mt-3 inline-block text-sm text-primary-text underline underline-offset-2 ${FOCO}`}
+          className={`mt-3 inline-block text-sm text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
         >
           Ajustar a alocação e as hipóteses por produto →
         </Link>

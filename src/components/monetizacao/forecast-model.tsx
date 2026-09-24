@@ -107,7 +107,7 @@ export function ForecastModel({
               </Button>
             ))}
           </div>
-          <label className="flex cursor-pointer items-center gap-2 rounded-sm text-xs text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+          <label className="flex cursor-pointer items-center gap-2 rounded-sm text-xs text-muted-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
             <input
               type="checkbox"
               className="size-4 accent-primary focus-visible:outline-none"
