@@ -165,8 +165,12 @@ test("Nenhuma pergunta se declara verificada no piloto e toda referência de ind
   for (const p of PERGUNTAS) {
     for (const i of p.indicadores) assert.ok(IDS_INDICADORES.includes(i), `${p.id} → ${i}`);
     assert.ok(p.responsavel && p.aceite && p.fonte, `${p.id} incompleta`);
+    // Implementada = respondida por um número ou por um painel de frente (a cadeia, O2, é painel).
     if (p.cobertura === "implementada_nao_homologada")
-      assert.ok(p.indicadores.length > 0, `${p.id} implementada sem indicador`);
+      assert.ok(
+        p.indicadores.length + p.paineis.length > 0,
+        `${p.id} implementada sem indicador nem painel`,
+      );
   }
 });
 
@@ -177,6 +181,16 @@ test("Catálogo não usa o vocabulário de franquia abolido em 09/09", () => {
 
 // ── Task 4: indicadores de Base e Monetização ────────────────────────────────
 import { montarCockpit } from "../src/lib/cockpit-ceo/indicadores.ts";
+
+// Os números que dependem da carga de Base e Monetização. Os da empresa inteira (Financeiro, Growth,
+// Ops) têm carga própria e são testados em cockpit-ceo-empresa.test.mjs.
+const DA_MONETIZACAO = [
+  "contratos-ganhos",
+  "oportunidades-validadas",
+  "leads-trabalhados",
+  "receita-prevista-aberta",
+  "contas-prontas",
+];
 
 const ev = (date, actor = 1) => ({
   at: date + "T12:00:00Z",
@@ -363,10 +377,11 @@ const recorte = (busca = {}, perimetro = "") => ({
 });
 const ind = (c, id) => c.indicadores.find((i) => i.id === id);
 
-test("Cockpit produz exatamente os indicadores declarados, no máximo seis", () => {
+test("Cockpit produz exatamente os indicadores declarados, e seis na primeira dobra (N12)", () => {
   const c = montarCockpit(fonteOk(), recorte());
   assert.deepEqual(c.indicadores.map((i) => i.id).sort(), [...IDS_INDICADORES].sort());
-  assert.ok(c.indicadores.length <= 6);
+  assert.equal(c.primeiraDobra.length, 6);
+  for (const id of c.primeiraDobra) assert.ok(c.indicadores.some((i) => i.id === id), id);
   for (const i of c.indicadores) {
     assert.ok(i.definicao && i.fonte && i.versaoRegra && i.pergunta, i.id);
     assert.equal(i.dataApuracao, "2026-09-22T15:00:00Z");
@@ -438,7 +453,7 @@ test("Fonte com erro não vira zero e não mostra cache", () => {
     },
     recorte(),
   );
-  for (const i of c.indicadores.filter((x) => x.id !== "meta-bilhao")) {
+  for (const i of c.indicadores.filter((x) => DA_MONETIZACAO.includes(x.id))) {
     assert.equal(i.estado, "fonte_indisponivel", i.id);
     assert.equal(i.valor, null, i.id);
   }
@@ -738,7 +753,7 @@ test("Sem leitura de negócios, contas prontas não se afirmam: disponibilidade 
 
 test("Sem nenhuma chave de Base ou Monetização a resposta é acesso insuficiente, não fonte fora", () => {
   const c = montarCockpit(fonteSemAcesso("2026-09-22", "2026-09-22T15:00:00Z"), recorte());
-  for (const i of c.indicadores.filter((x) => x.id !== "meta-bilhao")) {
+  for (const i of c.indicadores.filter((x) => DA_MONETIZACAO.includes(x.id))) {
     assert.equal(i.estado, "acesso_insuficiente", i.id);
     assert.equal(i.valor, null, i.id);
   }
