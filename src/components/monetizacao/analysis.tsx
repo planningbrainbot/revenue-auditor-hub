@@ -466,9 +466,22 @@ function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
     );
   const ativo = SINAIS_FOLLOW.find((s) => s.chave === sinal);
   const lista = ativo ? rows.filter((r) => r.issue === ativo.chave) : rows;
-  const mudarDias = (n: number) => {
-    const v = Math.min(180, Math.max(1, Math.round(n) || 1));
-    mudarBusca?.({ dias: v === DIAS_PADRAO ? undefined : v });
+  // Rascunho local da régua: grava na URL só no blur ou Enter (apagar o campo não vira 1).
+  const [rascunho, setRascunho] = useState(String(days));
+  const [diasBase, setDiasBase] = useState(days);
+  if (diasBase !== days) {
+    setDiasBase(days);
+    setRascunho(String(days));
+  }
+  const gravarDias = () => {
+    const n = Number(rascunho);
+    if (!rascunho.trim() || !Number.isFinite(n)) {
+      setRascunho(String(days));
+      return;
+    }
+    const v = Math.min(180, Math.max(1, Math.round(n)));
+    setRascunho(String(v));
+    if (v !== days) mudarBusca?.({ dias: v === DIAS_PADRAO ? undefined : v });
   };
   return (
     <div className="space-y-4">
@@ -507,8 +520,12 @@ function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
               type="number"
               min="1"
               max="180"
-              value={days}
-              onChange={(e) => mudarDias(Number(e.target.value))}
+              value={rascunho}
+              onChange={(e) => setRascunho(e.target.value)}
+              onBlur={gravarDias}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") gravarDias();
+              }}
             />
           </Field>
         }
@@ -547,8 +564,9 @@ function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
                   return (
                     <TableRow
                       key={c.id}
-                      className="cursor-pointer"
+                      className="cursor-pointer outline-none focus-visible:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                       tabIndex={0}
+                      aria-label={`Abrir detalhe de ${c.title}`}
                       onClick={abrir}
                       onKeyDown={(e) => {
                         if (e.target !== e.currentTarget) return;
