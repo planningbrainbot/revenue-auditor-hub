@@ -16,8 +16,10 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Sem fusão com `/clientes` 
 | Clientes ativos | empresas ativas | ativos |
 | Já receberam a pesquisa (era "Já disparadas") | empresas distintas com pesquisa | **todas as empresas**, nota "inclui inativas" |
 | Com WhatsApp válido | Cobertura: todas as empresas; Plano de ação: só ativas — o rótulo de cada aba diz o universo | ver rótulo |
-| Sem contato | ativos − com WhatsApp; quando os universos não fecham (resultado negativo), mostra `nao-apurado` com a nota do descasamento | ativos |
+| Sem contato | soma, por unidade, de (clientes ativos − com WhatsApp) — ver nota abaixo | ativos |
 | Contatos para classificar | contatos sem empresa vinculada, **com ou sem WhatsApp** (o subtítulo prometia "têm WhatsApp") | contatos |
+
+**Revisão de 24/09 (Sem contato):** o número passou a vir da soma de `empresas − comWhatsapp` das linhas por unidade, que já contam só clientes ativos. A conta anterior (`totalEmpresas − totalComWhatsapp`) subtraía um total de todas as empresas (inclui inativas) de um total de ativos: misturava universos, podia dar negativo e não era o número que o rótulo "clientes ativos" promete. Com a soma por unidade o cartão bate com a tabela e o caso `nao-apurado` deixa de existir. A fórmula do servidor não mudou; mudou qual dos números já devolvidos a tela usa.
 
 ## Correções de exibição
 1. KPIs locais → `KpiCard`; estados do DS.

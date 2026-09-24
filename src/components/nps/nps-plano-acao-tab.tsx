@@ -31,6 +31,7 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { usePlanoAcaoContatos } from "@/hooks/use-nps";
 import type { EmpresaSemContatoRow } from "@/lib/contatos-cs.functions";
+import { cnpjDvValido } from "@/lib/fila-cella.types";
 
 const ALL = "todas";
 const CHAVES_FILTRO = ["q", "unidade", "situacao"];
@@ -217,8 +218,10 @@ export function NpsPlanoAcaoTab() {
               <TableBody>
                 {filtered.map((e) => {
                   // /clientes não tem endereço de ficha por id: a busca por CNPJ
-                  // (ou pelo nome, sem CNPJ) deixa a empresa sozinha na lista.
-                  const busca = e.cnpj?.replace(/\D/g, "") || e.titulo || "";
+                  // deixa a empresa sozinha na lista. CNPJ que não fecha o dígito
+                  // verificador (ou não tem 14 dígitos) acharia outra empresa ou
+                  // nenhuma: aí a busca vai pelo nome.
+                  const busca = (e.cnpj && cnpjDvValido(e.cnpj) ? e.cnpj.replace(/\D/g, "") : e.titulo) ?? "";
                   return (
                     <TableRow key={e.id}>
                       <TableCell className="font-medium">{e.titulo ?? "—"}</TableCell>
@@ -233,7 +236,7 @@ export function NpsPlanoAcaoTab() {
                         {busca ? (
                           <Link
                             to="/clientes"
-                            search={{ q: busca } as never}
+                            search={{ q: busca }}
                             className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-input px-2.5 text-[13px] font-medium text-foreground outline-none transition-colors duration-120 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           >
                             Abrir em Clientes →

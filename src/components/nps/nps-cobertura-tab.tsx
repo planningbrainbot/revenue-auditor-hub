@@ -55,7 +55,10 @@ export function NpsCoberturaTab() {
     );
   }
 
-  const semContato = coverage.totalEmpresas - coverage.totalComWhatsapp;
+  // Soma por unidade: as linhas já são só clientes ativos, então este é o
+  // número que o rótulo promete. `totalEmpresas − totalComWhatsapp` misturava
+  // ativos com todas as empresas e podia dar negativo.
+  const semContato = coverage.rows.reduce((acc, u) => acc + (u.empresas - u.comWhatsapp), 0);
   const pctVinculo =
     coverage.pesquisasTotal > 0
       ? Math.round((coverage.pesquisasComEmpresaResolvida / coverage.pesquisasTotal) * 100)
@@ -83,20 +86,11 @@ export function NpsCoberturaTab() {
             valor={NUM.format(coverage.totalComWhatsapp)}
             nota="empresas com contato de 10+ dígitos · inclui inativas"
           />
-          {semContato >= 0 ? (
-            <KpiCard
-              rotulo="Sem contato (clientes ativos)"
-              valor={NUM.format(semContato)}
-              nota="clientes ativos − com WhatsApp válido · não disparará"
-            />
-          ) : (
-            <KpiCard
-              rotulo="Sem contato (clientes ativos)"
-              valor="—"
-              estado="nao-apurado"
-              nota={`Os universos não fecham: ${NUM.format(coverage.totalComWhatsapp)} com WhatsApp contam todas as empresas, ${NUM.format(coverage.totalEmpresas)} ativos contam só as ativas. A tabela por unidade traz o número dos ativos.`}
-            />
-          )}
+          <KpiCard
+            rotulo="Sem contato (clientes ativos)"
+            valor={NUM.format(semContato)}
+            nota="soma da tabela por unidade · não disparará"
+          />
         </KpiGrade>
         <p className="text-[13px] text-muted-foreground">
           "Já receberam" conta só pesquisas com empresa vinculada: o número real de empresas já pesquisadas é
@@ -161,7 +155,7 @@ export function NpsCoberturaTab() {
         <Procedencia
           fonte={FONTE}
           atualizadoEm={dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : null}
-          regua="cobertura = com WhatsApp ÷ clientes ativos · ok a partir de 70%, atenção de 30% a 69%"
+          regua="cobertura = com WhatsApp ÷ clientes ativos · ok a partir de 70%, atenção de 30% a 69%, perigo abaixo de 30%"
         />
       </Secao>
     </div>
