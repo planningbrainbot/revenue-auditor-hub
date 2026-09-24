@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -136,43 +137,53 @@ export const motivoSemEscopo = (data: BaseMonetizacao) =>
   podeEscrever(data) ? null : MOTIVO_ESCOPO_GERAL;
 
 /**
- * `Button` que diz por que está desabilitado. Botão `disabled` não recebe ponteiro, então o
- * gatilho do tooltip é um `span` focável em volta dele. Sem `motivo`, ou habilitado, é um
- * `Button` comum. O primeiro motivo verdadeiro da lista ganha (ex.: escopo antes do campo).
+ * `Button` que diz por que está desabilitado. Não usa o atributo `disabled` (que tira o
+ * ponteiro e o foco, e o tooltip nunca abriria): fica `aria-disabled`, bloqueia clique e
+ * envio de formulário, e tem o mesmo estilo de desabilitado do `Button`. É sempre o mesmo
+ * elemento, com ou sem motivo, para o foco não se perder quando `disabled` alterna. O motivo
+ * vai no tooltip e, para leitor de tela, num texto oculto ligado por `aria-describedby`.
+ * Com lista, o primeiro motivo verdadeiro ganha (ex.: escopo antes do campo que falta).
  */
 export function BotaoComMotivo({
   motivo,
   disabled,
+  onClick,
+  className,
   ...props
 }: ButtonProps & { motivo?: string | null | (string | null | false | undefined)[] }) {
+  const id = useId();
   const texto = Array.isArray(motivo) ? motivo.find(Boolean) || null : motivo || null;
-  if (!texto) return <Button disabled={disabled} {...props} />;
-  const botao = (
-    <Button
-      disabled={disabled}
-      aria-disabled={disabled || undefined}
-      {...props}
-      className={disabled ? `${props.className ?? ""} pointer-events-none` : props.className}
-    />
-  );
+  const bloqueado = !!disabled;
   return (
     <TooltipProvider delayDuration={200}>
-      <Tooltip>
+      <Tooltip open={texto ? undefined : false}>
         <TooltipTrigger asChild>
-          {disabled ? (
-            <span
-              tabIndex={0}
-              aria-label={texto}
-              className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {botao}
-            </span>
-          ) : (
-            botao
-          )}
+          <Button
+            {...props}
+            aria-disabled={bloqueado || undefined}
+            aria-describedby={texto ? id : undefined}
+            className={cn(
+              className,
+              bloqueado &&
+                "cursor-not-allowed opacity-50 hover:translate-y-0 hover:shadow-none active:translate-y-0",
+            )}
+            onClick={(e) => {
+              if (bloqueado) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+              onClick?.(e);
+            }}
+          />
         </TooltipTrigger>
-        <TooltipContent>{texto}</TooltipContent>
+        {texto && <TooltipContent>{texto}</TooltipContent>}
       </Tooltip>
+      {texto && (
+        <span id={id} className="sr-only">
+          {texto}
+        </span>
+      )}
     </TooltipProvider>
   );
 }

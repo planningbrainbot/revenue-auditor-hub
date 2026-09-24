@@ -21,7 +21,10 @@ export const ABAS = [
 ] as const;
 export type Aba = (typeof ABAS)[number];
 
-/** Matheus Carvalho: padrão do filtro de responsável (Z0, declarado na URL e no cabeçalho). */
+/**
+ * Matheus Carvalho: padrão do filtro de responsável (Z0). Como todo padrão, fica fora da URL;
+ * o cabeçalho escreve o nome, para quem não é o Matheus saber de quem é o recorte.
+ */
 export const RESPONSAVEL_PADRAO = 28381245;
 export const DIAS_PADRAO = 7;
 export const SINAIS = ["vencida", "sem_passo", "sem_movimento"] as const;

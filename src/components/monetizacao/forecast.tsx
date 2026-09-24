@@ -17,7 +17,7 @@ import { NOMES } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { date, Field, inputClass, Kpi, money, NotaApoio, number, SecaoCartao } from "./common";
 import type { OpcoesDetalhe } from "./dashboard";
-import { EstadoVazio } from "@/components/planning";
+import { EstadoSemAcesso, EstadoVazio } from "@/components/planning";
 
 export function Forecast({
   data,
@@ -36,14 +36,10 @@ export function Forecast({
   const [chosen, setChosen] = useState(month);
   const source = [...data.forecasts].sort((a, b) => b.source_date.localeCompare(a.source_date))[0];
   if (!source)
-    return (
-      <EstadoVazio
-        titulo={
-          data.permissions.all_units
-            ? "Ainda não há uma versão do forecast importada."
-            : "O forecast consolidado exige acesso às carteiras de todas as unidades."
-        }
-      />
+    return data.permissions.all_units ? (
+      <EstadoVazio titulo="Ainda não há uma versão do forecast importada." />
+    ) : (
+      <EstadoSemAcesso oQueFalta="escopo de todas as unidades" />
     );
   const cutoff = data.measured_at
     ? new Intl.DateTimeFormat("en-CA", {

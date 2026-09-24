@@ -180,30 +180,30 @@ export function DashboardMonetizacao({
   const [refreshing, setRefreshing] = useState(false),
     [detail, setDetail] = useState<Detalhe | null>(null);
 
-  // O menu lateral leva a `?aba=x` sem os filtros. Antes, trocar de aba mantinha o recorte (o
-  // estado era do componente); isto repõe período, responsável e produto na URL ao trocar de aba
-  // pelo menu. "Limpar filtros" na mesma aba continua limpando.
+  // O menu lateral leva a `?aba=x` sem os filtros, inclusive na aba em que já se está. Antes,
+  // o recorte vivia no componente e sobrevivia a isso; aqui a referência guarda a última
+  // intenção de filtro da página e a repõe quando a URL chega sem nenhuma chave de filtro.
+  // Toda mudança feita pela própria barra (inclusive "Limpar filtros", que grava a referência
+  // vazia) passa por `mudarFiltros`, então só a navegação de fora dispara a reposição.
   const compartilhados = {
     de: busca.de,
     ate: busca.ate,
     responsavel: busca.responsavel,
     produto: busca.produto,
   };
+  type Compartilhados = typeof compartilhados;
   const assinatura = JSON.stringify(compartilhados);
-  const anterior = useRef<{ aba: Aba; filtros: typeof compartilhados }>({
-    aba,
-    filtros: compartilhados,
-  });
+  const intencao = useRef<Compartilhados>(compartilhados);
+  const mudarFiltros = (patch: Partial<Compartilhados>) => {
+    intencao.current = { ...compartilhados, ...patch };
+    mudarBusca(patch);
+  };
   useEffect(() => {
-    const prev = anterior.current;
     const vazio = Object.values(compartilhados).every((v) => v === undefined);
-    const tinha = Object.values(prev.filtros).some((v) => v !== undefined);
-    if (prev.aba !== aba && vazio && tinha) {
-      anterior.current = { aba, filtros: prev.filtros };
-      mudarBusca(prev.filtros);
-      return;
-    }
-    anterior.current = { aba, filtros: compartilhados };
+    const tinha = Object.values(intencao.current).some((v) => v !== undefined);
+    // Repor preenche a URL, então o efeito seguinte cai no `else` e não há laço.
+    if (vazio && tinha) mudarBusca(intencao.current);
+    else intencao.current = compartilhados;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba, assinatura]);
 
@@ -300,7 +300,7 @@ export function DashboardMonetizacao({
   const aplicarPeriodo = (from: string, to: string) => {
     try {
       operacao([], { ...filter, from, to });
-      mudarBusca(periodoParaBusca(from, to));
+      mudarFiltros(periodoParaBusca(from, to));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -318,23 +318,21 @@ export function DashboardMonetizacao({
   });
 
   const barra = BARRA[aba];
-  const temFiltro =
-    busca.de !== undefined ||
-    busca.ate !== undefined ||
-    busca.responsavel !== undefined ||
-    busca.produto !== undefined;
+  // Só as chaves que a barra desta aba mostra: filtro escondido não acende "Limpar".
+  const chavesDaBarra = barra
+    ? ([
+        ...(barra.periodo ? (["de", "ate"] as const) : []),
+        ...(barra.responsavel ? (["responsavel"] as const) : []),
+        ...(barra.produto ? (["produto"] as const) : []),
+      ] as (keyof Compartilhados)[])
+    : [];
+  const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined);
   const filtros = barra && (
     <BarraFiltros
       className="items-end"
       aoLimpar={
         temFiltro
-          ? () =>
-              mudarBusca({
-                de: undefined,
-                ate: undefined,
-                responsavel: undefined,
-                produto: undefined,
-              })
+          ? () => mudarFiltros(Object.fromEntries(chavesDaBarra.map((k) => [k, undefined])))
           : undefined
       }
     >
@@ -389,10 +387,13 @@ export function DashboardMonetizacao({
             value={filter.owner ?? "todos"}
             onChange={(e) => {
               const v = e.target.value === "todos" ? "todos" : Number(e.target.value);
-              mudarBusca({ responsavel: v === RESPONSAVEL_PADRAO ? undefined : v });
+              mudarFiltros({ responsavel: v === RESPONSAVEL_PADRAO ? undefined : v });
             }}
           >
             <option value="todos">Toda a frente</option>
+            {filter.owner !== null && !owners.some(([id]) => id === filter.owner) && (
+              <option value={filter.owner}>{responsavel}</option>
+            )}
             {owners.map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
@@ -406,7 +407,7 @@ export function DashboardMonetizacao({
           <select
             className={inputClass}
             value={busca.produto ?? ""}
-            onChange={(e) => mudarBusca({ produto: (e.target.value || undefined) as ProdutoUrl })}
+            onChange={(e) => mudarFiltros({ produto: (e.target.value || undefined) as ProdutoUrl })}
           >
             <option value="">Todos os produtos</option>
             {PRODUTOS.map((p) => (
@@ -447,7 +448,19 @@ export function DashboardMonetizacao({
       {carga.nuncaSincronizou && (
         <EstadoVazio
           titulo="O CRM ainda não concluiu a primeira carga"
-          descricao="Os indicadores comerciais são liberados depois da primeira sincronização; a lista de empresas não depende dela."
+          descricao={
+            <>
+              Os indicadores comerciais são liberados depois da primeira sincronização; a lista de
+              empresas não depende dela.
+              {carga.motivo && (
+                <>
+                  {" "}
+                  A última tentativa falhou porque{" "}
+                  <span title={data.sync_error ?? undefined}>{carga.motivo}</span>.
+                </>
+              )}
+            </>
+          }
         />
       )}
       {carga.parada && (
@@ -854,11 +867,14 @@ function DealDetails({
                 </TableHeader>
                 <TableBody>
                   {rows.map((c) => {
-                    const historico = Object.entries(c.events).flatMap(([kind, events]) =>
-                      events
-                        .filter((e) => e.date >= filter.from && e.date <= filter.to)
-                        .map((e) => ({ kind, e })),
-                    );
+                    // Estoque não tem período: mostra os últimos movimentos, mais recente primeiro.
+                    const historico = Object.entries(c.events)
+                      .flatMap(([kind, events]) =>
+                        events
+                          .filter((e) => estoque || (e.date >= filter.from && e.date <= filter.to))
+                          .map((e) => ({ kind, e })),
+                      )
+                      .sort((a, b) => b.e.date.localeCompare(a.e.date));
                     return (
                       <TableRow key={c.id} className="align-top">
                         <TableCell>
@@ -877,7 +893,9 @@ function DealDetails({
                           )}
                           <details className="mt-2 text-xs">
                             <summary className="cursor-pointer text-muted-foreground">
-                              Histórico de {date(filter.from)} a {date(filter.to)}
+                              {estoque
+                                ? "Últimos movimentos"
+                                : `Histórico de ${date(filter.from)} a ${date(filter.to)}`}
                             </summary>
                             {historico.length ? (
                               historico.map(({ kind, e }, i) => (
@@ -887,7 +905,11 @@ function DealDetails({
                                 </p>
                               ))
                             ) : (
-                              <p className="text-muted-foreground">Sem movimento no período.</p>
+                              <p className="text-muted-foreground">
+                                {estoque
+                                  ? "Sem movimento registrado."
+                                  : "Sem movimento no período."}
+                              </p>
                             )}
                           </details>
                         </TableCell>
