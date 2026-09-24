@@ -22,6 +22,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import {
@@ -80,7 +88,6 @@ import {
   Notice,
   number,
   OfertaTag,
-  Panel,
   SecaoCartao,
 } from "./common";
 
@@ -505,7 +512,9 @@ export function Aquario({
           showAccount={setAccount}
         />
       </div>
-      {secao === "gates" && <Gates data={data} />}
+      {secao === "gates" && (
+        <Gates data={data} total={q.data?.accounts.length ?? 0} abrir={abrirNaBase} />
+      )}
       {secao === "base" && (
         <div className="flex justify-end">
           <Link
@@ -1397,146 +1406,235 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
   );
 }
 
-function Gates({ data }: { data: BaseMonetizacao }) {
-  const rows = [
-    [
-      "Contas na base conciliada",
-      data.accounts.length,
-      "União das fontes reconciliadas. Não equivale automaticamente a clientes ativos pagantes.",
-    ],
-    [
-      "Com vínculo de Matriz",
-      data.accounts.filter((a) => a.matrix).length,
-      "Vínculo identificado na reconciliação; não inferido pela ausência de unidade.",
-    ],
-    [
-      "Expansão · contratos comerciais",
-      data.accounts.filter((a) => a.new_commercial).length,
-      "Origem comercial identificada no cadastro.",
-    ],
-    [
-      "Expansão comercial · faixa a partir de R$ 25 mi",
-      data.accounts.filter(
+// Uma linha de "Entenda os números". `filtro` só existe quando a tabela da Base reproduz o
+// conjunto exatamente (mesma função de situação): aí o número abre a Base com esse filtro e o
+// total de lá bate (N2). Sem `filtro`, a linha é referência e não promete clique.
+type LinhaGate = { rotulo: string; n: number; porque: string; filtro?: Partial<Filters> };
+
+function Gates({
+  data,
+  total,
+  abrir,
+}: {
+  data: BaseMonetizacao;
+  /** Contas da base inteira do seu escopo, antes do recorte do topo (para o vazio dizer). */
+  total: number;
+  abrir: (f: Partial<Filters>) => void;
+}) {
+  if (!data.accounts.length)
+    return (
+      <EstadoVazio
+        titulo="Nenhuma conta neste recorte"
+        total={total > 0 ? total : undefined}
+        descricao={
+          total > 0
+            ? "Os números desta visão contam as contas do recorte do topo. Tire filtros para ver de onde vem a base."
+            : "A base conciliada ainda não tem contas no seu escopo."
+        }
+      />
+    );
+  // Rótulos alinhados com Produtos e listas (N11): o mesmo conjunto tem o mesmo nome nas duas
+  // visões, e o que difere diz em quê.
+  const linhas: LinhaGate[] = [
+    {
+      rotulo: "Contas na base conciliada",
+      n: data.accounts.length,
+      porque:
+        "União das fontes reconciliadas. Não equivale automaticamente a clientes ativos pagantes.",
+      filtro: {},
+    },
+    {
+      rotulo: "Com vínculo de Matriz",
+      n: data.accounts.filter((a) => a.matrix).length,
+      porque: "Vínculo identificado na reconciliação; não inferido pela ausência de unidade.",
+    },
+    {
+      rotulo: "Expansão · contratos comerciais",
+      n: data.accounts.filter((a) => a.new_commercial).length,
+      porque: "Origem comercial identificada no cadastro.",
+    },
+    {
+      rotulo: "Expansão comercial · faixa a partir de R$ 25 mi",
+      n: data.accounts.filter(
         (a) => a.new_commercial && (FAIXAS[a.band || ""]?.[0] ?? -1) >= 25 && !a.band_conflict,
       ).length,
-      "Faixa conhecida e sem divergência; é um recorte do número anterior.",
-    ],
-    [
-      "Base retroativa declarada",
-      data.accounts.filter((a) => a.old_base).length,
-      "Origem Base Antiga declarada. Outras contas das unidades exigem confirmação do sócio.",
-    ],
-    [
-      "Com resumo ECD vinculado",
-      data.accounts.filter((a) => a.ecd).length,
-      "Cobertura de evidência contábil; não acrescenta clientes ao total.",
-    ],
-    [
-      "Consultoria · base antiga sem fechamento comercial",
-      data.accounts.filter(baseRetroativaConsultoria).length,
-      "Origem conferida nos registros vinculados. Exclui conflitos e fechamentos comerciais identificados.",
-    ],
-    [
-      "Consultoria · fora do Simples comprovado",
-      data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
-      "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
-    ],
-    [
-      "Consultoria · excluídas por Simples/MEI",
-      data.accounts.filter(
+      porque: "Faixa conhecida e sem divergência; é um recorte do número anterior.",
+    },
+    {
+      rotulo: "Base retroativa declarada",
+      n: data.accounts.filter((a) => a.old_base).length,
+      porque:
+        "Origem Base Antiga declarada. Outras contas das unidades exigem confirmação do sócio.",
+    },
+    {
+      // Não é o degrau 4 do funil do topo ("Com ECD registrada"), que é cumulativo: só conta ECD
+      // de conta que já tem CNPJ e contato. Aqui entra toda conta com ECD.
+      rotulo: "Com resumo ECD vinculado (sem exigir CNPJ nem contato)",
+      n: data.accounts.filter((a) => a.ecd).length,
+      porque:
+        "Cobertura de evidência contábil; não acrescenta clientes ao total. O degrau “Com ECD registrada” do funil acima é cumulativo (só conta com CNPJ e contato) e por isso pode ser menor.",
+    },
+    {
+      rotulo: "Consultoria · carteira retroativa (base inteira)",
+      n: data.accounts.filter(baseRetroativaConsultoria).length,
+      porque:
+        "Base antiga sem fechamento comercial, conferida nos registros vinculados. Exclui conflitos e fechamentos comerciais identificados. Em Produtos e listas, o mesmo número.",
+    },
+    {
+      rotulo: "Consultoria · aptas (fora do Simples comprovado)",
+      n: data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+      porque:
+        "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
+      filtro: { product: "consultoria", status: ["eligible"] },
+    },
+    {
+      rotulo: "Consultoria · excluídas por Simples/MEI",
+      n: data.accounts.filter(
         (a) =>
           baseRetroativaConsultoria(a) &&
           oferta(a, "consultoria").status === "fora_regra" &&
           !situacaoForaDeOferta(a),
       ).length,
-      "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
-    ],
-    [
-      "Consultoria · fora por situação na Receita",
-      data.accounts.filter((a) => baseRetroativaConsultoria(a) && situacaoForaDeOferta(a)).length,
-      "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
-    ],
-    [
-      "Consultoria · regime a confirmar",
-      data.accounts.filter(
+      porque:
+        "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
+    },
+    {
+      rotulo: "Consultoria · inativas na Receita",
+      n: data.accounts.filter((a) => baseRetroativaConsultoria(a) && situacaoForaDeOferta(a))
+        .length,
+      porque:
+        "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
+    },
+    {
+      rotulo: "Consultoria · regime a confirmar",
+      n: data.accounts.filter(
         (a) => baseRetroativaConsultoria(a) && oferta(a, "consultoria").status === "revisar",
       ).length,
-      "Não entram na base apta até comprovar que estão fora do Simples.",
-    ],
+      porque: "Não entram na base apta até comprovar que estão fora do Simples.",
+      filtro: { product: "consultoria", status: ["qualificar"] },
+    },
   ];
+  // Matriz produto × degrau. As três primeiras linhas são situações da tabela da Base (mesma
+  // função), e abrem; as duas de disponibilidade incluem os só no Omie, que a tabela separa em
+  // grupo próprio, e por isso não abrem (o total de lá não bateria).
+  const degraus: {
+    rotulo: string;
+    conta: (s: string, free: boolean) => boolean;
+    situacao?: string;
+  }[] = [
+    {
+      rotulo: "Perfil aderente (inclui só no Omie)",
+      conta: (s) => s === "elegivel",
+      situacao: "eligible",
+    },
+    { rotulo: "Dados a confirmar", conta: (s) => s === "revisar", situacao: "review" },
+    { rotulo: "Fora do perfil", conta: (s) => s === "fora_regra", situacao: "excluded" },
+    {
+      rotulo: "Aderente, já no CRM ou na carga do mês (inclui só no Omie)",
+      conta: (s, free) => s === "elegivel" && !free,
+    },
+    {
+      rotulo: "Aderente e disponível (inclui só no Omie)",
+      conta: (s, free) => s === "elegivel" && free,
+    },
+  ];
+  const numero = (n: number, filtro: Partial<Filters> | undefined, rotulo: string) =>
+    filtro ? (
+      <button
+        type="button"
+        onClick={() => abrir(filtro)}
+        aria-label={`${number(n)} · abrir na Base de clientes: ${rotulo}`}
+        className={`num font-semibold text-primary-text underline-offset-2 hover:underline ${FOCO_VISIVEL}`}
+      >
+        {number(n)}
+      </button>
+    ) : (
+      <span className="num font-semibold">{number(n)}</span>
+    );
   return (
-    <div className="space-y-4">
-      <Panel title="De onde vem a base">
-        <Notice>
-          Os recortes de origem podem se sobrepor. Cada linha explica seu próprio conjunto; não some
-          Matriz, comercial e retroativos como se fossem grupos exclusivos.
-        </Notice>
-        <table className="mt-3 w-full text-left text-sm">
-          <tbody>
-            {rows.map(([label, n, why]) => (
-              <tr key={String(label)} className="border-b last:border-0">
-                <th className="py-3 pr-4 font-medium">{label}</th>
-                <td className="pr-4 text-right font-semibold tabular-nums">
-                  {number(n as number)}
-                </td>
-                <td className="text-xs text-muted-foreground">{why}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
-      <Panel title="Da conta à oportunidade disponível">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="py-2">Gate</th>
+    <div className="space-y-6">
+      <Secao
+        titulo="De onde vem a base?"
+        descricao="Os recortes de origem podem se sobrepor. Cada linha explica seu próprio conjunto; não some Matriz, comercial e retroativos como se fossem grupos exclusivos. Número sublinhado abre a Base de clientes com o mesmo recorte."
+      >
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Recorte</TableHead>
+                <TableHead className="text-right">Contas</TableHead>
+                <TableHead>Como é contado</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {linhas.map((l) => (
+                <TableRow key={l.rotulo}>
+                  <th
+                    scope="row"
+                    className="px-3 py-2.5 text-left align-middle text-sm font-medium text-foreground"
+                  >
+                    {l.rotulo}
+                  </th>
+                  <TableCell className="text-right">{numero(l.n, l.filtro, l.rotulo)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{l.porque}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Secao>
+      <Secao
+        titulo="Da conta à oportunidade disponível: quanto passa em cada degrau?"
+        descricao="A disponibilidade é por empresa + produto: uma oportunidade de Cella não ocupa automaticamente Finance. Todas exigem validação antes do envio; listas salvas e reservas de envio são conferidas novamente no botão de enviar."
+      >
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Degrau</TableHead>
                 {PRODUTOS.map((p) => (
-                  <th key={p}>{NOMES[p]}</th>
+                  <TableHead key={p} className="text-right">
+                    {NOMES[p]}
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                "Perfil aderente",
-                "Dados a confirmar",
-                "Fora do perfil",
-                "Aderente, já no CRM / carga no mês",
-                "Aderente e disponível",
-              ].map((label, index) => (
-                <tr className="border-t" key={label}>
-                  <th className="py-3 font-normal">{label}</th>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {degraus.map((d) => (
+                <TableRow key={d.rotulo}>
+                  <th
+                    scope="row"
+                    className="px-3 py-2.5 text-left align-middle text-sm font-normal text-foreground"
+                  >
+                    {d.rotulo}
+                  </th>
                   {PRODUTOS.map((p) => {
-                    const n = data.accounts.filter((a) => {
-                      const s = oferta(a, p).status,
-                        free = disponibilidade(a, p, data.cards, undefined, data.reservations).free;
-                      return index === 0
-                        ? s === "elegivel"
-                        : index === 1
-                          ? s === "revisar"
-                          : index === 2
-                            ? s === "fora_regra"
-                            : index === 3
-                              ? s === "elegivel" && !free
-                              : s === "elegivel" && free;
-                    }).length;
+                    const n = data.accounts.filter((a) =>
+                      d.conta(
+                        oferta(a, p).status,
+                        disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                      ),
+                    ).length;
                     return (
-                      <td key={p} className="font-semibold tabular-nums">
-                        {number(n)}
-                      </td>
+                      <TableCell key={p} className="text-right">
+                        {numero(
+                          n,
+                          d.situacao ? { product: p, status: [d.situacao] } : undefined,
+                          `${NOMES[p]} · ${d.rotulo}`,
+                        )}
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          A disponibilidade é por empresa + produto. Uma oportunidade de Cella não ocupa
-          automaticamente Finance. Todas exigem validação antes do envio; listas salvas e reservas
-          de envio são conferidas novamente no botão de enviar.
+        <p className="text-xs text-muted-foreground">
+          As “prontas para enviar” de Produtos e listas são as aderentes e disponíveis fora do grupo
+          “só no Omie”; por isso podem ser menores que a última linha.
         </p>
-      </Panel>
+      </Secao>
     </div>
   );
 }
