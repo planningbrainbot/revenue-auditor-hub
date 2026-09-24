@@ -31,6 +31,7 @@ import {
   type TomStatus,
 } from "@/components/planning";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { listaTrimestres } from "@/lib/rede/trimestre";
 import { cn } from "@/lib/utils";
 import {
   ComMotivo,
@@ -107,31 +108,8 @@ const PROCEDENCIA = {
   regua: "corte 75, piso 50%, teto 120%",
 };
 
-/**
- * Trimestres civis (chave aaaa-Tn), do mais recente para o mais antigo, com fim
- * EXCLUSIVO: é o que idu_apuracao espera.
- */
-function trimestres(): Periodo[] {
-  const out: Periodo[] = [];
-  const hoje = new Date();
-  let ano = hoje.getFullYear();
-  let q = Math.floor(hoje.getMonth() / 3) + 1;
-  for (let i = 0; i < 8; i += 1) {
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    out.push({
-      key: `${ano}-T${q}`,
-      label: `T${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
-      ini: iso(new Date(Date.UTC(ano, (q - 1) * 3, 1))),
-      fim: iso(new Date(Date.UTC(ano, q * 3, 1))),
-    });
-    q -= 1;
-    if (q === 0) {
-      q = 4;
-      ano -= 1;
-    }
-  }
-  return out;
-}
+/** Trimestres civis com fim EXCLUSIVO: é o que idu_apuracao espera. */
+const trimestres = (): Periodo[] => listaTrimestres({ fim: "exclusivo" });
 
 const fmtNum = (v: number | null | undefined, casas = 1) =>
   v === null || v === undefined

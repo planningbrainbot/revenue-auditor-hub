@@ -63,23 +63,15 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
-import { chaveMes, rotuloMes } from "@/lib/rede/mes";
+import { DestinoLink } from "@/components/rede/destino-link";
+import { chaveMes, mesCorrente, mesesEntre, rotuloMes, somarMeses } from "@/lib/rede/mes";
 
 // Contrato da tela: docs/design/contratos/rede-overview.md (arquétipo Visão
 // geral). Todo card segue o mesmo padrão: número-resumo aqui, e o card ou o
 // "Ver detalhe" leva para a tela dona daquele dado. Quando o total do destino
 // não bate com o daqui, a nota do card diz isso (N2).
-function VerDetalheLink({ to, search }: { to: string; search?: Record<string, string> }) {
-  return (
-    <Link
-      to={to}
-      search={search}
-      className="inline-flex items-center gap-1 text-[13px] font-medium text-primary-text hover:underline"
-    >
-      Ver detalhe <ArrowRight className="size-4" aria-hidden />
-    </Link>
-  );
-}
+// "Ver detalhe →" de cada card, com foco visível: o DestinoLink da Rede.
+const VerDetalheLink = DestinoLink;
 
 // Célula de tabela cuja fonte caiu: diz isso em vez de R$ 0 (N4).
 function CelulaIndisponivel() {
@@ -192,19 +184,6 @@ const fmtPct = (v: number | null | undefined, decimals = 1) =>
 const fmtMil = (v: number) => `${(v / 1000).toFixed(0)}k`;
 
 const pctVsPrev = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
-
-// Índice absoluto de mês (ano×12+mês) — usado só pra calcular o "período
-// anterior equivalente" ao range de data selecionado (mesma duração, logo
-// antes do início do range), sem lidar com aritmética de Date/dia do mês.
-const toMonthIndex = (ym: string) => {
-  const [y, m] = ym.split("-").map(Number);
-  return y * 12 + (m - 1);
-};
-const fromMonthIndex = (idx: number) => {
-  const y = Math.floor(idx / 12);
-  const m = (idx % 12) + 1;
-  return `${y}-${String(m).padStart(2, "0")}`;
-};
 
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -528,7 +507,7 @@ function RedeOverviewPage() {
   // de 11/08/2026, ver `outputs/2026-08-spec-painel-desempenho-unidade.md`
   // no wiki) — a coluna Hunter da tabela hoje mostra só a ponta visível do
   // volume real vendido pelas próprias unidades.
-  const mesAtual = useMemo(() => chaveMes(new Date()) ?? new Date().toISOString().slice(0, 7), []);
+  const mesAtual = useMemo(mesCorrente, []);
 
   const vendasMatrizPorUnidade = useMemo(() => {
     const map = new Map<string, number>();
@@ -637,9 +616,10 @@ function RedeOverviewPage() {
   // topo da página (`dataInicio`/`dataFim`, padrão ano corrente) — "anterior"
   // é a mesma duração, imediatamente antes do início do range selecionado.
   const periodoAnteriorRange = useMemo(() => {
-    const rangeLen = toMonthIndex(rangeEndYm) - toMonthIndex(rangeStartYm) + 1;
-    const prevEndYm = fromMonthIndex(toMonthIndex(rangeStartYm) - 1);
-    const prevStartYm = fromMonthIndex(toMonthIndex(rangeStartYm) - rangeLen);
+    // "Período anterior equivalente": mesma duração, logo antes do início.
+    const rangeLen = mesesEntre(rangeStartYm, rangeEndYm) + 1;
+    const prevEndYm = somarMeses(rangeStartYm, -1);
+    const prevStartYm = somarMeses(rangeStartYm, -rangeLen);
     return { prevStartYm, prevEndYm };
   }, [rangeStartYm, rangeEndYm]);
 
@@ -860,7 +840,7 @@ function RedeOverviewPage() {
       const ganhoMes = primeiraCompraPorCnpj.get(d);
       if (!ganhoMes) continue;
       const churnMes = chaveMes(c.data_churn) ?? "";
-      const dur = toMonthIndex(churnMes) - toMonthIndex(ganhoMes);
+      const dur = mesesEntre(ganhoMes, churnMes);
       if (dur >= 0) duracoes.push(dur);
     }
     if (duracoes.length === 0) return { mediaMeses: null, n: 0 };

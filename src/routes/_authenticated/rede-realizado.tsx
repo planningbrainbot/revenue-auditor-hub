@@ -1,4 +1,4 @@
-import { createFileRoute, Link, type SearchSchemaInput } from "@tanstack/react-router";
+import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -48,7 +48,8 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
-import { chaveMes, rotuloMes } from "@/lib/rede/mes";
+import { DestinoLink } from "@/components/rede/destino-link";
+import { chaveMes, mesCorrente, rotuloMes, somarMeses } from "@/lib/rede/mes";
 import { cn } from "@/lib/utils";
 
 // Contrato da tela: docs/design/contratos/rede-realizado.md (arquétipo
@@ -230,17 +231,6 @@ const METRICAS_DEF: DefMetrica[] = [
 
 const MAX_LINHAS = 5;
 
-function DestinoLink({ to, rotulo }: { to: string; rotulo: string }) {
-  return (
-    <Link
-      to={to}
-      className="inline-flex items-center gap-1 rounded-sm text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {rotulo} <ArrowRight className="size-4" aria-hidden />
-    </Link>
-  );
-}
-
 function RedeRealizadoPage() {
   const [reconcRows, setReconcRows] = useState<ReconcRow[]>([]);
   const [roasRows, setRoasRows] = useState<RoasUnitRow[]>([]);
@@ -253,12 +243,8 @@ function RedeRealizadoPage() {
   const [unidadesUrl, setUnidadesUrl] = useFiltroNaUrl<string[]>("unidades", []);
 
   // Período padrão: os últimos 12 meses (antes a série ia até 2021).
-  const atePadrao = useMemo(() => chaveMes(new Date()) ?? new Date().toISOString().slice(0, 7), []);
-  const dePadrao = useMemo(() => {
-    const [a, m] = atePadrao.split("-").map(Number);
-    const idx = a * 12 + (m - 1) - 11;
-    return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
-  }, [atePadrao]);
+  const atePadrao = useMemo(mesCorrente, []);
+  const dePadrao = useMemo(() => somarMeses(atePadrao, -11), [atePadrao]);
   const [deUrl, setDe] = useFiltroNaUrl("de", dePadrao);
   const [ateUrl, setAte] = useFiltroNaUrl("ate", atePadrao);
   const periodoValido = RE_CHAVE.test(deUrl) && RE_CHAVE.test(ateUrl) && deUrl <= ateUrl;

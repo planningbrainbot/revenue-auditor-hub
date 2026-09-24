@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { listaTrimestres, type Trimestre } from "@/lib/rede/trimestre";
 import {
   Carregando,
   EstadoErro,
@@ -119,33 +120,8 @@ const fmtX = (v: number | null | undefined) =>
 const fmtNum = (v: number | null | undefined) =>
   v === null || v === undefined ? NA : v.toLocaleString("pt-BR");
 
-type Trimestre = { key: string; label: string; ini: string; fim: string };
-
-/** Trimestres civis disponíveis (chave aaaa-Tn), do mais recente pro mais antigo. */
-function trimestresDisponiveis(): Trimestre[] {
-  const out: Trimestre[] = [];
-  const hoje = new Date();
-  let ano = hoje.getFullYear();
-  let q = Math.floor(hoje.getMonth() / 3) + 1;
-  for (let i = 0; i < 8; i += 1) {
-    const mesIni = (q - 1) * 3;
-    const ini = new Date(Date.UTC(ano, mesIni, 1));
-    const fim = new Date(Date.UTC(ano, mesIni + 3, 0));
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    out.push({
-      key: `${ano}-T${q}`,
-      label: `T${q}/${ano} · ${["jan–mar", "abr–jun", "jul–set", "out–dez"][q - 1]}`,
-      ini: iso(ini),
-      fim: iso(fim),
-    });
-    q -= 1;
-    if (q === 0) {
-      q = 4;
-      ano -= 1;
-    }
-  }
-  return out;
-}
+/** Trimestres civis com fim INCLUSIVO: é o que indicadores_trimestre espera. */
+const trimestresDisponiveis = (): Trimestre[] => listaTrimestres({ fim: "inclusivo" });
 
 /**
  * Maturação da safra de inadimplência. O indicador só estabiliza ~60 dias depois do

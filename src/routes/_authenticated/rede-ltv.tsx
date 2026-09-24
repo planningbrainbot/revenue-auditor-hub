@@ -1,4 +1,4 @@
-import { createFileRoute, Link, type SearchSchemaInput } from "@tanstack/react-router";
+import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -13,7 +13,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight } from "lucide-react";
 import {
   COR_NEUTRA,
   CORES_SERIE,
@@ -43,7 +42,8 @@ import {
   type EstadoKpi,
 } from "@/components/planning";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
-import { chaveMes, rotuloMes } from "@/lib/rede/mes";
+import { DestinoLink } from "@/components/rede/destino-link";
+import { chaveMes, mesesEntre, rotuloMes } from "@/lib/rede/mes";
 
 // Contrato da tela: docs/design/contratos/rede-ltv.md (arquétipo
 // Lista/Relatório). As fórmulas são as de antes; os rótulos passam a dizer
@@ -117,24 +117,6 @@ const fmtMeses = (v: number | null | undefined, casas = 1) =>
 
 function monthDiff(from: Date, to: Date): number {
   return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
-}
-
-// Mesma conta de monthDiff, feita sobre as chaves "aaaa-mm" (sem Date em UTC).
-function mesesEntre(de: string, ate: string): number {
-  const [ya, ma] = de.split("-").map(Number);
-  const [yb, mb] = ate.split("-").map(Number);
-  return (yb - ya) * 12 + (mb - ma);
-}
-
-function DestinoLink({ to, rotulo }: { to: string; rotulo: string }) {
-  return (
-    <Link
-      to={to}
-      className="inline-flex items-center gap-1 rounded-sm text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {rotulo} <ArrowRight className="size-4" aria-hidden />
-    </Link>
-  );
 }
 
 function RedeLtvPage() {

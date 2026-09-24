@@ -105,3 +105,32 @@ export function rotuloMes(chave: string): string {
   if (i < 0 || i > 11) return chave;
   return `${ABREV[i]}/${m[1].slice(2)}`;
 }
+
+// ── Aritmética de mês sobre a chave "aaaa-mm" ──────────────────────────────
+// Índice absoluto (ano×12 + mês−1), sem Date: dia do mês e fuso não entram.
+// Chave ilegível dá NaN, e a comparação com ela é sempre falsa.
+function indiceMes(chave: string): number {
+  const [a, m] = chave.split("-").map(Number);
+  return a * 12 + (m - 1);
+}
+
+function chaveDoIndice(idx: number): string {
+  const a = Math.floor(idx / 12);
+  const m = (idx % 12) + 1;
+  return `${a}-${String(m).padStart(2, "0")}`;
+}
+
+/** Mês de hoje em São Paulo, "aaaa-mm". */
+export function mesCorrente(): string {
+  return chaveMes(new Date()) ?? new Date().toISOString().slice(0, 7);
+}
+
+/** `chave` deslocada `n` meses (negativo volta). "2026-01", −1 → "2025-12". */
+export function somarMeses(chave: string, n: number): string {
+  return chaveDoIndice(indiceMes(chave) + n);
+}
+
+/** Meses de `a` até `b` (b − a). "2024-07" → "2026-01" = 18. */
+export function mesesEntre(a: string, b: string): number {
+  return indiceMes(b) - indiceMes(a);
+}
