@@ -47,3 +47,6 @@ KPIs locais do Clima → `KpiCard`; `Badge` de status → `StatusBadge`; nomes d
 
 ## O que NÃO entra
 Trilha que substituiria o Qulture (não existe); PDI da Monetização (fronteira declarada em `monetizacao-pessoas.md`).
+
+## Achado para o Eliezek
+- **Adoção engole erro do banco.** `listAdocao` (`src/lib/gente-adocao.functions.ts:36-40`) lê `v_gente_adocao_por_unidade` e devolve `res?.data ?? []` sem olhar `res.error`: falha de leitura chega à tela como lista vazia. A tela (P3) separa carregando, erro, sem acesso e vazio, mas o `ErroDaFonte` só aparece quando a chamada inteira falha; erro de consulta vira "sem acesso" (sem `view.gente.agregado`) ou "nenhuma unidade". Correção sugerida, fora desta migração (função de servidor): `if (res?.error) throw new Error(res.error.message)`, como `listGente` já faz.
