@@ -394,8 +394,9 @@ export function PagamentosView() {
       patch.status_validado !== undefined
         ? `Validação de ${l.unidade} (${CATEGORIA_LABEL[l.categoria]}, ${fmtMes(l.mesReferencia)})`
         : `Observação de ${l.unidade} (${CATEGORIA_LABEL[l.categoria]}, ${fmtMes(l.mesReferencia)})`;
+    // Falha de gravação é da ação, não da tela: só o toast. O cartão de erro
+    // fica para a carga, que é o que ele descreve.
     if (updErr) {
-      setError(updErr.message);
       toast.error(`Não foi possível salvar: ${oQue}. ${updErr.message}`);
     } else if (data) {
       toast.success(
@@ -599,10 +600,11 @@ export function PagamentosView() {
                   {confirmar.linha.unidade} · {CATEGORIA_LABEL[confirmar.linha.categoria]} ·{" "}
                   {fmtMes(confirmar.linha.mesReferencia)} · {brl(confirmar.linha.valor)}. Hoje está “
                   {STATUS_LABEL[confirmar.linha.pagamento?.status_validado ?? "pendente"]}”. A validação
-                  grava seu e-mail e a data de agora, e o valor passa a contar em{" "}
-                  {confirmar.status === "confirmado_pago"
-                    ? "Recebido (validado)"
-                    : "Pendente (validado)"}
+                  grava seu e-mail e a data de agora, e{" "}
+                  {efeitoDaValidacao(
+                    confirmar.linha.pagamento?.status_validado ?? "pendente",
+                    confirmar.status,
+                  )}
                   .
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -624,6 +626,21 @@ export function PagamentosView() {
       </AlertDialog>
     </div>
   );
+}
+
+// Onde o valor conta nos cartões do topo: Recebido é só "Confirmado — pago";
+// o resto é Pendente, e "Não conferido" é o recorte de quem nunca foi validado.
+function baldeDoStatus(s: StatusValidado): string {
+  return s === "confirmado_pago" ? "Recebido (validado)" : "Pendente (validado)";
+}
+
+function efeitoDaValidacao(de: StatusValidado, para: StatusValidado): string {
+  const a = baldeDoStatus(de);
+  const b = baldeDoStatus(para);
+  const balde = a === b ? `o valor continua em ${b}` : `o valor sai de ${a} e passa a contar em ${b}`;
+  if (de === "pendente" && para !== "pendente") return `${balde}, e deixa de contar em Não conferido`;
+  if (de !== "pendente" && para === "pendente") return `${balde}, e volta a contar em Não conferido`;
+  return balde;
 }
 
 function ObservacaoCell({ value, onSave }: { value: string | null; onSave: (v: string) => void }) {

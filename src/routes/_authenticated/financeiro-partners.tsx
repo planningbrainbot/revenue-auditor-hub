@@ -45,7 +45,19 @@ function FinanceiroPartnersPage() {
         <PageHeader
           titulo="Financeiro Partners"
           pergunta="Como está o dinheiro da Planning Partners, projetado e realizado?"
-          descricao="Tela fora do menu desde 14/09/2026: a área Partners foi dissolvida, a DRE e o fluxo de caixa vivem no cockpit do Financeiro e o resto foi para Receita e Repasses. Continua aberta por link direto."
+          descricao={
+            <>
+              Tela fora do menu desde 14/09/2026: a área Partners foi dissolvida, a DRE e o fluxo de
+              caixa vivem no cockpit do Financeiro e o resto foi para{" "}
+              <Link
+                to="/receita-overview"
+                className="rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Receita e Repasses › Visão geral
+              </Link>
+              . Continua aberta por link direto.
+            </>
+          }
         />
       </div>
       <div className="border-b bg-card/50 px-4 pt-2">
