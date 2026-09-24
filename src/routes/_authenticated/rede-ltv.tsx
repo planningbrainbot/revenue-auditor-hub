@@ -358,7 +358,11 @@ function RedeLtvPage() {
             descricao="Mesma fórmula dos cards, por unidade, sobre os contratos ativos de hoje."
             acoes={
               <>
-                <DestinoLink to="/rede-realizado" rotulo="Abrir Realizado" />
+                <DestinoLink
+                  to="/rede-realizado"
+                  search={unidade === ALL ? undefined : { unidades: [unidade] }}
+                  rotulo={unidade === ALL ? "Abrir Realizado" : `Abrir Realizado de ${unidade}`}
+                />
                 <DestinoLink to="/unidades/funil-cac" rotulo="Abrir Funil de CAC" />
               </>
             }
