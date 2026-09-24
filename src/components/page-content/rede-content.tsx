@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Info, Mail, Phone, Search, User } from "lucide-react";
+import { parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import {
@@ -193,7 +194,9 @@ export function RedeContent() {
   const enriched = useMemo(() => {
     const now = new Date();
     return unidades.map((u) => {
-      const ing = u.data_inauguracao ? new Date(u.data_inauguracao) : null;
+      // Data sem hora: `new Date("2026-09-01")` é meia-noite UTC e no fuso de
+      // casa vira 31/08 (mês de inauguração errado); parseISO lê no fuso local.
+      const ing = u.data_inauguracao ? parseISO(u.data_inauguracao) : null;
       let status: "ativa" | "futura" | "interna";
       if ((u.tipo ?? "").toLowerCase() === "interna") status = "interna";
       else if (ing && ing > now) status = "futura";
