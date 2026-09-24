@@ -673,48 +673,36 @@ const SERIE = [
 
 const POR_UNIDADE = UNIDADES.map((u, i) => ({ unidade: u.unidade, ltv: 61000 - i * 4300 }));
 
-// Cópia dos gráficos antigos de rede-ltv.tsx, com o tema único de gráfico. A
-// tela real já usa um eixo Y por gráfico (DESIGN.md §5 regra 4, 24/09/2026);
-// os dois eixos aqui são da cópia da vitrine, não da tela.
+// Cópia dos gráficos de rede-ltv.tsx, com o tema único de gráfico: um eixo Y
+// por gráfico, como a tela real (DESIGN.md §5 regra 4, 24/09/2026). LTV e CAC
+// dividem o eixo porque os dois são R$.
 function SecaoGraficos() {
   return (
     <Secao id="graficos" titulo="Gráficos (estilo de rede-ltv.tsx)">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">LTV vs CAC por Mês</div>
+          <div className="mb-2 text-sm font-medium">O LTV estimado cobre o CAC da rede, mês a mês? (R$)</div>
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={SERIE}>
                 <CartesianGrid {...gradeProps} />
                 <XAxis dataKey="label" {...eixoProps} />
-                <YAxis
-                  yAxisId="left"
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  {...eixoProps}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  {...eixoProps}
-                />
+                <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} {...eixoProps} />
                 <Tooltip {...tooltipProps} formatter={(v: number) => fmtBRL(v)} />
                 <Legend {...legendaProps} />
                 <Line
-                  yAxisId="left"
                   type="monotone"
                   dataKey="ltv"
-                  name="LTV"
+                  name="LTV estimado"
                   stroke={CORES_SERIE[0]}
                   strokeWidth={2}
                   dot={false}
                   isAnimationActive={false}
                 />
                 <Line
-                  yAxisId="right"
                   type="monotone"
                   dataKey="cac"
-                  name="CAC"
+                  name="CAC da rede"
                   stroke={CORES_SERIE[1]}
                   strokeWidth={2}
                   dot={false}
@@ -725,7 +713,7 @@ function SecaoGraficos() {
           </div>
         </Card>
         <Card className="p-4">
-          <div className="mb-2 text-sm font-medium">ARPA e LT Médio</div>
+          <div className="mb-2 text-sm font-medium">Quanto vale, por mês, um contrato ativo? (R$)</div>
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={SERIE}>
@@ -736,7 +724,7 @@ function SecaoGraficos() {
                 <Legend {...legendaProps} />
                 <Bar
                   dataKey="arpa"
-                  name="ARPA"
+                  name="ARPA por contrato"
                   fill={CORES_SERIE[0]} fillOpacity={0.7}
                   isAnimationActive={false}
                 />
