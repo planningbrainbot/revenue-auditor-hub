@@ -5,6 +5,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { Search, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { AcessosUsuarioDialog } from "@/components/admin/acessos-usuario-dialog";
+import { Carregando, EstadoErro, EstadoVazio } from "@/components/planning";
+import { Input } from "@/components/ui/input";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { listNiveisDeAcesso } from "@/lib/permissions.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -48,7 +51,7 @@ const CELULA: Record<Nivel, { texto: string; classe: string }> = {
 function NiveisPage() {
   const listFn = useServerFn(listNiveisDeAcesso);
   const q = useQuery({ queryKey: ["niveis-acesso"], queryFn: () => listFn() });
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useFiltroNaUrl("q", "");
   const [alvo, setAlvo] = useState<{ userId: string; nome: string } | null>(null);
 
   const pessoas = useMemo(() => {
@@ -58,14 +61,23 @@ function NiveisPage() {
     );
   }, [q.data, busca]);
 
+  const total = q.data?.pessoas.length ?? 0;
+  const nAreas = q.data?.areas.length ?? 0;
+
   return (
     <AppShell
       title="Níveis de acesso"
-      subtitle="Quem é super admin, admin, sócio ou usuário em cada área. Clique numa pessoa para mudar."
+      pergunta="Que nível cada pessoa tem em cada área?"
+      subtitle={
+        <>
+          {q.data ? `${total} ${total === 1 ? "pessoa" : "pessoas"} · ${nAreas} áreas · ` : ""}
+          Clique numa pessoa para mudar. O nível novo vale no próximo carregamento dela.
+        </>
+      }
     >
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary-text" aria-hidden />
           <div className="text-muted-foreground">
             <p>
               <strong className="text-foreground">total</strong> super admin ·{" "}
@@ -78,22 +90,32 @@ function NiveisPage() {
           </div>
         </div>
 
-        <label htmlFor="niveis-busca" className="relative block max-w-sm">
-          <span className="sr-only">Buscar pessoa</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            id="niveis-busca"
+        <div className="relative max-w-sm">
+          <Search
+            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome ou e-mail"
-            className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm"
+            aria-label="Buscar por nome ou e-mail"
+            className="h-9 pl-8"
           />
-        </label>
+        </div>
 
         {q.isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
+          <Carregando variante="tabela" />
         ) : q.isError ? (
-          <p className="text-sm text-destructive">{(q.error as Error).message}</p>
+          <EstadoErro
+            titulo="Não foi possível carregar os níveis de acesso"
+            detalhe={(q.error as Error)?.message}
+            tentarNovamente={() => q.refetch()}
+          />
+        ) : total === 0 ? (
+          <EstadoVazio titulo="Nenhuma pessoa cadastrada" descricao="Quem é cadastrado em Usuários aparece aqui." />
+        ) : pessoas.length === 0 ? (
+          <EstadoVazio titulo="Ninguém com esse nome ou e-mail" total={total} />
         ) : (
           <div className="overflow-x-auto rounded-xl border bg-card">
             <table className="w-full text-sm">
