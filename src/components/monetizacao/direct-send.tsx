@@ -15,6 +15,7 @@ import { disponibilidade, oferta } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
+import { soNoOmie } from "@/lib/monetizacao/portfolio";
 import { Field, inputClass, Notice } from "./common";
 
 export function DirectSend({
@@ -61,6 +62,9 @@ export function DirectSend({
       : null,
   }));
   const ready = checks.filter((c) => c.result?.status === "elegivel" && c.available?.free);
+  // O botão da tabela mostra este mesmo N; aqui se diz quantas delas só existem no Omie da
+  // unidade (a régua aprova, mas ninguém declarou que são clientes).
+  const readySoOmie = ready.filter(({ account }) => soNoOmie(account)).length;
   const send = async () => {
     if (running.current || !product || (!saved && !ready.length)) return;
     running.current = true;
@@ -218,6 +222,13 @@ export function DirectSend({
             </li>
           ))}
         </ul>
+        {product && readySoOmie > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {readySoOmie} das {ready.length} oportunidades deste envio são “só no Omie” da unidade:
+            a régua do produto aprova, mas o cadastro do Omie também tem fornecedor. Confira com a
+            unidade se são clientes.
+          </p>
+        )}
         {product && ready.length < accounts.length && (
           <Notice>
             {accounts.length - ready.length} conta(s) têm dados pendentes, estão fora do perfil ou

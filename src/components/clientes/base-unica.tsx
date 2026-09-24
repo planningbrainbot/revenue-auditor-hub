@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Download, RefreshCw, Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Search, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,18 @@ import {
 import { AccountDetail } from "@/components/monetizacao/account-detail";
 import { Aquario, type SecaoAquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
-import { Carregando, EstadoErro, EstadoSemAcesso, PageHeader } from "@/components/planning";
+import {
+  BarraFiltros,
+  Carregando,
+  ChipFiltro,
+  EstadoErro,
+  EstadoSemAcesso,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+} from "@/components/planning";
+import { ORIGENS_BASE, origemBase, type PortfolioFilters } from "@/lib/monetizacao/portfolio";
+import { buscaDosFiltros, filtrosDaBusca } from "./busca";
 
 // UM menu só. Antes eram duas faixas empilhadas: estas seis abas mais as cinco do Aquário por
 // dentro. As do Aquário subiram para cá ("Base de clientes", "Produtos e listas", "Entenda os
@@ -102,6 +113,14 @@ const VIEW_DA_SECAO: Record<SecaoAquario, string> = {
 // Fora da faixa, mas endereçável: o link no rodapé do funil leva aqui. Sem isso a view cairia
 // no fallback e os contatos ficariam inalcançáveis.
 const viewsOcultas = ["contatos"];
+// Degraus do funil de refinamento: `gate` da URL, rótulo e chave em `counts`. "Com CNPJ" (não
+// "válido"): o degrau só testa se há CNPJ.
+const FUNIL = [
+  ["", "Bruta"],
+  ["cnpj", "Com CNPJ"],
+  ["contato", "Com contato"],
+  ["ecd", "Com ECD registrada"],
+] as const;
 const originNames: Record<string, string> = {
   nova: "Base nova",
   antiga: "Base antiga",
@@ -157,10 +176,13 @@ export function ClientesBase() {
     const unitKeys = new Set(selectedUnit?.account_keys);
     return data.accounts.filter((a) => {
       if (search.unidade && !unitKeys.has(a.key)) return false;
-      if (search.origem && a.base?.origin !== search.origem) return false;
+      // Origem pela régua da tabela (`origemBase`, 4 valores). A antiga lia `base.origin`, com 3
+      // valores e outro sentido: "A confirmar" do topo nunca casava conta sem `base`.
+      if (search.origem && origemBase(a) !== search.origem) return false;
+      // A busca é uma só (a da tabela saiu): nome, segmento, unidade e CNPJ.
       if (
         search.q &&
-        !normal([a.name, a.unit_label, ...(a.base?.cnpjs || [])].join(" ")).includes(
+        !normal([a.name, a.segment, a.unit_label, ...(a.base?.cnpjs || [])].join(" ")).includes(
           normal(search.q),
         ) &&
         !(
@@ -190,6 +212,44 @@ export function ClientesBase() {
       ? filtered.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
       : filtered;
   const accountKeys = useMemo(() => new Set(filtered.map((a) => a.key)), [filtered]);
+  // Filtros da tabela da Base, lidos da URL. A assinatura segura a identidade do objeto: a
+  // tabela recalcula a carteira inteira quando ele muda.
+  const unidadeKey =
+    (search.unidade &&
+      query.data?.units.find(
+        (u) => u.key === search.unidade || normal(u.name) === normal(search.unidade),
+      )?.key) ||
+    null;
+  const assinaturaFiltros = JSON.stringify([
+    unidadeKey,
+    search.origem,
+    search.produto,
+    search.situacao,
+    search.abordagem,
+    search.faixa,
+    search.driva,
+    search.segmento,
+    search.regime,
+    search.receita,
+    search.contato,
+    search.sobreposicao,
+  ]);
+  const filtros = useMemo(
+    () => filtrosDaBusca(search, unidadeKey),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [assinaturaFiltros],
+  );
+  const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario) => {
+    setPage(1);
+    void navigate({
+      search: {
+        ...search,
+        ...buscaDosFiltros(f),
+        ...(destino ? { view: VIEW_DA_SECAO[destino] } : {}),
+      },
+      replace: true,
+    });
+  };
   const meta = VISOES[view] ?? VISOES.monetizacao;
   const pendentes = rows.filter(
     (a) => a.base?.needs_validation || a.base?.needs_source_correction,
@@ -347,23 +407,28 @@ export function ClientesBase() {
       />
       {nav}
       <>
-        <section
-          className="grid gap-3 rounded-xl border bg-card p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
-          aria-label="Filtros da base"
+        <BarraFiltros
+          aoLimpar={
+            search.q || search.unidade || search.origem || search.gate
+              ? () => change({ q: "", unidade: "", origem: "", gate: "" })
+              : undefined
+          }
         >
-          <label className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
+              Base não tem controle próprio para elas. */}
+          <label className="relative min-w-56 flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              aria-label="Buscar empresa ou CNPJ"
+              aria-label="Buscar empresa, segmento ou CNPJ"
               className="pl-9"
               value={search.q}
-              placeholder="Buscar empresa ou CNPJ"
+              placeholder="Buscar empresa, segmento ou CNPJ"
               onChange={(e) => change({ q: e.target.value })}
             />
           </label>
           <select
             aria-label="Unidade"
-            className={inputClass}
+            className={`${inputClass} w-auto`}
             value={search.unidade}
             onChange={(e) => change({ unidade: e.target.value })}
           >
@@ -376,68 +441,67 @@ export function ClientesBase() {
           </select>
           <select
             aria-label="Origem da base"
-            className={inputClass}
+            className={`${inputClass} w-auto`}
             value={search.origem}
             onChange={(e) => change({ origem: e.target.value })}
           >
             <option value="">Todas as origens</option>
-            {Object.entries(originNames).map(([v, label]) => (
+            {Object.entries(ORIGENS_BASE).map(([v, label]) => (
               <option key={v} value={v}>
                 {label}
               </option>
             ))}
           </select>
-          <Button
-            variant="ghost"
-            onClick={() => change({ q: "", unidade: "", origem: "", gate: "" })}
-          >
-            Limpar
-          </Button>
-        </section>
-        <section
-          aria-label="Funil de refinamento"
-          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-        >
-          {[
-            ["", "Bruta", counts.raw],
-            ["cnpj", "Com CNPJ válido", counts.cnpj],
-            ["contato", "Com contato", counts.contato],
-            ["ecd", "Com ECD registrada", counts.ecd],
-          ].map(([gate, label, value], index) => (
-            <button
-              key={String(gate)}
-              onClick={() => change({ gate: String(gate) })}
-              className={`relative rounded-xl border p-4 text-left transition-colors ${search.gate === gate ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/40"}`}
-            >
-              <div className="text-xs font-medium text-muted-foreground">
-                {index + 1} · {label}
-              </div>
-              <div className="mt-1 text-3xl font-semibold tabular-nums">
-                {number(Number(value))}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {index === 0
-                  ? "Contas conciliadas, sem multiplicar por contato"
-                  : "Dentro do degrau anterior"}
-              </p>
-              {index < 3 && (
-                <ArrowRight className="absolute right-3 top-5 h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
-          ))}
-        </section>
+          {search.gate && (
+            <ChipFiltro
+              rotulo="Refinamento"
+              valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
+              aoRemover={() => change({ gate: "" })}
+            />
+          )}
+        </BarraFiltros>
+        <KpiGrade colunas={4}>
+          {FUNIL.map(([gate, label], index) => {
+            const ativo = search.gate === gate;
+            return (
+              <KpiCard
+                key={gate}
+                rotulo={`${index + 1} · ${label}`}
+                valor={number(counts[gate || "raw"])}
+                nota={
+                  index === 0
+                    ? "Contas conciliadas, sem multiplicar por contato"
+                    : "Dentro do degrau anterior"
+                }
+                abrir={{
+                  rotulo: ativo ? "Aplicado" : "Filtrar",
+                  onClick: () => change({ gate }),
+                }}
+                className={ativo ? "border-primary-text" : undefined}
+              />
+            );
+          })}
+        </KpiGrade>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>
             Funil cumulativo. Contato e ECD medem completude; não bloqueiam Consultoria. Uma conta
             pode reunir CNPJs vinculados.
           </p>
-          <button className="underline" onClick={() => change({ view: "pendencias" })}>
+          {/* Texto, não link: nenhuma visão lista a fila de envio ao Pipefy, e um link com total
+              que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
+          <p>
             {health.isError
-              ? "Sincronização indisponível"
-              : `${health.data?.pending_changes ?? 0} alterações na fila de envio ao Pipefy`}
-          </button>
+              ? "Sincronização com o Pipefy indisponível"
+              : health.isPending
+                ? "Fila de envio ao Pipefy · carregando…"
+                : `${number(health.data?.pending_changes ?? 0)} alterações na fila de envio ao Pipefy`}
+          </p>
           {perms.can("view.contatos") && (
-            <button className="underline" onClick={() => change({ view: "contatos" })}>
+            <button
+              type="button"
+              className={`underline ${FOCO_VISIVEL}`}
+              onClick={() => change({ view: "contatos" })}
+            >
               Ver contatos vinculados
             </button>
           )}
@@ -450,6 +514,9 @@ export function ClientesBase() {
             accountKeys={accountKeys}
             secao={SECOES_AQUARIO[view]}
             irPara={(s) => change({ view: VIEW_DA_SECAO[s] })}
+            filtros={filtros}
+            mudarFiltros={mudarFiltros}
+            recorte={`${search.unidade}|${search.origem}|${search.gate}`}
           />
         ) : view === "contatos" ? (
           <section className="overflow-hidden rounded-xl border bg-card">

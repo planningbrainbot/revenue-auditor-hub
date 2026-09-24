@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -65,8 +65,11 @@ import type {
   Situacao,
 } from "@/lib/monetizacao/portfolio";
 import { FieldMulti, MultiSelect } from "./multi-select";
+import { EstadoVazio, KpiCard, KpiGrade, Secao, type TomKpi } from "@/components/planning";
 import {
+  BotaoComMotivo,
   date,
+  FOCO_VISIVEL,
   downloadCsv,
   FalhaDeCarga,
   Field,
@@ -78,6 +81,7 @@ import {
   number,
   OfertaTag,
   Panel,
+  SecaoCartao,
 } from "./common";
 
 type Filters = PortfolioFilters;
@@ -95,11 +99,23 @@ export function Aquario({
   accountKeys,
   secao = "base",
   irPara,
+  filtros,
+  mudarFiltros,
+  recorte,
 }: {
   embedded?: boolean;
   accountKeys?: Set<string>;
   secao?: SecaoAquario;
   irPara?: (s: SecaoAquario) => void;
+  /**
+   * Filtros da tabela controlados por fora (a Base de clientes os guarda na URL). Com eles, a
+   * tabela não desenha busca, unidade e origem: essas três são do topo da página.
+   */
+  filtros?: Filters;
+  /** Grava os filtros e, com `destino`, troca de seção na mesma navegação. */
+  mudarFiltros?: (f: Filters, destino?: SecaoAquario) => void;
+  /** Assinatura do recorte do topo (unidade, origem, refinamento): mudou, a seleção é limpa. */
+  recorte?: string;
 } = {}) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -108,8 +124,22 @@ export function Aquario({
   const ir = irPara ?? (() => {});
   const [unit, setUnit] = useState<Unidade | null>(null),
     [account, setAccount] = useState<Conta | null>(null);
-  const [filters, setFilters] = useState<Filters>(emptyFilters),
+  const [filtrosLocais, setFiltrosLocais] = useState<Filters>(emptyFilters),
     [picked, setPicked] = useState<Set<string>>(new Set());
+  const filters = filtros ?? filtrosLocais;
+  const controlado = !!mudarFiltros;
+  // Um caminho só para gravar filtro: na URL (controlado) ou no estado local. Com `destino`, o
+  // filtro e a troca de seção vão na mesma navegação (duas seguidas, a segunda apagava a primeira).
+  const aplicar = (f: Filters, destino?: SecaoAquario) => {
+    if (mudarFiltros) mudarFiltros(f, destino);
+    else {
+      setFiltrosLocais(f);
+      if (destino) ir(destino);
+    }
+  };
+  const setFilters = (f: Filters) => aplicar(f);
+  // Mudar o recorte limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
+  useEffect(() => setPicked(new Set()), [recorte]);
   const [draft, setDraft] = useState<{
     unit: Unidade | null;
     accounts: string[];
@@ -179,6 +209,7 @@ export function Aquario({
       onList={(keys) => startList(keys, unit, filters.product || "consultoria")}
       inUnit={drawer}
       unitId={unit?.id ?? null}
+      controlesNoTopo={controlado}
     />
   );
   return (
@@ -270,9 +301,17 @@ export function Aquario({
                     onClick={() => {
                       // O cartão aplica o recorte e leva à tabela, que agora mora na seção
                       // "Base de clientes" do menu único — não a uma aba de dentro desta tela.
-                      setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
+                      // A origem do topo fica: os números deste cartão já a respeitam.
+                      aplicar(
+                        {
+                          ...emptyFilters,
+                          origin: filters.origin,
+                          product: p,
+                          status: situacoesIniciais(p),
+                        },
+                        "base",
+                      );
                       setPicked(new Set());
-                      ir("base");
                     }}
                     className={`rounded-lg border p-4 text-left hover:border-primary ${filters.product === p ? "border-primary bg-primary/5" : ""}`}
                   >
@@ -316,14 +355,16 @@ export function Aquario({
               variant="outline"
               size="sm"
               onClick={() => {
-                setFilters({
-                  ...emptyFilters,
-                  product: "consultoria",
-                  origin: ["antiga"],
-                  status: ["qualificar"],
-                });
+                aplicar(
+                  {
+                    ...emptyFilters,
+                    product: "consultoria",
+                    origin: ["antiga"],
+                    status: ["qualificar"],
+                  },
+                  "base",
+                );
                 setPicked(new Set());
-                ir("base");
               }}
             >
               Conferir regime da base retroativa
@@ -340,8 +381,11 @@ export function Aquario({
       )}
       {secao === "base" && (
         <div className="space-y-4">
-          <Panel title="Abra a unidade para organizar a apresentação">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Secao
+            titulo="Qual unidade você vai organizar?"
+            descricao="O número grande é o cadastro da unidade e não segue os filtros; as contas abaixo dele são as do recorte. As carteiras podem compartilhar contas: não some os totais por unidade. Para a Consultoria, a falta de contato pode ser resolvida com o sócio."
+          >
+            <KpiGrade colunas={3}>
               {data.units.map((u) => {
                 const keys = new Set(u.account_keys);
                 const accounts = data.accounts.filter((a) => keys.has(a.key)),
@@ -356,80 +400,68 @@ export function Aquario({
                   conferir = accounts.filter((a) =>
                     ["confirmar", "divergente"].includes(origemBase(a)),
                   ).length;
+                // Sem linha em monetizacao_unidade_cobertura o servidor devolve zeros: é "não
+                // apurado", não uma unidade com 0 CNPJs e Omie desligado (N4, N11).
+                const semCobertura = !u.cnpjs && !u.cnpjs_pipefy && !u.cnpjs_omie;
                 return (
-                  <button
+                  <KpiCard
                     key={u.key}
-                    onClick={() => {
-                      // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
-                      if (unit?.key !== u.key) {
-                        setFilters(emptyFilters);
-                        setPicked(new Set());
-                      }
-                      setUnit(u);
+                    rotulo={u.name}
+                    // Dois denominadores, cada um com o seu nome (N11): CNPJs do cadastro da
+                    // unidade (ignora filtros) no número grande, contas do recorte na nota.
+                    valor={number(u.cnpjs)}
+                    unidade="CNPJs no cadastro da unidade"
+                    estado={semCobertura ? "nao-apurado" : "ok"}
+                    abrir={{
+                      rotulo: "Abrir carteira",
+                      onClick: () => {
+                        // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
+                        if (unit?.key !== u.key) {
+                          // Na Base de clientes a origem é do topo: trocar de unidade não a apaga.
+                          setFilters(
+                            controlado ? { ...emptyFilters, origin: filters.origin } : emptyFilters,
+                          );
+                          setPicked(new Set());
+                        }
+                        setUnit(u);
+                      },
                     }}
-                    className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold">{u.name}</span>
-                      {/* O selo "cobertura parcial" saiu daqui em 22/09: lacuna de fonte é
-                          assunto de auditoria, e auditoria mora numa tela só. A procedência
-                          continua na linha abaixo, que é informação, não alerta. */}
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary-text" />
-                    </div>
-                    {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
-                        unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
-                    <p className="my-2 text-3xl font-semibold tabular-nums">
-                      {number(u.cnpjs ?? accounts.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">empresas</span>
-                    </p>
-                    {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
-                        censo. As fontes se sobrepõem, por isso não somam. */}
-                    <p className="text-xs text-muted-foreground">
-                      {u.omie_integrado === false
-                        ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
-                        : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
-                    </p>
-                    {/* Composição da origem em barra: comprimento compara melhor que três números. */}
-                    <div
-                      className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted"
-                      title={`${antigas} antigas · ${novas} novas · ${conferir} a conferir`}
-                    >
-                      {[
-                        ["bg-primary", antigas],
-                        ["bg-info", novas],
-                        ["bg-muted-foreground/40", conferir],
-                      ].map(([cor, n], i) =>
-                        (n as number) > 0 ? (
-                          <div
-                            key={i}
-                            className={cor as string}
-                            style={{
-                              width: `${Math.max(2, ((n as number) / Math.max(1, accounts.length)) * 100)}%`,
-                            }}
-                          />
-                        ) : null,
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-primary-text">{c} aptas em Consultoria</span>
-                      {pending > 0 && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
-                          {pending} a confirmar
+                    nota={
+                      <>
+                        {/* Procedência: de onde a carteira é conhecida. As fontes se sobrepõem. */}
+                        <span className="block">
+                          {semCobertura
+                            ? "catálogo Pipefy e cobertura do Omie não apurada"
+                            : u.omie_integrado === false
+                              ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
+                              : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
                         </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
-                    </p>
-                  </button>
+                        <BarraOrigem
+                          total={accounts.length}
+                          partes={[
+                            { rotulo: "antigas", n: antigas, cor: "bg-primary" },
+                            { rotulo: "novas", n: novas, cor: "bg-info" },
+                            { rotulo: "a conferir", n: conferir, cor: "bg-muted-foreground/40" },
+                          ]}
+                        />
+                        <span className="mt-2 block">
+                          <span className="font-medium text-foreground">
+                            {number(accounts.length)} contas no recorte
+                          </span>{" "}
+                          ·{" "}
+                          <span className="text-primary-text">
+                            {number(c)} aptas em Consultoria
+                          </span>
+                          {pending > 0 && ` (${number(pending)} a confirmar)`} · Cella{" "}
+                          {number(cella_u)} · Finance {number(f)}
+                        </span>
+                      </>
+                    }
+                  />
                 );
               })}
-            </div>
-          </Panel>
-          <Notice>
-            As carteiras podem compartilhar contas. Os totais por unidade não devem ser somados.
-            Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
-          </Notice>
+            </KpiGrade>
+          </Secao>
           <ProcedenciaBase accounts={data.accounts} />
           {content(data.accounts)}
         </div>
@@ -450,7 +482,7 @@ export function Aquario({
           <Link
             to="/monetizacao"
             search={{ aba: "operacao" }}
-            className="flex items-center gap-1 text-xs font-medium text-primary-text"
+            className={`flex items-center gap-1 text-xs font-medium text-primary-text ${FOCO_VISIVEL}`}
           >
             Acompanhar operação <ArrowRight className="h-3 w-3" />
           </Link>
@@ -479,7 +511,19 @@ export function Aquario({
                   key={key}
                   label={label}
                   value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
+                  // Na Base de clientes a origem é o filtro do topo, que fica atrás da gaveta:
+                  // clicar de novo na origem aplicada tira o filtro, sem precisar fechar.
+                  nota={
+                    filters.origin.length === 1 && filters.origin[0] === key
+                      ? "Filtro aplicado · clique para tirar"
+                      : undefined
+                  }
                   onClick={() => {
+                    if (filters.origin.length === 1 && filters.origin[0] === key) {
+                      setFilters({ ...filters, origin: [] });
+                      setPicked(new Set());
+                      return;
+                    }
                     // Este KPI e um filtro de origem, e so isso: partia de `emptyFilters` e
                     // derrubava junto o produto que o operador tinha acabado de escolher dentro
                     // da gaveta. Agora faz o mesmo que o seletor de origem da tabela — troca uma
@@ -518,6 +562,7 @@ function PortfolioTable({
   onList,
   inUnit,
   unitId,
+  controlesNoTopo = false,
 }: {
   data: BaseMonetizacao;
   accounts: Conta[];
@@ -529,6 +574,8 @@ function PortfolioTable({
   onList: (keys: string[]) => void;
   inUnit: boolean;
   unitId: number | null;
+  /** Busca, unidade e origem são do topo da página: a tabela não desenha controle próprio. */
+  controlesNoTopo?: boolean;
 }) {
   const [limit, setLimit] = useState(50);
   // Cópia da seleção no momento do envio: o resultado continua legível mesmo quando as contas
@@ -580,9 +627,16 @@ function PortfolioTable({
     selected = rows.filter((a) => picked.has(a.key));
   const prontas = product ? rows.filter((a) => estado(a)!.situacao === "free") : [];
   const acimaDoLimite = selected.length > LIMITE_LOTE;
-  const prontasSelecionadas = product
-    ? selected.filter((a) => estado(a)!.situacao === "free").length
-    : 0;
+  // O N do botão é o N do modal (DirectSend): aptas e disponíveis pela mesma régua, INCLUSIVE as
+  // "só no Omie". Antes o botão contava sem elas e o modal enviava com elas.
+  const enviaveis = product
+    ? selected.filter(
+        (a) =>
+          oferta(a, product).status === "elegivel" &&
+          disponibilidade(a, product, data.cards, undefined, data.reservations).free,
+      )
+    : [];
+  const enviaveisSoOmie = enviaveis.filter(soNoOmie).length;
   const toggle = (key: string) => {
     const next = new Set(picked);
     if (next.has(key)) next.delete(key);
@@ -591,48 +645,28 @@ function PortfolioTable({
   };
   const unique = (values: (string | null | undefined)[]) =>
     [...new Set(values.filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const chips: { key: Situacao; label: string; n: number; tone: string }[] = product
+  const chips: { key: Situacao; label: string; n: number; tom?: TomKpi }[] = product
     ? [
-        {
-          key: "free",
-          label: "Prontas para enviar",
-          n: contagem.free,
-          tone: "text-success",
-        },
-        {
-          key: "qualificar",
-          label: "A confirmar",
-          n: contagem.qualificar,
-          tone: "text-warning",
-        },
-        {
-          key: "so_omie",
-          label: "Só no Omie da unidade",
-          n: contagem.so_omie,
-          tone: "text-info",
-        },
-        { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied, tone: "" },
-        {
-          key: "excluded",
-          label: "Fora da regra",
-          n: contagem.excluded,
-          tone: "text-muted-foreground",
-        },
+        { key: "free", label: "Prontas para enviar", n: contagem.free, tom: "sucesso" },
+        { key: "qualificar", label: "A confirmar", n: contagem.qualificar, tom: "atencao" },
+        { key: "so_omie", label: "Só no Omie da unidade", n: contagem.so_omie, tom: "info" },
+        { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied },
+        { key: "excluded", label: "Fora da regra", n: contagem.excluded },
       ]
     : [];
   const situacoes = (Object.keys(SITUACOES) as Situacao[]).filter(
     (s) => s !== "potential" || product === "consultoria",
   );
   return (
-    <Panel
-      title={
+    <SecaoCartao
+      titulo={
         inUnit
-          ? "Carteira da unidade"
+          ? "Quais contas desta unidade você vai trabalhar?"
           : product
-            ? `Lista potencial · ${NOMES[product]}`
-            : "Carteira conciliada"
+            ? `Quais contas de ${NOMES[product]} estão prontas para trabalhar?`
+            : "Quais contas atendem ao recorte?"
       }
-      action={
+      acoes={
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -714,49 +748,52 @@ function PortfolioTable({
             Exportar filtro
           </Button>
           {product && (
-            <Button
+            <BotaoComMotivo
               size="sm"
               variant="outline"
               disabled={!prontas.length}
-              title={`Seleciona as contas deste filtro que estão aptas e disponíveis, inclusive as que ainda não apareceram na página. Envio e lista aceitam até ${LIMITE_LOTE} por vez: acima disso, entram as ${LIMITE_LOTE} primeiras da ordem da tabela.`}
+              motivo={
+                !prontas.length
+                  ? "Nenhuma conta pronta para enviar neste filtro."
+                  : `Seleciona as contas deste filtro que estão aptas e disponíveis, inclusive as que ainda não apareceram na página. Envio e lista aceitam até ${LIMITE_LOTE} por vez: acima disso, entram as ${LIMITE_LOTE} primeiras da ordem da tabela.`
+              }
               onClick={() => setPicked(new Set(prontas.slice(0, LIMITE_LOTE).map((a) => a.key)))}
             >
               <CheckCheck className="mr-1 h-4 w-4" />
               {prontas.length > LIMITE_LOTE
                 ? `Selecionar ${LIMITE_LOTE} de ${number(prontas.length)} prontas`
                 : `Selecionar prontas (${number(prontas.length)})`}
-            </Button>
+            </BotaoComMotivo>
           )}
-          <Button
+          <BotaoComMotivo
             size="sm"
             disabled={!data.permissions.manage || !selected.length || acimaDoLimite}
-            title={
-              acimaDoLimite
-                ? `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`
-                : undefined
-            }
+            motivo={[
+              !data.permissions.manage && "Exige manage.aquario para montar lista.",
+              !selected.length && "Selecione as contas para a lista.",
+              acimaDoLimite &&
+                `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`,
+            ]}
             onClick={() => onList(selected.map((a) => a.key))}
           >
             <ListPlus className="mr-1 h-4 w-4" />
             Preparar lista ({selected.length})
-          </Button>
-          <Button
+          </BotaoComMotivo>
+          <BotaoComMotivo
             size="sm"
             disabled={!data.permissions.send || !selected.length || acimaDoLimite}
-            title={
-              !data.permissions.send
-                ? "Seu acesso não permite enviar ao Pipedrive."
-                : !selected.length
-                  ? "Selecione as contas para enviar."
-                  : acimaDoLimite
-                    ? `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`
-                    : undefined
-            }
+            motivo={[
+              !data.permissions.send &&
+                "Exige send.monetizacao: seu acesso não permite enviar ao Pipedrive.",
+              !selected.length && "Selecione as contas para enviar.",
+              acimaDoLimite &&
+                `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`,
+            ]}
             onClick={() => setSending(selected)}
           >
             <Send className="mr-1 h-4 w-4" />
-            Enviar ao Pipedrive ({product ? prontasSelecionadas : selected.length})
-          </Button>
+            Enviar ao Pipedrive ({product ? enviaveis.length : selected.length})
+          </BotaoComMotivo>
         </div>
       }
     >
@@ -779,7 +816,7 @@ function PortfolioTable({
         />
       )}
       <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
-        {!inUnit && (
+        {!inUnit && !controlesNoTopo && (
           <FieldMulti label="Unidade">
             <MultiSelect
               label="Unidade"
@@ -790,26 +827,30 @@ function PortfolioTable({
             />
           </FieldMulti>
         )}
-        <FieldMulti label="Origem da base">
-          <MultiSelect
-            label="Origem da base"
-            placeholder="Antigas, novas e pendentes"
-            value={filters.origin}
-            onChange={(v) => change("origin", v as OrigemBase[])}
-            options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
-          />
-        </FieldMulti>
-        <Field label="Buscar empresa">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              className={`${inputClass} pl-8`}
-              value={filters.query}
-              onChange={(e) => change("query", e.target.value)}
-              placeholder="Nome ou segmento"
+        {!controlesNoTopo && (
+          <FieldMulti label="Origem da base">
+            <MultiSelect
+              label="Origem da base"
+              placeholder="Antigas, novas e pendentes"
+              value={filters.origin}
+              onChange={(v) => change("origin", v as OrigemBase[])}
+              options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
             />
-          </div>
-        </Field>
+          </FieldMulti>
+        )}
+        {!controlesNoTopo && (
+          <Field label="Buscar empresa">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                className={`${inputClass} pl-8`}
+                value={filters.query}
+                onChange={(e) => change("query", e.target.value)}
+                placeholder="Nome ou segmento"
+              />
+            </div>
+          </Field>
+        )}
         <FieldMulti label="Faturamento anual · cadastro">
           <MultiSelect
             label="Faturamento anual · cadastro"
@@ -950,8 +991,16 @@ function PortfolioTable({
           variant="ghost"
           className="self-end"
           onClick={() => {
-            // Preserva o produto escolhido; limpar filtros não é trocar de lista.
-            setFilters({ ...emptyFilters, product, status: situacoesIniciais(product) });
+            // Preserva o produto escolhido; limpar filtros não é trocar de lista. Busca, unidade e
+            // origem do topo também ficam: têm o "Limpar" deles lá em cima.
+            setFilters({
+              ...emptyFilters,
+              ...(controlesNoTopo
+                ? { query: filters.query, unit: filters.unit, origin: filters.origin }
+                : {}),
+              product,
+              status: situacoesIniciais(product),
+            });
             setPicked(new Set());
             setLimit(50);
           }}
@@ -960,22 +1009,22 @@ function PortfolioTable({
         </Button>
       </div>
       {product && (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
           {chips.map((c) => {
             const active = situacaoEfetiva.length === 1 && situacaoEfetiva[0] === c.key;
             return (
-              <button
+              <KpiCard
                 key={c.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => change("status", active ? situacoesIniciais(product) : [c.key])}
-                className={`rounded-lg border p-3 text-left transition hover:border-primary ${active ? "border-primary bg-primary/5" : ""}`}
-              >
-                <span className="text-xs text-muted-foreground">{c.label}</span>
-                <span className={`block text-xl font-semibold tabular-nums ${c.tone}`}>
-                  {number(c.n)}
-                </span>
-              </button>
+                rotulo={c.label}
+                valor={number(c.n)}
+                tom={c.tom}
+                nota={active ? "Filtro aplicado à tabela" : undefined}
+                abrir={{
+                  rotulo: active ? "Tirar o filtro" : "Filtrar a tabela",
+                  onClick: () => change("status", active ? situacoesIniciais(product) : [c.key]),
+                }}
+                className={active ? "border-primary-text" : undefined}
+              />
             );
           })}
         </div>
@@ -1000,9 +1049,10 @@ function PortfolioTable({
         {product && selected.length > 0 && (
           <>
             {" "}
-            ({prontasSelecionadas} prontas para enviar
-            {selected.length - prontasSelecionadas > 0
-              ? ` · ${selected.length - prontasSelecionadas} ficam fora do envio e podem ir para uma lista`
+            ({enviaveis.length} entram no envio
+            {enviaveisSoOmie > 0 ? `, ${enviaveisSoOmie} delas só no Omie da unidade` : ""}
+            {selected.length - enviaveis.length > 0
+              ? ` · ${selected.length - enviaveis.length} ficam fora do envio e podem ir para uma lista`
               : ""}
             )
           </>
@@ -1144,16 +1194,14 @@ function PortfolioTable({
         </table>
       </div>
       {!visible.length && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Nenhuma conta neste filtro.
-        </p>
+        <EstadoVazio titulo="Nenhuma conta neste filtro" total={accounts.length} />
       )}
       {rows.length > limit && (
         <Button className="mt-3" variant="outline" onClick={() => setLimit(limit + 50)}>
           Mostrar mais 50
         </Button>
       )}
-    </Panel>
+    </SecaoCartao>
   );
 }
 
@@ -1448,5 +1496,42 @@ function Gates({ data }: { data: BaseMonetizacao }) {
         </p>
       </Panel>
     </div>
+  );
+}
+
+/**
+ * Composição da origem da carteira em barra, com os valores escritos ao lado (não só no
+ * `title`): comprimento compara, a palavra diz quanto. Só `span`, porque mora dentro do botão
+ * do KpiCard.
+ */
+function BarraOrigem({
+  total,
+  partes,
+}: {
+  total: number;
+  partes: { rotulo: string; n: number; cor: string }[];
+}) {
+  return (
+    <span className="mt-2 block">
+      <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+        {partes.map((p) =>
+          p.n > 0 ? (
+            <span
+              key={p.rotulo}
+              className={`block ${p.cor}`}
+              style={{ width: `${Math.max(2, (p.n / Math.max(1, total)) * 100)}%` }}
+            />
+          ) : null,
+        )}
+      </span>
+      <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+        {partes.map((p) => (
+          <span key={p.rotulo} className="inline-flex items-center gap-1">
+            <span aria-hidden className={`inline-block size-2 rounded-full ${p.cor}`} />
+            <span className="num">{number(p.n)}</span> {p.rotulo}
+          </span>
+        ))}
+      </span>
+    </span>
   );
 }
