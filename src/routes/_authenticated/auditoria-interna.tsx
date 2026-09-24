@@ -492,7 +492,7 @@ function AtencaoPrazos({ rows }: { rows: Auditoria[] }) {
   );
 
   return (
-    <div id={ID_PRAZOS} className="scroll-mt-4">
+    <div id={ID_PRAZOS} tabIndex={-1} className="scroll-mt-4 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
       <Secao
         titulo="Quais projetos estão com prazo vencido?"
         descricao="em andamento, com prazo do card antes de hoje · do mais atrasado para o menos"
@@ -1076,8 +1076,14 @@ function FinalizadasPorMes({ rows }: { rows: Auditoria[] }) {
   );
 }
 
+// Rola sem animação para quem pediu menos movimento (V16) e leva o foco junto,
+// para o leitor de tela e o teclado continuarem a partir da lista.
 function irParaPrazos() {
-  document.getElementById(ID_PRAZOS)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const alvo = document.getElementById(ID_PRAZOS);
+  if (!alvo) return;
+  const reduzir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  alvo.scrollIntoView({ behavior: reduzir ? "auto" : "smooth", block: "start" });
+  alvo.focus({ preventScroll: true });
 }
 
 function VisaoGeral({ rows, abrirTipo }: { rows: Auditoria[]; abrirTipo: (t: TipoKey) => void }) {
