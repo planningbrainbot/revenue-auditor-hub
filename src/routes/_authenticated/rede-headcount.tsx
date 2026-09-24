@@ -290,7 +290,13 @@ function RedeHeadcountPage() {
           rotulo={`Headcount em ${rotuloRef}`}
           valor={doMes ? fmtInt(doMes.headcount) : "—"}
           unidade="pessoas"
-          nota={doMes ? `${doMes.lancaram} de ${totalUnidades} unidades lançaram` : undefined}
+          nota={
+            doMes
+              ? erroRecon
+                ? `${doMes.lancaram} unidades lançaram · total de unidades indisponível`
+                : `${doMes.lancaram} de ${totalUnidades} unidades lançaram`
+              : undefined
+          }
           estado={doMes ? "ok" : "nao-apurado"}
         />
         <KpiCard
@@ -368,7 +374,7 @@ function RedeHeadcountPage() {
           </Card>
         </Secao>
 
-        <Secao titulo="Quanto MRR cada pessoa sustenta? (R$)" descricao="MRR por pessoa: MRR contratado da rede ÷ headcount do mês.">
+        <Secao titulo="Quanto MRR cada pessoa sustenta? (R$)" descricao="MRR por pessoa: MRR contratado de hoje (todas as regionais) ÷ headcount lançado no mês.">
           {erroRecon ? (
             <EstadoErro
               titulo="Fonte indisponível"
