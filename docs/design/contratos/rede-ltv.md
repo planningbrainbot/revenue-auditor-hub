@@ -37,3 +37,6 @@ LTV do Overview (ARPA ÷ churn) e "Receita bookada" do Indicadores (MRR × 60): 
 
 ## Achado para o dono
 A série mensal usa ARPA de hoje e um LT fixo desde 07/2024 ÷ 2: não é um LTV histórico. Vale decidir se a série fica.
+
+## Achado da aplicação (24/09)
+A idade dos contratos (`monthDiff(new Date(ganho_em), hoje)`) lê `ganho_em` (`date`, "aaaa-mm-dd") como meia-noite UTC; em São Paulo isso ainda é o dia anterior, então um contrato ganho no dia 01 conta um mês a mais. Afeta "Idade média dos contratos ativos", "LTV por contrato ativo" e as barras por unidade. Não corrigido: é cálculo, não exibição, e fica para o dono decidir.

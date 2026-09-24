@@ -673,9 +673,9 @@ const SERIE = [
 
 const POR_UNIDADE = UNIDADES.map((u, i) => ({ unidade: u.unidade, ltv: 61000 - i * 4300 }));
 
-// Mesmos gráficos de rede-ltv.tsx, agora com o tema único de gráfico. Os dois
-// eixos Y continuam porque a tela real ainda os tem (DESIGN.md §5 regra 4 é
-// dívida da tela, não do tema).
+// Cópia dos gráficos antigos de rede-ltv.tsx, com o tema único de gráfico. A
+// tela real já usa um eixo Y por gráfico (DESIGN.md §5 regra 4, 24/09/2026);
+// os dois eixos aqui são da cópia da vitrine, não da tela.
 function SecaoGraficos() {
   return (
     <Secao id="graficos" titulo="Gráficos (estilo de rede-ltv.tsx)">

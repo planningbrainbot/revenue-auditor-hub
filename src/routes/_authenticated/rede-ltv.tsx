@@ -193,7 +193,19 @@ function RedeLtvPage() {
     () => Array.from(new Set(ativosRede.map((c) => c.unidade ?? SEM_UNIDADE))).sort(),
     [ativosRede],
   );
-  const unidade = unidadeUrl && unidades.includes(unidadeUrl) ? unidadeUrl : ALL;
+  // Com contratos fora do ar não há lista para conferir: vale o que está na
+  // URL (a série ainda filtra pela view). Com a lista carregada, unidade que
+  // não existe sai da URL e a tela avisa, em vez de mostrar a rede calada.
+  const unidadeInexistente =
+    !loading && !erros.contratos && !!unidadeUrl && !unidades.includes(unidadeUrl);
+  const unidade = unidadeUrl && (erros.contratos || unidades.includes(unidadeUrl)) ? unidadeUrl : ALL;
+  const [descartada, setDescartada] = useState<string | null>(null);
+  useEffect(() => {
+    if (unidadeInexistente) {
+      setDescartada(unidadeUrl);
+      setUnidadeUrl(undefined);
+    }
+  }, [unidadeInexistente, unidadeUrl, setUnidadeUrl]);
 
   const ativos = useMemo(
     () => (unidade === ALL ? ativosRede : ativosRede.filter((c) => (c.unidade ?? SEM_UNIDADE) === unidade)),
@@ -279,7 +291,7 @@ function RedeLtvPage() {
     : ativos.length === 0
       ? "nao-apurado"
       : "ok";
-  const errosSerie = (["recon", "roas"] as Fonte[]).filter((f) => erros[f]);
+  // Só a view derruba a série inteira; sem roas_mensal cai só o LTV × CAC.
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -292,12 +304,20 @@ function RedeLtvPage() {
           regua: "LTV = ARPA por contrato × idade média dos contratos ativos",
         }}
         filtros={
-          <Select value={unidade} onValueChange={(v) => setUnidadeUrl(v === ALL ? undefined : v)}>
+          <Select
+            value={unidade}
+            onValueChange={(v) => {
+              setDescartada(null);
+              setUnidadeUrl(v === ALL ? undefined : v);
+            }}
+            disabled={!!erros.contratos}
+          >
             <SelectTrigger className="h-9 w-[200px]" aria-label="Unidade">
               <SelectValue placeholder="Unidade" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>Rede inteira</SelectItem>
+              {erros.contratos && unidade !== ALL && <SelectItem value={unidade}>{unidade}</SelectItem>}
               {unidades.map((u) => (
                 <SelectItem key={u} value={u}>
                   {u}
@@ -308,8 +328,21 @@ function RedeLtvPage() {
         }
       />
 
+      {descartada && (
+        <EstadoVazio
+          titulo={`A unidade "${descartada}" não tem contrato ativo de franquia`}
+          descricao="O filtro saiu do link e a tela mostra a rede inteira."
+        />
+      )}
+
       {loading ? (
         <Carregando variante="kpis" />
+      ) : erros.contratos ? (
+        <EstadoErro
+          titulo="Os números por contrato não carregaram"
+          detalhe={`${NOME_FONTE.contratos}: ${erros.contratos}`}
+          tentarNovamente={tentarDeNovo}
+        />
       ) : (
         <KpiGrade colunas={4} className="lg:grid-cols-3">
           <KpiCard
@@ -384,10 +417,10 @@ function RedeLtvPage() {
             )}
           </Secao>
 
-          {errosSerie.length > 0 ? (
+          {erros.recon ? (
             <EstadoErro
               titulo="Série mensal indisponível"
-              detalhe={errosSerie.map((f) => `${NOME_FONTE[f]}: ${erros[f]}`).join(" · ")}
+              detalhe={`${NOME_FONTE.recon}: ${erros.recon}`}
               tentarNovamente={tentarDeNovo}
             />
           ) : ltvChart.length === 0 ? (
@@ -403,8 +436,15 @@ function RedeLtvPage() {
             <>
               <Secao
                 titulo="O LTV estimado cobre o CAC da rede, mês a mês? (R$)"
-                descricao={`ARPA da foto de hoje × LT da série (meses desde ${rotuloMes(INICIO_SERIE)} ÷ 2, data inicial fixa no código) contra o CAC da rede (roas_mensal). Não é um LTV histórico.`}
+                descricao={`${unidade === ALL ? "" : `LTV de ${unidade} contra o CAC da rede inteira. `}ARPA da foto de hoje × LT da série (meses desde ${rotuloMes(INICIO_SERIE)} ÷ 2, data inicial fixa no código) contra o CAC da rede (roas_mensal). Não é um LTV histórico.`}
               >
+                {erros.roas ? (
+                  <EstadoErro
+                    titulo="Fonte indisponível"
+                    detalhe={`${NOME_FONTE.roas}: ${erros.roas}`}
+                    tentarNovamente={tentarDeNovo}
+                  />
+                ) : (
                 <Card className="p-4">
                   <div className="h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -420,6 +460,7 @@ function RedeLtvPage() {
                     </ResponsiveContainer>
                   </div>
                 </Card>
+                )}
               </Secao>
 
               <div className="grid gap-6 lg:grid-cols-2">
