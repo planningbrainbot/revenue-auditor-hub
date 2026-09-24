@@ -81,6 +81,11 @@ function VerDetalheLink({ to, search }: { to: string; search?: Record<string, st
   );
 }
 
+// Célula de tabela cuja fonte caiu: diz isso em vez de R$ 0 (N4).
+function CelulaIndisponivel() {
+  return <span className="text-muted-foreground">fonte indisponível</span>;
+}
+
 const ABAS = ["geral", "vendas", "financeiro", "qualidade"] as const;
 type Aba = (typeof ABAS)[number];
 
@@ -315,6 +320,15 @@ function RedeOverviewPage() {
       mounted = false;
     };
   }, [recarga]);
+
+  // Só erro de permissão vira "sem acesso"; queda de rede ou de banco é erro
+  // com "Tentar de novo". A server fn lança "Acesso negado" (assertAdmin) e o
+  // PostgREST devolve 42501 / 403 / RLS.
+  const royaltiesSemPermissao =
+    !!royaltiesError &&
+    /acesso negado|permission denied|42501|\b403\b|row-level security|\brls\b/i.test(
+      royaltiesError.message ?? "",
+    );
 
   const tentarDeNovo = () => {
     setRecarga((n) => n + 1);
@@ -963,7 +977,12 @@ function RedeOverviewPage() {
   const semMeses = <EstadoVazio titulo="Sem meses no período" />;
 
   // Bloco de gráfico: erro da fonte, vazio do período ou o gráfico.
-  const blocoGrafico = (fontes: Fonte[], vazio: boolean, grafico: ReactNode) => {
+  const blocoGrafico = (
+    fontes: Fonte[],
+    vazio: boolean,
+    grafico: ReactNode,
+    vazioTitulo?: string,
+  ) => {
     const caidas = fontes.filter((f) => erros[f]);
     if (caidas.length > 0) {
       return (
@@ -974,7 +993,7 @@ function RedeOverviewPage() {
         />
       );
     }
-    if (vazio) return semMeses;
+    if (vazio) return vazioTitulo ? <EstadoVazio titulo={vazioTitulo} /> : semMeses;
     return grafico;
   };
 
@@ -996,7 +1015,8 @@ function RedeOverviewPage() {
         pergunta="Quais unidades estão fora da curva em receita, clientes e retenção?"
         descricao={`${perimetro} · ${rotuloMes(rangeStartYm)}–${rotuloMes(rangeEndYm)} · receita pelo mês de competência; MRR e clientes são a foto de hoje e ignoram o período`}
         procedencia={{
-          fonte: "v_reconciliacao_mensal · contratos · central_tratativas · empresas",
+          fonte:
+            "v_reconciliacao_mensal · contratos · central_tratativas · empresas · auditorias_internas · apuração de royalties",
           regua: "recebido = títulos RECEBIDO do Omie pelo mês de competência",
         }}
         filtros={
@@ -1178,7 +1198,7 @@ function RedeOverviewPage() {
               >
                 {blocoGrafico(
                   ["recon"],
-                  receitaChartDataRange.length === 0,
+                  receitaChartDataRange.length === 0 || semTitulosOmie,
                   <Card className="p-4">
                     <div className="h-[260px]">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1198,6 +1218,7 @@ function RedeOverviewPage() {
                       </ResponsiveContainer>
                     </div>
                   </Card>,
+                  semTitulosOmie ? "Sem títulos do Omie no período" : undefined,
                 )}
               </Secao>
 
@@ -1344,7 +1365,7 @@ function RedeOverviewPage() {
                   estado={indisponivel("recon")?.estado ?? (ultimo ? "ok" : "nao-apurado")}
                   nota={
                     indisponivel("recon")?.nota ??
-                    `foto de hoje${kpis.receita > 0 ? ` · ${fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido do mês corrente` : ""} · na Base de clientes, ATIVO é "pagou em 90 dias": não bate`
+                    `foto de hoje${kpis.receita > 0 ? ` · ${fmtPct((kpis.mrr / kpis.receita) * 100)} do recebido de ${ultimo ? rotuloMes(ultimo.mes) : "—"}` : ""} · na Base de clientes, ATIVO é "pagou em 90 dias": não bate`
                   }
                   abrir={{
                     onClick: () =>
@@ -1415,10 +1436,7 @@ function RedeOverviewPage() {
                   descricao="MRR novo = contratos ganhos no mês. Royalties = valor apurado por mês de referência."
                   acoes={<VerDetalheLink to="/unidades/royalties" />}
                 >
-                  {royaltiesCarregando ? (
-                    <Carregando variante="grafico" />
-                  ) : (
-                    blocoGrafico(
+                  {blocoGrafico(
                       ["contratos"],
                       mrrNovoRoyaltiesRange.length === 0,
                       <Card className="p-4">
@@ -1444,7 +1462,7 @@ function RedeOverviewPage() {
                               />
                               {/* Sem acesso aos royalties a série não entra: seria
                                   uma linha de zeros no lugar de dado ausente. */}
-                              {!royaltiesError && (
+                              {royaltiesData && (
                                 <Line
                                   type="monotone"
                                   dataKey="royaltiesRecebido"
@@ -1458,9 +1476,20 @@ function RedeOverviewPage() {
                           </ResponsiveContainer>
                         </div>
                       </Card>,
-                    )
                   )}
-                  {royaltiesError && <EstadoSemAcesso oQueFalta="view.unidades_rede" />}
+                  {royaltiesCarregando && (
+                    <p className="text-[13px] text-muted-foreground">Carregando royalties…</p>
+                  )}
+                  {royaltiesError &&
+                    (royaltiesSemPermissao ? (
+                      <EstadoSemAcesso oQueFalta="view.unidades_rede" />
+                    ) : (
+                      <EstadoErro
+                        titulo="Royalties não carregaram"
+                        detalhe={`apuração de royalties: ${royaltiesError.message}`}
+                        tentarNovamente={() => void recarregarRoyalties()}
+                      />
+                    ))}
                 </Secao>
 
                 <Secao
@@ -1550,23 +1579,45 @@ function RedeOverviewPage() {
                                 {u.contratos > 0 ? fmtBRL(u.mrr / u.contratos) : "—"}
                               </TableCell>
                               <TableCell className="num text-right">
-                                {fmtBRL(vendasMatrizPorUnidade.get(u.unidade) ?? 0)}
+                                {erros.contratos ? (
+                                  <CelulaIndisponivel />
+                                ) : (
+                                  fmtBRL(vendasMatrizPorUnidade.get(u.unidade) ?? 0)
+                                )}
                               </TableCell>
                               <TableCell className="num text-right">
-                                {fmtBRL(vendasHunterPorUnidade.get(u.unidade) ?? 0)}
+                                {erros.contratos ? (
+                                  <CelulaIndisponivel />
+                                ) : (
+                                  fmtBRL(vendasHunterPorUnidade.get(u.unidade) ?? 0)
+                                )}
                               </TableCell>
                               <TableCell className="num text-right">
-                                {mix != null ? (
+                                {erros.contratos ? (
+                                  <CelulaIndisponivel />
+                                ) : mix != null ? (
                                   <span className="font-semibold text-success">{fmtPct(mix)}</span>
                                 ) : (
                                   "—"
                                 )}
                               </TableCell>
                               <TableCell className="num text-right text-success">
-                                {aud.oportunidade > 0 ? fmtBRL(aud.oportunidade) : "—"}
+                                {erros.auditoria ? (
+                                  <CelulaIndisponivel />
+                                ) : aud.oportunidade > 0 ? (
+                                  fmtBRL(aud.oportunidade)
+                                ) : (
+                                  "—"
+                                )}
                               </TableCell>
                               <TableCell className="num text-right text-warning">
-                                {aud.contingencia > 0 ? fmtBRL(aud.contingencia) : "—"}
+                                {erros.auditoria ? (
+                                  <CelulaIndisponivel />
+                                ) : aud.contingencia > 0 ? (
+                                  fmtBRL(aud.contingencia)
+                                ) : (
+                                  "—"
+                                )}
                               </TableCell>
                             </TableRow>
                           );
