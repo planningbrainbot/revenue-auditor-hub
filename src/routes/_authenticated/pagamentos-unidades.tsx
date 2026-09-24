@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -197,12 +197,25 @@ function PagamentosUnidadesPage() {
       <PageHeader
         titulo="Títulos por vencimento"
         pergunta="Quanto cada unidade tem em títulos a receber, mês a mês pelo vencimento?"
-        descricao={`Títulos a receber da Partners no Omie, pagos ou não, somados pelo mês de vencimento · ${ano} · valor do documento, sem cancelados. Tela fora do menu desde 14/09/2026; continua aberta por link direto.`}
+        descricao={
+          <>
+            Títulos a receber da Partners no Omie, pagos ou não, somados pelo mês de vencimento ·{" "}
+            {ano} · valor do documento, sem cancelados. Tela fora do menu desde 14/09/2026; continua
+            aberta por link direto. O acompanhamento da receita da rede está em{" "}
+            <Link
+              to="/receita-overview"
+              className="rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Receita e Repasses › Visão geral
+            </Link>
+            .
+          </>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={ano} onValueChange={setAno}>
-          <SelectTrigger className="w-[100px]">
+          <SelectTrigger className="w-[100px]" aria-label="Ano de vencimento">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -213,7 +226,7 @@ function PagamentosUnidadesPage() {
         </Select>
 
         <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[200px]" aria-label="Unidade">
             <SelectValue placeholder="Unidade" />
           </SelectTrigger>
           <SelectContent>
@@ -270,14 +283,22 @@ function PagamentosUnidadesPage() {
                       onClick={() => toggle(u.nomeDisplay)}
                     >
                       <TableCell className="py-2 font-semibold sticky left-0 bg-muted/20">
-                        <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(u.nomeDisplay);
+                          }}
+                          className="flex items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
                           {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           ) : (
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           )}
                           {u.nomeDisplay}
-                        </div>
+                        </button>
                       </TableCell>
                       {months.map((m) => (
                         <TableCell key={m} className="text-right tabular-nums py-2 font-semibold">
