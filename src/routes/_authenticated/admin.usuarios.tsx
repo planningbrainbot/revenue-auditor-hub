@@ -1374,6 +1374,7 @@ function UsersPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Voltar</AlertDialogCancel>
               <AlertDialogAction
+                className={buttonVariants({ variant: "destructive" })}
                 onClick={() => {
                   if (trocaComPerda) updateMut.mutate(trocaComPerda);
                   setTrocaComPerda(null);

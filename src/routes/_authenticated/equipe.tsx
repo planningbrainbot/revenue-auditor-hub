@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   convidarParaEquipe,
   definirPaginasEquipe,
@@ -63,7 +64,7 @@ function EquipePage() {
 
   return (
     <AppShell
-      title="Minha equipe"
+      title="Equipes"
       pergunta="Quem está na minha área, e com qual acesso?"
       subtitle={
         <>
@@ -311,6 +312,8 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
   const [paginas, setPaginas] = useState(pessoa.paginas);
   const [unidades, setUnidades] = useState<number[]>([]);
   const [confirmar, setConfirmar] = useState<"remover" | "nomear" | null>(null);
+  // Níveis de acesso (/admin/niveis) só abre para admin do sistema; admin de área não chega lá.
+  const { isAdmin } = usePermissions();
 
   const idsDasUnidades = useMemo(
     () => area.unidades.filter((u) => pessoa.unidades.includes(u.nome)).map((u) => u.id),
@@ -489,8 +492,9 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
                   {pessoa.nome} deixa de ver só as {pessoa.paginas.length}{" "}
                   {pessoa.paginas.length === 1 ? "página escolhida" : "páginas escolhidas"} e passa a ver a
                   área inteira nas unidades dele ({pessoa.unidades.join(", ") || "sem unidade"}). Passa também
-                  a convidar pessoas para essas unidades e a escolher o que cada uma vê. Para desfazer, só tirando da
-                  área ou em Níveis de acesso.
+                  a convidar pessoas para essas unidades e a escolher o que cada uma vê. {isAdmin
+                    ? "Para desfazer, só tirando da área ou em Níveis de acesso."
+                    : "Para desfazer, tire da área."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -225,11 +225,11 @@ function InicioPage() {
           // dele, por cima. Filete da área no hover e no foco (DESIGN §8).
           <Card
             key={p.slug}
-            className="group relative flex flex-col gap-3 p-5 transition-colors hover:border-input hover:bg-accent has-[:focus-visible]:border-input"
+            className="group relative flex flex-col gap-3 p-5 transition-colors duration-120 ease-planning hover:border-input hover:bg-accent has-[:focus-visible]:border-input"
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-y-3 left-0 flex opacity-0 transition-opacity duration-[120ms] ease-out group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
+              className="pointer-events-none absolute inset-y-3 left-0 flex opacity-0 transition-opacity duration-120 ease-planning group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
             >
               <Filete area={p.interno ? p.slug : undefined} className="rounded-l-none" />
             </span>

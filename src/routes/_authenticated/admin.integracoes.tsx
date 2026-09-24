@@ -388,7 +388,7 @@ function IntegracoesPage() {
                       size="sm"
                       onClick={() => setExcluirAlvo({ id: c.id, unidade: c.unidade, ativo: c.ativo })}
                       disabled={deleteMut.isPending}
-                      className="text-destructive hover:text-destructive"
+                      className="border-destructive/40 text-destructive hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       Excluir
                     </Button>

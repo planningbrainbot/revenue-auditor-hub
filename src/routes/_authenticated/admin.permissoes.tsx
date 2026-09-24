@@ -689,11 +689,20 @@ function EditorDoPapel({
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2">
+            {!mudou && (
+              <span id="motivo-salvar-permissoes" className="mr-auto text-xs text-muted-foreground">
+                Nada mudou: marque ou desmarque uma área para salvar.
+              </span>
+            )}
             <Button variant="ghost" onClick={onFechar} disabled={salvar.isPending}>
               Cancelar
             </Button>
-            <Button onClick={tentarSalvar} disabled={!mudou || salvar.isPending}>
+            <Button
+              onClick={tentarSalvar}
+              disabled={!mudou || salvar.isPending}
+              aria-describedby={!mudou ? "motivo-salvar-permissoes" : undefined}
+            >
               {salvar.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </div>

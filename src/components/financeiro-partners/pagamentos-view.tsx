@@ -609,7 +609,7 @@ export function PagamentosView() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>Voltar</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
                     const { linha, status } = confirmar;

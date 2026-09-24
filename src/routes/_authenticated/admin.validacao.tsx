@@ -108,8 +108,8 @@ function ValidationAdminPage() {
       subtitle={
         <>
           {q.data ? `${validadas} de ${pages.length} páginas validadas · ` : ""}
-          Página não validada mostra a faixa "Dados em validação" no topo (sócios regionais não a
-          veem). Marcar tira a faixa para todos; desmarcar devolve. Subpágina sem marcação própria
+          Página não validada mostra a faixa "Dados em validação" no topo (quem tem escopo só da
+          própria unidade não a vê). Marcar tira a faixa para todos; desmarcar devolve. Subpágina sem marcação própria
           segue a da página pai.
         </>
       }

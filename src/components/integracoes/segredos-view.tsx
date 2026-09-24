@@ -271,7 +271,7 @@ export function SegredosView() {
                   <Button
                     size="sm"
                     disabled={!valor.trim() || mSalvar.isPending}
-                    title={!valor.trim() ? (c.opcoes ? "Escolha uma opção para salvar" : "Cole o valor para salvar") : undefined}
+                    aria-describedby={!valor.trim() ? `motivo-salvar-${c.chave}` : undefined}
                     onClick={() =>
                       // Ir para produção confirma mesmo na primeira vez: sem valor o ambiente é o sandbox.
                       s?.configurado || (c.chave === "ASAAS_BASE_URL" && valor === ASAAS_PRODUCAO)
@@ -288,6 +288,11 @@ export function SegredosView() {
                   >
                     Salvar
                   </Button>
+                  {!valor.trim() && (
+                    <span id={`motivo-salvar-${c.chave}`} className="text-xs text-muted-foreground">
+                      {c.opcoes ? "Escolha uma opção para salvar." : "Cole o valor para salvar."}
+                    </span>
+                  )}
                   {s?.configurado ? (
                     <Button
                       size="icon"
