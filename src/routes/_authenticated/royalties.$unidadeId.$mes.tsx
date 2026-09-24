@@ -23,7 +23,7 @@ import {
   Trash2,
   UserX,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertDialog,
@@ -322,6 +322,7 @@ function ApuracaoLoaded({
   onBack: () => void;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data, isLoading, error: erroApuracao, refetch } = useApuracao(apuracaoId);
   // Fatura do mês desta unidade (mesma consulta da lista): diz se já saiu no
   // Omie, para o Reabrir avisar e o Emitir não aparecer duas vezes.
@@ -649,7 +650,11 @@ function ApuracaoLoaded({
         rotuloConfirmar="Fechar apuração"
         onConfirmar={() =>
           fechar.mutate(undefined, {
-            onSuccess: () => toast.success("Apuração fechada"),
+            onSuccess: () => {
+              // A Visão geral conta "fechada sem fatura" a partir daqui.
+              void queryClient.invalidateQueries({ queryKey: ["receita-overview"] });
+              toast.success("Apuração fechada");
+            },
           })
         }
         gatilho={
@@ -687,7 +692,10 @@ function ApuracaoLoaded({
       rotuloConfirmar="Reabrir apuração"
       onConfirmar={() =>
         reabrir.mutate(undefined, {
-          onSuccess: () => toast.success("Apuração reaberta"),
+          onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["receita-overview"] });
+            toast.success("Apuração reaberta");
+          },
         })
       }
       gatilho={
@@ -907,8 +915,8 @@ function ApuracaoLoaded({
       {emAndamento && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           <strong className="text-foreground">Mês em andamento.</strong> Os valores aqui são projeção
-          (gerada automaticamente a partir dos contratos ativos), não apuração real. A apuração só
-          fecha depois que o mês termina.
+          (gerada automaticamente a partir dos contratos ativos), não apuração real. Fechar antes do fim
+          do mês é possível; recebimentos posteriores ficam fora.
         </div>
       )}
 
