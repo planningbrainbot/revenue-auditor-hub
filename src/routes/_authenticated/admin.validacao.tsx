@@ -2,8 +2,16 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  StatusBadge,
+} from "@/components/planning";
+import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { listPageValidations, setPageValidation } from "@/lib/page-validations.functions";
@@ -25,6 +33,9 @@ export const Route = createFileRoute("/_authenticated/admin/validacao")({
   component: ValidationAdminPage,
 });
 
+const TITULO = "Validação de páginas";
+const PERGUNTA = "Quais páginas estão validadas para ir à main?";
+
 function ValidationAdminPage() {
   const navigate = useNavigate();
   const { isAdmin, loading } = usePermissions();
@@ -43,78 +54,123 @@ function ValidationAdminPage() {
   });
 
   const mut = useMutation({
-    mutationFn: (vars: { page_key: string; validated: boolean }) => saveFn({ data: vars }),
+    mutationFn: (vars: { page_key: string; validated: boolean; label: string }) =>
+      saveFn({ data: { page_key: vars.page_key, validated: vars.validated } }),
+    onSuccess: (_r, vars) => {
+      toast.success(
+        vars.validated
+          ? `${vars.label} validada. A faixa "Dados em validação" sai dessa página para todos.`
+          : `${vars.label} voltou para validação. A faixa "Dados em validação" volta a aparecer para todos.`,
+      );
+    },
+    onError: (e, vars) =>
+      toast.error(
+        `Não foi possível ${vars.validated ? "validar" : "desmarcar"} ${vars.label}: ${
+          e instanceof Error ? e.message : "erro desconhecido"
+        }`,
+      ),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["page-validations"] });
     },
   });
 
-  if (loading || !isAdmin) return null;
+  if (loading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="pagina" />
+      </div>
+    );
+  if (!isAdmin)
+    return (
+      <AppShell title={TITULO} pergunta={PERGUNTA}>
+        <div className="mx-auto max-w-3xl px-4 py-6">
+          <EstadoSemAcesso oQueFalta="admin (Administração)" />
+        </div>
+      </AppShell>
+    );
 
   const pages = q.data?.pages ?? [];
   const map = new Map((q.data?.rows ?? []).map((r) => [r.page_key, r]));
+  const validadas = pages.filter((p) => map.get(p.key)?.validated).length;
 
   return (
-    <AppShell title="Validação de páginas" subtitle="Marque quais páginas já tiveram seus dados conferidos">
+    <AppShell
+      title={TITULO}
+      pergunta={PERGUNTA}
+      subtitle={
+        <>
+          {q.data ? `${validadas} de ${pages.length} páginas validadas · ` : ""}
+          Página não validada mostra a faixa "Dados em validação" no topo (sócios regionais não a
+          veem). Marcar tira a faixa para todos; desmarcar devolve. Subpágina sem marcação própria
+          segue a da página pai.
+        </>
+      }
+    >
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning-soft p-4 text-warning">
-          <AlertTriangle className="mt-0.5 h-5 w-5" />
-          <div className="text-sm">
-            <p className="font-semibold">Como funciona</p>
-            <p className="mt-1">
-              Páginas marcadas como <strong>não validadas</strong> exibem um aviso fixo no topo
-              informando que os dados ainda estão em conferência. Marque como validada apenas
-              quando os números forem conferidos.
-            </p>
+        {q.isLoading ? (
+          <Carregando variante="tabela" />
+        ) : q.isError ? (
+          <EstadoErro
+            titulo="Não foi possível carregar as validações"
+            detalhe={q.error instanceof Error ? q.error.message : undefined}
+            tentarNovamente={() => q.refetch()}
+          />
+        ) : pages.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma página cadastrada para validação" />
+        ) : (
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 text-left">Página</th>
+                  <th className="px-4 py-2 text-left">Rota</th>
+                  <th className="w-32 px-4 py-2 text-center">Status</th>
+                  <th className="px-4 py-2 text-left">Validada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pages.map((p) => {
+                  const validated = map.get(p.key)?.validated ?? false;
+                  const salvando = mut.isPending && mut.variables?.page_key === p.key;
+                  const id = `validada-${p.key}`;
+                  return (
+                    <tr key={p.key} className="border-t hover:bg-muted/40">
+                      <td className="px-4 py-3 font-medium">{p.label}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.key}</td>
+                      <td className="px-4 py-3 text-center">
+                        {validated ? (
+                          <StatusBadge tom="sucesso">Validada</StatusBadge>
+                        ) : (
+                          <StatusBadge tom="info">Em validação</StatusBadge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            id={id}
+                            checked={validated}
+                            disabled={mut.isPending}
+                            onCheckedChange={(v) =>
+                              mut.mutate({ page_key: p.key, validated: v === true, label: p.label })
+                            }
+                            className="mt-0.5"
+                          />
+                          <label htmlFor={id} className="cursor-pointer text-xs text-muted-foreground">
+                            {salvando
+                              ? "Salvando…"
+                              : validated
+                                ? "Desmarcar devolve a faixa de validação"
+                                : "Marcar tira a faixa de validação para todos"}
+                          </label>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2 text-left">Página</th>
-                <th className="px-4 py-2 text-left">Rota</th>
-                <th className="px-4 py-2 text-center w-32">Status</th>
-                <th className="px-4 py-2 text-center w-28">Validada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pages.map((p) => {
-                const row = map.get(p.key);
-                const validated = row?.validated ?? false;
-                return (
-                  <tr key={p.key} className="border-t">
-                    <td className="px-4 py-3 font-medium">{p.label}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.key}</td>
-                    <td className="px-4 py-3 text-center">
-                      {validated ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
-                          <CheckCircle2 className="h-3 w-3" /> Validada
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
-                          <AlertTriangle className="h-3 w-3" /> Em validação
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="checkbox"
-                        checked={validated}
-                        disabled={mut.isPending}
-                        onChange={(e) =>
-                          mut.mutate({ page_key: p.key, validated: e.target.checked })
-                        }
-                        className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        )}
       </div>
     </AppShell>
   );
