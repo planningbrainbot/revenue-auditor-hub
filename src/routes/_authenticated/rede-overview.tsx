@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate, type SearchSchemaInput } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, type SearchSchemaInput } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
@@ -17,7 +17,6 @@ import {
   YAxis,
   type LabelProps,
 } from "recharts";
-import { ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -178,10 +177,14 @@ const fmtBRL = (v: number | null | undefined) =>
     ? "—"
     : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-const fmtPct = (v: number | null | undefined, decimals = 1) =>
-  v == null ? "—" : `${v.toFixed(decimals)}%`;
+// Número em pt-BR (vírgula decimal), com casas fixas.
+const fmtDec = (v: number, casas: number) =>
+  v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 
-const fmtMil = (v: number) => `${(v / 1000).toFixed(0)}k`;
+const fmtPct = (v: number | null | undefined, decimals = 1) =>
+  v == null ? "—" : `${fmtDec(v, decimals)}%`;
+
+const fmtMil = (v: number) => `${fmtDec(v / 1000, 0)}k`;
 
 const pctVsPrev = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
 
@@ -238,6 +241,8 @@ function RedeOverviewPage() {
   // deixar ALL selecionável e confiar só no Badge da UI.
   const unidadeFilter =
     perms.scopedToOwnUnit && perms.unidade ? perms.unidade : unidadeUrl || ALL;
+  // /clientes aceita `unidade`: o drill-down abre no mesmo recorte.
+  const unidadeClientes = unidadeFilter === ALL ? "" : unidadeFilter;
 
   const {
     data: royaltiesData,
@@ -918,7 +923,7 @@ function RedeOverviewPage() {
     const arrow = pct == null ? "" : pct >= 0 ? "▲" : "▼";
     const pctColor =
       pct == null ? "var(--muted-foreground)" : pct >= 0 ? "var(--success)" : COR_NEGATIVO;
-    const valorFmt = v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)} Mi` : fmtMil(v);
+    const valorFmt = v >= 1_000_000 ? `${fmtDec(v / 1_000_000, 1)} Mi` : fmtMil(v);
     return (
       <g>
         {pct != null && (
@@ -1115,7 +1120,7 @@ function RedeOverviewPage() {
                   onClick: () =>
                     navigate({
                       to: "/clientes",
-                      search: { view: "contratos", status: "", unidade: "" },
+                      search: { view: "contratos", status: "", unidade: unidadeClientes },
                     }),
                   rotulo: "Abrir Contratos e churn",
                 }}
@@ -1142,7 +1147,7 @@ function RedeOverviewPage() {
                           <span className="block text-xs">Vida útil (projetada)</span>
                           <span className="num block text-sm font-bold text-foreground">
                             {ltvFormulaico.lifetimeMeses != null
-                              ? `${ltvFormulaico.lifetimeMeses.toFixed(1)} meses`
+                              ? `${fmtDec(ltvFormulaico.lifetimeMeses, 1)} meses`
                               : "—"}
                           </span>
                         </span>
@@ -1153,7 +1158,7 @@ function RedeOverviewPage() {
                           </span>
                           <span className="num block text-sm font-bold text-foreground">
                             {lifetimeConcluidos.mediaMeses != null
-                              ? `${lifetimeConcluidos.mediaMeses.toFixed(1)} meses`
+                              ? `${fmtDec(lifetimeConcluidos.mediaMeses, 1)} meses`
                               : "—"}
                           </span>
                         </span>
@@ -1259,7 +1264,7 @@ function RedeOverviewPage() {
               <Secao
                 titulo="Quantos contratos estavam ativos em cada mês?"
                 descricao="Contratos ativos por mês, reconstruído por evento (ganho − churn acumulado por mês); não é snapshot salvo."
-                acoes={<VerDetalheLink to="/clientes" search={{ view: "contratos", status: "", unidade: "" }} />}
+                acoes={<VerDetalheLink to="/clientes" search={{ view: "contratos", status: "", unidade: unidadeClientes }} />}
               >
                 {blocoGrafico(
                   ["contratos", "tratativas", "empresas"],
@@ -1305,7 +1310,7 @@ function RedeOverviewPage() {
                           <YAxis tickFormatter={(v) => `${v}%`} {...eixoProps} />
                           <Tooltip
                             {...tooltipProps}
-                            formatter={(v: number) => (v == null ? "—" : `${v.toFixed(1)}%`)}
+                            formatter={(v: number) => fmtPct(v)}
                             labelFormatter={(l) => `Mês: ${l}`}
                           />
                           <Bar dataKey="variacao" name="Variação">
@@ -1338,7 +1343,7 @@ function RedeOverviewPage() {
             <Carregando variante="kpis" />
           ) : (
             <>
-              <KpiGrade colunas={4}>
+              <div className="max-w-sm">
                 <KpiCard
                   rotulo="MRR"
                   valor={fmtBRL(kpis.mrr)}
@@ -1349,11 +1354,11 @@ function RedeOverviewPage() {
                   }
                   abrir={{
                     onClick: () =>
-                      navigate({ to: "/clientes", search: { status: "ATIVO", unidade: "" } }),
+                      navigate({ to: "/clientes", search: { status: "ATIVO", unidade: unidadeClientes } }),
                     rotulo: "Abrir contratos ativos",
                   }}
                 />
-              </KpiGrade>
+              </div>
 
               <Secao
                 titulo="Quais unidades mais vendem por conta própria? (MRR Hunter, R$)"
@@ -1457,9 +1462,7 @@ function RedeOverviewPage() {
                         </div>
                       </Card>,
                   )}
-                  {royaltiesCarregando && (
-                    <p className="text-[13px] text-muted-foreground">Carregando royalties…</p>
-                  )}
+                  {royaltiesCarregando && <Carregando variante="grafico" />}
                   {royaltiesError &&
                     (royaltiesSemPermissao ? (
                       <EstadoSemAcesso oQueFalta="view.unidades_rede" />
@@ -1516,11 +1519,8 @@ function RedeOverviewPage() {
                     por origem (Matriz = leads roteados pelo Inside Sales; Hunter = vendas fechadas
                     direto pela unidade, pipe Sócios) — juntos devem bater com o MRR atual da
                     linha. Mix mais Hunter é lido como positivo (autossuficiência comercial).
-                    Oportunidade/Contingência vêm da Auditoria Interna (fiscal), ver{" "}
-                    <Link to="/auditoria-interna" className="text-primary-text underline">
-                      detalhe
-                    </Link>
-                    .
+                    Oportunidade/Contingência vêm da Auditoria Interna (fiscal):{" "}
+                    <DestinoLink to="/auditoria-interna" rotulo="Abrir Auditoria interna" />
                   </>
                 }
               >
@@ -1576,12 +1576,12 @@ function RedeOverviewPage() {
                                 {erros.contratos ? (
                                   <CelulaIndisponivel />
                                 ) : mix != null ? (
-                                  <span className="font-semibold text-success">{fmtPct(mix)}</span>
+                                  <span className="font-semibold">{fmtPct(mix)}</span>
                                 ) : (
                                   "—"
                                 )}
                               </TableCell>
-                              <TableCell className="num text-right text-success">
+                              <TableCell className="num text-right">
                                 {erros.auditoria ? (
                                   <CelulaIndisponivel />
                                 ) : aud.oportunidade > 0 ? (
@@ -1590,7 +1590,7 @@ function RedeOverviewPage() {
                                   "—"
                                 )}
                               </TableCell>
-                              <TableCell className="num text-right text-warning">
+                              <TableCell className="num text-right">
                                 {erros.auditoria ? (
                                   <CelulaIndisponivel />
                                 ) : aud.contingencia > 0 ? (
@@ -1675,14 +1675,20 @@ function RedeOverviewPage() {
                 rotulo="Oportunidade (auditoria interna)"
                 valor={fmtBRL(auditoriaStats.oportunidade)}
                 estado={auditoriaKpi?.estado ?? "ok"}
-                nota={auditoriaKpi?.nota ?? "oportunidades fiscais apontadas nas auditorias"}
+                nota={
+                  auditoriaKpi?.nota ??
+                  `oportunidades fiscais apontadas nas auditorias${unidadeFilter === ALL ? "" : " · a Auditoria interna abre sem a unidade: não bate"}`
+                }
                 abrir={{ href: "/auditoria-interna", rotulo: "Abrir Auditoria interna" }}
               />
               <KpiCard
                 rotulo="Contingência (auditoria interna)"
                 valor={fmtBRL(auditoriaStats.contingencia)}
                 estado={auditoriaKpi?.estado ?? "ok"}
-                nota={auditoriaKpi?.nota ?? "contingências fiscais apontadas nas auditorias"}
+                nota={
+                  auditoriaKpi?.nota ??
+                  `contingências fiscais apontadas nas auditorias${unidadeFilter === ALL ? "" : " · a Auditoria interna abre sem a unidade: não bate"}`
+                }
                 abrir={{ href: "/auditoria-interna", rotulo: "Abrir Auditoria interna" }}
               />
             </KpiGrade>
