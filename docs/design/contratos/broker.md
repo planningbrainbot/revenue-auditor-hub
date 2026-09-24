@@ -18,3 +18,9 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09). Saldo, preço, multiplicado
 - Status "matriz" em `violet` (V3-matiz) → `StatusBadge tom="neutro"`.
 - Extrato de CAC truncado em 120 linhas: diz "mostrando 120 de N".
 - Sem `manage.broker`: selo "Somente leitura" (já existe) e botões desabilitados com motivo, em vez de ocultos (N8).
+
+## O que NÃO entra
+- Mudar saldo, preço, multiplicador, CAC ou a regra de bloqueio por saldo; as páginas `/broker/reservas`, `/movimentacoes`, `/faturas` e `/cac` só herdam KPIs e estados da view compartilhada (ainda com `TODO(design)`, declarado no PR).
+
+## Para onde manda
+Oportunidade reservada → Reservas da unidade; fatura de CashBrain → Faturas; na Matriz, cada aba é a tela dona do seu assunto.

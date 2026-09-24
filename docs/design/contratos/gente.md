@@ -15,7 +15,7 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09: "padronizar e melhorar TODAS
 | minha-vez | O que está pendente comigo esta semana? | Fila |
 | meu-time | Quem do meu time precisa de mim agora? | Fila |
 | um-a-um | Com quem estou há mais tempo sem 1:1? | Fila |
-| sentimento | Como o time está, e quais são as prioridades da semana? | Lista |
+| lideranca (alias antigo: `sentimento`) | Como o time está, e quais são as prioridades da semana? | Lista |
 | feedback | Que feedback eu recebi e enviei? | Lista |
 | elogios | Quem foi reconhecido, e por quê? | Lista |
 | avaliacao | Em que pé está o ciclo de avaliação, e o que falta concluir? | Fila + Ficha |
@@ -50,3 +50,6 @@ Trilha que substituiria o Qulture (não existe); PDI da Monetização (fronteira
 
 ## Achado para o Eliezek
 - **Adoção engole erro do banco.** `listAdocao` (`src/lib/gente-adocao.functions.ts:36-40`) lê `v_gente_adocao_por_unidade` e devolve `res?.data ?? []` sem olhar `res.error`: falha de leitura chega à tela como lista vazia. A tela (P3) separa carregando, erro, sem acesso e vazio, mas o `ErroDaFonte` só aparece quando a chamada inteira falha; erro de consulta vira "sem acesso" (sem `view.gente.agregado`) ou "nenhuma unidade". Correção sugerida, fora desta migração (função de servidor): `if (res?.error) throw new Error(res.error.message)`, como `listGente` já faz.
+
+## Para onde manda
+Cada pendência de Minha vez e Meu time abre a tela onde se resolve (1:1, Avaliação, PDI, Sentimento). Cadastro é a referência de pessoas; Clima e Adoção não mandam para outra tela.

@@ -23,3 +23,9 @@ Já é a referência da área (pergunta, procedência, estados). Só: "R$ 0" par
 ## Achados para o Eliezek
 - `/painel-unidade` não confere `view.painel_unidade`.
 - A régua de "churn no mês" (troca de fase ou atualização) conta cards que só foram editados.
+
+## O que NÃO entra
+Mudar o recorte por unidade, as queries ou a régua de churn; as telas da matriz reaproveitadas (Base, CS, NPS, IDU, Funil de Receita, Contas a Receber) seguem o contrato de cada uma.
+
+## Para onde manda
+Painel → Base de clientes (contratos ativos, clientes em risco) e Contas a Receber (inadimplência, só com o financeiro da unidade); Top 5 → o cliente em `/clientes`.
