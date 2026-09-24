@@ -32,6 +32,7 @@ import type {
   Unidade,
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
+import { cn } from "@/lib/utils";
 import { EstadoVazio } from "@/components/planning";
 import {
   BotaoComMotivo,
@@ -385,7 +386,12 @@ export function ListWorkspace({
                   if (dirty) setDescartar({ abrir: l.id });
                   else trocarPara(l.id);
                 }}
-                className={`w-full rounded-lg border p-3 text-left hover:border-input ${FOCO_VISIVEL} ${draft.id === l.id ? "border-primary bg-primary/5" : ""}`}
+                className={cn(
+                  "w-full rounded-lg border p-3 text-left",
+                  FOCO_VISIVEL,
+                  // A lista aberta mantém a borda da marca; o hover só vale para as outras.
+                  draft.id === l.id ? "border-primary bg-primary/5" : "hover:border-input",
+                )}
               >
                 <strong className="block text-sm">{l.nome}</strong>
                 <span className="mt-1 block text-xs text-muted-foreground">
@@ -715,7 +721,9 @@ export function ListWorkspace({
               </label>
               {issues.length > 0 && (
                 <details className="text-xs text-warning">
-                  <summary>{issues.length} pendência(s) antes da validação</summary>
+                  <summary className={cn("cursor-pointer", FOCO_VISIVEL)}>
+                    {issues.length} pendência(s) antes da validação
+                  </summary>
                   <ul className="mt-2 space-y-1">
                     {issues.map((s, i) => (
                       <li key={i}>{s}</li>
