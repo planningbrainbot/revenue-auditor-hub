@@ -31,8 +31,12 @@ export const FUNDO_APRESENTACAO = "#080808";
 export function generatePresentationHTML(d: ReformaTributariaData): string {
   const first = d.years[0];
   const last = d.years[d.years.length - 1];
-  const deltaPp = ((last.carga - first.carga) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const deltaR = last.desembolso - first.desembolso;
+  // Sinal fora do número: diferença negativa saía "+R$ -X". Só a string muda;
+  // o cálculo segue o mesmo.
+  const sinalPp = last.carga - first.carga < 0 ? '−' : '+';
+  const sinalR = deltaR < 0 ? '−' : '+';
+  const deltaPp = (Math.abs(last.carga - first.carga) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Detect tax regime: ISS = services company; ICMS = commerce/industry
   const isServico = d.aliquotas.iss > 0;
@@ -323,7 +327,7 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
   <div class="hero-badge reveal"><span>Mapa da Reforma Tributária</span> · Simulação 2026 a 2033</div>
   <h1 class="hero-hl reveal d1" data-e>
     <span style="color:var(--g)">${d.empresa}</span><br>
-    vai pagar <span style="color:var(--r)">+R$ ${Math.round(deltaR / 1000)}k</span><br>
+    vai pagar <span style="color:var(--r)">${sinalR}R$ ${Math.round(Math.abs(deltaR) / 1000)}k</span><br>
     de imposto por ano.
   </h1>
   <p class="hero-sub reveal d2" data-e>${d.textoPrincipal || `A Reforma Tributária (LC 214) eleva sua carga de ${fmtPct(first.carga)} para ${fmtPct(last.carga)} até ${last.ano}. A carga hoje incide sobre ${tributosAtuais}. Este mapa mostra como esse aumento acontece — ano a ano, imposto a imposto — para que você planeje antes que a conta chegue.`}</p>
@@ -396,19 +400,19 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
   <div class="impact-grid reveal">
     <div class="ig"><div class="ig-label cl">Carga efetiva</div>
       <div class="ig-row"><span class="ig-v" style="color:var(--g)">${fmtPct(first.carga)}</span><span class="ig-arrow">→</span><span class="ig-v" style="color:var(--c)">${fmtPct(last.carga)}</span></div>
-      <div class="ig-delta">Acréscimo de <strong style="color:var(--c)">+${deltaPp} pontos percentuais</strong></div></div>
+      <div class="ig-delta">Acréscimo de <strong style="color:var(--c)">${sinalPp}${deltaPp} pontos percentuais</strong></div></div>
     <div class="ig hl"><div class="ig-label cl-r">Imposto a pagar / ano</div>
       <div class="ig-row"><span class="ig-v" style="color:var(--g)">R$ ${fmtMi(first.desembolso)}mi</span><span class="ig-arrow">→</span><span class="ig-v" style="color:var(--r)">R$ ${fmtMi(last.desembolso)}mi</span></div>
-      <div class="ig-delta"><strong style="color:var(--r)">+R$ ${fmtBRL(deltaR)} por ano</strong> no regime final</div></div>
+      <div class="ig-delta"><strong style="color:var(--r)">${sinalR}R$ ${fmtBRL(Math.abs(deltaR))} por ano</strong> no regime final</div></div>
     <div class="ig"><div class="ig-label cl-r">Resultado operacional</div>
       <div class="ig-row"><span class="ig-v" style="color:var(--g)">R$ ${fmtMi(resAtual)}mi</span><span class="ig-arrow">→</span><span class="ig-v" style="color:var(--r)">R$ ${fmtMi(resPosReforma)}mi</span></div>
-      <div class="ig-delta">Queda de <strong style="color:var(--r)">R$ ${fmtBRL(deltaResultado)}</strong> no resultado simulado</div></div>
+      <div class="ig-delta">Queda de <strong style="color:var(--r)">${deltaResultado < 0 ? '−' : ''}R$ ${fmtBRL(Math.abs(deltaResultado))}</strong> no resultado simulado</div></div>
   </div>
   <div class="bar-box reveal">
     <div class="bar-title">Carga efetiva sobre o consumo · hoje vs regime final</div>
     <div class="bar-row"><span class="bar-yr">2026</span><div class="bar-track"><div class="bar-fill" data-w="${Math.round(first.carga / last.carga * 100)}" style="background:linear-gradient(90deg,var(--g),var(--g));"></div></div><span class="bar-lbl" style="color:var(--g)">${fmtPct(first.carga)}</span></div>
     <div class="bar-row"><span class="bar-yr">${last.ano}</span><div class="bar-track"><div class="bar-fill" data-w="100"></div></div><span class="bar-lbl" style="color:var(--c)">${fmtPct(last.carga)}</span></div>
-    <div style="text-align:right;margin-top:14px;font-size:1.7rem;font-weight:900;color:var(--c);">+${deltaPp} p.p.</div>
+    <div style="text-align:right;margin-top:14px;font-size:1.7rem;font-weight:900;color:var(--c);">${sinalPp}${deltaPp} p.p.</div>
   </div>
 
 
@@ -432,7 +436,7 @@ body.edit-mode .edit-toggle-btn{background:rgba(95,183,127,.08);border-color:rgb
     <div id="evo-tabela" class="tab-panel active">
       <table class="dt"><thead><tr><th>Ano</th><th>Fase</th><th>Carga efetiva</th><th style="text-align:right;">Desembolso (R$)</th></tr></thead>
       <tbody>${tableRows}
-        <tr class="total-row"><td colspan="2">Variação 2026 → ${last.ano}</td><td class="vr">+${deltaPp} p.p.</td><td class="vr" style="text-align:right;">+${fmtBRL(deltaR)}</td></tr>
+        <tr class="total-row"><td colspan="2">Variação 2026 → ${last.ano}</td><td class="vr">${sinalPp}${deltaPp} p.p.</td><td class="vr" style="text-align:right;">${sinalR}${fmtBRL(Math.abs(deltaR))}</td></tr>
       </tbody></table>
     </div>
     <div id="evo-grafico" class="tab-panel"><div class="chart-box"><canvas id="chartLine" height="100"></canvas></div></div>
@@ -568,7 +572,7 @@ ${d.observacoes ? `
 <div class="container">
   <div class="reveal">
     <div class="eyebrow" style="justify-content:center;display:flex;">O que fazer com este mapa</div>
-    <h2 class="cta-hl" data-e>Você tem <span style="color:var(--g)">sete anos</span> para se preparar.<br>O custo de esperar é <span style="color:var(--g)">R$ ${Math.round(deltaR/1000)}k/ano.</span></h2>
+    <h2 class="cta-hl" data-e>Você tem <span style="color:var(--g)">sete anos</span> para se preparar.<br>O custo de esperar é <span style="color:var(--g)">${deltaR < 0 ? '−' : ''}R$ ${Math.round(Math.abs(deltaR)/1000)}k/ano.</span></h2>
     <p class="cta-sub" data-e>${d.textoFechamento || `A Reforma é gradual e previsível: a carga da ${d.empresa} sobe de ${fmtPct(first.carga)} para ${fmtPct(last.carga)} até ${last.ano}, com o salto maior no último ano. Conhecer essa curva agora permite planejar preço, margem, créditos e fluxo de caixa antes que o aumento chegue. A Planning acompanha cada etapa da transição com você.`}</p>
   </div>
   <div class="footer-line"></div>
