@@ -268,9 +268,9 @@ export function ContratosClientes({
   const setSegmentoFilter = (v: string) => mudar({ segmentoContrato: v === ALL ? undefined : v });
   const setContratoAssinadoFilter = (v: boolean | null) =>
     mudar({ assinatura: v === null ? undefined : v ? "com" : "sem" });
-  // O clique no cartão de churn também solta o status (comportamento de antes), numa navegação só.
+  // O clique no cartão de churn só mexe no churn: a situação financeira escolhida continua.
   const alternarChurn = (v: boolean) =>
-    mudar({ churn: churnFilter === v ? undefined : v ? "sim" : "nao", status: "" });
+    mudar({ churn: churnFilter === v ? undefined : v ? "sim" : "nao" });
   const [omieMatches, setOmieMatches] = useState<OmieMatch[]>([]);
   const [omieLoading, setOmieLoading] = useState(false);
   // Cliente cujo painel de contatos está aberto (null = fechado).
@@ -694,9 +694,11 @@ export function ContratosClientes({
     });
   }, [baseFiltered, churnFilter, churnedIds, sort, mrrByPipedriveId, contratoInfoByPipedriveId]);
 
+  // Quem só vê a própria unidade não tem filtro de unidade (o recorte é da permissão): a unidade
+  // da URL não conta como filtro aplicado.
   const hasFilters =
     q !== "" ||
-    unidade !== ALL ||
+    (!perms.scopedToOwnUnit && unidade !== ALL) ||
     statusFilter !== null ||
     churnFilter !== null ||
     erpFilter !== ALL ||
@@ -1050,7 +1052,9 @@ export function ContratosClientes({
                         key={r.id}
                         className={cn(
                           podeVerContatos &&
-                            "cursor-pointer hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                            // Foco de linha: o mesmo das filas de Monetização (outline em <tr>, onde o ring
+                            // do FOCO_VISIVEL não desenha).
+                            "cursor-pointer outline-none hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
                         )}
                         // A linha abre os contatos: com teclado também (Enter ou espaço).
                         tabIndex={podeVerContatos ? 0 : undefined}
