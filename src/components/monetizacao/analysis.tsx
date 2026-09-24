@@ -12,7 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChipFiltro, EstadoVazio, StatusBadge, type TomStatus } from "@/components/planning";
+import {
+  ChipFiltro,
+  EstadoVazio,
+  KpiGrade,
+  StatusBadge,
+  type EstadoKpi,
+  type TomStatus,
+} from "@/components/planning";
 import {
   capacidade,
   distancia,
@@ -30,7 +37,18 @@ import type { Aba, OpcoesDetalhe } from "./dashboard";
 import { DIAS_PADRAO } from "./busca";
 import type { BuscaMonetizacao, Sinal } from "./busca";
 import { Forecast } from "./forecast";
-import { date, Field, inputClass, Kpi, money, NotaApoio, number, SecaoCartao } from "./common";
+import {
+  date,
+  estadoKpiEvento,
+  Field,
+  inputClass,
+  Kpi,
+  money,
+  NotaApoio,
+  number,
+  procedenciaMonetizacao,
+  SecaoCartao,
+} from "./common";
 
 type Props = {
   aba: Aba;
@@ -50,7 +68,8 @@ export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
   if (aba === "forecast")
     return <Forecast data={data} month={filter.to.slice(0, 7)} openDeals={openDeals} />;
-  if (aba === "temporal") return <Temporal data={data} filter={filter} openDeals={openDeals} />;
+  if (aba === "temporal")
+    return <Temporal data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
   if (aba === "capacidade")
     return (
       <Capacity key={`${filter.to.slice(0, 7)}-${filter.owner}`} data={data} filter={filter} />
@@ -73,91 +92,246 @@ export function Analysis(props: Props) {
 
 type Cut = Pick<Props, "data" | "filter" | "openDeals">;
 type CutBusca = Cut & Pick<Props, "busca" | "mudarBusca">;
-function Temporal({ data, filter, openDeals }: Cut) {
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** "set/2026" a partir de "2026-09". */
+const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
+const FOCO_LINK =
+  "rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+/** Nome do responsável da barra: "Toda a frente" sem filtro. */
+const nomeDoDono = (data: BaseMonetizacao, owner: number | null) =>
+  owner === null
+    ? "Toda a frente"
+    : (data.cards.find((c) => c.owner_id === owner)?.owner ??
+      (owner === 28381245 ? "Matheus Carvalho" : `Usuário ${owner}`));
+const juntarNotas = (...partes: (string | undefined | false | null)[]) =>
+  partes.filter(Boolean).join(" · ") || undefined;
+
+function Temporal({ data, filter, openDeals, busca }: Cut & Pick<Props, "busca">) {
   const t = temporal(data.cards, filter),
     revenue = receitaSomada(t.open);
-  const stale = t.open.filter((c) => c.expected_close && c.expected_close < hoje());
+  const today = hoje();
+  const stale = t.open.filter((c) => c.expected_close && c.expected_close < today);
   const plan = data.plans.find(
     (p) => p.month === filter.to.slice(0, 7) && p.owner_id === filter.owner,
   );
+  const procedencia = procedenciaMonetizacao(data);
+  const dono = nomeDoDono(data, filter.owner);
+  // Z3: split completo por negócio, com a mesma régua de `receitaSomada` (sem recalcular nada).
+  const comSplit = t.open.filter((c) => receitaSomada([c]).known === 1);
+  const aPreencher = t.open.filter((c) => receitaSomada([c]).known === 0);
+  const n = t.open.length,
+    k = revenue.known;
+  // Z2: negócio sem histórico lido não tem `validated_at` nem `started_at`, então some das
+  // validadas e do ciclo. Recorte: dono atual e produto da barra, aberto hoje ou ganho no período.
+  const semHistoricoRecorte = data.cards.filter(
+    (c) =>
+      !c.history_known &&
+      (!filter.product || c.route === filter.product) &&
+      (!filter.owner || c.owner_id === filter.owner) &&
+      (c.status === "open" ||
+        (c.status === "won" && !!c.won_on && c.won_on >= filter.from && c.won_on <= filter.to)),
+  );
+  const evento = estadoKpiEvento(data, semHistoricoRecorte);
+  const estadoReceita: EstadoKpi =
+    n === 0 ? evento.estado : k === 0 ? "nao-apurado" : k < n ? "parcial" : evento.estado;
+  const procedenciaReceita = {
+    ...procedencia,
+    fonte: `${procedencia.fonte} · total = split quando o CRM não traz o total`,
+  };
+  const porData = (c: Negocio) => c.expected_close;
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <KpiGrade colunas={4}>
         <Kpi
           label="Validadas em aberto"
-          value={t.open.length}
-          hint="Estoque atual, com passagem registrada"
-          onClick={() => openDeals("Validadas em aberto", t.open)}
+          value={number(n)}
+          estado={evento.estado}
+          nota={juntarNotas(
+            evento.nota,
+            stale.length
+              ? `${stale.length} com data vencida`
+              : n
+                ? "nenhuma com data vencida"
+                : "estoque de hoje",
+          )}
+          procedencia={procedencia}
+          onClick={() =>
+            openDeals("Validadas em aberto", t.open, undefined, {
+              estoque: true,
+              ordenarPor: (c) => c.validated_at,
+            })
+          }
         />
         <Kpi
           label="Ciclo mediano até assinatura"
-          value={t.median === null ? "—" : number(t.median) + " dias"}
-          hint={`${t.signed.length} contratos ganhos no período`}
+          value={t.median === null ? "—" : `${number(t.median)} dias`}
+          estado={t.median === null ? "nao-apurado" : evento.estado}
+          nota={
+            t.median === null
+              ? juntarNotas(evento.nota, "nenhum ganho com trabalho registrado no período")
+              : juntarNotas(
+                  evento.nota,
+                  `p90 ${number(t.p90)} dias · ${t.signed.length} ${t.signed.length === 1 ? "ganho" : "ganhos"}`,
+                )
+          }
+          procedencia={procedencia}
         />
         <Kpi
-          label="90% das assinaturas até"
-          value={t.p90 === null ? "—" : number(t.p90) + " dias"}
-          hint="Inclui contratos fechados no mesmo dia"
+          label="Receita prevista conciliada"
+          value={money(revenue.total)}
+          estado={estadoReceita}
+          nota={
+            n === 0
+              ? "nenhuma validada em aberto no recorte"
+              : juntarNotas(
+                  evento.nota,
+                  estadoReceita !== "nao-apurado" &&
+                    `Partners ${money(revenue.partners)} · unidades ${money(revenue.unit)}`,
+                  `${k} de ${n} com split completo`,
+                  n - k > 0 && `${n - k} a preencher`,
+                )
+          }
+          procedencia={procedenciaReceita}
+          onClick={
+            k
+              ? () =>
+                  openDeals("Receita prevista · com split completo", comSplit, undefined, {
+                    estoque: true,
+                    ordenarPor: porData,
+                  })
+              : undefined
+          }
         />
         <Kpi
           label="Data prevista vencida"
-          value={stale.length}
-          hint="Conferir a data com o responsável"
-          onClick={() => openDeals("Data prevista vencida", stale)}
+          value={number(stale.length)}
+          estado={evento.estado}
+          nota={juntarNotas(evento.nota, "conferir a data com o dono")}
+          procedencia={procedencia}
+          onClick={() =>
+            openDeals("Data prevista vencida", stale, undefined, {
+              estoque: true,
+              ordenarPor: porData,
+            })
+          }
         />
-      </div>
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Kpi
-          label="Receita prevista · total conciliado"
-          value={revenue.known ? money(revenue.total) : "A preencher"}
-          hint={`${revenue.known} de ${t.open.length} oportunidades com split completo`}
-        />
-        <Kpi
-          label="Receita prevista · Partners"
-          value={revenue.known ? money(revenue.partners) : "A preencher"}
-          hint="Somente a parcela preenchida e conciliada"
-        />
-        <Kpi
-          label="Receita prevista · unidades"
-          value={revenue.known ? money(revenue.unit) : "A preencher"}
-          hint="Valores previstos; ainda não são recebimentos"
-        />
-      </div>
-      <SecaoCartao titulo="Quando as oportunidades estão previstas">
-        <table className="w-full text-left text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr>
-              <th>Semana a partir de</th>
-              <th>Oportunidades</th>
-              <th>Receita prevista conciliada</th>
-              <th>Pendências de receita</th>
-            </tr>
-          </thead>
-          <tbody>
-            {t.weeks.map((w) => (
-              <tr className="border-t" key={w.week}>
-                <td className="py-3">{w.week === "Sem data" ? w.week : date(w.week)}</td>
-                <td>
-                  <button
-                    className="text-primary-text underline"
-                    onClick={() => openDeals(`Previsão · ${w.week}`, w.rows)}
-                  >
-                    {w.rows.length}
-                  </button>
-                </td>
-                <td>{w.revenue.known ? money(w.revenue.total) : "A preencher"}</td>
-                <td>{w.revenue.missing}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!t.weeks.length && (
-          <p className="py-6 text-sm text-muted-foreground">
-            Nenhuma oportunidade validada em aberto para este responsável/produto.
-          </p>
+      </KpiGrade>
+      {/* Notas clicáveis moram fora do card: o card inteiro já é botão (HTML válido). */}
+      {(stale.length > 0 || aPreencher.length > 0) && (
+        <p className="-mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {stale.length > 0 && (
+            <button
+              type="button"
+              className={FOCO_LINK}
+              onClick={() =>
+                openDeals("Validadas com data prevista vencida", stale, undefined, {
+                  estoque: true,
+                  ordenarPor: porData,
+                })
+              }
+            >
+              Abrir as {stale.length} com data vencida →
+            </button>
+          )}
+          {aPreencher.length > 0 && (
+            <button
+              type="button"
+              className={FOCO_LINK}
+              onClick={() =>
+                openDeals("Receita prevista a preencher", aPreencher, undefined, {
+                  estoque: true,
+                  ordenarPor: porData,
+                })
+              }
+            >
+              Abrir as {aPreencher.length} com receita a preencher →
+            </button>
+          )}
+        </p>
+      )}
+      <SecaoCartao
+        titulo="Em que semana as validadas devem fechar?"
+        descricao={`Validadas em aberto por semana da data prevista · dono atual: ${dono} · estoque de hoje`}
+      >
+        {!t.weeks.length ? (
+          <EstadoVazio titulo="Nenhuma oportunidade validada em aberto neste recorte." />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Semana a partir de</TableHead>
+                  <TableHead className="num text-right">Oportunidades</TableHead>
+                  <TableHead className="num text-right">Receita prevista conciliada</TableHead>
+                  <TableHead className="num text-right">Pendências de receita</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {t.weeks.map((w) => {
+                  const semana = w.week === "Sem data" ? w.week : date(w.week);
+                  return (
+                    <TableRow key={w.week}>
+                      <TableCell className="num">{semana}</TableCell>
+                      <TableCell className="num text-right">
+                        <button
+                          type="button"
+                          aria-label={`Semana ${semana}: ${w.rows.length} oportunidades, abrir`}
+                          className={`font-semibold ${FOCO_LINK}`}
+                          onClick={() =>
+                            openDeals(`Previsão · semana ${semana}`, w.rows, undefined, {
+                              estoque: true,
+                              ordenarPor: porData,
+                            })
+                          }
+                        >
+                          {w.rows.length}
+                        </button>
+                      </TableCell>
+                      <TableCell className="num text-right">
+                        {w.revenue.known ? money(w.revenue.total) : "A preencher"}
+                        {w.revenue.known > 0 && w.revenue.missing > 0 && (
+                          <span className="block text-xs text-muted-foreground">
+                            parcial · {w.revenue.known} de {w.rows.length}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">{w.revenue.missing}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </SecaoCartao>
-      <SecaoCartao titulo="Meta, cenário e previsão do CRM">
+      <SecaoCartao
+        titulo="Quantas validadas têm data no período, e que cenário elas dão?"
+        descricao={
+          <>
+            Meta mensal:{" "}
+            {plan ? (
+              <span className="num">{plan.target_contracts} contratos</span>
+            ) : (
+              `sem plano de ${dono} para ${rotuloMes(filter.to.slice(0, 7))}`
+            )}{" "}
+            · o cenário é hipótese × volume, não é previsão, e não soma com a meta
+          </>
+        }
+        acoes={
+          <Link
+            to="/monetizacao"
+            search={{
+              aba: "capacidade",
+              de: busca?.de,
+              ate: busca?.ate,
+              responsavel: busca?.responsavel,
+            }}
+            className={`text-xs font-medium ${FOCO_LINK}`}
+          >
+            Hipóteses → Capacidade e alocação
+          </Link>
+        }
+      >
         <div className="grid gap-3 md:grid-cols-3">
           {PRODUTOS.map((p) => {
             const dated = t.open.filter(
@@ -171,32 +345,48 @@ function Temporal({ data, filter, openDeals }: Cut) {
             return (
               <div key={p} className="rounded-lg border p-3">
                 <h3 className="text-sm font-semibold">{NOMES[p]}</h3>
-                <p className="mt-2 text-sm">{dated.length} validadas com data neste período</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {rate === null || rate === undefined
-                    ? "Sem hipótese de conversão configurada"
-                    : `Cenário: ${number(dated.length * rate)} contratos · hipótese ${number(rate * 100)}%`}
+                <p className="mt-2 text-sm">
+                  <button
+                    type="button"
+                    className={`num font-semibold ${FOCO_LINK}`}
+                    aria-label={`${NOMES[p]}: ${dated.length} validadas com data no período, conferir`}
+                    onClick={() =>
+                      openDeals(`${NOMES[p]} · data prevista no período`, dated, undefined, {
+                        estoque: true,
+                        ordenarPor: porData,
+                        recorte: `${dono} · ${NOMES[p]} · abertas hoje com data prevista de ${date(filter.from)} a ${date(filter.to)}`,
+                      })
+                    }
+                  >
+                    {dated.length}
+                  </button>{" "}
+                  validadas com data no período
                 </p>
-                <button
-                  className="mt-2 text-xs text-primary-text underline"
-                  onClick={() => openDeals(`${NOMES[p]} · previstas no período`, dated)}
-                >
-                  Conferir oportunidades
-                </button>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {rate === null || rate === undefined ? (
+                    "Sem hipótese configurada"
+                  ) : (
+                    <>
+                      Cenário (hipótese {number(rate * 100)}%):{" "}
+                      <span className="num">{number(dated.length * rate)}</span> contratos
+                    </>
+                  )}
+                </p>
               </div>
             );
           })}
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Meta mensal: {plan?.target_contracts ?? "a definir"} contratos. O cenário usa apenas
-          oportunidades realmente validadas e datadas, com hipótese declarada. As taxas do Growth
-          não são aplicadas à Monetização.
-        </p>
+        <div className="mt-4">
+          <NotaApoio>
+            O cenário usa só oportunidades validadas e datadas no período, com a hipótese do plano.
+            As taxas do Growth não são aplicadas à Monetização.
+          </NotaApoio>
+        </div>
       </SecaoCartao>
       <NotaApoio>
-        Receita prevista é o valor informado para a oportunidade. Total deve fechar com Partners +
-        unidade, na mesma moeda. A base de cobrança e a competência precisam estar definidas no
-        contrato; este painel não transforma esses valores em MRR ou caixa.
+        Receita prevista é o valor informado para a oportunidade no CRM. O total conciliado soma só
+        os negócios com split completo em reais; quando o CRM não traz o total, ele é Partners +
+        unidade. Não é MRR, faturamento nem caixa: esses moram em Receita e Repasses e no Financeiro.
       </NotaApoio>
     </div>
   );
