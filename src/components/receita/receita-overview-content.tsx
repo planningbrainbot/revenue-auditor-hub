@@ -115,6 +115,7 @@ function CardPendencia({
   base,
   itens,
   destino,
+  tom = "atencao",
 }: {
   icone: React.ReactNode;
   titulo: string;
@@ -125,13 +126,17 @@ function CardPendencia({
   base?: string;
   itens: { nome: string; detalhe?: string | null }[];
   destino: string;
+  /** Tom do selo quando há pendência: "perigo" quando já passou do prazo. */
+  tom?: "atencao" | "perigo";
 }) {
   const limpo = quantidade === 0;
   const link = partesDoLink(destino);
   return (
-    <Card className={limpo ? "p-4" : "border-warning/40 p-4"}>
+    // O sinal da pendência é um só, o selo (ícone + palavra, V7): borda e ícone
+    // ficam neutros para não repetir a mesma cor três vezes.
+    <Card className="p-4">
       <div className="flex items-start gap-2">
-        <span className={limpo ? "text-muted-foreground" : "text-warning"} aria-hidden>
+        <span className="text-muted-foreground" aria-hidden>
           {icone}
         </span>
         <div className="min-w-0 flex-1">
@@ -140,7 +145,7 @@ function CardPendencia({
             {limpo ? (
               <StatusBadge tom="sucesso">Nenhuma</StatusBadge>
             ) : (
-              <StatusBadge tom="atencao">
+              <StatusBadge tom={tom}>
                 {quantidade} {quantidade === 1 ? "unidade" : "unidades"}
               </StatusBadge>
             )}
@@ -184,7 +189,7 @@ function CartaoGrafico({
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h4 className="text-sm font-medium">{titulo}</h4>
+          <h3 className="text-sm font-medium">{titulo}</h3>
           <p className="mb-2 text-[13px] text-muted-foreground">{descricao}</p>
         </div>
         {acao}
@@ -223,6 +228,10 @@ export function ReceitaOverviewContent() {
   // O take rate é o da definição do DATA-RULES: royalties + CSC sobre a receita
   // apurada, sem mídia. Só entra mês com apuração fechada, senão a régua cai
   // junto com o calendário e parece queda de negócio.
+  // O servidor devolve todo mês da janela, com zeros onde não há apuração:
+  // sem nenhuma apuração aberta, o mês é "não apurado", não R$ 0 (N4).
+  const repasseApurado = !!mesAtual && mesAtual.comApuracao > 0;
+
   const takeRate =
     mesAtual && mesAtual.receitaBaseConfirmada > 0
       ? (mesAtual.takeConfirmado / mesAtual.receitaBaseConfirmada) * 100
@@ -269,6 +278,17 @@ export function ReceitaOverviewContent() {
     () => (data?.receita ?? []).find((r) => r.mes === mes) ?? null,
     [data, mes],
   );
+  // Mesma coisa na receita: linha do mês com os cinco campos zerados é mês sem
+  // título, não receita zero.
+  const receitaApurada =
+    !!receitaDoMes &&
+    [
+      receitaDoMes.mrrContratado,
+      receitaDoMes.faturado,
+      receitaDoMes.recebido,
+      receitaDoMes.aVencer,
+      receitaDoMes.emAtraso,
+    ].some((v) => v !== 0);
 
   const pendencias = useMemo(() => {
     const us = data?.unidadesDoMes ?? [];
@@ -345,7 +365,7 @@ export function ReceitaOverviewContent() {
         )}
         {data?.podeRepasse && (
           <Secao
-            titulo="Repasse das unidades para a matriz"
+            titulo="Quanto as unidades repassam à matriz neste mês?"
             descricao={
               mesAtual
                 ? `${mesAtual.confirmadas} de ${data.totalUnidades} unidades com o mês fechado · fonte: apuração de royalties · caixa de ${nomeMes}`
@@ -363,10 +383,14 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Total do repasse"
                 valor={brlOuTraco(mesAtual?.total)}
-                estado={mesAtual ? estadoValor : "nao-apurado"}
+                estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
-                    nota={mesAtual ? `${mesAtual.comApuracao} unidade(s) com apuração aberta` : undefined}
+                    nota={
+                      repasseApurado
+                        ? `${mesAtual.comApuracao} unidade(s) com apuração aberta`
+                        : "nenhuma apuração aberta no mês"
+                    }
                     ajuda={`Soma do total da fatura de cada apuração do mês: royalties + CSC + CAC + mídia + outras receitas. A nota de débito que cobra isso sai com competência ${nomeMes} e costuma ser emitida no mês seguinte. O que já foi emitido e ainda não entrou está em "Faturado e não recebido".`}
                   />
                 }
@@ -374,7 +398,7 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Royalties"
                 valor={brlOuTraco(mesAtual?.royalties)}
-                estado={mesAtual ? estadoValor : "nao-apurado"}
+                estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
                     nota="% sobre o recebido do cliente"
@@ -385,7 +409,7 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="CSC"
                 valor={brlOuTraco(mesAtual?.csc)}
-                estado={mesAtual ? estadoValor : "nao-apurado"}
+                estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
                     nota="Fixo + percentual da base antiga"
@@ -396,7 +420,7 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="CAC"
                 valor={brlOuTraco(mesAtual?.cac)}
-                estado={mesAtual ? estadoValor : "nao-apurado"}
+                estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
                     nota="Clientes vendidos pela matriz"
@@ -407,7 +431,7 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Mídia"
                 valor={brlOuTraco(mesAtual?.midia)}
-                estado={mesAtual ? estadoValor : "nao-apurado"}
+                estado={repasseApurado ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
                     nota="Reembolso de tráfego pago"
@@ -466,6 +490,7 @@ export function ReceitaOverviewContent() {
                       ? `${pendencias.atrasadas} título(s) já vencido(s) na conta da Partners. A data ao lado da unidade é o vencimento.`
                       : "Títulos emitidos que ainda não foram baixados no Omie. A data ao lado da unidade é o vencimento."
                   }
+                  tom={pendencias.atrasadas > 0 ? "perigo" : "atencao"}
                   base="O valor é o da fatura emitida no Omie, que não inclui CSC fixo nem tráfego pago: não se soma com o card ao lado."
                   itens={pendencias.naoRecebidas.map((u) => ({
                     nome: u.unidade,
@@ -580,7 +605,7 @@ export function ReceitaOverviewContent() {
         )}
         {data?.podeReceita && (
           <Secao
-            titulo="Receita da rede"
+            titulo="Quanto a rede faturou e recebeu na competência?"
             descricao={`fonte: Omie · competência de ${nomeMes} e bruto de nota · a mesma régua do Funil de Receita`}
             acoes={
               <SeloRegua regua="competência">
@@ -594,10 +619,10 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="MRR contratado"
                 valor={brlOuTraco(receitaDoMes?.mrrContratado)}
-                estado={receitaDoMes ? "ok" : "nao-apurado"}
+                estado={receitaApurada ? "ok" : "nao-apurado"}
                 nota={
                   <NotaComAjuda
-                    nota="Contratos ativos hoje (Pipedrive)"
+                    nota={receitaApurada ? "Contratos ativos hoje (Pipedrive)" : "sem títulos no mês"}
                     ajuda="Soma dos contratos que estão ativos hoje no Pipedrive. É foto do momento, sem data de corte: não muda ao trocar o mês do seletor, e por isso não serve para comparar com o faturado de um mês passado."
                   />
                 }
@@ -605,10 +630,14 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Faturado"
                 valor={brlOuTraco(receitaDoMes?.faturado)}
-                estado={receitaDoMes ? estadoValor : "nao-apurado"}
+                estado={receitaApurada ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
-                    nota={`Competência ${rotuloMesCurto(mes)}, bruto de nota`}
+                    nota={
+                      receitaApurada
+                        ? `Competência ${rotuloMesCurto(mes)}, bruto de nota`
+                        : "sem títulos no mês"
+                    }
                     ajuda={`Títulos cuja competência no Omie cai em ${nomeMes}, independentemente de quando foram emitidos ou pagos. Valor bruto de nota: antes de retenção de imposto, ao contrário da base de royalties, que é líquida.`}
                   />
                 }
@@ -616,13 +645,15 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Recebido"
                 valor={brlOuTraco(receitaDoMes?.recebido)}
-                estado={receitaDoMes ? estadoValor : "nao-apurado"}
+                estado={receitaApurada ? estadoValor : "nao-apurado"}
                 nota={
                   <NotaComAjuda
                     nota={
-                      receitaDoMes && receitaDoMes.faturado > 0
-                        ? `${((receitaDoMes.recebido / receitaDoMes.faturado) * 100).toFixed(0)}% do faturado`
-                        : "sem faturado na competência"
+                      !receitaApurada
+                        ? "sem títulos no mês"
+                        : receitaDoMes && receitaDoMes.faturado > 0
+                          ? `${((receitaDoMes.recebido / receitaDoMes.faturado) * 100).toFixed(0)}% do faturado`
+                          : "sem faturado na competência"
                     }
                     ajuda={`Quanto das notas de competência ${nomeMes} já foi baixado no Omie, em qualquer data de pagamento. Não é o caixa do mês: dinheiro que entrou em ${nomeMes} por nota de outra competência fica de fora daqui, e é justamente esse dinheiro, o que entrou no mês, que o bloco de repasse mede.`}
                   />
@@ -631,12 +662,16 @@ export function ReceitaOverviewContent() {
               <KpiCard
                 rotulo="Em atraso"
                 valor={brlOuTraco(receitaDoMes?.emAtraso)}
-                estado={receitaDoMes ? estadoValor : "nao-apurado"}
+                estado={receitaApurada ? estadoValor : "nao-apurado"}
                 tom={receitaDoMes && receitaDoMes.emAtraso > 0 ? "perigo" : undefined}
                 tomRotulo={receitaDoMes && receitaDoMes.emAtraso > 0 ? "vencido" : undefined}
                 nota={
                   <NotaComAjuda
-                    nota={`A vencer: ${brlOuTraco(receitaDoMes?.aVencer)}`}
+                    nota={
+                      receitaApurada
+                        ? `A vencer: ${brlOuTraco(receitaDoMes?.aVencer)}`
+                        : "sem títulos no mês"
+                    }
                     ajuda={`Títulos de competência ${nomeMes} pelo status atual no Omie, que segue a data de vencimento. Para medir inadimplência, a régua é a safra de vencimento em Contas a Receber: a competência de título antigo no Omie é pouco confiável e joga vencido velho em mês recente.`}
                   />
                 }
@@ -667,7 +702,7 @@ export function ReceitaOverviewContent() {
 
         {/* ================= ATALHOS ================= */}
         {atalhos.length > 0 && (
-          <Secao titulo="As telas da área">
+          <Secao titulo="Para onde ir na área?">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {atalhos.map((item) => {
                 const destino = partesDoLink(item.url);

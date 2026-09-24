@@ -79,3 +79,4 @@ Estado: **aplicado pelas propostas** (Pedro, 24/09: "padronizar e melhorar TODAS
 5. **Geração de itens** lê `contas_receber`, `omie_clientes_cadastro` e `central_tratativas` sem `range` (corte de 1.000).
 6. **Meus Royalties** (Minha Unidade) mostra o previsto do `billing_esperado`, não a apuração que a matriz fatura.
 7. `partners_financeiro` com `.limit(20000)` na aba Esperado × Recebido (corte de 1.000).
+8. `carregarReceitaRepasses` preenche zeros em meses sem dado (repasse e receita): a tela não distingue zero de ausência. A Visão geral contorna na exibição (repasse sem apuração aberta e receita com os cinco campos zerados viram "não apurado"); a correção é o servidor devolver ausência.

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,6 +268,7 @@ export function SeloRegua({ regua, children }: { regua: string; children: ReactN
  */
 export function NotaComAjuda({ nota, ajuda }: { nota?: ReactNode; ajuda: ReactNode }) {
   const [aberta, setAberta] = useState(false);
+  const id = useId();
   return (
     <>
       {nota}
@@ -275,12 +276,15 @@ export function NotaComAjuda({ nota, ajuda }: { nota?: ReactNode; ajuda: ReactNo
       <button
         type="button"
         aria-expanded={aberta}
+        aria-controls={id}
         onClick={() => setAberta((s) => !s)}
         className="rounded-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         O que significa?
       </button>
-      {aberta && <span className="mt-1 block leading-snug text-foreground">{ajuda}</span>}
+      <span id={id} className={aberta ? "mt-1 block leading-snug text-foreground" : "hidden"}>
+        {ajuda}
+      </span>
     </>
   );
 }
