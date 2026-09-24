@@ -2,6 +2,8 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { Search } from "lucide-react";
 import {
   definirEscoposFinanceiro,
   listarAcessosFinanceiro,
@@ -10,6 +12,25 @@ import {
 } from "@/lib/acessos-financeiro.functions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+} from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { supabase } from "@/integrations/supabase/client";
 
 // TELA "ACESSOS DO FINANCEIRO".
@@ -28,9 +49,9 @@ import { supabase } from "@/integrations/supabase/client";
 // a mesma chave que o servidor confere em cada server fn. Molde:
 // `assertAdminIntegracoes` em integracoes-segredos.functions.ts.
 //
-// SEM shadcn, de propósito: as seis telas de Administração não importam nada de
-// @/components/ui — é <table>, <button> e modal na mão com Tailwind. Chegar com
-// <Dialog> quebraria a consistência do módulo inteiro.
+// DS v2 (24/09/2026): a moldura segue o arquétipo Configuração
+// (docs/design/ARQUETIPOS.md §5). Revogar confirma em AlertDialog com o efeito,
+// e toda escrita dá toast de sucesso e de erro, além do aviso na tela.
 export const Route = createFileRoute("/_authenticated/admin/acessos-financeiro")({
   ssr: false,
   head: () => ({ meta: [{ title: "Acessos do Financeiro – Planning Brain" }] }),
@@ -45,6 +66,11 @@ export const Route = createFileRoute("/_authenticated/admin/acessos-financeiro")
   },
   component: AcessosFinanceiroPage,
 });
+
+/** Busca sem acento e sem caixa: "joao" acha "João". */
+function normalizar(s: string) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
 
 interface Rascunho {
   userId: string;
@@ -74,6 +100,14 @@ function AcessosFinanceiroPage() {
   const [avisar, setAvisar] = useState(true);
   const [aviso, setAviso] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [revogarAlvo, setRevogarAlvo] = useState<{
+    userId: string;
+    email: string;
+    nome: string | null;
+    unidades: number;
+    todas: boolean;
+  } | null>(null);
+  const [busca, setBusca] = useFiltroNaUrl("q", "");
 
   useEffect(() => {
     if (!permLoading && !can("admin.acessos.financeiro")) navigate({ to: "/" });
@@ -84,32 +118,41 @@ function AcessosFinanceiroPage() {
       definir({ data: { userId: r.userId, unidades: r.unidades, avisarPorEmail: avisar } }),
     onSuccess: (res: { unidades: string[]; emailEnviado: boolean }, r) => {
       setErro(null);
-      setAviso(
+      const msg =
         res.unidades.length === 0
           ? `${r.email} continua entrando no Financeiro, mas sem nenhuma unidade liberada — ela não verá número nenhum.`
           : `${r.email} agora abre ${res.unidades.length} unidade(s).` +
-              (avisar ? (res.emailEnviado ? " E-mail enviado." : " O e-mail NÃO saiu — avise por outro canal.") : ""),
-      );
+            (avisar ? (res.emailEnviado ? " E-mail enviado." : " O e-mail NÃO saiu — avise por outro canal.") : "");
+      setAviso(msg);
+      if (avisar && !res.emailEnviado) toast.warning(msg);
+      else toast.success(msg);
       setRascunho(null);
       qc.invalidateQueries({ queryKey: ["acessos-financeiro"] });
       qc.invalidateQueries({ queryKey: ["acessos-financeiro-candidatos"] });
     },
-    onError: (e: Error) => setErro(e.message),
+    onError: (e: Error) => {
+      setErro(e.message);
+      toast.error(`Não foi possível salvar: ${e.message}`);
+    },
   });
 
   const tirar = useMutation({
-    mutationFn: (userId: string) => revogar({ data: { userId } }),
-    onSuccess: (res: { sincronizado: boolean }) => {
+    mutationFn: (alvo: { userId: string; email: string }) => revogar({ data: { userId: alvo.userId } }),
+    onSuccess: (res: { sincronizado: boolean }, alvo) => {
       setErro(null);
-      setAviso(
-        res.sincronizado
-          ? "Acesso revogado e já aplicado no cockpit."
-          : "Acesso revogado aqui. A pessoa ainda não tinha conta no cockpit, então não havia o que revogar lá.",
-      );
+      const msg = res.sincronizado
+        ? `Acesso de ${alvo.email} revogado e já aplicado no cockpit.`
+        : `Acesso de ${alvo.email} revogado aqui. A pessoa ainda não tinha conta no cockpit, então não havia o que revogar lá.`;
+      setAviso(msg);
+      toast.success(msg);
+      setRevogarAlvo(null);
       qc.invalidateQueries({ queryKey: ["acessos-financeiro"] });
       qc.invalidateQueries({ queryKey: ["acessos-financeiro-candidatos"] });
     },
-    onError: (e: Error) => setErro(e.message),
+    onError: (e: Error) => {
+      setErro(e.message);
+      toast.error(`Não foi possível revogar: ${e.message}`);
+    },
   });
 
   const unidades = acessos.data?.unidades ?? [];
@@ -119,14 +162,43 @@ function AcessosFinanceiroPage() {
     [unidades],
   );
   const veemTudo = pessoas.filter((p) => p.todas).length;
+  const visiveis = useMemo(() => {
+    const t = normalizar(busca);
+    if (!t) return pessoas;
+    return pessoas.filter((p) => normalizar(`${p.nome ?? ""} ${p.email}`).includes(t));
+  }, [busca, pessoas]);
 
-  if (permLoading) return <div className="p-8 text-muted-foreground">Carregando...</div>;
-  if (!can("admin.acessos.financeiro")) return null;
+  const titulo = "Acessos do Financeiro";
+  const pergunta = "Quem acessa o Financeiro, e de quais empresas?";
+
+  if (permLoading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="pagina" />
+      </div>
+    );
+  if (!can("admin.acessos.financeiro"))
+    return (
+      <AppShell title={titulo} pergunta={pergunta}>
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <EstadoSemAcesso oQueFalta="admin.acessos.financeiro (Administração do Financeiro)" />
+        </div>
+      </AppShell>
+    );
 
   return (
     <AppShell
-      title="Acessos do Financeiro"
-      subtitle="Quem entra no Brain Financeiro e quais unidades cada pessoa abre"
+      title={titulo}
+      pergunta={pergunta}
+      subtitle={
+        <>
+          {acessos.data
+            ? `${pessoas.length} ${pessoas.length === 1 ? "pessoa" : "pessoas"} · ${unidades.length} unidades · `
+            : ""}
+          Salvar reescreve a concessão no Brain Financeiro na hora; quem está com o cockpit aberto vê
+          a mudança na próxima requisição. O e-mail só sai quando “avisar por e-mail” está marcado.
+        </>
+      }
     >
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
         {aviso && (
@@ -184,6 +256,20 @@ function AcessosFinanceiroPage() {
             <h2 className="text-sm font-semibold text-foreground">
               {pessoas.length} pessoa(s) com acesso
             </h2>
+            <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar nome ou e-mail"
+                aria-label="Buscar nome ou e-mail"
+                className="h-8 w-[220px] pl-8"
+              />
+            </div>
             <select
               className="h-8 rounded-md border border-border bg-background px-2 text-xs"
               value=""
@@ -202,14 +288,40 @@ function AcessosFinanceiroPage() {
                 </option>
               ))}
             </select>
+            </div>
           </div>
 
           {acessos.isLoading ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Carregando…</p>
+            <div className="p-4">
+              <Carregando variante="tabela" />
+            </div>
           ) : acessos.isError ? (
-            <p className="px-4 py-6 text-sm text-destructive">
-              {(acessos.error as Error)?.message}
-            </p>
+            <div className="p-4">
+              <EstadoErro
+                titulo="Não foi possível carregar os acessos do Financeiro"
+                detalhe={(acessos.error as Error)?.message}
+                tentarNovamente={() => acessos.refetch()}
+              />
+            </div>
+          ) : pessoas.length === 0 ? (
+            <div className="p-4">
+              <EstadoVazio
+                titulo="Ninguém tem acesso ao Financeiro"
+                descricao="Use “+ Dar acesso a alguém…” para liberar a primeira pessoa."
+              />
+            </div>
+          ) : visiveis.length === 0 ? (
+            <div className="p-4">
+              <EstadoVazio
+                titulo="Nenhuma pessoa com esse nome ou e-mail"
+                total={pessoas.length}
+                acao={
+                  <Button variant="outline" size="sm" onClick={() => setBusca("")}>
+                    Limpar busca
+                  </Button>
+                }
+              />
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -221,7 +333,7 @@ function AcessosFinanceiroPage() {
                 </tr>
               </thead>
               <tbody>
-                {pessoas.map((p) => (
+                {visiveis.map((p) => (
                   <tr key={p.userId} className="border-b border-border/60 align-top">
                     <td className="px-4 py-3">
                       <div className="font-medium text-foreground">{p.nome ?? p.email}</div>
@@ -269,14 +381,15 @@ function AcessosFinanceiroPage() {
                         Editar unidades
                       </button>
                       <button
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Tirar ${p.email} do Brain Financeiro? Ela deixa de entrar no produto.`,
-                            )
-                          )
-                            tirar.mutate(p.userId);
-                        }}
+                        onClick={() =>
+                          setRevogarAlvo({
+                            userId: p.userId,
+                            email: p.email,
+                            nome: p.nome,
+                            unidades: p.unidades.length,
+                            todas: p.todas,
+                          })
+                        }
                         className="ml-2 rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10"
                       >
                         Revogar
@@ -383,6 +496,39 @@ function AcessosFinanceiroPage() {
           </div>
         </div>
       )}
+
+      <AlertDialog open={!!revogarAlvo} onOpenChange={(o) => !o && setRevogarAlvo(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Tirar {revogarAlvo?.nome ?? revogarAlvo?.email} do Brain Financeiro?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A pessoa deixa de entrar no produto
+              {revogarAlvo?.todas
+                ? ", que hoje ela abre em todas as unidades"
+                : revogarAlvo?.unidades
+                  ? `, que hoje ela abre em ${revogarAlvo.unidades} unidade(s)`
+                  : ""}
+              . Se estiver com o cockpit aberto, sai na próxima requisição. O acesso dela ao Ops e às
+              unidades da rede não muda. Para voltar, é preciso dar o acesso de novo aqui.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={tirar.isPending}
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={(e) => {
+                e.preventDefault();
+                if (revogarAlvo) tirar.mutate({ userId: revogarAlvo.userId, email: revogarAlvo.email });
+              }}
+            >
+              {tirar.isPending ? "Revogando…" : "Revogar acesso"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
