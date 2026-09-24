@@ -2,7 +2,17 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ChipFiltro, EstadoVazio, StatusBadge, type TomStatus } from "@/components/planning";
 import {
   capacidade,
   distancia,
@@ -17,7 +27,8 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio, Plano, Produto } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
-import type { BuscaMonetizacao } from "./busca";
+import { DIAS_PADRAO } from "./busca";
+import type { BuscaMonetizacao, Sinal } from "./busca";
 import { Forecast } from "./forecast";
 import { date, Field, inputClass, Kpi, money, NotaApoio, number, SecaoCartao } from "./common";
 
@@ -44,7 +55,16 @@ export function Analysis(props: Props) {
     return (
       <Capacity key={`${filter.to.slice(0, 7)}-${filter.owner}`} data={data} filter={filter} />
     );
-  if (aba === "follow-day") return <FollowDay data={data} filter={filter} openDeals={openDeals} />;
+  if (aba === "follow-day")
+    return (
+      <FollowDay
+        data={data}
+        filter={filter}
+        openDeals={openDeals}
+        busca={props.busca}
+        mudarBusca={props.mudarBusca}
+      />
+    );
   if (aba === "funil") return <Funnel data={data} filter={filter} openDeals={openDeals} />;
   if (aba === "pessoas") return <People data={data} filter={filter} />;
   if (aba === "roteiros") return <Scripts data={data} />;
@@ -52,6 +72,7 @@ export function Analysis(props: Props) {
 }
 
 type Cut = Pick<Props, "data" | "filter" | "openDeals">;
+type CutBusca = Cut & Pick<Props, "busca" | "mudarBusca">;
 function Temporal({ data, filter, openDeals }: Cut) {
   const t = temporal(data.cards, filter),
     revenue = receitaSomada(t.open);
@@ -399,8 +420,17 @@ function Capacity({ data, filter }: Pick<Props, "data" | "filter">) {
   );
 }
 
-function FollowDay({ data, filter, openDeals }: Cut) {
-  const [days, setDays] = useState(7);
+/** Os três sinais do Follow Day, na ordem de trabalho (contrato, F5). */
+const SINAIS_FOLLOW: { chave: Sinal; rotulo: string; tom: TomStatus }[] = [
+  { chave: "vencida", rotulo: "Atividade vencida", tom: "perigo" },
+  { chave: "sem_passo", rotulo: "Sem próximo passo", tom: "atencao" },
+  { chave: "sem_movimento", rotulo: "Sem movimento recente", tom: "atencao" },
+];
+const ORDEM_SINAL: Record<Sinal, number> = { vencida: 0, sem_passo: 1, sem_movimento: 2 };
+
+function FollowDay({ data, filter, openDeals, busca, mudarBusca }: CutBusca) {
+  const days = busca?.dias ?? DIAS_PADRAO;
+  const sinal = busca?.sinal;
   const view = operacao(data.cards, filter),
     today = hoje();
   const rows = view.current
@@ -414,37 +444,59 @@ function FollowDay({ data, filter, openDeals }: Cut) {
           .at(-1)!;
       const age = distancia(latest, today),
         overdue = !!c.next_activity && c.next_activity < today;
-      return {
-        c,
-        age,
-        issue: overdue
-          ? "Atividade vencida"
-          : !c.next_activity
-            ? "Sem próximo passo"
-            : age >= days
-              ? "Sem movimento recente"
-              : "Acompanhamento em dia",
-      };
+      const issue: Sinal | null = overdue
+        ? "vencida"
+        : !c.next_activity
+          ? "sem_passo"
+          : age >= days
+            ? "sem_movimento"
+            : null;
+      return { c, age, issue };
     })
-    .filter((r) => r.issue !== "Acompanhamento em dia")
-    .sort((a, b) => b.age - a.age);
+    .filter((r): r is { c: Negocio; age: number; issue: Sinal } => r.issue !== null)
+    // Ordem de trabalho: vencida (a mais antiga no topo), sem próximo passo, sem movimento;
+    // dentro de cada grupo, mais dias sem movimento primeiro.
+    .sort(
+      (a, b) =>
+        ORDEM_SINAL[a.issue] - ORDEM_SINAL[b.issue] ||
+        (a.issue === "vencida"
+          ? (a.c.next_activity ?? "").localeCompare(b.c.next_activity ?? "")
+          : 0) ||
+        b.age - a.age,
+    );
+  const ativo = SINAIS_FOLLOW.find((s) => s.chave === sinal);
+  const lista = ativo ? rows.filter((r) => r.issue === ativo.chave) : rows;
+  const mudarDias = (n: number) => {
+    const v = Math.min(180, Math.max(1, Math.round(n) || 1));
+    mudarBusca?.({ dias: v === DIAS_PADRAO ? undefined : v });
+  };
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        {["Atividade vencida", "Sem próximo passo", "Sem movimento recente"].map((label) => (
-          <Kpi
-            key={label}
-            label={label}
-            value={rows.filter((r) => r.issue === label).length}
-            hint="Oportunidades abertas do responsável atual"
-            onClick={() =>
-              openDeals(
-                label,
-                rows.filter((r) => r.issue === label).map((r) => r.c),
-              )
-            }
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] text-muted-foreground">Higiene da fila:</span>
+        {SINAIS_FOLLOW.map((s) => {
+          const n = rows.filter((r) => r.issue === s.chave).length;
+          const on = sinal === s.chave;
+          return (
+            <Button
+              key={s.chave}
+              variant={on ? "secondary" : "outline"}
+              size="sm"
+              aria-pressed={on}
+              onClick={() => mudarBusca?.({ sinal: on ? undefined : s.chave })}
+            >
+              {s.rotulo}
+              <span className="num rounded-full bg-muted px-1.5 text-xs">{n}</span>
+            </Button>
+          );
+        })}
+        {ativo && (
+          <ChipFiltro
+            rotulo="Sinal"
+            valor={ativo.rotulo}
+            aoRemover={() => mudarBusca?.({ sinal: undefined })}
           />
-        ))}
+        )}
       </div>
       <SecaoCartao
         titulo="O que precisa acontecer hoje"
@@ -456,58 +508,97 @@ function FollowDay({ data, filter, openDeals }: Cut) {
               min="1"
               max="180"
               value={days}
-              onChange={(e) => setDays(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => mudarDias(Number(e.target.value))}
             />
           </Field>
         }
       >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr>
-                <th>Empresa</th>
-                <th>Produto / etapa</th>
-                <th>Sinal</th>
-                <th>Sem movimento</th>
-                <th>Próxima atividade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ c, age, issue }) => (
-                <tr className="border-t" key={c.id}>
-                  <td className="py-3 pr-3">
-                    <a
-                      className="text-primary-text underline"
-                      href={c.url}
-                      target="_blank"
-                      rel="noreferrer"
+        {!rows.length ? (
+          <EstadoVazio
+            titulo={`Nenhum negócio fora da régua de ${days} dias.`}
+            descricao={
+              <>
+                <span className="num">{number(view.current.length)}</span> abertos no total.
+              </>
+            }
+          />
+        ) : !lista.length ? (
+          <EstadoVazio
+            titulo={`Nenhum negócio com o sinal "${ativo?.rotulo}".`}
+            total={rows.length}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Produto / etapa</TableHead>
+                  <TableHead>Sinal</TableHead>
+                  <TableHead className="text-right">Sem movimento</TableHead>
+                  <TableHead>Próxima atividade</TableHead>
+                  <TableHead className="w-0" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lista.map(({ c, age, issue }) => {
+                  const s = SINAIS_FOLLOW.find((x) => x.chave === issue)!;
+                  const abrir = () => openDeals(c.title, [c], undefined, { estoque: true });
+                  return (
+                    <TableRow
+                      key={c.id}
+                      className="cursor-pointer"
+                      tabIndex={0}
+                      onClick={abrir}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          abrir();
+                        }
+                      }}
                     >
-                      {c.title}
-                    </a>
-                    <span className="block text-xs text-muted-foreground">{c.owner}</span>
-                  </td>
-                  <td className="text-xs">
-                    {NOMES[c.route]}
-                    <span className="block text-muted-foreground">{c.stage}</span>
-                  </td>
-                  <td className="text-xs text-warning">{issue}</td>
-                  <td>{age} dias</td>
-                  <td>{date(c.next_activity)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!rows.length && (
-          <p className="py-6 text-sm text-muted-foreground">
-            Nenhum alerta com a régua selecionada.
-          </p>
+                      <TableCell>
+                        <div className="font-medium">{c.title}</div>
+                        <div className="text-xs text-muted-foreground">{c.owner}</div>
+                      </TableCell>
+                      <TableCell className="text-[13px]">
+                        {NOMES[c.route]}
+                        <div className="text-xs text-muted-foreground">{c.stage}</div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tom={s.tom}>{s.rotulo}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="num text-right">{number(age)} dias</TableCell>
+                      <TableCell className="num">{date(c.next_activity)}</TableCell>
+                      <TableCell>
+                        <Button asChild size="sm" variant="outline">
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <Briefcase />
+                            Abrir no Pipedrive
+                          </a>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          Sinais para organizar a daily. O último movimento considera atividade concluída ou
-          passagem de etapa disponível no CRM; não equivale automaticamente à última conversa com o
-          cliente.
-        </p>
+        <div className="mt-3">
+          <NotaApoio>
+            Sinais para organizar a daily. O último movimento considera atividade concluída ou
+            passagem de etapa disponível no CRM; não equivale automaticamente à última conversa com
+            o cliente. A próxima atividade é marcada no Pipedrive.
+          </NotaApoio>
+        </div>
       </SecaoCartao>
     </div>
   );
