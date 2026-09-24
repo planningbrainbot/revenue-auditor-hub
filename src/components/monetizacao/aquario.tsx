@@ -197,6 +197,18 @@ export function Aquario({
         Number(ofertaRecon(a).status === "elegivel") >
       1,
   );
+  // O destino de um cartão de Produtos: a tabela da Base com este recorte. A origem do topo fica
+  // (os números dos cartões já a respeitam). O número do cartão e o total do destino saem do
+  // mesmo objeto de filtro, para baterem (N2).
+  const destino = (f: Partial<Filters>): Filters => ({
+    ...emptyFilters,
+    origin: filters.origin,
+    ...f,
+  });
+  const abrirNaBase = (f: Partial<Filters>) => {
+    aplicar(destino(f), "base");
+    setPicked(new Set());
+  };
   const content = (rows: Conta[], drawer = false) => (
     <PortfolioTable
       data={data}
@@ -239,142 +251,144 @@ export function Aquario({
       )}
       {secao === "produtos" && (
         <>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-            <Kpi
-              label="Contas na base conciliada"
-              value={number(data.accounts.length)}
-              hint="Uma conta, mesmo com mais de um produto"
-            />
-            <Kpi
-              label="Cella · perfil aderente"
-              value={number(cella.length - cellaSoOmie.length)}
-              hint={
-                cellaSoOmie.length
-                  ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
-                  : "A partir de R$ 25 mi · fora do Simples"
-              }
-            />
-            <Kpi
-              label="Consultoria · carteira retroativa"
-              value={number(consultBase.length)}
-              hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
-              accent
-            />
-            <Kpi
-              label="Finance · perfil aderente"
-              value={number(finance.length)}
-              hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
-            />
-            <Kpi
-              label="Mais de um produto"
-              value={number(overlap.length)}
-              hint="Contas já incluídas nos produtos ao lado"
-            />
-          </div>
-          <Panel title="Listas potenciais por produto">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <button
-                onClick={() =>
-                  document.getElementById("painel-recon")?.scrollIntoView({ behavior: "smooth" })
+          <Secao
+            titulo="Quantas contas cada régua de produto aceita?"
+            descricao="Perfil aderente, esteja a conta disponível ou já em trabalho. Os cartões que filtram abrem a Base de clientes com o mesmo recorte, e o total de lá bate com o daqui."
+          >
+            <KpiGrade colunas={6} className="xl:grid-cols-5">
+              <KpiCard
+                rotulo="Contas na base conciliada"
+                valor={number(data.accounts.length)}
+                nota="Uma conta, mesmo com mais de um produto"
+              />
+              <KpiCard
+                // N11: este número tira os "só no Omie"; o cartão do Cella, abaixo, os inclui.
+                rotulo="Cella · perfil aderente (sem os só no Omie)"
+                valor={number(cella.length - cellaSoOmie.length)}
+                nota={
+                  cellaSoOmie.length
+                    ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
+                    : "A partir de R$ 25 mi · fora do Simples"
                 }
-                className="rounded-lg border p-4 text-left hover:border-primary"
-              >
-                <span className="flex items-center justify-between font-semibold">
-                  Recon <ArrowRight className="h-4 w-4" />
-                </span>
-                <p className="mt-2 text-sm">
-                  {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
-                  {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
-                </p>
-              </button>
-              {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
-                const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
-                const free = eligible.filter(
-                  (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
-                );
-                return (
-                  <button
-                    key={p}
-                    onClick={() => {
-                      // O cartão aplica o recorte e leva à tabela, que agora mora na seção
-                      // "Base de clientes" do menu único — não a uma aba de dentro desta tela.
-                      // A origem do topo fica: os números deste cartão já a respeitam.
-                      aplicar(
-                        {
-                          ...emptyFilters,
-                          origin: filters.origin,
-                          product: p,
-                          status: situacoesIniciais(p),
-                        },
-                        "base",
-                      );
-                      setPicked(new Set());
-                    }}
-                    className={`rounded-lg border p-4 text-left hover:border-primary ${filters.product === p ? "border-primary bg-primary/5" : ""}`}
-                  >
-                    <span className="flex items-center justify-between gap-2 font-semibold">
-                      {NOMES[p]}
-                      <span className="flex shrink-0 items-center gap-1">
-                        {p === "consultoria" && consultPending.length > 0 && (
-                          <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
-                            {consultPending.length} a confirmar
-                          </span>
-                        )}
-                        <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </span>
-                    {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
-                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
-                    <p className="my-2 text-3xl font-semibold tabular-nums">
-                      {number(free.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        aptas e disponíveis
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {p === "consultoria"
-                        ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
-                        : `${number(eligible.length)} com perfil aderente`}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {p === "consultoria"
-                        ? "Base Antiga · sem fechamento comercial · contato opcional"
-                        : p === "cella"
-                          ? "A partir de R$ 25 mi · fora do Simples"
-                          : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-            <Button
-              className="mt-3"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                aplicar(
-                  {
-                    ...emptyFilters,
+                // Aptas sem "só no Omie" = prontas + já em trabalho (estadoProduto).
+                abrir={{
+                  rotulo: "Abrir na base",
+                  onClick: () => abrirNaBase({ product: "cella", status: ["free", "occupied"] }),
+                }}
+              />
+              <KpiCard
+                // Não abre: nenhuma situação da tabela é exatamente a carteira retroativa inteira
+                // (a "base retroativa" da tabela já tira os fora da regra), e o total não bateria.
+                rotulo="Consultoria · carteira retroativa (base inteira)"
+                valor={number(consultBase.length)}
+                nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultPending.length)} a confirmar`}
+              />
+              <KpiCard
+                rotulo="Finance · perfil aderente"
+                valor={number(finance.length)}
+                nota="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
+                abrir={{
+                  rotulo: "Abrir na base",
+                  onClick: () => abrirNaBase({ product: "finance", status: ["eligible"] }),
+                }}
+              />
+              <KpiCard
+                rotulo="Mais de um produto"
+                valor={number(overlap.length)}
+                nota="Contas já incluídas nos produtos ao lado"
+                // Mesma fórmula do filtro de sobreposição da tabela (filtrarCarteira).
+                abrir={{ rotulo: "Abrir na base", onClick: () => abrirNaBase({ overlap: true }) }}
+              />
+            </KpiGrade>
+          </Secao>
+          <Secao
+            titulo="Quantas contas cada produto pode trabalhar agora?"
+            descricao="O número grande são as prontas para enviar: aptas, disponíveis e fora do grupo “só no Omie”. O cartão abre a Base de clientes nessa situação. A mesma conta pode aparecer em mais de uma lista; a seleção define o produto preenchido no Pipedrive, e contato é opcional."
+            acoes={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  abrirNaBase({
                     product: "consultoria",
                     origin: ["antiga"],
                     status: ["qualificar"],
+                  })
+                }
+              >
+                Conferir regime da base retroativa
+              </Button>
+            }
+          >
+            <KpiGrade colunas={4}>
+              <KpiCard
+                rotulo="Recon"
+                valor={number(data.accounts.filter(potencialRecon).length)}
+                unidade="contas no radar"
+                nota={`${number(data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length)} aptas · acima de R$ 5 mi · fora de qualquer BPO · seleção e exportação no painel abaixo`}
+                abrir={{
+                  rotulo: "Ver no painel",
+                  onClick: () => {
+                    const painel = document.getElementById("painel-recon");
+                    painel?.scrollIntoView({ behavior: "smooth" });
+                    painel?.focus({ preventScroll: true });
                   },
-                  "base",
+                }}
+              />
+              {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
+                const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
+                // O número é o total do destino: a situação "prontas" da tabela, pela mesma
+                // função que a tabela usa. As aptas e disponíveis que só existem no Omie da
+                // unidade ficam fora dela (grupo próprio) e são ditas na nota.
+                const prontas = filtrarCarteira(
+                  data.accounts,
+                  destino({ product: p, status: ["free"] }),
+                  data,
                 );
-                setPicked(new Set());
-              }}
-            >
-              Conferir regime da base retroativa
-            </Button>
-            <p className="mt-3 text-xs text-muted-foreground">
-              A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
-              preenchido no Pipedrive; contato é opcional.
-            </p>
-          </Panel>
-          <div id="painel-recon">
+                const livresSoOmie = eligible.filter(
+                  (a) =>
+                    soNoOmie(a) &&
+                    disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                ).length;
+                return (
+                  <KpiCard
+                    key={p}
+                    rotulo={NOMES[p]}
+                    valor={number(prontas.length)}
+                    unidade="prontas para enviar"
+                    nota={
+                      <>
+                        <span className="block">
+                          {p === "consultoria"
+                            ? `${number(eligible.length)} aptas · ${number(consultPool.length)} retroativas aptas à análise, de ${number(consultBase.length)} na carteira retroativa (base inteira)`
+                            : p === "cella"
+                              ? `${number(eligible.length)} com perfil aderente (inclui só no Omie)`
+                              : `${number(eligible.length)} com perfil aderente`}
+                          {p === "consultoria" &&
+                            consultPending.length > 0 &&
+                            ` · ${number(consultPending.length)} a confirmar`}
+                          {livresSoOmie > 0 &&
+                            ` · ${number(livresSoOmie)} aptas e disponíveis só no Omie ficam fora das prontas`}
+                        </span>
+                        <span className="mt-1 block">
+                          {p === "consultoria"
+                            ? "Base Antiga · sem fechamento comercial · contato opcional"
+                            : p === "cella"
+                              ? "A partir de R$ 25 mi · fora do Simples"
+                              : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
+                        </span>
+                      </>
+                    }
+                    abrir={{
+                      rotulo: "Abrir prontas",
+                      onClick: () => abrirNaBase({ product: p, status: ["free"] }),
+                    }}
+                  />
+                );
+              })}
+            </KpiGrade>
+          </Secao>
+          <div id="painel-recon" tabIndex={-1} className="rounded-xl outline-none">
             <ReconAquario accounts={data.accounts} showAccount={setAccount} />
           </div>
         </>
