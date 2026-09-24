@@ -90,13 +90,12 @@ function EquipePage() {
         ) : (
           <>
             {areas.length > 1 && (
-              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Áreas que você administra">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Áreas que você administra">
                 {areas.map((a) => (
                   <button
                     key={a.slug}
                     type="button"
-                    role="tab"
-                    aria-selected={a.slug === area.slug}
+                    aria-pressed={a.slug === area.slug}
                     onClick={() => setAreaSel(a.slug === areas[0].slug ? "" : a.slug)}
                     className={cn(
                       "h-8 rounded-full border px-3 text-xs transition-colors duration-120 ease-planning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -367,6 +366,7 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
   const semPagina = pessoa.nivel === "usuario" && paginas.length === 0;
   // Só barra quando a pessoa tinha unidade e ficou sem: o servidor recusa lista vazia.
   const semUnidade = podeNomear && unidades.length === 0 && idsDasUnidades.length > 0;
+  const motivoNomear = pessoa.unidades.length === 0 ? "Defina a unidade antes de nomear." : null;
   const motivoSalvar = semPagina ? "Escolha ao menos uma página." : semUnidade ? "Escolha ao menos uma unidade." : null;
 
   return (
@@ -441,14 +441,36 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
               {remover.isPending ? "Removendo…" : "Tirar da área"}
             </Button>
             {podeNomear && pessoa.nivel === "usuario" && (
-              <Button variant="outline" size="sm" onClick={() => setConfirmar("nomear")} disabled={nomear.isPending}>
-                {nomear.isPending ? "Nomeando…" : "Nomear sócio"}
-              </Button>
+              <>
+                {motivoNomear && (
+                  <span id={`${id}-motivo-nomear`} className="text-xs text-muted-foreground">
+                    {motivoNomear}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmar("nomear")}
+                  disabled={nomear.isPending || !!motivoNomear}
+                  aria-describedby={motivoNomear ? `${id}-motivo-nomear` : undefined}
+                >
+                  {nomear.isPending ? "Nomeando…" : "Nomear sócio"}
+                </Button>
+              </>
             )}
             {(pessoa.nivel === "usuario" || podeNomear) && (
               <>
-                {motivoSalvar && <span className="text-xs text-muted-foreground">{motivoSalvar}</span>}
-                <Button size="sm" onClick={() => salvar.mutate()} disabled={salvar.isPending || !!motivoSalvar}>
+                {motivoSalvar && (
+                  <span id={`${id}-motivo-salvar`} className="text-xs text-muted-foreground">
+                    {motivoSalvar}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => salvar.mutate()}
+                  disabled={salvar.isPending || !!motivoSalvar}
+                  aria-describedby={motivoSalvar ? `${id}-motivo-salvar` : undefined}
+                >
                   {salvar.isPending ? "Salvando…" : "Salvar"}
                 </Button>
               </>
@@ -467,8 +489,8 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
                   {pessoa.nome} deixa de ver só as {pessoa.paginas.length}{" "}
                   {pessoa.paginas.length === 1 ? "página escolhida" : "páginas escolhidas"} e passa a ver a
                   área inteira nas unidades dele ({pessoa.unidades.join(", ") || "sem unidade"}). Passa também
-                  a convidar pessoas para essas unidades e a escolher o que cada uma vê. Esta tela não desfaz a
-                  nomeação.
+                  a convidar pessoas para essas unidades e a escolher o que cada uma vê. Para desfazer, só tirando da
+                  área ou em Níveis de acesso.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
