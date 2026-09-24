@@ -6,7 +6,6 @@ import {
   CartesianGrid,
   ComposedChart,
   Legend,
-  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -35,7 +34,7 @@ import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import { hoje, METRICAS, operacao } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { BaseMonetizacao, Metrica, Negocio } from "@/lib/monetizacao/types";
+import type { BaseMonetizacao, Metrica, Negocio, Plano } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
 import {
   ABAS,
@@ -51,11 +50,12 @@ import {
   date,
   downloadCsv,
   estadoDaCarga,
+  estadoKpiEvento,
   Field,
   Freshness,
   inputClass,
-  Kpi,
   money,
+  NotaApoio,
   number,
   podeEscrever,
   procedenciaMonetizacao,
@@ -67,6 +67,8 @@ import {
   EstadoErro,
   EstadoSemAcesso,
   EstadoVazio,
+  KpiCard,
+  KpiGrade,
   PageHeader,
 } from "@/components/planning";
 import {
@@ -146,6 +148,11 @@ export type OpcoesDetalhe = {
   estoque?: boolean;
   /** Data (aaaa-mm-dd) do evento que o número conta; linhas mais recentes primeiro. */
   ordenarPor?: (c: Negocio) => string | null | undefined;
+  /**
+   * Recorte do cabeçalho quando a lista não é o recorte da barra (ex.: negócios sem histórico
+   * sobre toda a carga): substitui "responsável · produto · período".
+   */
+  recorte?: string;
 };
 type Detalhe = {
   title: string;
@@ -430,10 +437,6 @@ export function DashboardMonetizacao({
     produto: ignoraProduto ? "Todos os produtos" : produto,
   };
 
-  const currentStages = data.stages.map((s) => ({
-    ...s,
-    cards: view.current.filter((c) => c.stage_id === s.id),
-  }));
   return (
     <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:px-6">
       <PageHeader
@@ -480,240 +483,16 @@ export function DashboardMonetizacao({
         />
       )}
       {data.measured_at && aba === "operacao" && (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {["started", "meeting", "validated", "conversion", "signed"].map((key) => {
-              if (key === "conversion")
-                return (
-                  <Kpi
-                    key={key}
-                    label="Reunião → oportunidade"
-                    value={view.conversion === null ? "—" : number(view.conversion * 100) + "%"}
-                    hint={`${view.convertedMeetings.length} de ${view.rows.meeting.length} reuniões do período`}
-                    onClick={() =>
-                      setDetail({
-                        title: "Reuniões que viraram oportunidade",
-                        rows: view.convertedMeetings,
-                        ordenarPor: ultimoEvento("meeting", filter),
-                      })
-                    }
-                    accent
-                  />
-                );
-              const k = key as "started" | "meeting" | "validated" | "signed";
-              return (
-                <Kpi
-                  key={k}
-                  label={METRICAS.find((m) => m.key === k)!.label}
-                  value={view.rows[k].length}
-                  hint={
-                    k === "started"
-                      ? `Meta mensal: ${plan?.capacity ?? "a definir"}`
-                      : k === "meeting"
-                        ? "Entrada em Reunião realizada"
-                        : k === "validated"
-                          ? "Entrou em Negociação ou etapa posterior"
-                          : `Meta mensal: ${plan?.target_contracts ?? "a definir"}`
-                  }
-                  onClick={() =>
-                    setDetail({
-                      title: METRICAS.find((m) => m.key === k)!.label,
-                      rows: view.rows[k],
-                      ordenarPor: ultimoEvento(k, filter),
-                    })
-                  }
-                />
-              );
-            })}
-          </div>
-          <div className="grid gap-3 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.4fr)]">
-            <SecaoCartao
-              titulo="Funil agora"
-              acoes={
-                <span className="text-xs text-muted-foreground">{view.current.length} abertos</span>
-              }
-            >
-              <div className="space-y-3">
-                {currentStages.map((s) => (
-                  <button
-                    key={s.id}
-                    className="block w-full text-left"
-                    onClick={() => setDetail({ title: s.name, rows: s.cards, estoque: true })}
-                  >
-                    <span className="mb-1 flex justify-between text-xs">
-                      <span>{s.name}</span>
-                      <strong className="tabular-nums">{s.cards.length}</strong>
-                    </span>
-                    <span className="block h-1.5 rounded-full bg-muted">
-                      <span
-                        style={{
-                          width: `${view.current.length ? (s.cards.length / view.current.length) * 100 : 0}%`,
-                        }}
-                        className="block h-1.5 rounded-full bg-primary"
-                      />
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Carteira do responsável atual. O filtro de datas vale para os movimentos; o funil
-                mostra a posição de hoje.
-              </p>
-            </SecaoCartao>
-            <SecaoCartao
-              titulo="Dia a dia"
-              acoes={
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    downloadCsv("monetizacao-dia-a-dia.csv", [
-                      ["Data", "Leads trabalhados", "Reuniões marcadas", "Reuniões realizadas"],
-                      ...view.series.map((s) => [s.date, s.started, s.scheduled, s.meeting]),
-                    ])
-                  }
-                >
-                  Baixar dados
-                </Button>
-              }
-            >
-              <div className="mb-1 flex flex-wrap gap-5 text-xs">
-                {["started", "scheduled", "meeting"].map((k) => (
-                  <span key={k} className="text-muted-foreground">
-                    {METRICAS.find((m) => m.key === k)!.label}{" "}
-                    <strong className="ml-1 text-foreground">
-                      {view.rows[k as "started"].length}
-                    </strong>
-                  </span>
-                ))}
-              </div>
-              <ResponsiveContainer width="100%" height={235}>
-                <ComposedChart
-                  data={view.series}
-                  margin={{ top: 15, right: 4, bottom: 0, left: -20 }}
-                >
-                  <CartesianGrid {...gradeProps} />
-                  <XAxis {...eixoProps} dataKey="label" minTickGap={18} />
-                  <YAxis {...eixoProps} allowDecimals={false} />
-                  <YAxis
-                    {...eixoProps}
-                    yAxisId="ratio"
-                    orientation="right"
-                    unit="%"
-                    domain={[0, "auto"]}
-                  />
-                  <Tooltip {...tooltipProps} />
-                  <Legend {...legendaProps} />
-                  <Bar
-                    dataKey="started"
-                    name="Trabalhados"
-                    fill={CORES_SERIE[0]}
-                    radius={[2, 2, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="scheduled"
-                    name="Marcadas"
-                    fill={CORES_SERIE[0]}
-                    fillOpacity={0.65}
-                    radius={[2, 2, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="meeting"
-                    name="Realizadas"
-                    fill={CORES_SERIE[0]}
-                    fillOpacity={0.35}
-                    radius={[2, 2, 0, 0]}
-                  />
-                  <Line
-                    yAxisId="ratio"
-                    dataKey="conversion"
-                    name="Marcadas / trabalhados"
-                    stroke={CORES_SERIE[3]}
-                    dot={false}
-                    strokeWidth={2}
-                    connectNulls={false}
-                  />
-                  {plan?.daily_target ? (
-                    <ReferenceLine
-                      y={plan.daily_target}
-                      {...linhaMetaProps}
-                      label={{
-                        value: `meta ${plan.daily_target}/dia`,
-                        fontSize: 12,
-                        fill: "var(--muted-foreground)",
-                      }}
-                    />
-                  ) : null}
-                </ComposedChart>
-              </ResponsiveContainer>
-              <p className="text-xs text-muted-foreground">
-                Cards distintos por dia. Um card que volta à etapa em dias diferentes aparece em
-                ambos os dias; no indicador do período conta uma vez. A linha é uma razão diária,
-                não uma conversão de coorte.
-              </p>
-            </SecaoCartao>
-          </div>
-          <SecaoCartao
-            titulo="Por produto"
-            acoes={
-              <span className="text-xs text-muted-foreground">
-                Clique para abrir as oportunidades
-              </span>
-            }
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="pb-2">Produto</th>
-                    {METRICAS.map((m) => (
-                      <th key={m.key} className="pb-2 text-right">
-                        {m.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {view.products.map((p) => (
-                    <tr className="border-t" key={p.product}>
-                      <th className="py-2 text-sm">{NOMES[p.product]}</th>
-                      {METRICAS.map((m) => (
-                        <td key={m.key} className="text-right">
-                          <button
-                            className="font-semibold tabular-nums text-primary-text underline underline-offset-2"
-                            onClick={() =>
-                              setDetail({
-                                title: `${NOMES[p.product]} · ${m.label}`,
-                                rows: view.rows[m.key].filter((c) => c.route === p.product),
-                                ordenarPor: ultimoEvento(m.key, filter),
-                              })
-                            }
-                          >
-                            {p[m.key]}
-                          </button>
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SecaoCartao>
-          <details className="text-xs text-muted-foreground">
-            <summary>Critérios e campos a preencher</summary>
-            <p className="mt-2">
-              Produto canônico: Caixa · Produto no Pipedrive (Cella, Consultoria, Finance).
-              Validação: primeiro avanço a Negociação ou etapa posterior, atribuído a quem registrou
-              o movimento. Receita prevista: total, Partners e unidade, nos campos próprios do
-              negócio. Os valores não representam caixa recebido.
-            </p>
-            <p className="mt-1">
-              {data.cards.filter((c) => c.route === "sem_produto").length} cards sem produto ·{" "}
-              {data.cards.filter((c) => !c.org_id).length} sem organização ·{" "}
-              {data.cards.filter((c) => !c.history_known).length} históricos indisponíveis.
-            </p>
-          </details>
-        </>
+        <OperacaoDiaria
+          data={data}
+          view={view}
+          plan={plan}
+          filter={filter}
+          busca={busca}
+          responsavel={responsavel}
+          produto={produto}
+          abrir={setDetail}
+        />
       )}
 
       {data.measured_at && aba !== "operacao" && (
@@ -735,6 +514,328 @@ export function DashboardMonetizacao({
         data={data}
       />
     </main>
+  );
+}
+
+const pct = (n: number, d: number) => (d ? `${number((n / d) * 100)}%` : "—");
+const rotuloMetrica = (k: Metrica) => METRICAS.find((m) => m.key === k)!.label;
+const FOCO = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * Operação diária (contrato `monetizacao-operacao.md`, arquétipo Lista/Relatório): quatro KPIs
+ * do período com meta ao lado, o dia a dia num eixo só, a tabela por produto e o funil de hoje.
+ * Só apresentação: todos os números vêm de `operacao()` e do plano do mês, como antes.
+ */
+function OperacaoDiaria({
+  data,
+  view,
+  plan,
+  filter,
+  busca,
+  responsavel,
+  produto,
+  abrir,
+}: {
+  data: BaseMonetizacao;
+  view: ReturnType<typeof operacao>;
+  plan: Plano | undefined;
+  filter: Filtro;
+  busca: BuscaMonetizacao;
+  responsavel: string;
+  produto: string;
+  abrir: (d: Detalhe) => void;
+}) {
+  const procedencia = procedenciaMonetizacao(data);
+  const mes = rotuloMes(filter.to.slice(0, 7));
+  // Z2 sobre o recorte da barra: produto filtrado e, com responsável, a carteira dele (negócio
+  // sem histórico não tem autor de movimento; o dono atual é o único vínculo que ele tem).
+  const recorteZ2 = data.cards.filter(
+    (c) =>
+      (!filter.product || c.route === filter.product) &&
+      (!filter.owner || c.owner_id === filter.owner),
+  );
+  const evento = estadoKpiEvento(data, recorteZ2);
+  const juntar = (...partes: (string | undefined | false)[]) =>
+    partes.filter(Boolean).join(" · ") || undefined;
+  const semPlano = plan ? undefined : `sem plano para ${mes}`;
+  const abrirMetrica = (k: Metrica) =>
+    abrir({ title: rotuloMetrica(k), rows: view.rows[k], ordenarPor: ultimoEvento(k, filter) });
+
+  const reunioes = view.rows.meeting.length;
+  const convertidas = view.convertedMeetings.length;
+  const trabalhados = view.rows.started.length;
+  const marcadas = view.rows.scheduled.length;
+
+  const etapas = data.stages.map((s) => ({
+    ...s,
+    cards: view.current.filter((c) => c.stage_id === s.id),
+  }));
+  const produtos = busca.produto
+    ? view.products.filter((p) => p.product === busca.produto)
+    : view.products;
+  const semHistoricoCarga = data.cards.filter((c) => !c.history_known);
+
+  return (
+    <>
+      <KpiGrade colunas={4}>
+        <KpiCard
+          rotulo={rotuloMetrica("started")}
+          valor={trabalhados}
+          estado={evento.estado}
+          nota={juntar(evento.nota, semPlano)}
+          meta={plan ? { valor: plan.capacity, rotulo: "meta do mês" } : undefined}
+          procedencia={procedencia}
+          abrir={{ onClick: () => abrirMetrica("started") }}
+        />
+        <KpiCard
+          rotulo={rotuloMetrica("meeting")}
+          valor={reunioes}
+          estado={evento.estado}
+          nota={juntar(
+            evento.nota,
+            view.conversion === null
+              ? "Reunião → oportunidade — · sem reunião no período"
+              : `Reunião → oportunidade ${number(view.conversion * 100)}% · ${convertidas} de ${reunioes}`,
+          )}
+          procedencia={procedencia}
+          abrir={{ onClick: () => abrirMetrica("meeting") }}
+        />
+        <KpiCard
+          rotulo={rotuloMetrica("validated")}
+          valor={view.rows.validated.length}
+          estado={evento.estado}
+          nota={juntar(evento.nota, "Entrou em Negociação ou etapa posterior")}
+          procedencia={procedencia}
+          abrir={{ onClick: () => abrirMetrica("validated") }}
+        />
+        <KpiCard
+          rotulo={rotuloMetrica("signed")}
+          valor={view.rows.signed.length}
+          estado={evento.estado}
+          nota={juntar(evento.nota, semPlano)}
+          meta={plan ? { valor: plan.target_contracts, rotulo: "meta do mês" } : undefined}
+          procedencia={procedencia}
+          abrir={{ onClick: () => abrirMetrica("signed") }}
+        />
+      </KpiGrade>
+      {/* A conversão mora na nota do card de reuniões (4 KPIs, Lista/Relatório); o card abre
+          as reuniões, e as convertidas continuam a um clique daqui. */}
+      {evento.estado !== "indisponivel" && convertidas > 0 && (
+        <p className="-mt-1 text-xs text-muted-foreground">
+          <button
+            type="button"
+            className={`text-primary-text underline underline-offset-2 ${FOCO}`}
+            onClick={() =>
+              abrir({
+                title: "Reuniões que viraram oportunidade",
+                rows: view.convertedMeetings,
+                ordenarPor: ultimoEvento("meeting", filter),
+              })
+            }
+          >
+            Abrir as {convertidas} {convertidas === 1 ? "reunião" : "reuniões"} que{" "}
+            {convertidas === 1 ? "virou" : "viraram"} oportunidade →
+          </button>
+        </p>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]">
+        <SecaoCartao
+          titulo="Como o trabalho andou dia a dia?"
+          descricao={`Negócios por dia · ${responsavel} · ${produto}`}
+          acoes={
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                downloadCsv("monetizacao-dia-a-dia.csv", [
+                  ["Data", "Leads trabalhados", "Reuniões marcadas", "Reuniões realizadas"],
+                  ...view.series.map((s) => [s.date, s.started, s.scheduled, s.meeting]),
+                ])
+              }
+            >
+              Baixar dados
+            </Button>
+          }
+        >
+          <div className="mb-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+            {(["started", "scheduled", "meeting"] as const).map((k) => (
+              <span key={k} className="text-muted-foreground">
+                {rotuloMetrica(k)}{" "}
+                <strong className="num ml-1 text-foreground">{view.rows[k].length}</strong>
+              </span>
+            ))}
+            <span className="text-muted-foreground">
+              Marcadas ÷ trabalhados no período{" "}
+              <strong className="num ml-1 text-foreground">{pct(marcadas, trabalhados)}</strong>
+            </span>
+          </div>
+          <ResponsiveContainer width="100%" height={235}>
+            <ComposedChart data={view.series} margin={{ top: 15, right: 4, bottom: 0, left: -20 }}>
+              <CartesianGrid {...gradeProps} />
+              <XAxis {...eixoProps} dataKey="label" minTickGap={18} />
+              <YAxis {...eixoProps} allowDecimals={false} />
+              <Tooltip {...tooltipProps} />
+              <Legend {...legendaProps} />
+              <Bar
+                dataKey="started"
+                name="Trabalhados"
+                fill={CORES_SERIE[0]}
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey="scheduled"
+                name="Marcadas"
+                fill={CORES_SERIE[1]}
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey="meeting"
+                name="Realizadas"
+                fill={CORES_SERIE[2]}
+                radius={[2, 2, 0, 0]}
+              />
+              {plan?.daily_target ? (
+                <ReferenceLine
+                  y={plan.daily_target}
+                  {...linhaMetaProps}
+                  label={{
+                    value: `Meta ${plan.daily_target}/dia`,
+                    fontSize: 12,
+                    fill: "var(--muted-foreground)",
+                    position: "insideTopRight",
+                  }}
+                />
+              ) : null}
+            </ComposedChart>
+          </ResponsiveContainer>
+          <NotaApoio>
+            Negócios distintos por dia. Um negócio que volta à etapa em dias diferentes aparece nos
+            dois dias; no total do período conta uma vez.
+            {!plan && ` Sem plano para ${mes}: o gráfico fica sem a meta diária.`}
+          </NotaApoio>
+        </SecaoCartao>
+
+        <SecaoCartao
+          titulo="Onde estão os negócios abertos hoje?"
+          descricao={`${number(view.current.length)} abertos · dono atual: ${responsavel} · ${produto} · posição de hoje, ignora o período`}
+        >
+          <div className="space-y-3">
+            {etapas.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`block w-full text-left ${FOCO}`}
+                onClick={() => abrir({ title: s.name, rows: s.cards, estoque: true })}
+              >
+                <span className="mb-1 flex justify-between text-xs">
+                  <span>{s.name}</span>
+                  <strong className="num">{s.cards.length}</strong>
+                </span>
+                <span className="block h-1.5 rounded-full bg-muted">
+                  <span
+                    style={{
+                      width: `${view.current.length ? (s.cards.length / view.current.length) * 100 : 0}%`,
+                    }}
+                    className="block h-1.5 rounded-full bg-primary"
+                  />
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-4 text-xs">
+            <Link
+              to="/monetizacao"
+              search={{
+                aba: "follow-day",
+                de: busca.de,
+                ate: busca.ate,
+                responsavel: busca.responsavel,
+                produto: busca.produto,
+              }}
+              className={`font-medium text-primary-text underline underline-offset-2 ${FOCO}`}
+            >
+              Quem está parado? → Follow Day
+            </Link>
+          </p>
+        </SecaoCartao>
+      </div>
+
+      <SecaoCartao
+        titulo="Em que produto o período andou?"
+        descricao={`Negócios por produto · ${produto} · clique no número para abrir os negócios`}
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Produto</TableHead>
+              {METRICAS.map((m) => (
+                <TableHead key={m.key} className="text-right num">
+                  {m.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {produtos.map((p) => (
+              <TableRow key={p.product}>
+                <TableCell className="font-medium">{NOMES[p.product]}</TableCell>
+                {METRICAS.map((m) => (
+                  <TableCell key={m.key} className="text-right num">
+                    <button
+                      type="button"
+                      className={`font-semibold text-primary-text underline underline-offset-2 ${FOCO}`}
+                      onClick={() =>
+                        abrir({
+                          title: `${NOMES[p.product]} · ${m.label}`,
+                          rows: view.rows[m.key].filter((c) => c.route === p.product),
+                          ordenarPor: ultimoEvento(m.key, filter),
+                        })
+                      }
+                    >
+                      {p[m.key]}
+                    </button>
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </SecaoCartao>
+
+      <details className="text-xs text-muted-foreground">
+        <summary className={`cursor-pointer ${FOCO}`}>Critérios e campos a preencher</summary>
+        <p className="mt-2">
+          Produto canônico: Caixa · Produto no Pipedrive (Cella, Consultoria, Finance). Validação:
+          primeiro avanço a Negociação ou etapa posterior, atribuído a quem registrou o movimento.
+          Receita prevista: total, Partners e unidade, nos campos próprios do negócio. Os valores
+          não representam caixa recebido.
+        </p>
+        <p className="mt-1">
+          Sobre toda a carga: {data.cards.filter((c) => c.route === "sem_produto").length} negócios
+          sem produto · {data.cards.filter((c) => !c.org_id).length} sem organização ·{" "}
+          {semHistoricoCarga.length ? (
+            <button
+              type="button"
+              className={`text-primary-text underline underline-offset-2 ${FOCO}`}
+              onClick={() =>
+                abrir({
+                  title: "Negócios sem histórico lido",
+                  rows: semHistoricoCarga,
+                  estoque: true,
+                  recorte: "Toda a frente · Todos os produtos · toda a carga",
+                })
+              }
+            >
+              {semHistoricoCarga.length} sem histórico lido
+            </button>
+          ) : (
+            "0 sem histórico lido"
+          )}
+          .
+        </p>
+      </details>
+    </>
   );
 }
 
@@ -827,11 +928,13 @@ function DealDetails({
           <DialogTitle>{detail?.title}</DialogTitle>
           <DialogDescription>
             <span className="num">{number(total)}</span>{" "}
-            {total === 1 ? "oportunidade" : "oportunidades"} · {recorte.responsavel} ·{" "}
-            {recorte.produto} ·{" "}
-            {estoque ? "abertas hoje" : `${date(filter.from)} a ${date(filter.to)}`}
+            {total === 1 ? "oportunidade" : "oportunidades"} ·{" "}
+            {detail?.recorte ??
+              `${recorte.responsavel} · ${recorte.produto} · ${
+                estoque ? "abertas hoje" : `${date(filter.from)} a ${date(filter.to)}`
+              }`}
           </DialogDescription>
-          {!estoque && (
+          {!estoque && !detail?.recorte && (
             <p className="text-xs text-muted-foreground">
               Resultado atribuído a quem registrou o movimento; “Dono atual” é o responsável de hoje
               no CRM.
