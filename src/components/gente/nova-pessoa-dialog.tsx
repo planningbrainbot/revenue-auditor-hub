@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { KeyRound, UserPlus } from "lucide-react";
 import { criarPessoa, darAcessoPessoa, type AcessoResult } from "@/lib/gente.functions";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,9 +37,20 @@ export const PERFIS_ACESSO = [
   {
     v: "gestao",
     t: "Gestão de gente da unidade",
-    d: "Para quem implanta o módulo (RH, sócio): cadastra, avalia, abre clima e PDI.",
+    d: "Para quem implanta o módulo (RH, sócio): cadastra, avalia, abre clima e PDI. Só o admin de Planning People dá este perfil.",
   },
 ];
+
+/**
+ * Os perfis que ESTA pessoa pode dar. "Gestão de gente" dá o nível sócio da
+ * área People, e só o admin de People (ou o super admin) concede (decisão do
+ * dono, 25/09/2026). O servidor recusa do mesmo jeito; aqui é para a opção nem
+ * aparecer a quem não pode.
+ */
+function usePerfisQuePossoDar() {
+  const { isAdmin, adminDe } = usePermissions();
+  return PERFIS_ACESSO.filter((p) => p.v !== "gestao" || isAdmin || adminDe.includes("people"));
+}
 
 /** Mensagem única para o resultado do acesso, usada no cadastro e no "Dar acesso". */
 export function avisarAcesso(r: AcessoResult & { erroAcesso?: string | null }) {
@@ -99,6 +111,7 @@ export function NovaPessoaDialog({
   unidades: { id: number; nome: string }[];
   gestores: { id: number; nome: string; unidadeId: number | null }[];
 }) {
+  const perfisQuePossoDar = usePerfisQuePossoDar();
   const fn = useServerFn(criarPessoa);
   const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
@@ -276,7 +289,7 @@ export function NovaPessoaDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PERFIS_ACESSO.map((p) => (
+                {perfisQuePossoDar.map((p) => (
                   <SelectItem key={p.v} value={p.v}>
                     {p.t}
                   </SelectItem>
@@ -314,6 +327,7 @@ export function DarAcessoDialog({
   nome: string;
   email: string | null;
 }) {
+  const perfisQuePossoDar = usePerfisQuePossoDar();
   const fn = useServerFn(darAcessoPessoa);
   const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
@@ -352,7 +366,7 @@ export function DarAcessoDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PERFIS_ACESSO.map((p) => (
+              {perfisQuePossoDar.map((p) => (
                 <SelectItem key={p.v} value={p.v}>
                   {p.t}
                 </SelectItem>

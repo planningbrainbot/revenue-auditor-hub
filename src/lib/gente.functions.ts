@@ -304,6 +304,16 @@ async function darAcesso(
   if (!chavesDoAtor.includes("manage.gente")) {
     throw new Error("Só quem gere o cadastro de gente pode dar acesso.");
   }
+  // "Gestão de gente" dá o nível sócio da área People. Só o admin de People
+  // (ou o super admin) concede: é a regra de não escalada de 17/09, que o dono
+  // confirmou para este perfil em 25/09/2026. Antes um sócio regional, que é
+  // nível 1 em People pelo perfil, criava alguém no nível 2.
+  if (perfil === "gestao") {
+    const { data: nivel } = await db.rpc("nivel_na_area", { _user: ator, _area: "people" });
+    if (Number(nivel ?? 0) < 3) {
+      throw new Error("O perfil de gestão de gente só é dado pelo admin de Planning People.");
+    }
+  }
 
   const email = String(pessoa.email).trim().toLowerCase();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -3359,3 +3359,24 @@ dado. Grade de KPIs passa a 3 colunas (9 cards).
 **Banco:** migration `20260925120000_tratativas_primeiro_pagamento.sql`
 aplicada no `npknehhyyzelmrbbxvtu` antes do deploy (1,6 s de execução; sem
 os CTEs materializados passava de 30 s).
+
+## [2026-09-25] "Gestão de gente" só pelo admin de People; correções de Willian e Paula (adendo à gestão de acessos)
+
+**Respostas do dono às pendências da publicação:**
+1. **Perfil "gestão de gente" do Planning People: só o admin de People dá.**
+   Revisa o comportamento do commit `20a8e95` (24/09), em que um sócio regional,
+   nível 1 em People pelo perfil, criava pessoas no nível sócio (2). O servidor
+   (`darAcesso`) recusa quando quem pede tem nível < 3 em `people`, e as telas
+   de cadastro e "Dar acesso" só mostram a opção a quem pode (novo
+   `adminDe` em `getMyPermissions`). Colaborador continua liberado a quem gere
+   o cadastro.
+2. **Willian Linhares** é da Matriz, time de Monetização. O e-mail do login foi
+   corrigido de `@planning.combr` para `willian.linhares@planning.com.br` (Auth e
+   `public.profiles`); a senha não mudou. Ele já tinha "todas as unidades",
+   ajustado pelo Victor às 11h58.
+3. **Paula Almeida** é RH da unidade de Maceió. O recorte já estava em Maceió; o
+   cadastro dela no People (id 218, manual, Maceió, sem gestor) foi ligado à
+   conta.
+
+As duas correções de dado estão em `ops.acessos_log`, com o Pedro Luca como
+ator e a origem anotada.

@@ -683,13 +683,18 @@ export const getMyPermissions = createServerFn({ method: "GET" })
     };
 
     // Áreas que a pessoa administra (admin ou sócio): abre "Minha equipe".
-    const { data: administra } = await db.from("area_admins").select("area").eq("user_id", userId);
+    const { data: administra } = await db.from("area_admins").select("area, nivel").eq("user_id", userId);
 
     const real = {
       roles: acesso.roles,
       areas: acesso.areas,
       permissions: acesso.permissions,
       administra: ((administra ?? []) as { area: string }[]).map((a) => a.area),
+      // Só onde é ADMIN (não sócio): o que decide dar perfis de gestão, como o
+      // "gestão de gente" do People (decisão do dono, 25/09/2026).
+      adminDe: ((administra ?? []) as { area: string; nivel: string }[])
+        .filter((a) => a.nivel === "admin")
+        .map((a) => a.area),
       escopo,
       unidade: (unidadeAtual?.data as string | null) ?? null,
       verComo: null as VerComoAtivo | null,
@@ -717,6 +722,7 @@ export const getMyPermissions = createServerFn({ method: "GET" })
       // a tela de convidar e remover gente, e convite é escrita — que sairia com
       // o poder real do super admin, não com o do papel que ele está vestindo.
       administra: [],
+      adminDe: [],
       escopo: {
         todas_unidades: false,
         todas_empresas: false,
