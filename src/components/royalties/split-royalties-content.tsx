@@ -6,11 +6,11 @@
 // Omie; por contrato some quem fatura sem venda registrada. O grão de cliente
 // comporta os dois, e de quebra não conta MRR em dobro quando há vários
 // boletos. Ver ops.v_split_cliente (migration 50).
+//
+// DS v2 (contrato `docs/design/contratos/receita-e-repasses.md` §7): filtros na
+// URL (N7); erro de `v_split_resumo` deixa os cards de caixa "indisponível", não
+// R$ 0,00 (N4); erro da tabela por cliente vira `EstadoErro`.
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Clock, ShieldCheck, Sigma } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,6 +18,18 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  BarraFiltros,
+  Carregando,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { ErroDaConsulta } from "@/components/receita/moldura";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 
 type Linha = {
   unidade: string | null;
@@ -73,20 +85,29 @@ function fmtDoc(v: string | null): string | null {
 }
 
 /** Só as duas pontas que exigem ação ficam em vermelho. */
-function tomEtapa(e: string): "destructive" | "secondary" | "outline" {
+function tomEtapa(e: string): TomStatus {
   // 5 = pagou e nada foi retido; 0 = fatura sem venda registrada.
-  if (e.startsWith("5.") || e.startsWith("0.")) return "destructive";
-  if (e.startsWith("7.")) return "secondary";
-  return "outline";
+  if (e.startsWith("5.") || e.startsWith("0.")) return "perigo";
+  return "neutro";
+}
+
+/** Etapa exata, ou prefixo quando o filtro termina em ".*" ("5.*" = toda etapa 5). */
+function casaEtapa(etapa: string, filtro: string): boolean {
+  if (filtro === "todas") return true;
+  if (filtro.endsWith(".*")) return etapa.startsWith(filtro.slice(0, -1));
+  return etapa === filtro;
 }
 
 export function SplitRoyaltiesContent() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroResumo, setErroResumo] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [resumo, setResumo] = useState<Resumo[]>([]);
-  const [unidade, setUnidade] = useState<string>("todas");
-  const [etapaFiltro, setEtapaFiltro] = useState<string>("todas");
+  const [unidade, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
+  const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa"]);
 
   useEffect(() => {
     let vivo = true;
@@ -97,13 +118,16 @@ export function SplitRoyaltiesContent() {
         (supabase as any).from("v_split_resumo").select("*"),
       ]);
       if (!vivo) return;
-      if (l.error) setErro(l.error.message);
+      setErro(l.error ? l.error.message : null);
+      setErroResumo(s.error ? s.error.message : null);
       setLinhas((l.data ?? []) as Linha[]);
       setResumo((s.data ?? []) as Resumo[]);
       setLoading(false);
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [tentativa]);
+
+  const tentarDeNovo = () => setTentativa((n) => n + 1);
 
   const unidades = useMemo(
     () => [...new Set(linhas.map((r) => r.unidade).filter(Boolean) as string[])].sort(),
@@ -114,10 +138,15 @@ export function SplitRoyaltiesContent() {
     [linhas],
   );
 
+  // "Pago sem reter royalty" abre a etapa 5 (pagou e nada foi retido). Se a
+  // view tiver mais de uma variante "5.x", o filtro vira o prefixo "5.*".
+  const etapas5 = etapas.filter((e) => e.startsWith("5."));
+  const filtroEtapa5 = etapas5.length === 1 ? etapas5[0] : "5.*";
+
   const filtradas = useMemo(
     () => linhas.filter(
       (r) => (unidade === "todas" || r.unidade === unidade)
-          && (etapaFiltro === "todas" || r.etapa === etapaFiltro),
+          && casaEtapa(r.etapa, etapaFiltro),
     ),
     [linhas, unidade, etapaFiltro],
   );
@@ -150,148 +179,179 @@ export function SplitRoyaltiesContent() {
   }, [doUnidade]);
 
   if (loading) {
+    return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
+  }
+
+  if (erro) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="px-4 py-6 md:px-6">
+        <ErroDaConsulta
+          erro={erro}
+          chaves="view.royalties_split"
+          titulo="Não foi possível ler a conferência do split"
+          tentarNovamente={tentarDeNovo}
+        />
       </div>
     );
   }
 
   if (linhas.length === 0) {
     return (
-      <div className="p-4">
-        <Card className="p-6 text-sm text-muted-foreground">
-          {erro
-            ? `Não consegui ler a conferência do split: ${erro}`
-            : "Nenhuma unidade com split ativo. A unidade entra aqui sozinha assim que unidades.split_ativo_desde for preenchida."}
-        </Card>
+      <div className="px-4 py-6 md:px-6">
+        <EstadoVazio
+          titulo="Nenhuma unidade com split ativo"
+          descricao="A unidade entra aqui sozinha assim que unidades.split_ativo_desde for preenchida."
+        />
       </div>
     );
   }
 
+  // Sem o resumo do Asaas, os cards de caixa não são zero: são desconhecidos.
+  const estadoCaixa = erroResumo ? "indisponivel" : "ok";
+  const notaCaixa = erroResumo ? "extrato do Asaas não carregou" : undefined;
+  const temFiltro = unidade !== "todas" || etapaFiltro !== "todas";
+
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-6 px-4 py-6 md:px-6">
+      <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
         <Select value={unidade} onValueChange={setUnidade}>
-          <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as unidades</SelectItem>
             {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={etapaFiltro} onValueChange={setEtapaFiltro}>
-          <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[280px]" aria-label="Etapa"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as etapas</SelectItem>
+            {etapaFiltro.endsWith(".*") && (
+              <SelectItem value={etapaFiltro}>Etapa {etapaFiltro.slice(0, -2)} (todas)</SelectItem>
+            )}
             {etapas.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
           </SelectContent>
         </Select>
-      </div>
+        <span className="num text-[13px] text-muted-foreground">
+          {filtradas.length} de {linhas.length} clientes
+        </span>
+      </BarraFiltros>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="flex items-center gap-3 p-4">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-xs text-muted-foreground">Royalty creditado</div>
-            <div className="text-xl font-semibold">{fmtBRL(creditado)}</div>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <Clock className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-xs text-muted-foreground">A creditar</div>
-            <div className="text-xl font-semibold">{fmtBRL(aCreditar)}</div>
-          </div>
-        </Card>
-        {/* Tudo que o split ja capturou, dentro e fora do caixa. Cancelado
-            continua fora: nao vira dinheiro. */}
-        <Card className="flex items-center gap-3 border-primary/40 p-4">
-          <Sigma className="h-5 w-5 shrink-0 text-primary-text" />
-          <div>
-            <div className="text-xs text-muted-foreground">Total retido</div>
-            <div className="text-xl font-semibold">{fmtBRL(total)}</div>
-          </div>
-        </Card>
-        <Card className={`flex items-center gap-3 p-4 ${perdido > 0 ? "border-destructive/40" : ""}`}>
-          <AlertTriangle className={`h-5 w-5 shrink-0 ${perdido > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-          <div>
-            <div className="text-xs text-muted-foreground">Pago sem reter royalty</div>
-            <div className={`text-xl font-semibold ${perdido > 0 ? "text-destructive" : ""}`}>{fmtBRL(perdido)}</div>
-          </div>
-        </Card>
-      </div>
+      <Secao
+        titulo="Quanto o Asaas reteve e creditou?"
+        descricao="Creditado e a creditar vêm do extrato de splits do Asaas (caixa), não da tabela; seguem a unidade, não a etapa."
+      >
+        {erroResumo && (
+          <ErroDaConsulta
+            erro={erroResumo}
+            titulo="Não foi possível ler o resumo do Asaas; creditado, a creditar e total ficam indisponíveis"
+            tentarNovamente={tentarDeNovo}
+          />
+        )}
+        <KpiGrade>
+          <KpiCard rotulo="Royalty creditado" valor={fmtBRL(creditado)} estado={estadoCaixa} nota={notaCaixa} />
+          <KpiCard rotulo="A creditar" valor={fmtBRL(aCreditar)} estado={estadoCaixa} nota={notaCaixa} />
+          {/* Tudo que o split ja capturou, dentro e fora do caixa. Cancelado
+              continua fora: nao vira dinheiro. */}
+          <KpiCard
+            rotulo="Total retido"
+            valor={fmtBRL(total)}
+            estado={estadoCaixa}
+            nota={notaCaixa ?? "creditado + a creditar; cancelado fica fora"}
+          />
+          <KpiCard
+            rotulo="Pago sem reter royalty"
+            valor={fmtBRL(perdido)}
+            tom={perdido > 0 ? "perigo" : undefined}
+            tomRotulo={perdido > 0 ? "royalty perdido" : undefined}
+            nota="títulos pagos sem split, da tabela por cliente"
+            abrir={
+              perdido > 0 ? { onClick: () => setEtapaFiltro(filtroEtapa5), rotulo: "Ver clientes" } : undefined
+            }
+          />
+        </KpiGrade>
+      </Secao>
 
-      <div className="flex flex-wrap gap-2">
-        {porEtapa.map(([e, n]) => (
-          <Badge key={e} variant={tomEtapa(e)}>{e}: {n}</Badge>
-        ))}
-      </div>
+      <Secao
+        titulo="Em que etapa está cada cliente?"
+        descricao="Uma linha por cliente, da venda ao crédito do royalty na matriz."
+      >
+        <div className="flex flex-wrap gap-2">
+          {porEtapa.map(([e, n]) => (
+            <StatusBadge key={e} tom={tomEtapa(e)}>
+              <span className="num">{e}: {n}</span>
+            </StatusBadge>
+          ))}
+        </div>
 
-      <Card className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Venda</TableHead>
-              <TableHead className="text-right">MRR</TableHead>
-              <TableHead className="text-right">Cobrado</TableHead>
-              <TableHead className="text-right">Creditado</TableHead>
-              <TableHead className="text-right">A creditar</TableHead>
-              <TableHead>Etapa</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtradas.map((r) => (
-              <TableRow key={`${r.contrato_id ?? "x"}-${r.cnpj ?? r.cliente}`}>
-                <TableCell className="max-w-[300px]">
-                  <div className="truncate font-medium">
-                    {r.cliente ?? "—"}
-                    {r.metodo_vinculo === "similaridade" && (
-                      <span className="ml-2 text-xs text-warning">vínculo por semelhança</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
-                    <span>{fmtDoc(r.cnpj) ?? "sem CNPJ"}</span>
-                    <span>deal {r.pipedrive_deal_id ?? "—"}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                  {r.ganho_em
-                    ? `${fmtData(r.ganho_em)} · ${r.dias_desde_ganho}d`
-                    : "sem venda registrada"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{fmtBRL(r.mrr_mensal)}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {r.titulos ? (
-                    <>
-                      {fmtBRL(r.valor_titulos)}
-                      <div className="text-xs text-muted-foreground">
-                        {r.titulos} boleto{r.titulos > 1 ? "s" : ""}
-                        {r.titulos_pagos ? `, ${r.titulos_pagos} pago${r.titulos_pagos > 1 ? "s" : ""}` : ""}
+        {filtradas.length === 0 ? (
+          <EstadoVazio titulo="Nenhum cliente neste recorte" total={linhas.length} />
+        ) : (
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Venda</TableHead>
+                  <TableHead className="text-right">MRR</TableHead>
+                  <TableHead className="text-right">Cobrado</TableHead>
+                  <TableHead className="text-right">Creditado</TableHead>
+                  <TableHead className="text-right">A creditar</TableHead>
+                  <TableHead>Etapa</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtradas.map((r) => (
+                  <TableRow key={`${r.contrato_id ?? "x"}-${r.cnpj ?? r.cliente}`}>
+                    <TableCell className="max-w-[300px]">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{r.cliente ?? "—"}</span>
+                        {r.metodo_vinculo === "similaridade" && (
+                          <StatusBadge tom="atencao" className="shrink-0">vínculo por semelhança</StatusBadge>
+                        )}
                       </div>
-                    </>
-                  ) : "—"}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{fmtBRL(r.royalty_creditado)}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {Number(r.royalty_a_creditar ?? 0) > 0 ? fmtBRL(r.royalty_a_creditar) : "—"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={tomEtapa(r.etapa)}>{r.etapa}</Badge>
-                  {Number(r.royalty_perdido ?? 0) > 0 && (
-                    <span className="ml-2 text-xs text-destructive">
-                      perdeu {fmtBRL(r.royalty_perdido)}
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+                      <div className="flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
+                        <span>{fmtDoc(r.cnpj) ?? "sem CNPJ"}</span>
+                        <span>deal {r.pipedrive_deal_id ?? "—"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="num whitespace-nowrap text-xs text-muted-foreground">
+                      {r.ganho_em
+                        ? `${fmtData(r.ganho_em)} · ${r.dias_desde_ganho}d`
+                        : "sem venda registrada"}
+                    </TableCell>
+                    <TableCell className="num text-right">{fmtBRL(r.mrr_mensal)}</TableCell>
+                    <TableCell className="num text-right">
+                      {r.titulos ? (
+                        <>
+                          {fmtBRL(r.valor_titulos)}
+                          <div className="text-xs text-muted-foreground">
+                            {r.titulos} boleto{r.titulos > 1 ? "s" : ""}
+                            {r.titulos_pagos ? `, ${r.titulos_pagos} pago${r.titulos_pagos > 1 ? "s" : ""}` : ""}
+                          </div>
+                        </>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell className="num text-right">{fmtBRL(r.royalty_creditado)}</TableCell>
+                    <TableCell className="num text-right text-muted-foreground">
+                      {Number(r.royalty_a_creditar ?? 0) > 0 ? fmtBRL(r.royalty_a_creditar) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge tom={tomEtapa(r.etapa)}>{r.etapa}</StatusBadge>
+                        {Number(r.royalty_perdido ?? 0) > 0 && (
+                          <StatusBadge tom="perigo">perdeu {fmtBRL(r.royalty_perdido)}</StatusBadge>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Secao>
 
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="max-w-3xl space-y-1 text-xs text-muted-foreground">
         {/* 1, 2 e 3 são diagnósticos diferentes, não graus do mesmo problema.
             Tratá-los como um só mandava o time procurar no Omie cliente que
             talvez já estivesse lá. */}

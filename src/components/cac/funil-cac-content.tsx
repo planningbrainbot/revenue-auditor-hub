@@ -9,11 +9,12 @@
 // virou cobrança, que é o vazamento mais caro. Cards órfãos aparecem como
 // etapa própria em vez de sumir. Fonte: ops.v_cac_funil (migration
 // 20260918200000).
+//
+// DS v2 (contrato `docs/design/contratos/receita-e-repasses.md` §6): um nome só
+// para cada número (N11: "Cobrado", "A cobrar"), filtros na URL (N7) e erro de
+// qualquer das duas views vira `EstadoErro`, não card zerado nem lista vazia.
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Coins, HandCoins, UserMinus, Wallet } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { OctagonAlert } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -21,6 +22,20 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  BarraFiltros,
+  Carregando,
+  ChipFiltro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import { ErroDaConsulta } from "@/components/receita/moldura";
+import { CORES_SERIE } from "@/lib/planning/grafico";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
+import { cn } from "@/lib/utils";
 
 type Linha = {
   unidade_id: number;
@@ -105,17 +120,29 @@ const ETAPAS: { chave: string; rotulo: string; acao: boolean }[] = [
   { chave: "card_em_outra_unidade", rotulo: "Card aberto na unidade errada", acao: true },
   { chave: "churn_sem_cobranca", rotulo: "Churn antes de abrir cobrança", acao: false },
 ];
+/**
+ * Rampa sequencial de um tom só (DESIGN §5, "etapas em sequência"): do claro ao
+ * escuro a partir de `--chart-1`, misturando com o fundo nos primeiros degraus.
+ */
+function tomDoDegrau(i: number, total: number): string {
+  const forca = total <= 1 ? 100 : Math.round(45 + (55 * i) / (total - 1));
+  return `color-mix(in oklab, ${CORES_SERIE[0]} ${forca}%, var(--background))`;
+}
+
 const ROTULO = new Map(ETAPAS.map((e) => [e.chave, e.rotulo]));
 const EXIGE_ACAO = new Set(ETAPAS.filter((e) => e.acao).map((e) => e.chave));
 
 export function FunilCacContent() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroResumo, setErroResumo] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [resumo, setResumo] = useState<Resumo[]>([]);
-  const [unidade, setUnidade] = useState<string>("todas");
-  const [etapaFiltro, setEtapaFiltro] = useState<string>("todas");
-  const [soChurn, setSoChurn] = useState(false);
+  const [unidade, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
+  const [soChurn, setSoChurn] = useFiltroNaUrl("churn", false);
+  const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa", "churn"]);
 
   useEffect(() => {
     let vivo = true;
@@ -126,17 +153,22 @@ export function FunilCacContent() {
         (supabase as any).from("v_cac_funil_resumo").select("*"),
       ]);
       if (!vivo) return;
-      if (l.error) setErro(l.error.message);
+      setErro(l.error ? l.error.message : null);
+      setErroResumo(s.error ? s.error.message : null);
       setLinhas((l.data ?? []) as Linha[]);
       setResumo((s.data ?? []) as Resumo[]);
       setLoading(false);
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [tentativa]);
 
+  const tentarDeNovo = () => setTentativa((n) => n + 1);
+
+  // Sem o resumo, as unidades do seletor vêm das linhas: o filtro continua
+  // servindo ao funil e à lista de vendas.
   const unidades = useMemo(
-    () => [...new Set(resumo.map((r) => r.unidade))].sort(),
-    [resumo],
+    () => [...new Set((erroResumo ? linhas : resumo).map((r) => r.unidade))].sort(),
+    [resumo, linhas, erroResumo],
   );
 
   const daUnidade = useMemo(
@@ -187,8 +219,10 @@ export function FunilCacContent() {
       passo("Vendas elegíveis a CAC", vendas),
       passo("Contrato assinado", assinadas),
       passo("Card de cobrança aberto", comCard),
+      // N11: este degrau deixa de fora o card aberto em outra unidade, então não
+      // é o mesmo "Cobrado" do card do topo.
       passo(
-        "Recebido",
+        "Cobrado (unidade do card)",
         cobradas,
         cobradas.reduce((a, r) => a + Number(r.cobrado ?? 0), 0),
       ),
@@ -217,40 +251,48 @@ export function FunilCacContent() {
   }, [daUnidade]);
 
   if (loading) {
+    return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
+  }
+
+  if (erro) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="px-4 py-6 md:px-6">
+        <ErroDaConsulta
+          erro={erro}
+          chaves="view.unidades_rede"
+          titulo="Não foi possível ler o funil de CAC"
+          tentarNovamente={tentarDeNovo}
+        />
       </div>
     );
   }
 
   if (linhas.length === 0) {
     return (
-      <div className="p-4">
-        <Card className="p-6 text-sm text-muted-foreground">
-          {erro
-            ? `Não consegui ler o funil de CAC: ${erro}`
-            : "Nenhuma venda elegível a CAC no recorte. A unidade entra aqui quando paga CAC ou quando abre o primeiro card no pipe de cobrança."}
-        </Card>
+      <div className="px-4 py-6 md:px-6">
+        <EstadoVazio
+          titulo="Nenhuma venda elegível a CAC no recorte"
+          descricao="A unidade entra aqui quando paga CAC ou quando abre o primeiro card no pipe de cobrança."
+        />
       </div>
     );
   }
 
   const base = funil[0]?.n || 1;
+  const temFiltro = unidade !== "todas" || etapaFiltro !== "todas" || soChurn;
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-6 px-4 py-6 md:px-6">
+      <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
         <Select value={unidade} onValueChange={setUnidade}>
-          <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as unidades</SelectItem>
             {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={etapaFiltro} onValueChange={setEtapaFiltro}>
-          <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[280px]" aria-label="Etapa"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as etapas</SelectItem>
             {ETAPAS.map((e) => (
@@ -258,298 +300,335 @@ export function FunilCacContent() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+        {soChurn && (
+          <ChipFiltro rotulo="Vendas" valor="só churn" aoRemover={() => setSoChurn(false)} />
+        )}
+        <span className="num text-[13px] text-muted-foreground">
+          {filtradas.length} de {linhas.length} vendas
+        </span>
+      </BarraFiltros>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="flex items-center gap-3 p-4">
-          <Coins className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-xs text-muted-foreground">Honorário apurado nos cards</div>
-            <div className="text-xl font-semibold">{fmtBRL(honorario)}</div>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <Wallet className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-xs text-muted-foreground">Já cobrado</div>
-            <div className="text-xl font-semibold">{fmtBRL(cobrado)}</div>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <HandCoins className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-xs text-muted-foreground">A cobrar</div>
-            <div className="text-xl font-semibold">{fmtBRL(aCobrar)}</div>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <AlertTriangle className={`h-5 w-5 shrink-0 ${semCard > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-          <div>
-            <div className="text-xs text-muted-foreground">Assinadas sem card de CAC</div>
-            <div className="text-xl font-semibold">{semCard}</div>
-          </div>
-        </Card>
-        <Card
-          className="flex cursor-pointer items-center gap-3 p-4"
-          onClick={() => setSoChurn((v) => !v)}
-        >
-          <UserMinus className={`h-5 w-5 shrink-0 ${churns > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-          <div>
-            <div className="text-xs text-muted-foreground">Churn antes do 1º fee</div>
-            <div className="text-xl font-semibold">{churns}</div>
-            <div className="text-xs text-muted-foreground">
-              {fmtBRL(churnACobrar)} que não entram
-              {churnCobrado > 0 ? ` · ${fmtBRL(churnCobrado)} já cobrados` : ""}
-            </div>
-          </div>
-        </Card>
-      </div>
+      <Secao
+        titulo="Quanto já foi cobrado e quanto falta?"
+        descricao="Somado dos cards de cobrança das unidades do recorte. Churn antes do 1º fee sai do “A cobrar”."
+      >
+        {erroResumo ? (
+          <ErroDaConsulta
+            erro={erroResumo}
+            chaves="view.unidades_rede"
+            titulo="Não foi possível ler o resumo por unidade; os totais e a tabela por unidade ficam sem dado"
+            tentarNovamente={tentarDeNovo}
+          />
+        ) : (
+          <KpiGrade>
+            <KpiCard rotulo="Honorário apurado nos cards" valor={fmtBRL(honorario)} />
+            <KpiCard rotulo="Cobrado" valor={fmtBRL(cobrado)} nota="o que entrou nos cards de cobrança" />
+            <KpiCard
+              rotulo="A cobrar"
+              valor={fmtBRL(aCobrar)}
+              nota={churnACobrar > 0 ? `sem ${fmtBRL(churnACobrar)} de churn` : undefined}
+            />
+            <KpiCard
+              rotulo="Assinadas sem card de CAC"
+              valor={semCard}
+              tom={semCard > 0 ? "perigo" : undefined}
+              tomRotulo={semCard > 0 ? "cobrança não aberta" : undefined}
+              abrir={
+                semCard > 0
+                  ? { onClick: () => setEtapaFiltro("assinado_sem_card"), rotulo: "Ver vendas" }
+                  : undefined
+              }
+            />
+            <KpiCard
+              rotulo="Churn antes do 1º fee"
+              valor={churns}
+              tom={churns > 0 ? "perigo" : undefined}
+              nota={
+                <>
+                  {fmtBRL(churnACobrar)} que não entram
+                  {churnCobrado > 0 ? ` · ${fmtBRL(churnCobrado)} já cobrados` : ""}
+                </>
+              }
+              abrir={{
+                onClick: () => setSoChurn(!soChurn),
+                rotulo: soChurn ? "Mostrar todas" : "Ver só churn",
+              }}
+            />
+          </KpiGrade>
+        )}
+      </Secao>
 
       {faltando.length > 0 && (
-        <Card className="border-destructive/50 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-destructive">
-            <AlertTriangle className="h-4 w-4" />
-            Contrato assinado sem cobrança aberta: {faltando.length}
-          </div>
-          <p className="mb-2 text-xs text-muted-foreground">
-            Assinou numa unidade que cobra CAC, então o card deveria existir.
-            Enquanto não existir, a cobrança não entra em lugar nenhum.
-          </p>
-          <ul className="space-y-1 text-sm">
+        <Secao
+          titulo="Qual contrato assinado está sem cobrança aberta?"
+          descricao="Assinou numa unidade que cobra CAC, então o card deveria existir. Enquanto não existir, a cobrança não entra em lugar nenhum."
+          acoes={<StatusBadge tom="perigo">{faltando.length} sem cobrança</StatusBadge>}
+        >
+          <ul className="space-y-1.5 rounded-xl border bg-card p-4 text-sm">
             {faltando.map((r) => (
               <li key={`${r.contrato_id}`} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{r.cliente}</span>
-                <span className="text-muted-foreground">
+                <span className="num text-muted-foreground">
                   {r.unidade} · ganho em {fmtData(r.ganho_em)} · {fmtBRL(cacEsperado(r))}
                 </span>
                 {r.etapa === "card_em_outra_unidade" && (
-                  <Badge variant="destructive">card está em {r.unidade_card}</Badge>
+                  <StatusBadge tom="perigo">card está em {r.unidade_card}</StatusBadge>
                 )}
-                {r.churn && <Badge variant="destructive">churn</Badge>}
+                {r.churn && <StatusBadge tom="perigo">churn</StatusBadge>}
               </li>
             ))}
           </ul>
-        </Card>
+        </Secao>
       )}
 
-      <Card className="p-4">
-        <div className="mb-3 text-sm font-medium">Funil, da venda à cobrança</div>
-        <div className="space-y-2">
-          {funil.map((e, i) => {
-            const pct = Math.round((e.n / base) * 100);
-            const perdaN = i > 0 ? funil[i - 1].n - e.n : 0;
-            const perdaValor = i > 0 ? funil[i - 1].valor - e.valor : 0;
-            return (
-              <div key={e.rotulo} className="flex items-center gap-3">
-                <div className="w-52 shrink-0 text-xs text-muted-foreground">{e.rotulo}</div>
-                <div className="h-6 flex-1 overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-full bg-primary/70"
-                    style={{ width: `${Math.max(pct, 2)}%` }}
-                  />
+      <Secao
+        titulo="Onde a venda deixa de virar cobrança?"
+        descricao="Vendas elegíveis a CAC, degrau a degrau; em cada linha, quantas e quanto se perdeu desde o degrau anterior."
+      >
+        <div className="rounded-xl border bg-card p-4">
+          <div className="space-y-2">
+            {funil.map((e, i) => {
+              const pct = Math.round((e.n / base) * 100);
+              const perdaN = i > 0 ? funil[i - 1].n - e.n : 0;
+              const perdaValor = i > 0 ? funil[i - 1].valor - e.valor : 0;
+              return (
+                <div key={e.rotulo} className="flex items-center gap-3">
+                  <div className="w-52 shrink-0 text-xs text-muted-foreground">{e.rotulo}</div>
+                  <div className="h-6 flex-1 overflow-hidden rounded bg-muted">
+                    <div
+                      className="h-full"
+                      style={{ width: `${Math.max(pct, 2)}%`, background: tomDoDegrau(i, funil.length) }}
+                    />
+                  </div>
+                  <div className="num w-24 shrink-0 text-right text-xs">
+                    <span className="font-medium">{e.n}</span>
+                    <span className="text-muted-foreground"> · {pct}%</span>
+                  </div>
+                  <div className="num w-32 shrink-0 text-right text-xs font-medium">
+                    {fmtBRL(e.valor)}
+                  </div>
+                  <div className="num w-36 shrink-0 text-right text-xs text-muted-foreground">
+                    {perdaN > 0 || perdaValor > 0.5
+                      ? `−${perdaN} · −${fmtBRL(perdaValor)}`
+                      : ""}
+                  </div>
                 </div>
-                <div className="w-24 shrink-0 text-right text-xs tabular-nums">
-                  <span className="font-medium">{e.n}</span>
-                  <span className="text-muted-foreground"> · {pct}%</span>
+              );
+            })}
+          </div>
+          {!erroResumo && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">Do que já tem card aberto</div>
+              <div className="num flex flex-wrap gap-6 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Cobrado: </span>
+                  <span className="font-semibold">{fmtBRL(cobrado)}</span>
                 </div>
-                <div className="w-32 shrink-0 text-right text-xs font-medium tabular-nums">
-                  {fmtBRL(e.valor)}
+                <div>
+                  <span className="text-muted-foreground">A cobrar: </span>
+                  <span className="font-semibold">{fmtBRL(aCobrar)}</span>
                 </div>
-                <div className="w-36 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                  {perdaN > 0 || perdaValor > 0.5
-                    ? `−${perdaN} · −${fmtBRL(perdaValor)}`
-                    : ""}
-                </div>
+                {churnACobrar > 0 && (
+                  <div className="text-muted-foreground">
+                    {fmtBRL(churnACobrar)} em churn, fora da conta
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border p-3">
-          <div className="text-xs text-muted-foreground">
-            Do que já tem card aberto
-          </div>
-          <div className="flex flex-wrap gap-6 text-sm">
-            <div>
-              <span className="text-muted-foreground">Recebido: </span>
-              <span className="font-semibold">{fmtBRL(cobrado)}</span>
             </div>
-            <div>
-              <span className="text-muted-foreground">Falta receber: </span>
-              <span className="font-semibold">{fmtBRL(aCobrar)}</span>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Nos degraus antes do card não existe honorário lançado, e o valor é o
+            honorário mensal da venda. No último, é o que entrou de verdade, só dos
+            cards abertos na unidade da venda. Vendas fora da régua de CAC ficam fora
+            do funil e aparecem na lista: unidade que não cobra, venda anterior ao
+            início da cobrança na unidade ou honorário mensal abaixo do piso que a
+            unidade negociou. O valor de cada etapa abaixo é o que falta cobrar nela
+            e inclui churn; o “A cobrar” do topo, não.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filtrar vendas por etapa">
+            {porEtapa.map((e) => {
+              const ativa = etapaFiltro === e.chave;
+              const acao = EXIGE_ACAO.has(e.chave);
+              return (
+                <button
+                  key={e.chave}
+                  type="button"
+                  aria-pressed={ativa}
+                  onClick={() => setEtapaFiltro(ativa ? "todas" : e.chave)}
+                  className={cn(
+                    "num inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium outline-none transition-colors duration-[120ms] ease-out hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    ativa ? "border-foreground bg-muted text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {acao && <OctagonAlert className="size-4 text-danger" aria-label="pede ação" />}
+                  {e.rotulo}: {e.n}
+                  {e.valor > 0 ? ` · ${fmtBRL(e.valor)}` : ""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Secao>
+
+      {!erroResumo && (
+        <Secao titulo="Qual unidade tem mais CAC a cobrar?" descricao="Ordenado pelo que falta cobrar.">
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="text-right">Vendas</TableHead>
+                  <TableHead className="text-right">Elegíveis</TableHead>
+                  <TableHead className="text-right">Assinadas</TableHead>
+                  <TableHead className="text-right">Com card</TableHead>
+                  <TableHead className="text-right">Assinadas sem card</TableHead>
+                  <TableHead className="text-right">Card na unidade errada</TableHead>
+                  <TableHead className="text-right">Churn</TableHead>
+                  <TableHead className="text-right">Honorário</TableHead>
+                  <TableHead className="text-right">Cobrado</TableHead>
+                  <TableHead className="text-right">A cobrar</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resumoFiltrado
+                  .slice()
+                  .sort((a, b) => Number(b.a_cobrar) - Number(a.a_cobrar))
+                  .map((r) => (
+                    <TableRow key={r.unidade_id}>
+                      <TableCell>
+                        <span className="font-medium">{r.unidade}</span>
+                        {!r.paga_cac && (
+                          <StatusBadge tom="neutro" className="ml-2">não cobra CAC</StatusBadge>
+                        )}
+                        {r.paga_cac && r.cac_desde && r.cac_desde > "2026-02-01" && (
+                          <StatusBadge tom="info" icone={false} className="ml-2">
+                            CAC desde {fmtData(r.cac_desde)}
+                          </StatusBadge>
+                        )}
+                        {r.cac_honorario_minimo_mensal != null && (
+                          <StatusBadge tom="info" icone={false} className="ml-2">
+                            só acima de {fmtBRL(r.cac_honorario_minimo_mensal)}/mês
+                          </StatusBadge>
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">{r.vendas}</TableCell>
+                      <TableCell className="num text-right">
+                        {r.elegiveis}
+                        {r.fora_da_regua > 0 && (
+                          <span className="text-muted-foreground"> (+{r.fora_da_regua} fora)</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">{r.assinadas}</TableCell>
+                      <TableCell className="num text-right">{r.com_card}</TableCell>
+                      <TableCell className="num text-right">
+                        {r.assinadas_sem_card > 0 ? (
+                          <StatusBadge tom="perigo">{r.assinadas_sem_card}</StatusBadge>
+                        ) : (
+                          r.assinadas_sem_card
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">
+                        {r.card_em_outra_unidade > 0 ? (
+                          <StatusBadge tom="perigo">{r.card_em_outra_unidade}</StatusBadge>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">
+                        {r.churns > 0 ? (
+                          <StatusBadge tom="perigo">
+                            {r.churns} · {fmtBRL(r.churn_a_cobrar)}
+                          </StatusBadge>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="num text-right">{fmtBRL(r.honorario)}</TableCell>
+                      <TableCell className="num text-right">{fmtBRL(r.cobrado)}</TableCell>
+                      <TableCell className="num text-right font-medium">
+                        {fmtBRL(Number(r.a_cobrar) - Number(r.churn_a_cobrar))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Secao>
+      )}
+
+      <Secao
+        titulo={`Quais vendas${etapaFiltro !== "todas" ? ` estão em “${ROTULO.get(etapaFiltro) ?? etapaFiltro}”` : " compõem o funil"}?`}
+        descricao="Ordenado pelo que falta cobrar."
+      >
+        {filtradas.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma venda neste recorte" total={linhas.length} />
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="max-h-[560px] overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead>Ganho</TableHead>
+                    <TableHead>Contrato</TableHead>
+                    <TableHead>Fase da cobrança</TableHead>
+                    <TableHead className="text-right">Honorário</TableHead>
+                    <TableHead className="text-right">Cobrado</TableHead>
+                    <TableHead className="text-right">A cobrar</TableHead>
+                    <TableHead>Etapa</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtradas.map((r) => (
+                    <TableRow key={`${r.contrato_id ?? "orfao"}-${r.cac_card_id ?? r.cliente}`}>
+                      <TableCell className="max-w-[260px] truncate" title={r.cliente ?? ""}>
+                        {r.cliente ?? "—"}
+                      </TableCell>
+                      <TableCell>{r.unidade}</TableCell>
+                      <TableCell className="num whitespace-nowrap">{fmtData(r.ganho_em)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {r.fase_contrato ?? "sem card de contrato"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        {r.fase_cac ?? "—"}
+                        {r.etapa === "card_em_outra_unidade" && ` (em ${r.unidade_card})`}
+                      </TableCell>
+                      <TableCell className="num text-right">{fmtBRL(r.honorario)}</TableCell>
+                      <TableCell className="num text-right">{fmtBRL(r.cobrado)}</TableCell>
+                      <TableCell className="num text-right">
+                        {/* Churn antes do 1º fee não entra no "A cobrar" do card:
+                            a linha diz isso em vez de mostrar um valor que não soma. */}
+                        {r.churn && Number(r.a_cobrar ?? 0) > 0 ? (
+                          <span className="text-muted-foreground" title={`${fmtBRL(r.a_cobrar)} fora do "A cobrar"`}>
+                            churn
+                          </span>
+                        ) : Number(r.a_cobrar ?? 0) > 0 ? (
+                          fmtBRL(r.a_cobrar)
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <StatusBadge tom={EXIGE_ACAO.has(r.etapa) ? "perigo" : "neutro"}>
+                            {ROTULO.get(r.etapa) ?? r.etapa}
+                          </StatusBadge>
+                          {r.churn && (
+                            <span title={`Churn visto em: ${r.churn_origem ?? "—"}`}>
+                              <StatusBadge tom="perigo">churn</StatusBadge>
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            {churnACobrar > 0 && (
-              <div className="text-muted-foreground">
-                {fmtBRL(churnACobrar)} em churn, fora da conta
-              </div>
-            )}
           </div>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Nos degraus antes do card não existe honorário lançado, e o valor é o
-          honorário mensal da venda. No último, é o que entrou de verdade.
-          Vendas fora da régua de CAC ficam fora do funil e aparecem na lista:
-          unidade que não cobra, venda anterior ao início da cobrança na unidade
-          ou honorário mensal abaixo do piso que a unidade negociou.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {porEtapa.map((e) => (
-            <Badge
-              key={e.chave}
-              variant={EXIGE_ACAO.has(e.chave) ? "destructive" : "outline"}
-              className="cursor-pointer"
-              onClick={() => setEtapaFiltro(etapaFiltro === e.chave ? "todas" : e.chave)}
-            >
-              {e.rotulo}: {e.n}
-              {e.valor > 0 ? ` · ${fmtBRL(e.valor)}` : ""}
-            </Badge>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="p-0">
-        <div className="border-b p-4 text-sm font-medium">Por unidade</div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Unidade</TableHead>
-              <TableHead className="text-right">Vendas</TableHead>
-              <TableHead className="text-right">Elegíveis</TableHead>
-              <TableHead className="text-right">Assinadas</TableHead>
-              <TableHead className="text-right">Com card</TableHead>
-              <TableHead className="text-right">Assinadas sem card</TableHead>
-              <TableHead className="text-right">Card na unidade errada</TableHead>
-              <TableHead className="text-right">Churn</TableHead>
-              <TableHead className="text-right">Honorário</TableHead>
-              <TableHead className="text-right">Recebido</TableHead>
-              <TableHead className="text-right">Falta receber</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {resumoFiltrado
-              .slice()
-              .sort((a, b) => Number(b.a_cobrar) - Number(a.a_cobrar))
-              .map((r) => (
-                <TableRow key={r.unidade_id}>
-                  <TableCell>
-                    {r.unidade}
-                    {!r.paga_cac && (
-                      <Badge variant="secondary" className="ml-2">não cobra CAC</Badge>
-                    )}
-                    {r.paga_cac && r.cac_desde && r.cac_desde > "2026-02-01" && (
-                      <Badge variant="secondary" className="ml-2">
-                        CAC desde {fmtData(r.cac_desde)}
-                      </Badge>
-                    )}
-                    {r.cac_honorario_minimo_mensal != null && (
-                      <Badge variant="secondary" className="ml-2">
-                        só acima de {fmtBRL(r.cac_honorario_minimo_mensal)}/mês
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{r.vendas}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {r.elegiveis}
-                    {r.fora_da_regua > 0 && (
-                      <span className="text-muted-foreground"> (+{r.fora_da_regua} fora)</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{r.assinadas}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.com_card}</TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.assinadas_sem_card > 0 ? "text-destructive" : ""}`}>
-                    {r.assinadas_sem_card}
-                  </TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.card_em_outra_unidade > 0 ? "text-destructive" : ""}`}>
-                    {r.card_em_outra_unidade || "—"}
-                  </TableCell>
-                  <TableCell className={`text-right tabular-nums ${r.churns > 0 ? "text-destructive" : ""}`}>
-                    {r.churns > 0 ? `${r.churns} · ${fmtBRL(r.churn_a_cobrar)}` : "—"}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBRL(r.honorario)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBRL(r.cobrado)}</TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {fmtBRL(Number(r.a_cobrar) - Number(r.churn_a_cobrar))}
-                  </TableCell>
-                </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </Card>
-
-      <Card className="p-0">
-        <div className="flex items-center justify-between border-b p-4">
-          <div className="text-sm font-medium">
-            Vendas ({filtradas.length}
-            {etapaFiltro !== "todas" ? ` em ${ROTULO.get(etapaFiltro)}` : ""})
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {soChurn && (
-              <Badge
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={() => setSoChurn(false)}
-              >
-                só churn · limpar
-              </Badge>
-            )}
-            Ordenado pelo que falta cobrar
-          </div>
-        </div>
-        <div className="max-h-[560px] overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Ganho</TableHead>
-                <TableHead>Contrato</TableHead>
-                <TableHead>Fase da cobrança</TableHead>
-                <TableHead className="text-right">Honorário</TableHead>
-                <TableHead className="text-right">Cobrado</TableHead>
-                <TableHead className="text-right">A cobrar</TableHead>
-                <TableHead>Etapa</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtradas.map((r) => (
-                <TableRow key={`${r.contrato_id ?? "orfao"}-${r.cac_card_id ?? r.cliente}`}>
-                  <TableCell className="max-w-[260px] truncate" title={r.cliente ?? ""}>
-                    {r.cliente ?? "—"}
-                  </TableCell>
-                  <TableCell>{r.unidade}</TableCell>
-                  <TableCell className="whitespace-nowrap">{fmtData(r.ganho_em)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                    {r.fase_contrato ?? "sem card de contrato"}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                    {r.fase_cac ?? "—"}
-                    {r.etapa === "card_em_outra_unidade" && ` (em ${r.unidade_card})`}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBRL(r.honorario)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtBRL(r.cobrado)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {Number(r.a_cobrar ?? 0) > 0 ? fmtBRL(r.a_cobrar) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant={EXIGE_ACAO.has(r.etapa) ? "destructive" : "outline"}>
-                        {ROTULO.get(r.etapa) ?? r.etapa}
-                      </Badge>
-                      {r.churn && (
-                        <Badge
-                          variant="destructive"
-                          title={`Churn visto em: ${r.churn_origem ?? "—"}`}
-                        >
-                          churn
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+        )}
+      </Secao>
     </div>
   );
 }
