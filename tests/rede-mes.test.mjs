@@ -54,8 +54,18 @@ test("listaTrimestres: fim exclusivo (IDU) e inclusivo (Indicadores)", () => {
   const exc = listaTrimestres({ fim: "exclusivo", hoje });
   const inc = listaTrimestres({ fim: "inclusivo", hoje });
   assert.equal(exc.length, 8);
-  assert.deepEqual(exc[0], { key: "2026-T3", label: "T3/2026 · jul–set", ini: "2026-07-01", fim: "2026-10-01" });
-  assert.deepEqual(inc[0], { key: "2026-T3", label: "T3/2026 · jul–set", ini: "2026-07-01", fim: "2026-09-30" });
+  assert.deepEqual(exc[0], {
+    key: "2026-T3",
+    label: "T3/2026 · jul–set",
+    ini: "2026-07-01",
+    fim: "2026-10-01",
+  });
+  assert.deepEqual(inc[0], {
+    key: "2026-T3",
+    label: "T3/2026 · jul–set",
+    ini: "2026-07-01",
+    fim: "2026-09-30",
+  });
   assert.equal(exc[3].key, "2025-T4");
   assert.equal(exc[3].fim, "2026-01-01");
   assert.equal(inc[3].fim, "2025-12-31");

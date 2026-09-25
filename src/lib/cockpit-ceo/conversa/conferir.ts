@@ -28,6 +28,8 @@ const NUMERO =
 
 export function lerNumeros(texto: string): NumeroLido[] {
   const out: NumeroLido[] = [];
+  // Datas ISO (2025-06, 2026-08-01) não são número: sem isso "2025-06" virava −6.
+  texto = texto.replace(/\b\d{4}-\d{2}(?:-\d{2})?\b/g, " ");
   for (const m of texto.matchAll(NUMERO)) {
     const [bruto, rs, num, sufixo] = m;
     // Datas (24/09, 08/2026) ficam fora pelo lookbehind/lookahead de "/".
@@ -65,6 +67,8 @@ export function conferirTexto(
   texto: string,
   resultados: Resultado[],
   pergunta: string,
+  /** Números de parâmetros já mostrados (ex.: "últimos 3 meses" da visão anterior). */
+  extras: number[] = [],
 ): { texto: string; descartadas: string[] } {
   const permitidos = new Set<number>([META_ANUAL, MEDIA_MENSAL_NECESSARIA, ANO_ALVO]);
   for (const r of resultados) {
@@ -93,8 +97,11 @@ export function conferirTexto(
                 : null;
     if (qtd !== null) permitidos.add(qtd);
     if (d.forma === "serie") permitidos.add(d.series.length);
+    // Horizonte da coorte ("12 meses" = coluna M12).
+    if (d.forma === "coorte") permitidos.add(Math.max(0, d.colunas.length - 1));
   }
   for (const n of lerNumeros(pergunta)) permitidos.add(n.valor);
+  for (const n of extras) permitidos.add(n);
   const lista = [...permitidos];
   const confere = (n: NumeroLido) =>
     ehAno(n) || lista.some((p) => Math.abs(Math.abs(p) - Math.abs(n.valor)) <= n.tolerancia + 1e-9);

@@ -27,7 +27,8 @@ import type { VisaoDefinicao } from "./spec";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-export const MODELO_PADRAO = "anthropic/claude-sonnet-5";
+/** Escolhido pela avaliação de 25/09 (docs/dev_notes/cockpit-ceo-conversa/avaliacao/relatorio.md). */
+export const MODELO_PADRAO = "openai/gpt-5.5";
 /** Modelos que o servidor aceita; a escolha vem da avaliação (relatório), não do nome. */
 export const MODELOS_PERMITIDOS = [
   "anthropic/claude-sonnet-5",
