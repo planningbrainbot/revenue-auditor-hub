@@ -3030,6 +3030,25 @@ fora da lista de domínios.
 
 **Status:** branch feat/ds-v2-migracao-monetizacao-20260923 (commits d6dba22..dc3cd17), não publicada.
 
+## [2026-09-24] Rede no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das seis telas da Rede (Overview, Indicadores do Trimestre, IDU, Realizado, LTV, Headcount) para o Design System v2, com as propostas dos contratos aprovadas em bloco pelo Pedro em 24/09 (`docs/design/contratos/{rede-overview,indicadores-trimestre,idu,rede-realizado,rede-ltv,rede-headcount}.md`). Nenhuma query, fórmula, RLS ou permissão mudou; as decisões abaixo são de exibição e ficaram fora do óbvio.
+
+**Decisão:**
+1. **Chave de mês única (`src/lib/rede/mes.ts`).** `date` e `aaaa-mm` valem o mês escrito. Em `timestamptz`, o instante exatamente em dia 01 00:00:00 UTC é tratado como `date_trunc` UTC e fica no mês UTC; qualquer outro instante vai para o mês de São Paulo. Motivo: o banco roda em `TimeZone=UTC` (medido em 24/09) e as views devolvem o mês truncado em UTC; converter literalmente para São Paulo jogaria todo mês para o anterior. `rotuloMes` monta o rótulo da string, sem `Date`. Isso fez casar chaves que nunca casavam: CAC e NPS do Realizado, a série do LTV e o MRR por pessoa do Headcount voltaram a aparecer. Teste em `tests/rede-mes.test.mjs`.
+2. **Trimestre na URL como `aaaa-Tn`**, padrão o último fechado, janela de 8. IDU usa fim exclusivo e Indicadores fim inclusivo porque as RPCs são diferentes (unificadas num helper só, com o fim como parâmetro).
+3. **Zero que é ausência vira "não apurado" ou fica sem ponto:** unidade sem título do Omie; mês que a view preenche com 0 via COALESCE (no Realizado, o "Crescimento" do mês sem título deixa de mostrar −100%); ARPA e LTV de mês sem contrato; turnover com headcount 0; série de royalties sem acesso.
+4. **Rótulos únicos (N11).** "Qtd Proj. Ativos" sai do Overview (era o mesmo número de "Clientes ativos"); "Contratos ativos por mês"; "Take rate da unidade"; "MRR vendido no trimestre"; "Idade média dos contratos ativos"; "LT da série (desde 07/2024)"; "MRR por pessoa". As três réguas chamadas "LTV" (Overview ARPA ÷ churn, Indicadores MRR × 60, LTV ARPA × idade) continuam, cada uma com a régua no rótulo, para ninguém comparar as três.
+5. **Overview:** as quatro abas ficam em `?aba=` até o Eliezek decidir se viram páginas irmãs (mexe em `areas.ts`); período padrão ano corrente; o recorte do sócio vence a URL; churn sem tom fixo; o período continua cortando no mês (o seletor aceita dia, mas vale o mês).
+6. **Indicadores:** unidade padrão é a do usuário; o "comparativo fechado" é apresentação, não segurança (achado para o Eliezek: o recorte teria que estar na RPC).
+7. **Realizado:** período padrão últimos 12 meses; MRR, contratos e ARPA de hoje viram barra por unidade (a série repetia a foto); até 5 linhas ligadas (as maiores pelo recebido), as outras desligadas na legenda.
+8. **IDU:** meta vazia na unidade não grava mais 0 (antes `Number("")` virava meta 0); apagar meta padrão e voltar ao padrão pedem confirmação; erro ao salvar vira toast e a página fica; sem `edit.idu_metas`, o campo fica desabilitado com o motivo.
+9. **Headcount:** o vermelho fixo acima de 5% sai (não há régua declarada); admissão e demissão deixam de ser verde e vermelho (status não pinta categoria).
+10. **Unidade na URL:** pelo nome nas telas da Rede, pelo id no IDU (o nome continua aceito como link antigo).
+11. **Lacunas declaradas:** procedência sem data de atualização nas seis telas (as fontes não expõem quando foram atualizadas); a série do LTV mantém o início fixo em 07/2024 até o dono decidir se ela fica.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-rede-20260924` (sem push). Revisão do Eliezek no PR, com os achados de permissão e cálculo listados lá.
+
 ## [2026-09-25] Cockpit do CEO (leitura de dez segundos + Perguntar ao Brain) publicado; a main volta a ser igual à produção (adendo à entrada de 24/09)
 
 **Autorização:** o Pedro pediu "pode subir", com o Jev da conversa desligado até resolver os créditos do OpenRouter.
