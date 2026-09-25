@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { BaseMonetizacao, Conta, Negocio, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
 import { csv, LIMITE_CARGA_PARADA_MS, oferta } from "@/lib/monetizacao/model";
-import { KpiCard, Secao, tomDoLegado, type EstadoKpi } from "@/components/planning";
+import { FOCO_VISIVEL, KpiCard, Secao, tomDoLegado, type EstadoKpi } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
@@ -22,9 +22,9 @@ export const date = (v: string | null | undefined) =>
         timeZone: "America/Sao_Paulo",
       })
     : "A preencher";
-/** Foco visível dos controles locais (V12): o mesmo anel do `Button`, com afastamento do fundo. */
-export const FOCO_VISIVEL =
-  "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+// Foco visível dos controles locais (V12): mora em `components/planning/foco.ts` desde a
+// integração DS v2; o reexport mantém os imports de `./common`.
+export { FOCO_VISIVEL };
 export const inputClass =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50";
 export function Field({ label, children }: { label: string; children: ReactNode }) {

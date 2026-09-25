@@ -62,9 +62,9 @@ Atualizada a cada evento. Uma linha por worktree `planning-brain-ds-v2-<nome>`. 
 
 ## Reconciliar antes dos PRs
 - (RESOLVIDO em `0b94cb4`) CONFLITO: base-cs (B6 `991bbb6`) importa `cnpjDvValido` de `src/lib/fila-cella.types.ts`, que a branch migracao APAGOU (Fila Cella aposentada). Mover a função para `src/lib/cnpj.ts` na base-cs antes do merge; grep em todas as branches por `fila-cella` antes de juntar.
-- `useFocoDeVolta` exportado de analysis.tsx (aviso react-refresh): mover para common.tsx depois da C1.
-- `BotaoComMotivo` duplicado (monetizacao/common.tsx, gente/estados-gente.tsx): subir um para `components/planning`.
-- `AppShell.pergunta` (admin, A1) × `MolduraReceita` (receita, RR1): unificar.
-- Cherry-pick `1bb0341` (V4 IDU) em todas exceto rede (R3 corrigiu lá).
+- (RESOLVIDO na integração `feat/ds-v2-integracao-20260925`) `useFocoDeVolta` e `FOCO_VISIVEL` moram em `src/components/planning/foco.ts`, exportados pelo índice; `monetizacao/common.tsx` reexporta `FOCO_VISIVEL` para os imports antigos.
+- (MANTIDO, não trivial) `BotaoComMotivo` existe em três lugares: `monetizacao/common.tsx` e `gente/estados-gente.tsx` têm a mesma API mas comportamento diferente (Monetização mostra o motivo mesmo habilitado e para a propagação do clique; Gente só mostra desabilitado e põe o anel de foco), e `royalties/botao-com-motivo.tsx` tem outra API (`rotulo`, `motivo` obrigatório, sempre desabilitado). Unificar exige escolher o comportamento; o `ComMotivo` do IDU é um quarto padrão (embrulho).
+- (MANTIDO, não trivial) `AppShell.pergunta` × `MolduraReceita`: mesma casca, mas a Moldura aceita `procedencia` e `filtros` e recua `md:px-6`, o AppShell recua `px-4`. Unificar muda o recuo de uma das duas famílias de telas (19 do AppShell ou 9 da Receita).
+- (RESOLVIDO na integração) Cherry-pick `1bb0341` (V4 IDU): fica a versão da rede, com o próximo trimestre da main (34e0f85) reaplicado.
 - Capturas antes/depois com a sessão do Pedro (`.env.local` em migracao).
 - Regra para próximos prompts: foco visível em todo controle focável novo (em `<tr>` usar `outline-*`).

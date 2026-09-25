@@ -24,7 +24,7 @@ import { FARMER, funil, hoje, METRICAS, metasOperacao, operacao } from "@/lib/mo
 import type { Filtro } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
-import { Analysis, useFocoDeVolta } from "./analysis";
+import { Analysis } from "./analysis";
 import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
@@ -55,6 +55,7 @@ import {
   EstadoSemAcesso,
   EstadoVazio,
   PageHeader,
+  useFocoDeVolta,
 } from "@/components/planning";
 import { cn } from "@/lib/utils";
 
