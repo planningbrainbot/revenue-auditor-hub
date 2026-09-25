@@ -16,4 +16,4 @@ export COCKPIT_CONVERSA_MODELO="${COCKPIT_CONVERSA_MODELO:-anthropic/claude-sonn
 export NODE_OPTIONS="--max-old-space-size=8192"
 PORTA="${PORTA:-8082}"
 echo "Entre em http://127.0.0.1:${PORTA}/auth e abra http://127.0.0.1:${PORTA}/cockpit-ceo/perguntar"
-exec npx vite dev --host 127.0.0.1 --port "$PORTA" --strictPort
+exec npx vite dev --force --host 127.0.0.1 --port "$PORTA" --strictPort

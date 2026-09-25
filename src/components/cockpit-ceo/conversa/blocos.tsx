@@ -176,7 +176,7 @@ function BlocoSerie({ r }: { r: Resultado }) {
           {realizados.map((s, i) => (
             <Line
               key={s.chave}
-              type="monotone"
+              type="linear"
               dataKey={s.chave}
               name={s.rotulo}
               stroke={CORES_SERIE[i]}
@@ -189,7 +189,7 @@ function BlocoSerie({ r }: { r: Resultado }) {
           {metas.map((s) => (
             <Line
               key={s.chave}
-              type="monotone"
+              type="linear"
               dataKey={s.chave}
               name={s.rotulo}
               {...linhaMetaProps}

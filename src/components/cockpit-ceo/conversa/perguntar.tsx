@@ -73,7 +73,7 @@ import type { RespostaFinal } from "@/lib/cockpit-ceo/conversa/responder";
 import type { BlocoResolvido, VisaoDefinicao } from "@/lib/cockpit-ceo/conversa/spec";
 import { chavesDeFiltro } from "@/lib/cockpit-ceo/conversa/spec";
 import type { Filtros, PeriodoFiltro } from "@/lib/cockpit-ceo/conversa/filtros";
-import { ROTULO_BASE, ROTULO_LEITURA, ROTULO_PRODUTO } from "@/lib/cockpit-ceo/conversa/filtros";
+import { ROTULO_BASE, ROTULO_PRODUTO } from "@/lib/cockpit-ceo/conversa/filtros";
 import { Bloco } from "./blocos";
 
 // "Perguntar ao Brain": conversa à esquerda, área visual à direita.
@@ -367,7 +367,7 @@ export function PerguntarAoBrain({
     <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(22rem,2fr)_3fr]">
       <section
         aria-label="Conversa"
-        className="flex min-h-[32rem] flex-col rounded-xl border bg-card lg:h-[calc(100vh-13rem)]"
+        className="flex min-h-[28rem] flex-col rounded-xl border bg-card lg:h-[calc(100vh-15.5rem)]"
       >
         <BarraConversa
           conversaId={conversaId}
@@ -652,7 +652,7 @@ function BarraConversa({
           >
             <History className="size-4 shrink-0" aria-hidden />
             <span className="truncate">
-              {atual?.titulo ?? (conversaId ? "Conversa" : "Nova conversa")}
+              {atual?.titulo ?? (conversaId ? "Conversa" : "Suas conversas")}
             </span>
           </Button>
         </DropdownMenuTrigger>
@@ -801,15 +801,12 @@ function Controles({
             value={filtros.leitura ?? "grupo"}
             onValueChange={(v) => aoMudar({ leitura: v as Filtros["leitura"] })}
           >
-            <SelectTrigger className="h-8 w-[14rem]" aria-label="Leitura do faturamento">
+            <SelectTrigger className="h-8 w-[11rem]" aria-label="Leitura do faturamento">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(ROTULO_LEITURA) as (keyof typeof ROTULO_LEITURA)[]).map((k) => (
-                <SelectItem key={k} value={k}>
-                  {ROTULO_LEITURA[k]}
-                </SelectItem>
-              ))}
+              <SelectItem value="grupo">Grupo (Financeiro)</SelectItem>
+              <SelectItem value="rede">Rede de unidades</SelectItem>
             </SelectContent>
           </Select>
         </Campo>

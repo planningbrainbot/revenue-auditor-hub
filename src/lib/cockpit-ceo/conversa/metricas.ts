@@ -345,7 +345,9 @@ function consultaSerieFaturamento(e: EntradaConsulta, a: z.infer<typeof ArgsSeri
     atualizadoEm:
       leitura === "grupo" ? (e.fonte.receita?.frescorFinanceiro?.carregadoEm ?? null) : null,
     filtrosAplicados: aplicados,
-    avisos: [...avisos, ...l.cobertura.slice(0, 2)],
+    // Notas de cobertura do cadastro só quando a série é da rede inteira; com unidades escolhidas
+    // elas falam de outras unidades e viram ruído.
+    avisos: [...avisos, ...(f.unidades?.length ? [] : l.cobertura.slice(0, 2))],
     destino: l.destino,
     destaques,
     dados: { forma: "serie", pontos, series },
@@ -1526,6 +1528,20 @@ export const NOMES_CONSULTAS = Object.keys(CONSULTAS) as NomeConsulta[];
 export class ConsultaRecusada extends Error {}
 
 /**
+ * A fonte em linguagem de negócio: sem schema, tabela nem função entre parênteses. O contrato de
+ * cada número (composição no cockpit) guarda a procedência técnica completa.
+ */
+export function fonteLegivel(f: string): string {
+  const tecnico = /\b(?:ops|growth|public|financeiro)\.[a-z_]+|\bfn_[a-z_]+|\b[a-z]+_[a-z_]+\b/;
+  const partes = f
+    .split(" · ")
+    .filter((p, i) => i === 0 || !tecnico.test(p))
+    .map((p) => p.replace(/\s*\([^)]*\)/g, (par) => (tecnico.test(par) ? "" : par)).trim())
+    .filter(Boolean);
+  return partes.join(" · ").replace("Financial Brain", "Financeiro");
+}
+
+/**
  * Executa uma consulta do catálogo com argumentos validados. Nome fora do catálogo ou argumento
  * fora do schema é recusado antes de ler qualquer coisa.
  */
@@ -1550,5 +1566,6 @@ export function executarConsulta(
     args: lido.data as Record<string, unknown>,
     versaoRegra: VERSAO_CATALOGO,
     ...r,
+    fonte: fonteLegivel(r.fonte),
   };
 }

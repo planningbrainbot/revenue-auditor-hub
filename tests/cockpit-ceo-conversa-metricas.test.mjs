@@ -190,3 +190,33 @@ test("toda consulta roda sobre a fonte sintética sem NaN e sem número em estad
   }
   assert.equal(Object.keys(CONSULTAS).length, NOMES_CONSULTAS.length);
 });
+
+import { fonteLegivel } from "../src/lib/cockpit-ceo/conversa/metricas.ts";
+test("fonte sem nome de tabela nem função", () => {
+  assert.equal(
+    fonteLegivel("Apuração de royalties (ops.royalties_apuracao, status confirmado)"),
+    "Apuração de royalties",
+  );
+  assert.equal(
+    fonteLegivel("Growth · growth.serie_mensal (realizado) e growth.metas (plano)"),
+    "Growth",
+  );
+  assert.equal(
+    fonteLegivel("Financeiro · funções oficiais de caixa, inadimplência e indicadores"),
+    "Financeiro · funções oficiais de caixa, inadimplência e indicadores",
+  );
+  for (const n of ["indicador", "serie_faturamento", "ranking_unidades", "caixa", "onboarding"]) {
+    const s = criarEntrada(fonteSintetica(HOJE, `${HOJE}T12:00:00.000Z`));
+    const r = executarConsulta(
+      s,
+      n,
+      n === "indicador"
+        ? { id: "faturamento-mes" }
+        : n === "caixa"
+          ? { metrica: "inadimplencia" }
+          : {},
+      "r1",
+    );
+    assert.doesNotMatch(r.fonte, /ops\.|growth\.|fn_|public\./, `${n}: ${r.fonte}`);
+  }
+});
