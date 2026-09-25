@@ -79,12 +79,13 @@ import {
 const CHAVES_DA_TELA =
   "view.unidades_rede (repasse) ou view.contas_receber / view.funil_receita (receita da rede)";
 
-// Ordem fixa da marca (DESIGN §5): a pilha tem três séries; gráfico de uma
+// Ordem fixa da marca (DESIGN §5): a pilha tem quatro séries; gráfico de uma
 // série só usa a primeira cor.
 const COR = {
   royalties: CORES_SERIE[0],
   csc: CORES_SERIE[1],
   outras: CORES_SERIE[2],
+  cac: CORES_SERIE[3],
   unica: CORES_SERIE[0],
   faturado: CORES_SERIE[0],
   recebido: CORES_SERIE[1],
@@ -256,6 +257,7 @@ export function ReceitaOverviewContent() {
         royalties: m.royalties,
         csc: m.csc,
         outras: m.outras,
+        cac: m.cac,
       })),
     [data],
   );
@@ -499,7 +501,7 @@ export function ReceitaOverviewContent() {
             <div className="grid gap-3 lg:grid-cols-2">
               <CartaoGrafico
                 titulo="Do que o repasse é feito, mês a mês? (R$)"
-                descricao="Remuneração da matriz pelo mês da apuração (caixa). CAC e mídia ficam no gráfico ao lado: são reembolso de custo, não receita de franquia."
+                descricao="Royalties, CSC e outras pelo mês da apuração (caixa); CAC na competência da apuração. O CAC é reembolso de custo, não remuneração da matriz, e fica fora do take rate. Mídia não entra."
                 acao={
                   <Button asChild variant="link" size="sm" className="h-auto shrink-0 p-0">
                     <Link to="/unidades/royalties" search={{ mes } as never}>
@@ -537,6 +539,14 @@ export function ReceitaOverviewContent() {
                     stackId="r"
                     name="Outras receitas"
                     fill={COR.outras}
+                    stroke="var(--card)"
+                    strokeWidth={2}
+                  />
+                  <Bar
+                    dataKey="cac"
+                    stackId="r"
+                    name="CAC"
+                    fill={COR.cac}
                     stroke="var(--card)"
                     strokeWidth={2}
                     radius={[4, 4, 0, 0]}
