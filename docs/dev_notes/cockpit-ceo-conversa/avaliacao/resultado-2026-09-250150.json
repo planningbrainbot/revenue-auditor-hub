@@ -1,0 +1,79 @@
+{
+  "em": "2026-09-25T01:50:08.678Z",
+  "teto": 0.1,
+  "gastoAcumuladoUsd": 0,
+  "gabaritos": {
+    "grupo_ultimo_fechado": [
+      7455047.01
+    ],
+    "grupo_setembro_parcial": [
+      6851979.08
+    ],
+    "onboarding_30": [
+      95
+    ],
+    "rede_cur_bel_todas": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ],
+    "rede_cur_bel_nova": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ]
+  },
+  "porModelo": {
+    "anthropic/claude-sonnet-5": {
+      "casos": 1,
+      "aprovados": 1,
+      "estado": 1,
+      "metrica": 1,
+      "visual": 1,
+      "numero": 1,
+      "semInvencao": 1,
+      "texto": 1,
+      "proibido": 1,
+      "latenciaMedianaS": 2.705,
+      "latenciaP90S": 2.705,
+      "custoTotalUsd": 0,
+      "custoMedioUsd": 0
+    }
+  },
+  "resultados": [
+    {
+      "modelo": "anthropic/claude-sonnet-5",
+      "caso": "X1",
+      "categoria": "fora_do_escopo",
+      "estado": "fora_do_escopo",
+      "criterios": {
+        "estado": true,
+        "metrica": true,
+        "visual": true,
+        "numero": true,
+        "semInvencao": true,
+        "texto": true,
+        "proibido": true
+      },
+      "aprovado": true,
+      "conclusao": "Isso está fora do que o Brain responde. Posso mostrar faturamento, aquisição, onboarding, caixa, unidades, clientes, retenção ou portfólio.",
+      "blocos": [],
+      "descartadas": [],
+      "jev": {
+        "classe": "fora_do_escopo",
+        "confianca": 1,
+        "motivo": "fora_do_escopo"
+      },
+      "latenciaMs": 2705,
+      "custoUsd": 0
+    }
+  ]
+}

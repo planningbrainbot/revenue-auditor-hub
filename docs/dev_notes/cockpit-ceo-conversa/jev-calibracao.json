@@ -1,0 +1,708 @@
+{
+  "em": "2026-09-25T01:45:47.499Z",
+  "casos": 36,
+  "respondidos": 36,
+  "acertoDominio": 34,
+  "varreduraDominio": [
+    {
+      "limiar": 0.5,
+      "restringidas": 35,
+      "restringidasCertas": 34,
+      "restringidasErradas": [
+        "u2→receita"
+      ],
+      "paraOModeloSemDica": 1
+    },
+    {
+      "limiar": 0.6,
+      "restringidas": 31,
+      "restringidasCertas": 30,
+      "restringidasErradas": [
+        "u2→receita"
+      ],
+      "paraOModeloSemDica": 5
+    },
+    {
+      "limiar": 0.7,
+      "restringidas": 31,
+      "restringidasCertas": 30,
+      "restringidasErradas": [
+        "u2→receita"
+      ],
+      "paraOModeloSemDica": 5
+    },
+    {
+      "limiar": 0.8,
+      "restringidas": 27,
+      "restringidasCertas": 26,
+      "restringidasErradas": [
+        "u2→receita"
+      ],
+      "paraOModeloSemDica": 9
+    },
+    {
+      "limiar": 0.9,
+      "restringidas": 27,
+      "restringidasCertas": 26,
+      "restringidasErradas": [
+        "u2→receita"
+      ],
+      "paraOModeloSemDica": 9
+    }
+  ],
+  "varreduraAmbiguidade": [
+    {
+      "limiar": 0.5,
+      "pedeEsclarecimento": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p8",
+        "r1",
+        "r2",
+        "r3",
+        "a1",
+        "a2",
+        "o1",
+        "o2",
+        "c1",
+        "c2",
+        "c3",
+        "u1",
+        "u2",
+        "k1",
+        "k2",
+        "t1",
+        "t2",
+        "m1",
+        "m2",
+        "v1",
+        "x1",
+        "i2",
+        "e1"
+      ],
+      "acertos": 6,
+      "total": 31
+    },
+    {
+      "limiar": 0.6,
+      "pedeEsclarecimento": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p8",
+        "r1",
+        "r2",
+        "r3",
+        "a1",
+        "a2",
+        "o1",
+        "o2",
+        "c1",
+        "c2",
+        "c3",
+        "u1",
+        "u2",
+        "k1",
+        "k2",
+        "t1",
+        "t2",
+        "m1",
+        "m2",
+        "v1",
+        "x1",
+        "i2",
+        "e1"
+      ],
+      "acertos": 6,
+      "total": 31
+    },
+    {
+      "limiar": 0.7,
+      "pedeEsclarecimento": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p8",
+        "r1",
+        "r2",
+        "r3",
+        "a2",
+        "o1",
+        "o2",
+        "c1",
+        "c2",
+        "c3",
+        "u1",
+        "u2",
+        "k1",
+        "k2",
+        "t1",
+        "t2",
+        "m1",
+        "m2",
+        "v1",
+        "x1",
+        "i2",
+        "e1"
+      ],
+      "acertos": 7,
+      "total": 31
+    },
+    {
+      "limiar": 0.8,
+      "pedeEsclarecimento": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p8",
+        "r2",
+        "r3",
+        "o2",
+        "c1",
+        "c2",
+        "c3",
+        "u1",
+        "u2",
+        "k1",
+        "k2",
+        "t1",
+        "t2",
+        "m2",
+        "v1",
+        "x1",
+        "i2",
+        "e1"
+      ],
+      "acertos": 11,
+      "total": 31
+    }
+  ],
+  "latenciaMedianaMs": 294,
+  "orcamento": {
+    "tentativas": 36,
+    "restantes": 44,
+    "custoConhecidoUsd": 0.001343622,
+    "custoDesconhecido": false,
+    "bloqueado": false,
+    "motivo": null
+  },
+  "casosDetalhe": [
+    {
+      "id": "p1",
+      "esperado": "receita",
+      "escolha": "receita",
+      "p": 1,
+      "ambigua": 0.83,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "receita",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "p2",
+      "esperado": "unidades",
+      "escolha": "unidades",
+      "p": 1,
+      "ambigua": 0.94,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "unidades",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "p3",
+      "esperado": "retencao",
+      "escolha": "receita",
+      "p": 0.57,
+      "ambigua": 0.92,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "confianca_baixa"
+      }
+    },
+    {
+      "id": "p4",
+      "esperado": "aquisicao",
+      "escolha": "aquisicao",
+      "p": 0.98,
+      "ambigua": 0.94,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "aquisicao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "p5",
+      "esperado": "operacao",
+      "escolha": "operacao",
+      "p": 0.99,
+      "ambigua": 0.84,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "operacao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "p6",
+      "esperado": "unidades",
+      "escolha": "unidades",
+      "p": 0.75,
+      "ambigua": 0.9,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "unidades",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "p7",
+      "esperado": "refinamento",
+      "escolha": "refinamento",
+      "p": 0.93,
+      "ambigua": 0.82,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "p8",
+      "esperado": "varios",
+      "escolha": "varios",
+      "p": 1,
+      "ambigua": 0.9,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "p9",
+      "esperado": "gestao_visao",
+      "escolha": "gestao_visao",
+      "p": 0.93,
+      "ambigua": 0.58,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "r1",
+      "esperado": "receita",
+      "escolha": "receita",
+      "p": 1,
+      "ambigua": 0.7,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "receita",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "r2",
+      "esperado": "receita",
+      "escolha": "receita",
+      "p": 1,
+      "ambigua": 0.88,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "receita",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "r3",
+      "esperado": "receita",
+      "escolha": "receita",
+      "p": 1,
+      "ambigua": 0.92,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "receita",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "a1",
+      "esperado": "aquisicao",
+      "escolha": "aquisicao",
+      "p": 1,
+      "ambigua": 0.67,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "aquisicao",
+        "esclarecer": false,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "a2",
+      "esperado": "aquisicao",
+      "escolha": "aquisicao",
+      "p": 1,
+      "ambigua": 0.79,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "aquisicao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "o1",
+      "esperado": "operacao",
+      "escolha": "operacao",
+      "p": 1,
+      "ambigua": 0.74,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "operacao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "o2",
+      "esperado": "operacao",
+      "escolha": "operacao",
+      "p": 1,
+      "ambigua": 0.92,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "operacao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "c1",
+      "esperado": "caixa",
+      "escolha": "caixa",
+      "p": 1,
+      "ambigua": 0.89,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "caixa",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "c2",
+      "esperado": "caixa",
+      "escolha": "caixa",
+      "p": 0.97,
+      "ambigua": 0.9,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "caixa",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "c3",
+      "esperado": "caixa",
+      "escolha": "caixa",
+      "p": 0.51,
+      "ambigua": 0.89,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "confianca_baixa"
+      }
+    },
+    {
+      "id": "u1",
+      "esperado": "unidades",
+      "escolha": "unidades",
+      "p": 0.92,
+      "ambigua": 0.89,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "unidades",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "u2",
+      "esperado": "unidades",
+      "escolha": "receita",
+      "p": 0.95,
+      "ambigua": 0.82,
+      "certa": false,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "receita",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "k1",
+      "esperado": "clientes",
+      "escolha": "clientes",
+      "p": 1,
+      "ambigua": 0.9,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "clientes",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "k2",
+      "esperado": "clientes",
+      "escolha": "caixa",
+      "p": 0.46,
+      "ambigua": 0.81,
+      "certa": false,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "confianca_baixa"
+      }
+    },
+    {
+      "id": "t1",
+      "esperado": "retencao",
+      "escolha": "retencao",
+      "p": 1,
+      "ambigua": 0.81,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "retencao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "t2",
+      "esperado": "retencao",
+      "escolha": "retencao",
+      "p": 0.95,
+      "ambigua": 0.87,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "retencao",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "m1",
+      "esperado": "portfolio",
+      "escolha": "portfolio",
+      "p": 0.99,
+      "ambigua": 0.7,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "portfolio",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "m2",
+      "esperado": "portfolio",
+      "escolha": "portfolio",
+      "p": 0.99,
+      "ambigua": 0.89,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "portfolio",
+        "esclarecer": true,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "v1",
+      "esperado": "varios",
+      "escolha": "varios",
+      "p": 1,
+      "ambigua": 0.85,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "f1",
+      "esperado": "refinamento",
+      "escolha": "refinamento",
+      "p": 0.75,
+      "ambigua": 0.79,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "f2",
+      "esperado": "refinamento",
+      "escolha": "refinamento",
+      "p": 0.56,
+      "ambigua": 0.72,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "confianca_baixa"
+      }
+    },
+    {
+      "id": "g1",
+      "esperado": "gestao_visao",
+      "escolha": "gestao_visao",
+      "p": 1,
+      "ambigua": 0.71,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "multiplo"
+      }
+    },
+    {
+      "id": "x1",
+      "esperado": "fora_do_escopo",
+      "escolha": "fora_do_escopo",
+      "p": 1,
+      "ambigua": 0.81,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "fora_do_escopo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "fora_do_escopo"
+      }
+    },
+    {
+      "id": "x2",
+      "esperado": "fora_do_escopo",
+      "escolha": "fora_do_escopo",
+      "p": 1,
+      "ambigua": 0.31,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "fora_do_escopo",
+        "dominio": null,
+        "esclarecer": false,
+        "motivo": "fora_do_escopo"
+      }
+    },
+    {
+      "id": "i1",
+      "esperado": "clientes",
+      "escolha": "clientes",
+      "p": 0.76,
+      "ambigua": 0.33,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": "clientes",
+        "esclarecer": false,
+        "motivo": "dominio"
+      }
+    },
+    {
+      "id": "i2",
+      "esperado": "unidades",
+      "escolha": "receita",
+      "p": 0.58,
+      "ambigua": 0.87,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "confianca_baixa"
+      }
+    },
+    {
+      "id": "e1",
+      "esperado": "varios",
+      "escolha": "varios",
+      "p": 0.71,
+      "ambigua": 0.92,
+      "certa": true,
+      "encaminhamento": {
+        "modo": "modelo",
+        "dominio": null,
+        "esclarecer": true,
+        "motivo": "multiplo"
+      }
+    }
+  ]
+}

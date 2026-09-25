@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { ContextoCockpit } from "./contexto";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes";
@@ -180,56 +181,57 @@ async function lerRede(db: Db, acesso: AcessoMin, todasUnidades: boolean, de: st
   return montarLeituraRede({ acesso: true, unidades, apuracoes });
 }
 
+export interface RespostaReceita {
+  leituras: LeituraReceita[];
+  lidoEm: string;
+  ponte: Ponte | null;
+  frescorFinanceiro: Frescor | null;
+}
+
+/** A leitura sem o transporte: a mesma regra serve a tela e as ferramentas da conversa. */
+export async function lerReceitaCockpit(context: ContextoCockpit): Promise<RespostaReceita> {
+  const { supabase, userId } = context;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const [acesso, escopo] = await Promise.all([
+    acessoDoUsuario(db, userId),
+    db
+      .from("usuario_escopo")
+      .select("todas_unidades, todas_empresas")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  if (!acesso.areas.includes("cockpit_ceo"))
+    throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
+  const lidoEm = new Date().toISOString();
+  // Sem ler o escopo não dá para saber se a pessoa vê o todo: falha, não "escopo por empresa".
+  if (escopo?.error) {
+    const erro = falha("escopo de acesso", escopo.error);
+    return {
+      lidoEm,
+      ponte: null,
+      frescorFinanceiro: null,
+      leituras: [
+        montarLeituraGrupo({ acesso: true, erro, faturamento: null }),
+        montarLeituraRede({ acesso: true, erro, unidades: [], apuracoes: [] }),
+      ],
+    };
+  }
+  const hoje = hojeSaoPaulo();
+  const de = inicioDaJanela(hoje);
+  const ate = `${hoje.slice(0, 7)}-01`;
+  const [grupo, rede] = await Promise.all([
+    lerGrupo(db, Boolean(escopo?.data?.todas_empresas), de, ate),
+    lerRede(db, acesso, Boolean(escopo?.data?.todas_unidades), de, ate),
+  ]);
+  return {
+    leituras: [grupo.leitura, rede],
+    lidoEm,
+    ponte: grupo.ponte,
+    frescorFinanceiro: grupo.frescor,
+  };
+}
+
 export const carregarReceitaCockpit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(
-    async ({
-      context,
-    }): Promise<{
-      leituras: LeituraReceita[];
-      lidoEm: string;
-      ponte: Ponte | null;
-      frescorFinanceiro: Frescor | null;
-    }> => {
-      const { supabase, userId } = context;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-      const [acesso, escopo] = await Promise.all([
-        acessoDoUsuario(db, userId),
-        db
-          .from("usuario_escopo")
-          .select("todas_unidades, todas_empresas")
-          .eq("user_id", userId)
-          .maybeSingle(),
-      ]);
-      if (!acesso.areas.includes("cockpit_ceo"))
-        throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
-      const lidoEm = new Date().toISOString();
-      // Sem ler o escopo não dá para saber se a pessoa vê o todo: falha, não "escopo por empresa".
-      if (escopo?.error) {
-        const erro = falha("escopo de acesso", escopo.error);
-        return {
-          lidoEm,
-          ponte: null,
-          frescorFinanceiro: null,
-          leituras: [
-            montarLeituraGrupo({ acesso: true, erro, faturamento: null }),
-            montarLeituraRede({ acesso: true, erro, unidades: [], apuracoes: [] }),
-          ],
-        };
-      }
-      const hoje = hojeSaoPaulo();
-      const de = inicioDaJanela(hoje);
-      const ate = `${hoje.slice(0, 7)}-01`;
-      const [grupo, rede] = await Promise.all([
-        lerGrupo(db, Boolean(escopo?.data?.todas_empresas), de, ate),
-        lerRede(db, acesso, Boolean(escopo?.data?.todas_unidades), de, ate),
-      ]);
-      return {
-        leituras: [grupo.leitura, rede],
-        lidoEm,
-        ponte: grupo.ponte,
-        frescorFinanceiro: grupo.frescor,
-      };
-    },
-  );
+  .handler(({ context }) => lerReceitaCockpit(context));

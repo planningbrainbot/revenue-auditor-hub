@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowDown,
@@ -13,6 +14,7 @@ import {
   UserX,
   X,
 } from "lucide-react";
+import type { BuscaClientes } from "@/components/clientes/busca";
 import { toast } from "sonner";
 import { exportRowsToXlsx } from "@/lib/xlsx-export";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +56,19 @@ import {
 import { atualizarCliente, marcarChurnCliente } from "@/lib/clientes.functions";
 import { MOTIVOS_CHURN, type MotivoChurn } from "@/lib/royalties.functions";
 import { digits } from "@/lib/server-utils";
-import { Secao } from "@/components/planning";
+import {
+  BarraFiltros,
+  Carregando,
+  ChipFiltro,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { BotaoComMotivo, FOCO_VISIVEL } from "@/components/monetizacao/common";
 
 type StatusFinanceiro =
   "ATIVO" | "EM_ATRASO" | "INADIMPLENTE" | "SEM_ATIVIDADE" | "NUNCA_PAGOU" | "SEM_AR";
@@ -162,53 +176,69 @@ const STATUS_ORDER: StatusFinanceiro[] = [
   "SEM_AR",
 ];
 
+// Situação financeira da empresa (`empresas.status_financeiro`). Sai em StatusBadge (ícone +
+// palavra, V7). "ATIVO" é "pagou nos últimos 90 dias", e não "cliente ativo": na mesma tela o
+// cartão "Clientes sem churn" mede outra coisa (N11), e os dois se chamavam "Ativo".
 const STATUS_META: Record<
   StatusFinanceiro,
-  { label: string; card: string; badge: string; description: string }
+  { label: string; tom: TomStatus; description: string }
 > = {
   ATIVO: {
-    label: "Ativo",
-    card: "bg-success-soft border-success/40 text-success",
-    badge: "bg-success-soft text-success",
+    label: "Pagou nos últimos 90 dias",
+    tom: "sucesso",
     description: "Pagou nos últimos 90 dias",
   },
   EM_ATRASO: {
     label: "Em atraso",
-    card: "bg-warning-soft border-warning/40 text-warning",
-    badge: "bg-warning-soft text-warning",
+    tom: "atencao",
     description: "Título vencido, mas pagou recentemente",
   },
   INADIMPLENTE: {
     label: "Inadimplente",
-    card: "bg-danger-soft border-danger/40 text-danger",
-    badge: "bg-danger-soft text-danger",
+    tom: "perigo",
     description: "Vencido + sem pagamento há mais de 90 dias",
   },
   SEM_ATIVIDADE: {
     label: "Sem atividade",
-    card: "bg-warning-soft border-warning/40 text-warning",
-    badge: "bg-warning-soft text-warning",
+    tom: "atencao",
     description: "Sem pagamento >90 dias, sem título em aberto",
   },
   NUNCA_PAGOU: {
     label: "Nunca pagou",
-    card: "bg-foreground border-border text-background",
-    badge: "bg-foreground text-background hover:bg-foreground",
+    tom: "neutro",
     description: "Sem nenhum pagamento registrado",
   },
   SEM_AR: {
     label: "Sem AR",
-    card: "bg-muted border-border text-foreground",
-    badge: "bg-muted text-foreground hover:bg-muted",
+    tom: "neutro",
     description: "Sem histórico de faturamento (Pipedrive sem Omie)",
   },
 };
+const statusDaUrl = (v: string): StatusFinanceiro | null =>
+  (STATUS_ORDER as string[]).includes(v) ? (v as StatusFinanceiro) : null;
+// Paginação na tela (DESIGN.md §9): antes eram ~3.200 linhas de uma vez.
+const POR_PAGINA = 100;
+const NUM = new Intl.NumberFormat("pt-BR");
 
 export function ContratosClientes({
-  statusParam = "",
   unidadeParam = "",
-}: { statusParam?: string; unidadeParam?: string } = {}) {
+  unidadesUrl = [],
+}: {
+  /**
+   * Unidade já resolvida em NOME (`empresas.unidade`). A URL guarda a chave da Base, e quem
+   * traduz é a casca; vazio = todas.
+   */
+  unidadeParam?: string;
+  /** As unidades como estão na URL (chave ou nome), para quando a casca não pôde resolver. */
+  unidadesUrl?: string[];
+} = {}) {
   const perms = usePermissions();
+  // Filtros na URL (N7): recarregar ou colar o link reproduz o recorte. A busca é a mesma chave
+  // `q` do topo das outras visões.
+  const search = useSearch({ from: "/_authenticated/clientes" }),
+    navigate = useNavigate({ from: "/clientes" });
+  const mudar = (patch: Partial<BuscaClientes>) =>
+    void navigate({ search: { ...search, pagina: undefined, ...patch }, replace: true });
   const [rows, setRows] = useState<Cliente[]>([]);
   const [mrrByPipedriveId, setMrrByPipedriveId] = useState<Map<string, number>>(new Map());
   // Cascata de MRR resolvida no banco (view v_cliente_mrr): Omie, depois
@@ -221,15 +251,26 @@ export function ContratosClientes({
   >(new Map());
   const [churnedIds, setChurnedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [unidade, setUnidade] = useState(unidadeParam || ALL);
-  const [statusFilter, setStatusFilter] = useState<StatusFinanceiro | null>(
-    statusParam ? (statusParam as StatusFinanceiro) : null,
-  );
-  const [churnFilter, setChurnFilter] = useState<boolean | null>(null);
-  const [erpFilter, setErpFilter] = useState(ALL);
-  const [segmentoFilter, setSegmentoFilter] = useState(ALL);
-  const [contratoAssinadoFilter, setContratoAssinadoFilter] = useState<boolean | null>(null);
+  // Falha de carga vira EstadoErro (antes a tela ficava em "Carregando…" para sempre).
+  const [erro, setErro] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
+  const q = search.q;
+  const statusFilter = statusDaUrl(search.status);
+  const churnFilter = search.churn === "sim" ? true : search.churn === "nao" ? false : null;
+  const erpFilter = search.erp ?? ALL;
+  const segmentoFilter = search.segmentoContrato ?? ALL;
+  const contratoAssinadoFilter =
+    search.assinatura === "com" ? true : search.assinatura === "sem" ? false : null;
+  const setQ = (v: string) => mudar({ q: v });
+  const setUnidade = (v: string) => mudar({ unidade: v === ALL ? undefined : [v] });
+  const setStatusFilter = (v: StatusFinanceiro | null) => mudar({ status: v ?? "" });
+  const setErpFilter = (v: string) => mudar({ erp: v === ALL ? undefined : v });
+  const setSegmentoFilter = (v: string) => mudar({ segmentoContrato: v === ALL ? undefined : v });
+  const setContratoAssinadoFilter = (v: boolean | null) =>
+    mudar({ assinatura: v === null ? undefined : v ? "com" : "sem" });
+  // O clique no cartão de churn só mexe no churn: a situação financeira escolhida continua.
+  const alternarChurn = (v: boolean) =>
+    mudar({ churn: churnFilter === v ? undefined : v ? "sim" : "nao" });
   const [omieMatches, setOmieMatches] = useState<OmieMatch[]>([]);
   const [omieLoading, setOmieLoading] = useState(false);
   // Cliente cujo painel de contatos está aberto (null = fechado).
@@ -300,6 +341,8 @@ export function ContratosClientes({
 
   useEffect(() => {
     let mounted = true;
+    setErro(null);
+    setLoading(true);
     (async () => {
       const [unidadesRes, empRes, contRes, tratRes, cascataRes] = await Promise.all([
         supabase.from("unidades").select("nome_da_praca").eq("tipo", "regional"),
@@ -343,6 +386,10 @@ export function ContratosClientes({
         ),
       ]);
       if (!mounted) return;
+      // As duas leituras sem paginação devolvem o erro no objeto: sem elas a lista sairia vazia
+      // (sem unidades regionais) ou com churn zerado, com cara de dado.
+      const falha = unidadesRes.error ?? tratRes.error;
+      if (falha) throw new Error(falha.message);
       // Unidades regionais ativas (fonte de verdade: tabela `unidades`, tipo='regional').
       // Alinha com v_funil_mensal / v_reconciliacao_mensal — exclui unidades desativadas
       // como Itaúna mesmo que ainda estejam marcadas tipo_unidade='franquia' em contratos/empresas.
@@ -379,11 +426,15 @@ export function ContratosClientes({
       );
       setChurnedIds(churned);
       setLoading(false);
-    })();
+    })().catch((e: unknown) => {
+      if (!mounted) return;
+      setErro(e instanceof Error ? e.message : String(e));
+      setLoading(false);
+    });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [tentativa]);
 
   // Contagem de contatos por empresa, carregada de uma vez só (a tabela toda é ~1k linhas).
   // Sem `view.contatos` a RLS devolve vazio — nesse caso nem consulta, e a linha não vira
@@ -474,6 +525,13 @@ export function ContratosClientes({
     () => Array.from(new Set(rows.map((r) => r.unidade).filter(Boolean) as string[])).sort(),
     [rows],
   );
+
+  // A casca só resolve a chave da unidade em nome quando a carga da Base chega (derivar, sem
+  // estado local, segue a mudança sozinho). Antes disso, ou se a carga da Base falhou, o valor
+  // cru da URL vale quando é o nome de uma unidade desta lista: é o que esta visão grava.
+  const unidadeCrua =
+    unidadesUrl.length === 1 ? unidades.find((u) => unitMatches(unidadesUrl[0], u)) : undefined;
+  const unidade = unidadeParam || unidadeCrua || ALL;
 
   const erps = useMemo(
     () => Array.from(new Set(rows.map((r) => r.erp).filter(Boolean) as string[])).sort(),
@@ -636,444 +694,561 @@ export function ContratosClientes({
     });
   }, [baseFiltered, churnFilter, churnedIds, sort, mrrByPipedriveId, contratoInfoByPipedriveId]);
 
+  // Quem só vê a própria unidade não tem filtro de unidade (o recorte é da permissão): a unidade
+  // da URL não conta como filtro aplicado.
   const hasFilters =
     q !== "" ||
-    unidade !== ALL ||
+    (!perms.scopedToOwnUnit && unidade !== ALL) ||
     statusFilter !== null ||
     churnFilter !== null ||
     erpFilter !== ALL ||
     segmentoFilter !== ALL ||
     contratoAssinadoFilter !== null;
-  const clearFilters = () => {
-    setQ("");
-    setUnidade(ALL);
-    setStatusFilter(null);
-    setChurnFilter(null);
-    setErpFilter(ALL);
-    setSegmentoFilter(ALL);
-    setContratoAssinadoFilter(null);
-  };
+  const clearFilters = () =>
+    mudar({
+      q: "",
+      unidade: undefined,
+      status: "",
+      churn: undefined,
+      erp: undefined,
+      segmentoContrato: undefined,
+      assinatura: undefined,
+    });
+  const paginas = Math.max(1, Math.ceil(filtered.length / POR_PAGINA));
+  const pagina = Math.min(search.pagina ?? 1, paginas);
+  const naPagina = filtered.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
+  const irParaPagina = (p: number) =>
+    void navigate({
+      search: { ...search, pagina: p > 1 ? p : undefined },
+      replace: true,
+    });
+  const mrrTotal = filtered.reduce((soma, r) => soma + mrrOf(r), 0);
+
+  const abrirContatos = (r: Cliente) =>
+    setContatoCliente({ id: r.id, nome: displayName(r) || "—", unidade: r.unidade });
+
+  if (erro)
+    return (
+      <EstadoErro
+        detalhe={`Fonte: empresas, contratos, v_cliente_mrr e Central de Tratativas. ${erro}`}
+        tentarNovamente={() => setTentativa((t) => t + 1)}
+      />
+    );
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Aba de /clientes, que já tem o PageHeader: o título aqui é de seção. */}
-      <Secao
-        titulo="Contratos e churn"
-        descricao="Recorte operacional das unidades regionais. Estes números medem contratos e situação financeira, não o total da base."
-        className="space-y-6"
-      >
-        {/* Status do Cliente (ativo vs churn) */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setChurnFilter(churnFilter === false ? null : false);
-              setStatusFilter(null);
-            }}
-            className={cn(
-              "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
-              "bg-success-soft border-success/40 text-success",
-              churnFilter === false && "ring-2 ring-offset-2 ring-primary",
-            )}
-          >
-            <div className="text-xs font-medium uppercase tracking-wide">Clientes Ativos</div>
-            <div className="mt-1 text-3xl font-bold">{churnCounts.ativo}</div>
-            <div className="mt-1 text-xs">Sem card de churn em tratativas</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setChurnFilter(churnFilter === true ? null : true);
-              setStatusFilter(null);
-            }}
-            className={cn(
-              "rounded-lg border p-4 text-left shadow-sm transition-all hover:shadow-md",
-              "bg-danger-soft border-danger/40 text-danger",
-              churnFilter === true && "ring-2 ring-offset-2 ring-primary",
-            )}
-          >
-            <div className="text-xs font-medium uppercase tracking-wide">Churn</div>
-            <div className="mt-1 text-3xl font-bold">{churnCounts.churn}</div>
-            <div className="mt-1 text-xs">Card "Perdido" em tratativas</div>
-          </button>
-        </div>
-
-        {/* Filters */}
-        <Card className="sticky top-0 z-20 flex flex-wrap items-center gap-2 p-3 shadow-sm">
-          <div className="relative min-w-[240px] flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por razão social ou CNPJ..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          {perms.scopedToOwnUnit && perms.unidade ? (
-            <Badge variant="secondary" className="h-9 px-3 text-sm">
-              Unidade: {perms.unidade}
-            </Badge>
-          ) : (
-            <Select value={unidade} onValueChange={setUnidade}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Unidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas as unidades</SelectItem>
-                {unidades.map((u) => (
-                  <SelectItem key={u} value={u}>
-                    {u}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Select value={erpFilter} onValueChange={setErpFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="ERP" />
+    <div className="space-y-4">
+      {/* Filtros primeiro (Lista, ARQUETIPOS §3): os cartões abaixo contam dentro deles. */}
+      <BarraFiltros className="sticky top-0 z-20">
+        <label className="relative min-w-[240px] flex-1">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            aria-label="Buscar por razão social ou CNPJ"
+            placeholder="Buscar por razão social ou CNPJ..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-9"
+          />
+        </label>
+        {perms.scopedToOwnUnit && perms.unidade ? (
+          <Badge variant="secondary" className="h-9 px-3 text-sm">
+            Unidade: {perms.unidade}
+          </Badge>
+        ) : (
+          <Select value={unidade} onValueChange={setUnidade}>
+            <SelectTrigger className="w-[200px]" aria-label="Unidade">
+              <SelectValue placeholder="Unidade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>Todos os ERPs</SelectItem>
-              {erps.map((e) => (
+              <SelectItem value={ALL}>Todas as unidades</SelectItem>
+              {/* A unidade da URL pode ainda não estar na lista (carga em curso): ela aparece
+                  mesmo assim, para o seletor não mostrar "Todas" com o filtro aplicado. */}
+              {(unidade !== ALL && !unidades.includes(unidade)
+                ? [unidade, ...unidades]
+                : unidades
+              ).map((u) => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={erpFilter} onValueChange={setErpFilter}>
+          <SelectTrigger className="w-[180px]" aria-label="ERP">
+            <SelectValue placeholder="ERP" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todos os ERPs</SelectItem>
+            {(erpFilter !== ALL && !erps.includes(erpFilter) ? [erpFilter, ...erps] : erps).map(
+              (e) => (
                 <SelectItem key={e} value={e}>
                   {e}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Segmento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos os segmentos</SelectItem>
-              {segmentos.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={contratoAssinadoFilter === null ? ALL : contratoAssinadoFilter ? "com" : "sem"}
-            onValueChange={(v) => setContratoAssinadoFilter(v === ALL ? null : v === "com")}
-          >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Contrato Assinado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Contrato assinado: todos</SelectItem>
-              <SelectItem value="com">Com data de assinatura</SelectItem>
-              <SelectItem value="sem">Sem data de assinatura</SelectItem>
-            </SelectContent>
-          </Select>
-          {statusFilter && (
-            <Badge className={cn("gap-1", STATUS_META[statusFilter].badge)}>
-              {STATUS_META[statusFilter].label}
-              <button onClick={() => setStatusFilter(null)} aria-label="Limpar status">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="mr-1 h-4 w-4" /> Limpar
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            disabled={loading || filtered.length === 0}
-            onClick={() => {
-              const data = filtered.map((r) => {
-                const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
-                return {
-                  "Razão Social": displayName(r),
-                  Unidade: r.unidade || "",
-                  MRR: mrrOf(r),
-                  "MRR vem de": mrrFonteOf(r) ?? "",
-                  CNPJ: r.cnpj || "",
-                  Estado: r.uf || "",
-                  "Status Financeiro": r.status_financeiro
-                    ? STATUS_META[r.status_financeiro].label
-                    : "",
-                  "Pipedrive ID": r.pipedrive_id || "",
-                  "Fonte Cadastro": r.fonte_cadastro || "",
-                  ERP: r.erp || "",
-                  Segmento: r.segmento || "",
-                  "Regime Tributário": info?.regime_tributario || "",
-                  "Data do Ganho": fmtDate(info?.ganho_em) || "",
-                  "Contrato Assinado em": fmtDate(assinaturaOf(r)) || "",
-                  Vendedor: info?.closer || "",
-                };
-              });
-              exportRowsToXlsx(
-                data,
-                "clientes-planning",
-                "Planning",
-                [40, 18, 14, 20, 10, 18, 14, 18, 18, 20, 20, 16, 18, 18],
-              );
-            }}
-          >
-            <FileSpreadsheet className="mr-1 h-4 w-4" /> Exportar Excel
-          </Button>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <span className="text-sm font-medium">
-              {loading ? "Carregando..." : `${filtered.length} cliente(s)`}
-            </span>
-            {!loading && (
-              <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
-                MRR total: {fmtBRL(filtered.reduce((s, r) => s + mrrOf(r), 0))}
-              </span>
+              ),
             )}
-          </div>
-          <div className="max-h-[calc(100vh-360px)] overflow-auto">
-            <Table>
-              <TableHeader className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm shadow-[inset_0_-1px_0_var(--border)]">
-                <TableRow>
-                  {(
-                    [
-                      { key: "razao_social", label: "Razão Social", align: "left" },
-                      { key: "unidade", label: "Unidade", align: "left" },
-                      { key: "mrr", label: "MRR", align: "right" },
-                      { key: "cnpj", label: "CNPJ", align: "left" },
-                      { key: "uf", label: "Estado", align: "left" },
-                      { key: "status_financeiro", label: "Status Financeiro", align: "left" },
-                      { key: "pipedrive_id", label: "Pipedrive ID", align: "left" },
-                      { key: "fonte_cadastro", label: "Fonte Cadastro", align: "left" },
-                      { key: "erp", label: "ERP", align: "left" },
-                      { key: "segmento", label: "Segmento", align: "left" },
-                      { key: "regime_tributario", label: "Regime Tributário", align: "left" },
-                      { key: "ganho_em", label: "Data do Ganho", align: "left" },
-                      {
-                        key: "entrada_contrato_assinado_em",
-                        label: "Contrato Assinado em",
-                        align: "left",
-                      },
-                      { key: "closer", label: "Vendedor", align: "left" },
-                    ] as { key: SortKey; label: string; align: "left" | "right" }[]
-                  ).map((col) => {
-                    const active = sort?.key === col.key;
-                    const Icon = !active ? ArrowUpDown : sort?.dir === "asc" ? ArrowUp : ArrowDown;
-                    return (
-                      <TableHead
-                        key={col.key}
-                        className={cn(
-                          "sticky top-0 bg-card/95 backdrop-blur-sm",
-                          col.align === "right" && "text-right",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(col.key)}
-                          className={cn(
-                            "inline-flex items-center gap-1 select-none hover:text-foreground transition-colors",
-                            col.align === "right" && "ml-auto",
-                            active ? "text-foreground font-semibold" : "text-muted-foreground",
-                          )}
-                        >
-                          {col.label}
-                          <Icon
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              active ? "text-primary-text" : "text-muted-foreground/60",
-                            )}
-                          />
-                        </button>
-                      </TableHead>
-                    );
-                  })}
-                  {podeMarcarChurn && (
-                    <TableHead className="sticky top-0 bg-card/95 backdrop-blur-sm text-right">
-                      Ações
-                    </TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((r) => {
-                  const meta = r.status_financeiro ? STATUS_META[r.status_financeiro] : null;
-                  const churned = isChurn(r);
-                  const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
-                  return (
-                    <TableRow
-                      key={r.id}
-                      className={cn(
-                        churned && "opacity-60",
-                        podeVerContatos && "cursor-pointer hover:bg-muted/50",
-                      )}
-                      onClick={
-                        podeVerContatos
-                          ? () =>
-                              setContatoCliente({
-                                id: r.id,
-                                nome: displayName(r) || "—",
-                                unidade: r.unidade,
-                              })
-                          : undefined
-                      }
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {displayName(r) || "—"}
-                          {churned && (
-                            <Badge className="bg-danger-soft text-danger border-danger/40 text-xs px-1.5 py-0">
-                              churn
-                            </Badge>
-                          )}
-                          {podeVerContatos && (contatosCount.get(r.id) ?? 0) > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="gap-1 px-1.5 py-0 text-xs font-normal"
-                              title="Contatos vinculados — clique na linha para ver"
-                            >
-                              <Users className="h-3 w-3" />
-                              {contatosCount.get(r.id)}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {r.unidade ? <Badge variant="secondary">{r.unidade}</Badge> : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {(() => {
-                          const v = mrrOf(r);
-                          if (!(v > 0)) return <span className="text-muted-foreground">—</span>;
-                          // A procedência fica visível na própria célula: o
-                          // mesmo cliente pode ter número no Omie e no
-                          // Pipedrive, e saber qual está na tela é o que
-                          // permite conferir a divergência na origem.
-                          const fonte = mrrFonteOf(r);
-                          return (
-                            <span title={fonte ? `MRR vem do ${fonte}` : undefined}>
-                              {fmtBRL(v)}
-                              {fonte ? (
-                                <span className="ml-1 text-xs uppercase text-muted-foreground">
-                                  {fonte}
-                                </span>
-                              ) : null}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{r.cnpj || "—"}</TableCell>
-                      <TableCell>{r.uf || "—"}</TableCell>
+          </SelectContent>
+        </Select>
+        <Select value={segmentoFilter} onValueChange={setSegmentoFilter}>
+          <SelectTrigger className="w-[200px]" aria-label="Segmento">
+            <SelectValue placeholder="Segmento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todos os segmentos</SelectItem>
+            {(segmentoFilter !== ALL && !segmentos.includes(segmentoFilter)
+              ? [segmentoFilter, ...segmentos]
+              : segmentos
+            ).map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={contratoAssinadoFilter === null ? ALL : contratoAssinadoFilter ? "com" : "sem"}
+          onValueChange={(v) => setContratoAssinadoFilter(v === ALL ? null : v === "com")}
+        >
+          <SelectTrigger className="w-[220px]" aria-label="Contrato assinado">
+            <SelectValue placeholder="Contrato Assinado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Contrato assinado: todos</SelectItem>
+            <SelectItem value="com">Com data de assinatura</SelectItem>
+            <SelectItem value="sem">Sem data de assinatura</SelectItem>
+          </SelectContent>
+        </Select>
+        {statusFilter && (
+          <ChipFiltro
+            rotulo="Situação financeira"
+            valor={STATUS_META[statusFilter].label}
+            aoRemover={() => setStatusFilter(null)}
+          />
+        )}
+        {churnFilter !== null && (
+          <ChipFiltro
+            rotulo="Churn"
+            valor={churnFilter ? "só com churn" : "só sem churn"}
+            aoRemover={() => mudar({ churn: undefined })}
+          />
+        )}
+        {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
+        <BotaoComMotivo
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          disabled={!hasFilters}
+          motivo={hasFilters ? null : "Nenhum filtro aplicado."}
+          onClick={clearFilters}
+        >
+          <X className="size-4" aria-hidden />
+          Limpar filtros
+        </BotaoComMotivo>
+        <BotaoComMotivo
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          disabled={loading || filtered.length === 0}
+          motivo={
+            loading ? "Aguarde a carga" : filtered.length === 0 ? "Nenhum cliente no recorte" : null
+          }
+          onClick={() => {
+            const data = filtered.map((r) => {
+              const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
+              return {
+                "Razão Social": displayName(r),
+                Unidade: r.unidade || "",
+                MRR: mrrOf(r),
+                "MRR vem de": mrrFonteOf(r) ?? "",
+                CNPJ: r.cnpj || "",
+                Estado: r.uf || "",
+                "Status Financeiro": r.status_financeiro
+                  ? STATUS_META[r.status_financeiro].label
+                  : "",
+                "Pipedrive ID": r.pipedrive_id || "",
+                "Fonte Cadastro": r.fonte_cadastro || "",
+                ERP: r.erp || "",
+                Segmento: r.segmento || "",
+                "Regime Tributário": info?.regime_tributario || "",
+                "Data do Ganho": fmtDate(info?.ganho_em) || "",
+                "Contrato Assinado em": fmtDate(assinaturaOf(r)) || "",
+                Vendedor: info?.closer || "",
+              };
+            });
+            exportRowsToXlsx(
+              data,
+              "clientes-planning",
+              "Planning",
+              [40, 18, 14, 20, 10, 18, 14, 18, 18, 20, 20, 16, 18, 18],
+            );
+          }}
+        >
+          <FileSpreadsheet className="mr-1 h-4 w-4" aria-hidden /> Exportar Excel
+        </BotaoComMotivo>
+      </BarraFiltros>
 
-                      <TableCell>
-                        {meta ? <Badge className={meta.badge}>{meta.label}</Badge> : "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {r.pipedrive_id ? (
-                          <a
-                            href={`https://app.pipedrive.com/deal/${r.pipedrive_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-primary-text hover:underline"
-                          >
-                            {r.pipedrive_id}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell>{r.fonte_cadastro || "—"}</TableCell>
-                      <TableCell>{r.erp || "—"}</TableCell>
-                      <TableCell>{r.segmento || "—"}</TableCell>
-                      <TableCell>{info?.regime_tributario || "—"}</TableCell>
-                      <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
-                      <TableCell>{fmtDate(assinaturaOf(r)) || "—"}</TableCell>
-                      <TableCell>{info?.closer || "—"}</TableCell>
-                      {podeMarcarChurn && (
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            {perms.isAdmin && (
-                              <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
-                            )}
-                            <MarcarChurnClienteButton
-                              r={r}
-                              churned={churned}
-                              onConfirm={marcarChurnDoCliente}
-                            />
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-                {!loading && filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={podeMarcarChurn ? 15 : 14}
-                      className="py-10 text-center text-sm text-muted-foreground"
-                    >
-                      Nenhum cliente encontrado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+      {/* Sem churn × churn, dentro dos filtros acima (menos o próprio filtro de churn). O
+          clique filtra a tabela; clicar de novo no aplicado tira o filtro. */}
+      {loading ? (
+        <Carregando variante="kpis" />
+      ) : (
+        <KpiGrade colunas={2}>
+          <KpiCard
+            rotulo="Clientes sem churn"
+            valor={NUM.format(churnCounts.ativo)}
+            nota={`Sem card de churn na Central de Tratativas${churnFilter === false ? " · filtro aplicado" : ""}`}
+            abrir={{
+              rotulo: churnFilter === false ? "Tirar o filtro" : "Filtrar",
+              onClick: () => alternarChurn(false),
+            }}
+            className={churnFilter === false ? "border-primary-text" : undefined}
+          />
+          <KpiCard
+            rotulo="Churn"
+            valor={NUM.format(churnCounts.churn)}
+            tom="perigo"
+            tomRotulo="churn"
+            nota={`Card de churn na Central de Tratativas, lido em até 1.000 cards${churnFilter === true ? " · filtro aplicado" : ""}`}
+            abrir={{
+              rotulo: churnFilter === true ? "Tirar o filtro" : "Filtrar",
+              onClick: () => alternarChurn(true),
+            }}
+            className={churnFilter === true ? "border-primary-text" : undefined}
+          />
+        </KpiGrade>
+      )}
 
-        {q.trim().length >= 3 && (omieLoading || omieMatches.length > 0) && (
-          <Card className="border-warning/40">
-            <div className="flex items-center gap-2 border-b px-4 py-3">
-              <TriangleAlert className="h-4 w-4 text-warning" />
+      <Secao
+        titulo="Quais clientes estão neste recorte?"
+        descricao="Recorte operacional das unidades regionais. Estes números medem contratos e situação financeira, não o total da base. Clique na linha para ver os contatos."
+      >
+        {loading ? (
+          <Carregando variante="tabela" />
+        ) : filtered.length === 0 ? (
+          <EstadoVazio
+            titulo={hasFilters ? "Nenhum cliente neste recorte" : "Nenhum cliente com contrato"}
+            total={hasFilters ? visiveis.length : undefined}
+            descricao={
+              hasFilters
+                ? undefined
+                : "Nenhuma empresa de unidade regional com contrato no seu escopo."
+            }
+            acao={
+              hasFilters ? (
+                <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
               <span className="text-sm font-medium">
-                {omieLoading
-                  ? "Buscando na Omie..."
-                  : `${omieMatches.length} resultado(s) na Omie, não reconciliado(s) na Base Nova`}
+                <span className="num">{NUM.format(filtered.length)}</span>
+                {hasFilters && (
+                  <>
+                    {" "}
+                    de <span className="num">{NUM.format(visiveis.length)}</span>
+                  </>
+                )}{" "}
+                {filtered.length === 1 ? "cliente" : "clientes"}
+              </span>
+              <span className="text-sm">
+                <span className="font-semibold text-foreground">
+                  MRR total: <span className="num">{fmtBRL(mrrTotal)}</span>
+                </span>
+                {/* Sem filtro de churn, o total soma quem deu churn: dizer, para não ser lido
+                    como MRR da carteira ativa (N11). */}
+                {churnFilter === null && churnCounts.churn > 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    inclui clientes com churn
+                  </span>
+                )}
               </span>
             </div>
-            {!omieLoading && (
-              <div className="max-h-64 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Razão Social</TableHead>
-                      <TableHead>Unidade (Omie)</TableHead>
-                      <TableHead>CNPJ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {omieMatches.map((m) => (
-                      <TableRow key={m.cnpj}>
+            <div className="max-h-[calc(100vh-360px)] overflow-auto">
+              <Table>
+                <TableHeader className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm shadow-[inset_0_-1px_0_var(--border)]">
+                  <TableRow>
+                    {(
+                      [
+                        { key: "razao_social", label: "Razão Social", align: "left" },
+                        { key: "unidade", label: "Unidade", align: "left" },
+                        { key: "mrr", label: "MRR", align: "right" },
+                        { key: "cnpj", label: "CNPJ", align: "left" },
+                        { key: "uf", label: "Estado", align: "left" },
+                        { key: "status_financeiro", label: "Situação financeira", align: "left" },
+                        { key: "pipedrive_id", label: "Pipedrive ID", align: "left" },
+                        { key: "fonte_cadastro", label: "Fonte Cadastro", align: "left" },
+                        { key: "erp", label: "ERP", align: "left" },
+                        { key: "segmento", label: "Segmento", align: "left" },
+                        { key: "regime_tributario", label: "Regime Tributário", align: "left" },
+                        { key: "ganho_em", label: "Data do Ganho", align: "left" },
+                        {
+                          key: "entrada_contrato_assinado_em",
+                          label: "Contrato Assinado em",
+                          align: "left",
+                        },
+                        { key: "closer", label: "Vendedor", align: "left" },
+                      ] as { key: SortKey; label: string; align: "left" | "right" }[]
+                    ).map((col) => {
+                      const active = sort?.key === col.key;
+                      const Icon = !active
+                        ? ArrowUpDown
+                        : sort?.dir === "asc"
+                          ? ArrowUp
+                          : ArrowDown;
+                      return (
+                        <TableHead
+                          key={col.key}
+                          aria-sort={
+                            active ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined
+                          }
+                          className={cn(
+                            "sticky top-0 bg-card/95 backdrop-blur-sm",
+                            col.align === "right" && "text-right",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col.key)}
+                            className={cn(
+                              "inline-flex items-center gap-1 select-none hover:text-foreground transition-colors",
+                              FOCO_VISIVEL,
+                              col.align === "right" && "ml-auto",
+                              active ? "text-foreground font-semibold" : "text-muted-foreground",
+                            )}
+                          >
+                            {col.label}
+                            <Icon
+                              aria-hidden
+                              className={cn(
+                                "h-3.5 w-3.5",
+                                active ? "text-primary-text" : "text-muted-foreground",
+                              )}
+                            />
+                          </button>
+                        </TableHead>
+                      );
+                    })}
+                    {podeMarcarChurn && (
+                      <TableHead className="sticky top-0 bg-card/95 backdrop-blur-sm text-right">
+                        Ações
+                      </TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {naPagina.map((r) => {
+                    const meta = r.status_financeiro ? STATUS_META[r.status_financeiro] : null;
+                    const churned = isChurn(r);
+                    const info = contratoInfoByPipedriveId.get(r.pipedrive_id ?? "");
+                    return (
+                      <TableRow
+                        key={r.id}
+                        className={cn(
+                          podeVerContatos &&
+                            // Foco de linha: o mesmo das filas de Monetização (outline em <tr>, onde o ring
+                            // do FOCO_VISIVEL não desenha).
+                            "cursor-pointer outline-none hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+                        )}
+                        // A linha abre os contatos: com teclado também (Enter ou espaço).
+                        tabIndex={podeVerContatos ? 0 : undefined}
+                        onKeyDown={
+                          podeVerContatos
+                            ? (e) => {
+                                if (e.target !== e.currentTarget) return;
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  abrirContatos(r);
+                                }
+                              }
+                            : undefined
+                        }
+                        onClick={podeVerContatos ? () => abrirContatos(r) : undefined}
+                      >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            {m.razao_social || "—"}
-                            <Badge
-                              variant="outline"
-                              className="border-warning text-warning text-xs px-1.5 py-0"
-                            >
-                              não reconciliado
-                            </Badge>
+                            {displayName(r) || "—"}
+                            {/* Churn com ícone e palavra (V7); a linha não esmaece mais, porque
+                              opacidade derrubava o contraste do texto (V20). */}
+                            {churned && <StatusBadge tom="perigo">churn</StatusBadge>}
+                            {podeVerContatos && (contatosCount.get(r.id) ?? 0) > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="gap-1 px-1.5 py-0 text-xs font-normal"
+                                title="Contatos vinculados — clique na linha para ver"
+                              >
+                                <Users className="h-3 w-3" />
+                                {contatosCount.get(r.id)}
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          {m.unidade ? <Badge variant="secondary">{m.unidade}</Badge> : "—"}
+                          {r.unidade ? <Badge variant="secondary">{r.unidade}</Badge> : "—"}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{m.cnpj}</TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          {(() => {
+                            const v = mrrOf(r);
+                            if (!(v > 0)) return <span className="text-muted-foreground">—</span>;
+                            // A procedência fica visível na própria célula: o
+                            // mesmo cliente pode ter número no Omie e no
+                            // Pipedrive, e saber qual está na tela é o que
+                            // permite conferir a divergência na origem.
+                            const fonte = mrrFonteOf(r);
+                            return (
+                              <span title={fonte ? `MRR vem do ${fonte}` : undefined}>
+                                {fmtBRL(v)}
+                                {fonte ? (
+                                  <span className="ml-1 text-xs uppercase text-muted-foreground">
+                                    {fonte}
+                                  </span>
+                                ) : null}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{r.cnpj || "—"}</TableCell>
+                        <TableCell>{r.uf || "—"}</TableCell>
+
+                        <TableCell>
+                          {meta ? (
+                            <span title={meta.description}>
+                              <StatusBadge tom={meta.tom}>{meta.label}</StatusBadge>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {r.pipedrive_id ? (
+                            <a
+                              href={`https://app.pipedrive.com/deal/${r.pipedrive_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className={`inline-flex items-center gap-1 text-primary-text hover:underline ${FOCO_VISIVEL}`}
+                            >
+                              {r.pipedrive_id}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>{r.fonte_cadastro || "—"}</TableCell>
+                        <TableCell>{r.erp || "—"}</TableCell>
+                        <TableCell>{r.segmento || "—"}</TableCell>
+                        <TableCell>{info?.regime_tributario || "—"}</TableCell>
+                        <TableCell>{fmtDate(info?.ganho_em) || "—"}</TableCell>
+                        <TableCell>{fmtDate(assinaturaOf(r)) || "—"}</TableCell>
+                        <TableCell>{info?.closer || "—"}</TableCell>
+                        {podeMarcarChurn && (
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              {perms.isAdmin && (
+                                <EditarClienteButton r={r} onSave={salvarEdicaoCliente} />
+                              )}
+                              <MarcarChurnClienteButton
+                                r={r}
+                                churned={churned}
+                                onConfirm={marcarChurnDoCliente}
+                              />
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            <div className="border-t px-4 py-2 text-xs text-muted-foreground">
-              Encontrado no cadastro de clientes da Omie (ERP), mas sem vínculo com deal/contrato em
-              `empresas`. Não conta nos cards, na contagem ou no MRR total acima — reconciliar
-              manualmente se for um cliente ativo.
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
+            <footer className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
+              <span>
+                Página <span className="num">{pagina}</span> de{" "}
+                <span className="num">{paginas}</span> · {POR_PAGINA} por página
+              </span>
+              <div className="flex gap-2">
+                <BotaoComMotivo
+                  variant="outline"
+                  size="sm"
+                  disabled={pagina === 1}
+                  motivo={pagina === 1 ? "Já é a primeira página" : null}
+                  onClick={() => irParaPagina(pagina - 1)}
+                >
+                  Anterior
+                </BotaoComMotivo>
+                <BotaoComMotivo
+                  variant="outline"
+                  size="sm"
+                  disabled={pagina === paginas}
+                  motivo={pagina === paginas ? "Já é a última página" : null}
+                  onClick={() => irParaPagina(pagina + 1)}
+                >
+                  Próxima
+                </BotaoComMotivo>
+              </div>
+            </footer>
           </Card>
         )}
       </Secao>
+
+      {q.trim().length >= 3 && (omieLoading || omieMatches.length > 0) && (
+        <Card className="border-warning/40">
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <TriangleAlert className="h-4 w-4 text-warning" />
+            <span className="text-sm font-medium">
+              {omieLoading
+                ? "Buscando na Omie..."
+                : `${omieMatches.length} resultado(s) na Omie, não reconciliado(s) na Base Nova`}
+            </span>
+          </div>
+          {!omieLoading && (
+            <div className="max-h-64 overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Razão Social</TableHead>
+                    <TableHead>Unidade (Omie)</TableHead>
+                    <TableHead>CNPJ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {omieMatches.map((m) => (
+                    <TableRow key={m.cnpj}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {m.razao_social || "—"}
+                          <Badge
+                            variant="outline"
+                            className="border-warning text-warning text-xs px-1.5 py-0"
+                          >
+                            não reconciliado
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {m.unidade ? <Badge variant="secondary">{m.unidade}</Badge> : "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{m.cnpj}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <div className="border-t px-4 py-2 text-xs text-muted-foreground">
+            Encontrado no cadastro de clientes da Omie (ERP), mas sem vínculo com deal/contrato em
+            `empresas`. Não conta nos cards, na contagem ou no MRR total acima — reconciliar
+            manualmente se for um cliente ativo.
+          </div>
+        </Card>
+      )}
 
       <ContatosClienteDialog
         cliente={contatoCliente}

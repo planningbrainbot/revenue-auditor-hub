@@ -1,0 +1,71 @@
+{
+  "relatorio": [
+    {
+      "rota": "/piloto/cockpit-ceo",
+      "tema": "claro",
+      "vista": "1280x800",
+      "larguraDoc": 1265,
+      "janela": 1280,
+      "alturaPagina": 3213,
+      "cartoesNaDobra": 5,
+      "cartoes": 5,
+      "graficoAcimaDaDobra": null,
+      "graficoFim": null,
+      "atencaoAcimaDaDobra": null,
+      "atencaoFim": null,
+      "menorFonte": 12,
+      "naoApurado": true
+    },
+    {
+      "rota": "/piloto/cockpit-ceo",
+      "tema": "claro",
+      "vista": "1440x900",
+      "larguraDoc": 1425,
+      "janela": 1440,
+      "alturaPagina": 3083,
+      "cartoesNaDobra": 5,
+      "cartoes": 5,
+      "graficoAcimaDaDobra": null,
+      "graficoFim": null,
+      "atencaoAcimaDaDobra": null,
+      "atencaoFim": null,
+      "menorFonte": 12,
+      "naoApurado": true
+    },
+    {
+      "rota": "/piloto/cockpit-ceo",
+      "tema": "escuro",
+      "vista": "1280x800",
+      "larguraDoc": 1265,
+      "janela": 1280,
+      "alturaPagina": 3213,
+      "cartoesNaDobra": 5,
+      "cartoes": 5,
+      "graficoAcimaDaDobra": null,
+      "graficoFim": null,
+      "atencaoAcimaDaDobra": null,
+      "atencaoFim": null,
+      "menorFonte": 12,
+      "naoApurado": true
+    },
+    {
+      "rota": "/piloto/cockpit-ceo",
+      "tema": "escuro",
+      "vista": "1440x900",
+      "larguraDoc": 1425,
+      "janela": 1440,
+      "alturaPagina": 3083,
+      "cartoesNaDobra": 5,
+      "cartoes": 5,
+      "graficoAcimaDaDobra": null,
+      "graficoFim": null,
+      "atencaoAcimaDaDobra": null,
+      "atencaoFim": null,
+      "menorFonte": 12,
+      "naoApurado": true
+    }
+  ],
+  "erros": [
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` wh"
+  ]
+}

@@ -43,12 +43,23 @@ export type EstadoKpi = "ok" | "parcial" | "nao-apurado" | "indisponivel" | "sem
 
 export type TomKpi = "sucesso" | "atencao" | "perigo" | "info";
 
-const TONS: Record<TomKpi, { texto: string; filete: string; icone: LucideIcon; palavra: string }> = {
-  sucesso: { texto: "text-success", filete: "bg-success", icone: CheckCircle2, palavra: "positivo" },
-  atencao: { texto: "text-warning", filete: "bg-warning", icone: AlertTriangle, palavra: "atenção" },
-  perigo: { texto: "text-danger", filete: "bg-danger", icone: AlertOctagon, palavra: "crítico" },
-  info: { texto: "text-info", filete: "bg-info", icone: Info, palavra: "informação" },
-};
+const TONS: Record<TomKpi, { texto: string; filete: string; icone: LucideIcon; palavra: string }> =
+  {
+    sucesso: {
+      texto: "text-success",
+      filete: "bg-success",
+      icone: CheckCircle2,
+      palavra: "positivo",
+    },
+    atencao: {
+      texto: "text-warning",
+      filete: "bg-warning",
+      icone: AlertTriangle,
+      palavra: "atenção",
+    },
+    perigo: { texto: "text-danger", filete: "bg-danger", icone: AlertOctagon, palavra: "crítico" },
+    info: { texto: "text-info", filete: "bg-info", icone: Info, palavra: "informação" },
+  };
 
 /**
  * Traduz o `tone`/`accent` dos cards locais antigos para o tom do KpiCard,
@@ -118,6 +129,12 @@ export type KpiCardProps = {
    * Só vale com o valor à mostra (`ok`/`parcial`). Sem tom = neutro.
    */
   tom?: TomKpi;
+  /**
+   * Tendência: a série curta que leva ao valor (ex.: 12 meses fechados), desenhada como linha
+   * pequena logo abaixo do número, na largura do card. `null` é mês sem dado e quebra a linha (não vira zero). Só com o
+   * valor à mostra. O último ponto é o próprio valor do card.
+   */
+  tendencia?: { valores: (number | null)[]; rotulo: string };
   /** Palavra ao lado do ícone do tom ("em risco", "acima da meta"). Sem ela, o ícone vai só com texto para leitor de tela. */
   tomRotulo?: string;
   className?: string;
@@ -138,6 +155,7 @@ export function KpiCard({
   area,
   tom,
   tomRotulo,
+  tendencia,
   className,
 }: KpiCardProps) {
   const mostraValor = estado === "ok" || estado === "parcial";
@@ -157,7 +175,10 @@ export function KpiCard({
     <>
       {t ? (
         // Filete fixo no tom: o sinal do número se lê de longe, sem hover.
-        <span aria-hidden className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", t.filete)} />
+        <span
+          aria-hidden
+          className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", t.filete)}
+        />
       ) : (
         clicavel && (
           <span
@@ -183,7 +204,12 @@ export function KpiCard({
       <span className="mt-2 flex min-h-9 flex-wrap items-baseline gap-x-1.5">
         {mostraValor ? (
           <>
-            <span className={cn("num text-[30px] font-bold leading-9 tracking-tight", t ? t.texto : "text-foreground")}>
+            <span
+              className={cn(
+                "num text-[30px] font-bold leading-9 tracking-tight",
+                t ? t.texto : "text-foreground",
+              )}
+            >
               {valor}
             </span>
             {unidade && (
@@ -195,6 +221,8 @@ export function KpiCard({
           <Ausencia estado={estado} />
         )}
       </span>
+
+      {mostraValor && tendencia && <Tendencia {...tendencia} />}
 
       {estado !== "sem-acesso" && temNota && (
         <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">{nota}</span>
@@ -234,7 +262,9 @@ export function KpiCard({
   );
   const interativo =
     "cursor-pointer outline-none transition-colors duration-[120ms] ease-out hover:border-input focus-visible:border-input focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-  const estilo = { "--filete": area ? corDaArea(area) : "var(--area-atual, var(--primary))" } as CSSProperties;
+  const estilo = {
+    "--filete": area ? corDaArea(area) : "var(--area-atual, var(--primary))",
+  } as CSSProperties;
 
   if (clicavel && abrir?.href) {
     if (abrir.href.startsWith("/")) {
@@ -259,7 +289,12 @@ export function KpiCard({
   }
   if (clicavel && abrir?.onClick) {
     return (
-      <button type="button" onClick={abrir.onClick} className={cn(base, interativo, "w-full")} style={estilo}>
+      <button
+        type="button"
+        onClick={abrir.onClick}
+        className={cn(base, interativo, "w-full")}
+        style={estilo}
+      >
         {conteudo}
       </button>
     );
@@ -279,7 +314,8 @@ function Delta({
   const direcao = valor > 0 ? "sobe" : valor < 0 ? "desce" : "estavel";
   // A cor vem do sentido do indicador, não da seta: churn que desce é bom.
   const bom = sentido === "maior-melhor" ? valor > 0 : valor < 0;
-  const cor = direcao === "estavel" ? "text-muted-foreground" : bom ? "text-success" : "text-danger";
+  const cor =
+    direcao === "estavel" ? "text-muted-foreground" : bom ? "text-success" : "text-danger";
   const sinal = valor > 0 ? "+" : valor < 0 ? "−" : "";
   return (
     <span className={cn("num inline-flex items-center gap-1 font-semibold", cor)}>
@@ -291,10 +327,69 @@ function Delta({
   );
 }
 
+/** Linha curta de tendência. Decorativa para leitor de tela, que recebe o rótulo. */
+function Tendencia({ valores, rotulo }: { valores: (number | null)[]; rotulo: string }) {
+  const nums = valores.filter((v): v is number => v !== null && Number.isFinite(v));
+  if (nums.length < 3) return null;
+  const L = 200;
+  const A = 24;
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  const x = (i: number) => (valores.length === 1 ? L : (i / (valores.length - 1)) * (L - 4) + 2);
+  const y = (v: number) => (max === min ? A / 2 : A - 3 - ((v - min) / (max - min)) * (A - 6));
+  const trechos: string[] = [];
+  let atual = "";
+  valores.forEach((v, i) => {
+    if (v === null || !Number.isFinite(v)) {
+      if (atual) trechos.push(atual);
+      atual = "";
+      return;
+    }
+    atual += `${atual ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+  });
+  if (atual) trechos.push(atual);
+  const ultimo = valores.length - 1;
+  const vUltimo = valores[ultimo];
+  return (
+    <span className="ml-auto self-center" role="img" aria-label={rotulo}>
+      <svg
+        width={L}
+        height={A}
+        viewBox={`0 0 ${L} ${A}`}
+        aria-hidden
+        className="block overflow-visible"
+      >
+        {trechos.map((d) => (
+          <path
+            key={d}
+            d={d}
+            fill="none"
+            stroke="var(--chart-1)"
+            strokeWidth={1.75}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        ))}
+        {vUltimo !== null && Number.isFinite(vUltimo) && (
+          <circle
+            cx={x(ultimo)}
+            cy={y(vUltimo)}
+            r={2}
+            fill="var(--chart-1)"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
+    </span>
+  );
+}
+
 function SinalTom({ tom, rotulo }: { tom: TomKpi; rotulo?: string }) {
   const { texto, icone: Icone, palavra } = TONS[tom];
   return (
-    <span className={cn("inline-flex items-center gap-1 self-center text-[13px] font-medium", texto)}>
+    <span
+      className={cn("inline-flex items-center gap-1 self-center text-[13px] font-medium", texto)}
+    >
       <Icone className="size-4 shrink-0" strokeWidth={2} aria-hidden />
       {rotulo ? rotulo : <span className="sr-only">{palavra}</span>}
     </span>
@@ -317,7 +412,10 @@ function BarraMeta({ progresso }: { progresso: number }) {
       aria-label="Realizado da meta"
     >
       <span
-        className={cn("block h-full rounded-full", progresso >= 1 ? "bg-success" : "bg-primary-text")}
+        className={cn(
+          "block h-full rounded-full",
+          progresso >= 1 ? "bg-success" : "bg-primary-text",
+        )}
         style={{ width: `${pct}%` }}
       />
     </span>

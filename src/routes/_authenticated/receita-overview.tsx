@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { ReceitaOverviewContent } from "@/components/receita/receita-overview-content";
+import { Carregando } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/receita-overview")({
   head: () => ({
@@ -31,15 +31,15 @@ function ReceitaOverviewPage() {
   useAuth();
   const { temArea, loading } = usePermissions();
 
-  if (loading) return null;
+  if (loading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="kpis" />
+      </div>
+    );
   if (!temArea("receita")) return <SemAcessoArea area="Receita e Repasses" />;
 
-  return (
-    <AppShell
-      title="Receita e Repasses"
-      subtitle="O repasse do mês, o que falta fechar e cobrar, e a receita da rede"
-    >
-      <ReceitaOverviewContent />
-    </AppShell>
-  );
+  // A moldura (PageHeader com pergunta, procedência e o seletor de mês) fica
+  // no conteúdo, que é quem conhece o mês da URL.
+  return <ReceitaOverviewContent />;
 }

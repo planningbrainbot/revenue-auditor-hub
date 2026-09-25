@@ -174,6 +174,10 @@ export interface Negocio {
   validated_at: string | null;
   signed_on: string | null;
   won_on?: string | null;
+  // Perda e entradas por etapa chegam com a carga de metric_version 4 (24/09/2026). Antes disso
+  // não existem, e o funil diz que a contagem por etapa ainda não foi apurada.
+  lost_on?: string | null;
+  moves?: (Movimento & { stage_id: number })[];
   expected_close: string | null;
   revenue: Receita;
   next_activity: string | null;

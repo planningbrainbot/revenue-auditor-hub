@@ -37,6 +37,11 @@ export interface LeituraReceita {
   parciaisFonte?: string[];
   /** Observação da fonte para o mês (cobertura, ausência declarada). Só texto de sistema. */
   notasPorMes?: Record<string, string>;
+  /**
+   * Só a rede: as duas parcelas de `linhas` por unidade e mês (base nova = `receita_base`, base
+   * antiga = `receita_base_antiga`). `nova + antiga` é o valor da linha, em centavos.
+   */
+  porBase?: { mes: string; chave: string; nova: number; antiga: number }[];
   /** Só a rede: royalties + CSC devidos à matriz por unidade e mês, da mesma apuração. */
   complementos?: { mes: string; chave: string; royaltiesCsc: number | null }[];
 }

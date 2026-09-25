@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ShieldCheck, X } from "lucide-react";
+import { toast } from "sonner";
+import { ShieldCheck, TriangleAlert, X } from "lucide-react";
+import { Carregando, EstadoErro } from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import {
   getAcessosDoUsuario,
   salvarAcessoNaArea,
@@ -55,12 +68,26 @@ export function AcessosUsuarioDialog({
   onClose: () => void;
 }) {
   const getFn = useServerFn(getAcessosDoUsuario);
-  // Revogar a porta pede um segundo clique, no lugar do `confirm()` do navegador.
-  const [confirmarRevogar, setConfirmarRevogar] = useState(false);
   const q = useQuery({
     queryKey: ["acessos-usuario", userId],
     queryFn: () => getFn({ data: { userId } }),
   });
+  const [revogarPorta, setRevogarPorta] = useState(false);
+
+  // Se nenhuma outra área fica visível, tirar ou bloquear esta deixa a pessoa
+  // sem área nenhuma. Visível segue `ops.acesso_do_usuario`: pelo perfil e não
+  // bloqueada, ou por delegação (usuário, sócio, admin). O aviso sai antes de
+  // salvar, com o que o diálogo já carregou.
+  // Conta só áreas ATIVAS: `getAcessosDoUsuario` lista só `areas.ativa`. Uma
+  // delegação numa área desativada não aparece aqui; é por isso que, raramente,
+  // o banco pode discordar do aviso (o toast depois de salvar usa a resposta dele).
+  const visivel = (a: AcessoPorArea) =>
+    a.nivel === "usuario" ||
+    a.nivel === "socio" ||
+    a.nivel === "admin" ||
+    (a.pelo_papel && a.nivel !== "bloqueado");
+  const semOutraArea = (slug: string) =>
+    (q.data?.areas ?? []).every((a) => a.slug === slug || !visivel(a));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4">
@@ -98,12 +125,8 @@ export function AcessosUsuarioDialog({
             </div>
             <button
               onClick={() => {
-                if (porta.tem && !confirmarRevogar) {
-                  setConfirmarRevogar(true);
-                  return;
-                }
-                setConfirmarRevogar(false);
-                porta.onDefinir(!porta.tem);
+                if (porta.tem) setRevogarPorta(true);
+                else porta.onDefinir(true);
               }}
               disabled={porta.salvando}
               className={cn(
@@ -113,23 +136,20 @@ export function AcessosUsuarioDialog({
                   : "bg-primary text-primary-foreground hover:opacity-90",
               )}
             >
-              {porta.salvando
-                ? "Salvando..."
-                : porta.tem
-                  ? confirmarRevogar
-                    ? "Clique de novo para revogar"
-                    : "Revogar acesso"
-                  : "Conceder acesso"}
+              {porta.salvando ? "Salvando..." : porta.tem ? "Revogar acesso" : "Conceder acesso"}
             </button>
           </div>
         )}
 
         {q.isLoading ? (
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">Carregando...</div>
+          <Carregando variante="tabela" linhas={4} className="px-5 py-4" />
         ) : q.isError ? (
-          <div className="px-5 py-8 text-center text-sm text-destructive">
-            {(q.error as Error)?.message ?? "Erro ao carregar os acessos."}
-          </div>
+          <EstadoErro
+            className="mx-5 my-4"
+            titulo="Não foi possível carregar os acessos"
+            detalhe={(q.error as Error)?.message}
+            tentarNovamente={() => q.refetch()}
+          />
         ) : q.data?.superAdmin ? (
           <div className="flex items-start gap-3 px-5 py-6">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary-text" />
@@ -160,7 +180,13 @@ export function AcessosUsuarioDialog({
               {[...(q.data?.areas ?? [])]
                 .sort((x, y) => Number(y.pelo_papel || y.nivel !== "nenhum") - Number(x.pelo_papel || x.nivel !== "nenhum"))
                 .map((a) => (
-                <LinhaDaArea key={a.slug} userId={userId} area={a} />
+                <LinhaDaArea
+                  key={a.slug}
+                  userId={userId}
+                  nome={nome}
+                  area={a}
+                  unicaArea={semOutraArea(a.slug)}
+                />
               ))}
             </ul>
           </>
@@ -175,16 +201,50 @@ export function AcessosUsuarioDialog({
           </button>
         </div>
       </div>
+
+      {porta && (
+        <AlertDialog open={revogarPorta} onOpenChange={setRevogarPorta}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revogar o Ops de {nome}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {nome} deixa de entrar no Ops no próximo carregamento. Nada do que está marcado
+                nas áreas se apaga: conceder de novo devolve a pessoa como estava. Growth e
+                Financeiro não mudam.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                className={buttonVariants({ variant: "destructive" })}
+                onClick={() => porta.onDefinir(false)}
+              >
+                Revogar acesso
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
 
-function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) {
+function LinhaDaArea({
+  userId,
+  nome,
+  area,
+  unicaArea,
+}: {
+  userId: string;
+  nome: string;
+  area: AcessoPorArea;
+  /** Nenhuma outra área fica visível: tirar ou bloquear esta deixa a pessoa sem área. */
+  unicaArea: boolean;
+}) {
   const qc = useQueryClient();
   const saveFn = useServerFn(salvarAcessoNaArea);
   const [nivel, setNivel] = useState<NivelNaArea>(area.nivel);
   const [paginas, setPaginas] = useState<string[]>(area.liberadas);
-  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     setNivel(area.nivel);
@@ -199,21 +259,34 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
   const mut = useMutation({
     mutationFn: () => saveFn({ data: { userId, area: area.slug, nivel, paginas } }),
     onSuccess: (r) => {
-      setAviso(
-        r.ficouSemArea
-          ? "Salvo. Esta pessoa ficou sem nenhuma área. Para desligá-la de tudo, use Desativar na ficha."
-          : "Salvo.",
-      );
+      const rotulo = NIVEIS.find((n) => n.valor === nivel)?.rotulo ?? nivel;
+      const efeito =
+        nivel === "nenhum" && area.nivel === "bloqueado"
+          ? // "Sem acesso" numa área bloqueada só tira o bloqueio (salvarAcessoNaArea).
+            `${area.nome} deixa de estar bloqueada para ${nome}${area.pelo_papel ? ", e volta a abrir pelo perfil" : ""}.`
+          : nivel === "nenhum"
+          ? `${nome} sai de ${area.nome}${area.pelo_papel ? " (fica o que o perfil abre)" : ""}.`
+          : nivel === "bloqueado"
+            ? `${area.nome} some para ${nome}, mesmo com o perfil abrindo.`
+            : `${nome} passa a ${rotulo.toLowerCase()} em ${area.nome}.`;
+      if (r.ficouSemArea)
+        toast.warning(`${efeito} Ficou sem nenhuma área. Para desligá-la de tudo, use Desativar na ficha.`);
+      else toast.success(`${efeito} Vale no próximo carregamento.`);
       qc.invalidateQueries({ queryKey: ["acessos-usuario", userId] });
       qc.invalidateQueries({ queryKey: ["area-admins"] });
       qc.invalidateQueries({ queryKey: ["ficha-pessoa", userId] });
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       qc.invalidateQueries({ queryKey: ["my-perms"] });
     },
-    onError: () => setAviso(null),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao salvar o acesso."),
   });
 
   const idBase = `acesso-${userId}-${area.slug}`;
+  const visivelAntes =
+    area.nivel === "usuario" ||
+    area.nivel === "socio" ||
+    area.nivel === "admin" ||
+    (area.pelo_papel && area.nivel !== "bloqueado");
 
   return (
     <li className="px-5 py-3">
@@ -245,7 +318,6 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
           value={nivel}
           onChange={(e) => {
             setNivel(e.target.value as NivelNaArea);
-            setAviso(null);
           }}
           className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
           title={NIVEIS.find((n) => n.valor === nivel)?.ajuda}
@@ -262,10 +334,14 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
         <button
           onClick={() => mut.mutate()}
           disabled={!mudou || mut.isPending}
-          className="h-8 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+          aria-describedby={!mudou ? `${idBase}-motivo` : undefined}
+          className="h-8 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-40"
         >
           {mut.isPending ? "Salvando..." : "Salvar"}
         </button>
+        <span id={`${idBase}-motivo`} className="sr-only">
+          Nada mudou nesta área.
+        </span>
       </div>
 
       <p className="mt-1 text-xs text-muted-foreground">
@@ -307,7 +383,16 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
       {mut.isError && (
         <p className="mt-2 text-xs text-destructive">{(mut.error as Error)?.message ?? "Erro ao salvar."}</p>
       )}
-      {aviso && <p className="mt-2 text-xs text-primary-text">{aviso}</p>}
+      {unicaArea &&
+        mudou &&
+        visivelAntes &&
+        !(nivel === "usuario" || nivel === "socio" || nivel === "admin" || (area.pelo_papel && nivel !== "bloqueado")) && (
+        <p aria-live="polite" className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+          <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+          Salvar deixa {nome} sem nenhuma área: ela entra e não vê nada. Se não precisa mais entrar,
+          exclua a conta em Usuários.
+        </p>
+      )}
     </li>
   );
 }

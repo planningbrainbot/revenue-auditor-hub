@@ -184,8 +184,14 @@ export function pedidoRoteamento(texto: string): PedidoJev {
   };
 }
 
+// A conversa do cockpit (24/09) tem taxonomia própria: domínio + ambiguidade.
+export const TAXONOMIA_CONVERSA = "cockpit-ceo-conversa-v1";
 export const taxonomiaDo = (p: PedidoJev) =>
-  "pergunta" in p.state ? TAXONOMIA_ROTEAMENTO : TAXONOMIA_EMAIL;
+  "dominio" in p.questions
+    ? TAXONOMIA_CONVERSA
+    : "pergunta" in p.state
+      ? TAXONOMIA_ROTEAMENTO
+      : TAXONOMIA_EMAIL;
 
 // ── Validação do pedido (antes de sair) ──────────────────────────────────
 const textoCheio = (v: unknown) => typeof v === "string" && v.trim().length > 0;

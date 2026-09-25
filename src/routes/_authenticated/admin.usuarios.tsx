@@ -154,7 +154,8 @@ function PessoasPage() {
 
   return (
     <AppShell
-      title="Quem entra no Brain, e em quê?"
+      title="Pessoas"
+      pergunta="Quem entra no Brain, e em quê?"
       subtitle={
         q.data
           ? `${q.data.length} pessoas com conta · Ops, Growth e Financeiro · a situação de cada uma e o que está pendente`

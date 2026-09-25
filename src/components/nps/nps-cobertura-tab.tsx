@@ -1,4 +1,3 @@
-import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -7,101 +6,163 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Procedencia,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
 import { useNpsCoverage } from "@/hooks/use-nps";
+
+const NUM = new Intl.NumberFormat("pt-BR");
+const FONTE = "empresas, contatos e nps_pesquisas (Pipefy)";
+// A fonte não devolve updated_at: a hora que há é a da leitura, e ela diz só
+// isso ("lido às"), sem se passar por frescor do dado.
+const HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const lidoAs = (ms: number) => (ms > 0 ? ` · lido às ${HORA.format(new Date(ms))}` : "");
+
+
+function tomCobertura(pct: number): TomStatus {
+  return pct >= 70 ? "sucesso" : pct >= 30 ? "atencao" : "perigo";
+}
 
 // Extraído de nps-painel-tab.tsx (era a aba "Cobertura da base" do Painel) —
 // mudou de casa pra Base de Contatos porque é sobre completude de contato
 // de WhatsApp, não sobre resultado de pesquisa.
+//
+// Universos (N11): "Clientes ativos" e a tabela por unidade contam só ativos;
+// os totais de "Já receberam" e "Com WhatsApp válido" que o servidor devolve
+// contam TODAS as empresas. Cada rótulo diz o seu, e a subtração entre os dois
+// só aparece quando fecha.
 export function NpsCoberturaTab() {
-  const { data: coverage, isLoading, error } = useNpsCoverage();
+  const { data: coverage, isLoading, error, refetch, dataUpdatedAt } = useNpsCoverage();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        <Carregando variante="tabela" />
+      </div>
+    );
+  }
+  if (error || !coverage) {
+    return (
+      <EstadoErro
+        titulo="Não foi possível carregar a cobertura"
+        detalhe={`Fonte: ${FONTE}: ${error instanceof Error ? error.message : String(error ?? "sem resposta")}`}
+        tentarNovamente={() => void refetch()}
+      />
+    );
+  }
+
+  // Soma por unidade: as linhas já são só clientes ativos, então este é o
+  // número que o rótulo promete. `totalEmpresas − totalComWhatsapp` misturava
+  // ativos com todas as empresas e podia dar negativo.
+  const semContato = coverage.rows.reduce((acc, u) => acc + (u.empresas - u.comWhatsapp), 0);
+  const pctVinculo =
+    coverage.pesquisasTotal > 0
+      ? Math.round((coverage.pesquisasComEmpresaResolvida / coverage.pesquisasTotal) * 100)
+      : null;
 
   return (
-    <div className="space-y-4">
-      {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando cobertura…</Card>}
-      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar cobertura.</Card>}
-      {coverage && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Clientes ativos</div>
-              <div className="mt-1 text-2xl font-semibold">{coverage.totalEmpresas}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Já disparadas (empresas distintas)</div>
-              <div className="mt-1 text-2xl font-semibold">{coverage.totalJaDisparadas}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Com WhatsApp válido pra disparo</div>
-              <div className="mt-1 text-2xl font-semibold text-success">
-                {coverage.totalComWhatsapp}
-                <span className="ml-1 text-sm font-normal text-muted-foreground">
-                  ({coverage.totalEmpresas > 0 ? Math.round((coverage.totalComWhatsapp / coverage.totalEmpresas) * 100) : 0}%)
-                </span>
-              </div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Sem contato — não disparará</div>
-              <div className="mt-1 text-2xl font-semibold text-danger">{coverage.totalEmpresas - coverage.totalComWhatsapp}</div>
-            </Card>
-          </div>
+    <div className="space-y-6">
+      <Secao
+        titulo="Quanto da base está pronta para o disparo?"
+        descricao="Os cartões misturam dois universos: cada rótulo diz se conta só clientes ativos ou todas as empresas cadastradas."
+      >
+        <KpiGrade colunas={4}>
+          <KpiCard rotulo="Clientes ativos" valor={NUM.format(coverage.totalEmpresas)} nota="empresas ativas" />
+          <KpiCard
+            rotulo="Já receberam a pesquisa (todas as empresas)"
+            valor={NUM.format(coverage.totalJaDisparadas)}
+            nota={
+              pctVinculo === null
+                ? "empresas distintas · inclui inativas"
+                : `empresas distintas · inclui inativas · só ${NUM.format(coverage.pesquisasComEmpresaResolvida)} de ${NUM.format(coverage.pesquisasTotal)} pesquisas (${pctVinculo}%) têm empresa vinculada`
+            }
+          />
+          <KpiCard
+            rotulo="Com WhatsApp válido (todas as empresas)"
+            valor={NUM.format(coverage.totalComWhatsapp)}
+            nota="empresas com contato de 10+ dígitos · inclui inativas"
+          />
+          <KpiCard
+            rotulo="Sem contato (clientes ativos)"
+            valor={NUM.format(semContato)}
+            nota="soma da tabela por unidade · não disparará"
+          />
+        </KpiGrade>
+        <p className="text-[13px] text-muted-foreground">
+          "Já receberam" conta só pesquisas com empresa vinculada: o número real de empresas já pesquisadas é
+          maior. "Clientes ativos" usa a mesma régua de Clientes: cliente da rede, unidade regional ativa e sem card
+          de churn em Tratativas, por isso pode ser menor que a contagem bruta de empresas por unidade.
+        </p>
+      </Secao>
 
-          <Card className="p-3 text-xs text-muted-foreground">
-            <strong className="text-foreground">Atenção:</strong> a coluna "Já disparadas" conta só pesquisas com empresa
-            vinculada — hoje {coverage.pesquisasComEmpresaResolvida} de {coverage.pesquisasTotal} pesquisas
-            enviadas têm esse vínculo resolvido ({coverage.pesquisasTotal > 0 ? Math.round((coverage.pesquisasComEmpresaResolvida / coverage.pesquisasTotal) * 100) : 0}%).
-            O número real de empresas já pesquisadas é maior do que o mostrado aqui.
-            <br />
-            O denominador ("clientes ativos") usa a mesma régua de <code>/clientes</code>: cliente da rede, unidade
-            regional ativa e sem card de churn em Tratativas — por isso pode ser menor que a contagem bruta de
-            empresas cadastradas por unidade.
-          </Card>
-
-          <Card>
-            <div className="border-b p-3 text-sm font-medium">Cobertura por unidade — quem está pronto pro disparo</div>
-            <div className="table-wrap overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Unidade</TableHead>
-                    <TableHead className="text-right">Empresas</TableHead>
-                    <TableHead className="text-right">Já disparadas</TableHead>
-                    <TableHead className="text-right">— Base Antiga</TableHead>
-                    <TableHead className="text-right">— Base Nova</TableHead>
-                    <TableHead className="text-right">Com WhatsApp</TableHead>
-                    <TableHead className="text-right">Sem contato</TableHead>
-                    <TableHead className="text-right">Cobertura</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {coverage.rows.map((u) => {
-                    const pct = u.empresas > 0 ? Math.round((u.comWhatsapp / u.empresas) * 100) : 0;
-                    const color = pct >= 70 ? "text-success" : pct >= 30 ? "text-warning" : "text-danger";
-                    return (
-                      <TableRow key={u.unidade}>
-                        <TableCell className="font-medium">{u.unidade}</TableCell>
-                        <TableCell className="text-right">{u.empresas}</TableCell>
-                        <TableCell className="text-right">{u.jaDisparadas}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{u.jaDisparadasBaseAntiga}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{u.jaDisparadasBaseNova}</TableCell>
-                        <TableCell className="text-right">{u.comWhatsapp}</TableCell>
-                        <TableCell className="text-right text-danger">{u.empresas - u.comWhatsapp}</TableCell>
-                        <TableCell className={`text-right font-semibold ${color}`}>{pct}%</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {coverage.rows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
-                        Sem dados de cobertura.
+      <Secao
+        titulo="Quais unidades estão prontas para o disparo?"
+        descricao="Só clientes ativos · ordenado pela cobertura"
+      >
+        {coverage.rows.length === 0 ? (
+          <EstadoVazio titulo="Sem dados de cobertura" descricao="Nenhum cliente ativo nas unidades regionais." />
+        ) : (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="num text-right">Clientes ativos</TableHead>
+                  <TableHead className="num text-right">Já receberam</TableHead>
+                  <TableHead className="num text-right">— Base Antiga</TableHead>
+                  <TableHead className="num text-right">— Base Nova</TableHead>
+                  <TableHead className="num text-right">Com WhatsApp</TableHead>
+                  <TableHead className="num text-right">Sem contato</TableHead>
+                  <TableHead className="text-right">Cobertura</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {coverage.rows.map((u) => {
+                  const pct = u.empresas > 0 ? Math.round((u.comWhatsapp / u.empresas) * 100) : null;
+                  return (
+                    <TableRow key={u.unidade}>
+                      <TableCell className="font-medium">{u.unidade}</TableCell>
+                      <TableCell className="num text-right">{NUM.format(u.empresas)}</TableCell>
+                      <TableCell className="num text-right">{NUM.format(u.jaDisparadas)}</TableCell>
+                      <TableCell className="num text-right text-muted-foreground">
+                        {NUM.format(u.jaDisparadasBaseAntiga)}
+                      </TableCell>
+                      <TableCell className="num text-right text-muted-foreground">
+                        {NUM.format(u.jaDisparadasBaseNova)}
+                      </TableCell>
+                      <TableCell className="num text-right">{NUM.format(u.comWhatsapp)}</TableCell>
+                      <TableCell className="num text-right">{NUM.format(u.empresas - u.comWhatsapp)}</TableCell>
+                      <TableCell className="text-right">
+                        {pct === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <StatusBadge tom={tomCobertura(pct)} className="num">
+                            {pct}%
+                          </StatusBadge>
+                        )}
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        </>
-      )}
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <Procedencia
+          fonte={`${FONTE}${lidoAs(dataUpdatedAt)}`}
+          atualizadoEm={null}
+          regua="cobertura = com WhatsApp ÷ clientes ativos · ok a partir de 70%, atenção de 30% a 69%, perigo abaixo de 30%"
+        />
+      </Secao>
     </div>
   );
 }

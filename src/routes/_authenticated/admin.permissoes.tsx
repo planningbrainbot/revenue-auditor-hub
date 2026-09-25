@@ -12,7 +12,14 @@ import {
   type Area,
 } from "@/lib/permissions.functions";
 import { AppShell } from "@/components/app-shell";
-import { EstadoVazio, Secao, StatusBadge } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +68,7 @@ import {
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 
 /**
  * Permissões por ÁREA.
@@ -221,7 +229,7 @@ function PermissionsPage() {
   // Uma busca só, que recorta os dois eixos: "receita" deixa a coluna Receita,
   // "CS" deixa a linha do CS. Um eixo sem resultado fica inteiro, senão a tela
   // some por completo quando o termo só existe do outro lado.
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useFiltroNaUrl("q", "");
   const { linhas, colunas } = useMemo(() => {
     const t = normalizar(busca);
     if (!t) return { linhas: papeisOrdenados, colunas: areas };
@@ -242,11 +250,28 @@ function PermissionsPage() {
   const [editando, setEditando] = useState<Papel | null>(null);
   const [criando, setCriando] = useState(false);
 
-  if (loading || !isAdmin) return null;
+  const titulo = "Perfis e áreas";
+  const pergunta = "Quem vê o quê, em cada área?";
+
+  if (loading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="pagina" />
+      </div>
+    );
+  if (!isAdmin)
+    return (
+      <AppShell title={titulo} pergunta={pergunta}>
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <EstadoSemAcesso oQueFalta="admin (Administração)" />
+        </div>
+      </AppShell>
+    );
 
   return (
     <AppShell
-      title="Quem vê o quê, em cada área?"
+      title={titulo}
+      pergunta={pergunta}
       headerExtra={
         <Button onClick={() => setCriando(true)}>
           <Plus className="size-4" aria-hidden /> Novo perfil
@@ -294,12 +319,14 @@ function PermissionsPage() {
             </div>
           }
         >
-          {q.isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
+          {q.isLoading && <Carregando variante="tabela" />}
 
           {q.isError && (
-            <p className="text-sm text-danger">
-              Não foi possível carregar a matriz. Recarregue a página.
-            </p>
+            <EstadoErro
+              titulo="Não foi possível carregar a matriz"
+              detalhe={q.error instanceof Error ? q.error.message : undefined}
+              tentarNovamente={() => q.refetch()}
+            />
           )}
 
           {semResultado ? (
@@ -761,11 +788,20 @@ function EditorDoPapel({
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2">
+            {!mudou && (
+              <span id="motivo-salvar-permissoes" className="mr-auto text-xs text-muted-foreground">
+                Nada mudou: marque ou desmarque uma área para salvar.
+              </span>
+            )}
             <Button variant="ghost" onClick={onFechar} disabled={salvar.isPending}>
               Cancelar
             </Button>
-            <Button onClick={tentarSalvar} disabled={!mudou || salvar.isPending}>
+            <Button
+              onClick={tentarSalvar}
+              disabled={!mudou || salvar.isPending}
+              aria-describedby={!mudou ? "motivo-salvar-permissoes" : undefined}
+            >
               {salvar.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </div>

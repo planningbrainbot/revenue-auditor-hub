@@ -1,0 +1,52 @@
+{
+  "em": "2026-09-25T01:49:46.690Z",
+  "teto": 0.05,
+  "gastoAcumuladoUsd": 0,
+  "gabaritos": {
+    "grupo_ultimo_fechado": [
+      7455047.01
+    ],
+    "grupo_setembro_parcial": [
+      6851979.08
+    ],
+    "onboarding_30": [
+      95
+    ],
+    "rede_cur_bel_todas": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ],
+    "rede_cur_bel_nova": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ]
+  },
+  "porModelo": {
+    "anthropic/claude-sonnet-5": {
+      "casos": 0,
+      "aprovados": 0,
+      "estado": 0,
+      "metrica": 0,
+      "visual": 0,
+      "numero": 0,
+      "semInvencao": 0,
+      "texto": 0,
+      "proibido": 0,
+      "latenciaMedianaS": null,
+      "latenciaP90S": null,
+      "custoTotalUsd": 0,
+      "custoMedioUsd": null
+    }
+  },
+  "resultados": []
+}

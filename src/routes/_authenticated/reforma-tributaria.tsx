@@ -1,13 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Upload,
   FileSpreadsheet,
@@ -20,7 +31,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_DATA, parseReformaTributariaXlsx, type ReformaTributariaData } from '@/components/reforma-tributaria/xlsx-parser';
 import { FUNDO_APRESENTACAO, generatePresentationHTML } from '@/components/reforma-tributaria/html-generator';
-import { PageHeader } from "@/components/planning";
+import { EstadoErro, PageHeader, StatusBadge } from "@/components/planning";
 
 export const Route = createFileRoute('/_authenticated/reforma-tributaria')({
   component: ReformaTributariaPage,
@@ -54,6 +65,38 @@ function maskCnpj(v: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+/**
+ * Campo numérico que mostra o que foi digitado. Antes o valor era `n || ''`:
+ * 0 digitado sumia e o campo vazio parecia 0. O texto fica local; o número
+ * que sobe continua `parseFloat(...) || 0`, então o cálculo trata vazio como 0
+ * como sempre. Quando o dado vem de fora (arquivo carregado ou descartado), a
+ * página troca a `key` e o campo recomeça do valor novo.
+ */
+function CampoNumero({
+  valor,
+  onValor,
+  zeroComoVazio,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> & {
+  valor: number;
+  onValor: (n: number) => void;
+  /** Sem arquivo, o 0 do padrão é "não preenchido": começa vazio. */
+  zeroComoVazio: boolean;
+}) {
+  const [texto, setTexto] = useState(() => (zeroComoVazio && valor === 0 ? '' : String(valor)));
+  return (
+    <Input
+      {...props}
+      type="number"
+      value={texto}
+      onChange={(e) => {
+        setTexto(e.target.value);
+        onValor(parseFloat(e.target.value) || 0);
+      }}
+    />
+  );
+}
+
 function computeDefaultTextos(d: ReformaTributariaData): Pick<ReformaTributariaData, 'textoPrincipal' | 'textoFechamento'> {
   const first = d.years[0];
   const last = d.years[d.years.length - 1];
@@ -65,7 +108,6 @@ function computeDefaultTextos(d: ReformaTributariaData): Pick<ReformaTributariaD
   };
 }
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 function ReformaTributariaPage() {
   const [data, setData] = useState<ReformaTributariaData>({ ...DEFAULT_DATA });
   const [fileName, setFileName] = useState('');
@@ -76,8 +118,18 @@ function ReformaTributariaPage() {
   const [editMode, setEditMode] = useState(false);
   const [cnpj, setCnpj] = useState('');
   const [lookingUpCnpj, setLookingUpCnpj] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Motivo da última falha de leitura do arquivo: fica na tela além do toast.
+  const [erroArquivo, setErroArquivo] = useState<string | null>(null);
+  const [carregadoEm, setCarregadoEm] = useState<Date | null>(null);
+  // Troca quando o dado vem de fora (arquivo carregado ou descartado): os
+  // campos numéricos recomeçam do valor novo.
+  const [versaoCampos, setVersaoCampos] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Depois de "Descartar", o botão que abriu o diálogo some junto com o
+  // arquivo: o foco vai para o campo de arquivo que volta no lugar dele.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const descartouRef = useRef(false);
 
   const updatePreview = useCallback((d: ReformaTributariaData) => {
     setPreviewUpdating(true);
@@ -121,9 +173,12 @@ function ReformaTributariaPage() {
 
   const processFile = async (file: File) => {
     if (!file.name.match(/\.xlsx?$/i)) {
+      const motivo = `"${file.name}" não é uma planilha. Use o arquivo .xlsx do Mapa da Reforma.`;
+      setErroArquivo(motivo);
       toast.error('Formato inválido. Use o arquivo .xlsx do Mapa da Reforma.');
       return;
     }
+    setErroArquivo(null);
     setIsParsing(true);
     setFileName(file.name);
     try {
@@ -133,9 +188,15 @@ function ReformaTributariaPage() {
       iframeRef.current?.contentWindow?.postMessage({ type: 'reforma-exit-edit' }, '*');
       const baseData = { ...DEFAULT_DATA, ...parsed };
       setData({ ...baseData, ...computeDefaultTextos(baseData) });
+      setCarregadoEm(new Date());
+      setVersaoCampos((v) => v + 1);
       toast.success('Arquivo carregado. Confirme a Razão Social e preencha a Atividade.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao processar o arquivo.');
+      const motivo = err instanceof Error ? err.message : 'Erro ao processar o arquivo.';
+      // O nome já tinha sido gravado: sem isso a tela dizia "Dados importados".
+      setFileName('');
+      setErroArquivo(`${file.name}: ${motivo}`);
+      toast.error(motivo);
     } finally {
       setIsParsing(false);
     }
@@ -209,6 +270,9 @@ function ReformaTributariaPage() {
     setCnpj('');
     iframeRef.current?.contentWindow?.postMessage({ type: 'reforma-exit-edit' }, '*');
     setData({ ...DEFAULT_DATA });
+    setErroArquivo(null);
+    setCarregadoEm(null);
+    setVersaoCampos((v) => v + 1);
   };
 
   const lookupCnpj = async (raw: string) => {
@@ -242,33 +306,53 @@ function ReformaTributariaPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      {/* Cabeçalho em largura cheia, acima das duas colunas (antes ficava na de 420px). */}
+      <div className="shrink-0 px-4 pt-4 md:px-6 md:pt-6">
+        <PageHeader
+          titulo="Reforma Tributária"
+          pergunta="Quanto a reforma muda a carga deste cliente, e como mostro isso a ele?"
+          descricao="Simulação de um cliente · 2026–2033 · dados do arquivo ou digitados; nada é gravado no banco"
+          procedencia={{
+            fonte: fileName ? `Arquivo ${fileName}` : 'Dados digitados no formulário',
+            atualizadoEm: fileName ? carregadoEm : null,
+          }}
+          acoes={<StatusBadge tom="atencao">Confidencial</StatusBadge>}
+        />
+      </div>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       {/* ── LEFT COLUMN — FORM ── */}
       <div className="w-[420px] shrink-0 flex flex-col border-r border-border">
-        {/* Header */}
-        <div className="border-b border-border px-5 pt-5 shrink-0">
-          <PageHeader
-            titulo="Reforma Tributária"
-            descricao="Gere apresentações a partir do arquivo de simulação"
-            acoes={<Badge variant="outline" className="text-xs border-warning/30 text-warning">Confidencial</Badge>}
-            className="border-b-0"
-          />
-        </div>
-
         <div className="p-4 space-y-5 flex-1 overflow-y-auto">
           {/* ── UPLOAD ── */}
           <section>
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
               1 · Arquivo Excel
             </Label>
+            {erroArquivo && (
+              <EstadoErro
+                titulo="Não foi possível ler o arquivo"
+                detalhe={erroArquivo}
+                className="mb-3 p-4"
+              />
+            )}
             {!fileName ? (
               <label
-                className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${isDragging ? 'border-success bg-success/5' : 'border-border hover:border-success/50 hover:bg-accent/30'}`}
+                className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background ${isDragging ? 'border-success bg-success/5' : 'border-border hover:border-success/50 hover:bg-accent/30'}`}
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
               >
-                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileInput} />
+                {/* sr-only em vez de hidden: o campo continua alcançável pelo teclado. */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="sr-only"
+                  onChange={handleFileInput}
+                  aria-label="Carregar o arquivo Excel do Mapa da Reforma Tributária"
+                />
                 {parsing ? (
                   <RefreshCw className="h-6 w-6 text-success animate-spin" />
                 ) : (
@@ -286,9 +370,45 @@ function ReformaTributariaPage() {
                   <p className="text-xs font-medium truncate">{fileName}</p>
                   <p className="text-xs text-success">Dados importados</p>
                 </div>
-                <button onClick={clearFile} className="p-1 rounded hover:bg-accent">
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 shrink-0 text-muted-foreground"
+                      aria-label="Limpar arquivo e descartar a simulação carregada"
+                      title="Limpar arquivo"
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent
+                    onCloseAutoFocus={(e) => {
+                      if (!descartouRef.current) return;
+                      descartouRef.current = false;
+                      e.preventDefault();
+                      requestAnimationFrame(() => fileInputRef.current?.focus());
+                    }}
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Descartar a simulação carregada?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Os números do arquivo, o CNPJ, os textos e as observações voltam ao padrão. Nada
+                        foi gravado no banco: para recuperar, carregue o arquivo de novo.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Manter</AlertDialogCancel>
+                      <AlertDialogAction className={buttonVariants({ variant: 'destructive' })} onClick={() => {
+                          descartouRef.current = true;
+                          clearFile();
+                        }}
+                      >
+                        Descartar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </section>
@@ -376,21 +496,25 @@ function ReformaTributariaPage() {
             <div className="space-y-3">
               <div>
                 <Label className="text-xs mb-1 block">Faturamento anual (R$)</Label>
-                <Input
-                  type="number"
+                <CampoNumero
+                  key={`faturamento-${versaoCampos}`}
                   placeholder="0"
-                  value={data.faturamento || ''}
-                  onChange={(e) => setField('faturamento', parseFloat(e.target.value) || 0)}
+                  valor={data.faturamento}
+                  zeroComoVazio={!fileName}
+                  onValor={(n) => setField('faturamento', n)}
+                  aria-label="Faturamento anual (R$)"
                   className="text-sm h-8 font-mono"
                 />
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Aquisições anuais (R$)</Label>
-                <Input
-                  type="number"
+                <CampoNumero
+                  key={`aquisicoes-${versaoCampos}`}
                   placeholder="0"
-                  value={data.aquisicoes || ''}
-                  onChange={(e) => setField('aquisicoes', parseFloat(e.target.value) || 0)}
+                  valor={data.aquisicoes}
+                  zeroComoVazio={!fileName}
+                  onValor={(n) => setField('aquisicoes', n)}
+                  aria-label="Aquisições anuais (R$)"
                   className="text-sm h-8 font-mono"
                 />
               </div>
@@ -420,25 +544,29 @@ function ReformaTributariaPage() {
                       >
                         <td className="p-2 font-medium">{y.ano}</td>
                         <td className="p-1">
-                          <input
-                            type="number"
+                          <CampoNumero
+                            key={`carga-${y.ano}-${versaoCampos}`}
                             step="0.0001"
                             min="0"
                             max="1"
-                            value={y.carga || ''}
-                            onChange={(e) => setYearField(i, 'carga', parseFloat(e.target.value) || 0)}
-                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-success rounded px-1 py-0.5"
+                            valor={y.carga}
+                            zeroComoVazio={!fileName}
+                            onValor={(n) => setYearField(i, 'carga', n)}
+                            aria-label={`Carga de ${y.ano} (decimal)`}
+                            className="h-7 border-transparent bg-transparent px-1 py-0.5 text-right font-mono text-xs md:text-xs"
                             title={`${pct(y.carga)}%`}
                           />
                         </td>
                         <td className="p-1">
-                          <input
-                            type="number"
+                          <CampoNumero
+                            key={`desembolso-${y.ano}-${versaoCampos}`}
                             step="1"
                             min="0"
-                            value={y.desembolso || ''}
-                            onChange={(e) => setYearField(i, 'desembolso', parseFloat(e.target.value) || 0)}
-                            className="w-full text-right bg-transparent font-mono text-xs outline-none focus:ring-1 focus:ring-success rounded px-1 py-0.5"
+                            valor={y.desembolso}
+                            zeroComoVazio={!fileName}
+                            onValor={(n) => setYearField(i, 'desembolso', n)}
+                            aria-label={`Desembolso de ${y.ano} (R$)`}
+                            className="h-7 border-transparent bg-transparent px-1 py-0.5 text-right font-mono text-xs md:text-xs"
                           />
                         </td>
                       </tr>
@@ -466,18 +594,20 @@ function ReformaTributariaPage() {
               ).map(([label, key]) => (
                 <div key={key}>
                   <Label className="text-xs mb-1 block">{label}</Label>
-                  <Input
-                    type="number"
+                  <CampoNumero
+                    key={`${key}-${versaoCampos}`}
                     step="0.0001"
                     min="0"
                     max="1"
-                    value={data.aliquotas[key] || ''}
-                    onChange={(e) =>
+                    valor={data.aliquotas[key]}
+                    zeroComoVazio={!fileName}
+                    onValor={(n) =>
                       setData((prev) => ({
                         ...prev,
-                        aliquotas: { ...prev.aliquotas, [key]: parseFloat(e.target.value) || 0 },
+                        aliquotas: { ...prev.aliquotas, [key]: n },
                       }))
                     }
+                    aria-label={`Alíquota ${label} (decimal)`}
                     className="text-sm h-8 font-mono"
                     title={`${pct(data.aliquotas[key])}%`}
                   />
@@ -590,8 +720,15 @@ function ReformaTributariaPage() {
               <Pencil className="h-3 w-3" />
               {editMode ? 'Sair da edição' : 'Editar'}
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleFullscreen}>
-              <Maximize2 className="h-3.5 w-3.5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleFullscreen}
+              aria-label="Ver a prévia em tela cheia"
+              title="Tela cheia"
+            >
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </div>
         </div>
@@ -605,6 +742,7 @@ function ReformaTributariaPage() {
             sandbox="allow-scripts"
           />
         </div>
+      </div>
       </div>
     </div>
   );

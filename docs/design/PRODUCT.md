@@ -12,7 +12,7 @@ Fazer cada pessoa do Grupo Planning, do CEO ao hunter, saber em minutos o que es
 
 Síntese de `CP/PRD.md:15`, `CP/contexto-roadmap.md:17`, `PU/spec-banco-unico.md:16-18` e `PU/narrativas-v2.md:9-13`. O objetivo foi reescrito três vezes sem revogação formal (ver §5.1), e a meta de R$ 1 bi não tem perímetro nem ano-alvo.
 
-**O elo que falta:** entre a pergunta do CEO e a ação de quem opera. A maioria das telas exibe; só três forçam ação por linha: Fila Cella, Base de clientes ("Preparar lista → Enviar ao Pipedrive") e Distribuição do Growth (`objetivos-e-modulos.md` §0).
+**O elo que falta:** entre a pergunta do CEO e a ação de quem opera. A maioria das telas exibe; só três forçavam ação por linha: Fila Cella (aposentada em 24/09), Base de clientes ("Preparar lista → Enviar ao Pipedrive") e Distribuição do Growth (`objetivos-e-modulos.md` §0).
 
 **Consequência para design:** toda tela declara a pergunta (N1) e a ação que provoca (contrato de tela). Tela que só exibe precisa dizer para onde manda (N10).
 
@@ -23,7 +23,7 @@ Síntese de `CP/PRD.md:15`, `CP/contexto-roadmap.md:17`, `PU/spec-banco-unico.md
 | Público | Quando… quero… para… | Onde está hoje |
 |---|---|---|
 | CEO / sócios da matriz | …abro o Brain, entender em 1 min como estamos, o que mudou, o que ameaça o resultado e quais decisões são minhas, para alocar capital e cobrar donos | piloto `/piloto/cockpit-ceo`; Financeiro `/`; `/rede-overview`; OKRs |
-| Comercial / pré-venda / hunter | …começo o dia, saber quem ligar, com qual argumento e onde parei, para ir de abordagem a ganho | `/fila-cella`; `/monetizacao`; `/clientes` → Produtos e listas; Growth `/comercial/*` |
+| Comercial / pré-venda / hunter | …começo o dia, saber quem ligar, com qual argumento e onde parei, para ir de abordagem a ganho | `/monetizacao` (Follow Day); `/clientes` → Produtos e listas; Growth `/comercial/*` |
 | Marketing / Growth | …reviso campanhas, saber qual recorte compra MQL e reunião no preço certo, para escalar ou cortar verba | Growth `/trafego`, `/criativos` |
 | CS / Relacionamento | …olho a carteira, ver quem está em risco (NPS, inadimplência, tratativa) e agir antes do churn | `/painel-cs`, `/nps`, Contratos e churn, IDU |
 | Financeiro / controladoria | …fecho o mês, ter DRE, caixa e repasse conciliados e com régua declarada, para fechar sem planilha | Brain Financeiro + Receita e Repasses |
@@ -62,7 +62,7 @@ Estado: **E** existe e é usado · **P** parcial (não provoca a ação ou tem d
 | Receita e Repasses | `/comissoes`, `/ebit-operacional` | ratear custo e apurar comissão | E | Lista/Relatório |
 | Planning People | `/gente?tela=*` | liderança, elogios, avaliação, PDI | P (trilha que substituiria o Qulture não existe) | Fila / Ficha |
 | Monetização | `/monetizacao` (9 visões) | trabalhar a fila de negócios; alocar capacidade por produto | P (alocação 0/0/0) | Fila + Lista |
-| Monetização | `/fila-cella` | abrir a primeira linha desbloqueada e registrar toque | P (spec v0.3) | Fila de trabalho |
+| Monetização | `/monetizacao?aba=follow-day` | abrir o negócio parado e marcar a próxima atividade | P (Fila Cella aposentada em 24/09) | Fila de trabalho |
 | Broker | `/broker`, `/broker/admin` | pegar oportunidade; matriz vê custo/CAC | E | Fila / Configuração |
 | Minha Unidade | `/painel-unidade` e demais | agir na própria unidade | P (sócio cai em bloco vazio sem aviso) | Visão geral |
 | Administração | `/admin/*`, `/equipe`, `/atividade` | conceder o mínimo; validar página antes da main | E | Configuração |
@@ -76,7 +76,7 @@ Fora do Ops (outros apps, mesma casca): Growth (`/growth`, padrão de título-pe
 
 | Pessoa | Dono de |
 |---|---|
-| Pedro Luca | decisões de produto e navegação da Base de clientes; Monetização (`/monetizacao`, `/fila-cella`); Cockpit do CEO; Brain Financeiro |
+| Pedro Luca | decisões de produto e navegação da Base de clientes; Monetização (`/monetizacao`); Cockpit do CEO; Brain Financeiro |
 | Victor Eliezek | repo e casca do Ops (lateral, áreas, `/inicio`); acessos e permissões; Rede, IDU, Indicadores; Receita e Repasses; Planning People; Broker; NPS/CS |
 | Mikael (Mika) | Growth; marca (logo, fonte, paleta) |
 | Bodra | ECD/AWS, `new-business-explorer` (S1, `/crm`) |
@@ -94,7 +94,7 @@ Nenhuma destas é resolvida pelo design system. Dono **sugerido** pelo relatóri
 | # | Pendência | Conflito | Dono sugerido | Fonte |
 |---|---|---|---|---|
 | 5.1 | O Cockpit do CEO é a área Estratégia & Execução ou outra coisa? | Em 21/09 o dono descartou "Cockpit" (colide com o Financeiro) e criou Estratégia & Execução; em 22/09 o PRD voltou a chamar de "Cockpit do CEO". "Cockpit" hoje tem três sentidos. | Pedro | DECISIONS 21/09; `CP/PRD.md:21` |
-| 5.2 | Qual é a casa única da fila de ligação (S2)? | `/crm` (Bodra) × `/fila-cella` × `/monetizacao` Operação; as próprias specs proíbem o terceiro painel | Pedro, ouvindo Bodra | `CRM:54`; `FC:26,97` |
+| 5.2 | Qual é a casa única da fila de ligação (S2)? | `/crm` (Bodra) × `/monetizacao` Follow Day (a Fila Cella saiu em 24/09, aposentada pelo Pedro); as próprias specs proíbem o terceiro painel | Pedro, ouvindo Bodra | `CRM:54`; `FC:26,97` |
 | 5.3 | "Cliente ativo" por contexto | três réguas: conta conciliada (Base), "pagou em 90 dias" (Contratos), "não deu churn" (Rede) | Pedro + Eliezek | `D:2158-2160`; `CP/PRD.md:121` |
 | 5.4 | Forma final da Base de clientes | 4 blocos numa rolagem (`S:153`) × rotas irmãs (`N:230-252`) × faixa única no topo (implementada 22/09) | Pedro | `D:2189,2210` |
 | 5.5 | Guarda de "Produtos e listas" | decisão é `view.aquario`, mas a entrada aparece para todos; sócio cai em bloco vazio | Pedro (regra), Eliezek (casca) | `D:2154` × `D:2210`; `N:217` |

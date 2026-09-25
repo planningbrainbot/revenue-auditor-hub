@@ -92,7 +92,6 @@ migration; reconciliar é trabalho separado. (b) as oito chaves
 concedido aqui só vira barreira de verdade quando ele for espalhado, e isso NÃO
 pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
 
-
 ## [YYYY-MM-DD] Título curto da decisão
 
 **Contexto:** por que isso surgiu / qual problema resolve.
@@ -1175,7 +1174,6 @@ escopo do cockpit a partir de `role_permissions` e passar a ler
 comportamento de hoje. E a Fase 4, tirar `data.scope.own_unit_only` das 8
 policies em favor de um nome honesto.
 
-
 ## [2026-09-15] Aquário em Clientes; operação e análises dentro de Monetização
 
 **Contexto:** Pedro pediu incorporar o painel Caixa de Oportunidade e as análises estudadas no Growth ao Planning Brain. A orientação final coloca as carteiras e listas do Aquário dentro do módulo Clientes. Há autorização explícita para publicar na Vercel, usar o acesso central de Pedro e Matheus e enviar somente oportunidades selecionadas e validadas.
@@ -1193,7 +1191,6 @@ policies em favor de um nome honesto.
 
 **Status:** implementação nativa e migrations aplicadas. Primeira carga conciliada: 128 cards; 1.683 registros da auditoria inicial, mais 81 cadastros novos do Ops e um vínculo por identidade (1.764 registros, não declaração de clientes pagantes). Testes de regras (15) e RLS/revisão/reserva em transação passaram. Build de revisão Vercel `dpl_8hMAU1uFRzWMgGfCZu36AL1VRb6e` Ready; publicação final será registrada em entrada própria após verificação. Identidade de Matheus no login central pendente de confirmação: o e-mail do CRM ainda não tem conta em `auth.users`; não foi enviado convite nem criada senha.
 
-
 ## [2026-09-15] Publicação da integração e conferência no domínio
 
 **Status:** versão `81ecd67` publicada em `planningbrain.com.br` pelo deploy Vercel `dpl_B3b2xCaPXRwCBYya7XtSj3TUyxCq` (promoção autorizada, build Ready). `/aquario` está no módulo Clientes; `/monetizacao` no módulo Monetização. Verificadas no Chrome com a sessão existente de Pedro: navegação de Clientes, carteira lateral de Belém, ficha da empresa com fontes/contatos e preparação da lista para sócio, sem salvar lista de teste nem enviar oportunidade. Rotas do domínio respondem 200; endpoint de envio sem login responde 401. Carga corrente confirmou as 15 validadas de Matheus em 01–14/09. Sync v6 reaproveita históricos inalterados e os relê integralmente no máximo a cada 24h ou quando etapas/cadastro do negócio mudam; a contagem continua conciliada em toda rodada.
@@ -1202,7 +1199,6 @@ policies em favor de um nome honesto.
 
 **Repositório:** PR https://github.com/planningbrainbot/revenue-auditor-hub/pull/2 aberto. A revisão automática rejeitou push direto para `main`; aguarda autorização específica para merge. A publicação autorizada na Vercel foi feita separadamente sem alterar `main`. Até incorporar o PR, uma publicação de uma main antiga pode remover estas rotas. Não presumir que o deploy e a branch padrão já estão alinhados.
 
-
 ## [2026-09-15] Metas preservadas e ajuste final da publicação
 
 **Decisão:** as metas já informadas para setembro foram preservadas via interface autenticada: Matheus, 120 leads/mês, teto de 60 reuniões/mês, 8 contratos/mês e 7 leads/dia útil. O plano está salvo no banco central. A alocação por produto permanece não definida (zero alocado, 120 vagas para distribuir), e as hipóteses de conversão são nulas. Os oito contratos continuam sendo meta, nunca previsão automática a partir de um mix de ofertas que não foi trabalhado.
@@ -1210,7 +1206,6 @@ policies em favor de um nome honesto.
 **Status:** ajuste final de disponibilidade e período mensal (`b568aec`) publicado pelo deploy Vercel `dpl_9Tmj2RjFA7BDW1MPLNuECSiibHT9`, build Ready. A conferência de interface não salvou lista fictícia nem enviou negócio: contagens de listas/envios permanecem zero. A última carga consultada em 15/09 às 11h55 (São Paulo) concluiu sem erro. Os testes de domínio seguem 15/15. A conferência visual da carteira, ficha, preparação de lista e salvamento das metas foi concluída; o Computer Use perdeu a janela do Chrome antes de uma rodada completa das demais análises, que têm build e rotas conferidos.
 
 **Pendências externas:** PR #2 aguarda a autorização de merge solicitada após rejeição do push direto pela revisão automática. O e-mail de login central de Matheus ainda aguarda confirmação. Nenhuma senha paralela ou convite foi criado. O painel independente antigo não foi redirecionado nesta publicação; as rotas oficiais integradas são `/aquario` e `/monetizacao` do Planning Brain.
-
 
 ## [2026-09-15] Três listas de produto e forecast comparado ao realizado
 
@@ -1284,7 +1279,6 @@ policies em favor de um nome honesto.
 - O aviso de conflito de unidade atualmente compara também rótulos equivalentes e códigos ainda não traduzidos. Aliases conhecidos como Sudeste (RJ)/Rio de Janeiro devem resolver para o mesmo ID. Unidade da carteira, cidade do cliente e unidade do cadastro financeiro representam conceitos distintos; coincidência de CNPJ entre unidades não autoriza escolher uma delas ou reatribuir carteira automaticamente.
 - A rotina `monetizacao_refresh_ops` atualiza segmento, regime e contatos, mas não reconcilia a unidade e sua evidência histórica. A correção precisa atingir a fonte e o refresh, preservando decisão, responsável e procedência, para não recolocar uma divergência já resolvida.
 - A revisão encontrou funções de cadastro Pipefy implantadas sem webhooks visíveis nas tabelas auditadas, rotinas atrasadas e falha de parsing de data em Auditoria Interna. A carga Omie necessita revisão da cobertura por conta e da flag `is_planning` (paginação, normalização e status do contrato). Os resultados individuais e consultas ficam no artefato privado da auditoria. Esta entrada registra diagnóstico e escopo proposto; nenhuma automação ou carteira foi alterada nesta revisão.
-
 
 ## [2026-09-17] Clientes único, espelho Pipefy e preservação no primeiro cruzamento
 
@@ -2950,6 +2944,191 @@ conceder quem é sócio ou admin da área, o que gestor comum não é.
 
 **Em aberto:** 49 pessoas do Gente usam `@br.planning.com.br`, que ficou de
 fora da lista de domínios.
+
+## [2026-09-24] Operação da Monetização no molde do painel do Recon, com a identidade da Planning
+
+**Contexto:** o dono pediu a aba Operação "mais parecida com o dash do Recon": metas com cara de meta, funil com o número de hoje congelado como no pipe, funil pelo filtro, conversão etapa a etapa e ícone por etapa, e a tabela por produto com hierarquia. Pediu também que a identidade da Planning não mudasse. Dois relatos vieram junto: "tem 2 contratos ganhos e um não conta" e "troquei as etapas 2 e 3 de lugar".
+
+**Decisão — forma do Recon, marca da Planning.** Copiado o método (quadros de meta por ritmo, funil "entraram × hoje × conversão" com seta entre linhas, "Como contamos", gráfico de leads e reuniões por dia com um eixo só). Nenhum token, fonte ou cor do Recon: os quadros são `KpiCard` com `meta` e `tom` (ícone + palavra), a rampa do funil é `color-mix` de `--primary-text` com `--muted`, as séries seguem `CORES_SERIE`. O gráfico perdeu o segundo eixo (a razão marcadas/trabalhados), que violava o V8.
+
+**Decisão — metas.** Leads, reuniões marcadas e realizadas são ritmo por dia útil (seg–sex, sem feriado). Só leads e contratos têm meta no plano (7/dia; 8/mês). Contrato conta o total contra a meta do mês proporcional aos dias úteis do período. O "teto de 60 reuniões" do plano é teto, não meta, e não vira selo.
+
+**Decisão — Matheus é o único farmer (fala do dono, 24/09).** O seletor "Responsável pelo movimento" saiu, com a Samira fixa no código. A Operação mede `FARMER` (`model.ts`). O "Hoje" do funil não filtra dono nem data, para bater com o pipe (100 abertos contra 99 do Matheus: dois cards do usuário da API).
+
+**Decisão — a carga passa a gravar a entrada por etapa (`metric_version` 4).** O snapshot só tinha seis eventos; Gatilho identificado e Proposta enviada não tinham contagem. `summarize` grava `moves` (criação = entrada na etapa inicial, atribuída ao dono naquele momento; cada troca de etapa = entrada no destino) e `lost_on`. Sem a carga nova, o funil mostra "—" nessas etapas e diz por quê. Rodada local contra o Pipedrive em 24/09: 178 negócios, 178 com histórico por etapa.
+
+**Os dois relatos, medidos:**
+- O segundo ganho é o Rh Numbers (94478), ganho às 17:04 de 24/09 pelo Matheus. A carga das 16:50 ainda não o tinha; a das 17:10 já trouxe. Não havia defeito na régua.
+- O outro "ganho" do pipe 39, TECH MED (78988), foi ganho em 07/04 pela Thalissa em outro pipe e trazido para cá já ganho em 01/09. Não é ganho da Monetização e continua fora.
+- A troca de etapas já estava no snapshot (a ordem vem de `order_nr`); o funil novo usa a ordem da carga.
+
+**Filtros na URL (N7):** `de`, `ate` e `produto` entram no `validateSearch` de `/monetizacao`, com presets Hoje, 7 dias, 30 dias e Mês.
+
+**Status:** local, na branch `feat/monetizacao-operacao-recon-20260924`. Testes: 23/23. `design:lint:changed`: 0 no escopo. **Não publicado**: o front (CLI no `ops-brain`) e a Edge Function `monetizacao-crm` esperam o aceite do dono.
+
+## [2026-09-24] Cockpit do CEO: Visão executiva em leitura de dez segundos e "Perguntar ao Brain"
+
+**Contexto:** o Pedro pediu uma mudança real de experiência. Na Visão executiva ele quer entender em dez segundos como estamos, o que mudou, onde está o problema e o que é decisão dele, sem cartão de placeholder. Pediu também uma conversa com UI generativa sobre os mesmos dados. Branch `feat/cockpit-ceo-conversa-20260924`. Relatório: `docs/dev_notes/cockpit-ceo-conversa/relatorio.md`.
+
+**Decisões — Visão executiva:**
+- A primeira dobra tem quatro números:
+  - faturamento do último mês fechado;
+  - MRR novo vendido;
+  - vencido a receber;
+  - onboarding parado há mais de 30 dias.
+
+  Cada um com comparação e tendência (`KpiCard.tendencia`, prop nova do DS), mais um gráfico do faturamento e até três exceções com responsável.
+- O cartão, a última barra e o total da ponte são o mesmo número, e um teste confere ao centavo.
+- A meta de R$ 1 bi sai da grade, porque é sempre "não apurado", e vira decisão com as leituras candidatas como alternativas.
+- Número sem dado sai da grade e vira aviso curto com o último mês confiável. "Sem acesso" continua visível.
+- O filtro de período sai da Visão executiva, porque não altera nenhum dos quatro números, e continua nas frentes.
+- O responsável de cada exceção é o "Dono" do contrato do indicador (`src/lib/cockpit-ceo/donos.ts`).
+- O selo de saúde soma às fontes declaradas a data de cada número da primeira leitura: cartão parcial por dado velho não convive com "fontes em dia".
+
+**Decisões — Perguntar ao Brain (`/cockpit-ceo/perguntar`):**
+- Quatro camadas. O Jev classifica. O modelo escolhe consultas de um catálogo fechado (15) e propõe a visão. O servidor valida, executa as funções do cockpit com a sessão da pessoa e confere os números do texto. A tela renderiza só componentes do DS.
+- Sem SQL livre, sem HTML ou código do modelo, sem número escrito pelo modelo em bloco.
+- A conclusão só chega depois da conferência; o stream mostra as etapas, não os tokens.
+- A visão salva guarda definição e filtros, nunca números. Reabrir consulta de novo com o acesso vigente.
+- Tabelas privadas `ops.cockpit_conversas`, `cockpit_mensagens`, `cockpit_visoes` e `cockpit_ia_consumo` (RLS "só o dono" + área). **Aplicadas em produção com autorização do Pedro em 24/09**; rollback em `supabase/rollback/20260925000000_*`.
+- Teto de consumo conferido antes de cada chamada, com valores que vêm do ambiente e não se renovam por lote:
+  - US$ 20/mês para todos;
+  - US$ 3/dia e 150 chamadas/dia por pessoa.
+- Jev calibrado com 36 perguntas: domínio com limiar 0,7 (34/36); o sinal de ambiguidade não separa e ficou desligado.
+- Modelo padrão `anthropic/claude-sonnet-5` até a avaliação (pronta, pendente de crédito) decidir.
+- A leitura da rede ganhou as parcelas base nova e antiga (`porBase`), que somam a linha; nenhum total mudou.
+- As leituras do cockpit e da Monetização viraram funções exportadas (`ler*`), sem mudança de lógica, para o servidor da conversa usar a mesma regra da tela.
+
+**Não publicado.** Pendências no relatório: crédito e avaliação, revogação das chaves, chave e tetos na Vercel, "contrato ok", área para o CEO.
+
+**Adendo 25/09:** o Jev da conversa fica **desligado** até o Pedro resolver os créditos do OpenRouter (pedido dele). Liga com `COCKPIT_IA_JEV=1`; desligado, a pergunta segue como "Jev indisponível", com o modelo recebendo todas as consultas (caminho já testado).
+
+## [2026-09-24] Fila Cella aposentada; Monetização migra para o DS v2 pelas propostas dos contratos
+
+**Contexto:** na migração das telas para o Design System v2 (módulo 1, Monetização), a medição de 23/09 mostrou que a Fila Cella nunca operou em produção: `ops.v_fila_cella`, `ops.fila_cella_toques` e `ops.fila_cella_ciclos` com 0 linhas desde sempre (o sync da fase F1 nunca rodou). Os contratos das dez telas do módulo foram escritos em `docs/design/contratos/` e levados ao Pedro.
+
+**Decisão:**
+1. **A Fila Cella sai** ("ela tá obsoleta", Pedro, 24/09). O item sai do menu de Monetização (`areas.ts`, uma linha); a rota `/fila-cella` continua viva e explica a saída, com botão para o Follow Day (N14: rota aposentada explica, não some). Os componentes, hooks e server functions da tela saem do repositório. **Banco não muda:** tabelas, view, migrations e as chaves `view/manage.fila_cella*` ficam (a matriz de permissões e `cockpit-ceo/portas.ts` ainda citam a chave; remover é outra decisão). O trabalho por negócio fica no Follow Day; a pendência 5.2 do `PRODUCT.md` perde uma das três casas.
+2. **As propostas dos contratos valem como aprovadas** ("pode seguir conforme suas propostas; depois eu mudo"): perguntas das telas; zeros Z0–Z5 (responsável Matheus mantido como padrão, mas na URL e escrito no cabeçalho; carga parada, negócio sem histórico e receita parcial viram `parcial`; "Disponíveis agora" sem base e Capacidade sem plano viram "não apurado"); F1 (a faixa de abas dentro de `/monetizacao` sai, a lateral é o único menu); F5 (Follow Day em ordem de trabalho com botão "Abrir no Pipedrive"); nome único "Leads trabalhados" para o evento `started`; conflitos 5.7 e 5.8 migrados sem fusão, com o perímetro declarado na `descricao`.
+3. **Growth fica fora desta rodada.** O Pedro notou que o Growth parece segregado (outro menu, outra casca): é outro app (`brain-web`, Next.js, do Mika) montado em `/growth`. A casca única é decisão do Eliezek com o Mika (DECISIONS 14/09).
+
+**Status:** Fila Cella aposentada no código da branch `feat/ds-v2-migracao-monetizacao-20260923` (não publicada). Migração das nove visões em andamento; PR ao fim do módulo.
+
+## [2026-09-24] Base de clientes no DS v2: filtros na URL, busca única, cartões que batem com o destino
+
+**Contexto:** módulo 3b da migração (contrato docs/design/contratos/clientes.md, propostas aprovadas pelo Pedro em 24/09). Regras de oferta, disponibilidade, limite de 300, reserva, envio e RLS não mudam.
+
+**Decisões:**
+1. **Estado na URL** (components/clientes/busca.ts). Chaves antigas (view, status, unidade, q, origem, gate) continuam aceitas. Novas: produto, situacao (ausente = situação padrão do produto; "todas" = todas), abordagem, faixa, driva, segmento, regime, receita, contato, sobreposicao, pagina (Validar origem e Contratos; volta a 1 ao trocar de visão ou de filtro), churn, erp, segmentoContrato (chave própria, porque segmento da Base é outra régua), assinatura. Valor igual ao padrão não vai para a URL.
+2. **Unidade e origem continuam de múltipla escolha** (18/09): MultiSelect no topo, lista na URL; link antigo com valor único vira lista de um. Contratos e churn filtra uma unidade por vez e grava o nome; com mais de uma, ou sem a carga da Base, abre sem unidade e diz por quê.
+3. **A origem do topo passa a usar origemBase (4 valores)**, a mesma régua da tabela. Antes lia base.origin (3 valores) e "A confirmar" nunca casava conta sem base: o mesmo link ?origem=confirmar passa a trazer mais contas.
+4. **Busca única (q) para todas as visões**, inclusive Contratos. Em Contratos a busca é mais estreita: só razão social, título e CNPJ, sem segmento nem unidade, e dígitos soltos não casam com CNPJ formatado. O texto acompanha a troca de visão; se já houver texto em q ao abrir Contratos, a busca no Omie dispara; o selo "Validar origem (N)" conta sobre ele.
+5. **Cartões e números que filtram abrem o destino com o mesmo objeto de filtro**, e o total bate (N2). Não abrem, de propósito: "carteira retroativa (base inteira)" (nenhuma situação da tabela é esse conjunto) e as duas linhas de disponibilidade da matriz em "Entenda os números" (incluem os só no Omie).
+6. **"Enviar ao Pipedrive (N)" mostra o N do modal**, inclusive os só no Omie; o modal diz quantos são. Com produto escolhido e nenhuma selecionada enviável, o botão fica desabilitado com o motivo (antes abria o modal vazio).
+7. **Contratos e churn:** "Clientes sem churn" (sem card na Central de Tratativas) × "Pagou nos últimos 90 dias" (status_financeiro=ATIVO); 100 por página; falha na leitura de unidades ou de tratativas vira EstadoErro (antes lista vazia ou churn zerado com cara de dado).
+8. **Um "Atualizar" só (o do Freshness):** com escopo geral dispara a carga; sem ele relê e diz por quê. O selo de Validar origem conta depois do refinamento, como o cabeçalho. A fila ordena por correção no Pipefy, motivo, unidade e nome.
+
+**Status:** branch feat/ds-v2-migracao-monetizacao-20260923 (commits d6dba22..dc3cd17), não publicada.
+
+## [2026-09-24] Rede no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das seis telas da Rede (Overview, Indicadores do Trimestre, IDU, Realizado, LTV, Headcount) para o Design System v2, com as propostas dos contratos aprovadas em bloco pelo Pedro em 24/09 (`docs/design/contratos/{rede-overview,indicadores-trimestre,idu,rede-realizado,rede-ltv,rede-headcount}.md`). Nenhuma query, fórmula, RLS ou permissão mudou; as decisões abaixo são de exibição e ficaram fora do óbvio.
+
+**Decisão:**
+1. **Chave de mês única (`src/lib/rede/mes.ts`).** `date` e `aaaa-mm` valem o mês escrito. Em `timestamptz`, o instante exatamente em dia 01 00:00:00 UTC é tratado como `date_trunc` UTC e fica no mês UTC; qualquer outro instante vai para o mês de São Paulo. Motivo: o banco roda em `TimeZone=UTC` (medido em 24/09) e as views devolvem o mês truncado em UTC; converter literalmente para São Paulo jogaria todo mês para o anterior. `rotuloMes` monta o rótulo da string, sem `Date`. Isso fez casar chaves que nunca casavam: CAC e NPS do Realizado, a série do LTV e o MRR por pessoa do Headcount voltaram a aparecer. Teste em `tests/rede-mes.test.mjs`.
+2. **Trimestre na URL como `aaaa-Tn`**, padrão o último fechado, janela de 8. IDU usa fim exclusivo e Indicadores fim inclusivo porque as RPCs são diferentes (unificadas num helper só, com o fim como parâmetro).
+3. **Zero que é ausência vira "não apurado" ou fica sem ponto:** unidade sem título do Omie; mês que a view preenche com 0 via COALESCE (no Realizado, o "Crescimento" do mês sem título deixa de mostrar −100%); ARPA e LTV de mês sem contrato; turnover com headcount 0; série de royalties sem acesso.
+4. **Rótulos únicos (N11).** "Qtd Proj. Ativos" sai do Overview (era o mesmo número de "Clientes ativos"); "Contratos ativos por mês"; "Take rate da unidade"; "MRR vendido no trimestre"; "Idade média dos contratos ativos"; "LT da série (desde 07/2024)"; "MRR por pessoa". As três réguas chamadas "LTV" (Overview ARPA ÷ churn, Indicadores MRR × 60, LTV ARPA × idade) continuam, cada uma com a régua no rótulo, para ninguém comparar as três.
+5. **Overview:** as quatro abas ficam em `?aba=` até o Eliezek decidir se viram páginas irmãs (mexe em `areas.ts`); período padrão ano corrente; o recorte do sócio vence a URL; churn sem tom fixo; o período continua cortando no mês (o seletor aceita dia, mas vale o mês).
+6. **Indicadores:** unidade padrão é a do usuário; o "comparativo fechado" é apresentação, não segurança (achado para o Eliezek: o recorte teria que estar na RPC).
+7. **Realizado:** período padrão últimos 12 meses; MRR, contratos e ARPA de hoje viram barra por unidade (a série repetia a foto); até 5 linhas ligadas (as maiores pelo recebido), as outras desligadas na legenda.
+8. **IDU:** meta vazia na unidade não grava mais 0 (antes `Number("")` virava meta 0); apagar meta padrão e voltar ao padrão pedem confirmação; erro ao salvar vira toast e a página fica; sem `edit.idu_metas`, o campo fica desabilitado com o motivo.
+9. **Headcount:** o vermelho fixo acima de 5% sai (não há régua declarada); admissão e demissão deixam de ser verde e vermelho (status não pinta categoria).
+10. **Unidade na URL:** pelo nome nas telas da Rede, pelo id no IDU (o nome continua aceito como link antigo).
+11. **Lacunas declaradas:** procedência sem data de atualização nas seis telas (as fontes não expõem quando foram atualizadas); a série do LTV mantém o início fixo em 07/2024 até o dono decidir se ela fica.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-rede-20260924` (sem push). Revisão do Eliezek no PR, com os achados de permissão e cálculo listados lá.
+
+## [2026-09-24] Base de clientes (relacionamento) no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das telas CS, NPS, Auditoria Interna, Reforma Tributária, Disparos de WhatsApp e Base de Contatos para o Design System v2 (contratos em `docs/design/contratos/`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma fórmula de servidor, RLS ou permissão mudou; a única mudança de consulta foi acrescentar a coluna `synced_at` ao select de `auditorias_internas` (e de `cs_onboarding_cards`) para mostrar a data de atualização (N3).
+
+**Decisão:**
+1. **Disparos:** o redirect silencioso para `/` sem `send.whatsapp` vira `EstadoSemAcesso` com a chave que falta. A checagem sai do `beforeLoad` para o componente, com a mesma RPC `can`, e as abas não montam sem a chave (nada de disparo fica alcançável; o servidor continua exigindo `send.whatsapp`). Registrar ligação/resposta sem `edit.nps` fica desabilitado com o motivo.
+2. **Base de Contatos:** "Sem contato (clientes ativos)" passa a ser a soma por unidade de (ativos − com WhatsApp): a conta antiga subtraía um total de todas as empresas de um total de ativos, misturava universos e podia dar negativo. A fórmula do servidor não mudou; mudou qual dos números já devolvidos a tela usa. Os rótulos declaram o universo ("todas as empresas" × "clientes ativos"); "Já disparadas" vira "Já receberam a pesquisa"; a aba `plano-acao` vira `plano`.
+3. **NPS:** com filtro de categoria ligado, NPS e CSAT ficam "não apurado" (o filtro mudava o próprio indicador); "Detratores recentes" vira "Detratores com a menor nota" (a lista ordena por nota); categoria usa cores de série, não de status (detrator em roxo); variação suprimida com menos de 10 respostas; mês pelo `created_at` do card.
+4. **Auditoria Interna:** "Concluídos (flag ou fase final)", "Projetos em 'Projeto Concluído'" e "Saúde da carteira" → "Exposição fiscal por unidade" (o nome era da tela que saiu em 23/09); valor ausente "—" com "{n} projetos sem valor", nunca "R$ 0".
+5. **CS:** taxas sem denominador "—"; o churn blended declara que ignora busca, status e período; barra "Outras fases" para fase fora da ordem conhecida; "Forçar atualização" desabilitado com motivo para quem não é admin (o servidor exige admin; vale também para a Auditoria).
+6. **Reforma Tributária:** exceção ao "o gerador de HTML não muda", só para o sinal da diferença (negativo sai "−R$ X", não "+R$ -X"); o campo mostra o 0 digitado e deixa o vazio vazio (o cálculo continua tratando vazio como 0); descartar a simulação pede confirmação.
+7. **Custos de WhatsApp:** "Acumulado (180 dias)" vira "Acumulado (histórico importado)", que é o que a leitura soma.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-base-cs-20260924` (sem push). Revisão do Eliezek no PR, com os achados de permissão e régua listados lá.
+
+## [2026-09-24] Receita e Repasses no DS v2: réguas de exibição fixadas na aplicação
+
+**Contexto:** migração das nove telas de Receita e Repasses para o Design System v2 (contrato `docs/design/contratos/receita-e-repasses.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma consulta, fórmula, RLS ou função de servidor mudou (conferido na revisão final, cadeia a cadeia); as decisões abaixo são de exibição e navegação.
+
+**Decisão:**
+1. **`MolduraReceita` local em vez de mexer no `AppShell`**, que é casca de 19 telas e não aceitava pergunta nem procedência. É ponte: candidata a virar props opcionais do `AppShell` numa rodada do DS (o módulo de Administração acrescentou `pergunta` ao `AppShell` em paralelo; unificar ao integrar).
+2. **Mês padrão e limite da seta:** Visão geral, lista de royalties e Esperado × Recebido abrem no mês anterior; o Funil de Receita abre no corrente, marcado como parcial. A seta da Visão geral vai até o mês anterior; a da lista e da ficha, até o corrente, porque abrir a ficha cria a apuração no banco. Todo link entre elas leva `?mes=`.
+3. **Contas a Receber vira fila de cobrança:** em atraso primeiro, a mais antiga no topo; paginação na tela de 100 linhas; a próxima ação é "Abrir cliente" (não foi inventada ação de cobrança). O filtro por mês passou para `mesFiltro`/`modo`, porque o hook antigo gravava `?mes=` sempre e um link antigo ligaria o filtro sem querer. Datas date-only com `parseISO`.
+4. **Fatura que vale para a unidade no mês:** a mais recente sem erro, com a mesma regra na lista e na ficha (antes a lista pegava a última e a ficha a primeira).
+5. **Ficha de royalties:** uma ação principal por estado no cabeçalho; o Emitir da ficha marca só a unidade; a ficha só renderiza quando a apuração carregada é do mês e da unidade da URL (antes, ao trocar de mês, "Fechar" podia agir sobre o mês anterior). As travas reais (criar, fechar no mês em andamento, reabrir faturada) continuam do servidor; a tela avisa em `AlertDialog`.
+6. **Ausência não é zero:** valor ausente "—"; a Visão geral mostra "não apurado" quando não há apuração aberta no mês ou quando a receita do mês tem os cinco campos zerados (o servidor preenche zero em mês sem dado: defeito de dado 8).
+7. **Nomes únicos (N11):** "Recebido (por emissão)", "Em atraso (filtro)", "CSC (fixo ou base antiga)", "Mídia (tráfego pago)", "Cobrado (unidade do card)", "Cobrado / A cobrar", "Com 1º pagamento".
+8. **Comissões:** o cabeçalho diz "Comissões", igual ao menu (N1); renomear o item para "Apuração de comissões" é proposta ao Eliezek (`areas.ts` é dele). A procedência avisa o corte de 1.000 títulos até o defeito de dado 1 ser corrigido.
+9. **EBIT:** mês sem custo lançado aparece como "não apurado", não como "EBIT zerado" em verde.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-receita-20260924` (sem push). Os 12 defeitos de dado ficam no contrato e no PR para o Eliezek.
+
+## [2026-09-24] Planning People, Broker e Minha Unidade no DS v2: o que mudou de nome, de estado e de regra
+
+**Contexto:** migração do módulo 5 para o Design System v2 (contratos `docs/design/contratos/{gente,broker,minha-unidade}.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma query, RLS, permissão ou fórmula de servidor mudou.
+
+**Decisão:**
+1. **`/gente` perde a faixa de 11 abas (N6).** `?tela=` é o endereço; `?visao=` e `?aba=` antigos são traduzidos e saem da URL (`?tela=sentimento` cai em `lideranca`). Filtros por tela na URL: `rodada` (Clima), `ciclo` (Avaliação), `pessoa` (1:1), `tipo` (Feedback), `busca`/`unidade`/`departamento`/`status` (Cadastro).
+2. **Broker, Reservar sem trava de saldo:** com o saldo exibido menor que o preço, a fila mostra um aviso não bloqueante e a recusa vem do servidor. Motivo: a tela da unidade não sabe se `bloqueio_por_saldo` está ligado; travar no cliente impediria uma reserva que o servidor aceita. O botão só desabilita (com motivo) no "ver como".
+3. **Avaliação, Liberar devolutiva:** pede `AlertDialog` com o efeito, some em ciclo encerrado ou importado e quando todos já têm devolutiva; o texto avisa que liberar de novo regrava a data de quem já tinha. Notas do comitê gravam só com mudança e só dentro da escala do ciclo (validação nova, no cliente; o servidor não confere).
+4. **Clima:** o rótulo do eNPS diz o universo; com menos de 5 respostas fica "—". Enviar convites confirma com o número de pessoas ativas com e-mail no cadastro visível e, no reenvio, diz quantas já receberam (sem subtrair, porque o servidor tenta de novo quem falhou). Encerrar rodada confirma.
+5. **1:1, Registrar só para liderado direto:** a fila mostra o time em qualquer profundidade, mas o botão por linha só vale para liderado direto, como o formulário já fazia. O banco aceita qualquer pessoa (achado para o Eliezek).
+6. **Rótulos N11:** "Pessoas cadastradas (todos os status)" e "N de M (ativas)"; Matriz "Reservadas (oportunidades)" e "Valor da fila (soma dos preços)" × unidade "Reservado (CB)"; Painel "Contratos ativos", "Nota média das pesquisas (90 dias)", "Tratativas perdidas movidas no mês"; Adoção "com login" como número com %, sem selo vermelho fixo (N9).
+7. **Meus Royalties:** "Pago" quando o recebido cobre 99% do previsto; previsto 0 e recebido 0 é "Sem cobrança"; mês sem previsto ou com leitura falha é "—".
+8. **Adoção:** lista vazia lida pela chave: sem `view.gente.agregado` é "sem acesso"; com a chave é "nenhuma unidade".
+9. **Dívida:** `BotaoComMotivo`, `ErroDaFonte`, `AvisoCorte` e `dataSP` moram em `components/gente/estados-gente.tsx` e o Broker os importa dali; há cópias de `BotaoComMotivo` em Monetização e Receita. Consolidar em `components/planning` depois dos merges.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-people-20260924` (sem push). Revisão do Eliezek no PR, com os achados de servidor e RLS listados lá.
+
+## [2026-09-24] Administração no DS v2: quatro decisões da aplicação
+
+**Contexto:** migração das telas de Administração, `/inicio` e rotas órfãs para o Design System v2 (contrato `docs/design/contratos/administracao.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Quatro escolhas não óbvias saíram da aplicação.
+
+**Decisão:**
+1. **Excluir perfil em uso fica desabilitado, não confirmado.** O contrato pedia um aviso de "N pessoas perdem as áreas", mas `deleteRole` já recusa excluir perfil que alguém usa: a perda nunca acontece. O botão diz o motivo; sem ninguém no perfil, o `AlertDialog` diz que ninguém perde acesso.
+2. **Asaas em produção confirma desde a primeira gravação.** Sem valor salvo, o ambiente é o sandbox; gravar "produção" torna as cobranças reais, então pede confirmação mesmo na primeira vez. Remover o Ambiente diz "volta ao sandbox", porque é o que `testarAsaas` faz sem a chave.
+3. **`/inicio`: um produto interno só vai para a primeira tela acessível** (`primeiraTelaAcessivel`, a mesma regra de `index.tsx`), não sempre para `/rede-overview` ou `/painel-unidade`. Quem só tem Growth fica no `/inicio` com um card (antes caía no Overview da Rede sem acesso). Card de produto cuja consulta falha aparece como "indisponível" e suspende o redirecionamento: sem saber se a pessoa tem um produto só, a tela não decide por ela.
+4. **`/pagamentos-unidades` passa a se chamar "Títulos por vencimento"**: a tela soma títulos a receber pelo vencimento, pagos ou não; "Pagamentos" dizia outra coisa. A rota e o fato de estar fora do menu (desde 14/09) não mudam; o cabeçalho avisa e aponta para Receita e Repasses.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-admin-20260924` (sem push). Revisão do Eliezek no PR.
+
+## [2026-09-25] Cockpit do CEO (leitura de dez segundos + Perguntar ao Brain) publicado; a main volta a ser igual à produção (adendo à entrada de 24/09)
+
+**Autorização:** o Pedro pediu "pode subir", com o Jev da conversa desligado até resolver os créditos do OpenRouter.
+
+**Achado antes de publicar:** produção rodava `cdced02` (Monetização · Operação), publicado em 24/09 por outra sessão sem passar pela `main`. Publicar só a `main` + o cockpit tiraria essa mudança do ar. Por isso:
+- a branch foi subida e mergeada como **PR #22**, sem mudança nenhuma de código;
+- a `main` passou a ser igual à produção;
+- o cockpit entrou por cima como **PR #23** (`9b97842`). O conflito foi só no `DECISIONS.md`, e as duas entradas foram mantidas.
+
+**Publicação:** deploy `dpl_AgLgmTsg2v4Zf27SvHo1W2UeweyT` pela CLI da planningbrainbot-4862 (projeto `ops-brain`, time `planning17`), feito de um worktree limpo em `9b97842`. `planningbrain.com.br` aponta para ele. Rollback: promover `dpl_4beVH8zAaAsRdrRGGnoDamTdXiQF` (`cdced02`).
+
+**Conferido no ar com a sessão do Pedro:**
+- Visão executiva nova com dado real: 4 números, gráfico e atenção inteiros em 1440×900, nenhum "não apurado", sem erro no console.
+- `/cockpit-ceo/perguntar` abre.
+- A API recusa sem login (401).
+- Sem `OPENROUTER_API_KEY` na Vercel, a conversa responde "não está configurada neste ambiente… os painéis do cockpit funcionam normalmente", sem número. A conversa de teste foi apagada.
+- `/monetizacao` segue na aba Operação.
+
+**Para ligar a conversa:** `OPENROUTER_API_KEY` de servidor na Vercel (com crédito) e redeploy. O Jev só volta com `COCKPIT_IA_JEV=1`. Tetos opcionais: `COCKPIT_IA_TETO_MES_USD`, `COCKPIT_IA_TETO_DIA_USD`, `COCKPIT_IA_CHAMADAS_DIA`.
 
 ## [2026-09-25] Gestão de acessos: auditoria completa e o plano de melhoria executado (sem publicar)
 

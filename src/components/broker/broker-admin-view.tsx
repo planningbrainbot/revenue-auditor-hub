@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, Lock, Unlock, AlertTriangle } from "lucide-react";
+import { RefreshCw, Lock, Unlock, AlertTriangle, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import {
   carregarBrokerAdmin,
@@ -14,6 +14,7 @@ import {
   type BrokerAdminData,
   type OportunidadeRow,
   type MultiplicadorRow,
+  type FaturaRow,
 } from "@/lib/broker.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +57,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { KpiCard } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  KpiCard,
+  KpiGrade,
+  Procedencia,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { BotaoComMotivo } from "@/components/gente/estados-gente";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 
 const NA = "—";
 
@@ -69,13 +91,34 @@ const dataCurta = (v: string | null) =>
 const mesLongo = (v: string) =>
   new Date(`${v}T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
-const STATUS_COR: Record<string, string> = {
-  disponivel: "bg-success/10 text-success",
-  reservado: "bg-warning/10 text-warning",
-  comprado: "bg-info/10 text-info",
-  perdido: "bg-muted text-muted-foreground",
-  matriz: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+// Status da oportunidade: ícone + palavra (V7). "matriz" era violet
+// (V3-matiz) e passa a neutro, como "perdido".
+type Situacao = { rotulo: string; tom: TomStatus };
+
+const STATUS_OPORTUNIDADE: Record<string, Situacao> = {
+  disponivel: { rotulo: "Disponível", tom: "sucesso" },
+  reservado: { rotulo: "Reservada", tom: "atencao" },
+  comprado: { rotulo: "Comprada", tom: "info" },
+  perdido: { rotulo: "Perdida", tom: "neutro" },
+  matriz: { rotulo: "Matriz", tom: "neutro" },
 };
+
+const STATUS_FATURA: Record<string, Situacao> = {
+  aberta: { rotulo: "Aberta", tom: "atencao" },
+  paga: { rotulo: "Paga", tom: "sucesso" },
+  cancelada: { rotulo: "Cancelada", tom: "neutro" },
+};
+
+/** Valor fora do mapa aparece como veio, com inicial maiúscula, em neutro. */
+const situacao = (mapa: Record<string, Situacao>, v: string): Situacao =>
+  mapa[v] ?? { rotulo: v.charAt(0).toUpperCase() + v.slice(1), tom: "neutro" };
+
+const ABAS = ["fila", "saldos", "extrato", "multiplicador", "faturas", "cac"] as const;
+type Aba = (typeof ABAS)[number];
+
+/** Limite local do extrato de CAC na tela (o servidor traz até 400). */
+const CORTE_CAC = 120;
+const LIMITE_SERVIDOR_CAC = 400;
 
 // Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN §1.6).
 function Kpi({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
@@ -85,7 +128,7 @@ function Kpi({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: st
 export function BrokerAdminView() {
   const qc = useQueryClient();
   const carregar = useServerFn(carregarBrokerAdmin);
-  const { data, isLoading, error } = useQuery<BrokerAdminData>({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery<BrokerAdminData>({
     queryKey: ["broker-admin"],
     queryFn: () => carregar(),
   });
@@ -95,6 +138,12 @@ export function BrokerAdminView() {
   const [lancando, setLancando] = useState(false);
   const [editandoMult, setEditandoMult] = useState<MultiplicadorRow | null>(null);
   const [lancandoMult, setLancandoMult] = useState(false);
+  const [liberando, setLiberando] = useState<OportunidadeRow | null>(null);
+  const [baixando, setBaixando] = useState<FaturaRow | null>(null);
+
+  // Aba na URL (N7): ?aba=saldos reabre em Saldos; valor desconhecido cai na Fila.
+  const [abaUrl, setAba] = useFiltroNaUrl("aba", "fila");
+  const aba: Aba = (ABAS as readonly string[]).includes(abaUrl) ? (abaUrl as Aba) : "fila";
 
   const recarregar = () => qc.invalidateQueries({ queryKey: ["broker-admin"] });
   const aoFalhar = (e: unknown) => toast.error(e instanceof Error ? e.message : "Falhou.");
@@ -123,6 +172,7 @@ export function BrokerAdminView() {
       recarregar();
     },
     onError: aoFalhar,
+    onSettled: () => setLiberando(null),
   });
   const mLancar = useMutation({
     mutationFn: (d: {
@@ -171,6 +221,7 @@ export function BrokerAdminView() {
       recarregar();
     },
     onError: aoFalhar,
+    onSettled: () => setBaixando(null),
   });
 
   const unidadePorId = useMemo(
@@ -217,18 +268,58 @@ export function BrokerAdminView() {
     [data?.multiplicadores],
   );
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando o broker…</p>;
-  if (error)
+  // Procedência (N3), visível também nos estados degradados.
+  const procedencia = (
+    <Procedencia
+      fonte="Broker da matriz: fila (Pipedrive, sync a cada 15 min), extrato imutável, faturas e CAC pós-pago"
+      atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+      regua="fila e saldos em CashBrain (1 CB = R$ 1,00); CAC em R$"
+    />
+  );
+
+  if (isLoading)
     return (
-      <Card className="border-destructive/40 p-4">
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Falha ao carregar."}
-        </p>
-      </Card>
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        {procedencia}
+      </div>
     );
+  if (error) {
+    const msg = error instanceof Error ? error.message : "Falha ao carregar.";
+    // O servidor recusa com "Acesso negado: …" quando falta view.broker_admin.
+    return (
+      <div className="space-y-4">
+        {msg.startsWith("Acesso negado") ? (
+          <EstadoSemAcesso oQueFalta="view.broker_admin" />
+        ) : (
+          <EstadoErro
+            titulo="Não foi possível ler o Broker da matriz"
+            detalhe={`Resposta do servidor: ${msg}`}
+            tentarNovamente={recarregar}
+          />
+        )}
+        {procedencia}
+      </div>
+    );
+  }
   if (!data) return null;
 
   const somenteLeitura = !data.podeOperar;
+  // N8: sem manage.broker o botão fica à vista, desabilitado, dizendo por quê.
+  const motivoLeitura = somenteLeitura
+    ? "Somente leitura: operar o Broker exige a permissão manage.broker."
+    : null;
+  const cacCortado = data.cacExtrato.length > CORTE_CAC;
+  const nomeUnidade = (id: number) => unidadePorId.get(id) ?? `unidade ${id}`;
+  // Efeito e valor da liberação (V6), ditos antes de confirmar.
+  const efeitoLiberar = (o: OportunidadeRow) => {
+    const quem = o.reservado_por ? nomeUnidade(o.reservado_por) : "a unidade";
+    const saldo =
+      o.preco_cb === null
+        ? "Ainda não há preço, então nada está bloqueado no saldo."
+        : `${cb(o.preco_cb)} bloqueados voltam para o saldo disponível de ${quem}.`;
+    return `${saldo} A oportunidade deixa de estar reservada para ${quem}.`;
+  };
 
   return (
     <div className="space-y-4">
@@ -254,7 +345,7 @@ export function BrokerAdminView() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiGrade colunas={4}>
         <Kpi
           rotulo="Na fila"
           valor={String(resumo.disponiveis)}
@@ -264,9 +355,18 @@ export function BrokerAdminView() {
               : "todas precificadas"
           }
         />
-        <Kpi rotulo="Valor disponível" valor={cb(resumo.valorDisponivel)} />
         <Kpi
-          rotulo="Reservado"
+          rotulo="Valor da fila (soma dos preços)"
+          valor={cb(resumo.valorDisponivel)}
+          nota={
+            resumo.semPreco
+              ? `${resumo.semPreco} sem preço ficam fora da soma`
+              : "oportunidades disponíveis"
+          }
+        />
+        {/* N11: aqui é contagem; o CashBrain bloqueado vai na nota. */}
+        <Kpi
+          rotulo="Reservadas (oportunidades)"
           valor={String(resumo.reservados)}
           nota={cb(resumo.valorReservado) + " bloqueados"}
         />
@@ -275,9 +375,9 @@ export function BrokerAdminView() {
           valor={mult(vigente?.aplicado)}
           nota={vigente ? `apurado ${mult(vigente.apurado)} · ${mesLongo(vigente.mes)}` : undefined}
         />
-      </div>
+      </KpiGrade>
 
-      <Tabs defaultValue="fila">
+      <Tabs value={aba} onValueChange={(v) => setAba(v)}>
         <TabsList>
           <TabsTrigger value="fila">Fila</TabsTrigger>
           <TabsTrigger value="saldos">Saldos</TabsTrigger>
@@ -317,9 +417,9 @@ export function BrokerAdminView() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={cn(STATUS_COR[o.status])}>
-                        {o.status}
-                      </Badge>
+                      <StatusBadge tom={situacao(STATUS_OPORTUNIDADE, o.status).tom}>
+                        {situacao(STATUS_OPORTUNIDADE, o.status).rotulo}
+                      </StatusBadge>
                       {o.reservado_por ? (
                         <span className="ml-2 text-xs text-muted-foreground">
                           {unidadePorId.get(o.reservado_por) ?? `unidade ${o.reservado_por}`}
@@ -330,18 +430,26 @@ export function BrokerAdminView() {
                       {dataCurta(o.entrou_em)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {somenteLeitura ? null : o.status === "disponivel" ? (
-                        <Button size="sm" variant="outline" onClick={() => setReservando(o)}>
+                      {o.status === "disponivel" ? (
+                        <BotaoComMotivo
+                          size="sm"
+                          variant="outline"
+                          disabled={somenteLeitura}
+                          motivo={motivoLeitura}
+                          onClick={() => setReservando(o)}
+                        >
                           Reservar
-                        </Button>
+                        </BotaoComMotivo>
                       ) : o.status === "reservado" ? (
-                        <Button
+                        <BotaoComMotivo
                           size="sm"
                           variant="ghost"
-                          onClick={() => mLiberar.mutate({ oportunidade_id: o.id })}
+                          disabled={somenteLeitura}
+                          motivo={motivoLeitura}
+                          onClick={() => setLiberando(o)}
                         >
                           Liberar
-                        </Button>
+                        </BotaoComMotivo>
                       ) : null}
                     </TableCell>
                   </TableRow>
@@ -359,11 +467,14 @@ export function BrokerAdminView() {
         </TabsContent>
 
         <TabsContent value="saldos" className="mt-3 space-y-3">
-          {somenteLeitura ? null : (
-            <Button size="sm" onClick={() => setLancando(true)}>
-              Lançar crédito ou aporte
-            </Button>
-          )}
+          <BotaoComMotivo
+            size="sm"
+            disabled={somenteLeitura}
+            motivo={motivoLeitura}
+            onClick={() => setLancando(true)}
+          >
+            Lançar crédito ou aporte
+          </BotaoComMotivo>
           <Card className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -440,11 +551,15 @@ export function BrokerAdminView() {
             <p className="text-xs text-muted-foreground">
               O apurado vem do job mensal. O aplicado é ato humano e é o que a rede sente no preço.
             </p>
-            {somenteLeitura ? null : (
-              <Button size="sm" className="ml-auto" onClick={() => setLancandoMult(true)}>
-                Lançar manualmente
-              </Button>
-            )}
+            <BotaoComMotivo
+              size="sm"
+              className="ml-auto"
+              disabled={somenteLeitura}
+              motivo={motivoLeitura}
+              onClick={() => setLancandoMult(true)}
+            >
+              Lançar manualmente
+            </BotaoComMotivo>
           </div>
           <Card className="overflow-x-auto">
             <Table>
@@ -479,11 +594,15 @@ export function BrokerAdminView() {
                       {mult(m.aplicado)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {somenteLeitura ? null : (
-                        <Button size="sm" variant="ghost" onClick={() => setEditandoMult(m)}>
-                          Definir
-                        </Button>
-                      )}
+                      <BotaoComMotivo
+                        size="sm"
+                        variant="ghost"
+                        disabled={somenteLeitura}
+                        motivo={motivoLeitura}
+                        onClick={() => setEditandoMult(m)}
+                      >
+                        Definir
+                      </BotaoComMotivo>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -518,17 +637,9 @@ export function BrokerAdminView() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{cb(f.valor_cb)}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          f.status === "paga" &&
-                            "bg-success/10 text-success",
-                          f.status === "aberta" &&
-                            "bg-warning/10 text-warning",
-                        )}
-                      >
-                        {f.status}
-                      </Badge>
+                      <StatusBadge tom={situacao(STATUS_FATURA, f.status).tom}>
+                        {situacao(STATUS_FATURA, f.status).rotulo}
+                      </StatusBadge>
                       {f.meio_pagamento ? (
                         <span className="ml-2 text-xs text-muted-foreground">
                           {f.meio_pagamento}
@@ -536,14 +647,16 @@ export function BrokerAdminView() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-right">
-                      {!somenteLeitura && f.status === "aberta" ? (
-                        <Button
+                      {f.status === "aberta" ? (
+                        <BotaoComMotivo
                           size="sm"
                           variant="outline"
-                          onClick={() => mPagar.mutate({ fatura_id: f.id, meio: "transferência" })}
+                          disabled={somenteLeitura}
+                          motivo={motivoLeitura}
+                          onClick={() => setBaixando(f)}
                         >
                           Dar baixa
-                        </Button>
+                        </BotaoComMotivo>
                       ) : null}
                     </TableCell>
                   </TableRow>
@@ -655,7 +768,7 @@ export function BrokerAdminView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.cacExtrato.slice(0, 120).map((m) => (
+                {data.cacExtrato.slice(0, CORTE_CAC).map((m) => (
                   <TableRow key={m.id}>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {dataCurta(m.criado_em)}
@@ -688,8 +801,78 @@ export function BrokerAdminView() {
               </TableBody>
             </Table>
           </Card>
+          {cacCortado ? (
+            <p className="text-[13px] text-muted-foreground">
+              Mostrando <span className="num">{CORTE_CAC}</span> de{" "}
+              <span className="num">{data.cacExtrato.length}</span> lançamentos de CAC (os mais
+              recentes)
+              {data.cacExtrato.length >= LIMITE_SERVIDOR_CAC
+                ? `; a consulta traz no máximo ${LIMITE_SERVIDOR_CAC}, então pode haver mais antigos`
+                : ""}
+              .
+            </p>
+          ) : null}
         </TabsContent>
       </Tabs>
+
+      {procedencia}
+
+      <AlertDialog
+        open={!!liberando}
+        onOpenChange={(o) => !o && !mLiberar.isPending && setLiberando(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Liberar a reserva de {liberando?.empresa ?? liberando?.titulo ?? "esta oportunidade"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {liberando ? efeitoLiberar(liberando) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mLiberar.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mLiberar.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (liberando) mLiberar.mutate({ oportunidade_id: liberando.id });
+              }}
+            >
+              {mLiberar.isPending ? "Liberando…" : "Liberar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!baixando}
+        onOpenChange={(o) => !o && !mPagar.isPending && setBaixando(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dar baixa na fatura #{baixando?.id}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cb(baixando?.valor_cb)} ({brl(baixando?.valor_brl)}) entram como aporte no extrato de{" "}
+              {baixando ? nomeUnidade(baixando.unidade_id) : ""} e ficam no saldo disponível, com
+              pagamento por transferência. O extrato é imutável: desfazer só por estorno.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mPagar.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mPagar.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (baixando) mPagar.mutate({ fatura_id: baixando.id, meio: "transferência" });
+              }}
+            >
+              <Landmark className="mr-1.5 h-3.5 w-3.5" />
+              {mPagar.isPending ? "Dando baixa…" : "Dar baixa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!reservando} onOpenChange={(o) => !o && setReservando(null)}>
         <DialogContent>

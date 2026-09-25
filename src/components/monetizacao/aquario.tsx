@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -22,6 +22,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import {
@@ -66,7 +74,18 @@ import type {
 } from "@/lib/monetizacao/portfolio";
 import { FieldMulti, MultiSelect } from "./multi-select";
 import {
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  type TomKpi,
+} from "@/components/planning";
+import {
+  BotaoComMotivo,
   date,
+  estadoDaCarga,
+  FOCO_VISIVEL,
   downloadCsv,
   FalhaDeCarga,
   Field,
@@ -77,7 +96,7 @@ import {
   Notice,
   number,
   OfertaTag,
-  Panel,
+  SecaoCartao,
 } from "./common";
 
 type Filters = PortfolioFilters;
@@ -95,11 +114,29 @@ export function Aquario({
   accountKeys,
   secao = "base",
   irPara,
+  filtros,
+  mudarFiltros,
+  recorte,
+  accountKeysSemOrigem,
 }: {
   embedded?: boolean;
   accountKeys?: Set<string>;
   secao?: SecaoAquario;
   irPara?: (s: SecaoAquario) => void;
+  /**
+   * Filtros da tabela controlados por fora (a Base de clientes os guarda na URL). Com eles, a
+   * tabela não desenha busca, unidade e origem: essas três são do topo da página.
+   */
+  filtros?: Filters;
+  /** Grava os filtros e, com `destino`, troca de seção na mesma navegação. */
+  mudarFiltros?: (f: Filters, destino?: SecaoAquario) => void;
+  /** Assinatura do recorte do topo (unidade, origem, refinamento): mudou, a seleção é limpa. */
+  recorte?: string;
+  /**
+   * Contas do recorte do topo SEM o filtro de origem: os cartões de origem da gaveta contam sobre
+   * elas, porque o clique aplica a origem (contar com ela mostraria 0 e abriria N).
+   */
+  accountKeysSemOrigem?: Set<string>;
 } = {}) {
   const q = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
@@ -108,8 +145,22 @@ export function Aquario({
   const ir = irPara ?? (() => {});
   const [unit, setUnit] = useState<Unidade | null>(null),
     [account, setAccount] = useState<Conta | null>(null);
-  const [filters, setFilters] = useState<Filters>(emptyFilters),
+  const [filtrosLocais, setFiltrosLocais] = useState<Filters>(emptyFilters),
     [picked, setPicked] = useState<Set<string>>(new Set());
+  const filters = filtros ?? filtrosLocais;
+  const controlado = !!mudarFiltros;
+  // Um caminho só para gravar filtro: na URL (controlado) ou no estado local. Com `destino`, o
+  // filtro e a troca de seção vão na mesma navegação (duas seguidas, a segunda apagava a primeira).
+  const aplicar = (f: Filters, destino?: SecaoAquario) => {
+    if (mudarFiltros) mudarFiltros(f, destino);
+    else {
+      setFiltrosLocais(f);
+      if (destino) ir(destino);
+    }
+  };
+  const setFilters = (f: Filters) => aplicar(f);
+  // Mudar o recorte limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
+  useEffect(() => setPicked(new Set()), [recorte]);
   const [draft, setDraft] = useState<{
     unit: Unidade | null;
     accounts: string[];
@@ -127,6 +178,11 @@ export function Aquario({
   if (!data) return <LoadingState error={q.error} retry={() => q.refetch()} />;
   const unitKeys = new Set(unit?.account_keys);
   const unitAccounts = unit ? data.accounts.filter((a) => unitKeys.has(a.key)) : data.accounts;
+  const unitAccountsSemOrigem = accountKeysSemOrigem
+    ? (q.data?.accounts ?? []).filter(
+        (a) => accountKeysSemOrigem.has(a.key) && (!unit || unitKeys.has(a.key)),
+      )
+    : unitAccounts;
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -167,6 +223,18 @@ export function Aquario({
         Number(ofertaRecon(a).status === "elegivel") >
       1,
   );
+  // O destino de um cartão de Produtos: a tabela da Base com este recorte. A origem do topo fica
+  // (os números dos cartões já a respeitam). O número do cartão e o total do destino saem do
+  // mesmo objeto de filtro, para baterem (N2).
+  const destino = (f: Partial<Filters>): Filters => ({
+    ...emptyFilters,
+    origin: filters.origin,
+    ...f,
+  });
+  const abrirNaBase = (f: Partial<Filters>) => {
+    aplicar(destino(f), "base");
+    setPicked(new Set());
+  };
   const content = (rows: Conta[], drawer = false) => (
     <PortfolioTable
       data={data}
@@ -179,16 +247,15 @@ export function Aquario({
       onList={(keys) => startList(keys, unit, filters.product || "consultoria")}
       inUnit={drawer}
       unitId={unit?.id ?? null}
+      controlesNoTopo={controlado}
     />
   );
   return (
     <main className={embedded ? "space-y-4" : "mx-auto max-w-[1600px] space-y-4 p-4 md:p-6"}>
-      {/* Embutido na Base de clientes, o cabeçalho próprio era o segundo <h1> da mesma página.
-          O Freshness fica: é o único gatilho de sincronização do CRM nesta tela. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {embedded ? (
-          <span />
-        ) : (
+      {/* Embutido na Base de clientes, o cabeçalho e o Freshness são da casca: o "Atualizar" do
+          PageHeader é o do Freshness, e havia dois com efeitos diferentes. */}
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Fish className="h-6 w-6 text-primary-text" />
             <div>
@@ -198,152 +265,180 @@ export function Aquario({
               </p>
             </div>
           </div>
-        )}
-        <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
-      </div>
-      <FalhaDeCarga data={data} />
-      {!data.permissions.all_units && !data.units.length && (
-        <Notice>
-          Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa
-          definir suas carteiras.
-        </Notice>
+          <Freshness data={data} refreshing={refreshing} onRefresh={refresh} />
+        </div>
       )}
+      {/* Dentro de /clientes, os estados do DS com o motivo, como na Monetização (dashboard.tsx);
+          fora da casca, o aviso de antes. */}
+      {embedded ? <CargaNaBase data={data} /> : <FalhaDeCarga data={data} />}
+      {!data.permissions.all_units &&
+        !data.units.length &&
+        (embedded ? (
+          <EstadoVazio
+            titulo="Nenhuma unidade liberada para você"
+            descricao="Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração precisa definir suas carteiras."
+          />
+        ) : (
+          <Notice>
+            Seu acesso está ativo, mas nenhuma unidade foi liberada para você. A administração
+            precisa definir suas carteiras.
+          </Notice>
+        ))}
       {secao === "produtos" && (
         <>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-            <Kpi
-              label="Contas na base conciliada"
-              value={number(data.accounts.length)}
-              hint="Uma conta, mesmo com mais de um produto"
-            />
-            <Kpi
-              label="Cella · perfil aderente"
-              value={number(cella.length - cellaSoOmie.length)}
-              hint={
-                cellaSoOmie.length
-                  ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
-                  : "A partir de R$ 25 mi · fora do Simples"
-              }
-            />
-            <Kpi
-              label="Consultoria · carteira retroativa"
-              value={number(consultBase.length)}
-              hint={`${consult.length} aptas · ${consultExcluded.length} por Simples/MEI · ${consultInativas.length} inativas na Receita · ${consultPending.length} a confirmar`}
-              accent
-            />
-            <Kpi
-              label="Finance · perfil aderente"
-              value={number(finance.length)}
-              hint="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
-            />
-            <Kpi
-              label="Mais de um produto"
-              value={number(overlap.length)}
-              hint="Contas já incluídas nos produtos ao lado"
-            />
-          </div>
-          <Panel title="Listas potenciais por produto">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <button
-                onClick={() =>
-                  document.getElementById("painel-recon")?.scrollIntoView({ behavior: "smooth" })
+          <Secao
+            titulo="Quantas contas cada régua de produto aceita?"
+            descricao="Perfil aderente, esteja a conta disponível ou já em trabalho. Os cartões que filtram abrem a Base de clientes com o mesmo recorte, e o total de lá bate com o daqui."
+          >
+            <KpiGrade colunas={6} className="xl:grid-cols-5">
+              <KpiCard
+                rotulo="Contas na base conciliada"
+                valor={number(data.accounts.length)}
+                nota="Uma conta, mesmo com mais de um produto"
+              />
+              <KpiCard
+                // N11: este número tira os "só no Omie"; o cartão do Cella, abaixo, os inclui.
+                rotulo="Cella · perfil aderente (sem os só no Omie)"
+                valor={number(cella.length - cellaSoOmie.length)}
+                nota={
+                  cellaSoOmie.length
+                    ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
+                    : "A partir de R$ 25 mi · fora do Simples"
                 }
-                className="rounded-lg border p-4 text-left hover:border-primary"
+                // Aptas sem "só no Omie" = prontas + já em trabalho (estadoProduto).
+                abrir={{
+                  rotulo: "Abrir na base",
+                  onClick: () => abrirNaBase({ product: "cella", status: ["free", "occupied"] }),
+                }}
+              />
+              <KpiCard
+                // Não abre: nenhuma situação da tabela é exatamente a carteira retroativa inteira
+                // (a "base retroativa" da tabela já tira os fora da regra), e o total não bateria.
+                rotulo="Consultoria · carteira retroativa (base inteira)"
+                valor={number(consultBase.length)}
+                nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultPending.length)} a confirmar`}
+              />
+              <KpiCard
+                rotulo="Finance · perfil aderente"
+                valor={number(finance.length)}
+                nota="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
+                abrir={{
+                  rotulo: "Abrir na base",
+                  onClick: () => abrirNaBase({ product: "finance", status: ["eligible"] }),
+                }}
+              />
+              <KpiCard
+                rotulo="Mais de um produto"
+                valor={number(overlap.length)}
+                nota="Contas já incluídas nos produtos ao lado"
+                // Mesma fórmula do filtro de sobreposição da tabela (filtrarCarteira).
+                abrir={{ rotulo: "Abrir na base", onClick: () => abrirNaBase({ overlap: true }) }}
+              />
+            </KpiGrade>
+          </Secao>
+          <Secao
+            titulo="Quantas contas cada produto pode trabalhar agora?"
+            descricao="O número grande são as prontas para enviar: aptas, disponíveis e fora do grupo “só no Omie”. O cartão abre a Base de clientes nessa situação. A mesma conta pode aparecer em mais de uma lista; a seleção define o produto preenchido no Pipedrive, e contato é opcional."
+            acoes={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  abrirNaBase({
+                    product: "consultoria",
+                    origin: ["antiga"],
+                    status: ["qualificar"],
+                  })
+                }
               >
-                <span className="flex items-center justify-between font-semibold">
-                  Recon <ArrowRight className="h-4 w-4" />
-                </span>
-                <p className="mt-2 text-sm">
-                  {data.accounts.filter(potencialRecon).length} contas no radar ·{" "}
-                  {data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length} aptas
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Acima de R$ 5 mi · fora de qualquer BPO · seleção no Aquário
-                </p>
-              </button>
+                Conferir regime da base retroativa
+              </Button>
+            }
+          >
+            <KpiGrade colunas={4}>
+              <KpiCard
+                rotulo="Recon"
+                valor={number(data.accounts.filter(potencialRecon).length)}
+                unidade="contas no radar"
+                nota={`${number(data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length)} aptas · acima de R$ 5 mi · fora de qualquer BPO · seleção e exportação no painel abaixo`}
+                abrir={{
+                  rotulo: "Ver no painel",
+                  onClick: () => {
+                    const painel = document.getElementById("painel-recon");
+                    painel?.scrollIntoView({ behavior: "smooth" });
+                    painel?.focus({ preventScroll: true });
+                  },
+                }}
+              />
               {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
                 const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
-                const free = eligible.filter(
-                  (a) => disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                // O número é o total do destino: a situação "prontas" da tabela, pela mesma
+                // função que a tabela usa. As aptas e disponíveis que só existem no Omie da
+                // unidade ficam fora dela (grupo próprio) e são ditas na nota.
+                const prontas = filtrarCarteira(
+                  data.accounts,
+                  destino({ product: p, status: ["free"] }),
+                  data,
                 );
+                const livresSoOmie = eligible.filter(
+                  (a) =>
+                    soNoOmie(a) &&
+                    disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                ).length;
                 return (
-                  <button
+                  <KpiCard
                     key={p}
-                    onClick={() => {
-                      // O cartão aplica o recorte e leva à tabela, que agora mora na seção
-                      // "Base de clientes" do menu único — não a uma aba de dentro desta tela.
-                      setFilters({ ...emptyFilters, product: p, status: situacoesIniciais(p) });
-                      setPicked(new Set());
-                      ir("base");
+                    rotulo={NOMES[p]}
+                    valor={number(prontas.length)}
+                    unidade="prontas para enviar"
+                    nota={
+                      <>
+                        <span className="block">
+                          {p === "consultoria"
+                            ? `${number(eligible.length)} aptas · ${number(consultPool.length)} retroativas aptas à análise, de ${number(consultBase.length)} na carteira retroativa (base inteira)`
+                            : p === "cella"
+                              ? `${number(eligible.length)} com perfil aderente (inclui só no Omie)`
+                              : `${number(eligible.length)} com perfil aderente`}
+                          {p === "consultoria" &&
+                            consultPending.length > 0 &&
+                            ` · ${number(consultPending.length)} a confirmar`}
+                          {livresSoOmie > 0 &&
+                            ` · ${number(livresSoOmie)} aptas e disponíveis só no Omie ficam fora das prontas`}
+                        </span>
+                        <span className="mt-1 block">
+                          {p === "consultoria"
+                            ? "Base Antiga · sem fechamento comercial · contato opcional"
+                            : p === "cella"
+                              ? "A partir de R$ 25 mi · fora do Simples"
+                              : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
+                        </span>
+                      </>
+                    }
+                    abrir={{
+                      rotulo: "Abrir prontas",
+                      onClick: () => abrirNaBase({ product: p, status: ["free"] }),
                     }}
-                    className={`rounded-lg border p-4 text-left hover:border-primary ${filters.product === p ? "border-primary bg-primary/5" : ""}`}
-                  >
-                    <span className="flex items-center justify-between gap-2 font-semibold">
-                      {NOMES[p]}
-                      <span className="flex shrink-0 items-center gap-1">
-                        {p === "consultoria" && consultPending.length > 0 && (
-                          <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
-                            {consultPending.length} a confirmar
-                          </span>
-                        )}
-                        <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </span>
-                    {/* Uma métrica dominante: o que dá para trabalhar hoje. As contagens de perfil
-                    aderente já estão na faixa de KPIs acima e saíram daqui para não repetir. */}
-                    <p className="my-2 text-3xl font-semibold tabular-nums">
-                      {number(free.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        aptas e disponíveis
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {p === "consultoria"
-                        ? `${number(eligible.length)} aptas de ${number(consultPool.length)} retroativas para análise`
-                        : `${number(eligible.length)} com perfil aderente`}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {p === "consultoria"
-                        ? "Base Antiga · sem fechamento comercial · contato opcional"
-                        : p === "cella"
-                          ? "A partir de R$ 25 mi · fora do Simples"
-                          : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
-                    </p>
-                  </button>
+                  />
                 );
               })}
-            </div>
-            <Button
-              className="mt-3"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setFilters({
-                  ...emptyFilters,
-                  product: "consultoria",
-                  origin: ["antiga"],
-                  status: ["qualificar"],
-                });
-                setPicked(new Set());
-                ir("base");
-              }}
-            >
-              Conferir regime da base retroativa
-            </Button>
-            <p className="mt-3 text-xs text-muted-foreground">
-              A mesma conta pode aparecer em mais de uma lista. A seleção define o produto que será
-              preenchido no Pipedrive; contato é opcional.
-            </p>
-          </Panel>
-          <div id="painel-recon">
+            </KpiGrade>
+          </Secao>
+          <div
+            id="painel-recon"
+            tabIndex={-1}
+            className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
             <ReconAquario accounts={data.accounts} showAccount={setAccount} />
           </div>
         </>
       )}
       {secao === "base" && (
         <div className="space-y-4">
-          <Panel title="Abra a unidade para organizar a apresentação">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Secao
+            titulo="Qual unidade você vai organizar?"
+            descricao="O número grande é o cadastro da unidade e não segue os filtros; as contas abaixo dele são as do recorte. As carteiras podem compartilhar contas: não some os totais por unidade. Para a Consultoria, a falta de contato pode ser resolvida com o sócio."
+          >
+            <KpiGrade colunas={3}>
               {data.units.map((u) => {
                 const keys = new Set(u.account_keys);
                 const accounts = data.accounts.filter((a) => keys.has(a.key)),
@@ -358,80 +453,68 @@ export function Aquario({
                   conferir = accounts.filter((a) =>
                     ["confirmar", "divergente"].includes(origemBase(a)),
                   ).length;
+                // Sem linha em monetizacao_unidade_cobertura o servidor devolve zeros: é "não
+                // apurado", não uma unidade com 0 CNPJs e Omie desligado (N4, N11).
+                const semCobertura = !u.cnpjs && !u.cnpjs_pipefy && !u.cnpjs_omie;
                 return (
-                  <button
+                  <KpiCard
                     key={u.key}
-                    onClick={() => {
-                      // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
-                      if (unit?.key !== u.key) {
-                        setFilters(emptyFilters);
-                        setPicked(new Set());
-                      }
-                      setUnit(u);
+                    rotulo={u.name}
+                    // Dois denominadores, cada um com o seu nome (N11): CNPJs do cadastro da
+                    // unidade (ignora filtros) no número grande, contas do recorte na nota.
+                    valor={number(u.cnpjs)}
+                    unidade="CNPJs no cadastro da unidade"
+                    estado={semCobertura ? "nao-apurado" : "ok"}
+                    abrir={{
+                      rotulo: "Abrir carteira",
+                      onClick: () => {
+                        // Trocar de unidade zera o recorte; reabrir a mesma preserva o trabalho.
+                        if (unit?.key !== u.key) {
+                          // Na Base de clientes a origem é do topo: trocar de unidade não a apaga.
+                          setFilters(
+                            controlado ? { ...emptyFilters, origin: filters.origin } : emptyFilters,
+                          );
+                          setPicked(new Set());
+                        }
+                        setUnit(u);
+                      },
                     }}
-                    className="group rounded-lg border p-4 text-left transition hover:border-primary hover:bg-primary/5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold">{u.name}</span>
-                      {/* O selo "cobertura parcial" saiu daqui em 22/09: lacuna de fonte é
-                          assunto de auditoria, e auditoria mora numa tela só. A procedência
-                          continua na linha abaixo, que é informação, não alerta. */}
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary-text" />
-                    </div>
-                    {/* Uma métrica dominante: CNPJs distintos é o que responde "tamanho da
-                        unidade". "contas" some daqui — é unidade de trabalho, não de tamanho. */}
-                    <p className="my-2 text-3xl font-semibold tabular-nums">
-                      {number(u.cnpjs ?? accounts.length)}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">empresas</span>
-                    </p>
-                    {/* Procedência: o card declara de onde conhece a carteira em vez de afirmar
-                        censo. As fontes se sobrepõem, por isso não somam. */}
-                    <p className="text-xs text-muted-foreground">
-                      {u.omie_integrado === false
-                        ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
-                        : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
-                    </p>
-                    {/* Composição da origem em barra: comprimento compara melhor que três números. */}
-                    <div
-                      className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-muted"
-                      title={`${antigas} antigas · ${novas} novas · ${conferir} a conferir`}
-                    >
-                      {[
-                        ["bg-primary", antigas],
-                        ["bg-info", novas],
-                        ["bg-muted-foreground/40", conferir],
-                      ].map(([cor, n], i) =>
-                        (n as number) > 0 ? (
-                          <div
-                            key={i}
-                            className={cor as string}
-                            style={{
-                              width: `${Math.max(2, ((n as number) / Math.max(1, accounts.length)) * 100)}%`,
-                            }}
-                          />
-                        ) : null,
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-primary-text">{c} aptas em Consultoria</span>
-                      {pending > 0 && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
-                          {pending} a confirmar
+                    nota={
+                      <>
+                        {/* Procedência: de onde a carteira é conhecida. As fontes se sobrepõem. */}
+                        <span className="block">
+                          {semCobertura
+                            ? "catálogo Pipefy e cobertura do Omie não apurada"
+                            : u.omie_integrado === false
+                              ? `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie não integrado`
+                              : `catálogo Pipefy ${number(u.cnpjs_pipefy ?? 0)} · Omie ${number(u.cnpjs_omie ?? 0)}`}
                         </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {number(accounts.length)} contas conciliadas · Cella {cella_u} · Finance {f}
-                    </p>
-                  </button>
+                        <BarraOrigem
+                          total={accounts.length}
+                          partes={[
+                            { rotulo: "antigas", n: antigas, cor: "bg-primary" },
+                            { rotulo: "novas", n: novas, cor: "bg-info" },
+                            { rotulo: "a conferir", n: conferir, cor: "bg-muted-foreground/40" },
+                          ]}
+                        />
+                        <span className="mt-2 block">
+                          <span className="font-medium text-foreground">
+                            {number(accounts.length)} contas no recorte
+                          </span>{" "}
+                          ·{" "}
+                          <span className="text-primary-text">
+                            {number(c)} aptas em Consultoria
+                          </span>
+                          {pending > 0 && ` (${number(pending)} a confirmar)`} · Cella{" "}
+                          {number(cella_u)} · Finance {number(f)}
+                        </span>
+                      </>
+                    }
+                  />
                 );
               })}
-            </div>
-          </Panel>
-          <Notice>
-            As carteiras podem compartilhar contas. Os totais por unidade não devem ser somados.
-            Para a Consultoria, a falta de contato pode ser resolvida com o sócio.
-          </Notice>
+            </KpiGrade>
+          </Secao>
           <ProcedenciaBase accounts={data.accounts} />
           {content(data.accounts)}
         </div>
@@ -446,13 +529,15 @@ export function Aquario({
           showAccount={setAccount}
         />
       </div>
-      {secao === "gates" && <Gates data={data} />}
+      {secao === "gates" && (
+        <Gates data={data} total={q.data?.accounts.length ?? 0} abrir={abrirNaBase} />
+      )}
       {secao === "base" && (
         <div className="flex justify-end">
           <Link
             to="/monetizacao"
             search={{ aba: "operacao" }}
-            className="flex items-center gap-1 text-xs font-medium text-primary-text"
+            className={`flex items-center gap-1 text-xs font-medium text-primary-text ${FOCO_VISIVEL}`}
           >
             Acompanhar operação <ArrowRight className="h-3 w-3" />
           </Link>
@@ -480,8 +565,20 @@ export function Aquario({
                 <Kpi
                   key={key}
                   label={label}
-                  value={number(unitAccounts.filter((a) => origemBase(a) === key).length)}
+                  value={number(unitAccountsSemOrigem.filter((a) => origemBase(a) === key).length)}
+                  // Na Base de clientes a origem é o filtro do topo, que fica atrás da gaveta:
+                  // clicar de novo na origem aplicada tira o filtro, sem precisar fechar.
+                  nota={
+                    filters.origin.length === 1 && filters.origin[0] === key
+                      ? "Filtro aplicado · clique para tirar"
+                      : undefined
+                  }
                   onClick={() => {
+                    if (filters.origin.length === 1 && filters.origin[0] === key) {
+                      setFilters({ ...filters, origin: [] });
+                      setPicked(new Set());
+                      return;
+                    }
                     // Este KPI e um filtro de origem, e so isso: partia de `emptyFilters` e
                     // derrubava junto o produto que o operador tinha acabado de escolher dentro
                     // da gaveta. Agora faz o mesmo que o seletor de origem da tabela — troca uma
@@ -520,6 +617,7 @@ function PortfolioTable({
   onList,
   inUnit,
   unitId,
+  controlesNoTopo = false,
 }: {
   data: BaseMonetizacao;
   accounts: Conta[];
@@ -531,6 +629,8 @@ function PortfolioTable({
   onList: (keys: string[]) => void;
   inUnit: boolean;
   unitId: number | null;
+  /** Busca, unidade e origem são do topo da página: a tabela não desenha controle próprio. */
+  controlesNoTopo?: boolean;
 }) {
   const [limit, setLimit] = useState(50);
   // Cópia da seleção no momento do envio: o resultado continua legível mesmo quando as contas
@@ -582,9 +682,16 @@ function PortfolioTable({
     selected = rows.filter((a) => picked.has(a.key));
   const prontas = product ? rows.filter((a) => estado(a)!.situacao === "free") : [];
   const acimaDoLimite = selected.length > LIMITE_LOTE;
-  const prontasSelecionadas = product
-    ? selected.filter((a) => estado(a)!.situacao === "free").length
-    : 0;
+  // O N do botão é o N do modal (DirectSend): aptas e disponíveis pela mesma régua, INCLUSIVE as
+  // "só no Omie". Antes o botão contava sem elas e o modal enviava com elas.
+  const enviaveis = product
+    ? selected.filter(
+        (a) =>
+          oferta(a, product).status === "elegivel" &&
+          disponibilidade(a, product, data.cards, undefined, data.reservations).free,
+      )
+    : [];
+  const enviaveisSoOmie = enviaveis.filter(soNoOmie).length;
   const toggle = (key: string) => {
     const next = new Set(picked);
     if (next.has(key)) next.delete(key);
@@ -593,48 +700,33 @@ function PortfolioTable({
   };
   const unique = (values: (string | null | undefined)[]) =>
     [...new Set(values.filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const chips: { key: Situacao; label: string; n: number; tone: string }[] = product
+  const chips: { key: Situacao; label: string; n: number; tom?: TomKpi }[] = product
     ? [
-        {
-          key: "free",
-          label: "Prontas para enviar",
-          n: contagem.free,
-          tone: "text-success",
-        },
-        {
-          key: "qualificar",
-          label: "A confirmar",
-          n: contagem.qualificar,
-          tone: "text-warning",
-        },
-        {
-          key: "so_omie",
-          label: "Só no Omie da unidade",
-          n: contagem.so_omie,
-          tone: "text-info",
-        },
-        { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied, tone: "" },
-        {
-          key: "excluded",
-          label: "Fora da regra",
-          n: contagem.excluded,
-          tone: "text-muted-foreground",
-        },
+        { key: "free", label: "Prontas para enviar", n: contagem.free, tom: "sucesso" },
+        { key: "qualificar", label: "A confirmar", n: contagem.qualificar, tom: "atencao" },
+        { key: "so_omie", label: "Só no Omie da unidade", n: contagem.so_omie, tom: "info" },
+        { key: "occupied", label: "Aptas já em trabalho", n: contagem.occupied },
+        { key: "excluded", label: "Fora da regra", n: contagem.excluded },
       ]
     : [];
   const situacoes = (Object.keys(SITUACOES) as Situacao[]).filter(
     (s) => s !== "potential" || product === "consultoria",
   );
   return (
-    <Panel
-      title={
+    <SecaoCartao
+      titulo={`${
         inUnit
-          ? "Carteira da unidade"
+          ? "Quais contas desta unidade você vai trabalhar?"
           : product
-            ? `Lista potencial · ${NOMES[product]}`
-            : "Carteira conciliada"
+            ? `Quais contas de ${NOMES[product]} estão prontas para trabalhar?`
+            : "Quais contas atendem ao recorte?"
+      } · ${number(rows.length)} de ${number(accounts.length)}`}
+      descricao={
+        product
+          ? "Os cinco cartões dividem as contas do filtro por situação no produto; o quinto, “Fora da regra”, são as que a régua do produto não aceita. Clique num cartão para filtrar a tabela e de novo para tirar."
+          : undefined
       }
-      action={
+      acoes={
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -716,49 +808,60 @@ function PortfolioTable({
             Exportar filtro
           </Button>
           {product && (
-            <Button
+            <BotaoComMotivo
               size="sm"
               variant="outline"
               disabled={!prontas.length}
-              title={`Seleciona as contas deste filtro que estão aptas e disponíveis, inclusive as que ainda não apareceram na página. Envio e lista aceitam até ${LIMITE_LOTE} por vez: acima disso, entram as ${LIMITE_LOTE} primeiras da ordem da tabela.`}
+              motivo={
+                !prontas.length
+                  ? "Nenhuma conta pronta para enviar neste filtro."
+                  : `Seleciona as contas deste filtro que estão aptas e disponíveis, inclusive as que ainda não apareceram na página. Envio e lista aceitam até ${LIMITE_LOTE} por vez: acima disso, entram as ${LIMITE_LOTE} primeiras da ordem da tabela.`
+              }
               onClick={() => setPicked(new Set(prontas.slice(0, LIMITE_LOTE).map((a) => a.key)))}
             >
               <CheckCheck className="mr-1 h-4 w-4" />
               {prontas.length > LIMITE_LOTE
                 ? `Selecionar ${LIMITE_LOTE} de ${number(prontas.length)} prontas`
                 : `Selecionar prontas (${number(prontas.length)})`}
-            </Button>
+            </BotaoComMotivo>
           )}
-          <Button
+          <BotaoComMotivo
             size="sm"
             disabled={!data.permissions.manage || !selected.length || acimaDoLimite}
-            title={
-              acimaDoLimite
-                ? `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`
-                : undefined
-            }
+            motivo={[
+              !data.permissions.manage && "Exige manage.aquario para montar lista.",
+              !selected.length && "Selecione as contas para a lista.",
+              acimaDoLimite &&
+                `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`,
+            ]}
             onClick={() => onList(selected.map((a) => a.key))}
           >
             <ListPlus className="mr-1 h-4 w-4" />
             Preparar lista ({selected.length})
-          </Button>
-          <Button
+          </BotaoComMotivo>
+          <BotaoComMotivo
             size="sm"
-            disabled={!data.permissions.send || !selected.length || acimaDoLimite}
-            title={
-              !data.permissions.send
-                ? "Seu acesso não permite enviar ao Pipedrive."
-                : !selected.length
-                  ? "Selecione as contas para enviar."
-                  : acimaDoLimite
-                    ? `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`
-                    : undefined
+            disabled={
+              !data.permissions.send ||
+              !selected.length ||
+              acimaDoLimite ||
+              (!!product && !enviaveis.length)
             }
+            motivo={[
+              !data.permissions.send &&
+                "Exige send.monetizacao: seu acesso não permite enviar ao Pipedrive.",
+              !selected.length && "Selecione as contas para enviar.",
+              !!product &&
+                !enviaveis.length &&
+                `Nenhuma das selecionadas está apta e disponível em ${NOMES[product]}.`,
+              acimaDoLimite &&
+                `O envio aceita até ${LIMITE_LOTE} contas por vez; desmarque ${selected.length - LIMITE_LOTE}.`,
+            ]}
             onClick={() => setSending(selected)}
           >
             <Send className="mr-1 h-4 w-4" />
-            Enviar ao Pipedrive ({product ? prontasSelecionadas : selected.length})
-          </Button>
+            Enviar ao Pipedrive ({product ? enviaveis.length : selected.length})
+          </BotaoComMotivo>
         </div>
       }
     >
@@ -781,7 +884,7 @@ function PortfolioTable({
         />
       )}
       <div className="mb-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-4">
-        {!inUnit && (
+        {!inUnit && !controlesNoTopo && (
           <FieldMulti label="Unidade">
             <MultiSelect
               label="Unidade"
@@ -792,26 +895,30 @@ function PortfolioTable({
             />
           </FieldMulti>
         )}
-        <FieldMulti label="Origem da base">
-          <MultiSelect
-            label="Origem da base"
-            placeholder="Antigas, novas e pendentes"
-            value={filters.origin}
-            onChange={(v) => change("origin", v as OrigemBase[])}
-            options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
-          />
-        </FieldMulti>
-        <Field label="Buscar empresa">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              className={`${inputClass} pl-8`}
-              value={filters.query}
-              onChange={(e) => change("query", e.target.value)}
-              placeholder="Nome ou segmento"
+        {!controlesNoTopo && (
+          <FieldMulti label="Origem da base">
+            <MultiSelect
+              label="Origem da base"
+              placeholder="Antigas, novas e pendentes"
+              value={filters.origin}
+              onChange={(v) => change("origin", v as OrigemBase[])}
+              options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
             />
-          </div>
-        </Field>
+          </FieldMulti>
+        )}
+        {!controlesNoTopo && (
+          <Field label="Buscar empresa">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                className={`${inputClass} pl-8`}
+                value={filters.query}
+                onChange={(e) => change("query", e.target.value)}
+                placeholder="Nome ou segmento"
+              />
+            </div>
+          </Field>
+        )}
         <FieldMulti label="Faturamento anual · cadastro">
           <MultiSelect
             label="Faturamento anual · cadastro"
@@ -952,8 +1059,16 @@ function PortfolioTable({
           variant="ghost"
           className="self-end"
           onClick={() => {
-            // Preserva o produto escolhido; limpar filtros não é trocar de lista.
-            setFilters({ ...emptyFilters, product, status: situacoesIniciais(product) });
+            // Preserva o produto escolhido; limpar filtros não é trocar de lista. Busca, unidade e
+            // origem do topo também ficam: têm o "Limpar" deles lá em cima.
+            setFilters({
+              ...emptyFilters,
+              ...(controlesNoTopo
+                ? { query: filters.query, unit: filters.unit, origin: filters.origin }
+                : {}),
+              product,
+              status: situacoesIniciais(product),
+            });
             setPicked(new Set());
             setLimit(50);
           }}
@@ -962,22 +1077,22 @@ function PortfolioTable({
         </Button>
       </div>
       {product && (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
           {chips.map((c) => {
             const active = situacaoEfetiva.length === 1 && situacaoEfetiva[0] === c.key;
             return (
-              <button
+              <KpiCard
                 key={c.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => change("status", active ? situacoesIniciais(product) : [c.key])}
-                className={`rounded-lg border p-3 text-left transition hover:border-primary ${active ? "border-primary bg-primary/5" : ""}`}
-              >
-                <span className="text-xs text-muted-foreground">{c.label}</span>
-                <span className={`block text-xl font-semibold tabular-nums ${c.tone}`}>
-                  {number(c.n)}
-                </span>
-              </button>
+                rotulo={c.label}
+                valor={number(c.n)}
+                tom={c.tom}
+                nota={active ? "Filtro aplicado à tabela" : undefined}
+                abrir={{
+                  rotulo: active ? "Tirar o filtro" : "Filtrar a tabela",
+                  onClick: () => change("status", active ? situacoesIniciais(product) : [c.key]),
+                }}
+                className={active ? "border-primary-text" : undefined}
+              />
             );
           })}
         </div>
@@ -1002,9 +1117,10 @@ function PortfolioTable({
         {product && selected.length > 0 && (
           <>
             {" "}
-            ({prontasSelecionadas} prontas para enviar
-            {selected.length - prontasSelecionadas > 0
-              ? ` · ${selected.length - prontasSelecionadas} ficam fora do envio e podem ir para uma lista`
+            ({enviaveis.length} entram no envio
+            {enviaveisSoOmie > 0 ? `, ${enviaveisSoOmie} delas só no Omie da unidade` : ""}
+            {selected.length - enviaveis.length > 0
+              ? ` · ${selected.length - enviaveis.length} ficam fora do envio e podem ir para uma lista`
               : ""}
             )
           </>
@@ -1146,16 +1262,14 @@ function PortfolioTable({
         </table>
       </div>
       {!visible.length && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Nenhuma conta neste filtro.
-        </p>
+        <EstadoVazio titulo="Nenhuma conta neste filtro" total={accounts.length} />
       )}
       {rows.length > limit && (
         <Button className="mt-3" variant="outline" onClick={() => setLimit(limit + 50)}>
           Mostrar mais 50
         </Button>
       )}
-    </Panel>
+    </SecaoCartao>
   );
 }
 
@@ -1309,146 +1423,317 @@ function SituacaoProduto({ estado: e }: { estado: EstadoProduto }) {
   );
 }
 
-function Gates({ data }: { data: BaseMonetizacao }) {
-  const rows = [
-    [
-      "Contas na base conciliada",
-      data.accounts.length,
-      "União das fontes reconciliadas. Não equivale automaticamente a clientes ativos pagantes.",
-    ],
-    [
-      "Com vínculo de Matriz",
-      data.accounts.filter((a) => a.matrix).length,
-      "Vínculo identificado na reconciliação; não inferido pela ausência de unidade.",
-    ],
-    [
-      "Expansão · contratos comerciais",
-      data.accounts.filter((a) => a.new_commercial).length,
-      "Origem comercial identificada no cadastro.",
-    ],
-    [
-      "Expansão comercial · faixa a partir de R$ 25 mi",
-      data.accounts.filter(
+/**
+ * A carga do CRM vista da Base de clientes: nunca concluída → EstadoVazio com o motivo; parada
+ * (Z1) → EstadoErro dizendo desde quando e o que continua valendo. Mesmo texto da Monetização.
+ */
+function CargaNaBase({ data }: { data: BaseMonetizacao }) {
+  const carga = estadoDaCarga(data);
+  const catalogoOk =
+    !!data.catalog_at &&
+    (!data.measured_at || Date.parse(data.catalog_at) > Date.parse(data.measured_at));
+  if (carga.nuncaSincronizou)
+    return (
+      <EstadoVazio
+        titulo="O CRM ainda não concluiu a primeira carga"
+        descricao={
+          <>
+            Negócios, reservas e disponibilidade dependem dela; a lista de empresas não.
+            {carga.motivo && (
+              <>
+                {" "}
+                A última tentativa falhou porque{" "}
+                <span title={data.sync_error ?? undefined}>{carga.motivo}</span>.
+              </>
+            )}
+          </>
+        }
+      />
+    );
+  if (carga.parada)
+    return (
+      <EstadoErro
+        titulo={`A leitura do CRM está parada desde ${carga.desde}`}
+        detalhe={
+          <>
+            A última tentativa falhou porque{" "}
+            <span title={data.sync_error ?? undefined}>{carga.motivo}</span>. Negócios e
+            disponibilidade são dessa última carga concluída, não de agora.
+            {catalogoOk &&
+              " A lista de empresas não foi afetada: ela vem de outra carga, que concluiu normalmente."}
+          </>
+        }
+      />
+    );
+  return null;
+}
+
+// Uma linha de "Entenda os números". `filtro` só existe quando a tabela da Base reproduz o
+// conjunto exatamente (mesma função de situação): aí o número abre a Base com esse filtro e o
+// total de lá bate (N2). Sem `filtro`, a linha é referência e não promete clique.
+type LinhaGate = { rotulo: string; n: number; porque: string; filtro?: Partial<Filters> };
+
+function Gates({
+  data,
+  total,
+  abrir,
+}: {
+  data: BaseMonetizacao;
+  /** Contas da base inteira do seu escopo, antes do recorte do topo (para o vazio dizer). */
+  total: number;
+  abrir: (f: Partial<Filters>) => void;
+}) {
+  if (!data.accounts.length)
+    return (
+      <EstadoVazio
+        titulo="Nenhuma conta neste recorte"
+        total={total > 0 ? total : undefined}
+        descricao={
+          total > 0
+            ? "Os números desta visão contam as contas do recorte do topo. Tire filtros para ver de onde vem a base."
+            : "A base conciliada ainda não tem contas no seu escopo."
+        }
+      />
+    );
+  // Rótulos alinhados com Produtos e listas (N11): o mesmo conjunto tem o mesmo nome nas duas
+  // visões, e o que difere diz em quê.
+  const linhas: LinhaGate[] = [
+    {
+      rotulo: "Contas na base conciliada",
+      n: data.accounts.length,
+      porque:
+        "União das fontes reconciliadas. Não equivale automaticamente a clientes ativos pagantes.",
+      filtro: {},
+    },
+    {
+      rotulo: "Com vínculo de Matriz",
+      n: data.accounts.filter((a) => a.matrix).length,
+      porque: "Vínculo identificado na reconciliação; não inferido pela ausência de unidade.",
+    },
+    {
+      rotulo: "Expansão · contratos comerciais",
+      n: data.accounts.filter((a) => a.new_commercial).length,
+      porque: "Origem comercial identificada no cadastro.",
+    },
+    {
+      rotulo: "Expansão comercial · faixa a partir de R$ 25 mi",
+      n: data.accounts.filter(
         (a) => a.new_commercial && (FAIXAS[a.band || ""]?.[0] ?? -1) >= 25 && !a.band_conflict,
       ).length,
-      "Faixa conhecida e sem divergência; é um recorte do número anterior.",
-    ],
-    [
-      "Base retroativa declarada",
-      data.accounts.filter((a) => a.old_base).length,
-      "Origem Base Antiga declarada. Outras contas das unidades exigem confirmação do sócio.",
-    ],
-    [
-      "Com resumo ECD vinculado",
-      data.accounts.filter((a) => a.ecd).length,
-      "Cobertura de evidência contábil; não acrescenta clientes ao total.",
-    ],
-    [
-      "Consultoria · base antiga sem fechamento comercial",
-      data.accounts.filter(baseRetroativaConsultoria).length,
-      "Origem conferida nos registros vinculados. Exclui conflitos e fechamentos comerciais identificados.",
-    ],
-    [
-      "Consultoria · fora do Simples comprovado",
-      data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
-      "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
-    ],
-    [
-      "Consultoria · excluídas por Simples/MEI",
-      data.accounts.filter(
+      porque: "Faixa conhecida e sem divergência; é um recorte do número anterior.",
+    },
+    {
+      rotulo: "Base retroativa declarada",
+      n: data.accounts.filter((a) => a.old_base).length,
+      porque:
+        "Origem Base Antiga declarada. Outras contas das unidades exigem confirmação do sócio.",
+    },
+    {
+      // Não é o degrau 4 do funil do topo ("Com ECD registrada"), que é cumulativo: só conta ECD
+      // de conta que já tem CNPJ e contato. Aqui entra toda conta com ECD.
+      rotulo: "Com resumo ECD vinculado (sem exigir CNPJ nem contato)",
+      n: data.accounts.filter((a) => a.ecd).length,
+      porque:
+        "Cobertura de evidência contábil; não acrescenta clientes ao total. O degrau “Com ECD registrada” do funil acima é cumulativo (só conta com CNPJ e contato) e por isso pode ser menor.",
+    },
+    {
+      rotulo: "Consultoria · carteira retroativa (base inteira)",
+      n: data.accounts.filter(baseRetroativaConsultoria).length,
+      porque:
+        "Base antiga sem fechamento comercial, conferida nos registros vinculados. Exclui conflitos e fechamentos comerciais identificados. Em Produtos e listas, o mesmo número.",
+    },
+    {
+      rotulo: "Consultoria · aptas (fora do Simples comprovado)",
+      n: data.accounts.filter((a) => oferta(a, "consultoria").status === "elegivel").length,
+      porque:
+        "Base apta. Não exige contato, faturamento mínimo, Lucro Real ou segmento específico.",
+      filtro: { product: "consultoria", status: ["eligible"] },
+    },
+    {
+      rotulo: "Consultoria · excluídas por Simples/MEI",
+      n: data.accounts.filter(
         (a) =>
           baseRetroativaConsultoria(a) &&
           oferta(a, "consultoria").status === "fora_regra" &&
           !situacaoForaDeOferta(a),
       ).length,
-      "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
-    ],
-    [
-      "Consultoria · fora por situação na Receita",
-      data.accounts.filter((a) => baseRetroativaConsultoria(a) && situacaoForaDeOferta(a)).length,
-      "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
-    ],
-    [
-      "Consultoria · regime a confirmar",
-      data.accounts.filter(
+      porque:
+        "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
+    },
+    {
+      rotulo: "Consultoria · inativas na Receita",
+      n: data.accounts.filter((a) => baseRetroativaConsultoria(a) && situacaoForaDeOferta(a))
+        .length,
+      porque:
+        "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
+    },
+    {
+      rotulo: "Consultoria · regime a confirmar",
+      n: data.accounts.filter(
         (a) => baseRetroativaConsultoria(a) && oferta(a, "consultoria").status === "revisar",
       ).length,
-      "Não entram na base apta até comprovar que estão fora do Simples.",
-    ],
+      porque: "Não entram na base apta até comprovar que estão fora do Simples.",
+      filtro: { product: "consultoria", status: ["qualificar"] },
+    },
   ];
+  // Matriz produto × degrau. As três primeiras linhas são situações da tabela da Base (mesma
+  // função), e abrem; as duas de disponibilidade incluem os só no Omie, que a tabela separa em
+  // grupo próprio, e por isso não abrem (o total de lá não bateria).
+  const degraus: {
+    rotulo: string;
+    conta: (s: string, free: boolean) => boolean;
+    situacao?: string;
+  }[] = [
+    {
+      rotulo: "Perfil aderente (inclui só no Omie)",
+      conta: (s) => s === "elegivel",
+      situacao: "eligible",
+    },
+    { rotulo: "Dados a confirmar", conta: (s) => s === "revisar", situacao: "review" },
+    { rotulo: "Fora do perfil", conta: (s) => s === "fora_regra", situacao: "excluded" },
+    {
+      rotulo: "Aderente, já no CRM ou na carga do mês (inclui só no Omie)",
+      conta: (s, free) => s === "elegivel" && !free,
+    },
+    {
+      rotulo: "Aderente e disponível (inclui só no Omie)",
+      conta: (s, free) => s === "elegivel" && free,
+    },
+  ];
+  const numero = (n: number, filtro: Partial<Filters> | undefined, rotulo: string) =>
+    filtro ? (
+      <button
+        type="button"
+        onClick={() => abrir(filtro)}
+        aria-label={`${number(n)} · abrir na Base de clientes: ${rotulo}`}
+        className={`num font-semibold text-primary-text underline-offset-2 hover:underline ${FOCO_VISIVEL}`}
+      >
+        {number(n)}
+      </button>
+    ) : (
+      <span className="num font-semibold">{number(n)}</span>
+    );
   return (
-    <div className="space-y-4">
-      <Panel title="De onde vem a base">
-        <Notice>
-          Os recortes de origem podem se sobrepor. Cada linha explica seu próprio conjunto; não some
-          Matriz, comercial e retroativos como se fossem grupos exclusivos.
-        </Notice>
-        <table className="mt-3 w-full text-left text-sm">
-          <tbody>
-            {rows.map(([label, n, why]) => (
-              <tr key={String(label)} className="border-b last:border-0">
-                <th className="py-3 pr-4 font-medium">{label}</th>
-                <td className="pr-4 text-right font-semibold tabular-nums">
-                  {number(n as number)}
-                </td>
-                <td className="text-xs text-muted-foreground">{why}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
-      <Panel title="Da conta à oportunidade disponível">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="py-2">Gate</th>
+    <div className="space-y-6">
+      <Secao
+        titulo="De onde vem a base?"
+        descricao="Os recortes de origem podem se sobrepor. Cada linha explica seu próprio conjunto; não some Matriz, comercial e retroativos como se fossem grupos exclusivos. Número sublinhado abre a Base de clientes com o mesmo recorte."
+      >
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Recorte</TableHead>
+                <TableHead className="text-right">Contas</TableHead>
+                <TableHead>Como é contado</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {linhas.map((l) => (
+                <TableRow key={l.rotulo}>
+                  <th
+                    scope="row"
+                    className="px-3 py-2.5 text-left align-middle text-sm font-medium text-foreground"
+                  >
+                    {l.rotulo}
+                  </th>
+                  <TableCell className="text-right">{numero(l.n, l.filtro, l.rotulo)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{l.porque}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Secao>
+      <Secao
+        titulo="Da conta à oportunidade disponível: quanto passa em cada degrau?"
+        descricao="A disponibilidade é por empresa + produto: uma oportunidade de Cella não ocupa automaticamente Finance. Todas exigem validação antes do envio; listas salvas e reservas de envio são conferidas novamente no botão de enviar."
+      >
+        <div className="overflow-x-auto rounded-xl border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Degrau</TableHead>
                 {PRODUTOS.map((p) => (
-                  <th key={p}>{NOMES[p]}</th>
+                  <TableHead key={p} className="text-right">
+                    {NOMES[p]}
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                "Perfil aderente",
-                "Dados a confirmar",
-                "Fora do perfil",
-                "Aderente, já no CRM / carga no mês",
-                "Aderente e disponível",
-              ].map((label, index) => (
-                <tr className="border-t" key={label}>
-                  <th className="py-3 font-normal">{label}</th>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {degraus.map((d) => (
+                <TableRow key={d.rotulo}>
+                  <th
+                    scope="row"
+                    className="px-3 py-2.5 text-left align-middle text-sm font-normal text-foreground"
+                  >
+                    {d.rotulo}
+                  </th>
                   {PRODUTOS.map((p) => {
-                    const n = data.accounts.filter((a) => {
-                      const s = oferta(a, p).status,
-                        free = disponibilidade(a, p, data.cards, undefined, data.reservations).free;
-                      return index === 0
-                        ? s === "elegivel"
-                        : index === 1
-                          ? s === "revisar"
-                          : index === 2
-                            ? s === "fora_regra"
-                            : index === 3
-                              ? s === "elegivel" && !free
-                              : s === "elegivel" && free;
-                    }).length;
+                    const n = data.accounts.filter((a) =>
+                      d.conta(
+                        oferta(a, p).status,
+                        disponibilidade(a, p, data.cards, undefined, data.reservations).free,
+                      ),
+                    ).length;
                     return (
-                      <td key={p} className="font-semibold tabular-nums">
-                        {number(n)}
-                      </td>
+                      <TableCell key={p} className="text-right">
+                        {numero(
+                          n,
+                          d.situacao ? { product: p, status: [d.situacao] } : undefined,
+                          `${NOMES[p]} · ${d.rotulo}`,
+                        )}
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground">
-          A disponibilidade é por empresa + produto. Uma oportunidade de Cella não ocupa
-          automaticamente Finance. Todas exigem validação antes do envio; listas salvas e reservas
-          de envio são conferidas novamente no botão de enviar.
+        <p className="text-xs text-muted-foreground">
+          As “prontas para enviar” de Produtos e listas são as aderentes e disponíveis fora do grupo
+          “só no Omie”; por isso podem ser menores que a última linha.
         </p>
-      </Panel>
+      </Secao>
     </div>
+  );
+}
+
+/**
+ * Composição da origem da carteira em barra, com os valores escritos ao lado (não só no
+ * `title`): comprimento compara, a palavra diz quanto. Só `span`, porque mora dentro do botão
+ * do KpiCard.
+ */
+function BarraOrigem({
+  total,
+  partes,
+}: {
+  total: number;
+  partes: { rotulo: string; n: number; cor: string }[];
+}) {
+  return (
+    <span className="mt-2 block">
+      <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+        {partes.map((p) =>
+          p.n > 0 ? (
+            <span
+              key={p.rotulo}
+              className={`block ${p.cor}`}
+              style={{ width: `${Math.max(2, (p.n / Math.max(1, total)) * 100)}%` }}
+            />
+          ) : null,
+        )}
+      </span>
+      <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+        {partes.map((p) => (
+          <span key={p.rotulo} className="inline-flex items-center gap-1">
+            <span aria-hidden className={`inline-block size-2 rounded-full ${p.cor}`} />
+            <span className="num">{number(p.n)}</span> {p.rotulo}
+          </span>
+        ))}
+      </span>
+    </span>
   );
 }

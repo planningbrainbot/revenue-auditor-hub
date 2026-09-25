@@ -59,10 +59,12 @@ import { Route as AuthenticatedAquarioRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
+import { Route as ApiCockpitCeoConversaRouteImport } from './routes/api/cockpit-ceo/conversa'
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
+import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
 import { Route as AuthenticatedBrokerReservasRouteImport } from './routes/_authenticated/broker.reservas'
 import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_authenticated/broker.movimentacoes'
 import { Route as AuthenticatedBrokerFaturasRouteImport } from './routes/_authenticated/broker.faturas'
@@ -352,6 +354,11 @@ const AuthenticatedBrokerIndexRoute =
     path: '/broker/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiCockpitCeoConversaRoute = ApiCockpitCeoConversaRouteImport.update({
+  id: '/api/cockpit-ceo/conversa',
+  path: '/api/cockpit-ceo/conversa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedUnidadesSplitRoute =
   AuthenticatedUnidadesSplitRouteImport.update({
     id: '/split',
@@ -375,6 +382,12 @@ const AuthenticatedRoyaltiesSplitRoute =
     id: '/split',
     path: '/split',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
+  } as any)
+const AuthenticatedCockpitCeoPerguntarRoute =
+  AuthenticatedCockpitCeoPerguntarRouteImport.update({
+    id: '/cockpit-ceo_/perguntar',
+    path: '/cockpit-ceo/perguntar',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedBrokerReservasRoute =
   AuthenticatedBrokerReservasRouteImport.update({
@@ -526,10 +539,12 @@ export interface FileRoutesByFullPath {
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
+  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
+  '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades/': typeof AuthenticatedUnidadesIndexRoute
@@ -594,10 +609,12 @@ export interface FileRoutesByTo {
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
+  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
+  '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades': typeof AuthenticatedUnidadesIndexRoute
@@ -666,10 +683,12 @@ export interface FileRoutesById {
   '/_authenticated/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/_authenticated/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/_authenticated/broker/reservas': typeof AuthenticatedBrokerReservasRoute
+  '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
+  '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/unidades/': typeof AuthenticatedUnidadesIndexRoute
@@ -738,10 +757,12 @@ export interface FileRouteTypes {
     | '/broker/faturas'
     | '/broker/movimentacoes'
     | '/broker/reservas'
+    | '/cockpit-ceo/perguntar'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
     | '/unidades/split'
+    | '/api/cockpit-ceo/conversa'
     | '/broker/'
     | '/royalties/'
     | '/unidades/'
@@ -806,10 +827,12 @@ export interface FileRouteTypes {
     | '/broker/faturas'
     | '/broker/movimentacoes'
     | '/broker/reservas'
+    | '/cockpit-ceo/perguntar'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
     | '/unidades/split'
+    | '/api/cockpit-ceo/conversa'
     | '/broker'
     | '/royalties'
     | '/unidades'
@@ -877,10 +900,12 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/faturas'
     | '/_authenticated/broker/movimentacoes'
     | '/_authenticated/broker/reservas'
+    | '/_authenticated/cockpit-ceo_/perguntar'
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/funil-cac'
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
+    | '/api/cockpit-ceo/conversa'
     | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
     | '/_authenticated/unidades/'
@@ -896,6 +921,7 @@ export interface RootRouteChildren {
   TrustRoute: typeof TrustRoute
   VitrineRoute: typeof VitrineRoute
   PilotoCockpitCeoRoute: typeof PilotoCockpitCeoRoute
+  ApiCockpitCeoConversaRoute: typeof ApiCockpitCeoConversaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1250,6 +1276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrokerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/cockpit-ceo/conversa': {
+      id: '/api/cockpit-ceo/conversa'
+      path: '/api/cockpit-ceo/conversa'
+      fullPath: '/api/cockpit-ceo/conversa'
+      preLoaderRoute: typeof ApiCockpitCeoConversaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/unidades/split': {
       id: '/_authenticated/unidades/split'
       path: '/split'
@@ -1277,6 +1310,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/royalties/split'
       preLoaderRoute: typeof AuthenticatedRoyaltiesSplitRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
+    }
+    '/_authenticated/cockpit-ceo_/perguntar': {
+      id: '/_authenticated/cockpit-ceo_/perguntar'
+      path: '/cockpit-ceo/perguntar'
+      fullPath: '/cockpit-ceo/perguntar'
+      preLoaderRoute: typeof AuthenticatedCockpitCeoPerguntarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/broker/reservas': {
       id: '/_authenticated/broker/reservas'
@@ -1478,6 +1518,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBrokerFaturasRoute: typeof AuthenticatedBrokerFaturasRoute
   AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
   AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
+  AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
   AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
 }
@@ -1539,6 +1580,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBrokerFaturasRoute: AuthenticatedBrokerFaturasRoute,
   AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
   AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
+  AuthenticatedCockpitCeoPerguntarRoute: AuthenticatedCockpitCeoPerguntarRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
   AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,
 }
@@ -1554,6 +1596,7 @@ const rootRouteChildren: RootRouteChildren = {
   TrustRoute: TrustRoute,
   VitrineRoute: VitrineRoute,
   PilotoCockpitCeoRoute: PilotoCockpitCeoRoute,
+  ApiCockpitCeoConversaRoute: ApiCockpitCeoConversaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

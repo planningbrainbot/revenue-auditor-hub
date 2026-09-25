@@ -100,10 +100,7 @@ test("Ponte: linhas que não batem com a série da fonte não fecham, e erros n�
 });
 
 test("Ponte: payload cortado por limite de clientes é recusado", () => {
-  assert.throws(
-    () => extrairPorCliente({ ...payload(), truncado: { aplicado: true } }),
-    /cortado/,
-  );
+  assert.throws(() => extrairPorCliente({ ...payload(), truncado: { aplicado: true } }), /cortado/);
 });
 
 // ── Emitido × recebido, inadimplência, indicadores ───────────────────────────
@@ -111,10 +108,38 @@ test("Emitido × recebido: mês sem foto de títulos não mostra percentual; pis
   const er = extrairEmitidoRecebido({
     snapshot_ref: "2026-06-01",
     serie: [
-      { competencia: "2026-04-01", reconhecido: 100, recebido: 96, em_aberto: 4, pct_recebido: 0.96, meses_ate_a_foto: 2 },
-      { competencia: "2026-06-01", reconhecido: 100, recebido: 86, em_aberto: 14, pct_recebido: 0.86, meses_ate_a_foto: 0 },
-      { competencia: "2026-07-01", reconhecido: 100, recebido: 40, em_aberto: 60, pct_recebido: 0.4, meses_ate_a_foto: -1 },
-      { competencia: "2026-08-01", reconhecido: 100, recebido: 100, em_aberto: 0, pct_recebido: 1, meses_ate_a_foto: -2 },
+      {
+        competencia: "2026-04-01",
+        reconhecido: 100,
+        recebido: 96,
+        em_aberto: 4,
+        pct_recebido: 0.96,
+        meses_ate_a_foto: 2,
+      },
+      {
+        competencia: "2026-06-01",
+        reconhecido: 100,
+        recebido: 86,
+        em_aberto: 14,
+        pct_recebido: 0.86,
+        meses_ate_a_foto: 0,
+      },
+      {
+        competencia: "2026-07-01",
+        reconhecido: 100,
+        recebido: 40,
+        em_aberto: 60,
+        pct_recebido: 0.4,
+        meses_ate_a_foto: -1,
+      },
+      {
+        competencia: "2026-08-01",
+        reconhecido: 100,
+        recebido: 100,
+        em_aberto: 0,
+        pct_recebido: 1,
+        meses_ate_a_foto: -2,
+      },
     ],
   });
   assert.equal(er.foto, "2026-06");
@@ -147,11 +172,23 @@ test("Inadimplência e indicadores: agregados saem, cliente e CNPJ não", () => 
     lucro_bruto: { valor: 120 },
     margem_pct: 0.4,
     por_empresa: [
-      { grupo_apuracao: "BPO", receita_bruta: 100.1, lucro_bruto: 40, resultado: 10, cnpj: "12.345.678/0001-90", razao_social: "X" },
+      {
+        grupo_apuracao: "BPO",
+        receita_bruta: 100.1,
+        lucro_bruto: 40,
+        resultado: 10,
+        cnpj: "12.345.678/0001-90",
+        razao_social: "X",
+      },
       { grupo_apuracao: "BPO", receita_bruta: 99.9, lucro_bruto: 40, resultado: 5 },
       { grupo_apuracao: "SP", receita_bruta: 100, lucro_bruto: 40, resultado: -3 },
     ],
-    caixa_livre: { valor: 50, sem_dado: false, mes_referencia: "2026-08-01", cobertura: { empresas_sem_saldo: [] } },
+    caixa_livre: {
+      valor: 50,
+      sem_dado: false,
+      mes_referencia: "2026-08-01",
+      cobertura: { empresas_sem_saldo: [] },
+    },
   });
   assert.deepEqual(
     ind.porGrupo.map((g) => [g.grupo, g.receitaBruta, g.empresas]),
@@ -161,7 +198,10 @@ test("Inadimplência e indicadores: agregados saem, cliente e CNPJ não", () => 
     ],
   );
   assert.doesNotMatch(JSON.stringify(ind), /12\.345|razao/);
-  const semCaixa = extrairIndicadores({ por_empresa: [], caixa_livre: { sem_dado: true, valor: 0 } });
+  const semCaixa = extrairIndicadores({
+    por_empresa: [],
+    caixa_livre: { sem_dado: true, valor: 0 },
+  });
   assert.equal(semCaixa.caixa.valor, null, "sem saldo vira null, nunca R$ 0");
 });
 
@@ -189,7 +229,9 @@ test("Aquisição: plano ausente fica null (não 0%), pipeline não ponderado se
         { mes: "2026-08", papel: "funil", metrica: "new_mrr_mes", alvo: 230000 },
         { mes: "2026-08", papel: "porte-25m-mais", metrica: "new_mrr_mes", alvo: 99 },
       ],
-      mesCorrente: [{ porte: "consolidado", mes: "2026-09", mrr_forecast_ritmo: 200000, mrr_meta: 240000 }],
+      mesCorrente: [
+        { porte: "consolidado", mes: "2026-09", mrr_forecast_ritmo: 200000, mrr_meta: 240000 },
+      ],
       abertos: [
         { mrr: 1000, expected_close_date: null },
         { mrr: 2000, expected_close_date: "2026-08-10" },
@@ -199,7 +241,11 @@ test("Aquisição: plano ausente fica null (não 0%), pipeline não ponderado se
     },
     "2026-09-23",
   );
-  assert.deepEqual(a.meses.map((m) => m.mes), ["2026-05", "2026-08", "2026-09"], "mês futuro fora");
+  assert.deepEqual(
+    a.meses.map((m) => m.mes),
+    ["2026-05", "2026-08", "2026-09"],
+    "mês futuro fora",
+  );
   assert.equal(a.meses[0].plano, null);
   assert.equal(a.meses[1].plano.mrrNovo, 230000, "só o plano do funil consolidado");
   assert.equal(a.meses[1].custoMidiaPorVenda, 5000);
@@ -217,11 +263,39 @@ test("Onboarding: faixas de idade só para quem está em curso; tempo do ganho �
   const agora = "2026-09-23T12:00:00Z";
   const dias = (n) => new Date(Date.parse(agora) - n * 86_400_000).toISOString();
   const cards = [
-    { fase_atual: "Setup técnico", entrou_fase_atual_em: dias(45), criado_em: dias(60), empresa_id: 1 },
-    { fase_atual: "Setup técnico", entrou_fase_atual_em: dias(70), criado_em: dias(80), empresa_id: 2 },
-    { fase_atual: "Nova Onboarding", entrou_fase_atual_em: dias(5), criado_em: dias(5), empresa_id: null },
-    { fase_atual: "Concluído", concluido: true, entrou_fase_atual_em: dias(90), criado_em: "2026-07-05T00:00:00Z", empresa_id: 3, fases_history: [{ fase: "Concluído", entrou_em: "2026-08-01T00:00:00Z" }] },
-    { fase_atual: "Churn no Onboarding", concluido: true, entrou_fase_atual_em: dias(99), criado_em: dias(100), empresa_id: 4 },
+    {
+      fase_atual: "Setup técnico",
+      entrou_fase_atual_em: dias(45),
+      criado_em: dias(60),
+      empresa_id: 1,
+    },
+    {
+      fase_atual: "Setup técnico",
+      entrou_fase_atual_em: dias(70),
+      criado_em: dias(80),
+      empresa_id: 2,
+    },
+    {
+      fase_atual: "Nova Onboarding",
+      entrou_fase_atual_em: dias(5),
+      criado_em: dias(5),
+      empresa_id: null,
+    },
+    {
+      fase_atual: "Concluído",
+      concluido: true,
+      entrou_fase_atual_em: dias(90),
+      criado_em: "2026-07-05T00:00:00Z",
+      empresa_id: 3,
+      fases_history: [{ fase: "Concluído", entrou_em: "2026-08-01T00:00:00Z" }],
+    },
+    {
+      fase_atual: "Churn no Onboarding",
+      concluido: true,
+      entrou_fase_atual_em: dias(99),
+      criado_em: dias(100),
+      empresa_id: 4,
+    },
   ].map(lerCard);
   // Empresa 3 tem um ganho antigo (2025) e o que originou o card (02/07): vale o de 02/07.
   // Um ganho DEPOIS da criação do card não é a venda que o originou.
@@ -341,7 +415,12 @@ test("Sem leitura do Financeiro, os números dele dizem acesso insuficiente, nã
       ponte: null,
       leituras: f.receita.leituras.map((l) =>
         l.id === "grupo"
-          ? { ...l, estado: "acesso_insuficiente", nota: "Sua conta não tem acesso ao Brain Financeiro.", linhas: [] }
+          ? {
+              ...l,
+              estado: "acesso_insuficiente",
+              nota: "Sua conta não tem acesso ao Brain Financeiro.",
+              linhas: [],
+            }
           : l,
       ),
     },
@@ -372,7 +451,11 @@ test("Growth sem acesso: MRR vendido diz acesso insuficiente e o motor não inve
       aquisicao: {
         estado: "ok",
         erro: null,
-        resposta: { estado: "acesso_insuficiente", lidoEm: AGORA, motivo: "Sua conta não é membro do Growth." },
+        resposta: {
+          estado: "acesso_insuficiente",
+          lidoEm: AGORA,
+          motivo: "Sua conta não é membro do Growth.",
+        },
       },
     },
     recorte(),
@@ -414,18 +497,58 @@ test("Registro: as 11 exigências do mapa cobertas, ids únicos, pilares válido
     assert.ok(p.growth && p.ops && p.resposta, `${p.id} sem papel ou resposta`);
     for (const i of p.indicadores) assert.ok(IDS_INDICADORES.includes(i), `${p.id} → ${i}`);
   }
-  for (const f of ORDEM_FRENTES) assert.ok(PERGUNTAS.some((p) => p.frente === f), `frente ${f}`);
+  for (const f of ORDEM_FRENTES)
+    assert.ok(
+      PERGUNTAS.some((p) => p.frente === f),
+      `frente ${f}`,
+    );
 });
 
 test("Registro: ids da primeira fatia preservados; pergunta não iniciada nunca se diz respondida", () => {
-  for (const id of ["R1", "R2", "R3", "R4", "R5", "C1", "C2", "C3", "E1", "E2", "E3", "E4", "N1", "N2", "N3", "T1", "T2", "K1", "K2", "K3", "K4"])
-    assert.ok(PERGUNTAS.some((p) => p.id === id), id);
+  for (const id of [
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "C1",
+    "C2",
+    "C3",
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "N1",
+    "N2",
+    "N3",
+    "T1",
+    "T2",
+    "K1",
+    "K2",
+    "K3",
+    "K4",
+  ])
+    assert.ok(
+      PERGUNTAS.some((p) => p.id === id),
+      id,
+    );
   for (const p of PERGUNTAS.filter((x) => x.estados.implementacao === "nao_iniciada"))
     assert.equal(situacaoDaPergunta(p), "lacuna", p.id);
-  assert.equal(PERGUNTAS.filter((p) => p.cobertura === "verificada").length, 0, "sem aceite do responsável");
+  assert.equal(
+    PERGUNTAS.filter((p) => p.cobertura === "verificada").length,
+    0,
+    "sem aceite do responsável",
+  );
 });
 
 test("Jev continua com as seis frentes avaliadas, mesmo com nove no cockpit", () => {
-  assert.deepEqual(Object.keys(FRENTES_JEV), ["receita", "clientes", "comercial", "rede", "retencao", "capital"]);
+  assert.deepEqual(Object.keys(FRENTES_JEV), [
+    "receita",
+    "clientes",
+    "comercial",
+    "rede",
+    "retencao",
+    "capital",
+  ]);
   assert.equal(ORDEM_FRENTES.length, 9);
 });

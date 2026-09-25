@@ -12,7 +12,18 @@ import {
   type SegredoStatus,
 } from "@/lib/integracoes-segredos.functions";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Carregando, EstadoErro, EstadoSemAcesso, StatusBadge } from "@/components/planning";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +34,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const ASAAS_PRODUCAO = "https://api.asaas.com/v3";
+
+/**
+ * O efeito de remover ou trocar depende da chave: sem a chave de API ou o token
+ * do webhook a integração para; o ambiente sem valor cai no sandbox (é o padrão
+ * do testarAsaas); o meio de cobrança sem valor volta ao UNDEFINED.
+ */
+function efeitoDaMudanca(chave: string, grupo: string, tipo: "remover" | "sobrescrever", valor?: string) {
+  if (chave === "ASAAS_BASE_URL") {
+    if (tipo === "remover") return "O ambiente volta ao sandbox (cobranças de teste).";
+    return valor === ASAAS_PRODUCAO
+      ? "O ambiente passa a ser produção: as cobranças passam a ser reais."
+      : "O ambiente volta ao sandbox (cobranças de teste).";
+  }
+  if (chave === "ASAAS_BILLING_TYPE") {
+    if (tipo === "remover") return "O meio de cobrança volta ao padrão UNDEFINED (o pagador escolhe).";
+    return `As próximas cobranças passam a usar ${valor}.`;
+  }
+  return tipo === "remover"
+    ? `A integração ${grupo} para até uma chave nova ser salva.`
+    : `Se o novo valor estiver errado, a integração ${grupo} para até uma chave nova ser salva.`;
+}
 
 const quando = (v: string | null) =>
   v ? new Date(v).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -42,6 +76,13 @@ export function SegredosView() {
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
   const [visivel, setVisivel] = useState<Record<string, boolean>>({});
   const [teste, setTeste] = useState<{ ok: boolean; detalhe: string } | null>(null);
+  // Remover e escrever por cima de uma chave já salva confirmam antes: as duas
+  // tiram do ar o valor que a integração usa hoje, e ele não volta.
+  const [confirmar, setConfirmar] = useState<
+    | { tipo: "remover"; chave: string; rotulo: string; final: string | null; grupo: string }
+    | { tipo: "sobrescrever"; chave: string; rotulo: string; final: string | null; grupo: string; valor: string }
+    | null
+  >(null);
 
   const recarregar = () => qc.invalidateQueries({ queryKey: ["integracoes-segredos"] });
   const aoFalhar = (e: unknown) => toast.error(e instanceof Error ? e.message : "Falhou.");
@@ -52,15 +93,18 @@ export function SegredosView() {
       toast.success("Guardado. O valor não volta para a tela.");
       setRascunho((r) => ({ ...r, [d.chave]: "" }));
       setTeste(null);
+      setConfirmar(null);
       recarregar();
     },
     onError: aoFalhar,
   });
   const mApagar = useMutation({
     mutationFn: (d: { chave: string }) => fnApagar({ data: d }),
-    onSuccess: () => {
-      toast.success("Removido.");
+    onSuccess: (_r, d) => {
+      const rotulo = CHAVES_CONHECIDAS.find((c) => c.chave === d.chave)?.rotulo ?? d.chave;
+      toast.success(`Removido: ${rotulo}.`);
       setTeste(null);
+      setConfirmar(null);
       recarregar();
     },
     onError: aoFalhar,
@@ -80,15 +124,21 @@ export function SegredosView() {
     [data?.status],
   );
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
-  if (error)
+  if (isLoading) return <Carregando variante="tabela" />;
+  if (error) {
+    const msg = error instanceof Error ? error.message : "Falha ao carregar.";
+    // O servidor confere `view.admin.credenciais` em toda chamada; a recusa dele
+    // é falta de acesso, não falha de carga.
+    if (msg.startsWith("Acesso negado"))
+      return <EstadoSemAcesso oQueFalta="view.admin.credenciais (Chaves de Integração)" />;
     return (
-      <Card className="border-destructive/40 p-4">
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Falha ao carregar."}
-        </p>
-      </Card>
+      <EstadoErro
+        titulo="Não foi possível carregar as chaves"
+        detalhe={msg}
+        tentarNovamente={() => recarregar()}
+      />
     );
+  }
 
   const grupos = [...new Set(CHAVES_CONHECIDAS.map((c) => c.grupo))];
   const asaasPronto =
@@ -113,9 +163,9 @@ export function SegredosView() {
             <h2 className="text-lg font-semibold">{grupo}</h2>
             {grupo === "Asaas" ? (
               <>
-                <Badge variant={asaasPronto ? "default" : "outline"}>
-                  {asaasPronto ? "configurado" : "incompleto"}
-                </Badge>
+                <StatusBadge tom={asaasPronto ? "sucesso" : "atencao"}>
+                  {asaasPronto ? "Configurado" : "Incompleto"}
+                </StatusBadge>
                 <Button
                   size="sm"
                   variant="outline"
@@ -163,9 +213,7 @@ export function SegredosView() {
                           {s.final}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-xs">
-                          não configurado
-                        </Badge>
+                        <StatusBadge tom="neutro">Não configurado</StatusBadge>
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{c.ajuda}</p>
@@ -208,6 +256,7 @@ export function SegredosView() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          aria-label={visivel[c.chave] ? "Esconder o valor digitado" : "Mostrar o valor digitado"}
                           onClick={() => setVisivel((v) => ({ ...v, [c.chave]: !v[c.chave] }))}
                         >
                           {visivel[c.chave] ? (
@@ -222,16 +271,43 @@ export function SegredosView() {
                   <Button
                     size="sm"
                     disabled={!valor.trim() || mSalvar.isPending}
-                    onClick={() => mSalvar.mutate({ chave: c.chave, valor })}
+                    aria-describedby={!valor.trim() ? `motivo-salvar-${c.chave}` : undefined}
+                    onClick={() =>
+                      // Ir para produção confirma mesmo na primeira vez: sem valor o ambiente é o sandbox.
+                      s?.configurado || (c.chave === "ASAAS_BASE_URL" && valor === ASAAS_PRODUCAO)
+                        ? setConfirmar({
+                            tipo: "sobrescrever",
+                            chave: c.chave,
+                            rotulo: c.rotulo,
+                            final: s?.configurado ? s.final : null,
+                            grupo: c.grupo,
+                            valor,
+                          })
+                        : mSalvar.mutate({ chave: c.chave, valor })
+                    }
                   >
                     Salvar
                   </Button>
+                  {!valor.trim() && (
+                    <span id={`motivo-salvar-${c.chave}`} className="text-xs text-muted-foreground">
+                      {c.opcoes ? "Escolha uma opção para salvar." : "Cole o valor para salvar."}
+                    </span>
+                  )}
                   {s?.configurado ? (
                     <Button
                       size="icon"
                       variant="ghost"
                       title="Remover"
-                      onClick={() => mApagar.mutate({ chave: c.chave })}
+                      aria-label={`Remover ${c.rotulo}`}
+                      onClick={() =>
+                        setConfirmar({
+                          tipo: "remover",
+                          chave: c.chave,
+                          rotulo: c.rotulo,
+                          final: s.final,
+                          grupo: c.grupo,
+                        })
+                      }
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -255,6 +331,55 @@ export function SegredosView() {
           {`${import.meta.env.VITE_SUPABASE_URL ?? ""}/functions/v1/broker-asaas-webhook`}
         </code>
       </Card>
+
+      <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmar?.tipo === "remover"
+                ? `Remover ${confirmar.rotulo}?`
+                : `Trocar ${confirmar?.rotulo ?? ""}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmar?.tipo === "remover" ? (
+                <>
+                  O valor salvo{confirmar.final ? ` (${confirmar.final})` : ""} é apagado e não volta.{" "}
+                  {efeitoDaMudanca(confirmar.chave, confirmar.grupo, "remover")}
+                </>
+              ) : (
+                <>
+                  {confirmar?.final
+                    ? `O valor salvo hoje (${confirmar.final}) é substituído e não volta. `
+                    : ""}
+                  {confirmar?.tipo === "sobrescrever" &&
+                    efeitoDaMudanca(confirmar.chave, confirmar.grupo, "sobrescrever", confirmar.valor)}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mApagar.isPending || mSalvar.isPending}
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!confirmar) return;
+                if (confirmar.tipo === "remover") mApagar.mutate({ chave: confirmar.chave });
+                else mSalvar.mutate({ chave: confirmar.chave, valor: confirmar.valor });
+              }}
+            >
+              {confirmar?.tipo === "remover"
+                ? mApagar.isPending
+                  ? "Removendo…"
+                  : "Remover chave"
+                : mSalvar.isPending
+                  ? "Salvando…"
+                  : "Trocar chave"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

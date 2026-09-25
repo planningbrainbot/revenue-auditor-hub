@@ -1,89 +1,61 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Coins, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
-import { brl } from "@/components/audit/format";
 import { usePermissions } from "@/hooks/use-permissions";
 import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listarFaturasRoyalties, type FaturaDoMes } from "@/lib/royalties-faturamento.functions";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
+import {
+  brlOuTraco,
+  ErroDaConsulta,
+  mesCorrente,
+  mesEmAndamento,
+  rotuloDia,
+  rotuloMes,
+} from "@/components/receita/moldura";
 
-function defaultMes(): string {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+/**
+ * Lista do mês da Apuração de Royalties (contrato
+ * `docs/design/contratos/receita-e-repasses.md` §5). O mês vem da rota (URL,
+ * `?mes=`), para o "Resolver" da Visão geral cair no mesmo mês e o total bater.
+ */
 
-function shiftMes(mes: string, delta: number): string {
-  const [y, m] = mes.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function isMesEmAndamento(mes: string): boolean {
-  const d = new Date();
-  const atual = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  return mes >= atual;
-}
-
-function formatMesLabel(mes: string): string {
-  const [y, m] = mes.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-}
-
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  rascunho: {
-    label: "Rascunho",
-    cls: "bg-muted text-foreground",
-  },
-  em_revisao: {
-    label: "Em revisão",
-    cls: "bg-warning-soft text-warning",
-  },
-  confirmado: {
-    label: "Confirmado",
-    cls: "bg-success-soft text-success",
-  },
-  faturado: {
-    label: "Faturado",
-    cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200",
-  },
+const STATUS_APURACAO: Record<string, { label: string; tom: TomStatus }> = {
+  rascunho: { label: "Rascunho", tom: "info" },
+  em_revisao: { label: "Em revisão", tom: "atencao" },
+  confirmado: { label: "Confirmado", tom: "sucesso" },
+  faturado: { label: "Faturado", tom: "sucesso" },
 };
-
-const TOM = {
-  ok: "bg-success-soft text-success",
-  aviso: "bg-warning-soft text-warning",
-  ruim: "bg-danger-soft text-danger",
-  neutro: "bg-muted text-foreground",
-};
-
-function dataCurta(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const [, m, d] = iso.slice(0, 10).split("-");
-  return `${d}/${m}`;
-}
 
 function CelulaFatura({ f }: { f: FaturaDoMes | undefined }) {
-  if (!f) return <span className="text-xs text-muted-foreground">Não emitida</span>;
+  if (!f) return <StatusBadge tom="neutro">Não emitida</StatusBadge>;
   if (f.status === "erro")
     return (
-      <Badge className={TOM.ruim} title={f.erro ?? undefined}>
-        Erro na emissão
-      </Badge>
+      <span title={f.erro ?? undefined}>
+        <StatusBadge tom="perigo">Erro na emissão</StatusBadge>
+      </span>
     );
-  if (f.status === "ja_existia") return <Badge className={TOM.neutro}>Emitida à mão</Badge>;
-  if (f.status === "criada") return <Badge className={TOM.aviso}>OS {f.num_os} sem boleto</Badge>;
+  if (f.status === "ja_existia") return <StatusBadge tom="neutro">Emitida à mão</StatusBadge>;
+  if (f.status === "criada") return <StatusBadge tom="atencao">OS {f.num_os} sem boleto</StatusBadge>;
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <Badge className={TOM.ok}>OS {f.num_os}</Badge>
-      <span className="text-xs text-muted-foreground">
-        {brl(f.valor_total)} · emitida {dataCurta(f.faturada_em)}
+      <StatusBadge tom="sucesso">OS {f.num_os}</StatusBadge>
+      <span className="num text-xs text-muted-foreground">
+        {brlOuTraco(f.valor_total)} · emitida {rotuloDia(f.faturada_em) ?? "—"}
       </span>
     </div>
   );
@@ -98,49 +70,92 @@ function CelulaRecebimento({ f }: { f: FaturaDoMes | undefined }) {
         Aguardando sync
       </span>
     );
-  const vence = `vence ${dataCurta(r.vencimento)}`;
   switch (r.status) {
     case "RECEBIDO":
-      return <Badge className={TOM.ok}>Recebido {dataCurta(r.pago_em)}</Badge>;
+      return <StatusBadge tom="sucesso">Recebido {rotuloDia(r.pago_em) ?? ""}</StatusBadge>;
     case "ATRASADO":
       return (
         <div className="flex flex-col items-start gap-0.5">
-          <Badge className={TOM.ruim}>Atrasado</Badge>
+          <StatusBadge tom="perigo">Atrasado</StatusBadge>
           <span className="text-xs text-muted-foreground">
-            venceu {dataCurta(r.vencimento)}
+            venceu {rotuloDia(r.vencimento) ?? "—"}
           </span>
         </div>
       );
     case "CANCELADO":
-      return <Badge className={TOM.neutro}>Título cancelado</Badge>;
+      return <StatusBadge tom="neutro">Título cancelado</StatusBadge>;
     default:
       return (
         <div className="flex flex-col items-start gap-0.5">
-          <Badge className={TOM.aviso}>A vencer</Badge>
-          <span className="text-xs text-muted-foreground">{vence}</span>
+          <StatusBadge tom="atencao">A vencer</StatusBadge>
+          <span className="text-xs text-muted-foreground">
+            vence {rotuloDia(r.vencimento) ?? "—"}
+          </span>
         </div>
       );
   }
 }
 
-export function ApuracaoRoyaltiesContent() {
+/**
+ * A fatura que vale para a unidade no mês, com a MESMA regra na lista e na
+ * ficha: a mais recente que não deu erro; só sem nenhuma dessas, a mais
+ * recente com erro. Antes a lista pegava a última do array e a ficha a
+ * primeira, e as duas podiam discordar.
+ */
+export function faturaDaUnidade(
+  faturas: FaturaDoMes[] | undefined,
+  unidadeId: number,
+): FaturaDoMes | undefined {
+  const daUnidade = (faturas ?? []).filter((f) => f.unidade_id === unidadeId);
+  const quando = (f: FaturaDoMes) => f.faturada_em ?? f.vence_em ?? "";
+  const maisRecente = (lista: FaturaDoMes[]) =>
+    lista.reduce<FaturaDoMes | undefined>((m, f) => (!m || quando(f) > quando(m) ? f : m), undefined);
+  return maisRecente(daUnidade.filter((f) => f.status !== "erro")) ?? maisRecente(daUnidade);
+}
+
+/** Botão "Emitir faturas" com o motivo quando não há o que emitir (N8). */
+export function motivoSemEmissao(
+  mes: string,
+  carregando: boolean,
+  rows: { apuracao?: { status?: string | null } | null }[],
+  erro?: unknown,
+): string | undefined {
+  if (mesEmAndamento(mes))
+    return "O mês ainda não terminou: fatura só sai depois do fim do mês, porque ainda entram recebimentos.";
+  if (erro)
+    return "Não foi possível carregar as apurações do mês; sem elas não dá para saber o que emitir.";
+  if (carregando) return "Carregando as apurações do mês.";
+  const fechadas = rows.filter(
+    (u) => u.apuracao?.status === "confirmado" || u.apuracao?.status === "faturado",
+  ).length;
+  if (fechadas === 0)
+    return "Nenhuma apuração fechada neste mês: feche a apuração de ao menos uma unidade.";
+  return undefined;
+}
+
+export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
   const { isAdmin, loading } = usePermissions();
-  const [mes, setMes] = useState(defaultMes());
-  const { data, isLoading } = useRoyaltiesUnidades(mes);
+  const { data, isLoading, error, refetch } = useRoyaltiesUnidades(mes);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
 
   const listarFaturas = useServerFn(listarFaturasRoyalties);
-  const { data: faturasData } = useQuery({
+  const emAndamento = mesEmAndamento(mes);
+  const {
+    data: faturasData,
+    error: erroFaturas,
+    isLoading: carregandoFaturas,
+  } = useQuery({
     queryKey: ["royalties", "faturas", mes],
     queryFn: () => listarFaturas({ data: { competencia: mes } }),
-    enabled: !isMesEmAndamento(mes),
+    enabled: !emAndamento,
     staleTime: 30_000,
   });
-  const faturaPorUnidade = useMemo(
-    () => new Map((faturasData?.faturas ?? []).map((f) => [f.unidade_id, f])),
-    [faturasData],
-  );
+  const faturaPorUnidade = useMemo(() => {
+    const faturas = faturasData?.faturas ?? [];
+    const ids = new Set(faturas.map((f) => f.unidade_id));
+    return new Map([...ids].map((id) => [id, faturaDaUnidade(faturas, id)]));
+  }, [faturasData]);
 
   const totais = useMemo(
     () =>
@@ -162,180 +177,205 @@ export function ApuracaoRoyaltiesContent() {
     [rows],
   );
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  if (loading) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
   if (!isAdmin)
     return (
-      <div className="p-6 text-sm text-muted-foreground">Acesso restrito a usuários admin.</div>
+      <div className="px-4 py-6 md:px-6">
+        <EstadoSemAcesso oQueFalta="admin (a apuração de royalties é da matriz)" />
+      </div>
     );
 
+  const motivoEmitir = motivoSemEmissao(mes, isLoading, rows, error);
+  // Sem apuração no mês os totais não são zero, são ausência (N4).
+  const estadoTotais = totais.comApuracao === 0 ? "nao-apurado" : emAndamento ? "parcial" : "ok";
+  const notaTotais =
+    totais.comApuracao === 0
+      ? "nenhuma unidade com apuração neste mês"
+      : `${totais.comApuracao} de ${rows.length} unidades com apuração`;
+
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Coins className="h-6 w-6 text-primary-text" />
-          <div>
-            {/* Sem <h1> aqui: o nome da página vem do AppShell desde que a aba
-                virou rota própria, e dois títulos iguais empilhados só ocupavam
-                a primeira dobra. */}
-            <p className="text-sm text-muted-foreground">
-              Gere a base de cobrança mensal de cada unidade.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Fatura é dinheiro saindo para a unidade: só aparece em mês fechado,
-              porque mês em andamento ainda vai receber recebimento. */}
-          {!isMesEmAndamento(mes) && <EmitirFaturasDialog competencia={mes} />}
-          <Button variant="outline" size="icon" onClick={() => setMes(shiftMes(mes, -1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-[160px] rounded-md border bg-card px-3 py-1.5 text-center text-sm font-medium capitalize">
-            {formatMesLabel(mes)}
-          </div>
-          <Button variant="outline" size="icon" onClick={() => setMes(shiftMes(mes, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+    <div className="space-y-6 px-4 py-6 md:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          {emAndamento
+            ? "Mês em andamento: fechar antes do fim do mês é possível; recebimentos posteriores ficam fora. A fatura só sai depois do fim do mês."
+            : "Feche a apuração de cada unidade e emita as faturas do mês no Omie."}
+        </p>
+        <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />
       </div>
 
-      {isMesEmAndamento(mes) && (
-        <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning">
-          Mês em andamento — a apuração só fecha depois que o mês termina. Use as setas para voltar
-          ao mês anterior.
-        </div>
-      )}
-
-      {!isLoading && rows.length > 0 && (
-        <Card className="p-4 bg-primary/5 border-primary/20">
-          <div className="flex items-center justify-between gap-2">
-            <div className="font-semibold">Total da rede</div>
-            <div className="text-xs text-muted-foreground">
-              {totais.comApuracao} de {rows.length} unidades com apuração
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
-            <div>
-              <div className="text-xs text-muted-foreground">Royalties</div>
-              <div className="font-medium">{brl(totais.royalties)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">CSC</div>
-              <div className="font-medium">{brl(totais.csc)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">CAC</div>
-              <div className="font-medium">{brl(totais.cac)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Mídia</div>
-              <div className="font-medium">{brl(totais.midia)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Outras receitas</div>
-              <div className="font-medium">{brl(totais.outras)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Total fatura</div>
-              <div className="text-base font-semibold">{brl(totais.totalFatura)}</div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground">Carregando unidades…</div>
+      {error ? (
+        <ErroDaConsulta
+          erro={error}
+          chaves="admin"
+          titulo="Não foi possível carregar as apurações do mês"
+          tentarNovamente={() => void refetch()}
+        />
+      ) : isLoading ? (
+        <Carregando variante="kpis" />
       ) : (
-        <Card className="overflow-hidden">
-          {/* Cabeçalho fixo: a rolagem acontece dentro deste container, não na
-              página, senão o `overflow-auto` do wrapper padrão do Table anula o
-              sticky. Mesmo padrão de contas-receber-view. */}
-          <div className="relative max-h-[calc(100vh-320px)] overflow-auto">
-            <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
-              <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
-                <TableRow>
-                  <TableHead className="bg-card">Unidade</TableHead>
-                  <TableHead className="bg-card">Modelo</TableHead>
-                  <TableHead className="bg-card">Apuração</TableHead>
-                  <TableHead className="bg-card text-right">Royalties</TableHead>
-                  <TableHead className="bg-card text-right">CSC</TableHead>
-                  <TableHead className="bg-card text-right">CAC</TableHead>
-                  <TableHead className="bg-card text-right">Mídia</TableHead>
-                  <TableHead className="bg-card text-right">Outras</TableHead>
-                  <TableHead className="bg-card text-right">Total fatura</TableHead>
-                  <TableHead className="bg-card">Fatura no Omie</TableHead>
-                  <TableHead className="bg-card">Recebimento</TableHead>
-                  <TableHead className="bg-card text-right"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((u) => {
-                  const ap = u.apuracao;
-                  const statusKey = ap?.status ?? "nao_iniciada";
-                  const badge = STATUS_BADGE[statusKey];
-                  const cscModel =
-                    u.csc_percentual_base_antiga != null
-                      ? `${u.csc_percentual_base_antiga}% base antiga`
-                      : `CSC fixo ${brl(u.csc_valor_fixo ?? 0)}`;
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        Royalties {u.royalties_percentual ?? 0}% • {cscModel}
-                      </TableCell>
-                      <TableCell>
-                        {badge ? (
-                          <Badge className={badge.cls}>{badge.label}</Badge>
-                        ) : (
-                          <Badge variant="outline">Não iniciada</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ap ? brl(ap.royalties_valor ?? 0) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ap
-                          ? brl((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number)
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ap ? brl(ap.cac_valor ?? 0) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ap ? brl(ap.csc_trafego_pago ?? 0) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ap ? brl(ap.outras_receitas ?? 0) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {ap ? brl(ap.total_fatura ?? 0) : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <CelulaFatura f={faturaPorUnidade.get(u.id)} />
-                      </TableCell>
-                      <TableCell>
-                        <CelulaRecebimento f={faturaPorUnidade.get(u.id)} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link
-                          to="/royalties/$unidadeId/$mes"
-                          params={{ unidadeId: String(u.id), mes }}
-                        >
-                          <Button size="sm" variant={ap ? "outline" : "default"}>
-                            {ap?.status === "confirmado" || ap?.status === "faturado"
-                              ? "Ver apuração"
-                              : ap
-                                ? "Continuar"
-                                : "Iniciar apuração"}
-                          </Button>
-                        </Link>
-                      </TableCell>
+        <Secao
+          titulo={`Quanto a rede repassa em ${rotuloMes(mes).toLowerCase()}?`}
+          descricao="Soma das apurações abertas e fechadas do mês; unidade sem apuração não entra."
+        >
+          <KpiGrade>
+            <KpiCard rotulo="Royalties" valor={brlOuTraco(totais.royalties)} estado={estadoTotais} nota={notaTotais} />
+            <KpiCard
+              rotulo="CSC (fixo ou base antiga)"
+              valor={brlOuTraco(totais.csc)}
+              estado={estadoTotais}
+              nota="por unidade: o fixo; sem fixo, o % da base antiga"
+            />
+            <KpiCard rotulo="CAC" valor={brlOuTraco(totais.cac)} estado={estadoTotais} />
+            <KpiCard rotulo="Mídia (tráfego pago)" valor={brlOuTraco(totais.midia)} estado={estadoTotais} />
+            <KpiCard rotulo="Outras receitas" valor={brlOuTraco(totais.outras)} estado={estadoTotais} />
+            <KpiCard rotulo="Total fatura" valor={brlOuTraco(totais.totalFatura)} estado={estadoTotais} />
+          </KpiGrade>
+        </Secao>
+      )}
+
+      {!error && (
+        <Secao
+          titulo="Qual unidade ainda não fechou, faturou ou recebeu?"
+          descricao={
+            emAndamento
+              ? "Fatura e recebimento só aparecem em mês encerrado."
+              : erroFaturas
+                ? undefined
+                : "Fatura e recebimento vêm do Omie da Planning Partners."
+          }
+        >
+          {erroFaturas && !emAndamento && (
+            <ErroDaConsulta
+              erro={erroFaturas}
+              titulo="Não foi possível ler as faturas no Omie; as colunas de fatura e recebimento ficam sem dado"
+            />
+          )}
+          {isLoading ? (
+            <Carregando variante="tabela" />
+          ) : rows.length === 0 ? (
+            <EstadoVazio titulo="Nenhuma unidade para apurar neste mês" />
+          ) : (
+            <div className="overflow-hidden rounded-xl border bg-card">
+              {/* Cabeçalho fixo: a rolagem acontece dentro deste container, não na
+                  página, senão o `overflow-auto` do wrapper padrão do Table anula o
+                  sticky. Mesmo padrão de contas-receber-view. */}
+              <div className="relative max-h-[calc(100vh-320px)] overflow-auto">
+                <table className="w-full caption-bottom border-separate border-spacing-0 text-sm [&_tbody_td]:border-b">
+                  <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
+                    <TableRow>
+                      <TableHead className="bg-card">Unidade</TableHead>
+                      <TableHead className="bg-card">Modelo</TableHead>
+                      <TableHead className="bg-card">Apuração</TableHead>
+                      <TableHead className="bg-card text-right">Royalties</TableHead>
+                      <TableHead className="bg-card text-right">CSC (fixo ou base antiga)</TableHead>
+                      <TableHead className="bg-card text-right">CAC</TableHead>
+                      <TableHead className="bg-card text-right">Mídia (tráfego pago)</TableHead>
+                      <TableHead className="bg-card text-right">Outras</TableHead>
+                      <TableHead className="bg-card text-right">Total fatura</TableHead>
+                      <TableHead className="bg-card">Fatura no Omie</TableHead>
+                      <TableHead className="bg-card">Recebimento</TableHead>
+                      <TableHead className="bg-card text-right">
+                        <span className="sr-only">Próxima ação</span>
+                      </TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </table>
-          </div>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((u) => {
+                      const ap = u.apuracao;
+                      const st = ap?.status ? STATUS_APURACAO[ap.status] : undefined;
+                      const cscModel =
+                        u.csc_percentual_base_antiga != null
+                          ? `${u.csc_percentual_base_antiga}% base antiga`
+                          : u.csc_valor_fixo != null
+                            ? `CSC fixo ${brlOuTraco(u.csc_valor_fixo)}`
+                            : "sem CSC cadastrado";
+                      const fatura = faturaPorUnidade.get(u.id);
+                      const fechada = ap?.status === "confirmado" || ap?.status === "faturado";
+                      return (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-medium">{u.nome_da_praca}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            Royalties {u.royalties_percentual != null ? `${u.royalties_percentual}%` : "—"} •{" "}
+                            {cscModel}
+                          </TableCell>
+                          <TableCell>
+                            {st ? (
+                              <StatusBadge tom={st.tom}>{st.label}</StatusBadge>
+                            ) : ap ? (
+                              <StatusBadge tom="neutro">{ap.status}</StatusBadge>
+                            ) : (
+                              <StatusBadge tom="neutro">Não iniciada</StatusBadge>
+                            )}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {ap ? brlOuTraco(Number(ap.royalties_valor ?? 0)) : "—"}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {ap
+                              ? brlOuTraco(Number((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number))
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {ap ? brlOuTraco(Number(ap.cac_valor ?? 0)) : "—"}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {ap ? brlOuTraco(Number(ap.csc_trafego_pago ?? 0)) : "—"}
+                          </TableCell>
+                          <TableCell className="num text-right">
+                            {ap ? brlOuTraco(Number(ap.outras_receitas ?? 0)) : "—"}
+                          </TableCell>
+                          <TableCell className="num text-right font-semibold">
+                            {ap ? brlOuTraco(Number(ap.total_fatura ?? 0)) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {emAndamento ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : carregandoFaturas ? (
+                              <span className="text-xs text-muted-foreground">…</span>
+                            ) : erroFaturas ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : (
+                              <CelulaFatura f={fatura} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {emAndamento || carregandoFaturas || erroFaturas ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : (
+                              <CelulaRecebimento f={fatura} />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {/* Mês futuro colado na URL: abrir a ficha criaria a
+                                apuração no banco antes de o mês existir. */}
+                            {!ap && mes > mesCorrente() ? (
+                              <BotaoComMotivo
+                                rotulo="Iniciar apuração"
+                                motivo="Mês futuro: a apuração ainda não pode começar."
+                                variant="outline"
+                                size="sm"
+                              />
+                            ) : (
+                            <Button size="sm" variant="outline" asChild>
+                              <Link
+                                to="/royalties/$unidadeId/$mes"
+                                params={{ unidadeId: String(u.id), mes }}
+                              >
+                                {fechada ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
+                              </Link>
+                            </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Secao>
       )}
     </div>
   );

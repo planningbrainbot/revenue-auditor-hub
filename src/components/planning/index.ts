@@ -7,3 +7,4 @@ export { EstadoVazio, EstadoErro, EstadoSemAcesso, Carregando } from "./estados"
 export { Procedencia, formatarQuando } from "./procedencia";
 export { Degrau, AnelArea, GradeCirculos, Filete } from "./grafismos";
 export { BarraFiltros, ChipFiltro } from "./barra-filtros";
+export { FOCO_VISIVEL, useFocoDeVolta } from "./foco";

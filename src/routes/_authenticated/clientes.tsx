@@ -1,13 +1,10 @@
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { ClientesBase } from "@/components/clientes/base-unica";
+import { validarBuscaClientes } from "@/components/clientes/busca";
+
+// Visão, recorte do topo e filtros da tabela da Base moram na URL (N7): recarregar ou colar o
+// link reproduz a tela. As chaves estão descritas em `components/clientes/busca.ts`.
 export const Route = createFileRoute("/_authenticated/clientes")({
-  validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => ({
-    view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "monetizacao",
-    status: typeof s.status === "string" ? s.status : "",
-    unidade: typeof s.unidade === "string" ? s.unidade : "",
-    q: typeof s.q === "string" ? s.q : "",
-    origem: typeof s.origem === "string" ? s.origem : "",
-    gate: typeof s.gate === "string" && ["cnpj", "contato", "ecd"].includes(s.gate) ? s.gate : "",
-  }),
+  validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => validarBuscaClientes(s),
   component: ClientesBase,
 });

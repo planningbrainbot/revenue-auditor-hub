@@ -7,7 +7,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Ban,
-  ChevronLeft,
+  Check,
   ChevronRight,
   Coins,
   FileDown,
@@ -17,16 +17,52 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Search,
+  Square,
+  SquareCheck,
   Trash2,
   UserX,
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import {
+  ErroDaConsulta,
+  mesEmAndamento,
+  rotuloMes,
+  SeletorMes,
+  SeloRegua,
+} from "@/components/receita/moldura";
+import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
+import { faturaDaUnidade } from "@/components/royalties/apuracao-royalties-content";
+import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
+import { listarFaturasRoyalties } from "@/lib/royalties-faturamento.functions";
 import { GruposFiliaisDialog } from "@/components/royalties/grupos-filiais-dialog";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -86,23 +122,6 @@ export const Route = createFileRoute("/_authenticated/royalties/$unidadeId/$mes"
   component: ApuracaoPage,
 });
 
-function formatMesLabel(mes: string) {
-  const [y, m] = mes.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-}
-
-function shiftMes(mes: string, delta: number): string {
-  const [y, m] = mes.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function isMesEmAndamento(mes: string): boolean {
-  const d = new Date();
-  const atual = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  return mes >= atual;
-}
-
 function formatCnpjCpf(v: string | null | undefined): string {
   if (!v) return "—";
   const d = v.replace(/\D/g, "");
@@ -129,12 +148,71 @@ function formatCompetencias(datas: string[] | null | undefined): string {
     .join(", ");
 }
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  rascunho: { label: "Rascunho", cls: "bg-muted text-foreground" },
-  em_revisao: { label: "Em revisão", cls: "bg-warning-soft text-warning" },
-  confirmado: { label: "Confirmado", cls: "bg-success-soft text-success" },
-  faturado: { label: "Faturado", cls: "bg-indigo-100 text-indigo-800" },
+const STATUS_APURACAO: Record<string, { label: string; tom: TomStatus }> = {
+  rascunho: { label: "Rascunho", tom: "info" },
+  em_revisao: { label: "Em revisão", tom: "atencao" },
+  confirmado: { label: "Confirmado", tom: "sucesso" },
+  faturado: { label: "Faturado", tom: "sucesso" },
 };
+
+// Foco visível nos controles desenhados à mão (V12); os do ui/ já trazem o seu.
+const FOCO =
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+/**
+ * Confirmação de ação com o efeito escrito (no lugar do `confirm()` nativo,
+ * V6): a pessoa lê o que vai acontecer antes de clicar.
+ */
+function ConfirmarAcao({
+  gatilho,
+  titulo,
+  children,
+  rotuloConfirmar,
+  destrutivo,
+  onConfirmar,
+}: {
+  gatilho: React.ReactNode;
+  titulo: string;
+  children: React.ReactNode;
+  rotuloConfirmar: string;
+  destrutivo?: boolean;
+  onConfirmar: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{gatilho}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{titulo}</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">{children}</div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className={destrutivo ? buttonVariants({ variant: "destructive" }) : undefined}
+            onClick={onConfirmar}
+          >
+            {rotuloConfirmar}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** Aviso dentro da confirmação: ícone + palavra, não só cor (V7). */
+function AvisoConfirmacao({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border bg-warning-soft px-3 py-2 text-foreground">
+      <StatusBadge tom="atencao" className="shrink-0">
+        Atenção
+      </StatusBadge>
+      <span>{children}</span>
+    </div>
+  );
+}
 
 function ApuracaoPage() {
   const { unidadeId, mes } = Route.useParams();
@@ -171,32 +249,63 @@ function ApuracaoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unidadeIdNum, mes, isAdmin, validUnidade, validMes]);
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  // A lista de origem, no mesmo mês: voltar sem o mês abria no mês padrão e o
+  // total não batia com o que a pessoa acabou de conferir.
+  const voltarParaLista = () =>
+    navigate({ to: "/unidades/royalties", search: validMes ? { mes } : {} });
+
+  if (loading) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
   if (!isAdmin)
-    return <div className="p-6 text-sm text-muted-foreground">Acesso restrito a admin.</div>;
+    return (
+      <div className="px-4 py-6 md:px-6">
+        <EstadoSemAcesso oQueFalta="admin (a apuração de royalties é da matriz)" />
+      </div>
+    );
   if (!validUnidade || !validMes)
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        URL inválida. Volte para{" "}
-        <Link to="/unidades/royalties" className="underline">
-          Royalties
-        </Link>
-        .
+      <div className="px-4 py-6 md:px-6">
+        <EstadoVazio
+          titulo="Endereço de apuração inválido"
+          descricao="O link precisa de uma unidade e de um mês no formato AAAA-MM."
+          acao={
+            <Button variant="outline" asChild>
+              <Link to="/unidades/royalties">Abrir a Apuração de Royalties</Link>
+            </Button>
+          }
+        />
       </div>
     );
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
-  if (!isAdmin)
-    return <div className="p-6 text-sm text-muted-foreground">Acesso restrito a admin.</div>;
-  if (!apuracaoId)
-    return <div className="p-6 text-sm text-muted-foreground">Preparando apuração…</div>;
+  // Falha ao abrir ou gerar a apuração: antes a tela ficava em "Preparando
+  // apuração…" para sempre, com um toast que sumia.
+  // `getOrCreate.error` é o da última abertura: ao trocar de mês com falha, o
+  // `apuracaoId` ainda é o do mês anterior e a tela não pode seguir nele.
+  const erroAoAbrir = getOrCreate.error ?? (apuracaoId ? null : gerar.error);
+  if (erroAoAbrir)
+    return (
+      <div className="space-y-4 px-4 py-6 md:px-6">
+        <ErroDaConsulta
+          erro={erroAoAbrir}
+          chaves="admin"
+          titulo="Não foi possível abrir a apuração"
+          tentarNovamente={() => window.location.reload()}
+        />
+        <Button variant="outline" onClick={voltarParaLista}>
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Voltar à lista do mês
+        </Button>
+      </div>
+    );
+  if (!apuracaoId) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
 
   return (
+    // A chave remonta a ficha a cada unidade/mês: edições locais (valor, %,
+    // MRR digitados) não vazam de um mês para o outro.
     <ApuracaoLoaded
+      key={`${unidadeId}-${mes}`}
       apuracaoId={apuracaoId}
       mes={mes}
       unidadeId={unidadeId}
-      onBack={() => navigate({ to: "/unidades/royalties" })}
+      onBack={voltarParaLista}
     />
   );
 }
@@ -212,7 +321,22 @@ function ApuracaoLoaded({
   unidadeId: string;
   onBack: () => void;
 }) {
-  const { data, isLoading } = useApuracao(apuracaoId);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data, isLoading, error: erroApuracao, refetch } = useApuracao(apuracaoId);
+  // Fatura do mês desta unidade (mesma consulta da lista): diz se já saiu no
+  // Omie, para o Reabrir avisar e o Emitir não aparecer duas vezes.
+  const listarFaturas = useServerFn(listarFaturasRoyalties);
+  const {
+    data: faturasData,
+    isLoading: carregandoFaturas,
+    isError: erroFaturas,
+  } = useQuery({
+    queryKey: ["royalties", "faturas", mes],
+    queryFn: () => listarFaturas({ data: { competencia: mes } }),
+    enabled: !mesEmAndamento(mes),
+    staleTime: 30_000,
+  });
   const updateItem = useUpdateItem(apuracaoId);
   const updateAp = useUpdateApuracao(apuracaoId);
   const fechar = useFecharApuracao(apuracaoId);
@@ -244,6 +368,13 @@ function ApuracaoLoaded({
       {
         onSuccess: () => toast.success(`${it.razao_social} excluído da apuração deste mês.`),
       },
+    );
+  };
+
+  const handleDeleteManual = (it: ApuracaoItem) => {
+    deleteItem.mutate(
+      { id: it.id },
+      { onSuccess: () => toast.success(`${it.razao_social} excluído da apuração.`) },
     );
   };
 
@@ -307,9 +438,31 @@ function ApuracaoLoaded({
   const [localValor, setLocalValor] = useState<Record<number, string>>({});
   const [localMrr, setLocalMrr] = useState<Record<number, string>>({});
   const [localPct, setLocalPct] = useState<Record<number, string>>({});
+  // O diálogo de emissão fica montado enquanto aberto, mesmo quando a fatura
+  // acaba de sair (a invalidação faria o botão sumir com o resultado na tela).
+  const [emissaoAberta, setEmissaoAberta] = useState(false);
 
-  if (isLoading || !data) {
-    return <div className="p-6 text-sm text-muted-foreground">Carregando…</div>;
+  if (erroApuracao && !data) {
+    return (
+      <div className="px-4 py-6 md:px-6">
+        <ErroDaConsulta
+          erro={erroApuracao}
+          chaves="admin"
+          titulo="Não foi possível carregar a apuração"
+          tentarNovamente={() => void refetch()}
+        />
+      </div>
+    );
+  }
+  // Ao trocar de mês, o `apuracaoId` do mês anterior segue valendo até o
+  // getOrCreate do novo mês responder: sem esta guarda, a tela mostrava a
+  // apuração antiga sob o mês novo, e "Fechar" fecharia o mês errado.
+  const apuracaoDaUrl =
+    !!data &&
+    String(data.apuracao.mes_referencia ?? "").slice(0, 7) === mes &&
+    Number(data.apuracao.unidade_id) === Number(unidadeId);
+  if (isLoading || !data || !apuracaoDaUrl) {
+    return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
   }
 
   const { apuracao, itens, outrasReceitasItens } = data;
@@ -383,7 +536,14 @@ function ApuracaoLoaded({
   const outras = Number(apuracao.outras_receitas ?? 0);
   const trafegoPago = Number(apuracao.csc_trafego_pago ?? 0);
   const totalFatura = cscEfetivo + royaltiesValor + cacValor + outras + trafegoPago;
-  const badge = STATUS_BADGE[apuracao.status] ?? { label: apuracao.status, cls: "" };
+  const statusAp = STATUS_APURACAO[apuracao.status] ?? { label: apuracao.status, tom: "neutro" as TomStatus };
+  const emAndamento = mesEmAndamento(mes);
+  const fatura = faturaDaUnidade(faturasData?.faturas, Number(unidadeId));
+  // Sem a consulta de faturas não dá para afirmar nem negar que a fatura saiu.
+  const faturaIncerta = !emAndamento && (carregandoFaturas || erroFaturas);
+  const faturaSaiu = apuracao.status === "faturado" || (!!fatura && fatura.status !== "erro");
+  const pendentesCount = ativos.length - confirmadosCount;
+  const mesTexto = rotuloMes(mes).toLowerCase();
 
   const flushValor = (it: ApuracaoItem) => {
     const raw = localValor[it.id];
@@ -478,149 +638,299 @@ function ApuracaoLoaded({
     gerarDemonstrativoRoyaltiesXlsx(buildDemonstrativoData());
   };
 
+  const botaoFechar =
+    confirmadosCount === 0 ? (
+      <BotaoComMotivo
+        rotulo="Fechar apuração"
+        motivo="Nenhum item confirmado: marque ao menos um item para fechar a apuração."
+      />
+    ) : (
+      <ConfirmarAcao
+        titulo={`Fechar a apuração de ${u.nome_da_praca} em ${mesTexto}?`}
+        rotuloConfirmar="Fechar apuração"
+        onConfirmar={() =>
+          fechar.mutate(undefined, {
+            onSuccess: () => {
+              // A Visão geral conta "fechada sem fatura" a partir daqui.
+              void queryClient.invalidateQueries({ queryKey: ["receita-overview"] });
+              toast.success("Apuração fechada");
+            },
+          })
+        }
+        gatilho={
+          <Button disabled={fechar.isPending}>
+            {fechar.isPending ? "Fechando…" : "Fechar apuração"}
+          </Button>
+        }
+      >
+        <p>
+          A apuração passa a Confirmado com {confirmadosCount} item(ns) confirmado(s) e total na
+          tela de <span className="num font-medium text-foreground">{brl(totalFatura)}</span>. As
+          edições ficam bloqueadas até alguém reabrir, e a unidade entra no lote de faturas do mês.
+        </p>
+        {pendentesCount > 0 && (
+          <p>
+            {pendentesCount} item(ns) sem confirmação ficam fora do total.
+          </p>
+        )}
+        <p>
+          O CSC da tela usa a regra atual da unidade; o valor gravado usa o campo da apuração e pode
+          diferir.
+        </p>
+        {emAndamento && (
+          <AvisoConfirmacao>
+            O mês ainda não terminou: recebimentos que entrarem até o fim de {mesTexto} não entram
+            nesta apuração enquanto ela estiver fechada.
+          </AvisoConfirmacao>
+        )}
+      </ConfirmarAcao>
+    );
+
+  const botaoReabrir = (
+    <ConfirmarAcao
+      titulo={`Reabrir a apuração de ${u.nome_da_praca} em ${mesTexto}?`}
+      rotuloConfirmar="Reabrir apuração"
+      onConfirmar={() =>
+        reabrir.mutate(undefined, {
+          onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ["receita-overview"] });
+            toast.success("Apuração reaberta");
+          },
+        })
+      }
+      gatilho={
+        <Button variant="outline" disabled={reabrir.isPending}>
+          {reabrir.isPending ? "Reabrindo…" : "Reabrir apuração"}
+        </Button>
+      }
+    >
+      <p>A apuração volta para Em revisão e as edições são liberadas.</p>
+      {faturaSaiu ? (
+        <AvisoConfirmacao>
+          A fatura já saiu no Omie{fatura?.num_os ? ` (OS ${fatura.num_os})` : ""}; reabrir não
+          cancela a fatura, e o que mudar aqui não chega a ela.
+        </AvisoConfirmacao>
+      ) : faturaIncerta ? (
+        <AvisoConfirmacao>
+          Não foi possível conferir se a fatura já saiu no Omie. Se saiu, reabrir não cancela a
+          fatura.
+        </AvisoConfirmacao>
+      ) : null}
+    </ConfirmarAcao>
+  );
+
+  // Uma ação `default` por estado: aberta → Fechar; fechada sem fatura →
+  // Emitir; faturada → nenhuma (o resto é contorno).
+  const acoesCiclo = !readOnly ? (
+    botaoFechar
+  ) : (
+    <>
+      <Button variant="outline" className="gap-1.5" onClick={handleGerarDemonstrativoPdf}>
+        <FileDown className="h-4 w-4" aria-hidden />
+        Demonstrativo (PDF)
+      </Button>
+      <Button variant="outline" className="gap-1.5" onClick={handleGerarDemonstrativoXlsx}>
+        <FileSpreadsheet className="h-4 w-4" aria-hidden />
+        Demonstrativo (Excel)
+      </Button>
+      {botaoReabrir}
+      {(!faturaSaiu || emissaoAberta) && (
+        <EmitirFaturasDialog
+          competencia={mes}
+          unidadeId={Number(unidadeId)}
+          aoMudarAberto={setEmissaoAberta}
+          rotulo="Emitir fatura no Omie"
+          motivoIndisponivel={
+            emAndamento
+              ? "O mês ainda não terminou: a fatura só sai depois do fim do mês."
+              : undefined
+          }
+        />
+      )}
+    </>
+  );
+
   return (
-    <div className="flex flex-col">
-      {/* Sticky header */}
-      <div className="sticky top-[57px] z-10 border-b bg-card/95 backdrop-blur px-6 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={onBack}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Royalties
-            </Button>
-            <div className="flex items-center gap-1">
-              <Link to="/royalties/$unidadeId/$mes" params={{ unidadeId, mes: shiftMes(mes, -1) }}>
-                <Button variant="outline" size="icon" className="h-7 w-7" title="Mês anterior">
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
+    <div className="space-y-6 px-4 py-6 md:px-6">
+      {/* Trilha de volta com o mês e navegação entre meses (ARQUETIPOS §4). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Onde você está" className="min-w-0">
+          <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            <li>Receita e Repasses</li>
+            <li aria-hidden>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </li>
+            <li>
+              <Link
+                to="/unidades/royalties"
+                search={{ mes }}
+                className={cn("rounded-sm hover:text-foreground hover:underline", FOCO)}
+              >
+                Apuração de Royalties
               </Link>
-              <Link to="/royalties/$unidadeId/$mes" params={{ unidadeId, mes: shiftMes(mes, 1) }}>
-                <Button variant="outline" size="icon" className="h-7 w-7" title="Próximo mês">
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
-            </div>
-            <div>
-              <div className="text-base font-semibold flex items-center gap-2">
-                {u.nome_da_praca} — <span className="capitalize">{formatMesLabel(mes)}</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge
-                        variant="outline"
-                        className="cursor-help font-normal text-muted-foreground"
-                      >
-                        caixa
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs text-xs">
-                      O mês da apuração é de caixa: conta o que o Omie baixou como recebido dentro
-                      de <span className="capitalize">{formatMesLabel(mes)}</span>, pela data de
-                      pagamento. A competência do título pode ser outro mês. As duas datas estão nas
-                      colunas "Pagamento" e "Competência" das tabelas.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Badge className={badge.cls}>{badge.label}</Badge>
-                {!readOnly && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1.5"
-                          disabled={regerar.isPending || gerar.isPending}
-                          onClick={forcarAtualizacao}
-                        >
-                          <RefreshCw
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              (regerar.isPending || gerar.isPending) && "animate-spin",
-                            )}
-                          />
-                          Forçar atualização
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Reprocessa contratos e recebimentos do Omie do zero, mantendo itens já
-                        confirmados ou adicionados manualmente. Use quando um pagamento/contrato
-                        recente não aparecer na lista.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {u.observacoes_financeiras && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-sm">
-                        <div className="text-xs whitespace-pre-wrap">
-                          {u.observacoes_financeiras}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-4 text-xs">
-            <Metric label="Confirmados" value={`${confirmadosCount} / ${ativos.length}`} />
-            <Metric label="Base Planning" value={brl(receitaBase)} />
-            <Metric label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} />
-            <Metric
-              label="CSC"
-              value={brl(cscFixo ?? cscBaseAntigaValor)}
-              sub={cscFixo != null ? "fixo" : `${cscPctBaseAntiga}% base antiga`}
-            />
-            {cacValor > 0 && <Metric label="CAC" value={brl(cacValor)} />}
-            <Metric label="Total fatura" value={brl(totalFatura)} highlight />
-          </div>
+            </li>
+            <li aria-hidden>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </li>
+            <li className="font-medium text-foreground" aria-current="page">
+              {u.nome_da_praca} · {rotuloMes(mes)}
+            </li>
+          </ol>
+        </nav>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" aria-hidden /> Voltar à lista
+          </Button>
+          {/* Abrir a ficha cria a apuração no banco: a seta para no mês corrente,
+              para a navegação não semear apurações vazias em meses futuros. */}
+          <SeletorMes
+            mes={mes}
+            aoMudar={(m) =>
+              navigate({ to: "/royalties/$unidadeId/$mes", params: { unidadeId, mes: m } })
+            }
+          />
         </div>
       </div>
 
-      {/* Caixa x competencia e a confusao mais comum nessa tela: o mes do titulo
-          no topo e o mes em que o dinheiro entrou, nao o mes a que a fatura se refere. */}
-      <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>
-          <strong className="text-foreground">Esta apuração é por caixa.</strong> Entra o que o Omie
-          baixou como recebido dentro de{" "}
-          <span className="capitalize">{formatMesLabel(mes)}</span>, pela data de pagamento (coluna{" "}
-          <strong>Pagamento</strong> das tabelas). A <strong>competência</strong>, na coluna ao
-          lado, é o mês a que cada título se refere e pode ser outro, quando o cliente paga em
-          atraso.
-        </span>
-      </div>
+      <PageHeader
+        area="receita"
+        titulo={`${u.nome_da_praca} · ${rotuloMes(mes)}`}
+        pergunta={`A apuração de ${u.nome_da_praca} em ${mesTexto} está pronta para fechar e faturar?`}
+        descricao={
+          <>
+            Por caixa: entra o que o Omie baixou como recebido em {mesTexto}, pela data de
+            pagamento (coluna Pagamento). A competência de cada título, na coluna ao lado, pode ser
+            outro mês quando o cliente paga em atraso.
+          </>
+        }
+        procedencia={{
+          fonte: "Itens da apuração (contratos do Pipedrive × recebimentos do Omie)",
+          regua: "caixa",
+        }}
+        acoes={acoesCiclo}
+      >
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <StatusBadge tom={statusAp.tom}>{statusAp.label}</StatusBadge>
+          {faturaSaiu && apuracao.status !== "faturado" && (
+            <StatusBadge tom="sucesso">
+              Fatura emitida{fatura?.num_os ? ` · OS ${fatura.num_os}` : ""}
+            </StatusBadge>
+          )}
+          <SeloRegua regua="caixa">
+            O mês da apuração é de caixa: conta o que o Omie baixou como recebido dentro de{" "}
+            {mesTexto}, pela data de pagamento. A competência do título pode ser outro mês. As duas
+            datas estão nas colunas "Pagamento" e "Competência" das tabelas.
+          </SeloRegua>
+          {readOnly && (
+            <span className="text-xs text-muted-foreground">
+              Fechada em{" "}
+              {apuracao.confirmado_em
+                ? new Date(apuracao.confirmado_em).toLocaleString("pt-BR")
+                : "—"}
+              {apuracao.confirmado_por ? ` por ${apuracao.confirmado_por}` : ""}
+            </span>
+          )}
+          {u.observacoes_financeiras && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Observações financeiras da unidade"
+                    className={cn(
+                      "inline-flex cursor-help rounded-sm text-muted-foreground hover:text-foreground",
+                      FOCO,
+                    )}
+                  >
+                    <Info className="h-4 w-4" aria-hidden />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm">
+                  <div className="text-xs whitespace-pre-wrap">{u.observacoes_financeiras}</div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {!readOnly && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={regerar.isPending || gerar.isPending}
+                    onClick={forcarAtualizacao}
+                  >
+                    <RefreshCw
+                      className={cn(
+                        "h-3.5 w-3.5",
+                        (regerar.isPending || gerar.isPending) && "animate-spin",
+                      )}
+                      aria-hidden
+                    />
+                    Forçar atualização
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Reprocessa contratos e recebimentos do Omie do zero, mantendo itens já
+                  confirmados ou adicionados manualmente. Use quando um pagamento/contrato
+                  recente não aparecer na lista.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      </PageHeader>
 
-      {isMesEmAndamento(mes) && (
-        <div className="mx-6 mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
-          Mês em andamento ou futuro — os valores aqui são projeção (gerada automaticamente a partir dos contratos
-          ativos), não apuração real. A apuração só fecha depois que o mês termina.
+      <KpiGrade>
+        <KpiCard
+          rotulo="Confirmados"
+          valor={`${confirmadosCount} / ${ativos.length}`}
+          nota={pendentesCount > 0 ? `${pendentesCount} ainda sem confirmação` : "todos confirmados"}
+        />
+        <KpiCard rotulo="Base Planning" valor={brl(receitaBase)} estado={emAndamento ? "parcial" : "ok"} />
+        <KpiCard
+          rotulo={`Royalties (${pctPadrao}%)`}
+          valor={brl(royaltiesValor)}
+          estado={emAndamento ? "parcial" : "ok"}
+        />
+        <KpiCard
+          rotulo="CSC"
+          valor={brl(cscFixo ?? cscBaseAntigaValor)}
+          nota={cscFixo != null ? "fixo" : `${cscPctBaseAntiga}% base antiga`}
+          estado={emAndamento ? "parcial" : "ok"}
+        />
+        {cacValor > 0 && (
+          <KpiCard rotulo="CAC" valor={brl(cacValor)} estado={emAndamento ? "parcial" : "ok"} />
+        )}
+        <KpiCard
+          rotulo="Total fatura"
+          valor={brl(totalFatura)}
+          nota="CSC + Royalties + CAC + Outras + Mídia (tráfego pago)"
+          estado={emAndamento ? "parcial" : "ok"}
+        />
+      </KpiGrade>
+
+      {emAndamento && (
+        <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          <strong className="text-foreground">Mês em andamento.</strong> Os valores aqui são projeção
+          (gerada automaticamente a partir dos contratos ativos), não apuração real. Fechar antes do fim
+          do mês é possível; recebimentos posteriores ficam fora.
         </div>
       )}
 
       {!u.tem_omie && (
-        <div className="mx-6 mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+        <div className="rounded-xl border bg-info-soft px-4 py-3 text-sm text-foreground">
           Esta unidade ainda não está integrada ao Omie. Preencha os valores recebidos manualmente.
         </div>
       )}
 
-      {readOnly && (
-        <div className="mx-6 mt-4 rounded-md border border-success/40 bg-success-soft px-4 py-3 text-sm text-success">
-          Apuração de {formatMesLabel(mes)} confirmada em{" "}
-          {apuracao.confirmado_em ? new Date(apuracao.confirmado_em).toLocaleString("pt-BR") : "—"}
-          {apuracao.confirmado_por ? ` por ${apuracao.confirmado_por}` : ""}.
-        </div>
-      )}
-
-      <div className="grid gap-6 p-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Coluna esquerda: seções */}
         <div className="space-y-6 min-w-0">
           <SecaoGrupo
-            title="📊 Conciliação Pipedrive × Omie"
+            title="Conciliação Pipedrive × Omie"
             description="Contratos ativos cruzados com recebimentos do Omie — filtre por situação abaixo."
             itens={conciliacao}
             showSituacao
@@ -642,7 +952,7 @@ function ApuracaoLoaded({
             flushPct={flushPct}
             toggleConfirm={toggleConfirm}
             toggleCac={toggleCac}
-            onDelete={(it) => deleteItem.mutate({ id: it.id })}
+            onDelete={handleDeleteManual}
             onMarcarChurn={handleMarcarChurn}
             churnPending={marcarChurn.isPending}
             onEditarCnpj={handleSalvarCnpj}
@@ -652,7 +962,7 @@ function ApuracaoLoaded({
             onMoverBaseAntiga={isCscVariavel ? handleMoverBaseAntiga : undefined}
           />
           <SecaoGrupo
-            title="➕ Adicionados manualmente"
+            title="Adicionados manualmente"
             description="Itens criados pelo usuário."
             itens={manual}
             readOnly={readOnly}
@@ -671,7 +981,7 @@ function ApuracaoLoaded({
             toggleConfirm={toggleConfirm}
             toggleCac={toggleCac}
             toggleVendaSocios={toggleVendaSocios}
-            onDelete={(it) => deleteItem.mutate({ id: it.id })}
+            onDelete={handleDeleteManual}
             extraHeader={
               !readOnly && (
                 <AddItemDialog
@@ -717,7 +1027,7 @@ function ApuracaoLoaded({
                 setLocalValor={setLocalValor}
                 flushValor={flushValor}
                 toggleConfirm={toggleConfirm}
-                onDelete={(it) => deleteItem.mutate({ id: it.id })}
+                onDelete={handleDeleteManual}
                 onExcluir={handleExcluir}
                 excluirPending={excluirItem.isPending}
                 onCobrarRoyalties={handleCobrarRoyalties}
@@ -734,7 +1044,7 @@ function ApuracaoLoaded({
         </div>
 
         {/* Sidebar de totais */}
-        <Card className="p-4 space-y-4 h-fit sticky top-[140px]">
+        <Card className="p-4 space-y-4 h-fit lg:sticky lg:top-[calc(var(--app-header-h,60px)+16px)]">
           <div className="text-sm font-semibold">Resumo da apuração</div>
           <ResumoLinha
             label="Clientes confirmados"
@@ -759,8 +1069,11 @@ function ApuracaoLoaded({
           </div>
           <div className="border-t pt-3 space-y-2">
             <div className="text-xs">
-              <Label className="text-xs text-muted-foreground">Tráfego pago</Label>
+              <Label htmlFor="midia-trafego-pago" className="text-xs text-muted-foreground">
+                Mídia (tráfego pago)
+              </Label>
               <Input
+                id="midia-trafego-pago"
                 type="number"
                 step="0.01"
                 disabled={readOnly}
@@ -788,87 +1101,19 @@ function ApuracaoLoaded({
               <span className="text-lg font-bold">{brl(totalFatura)}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              CSC + Royalties + CAC + Outras + Tráfego pago
+              CSC + Royalties + CAC + Outras + Mídia (tráfego pago)
             </div>
           </div>
 
-          {!readOnly ? (
-            <div className="space-y-2">
-              <Button
-                className="w-full"
-                disabled={confirmadosCount === 0 || fechar.isPending}
-                onClick={() => {
-                  if (confirm("Fechar apuração? Após isso, edições ficam bloqueadas.")) {
-                    fechar.mutate(undefined, {
-                      onSuccess: () => toast.success("Apuração confirmada"),
-                      onError: (e: any) => toast.error(e.message),
-                    });
-                  }
-                }}
-              >
-                Fechar apuração
-              </Button>
-              <div className="text-xs text-center text-muted-foreground">
-                Salvamento automático — não há rascunho manual.
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full gap-1.5"
-                onClick={handleGerarDemonstrativoPdf}
-              >
-                <FileDown className="h-4 w-4" />
-                Gerar demonstrativo (PDF)
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full gap-1.5"
-                onClick={handleGerarDemonstrativoXlsx}
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Gerar demonstrativo (Excel)
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={reabrir.isPending}
-                onClick={() => {
-                  if (confirm("Reabrir apuração?")) {
-                    reabrir.mutate(undefined, {
-                      onSuccess: () => toast.success("Apuração reaberta"),
-                      onError: (e: any) => toast.error(e.message),
-                    });
-                  }
-                }}
-              >
-                Reabrir apuração
-              </Button>
+          {/* Fechar, Reabrir, Emitir e demonstrativos moram no cabeçalho: uma
+              ação principal por estado, num lugar só (ARQUETIPOS §4). */}
+          {!readOnly && (
+            <div className="text-xs text-center text-muted-foreground">
+              Salvamento automático — não há rascunho manual.
             </div>
           )}
         </Card>
       </div>
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  sub,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={highlight ? "text-base font-bold" : "text-sm font-semibold"}>{value}</div>
-      {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -1103,6 +1348,34 @@ function MarcarChurnButton({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Item adicionado à mão: excluir apaga o item (não há "Excluídos" para ele). */
+function ExcluirManualButton({ it, onConfirm }: { it: ApuracaoItem; onConfirm: () => void }) {
+  return (
+    <ConfirmarAcao
+      titulo={`Excluir ${it.razao_social}?`}
+      rotuloConfirmar="Excluir item"
+      destrutivo
+      onConfirmar={onConfirm}
+      gatilho={
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Excluir item manual"
+          aria-label={`Excluir o item manual ${it.razao_social}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        </Button>
+      }
+    >
+      <p>
+        O item adicionado à mão sai desta apuração e o valor dele deixa de contar no total. Não
+        vai para "Excluídos deste mês": para voltar, é preciso adicionar de novo.
+      </p>
+    </ConfirmarAcao>
   );
 }
 
@@ -1374,60 +1647,43 @@ type ItemSortKey =
   | "pct"
   | "royalties";
 
-const SITUACAO_INFO: Record<string, { label: string; cls: string }> = {
-  matched: {
-    label: "✅ Matched",
-    cls: "bg-success-soft text-success",
-  },
-  so_pipedrive: {
-    label: "⚠️ Só Pipedrive",
-    cls: "bg-warning-soft text-warning",
-  },
-  so_omie: {
-    label: "🔍 Só Omie",
-    cls: "bg-info-soft text-info",
-  },
+// Situação com ícone + palavra (StatusBadge, V7), sem emoji (V15).
+const SITUACAO_INFO: Record<string, { label: string; tom: TomStatus; icone?: typeof Search }> = {
+  matched: { label: "Matched", tom: "sucesso" },
+  so_pipedrive: { label: "Só Pipedrive", tom: "atencao" },
+  so_omie: { label: "Só Omie", tom: "info", icone: Search },
 };
 
 const SITUACAO_FILTROS = [
   { value: "todos", label: "Todos" },
-  { value: "matched", label: "✅ Matched" },
-  { value: "so_pipedrive", label: "⚠️ Só Pipedrive" },
-  { value: "so_omie", label: "🔍 Só Omie" },
+  { value: "matched", label: "Matched" },
+  { value: "so_pipedrive", label: "Só Pipedrive" },
+  { value: "so_omie", label: "Só Omie" },
 ] as const;
 
 function SituacaoBadge({ status }: { status: string | null | undefined }) {
   const info = status ? SITUACAO_INFO[status] : undefined;
   if (!info) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <span
-      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium", info.cls)}
-    >
+    <StatusBadge tom={info.tom} icone={info.icone}>
       {info.label}
-    </span>
+    </StatusBadge>
   );
 }
 
-const ORIGEM_PIPELINE_INFO: Record<string, { label: string; cls: string }> = {
-  inside_sales: {
-    label: "Inside Sales",
-    cls: "bg-info-soft text-info",
-  },
-  socios: {
-    label: "Sócios",
-    cls: "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300",
-  },
+// Origem é categoria, não status: selo sem ícone, só a palavra.
+const ORIGEM_PIPELINE_INFO: Record<string, { label: string; tom: TomStatus }> = {
+  inside_sales: { label: "Inside Sales", tom: "info" },
+  socios: { label: "Sócios", tom: "neutro" },
 };
 
 function OrigemPipelineBadge({ origem }: { origem: string | null | undefined }) {
   const info = origem ? ORIGEM_PIPELINE_INFO[origem] : undefined;
   if (!info) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <span
-      className={cn("whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium", info.cls)}
-    >
+    <StatusBadge tom={info.tom} icone={false}>
       {info.label}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -1585,9 +1841,11 @@ function SecaoGrupo({
                 <button
                   key={f.value}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => setSituacaoFiltro(f.value)}
                   className={cn(
                     "rounded-full px-2.5 py-1 text-xs transition-colors",
+                    FOCO,
                     active
                       ? "bg-foreground text-background"
                       : "bg-muted text-muted-foreground hover:bg-muted/70",
@@ -1607,14 +1865,16 @@ function SecaoGrupo({
                       setCheckFiltro((v) => (v === "pendentes" ? "todos" : "pendentes"))
                     }
                     title="Combina com o filtro de situação acima — ex.: Só Omie + Pendentes"
+                    aria-pressed={checkFiltro === "pendentes"}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-xs transition-colors",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors",
+                      FOCO,
                       checkFiltro === "pendentes"
                         ? "bg-warning-soft text-warning ring-1 ring-inset ring-warning/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >
-                    ☐ Pendentes ({pendentesCount})
+                    <Square className="h-3.5 w-3.5" aria-hidden /> Pendentes ({pendentesCount})
                   </button>
                 )}
                 {confirmadosCount > 0 && (
@@ -1624,14 +1884,16 @@ function SecaoGrupo({
                       setCheckFiltro((v) => (v === "confirmados" ? "todos" : "confirmados"))
                     }
                     title="Combina com o filtro de situação acima — ex.: Só Omie + Confirmados"
+                    aria-pressed={checkFiltro === "confirmados"}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-xs transition-colors",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs transition-colors",
+                      FOCO,
                       checkFiltro === "confirmados"
                         ? "bg-success-soft text-success ring-1 ring-inset ring-success/40"
                         : "bg-muted text-muted-foreground hover:bg-muted/70",
                     )}
                   >
-                    ☑ Confirmados ({confirmadosCount})
+                    <SquareCheck className="h-3.5 w-3.5" aria-hidden /> Confirmados ({confirmadosCount})
                   </button>
                 )}
               </>
@@ -1743,7 +2005,10 @@ function SecaoGrupo({
                       onSort={onSort}
                       align="right"
                     />
-                    <th className="px-3 py-2 text-center">✓</th>
+                    <th className="px-3 py-2 text-center">
+                      <Check className="mx-auto h-3.5 w-3.5" aria-hidden />
+                      <span className="sr-only">Confirmado</span>
+                    </th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -1769,9 +2034,9 @@ function SecaoGrupo({
                         <td className="sticky left-0 z-10 bg-card px-3 py-2">
                           {it.razao_social}
                           {it.churn_pipefy_card_id && (
-                            <Badge className="ml-2 bg-danger-soft text-danger text-xs px-1.5 py-0 align-middle">
+                            <StatusBadge tom="perigo" className="ml-2 align-middle">
                               churn
-                            </Badge>
+                            </StatusBadge>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">
@@ -1882,7 +2147,7 @@ function SecaoGrupo({
                             onBlur={() => flushPct(it)}
                             className={cn(
                               "h-8 w-16 text-right",
-                              it.royalties_percentual_override != null && "border-indigo-400",
+                              it.royalties_percentual_override != null && "border-info",
                             )}
                           />
                         </td>
@@ -1913,9 +2178,7 @@ function SecaoGrupo({
                         <td
                           className={cn(
                             "px-3 py-2 text-right whitespace-nowrap",
-                            it.is_cac
-                              ? "text-warning"
-                              : "text-indigo-700 dark:text-indigo-300",
+                            it.is_cac ? "text-warning" : "text-foreground",
                           )}
                         >
                           {brl(royal)}
@@ -1932,23 +2195,28 @@ function SecaoGrupo({
                             it.status_match === "so_omie" &&
                             it.contrato_id == null &&
                             onMoverBaseAntiga && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                title="Mover de volta pra Base Antiga (CSC) — desfaz a cobrança de royalties"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `Mover ${it.razao_social} de volta pra Base Antiga? Ele deixa de cobrar royalties.`,
-                                    )
-                                  ) {
-                                    onMoverBaseAntiga(it);
-                                  }
-                                }}
+                              <ConfirmarAcao
+                                titulo={`Mover ${it.razao_social} para a Base Antiga?`}
+                                rotuloConfirmar="Mover para a Base Antiga"
+                                onConfirmar={() => onMoverBaseAntiga(it)}
+                                gatilho={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                    title="Mover de volta pra Base Antiga (CSC) — desfaz a cobrança de royalties"
+                                    aria-label={`Mover ${it.razao_social} para a Base Antiga`}
+                                  >
+                                    <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden />
+                                  </Button>
+                                }
                               >
-                                <ArrowLeftRight className="h-3.5 w-3.5" />
-                              </Button>
+                                <p>
+                                  O cliente deixa de cobrar royalties neste mês e volta para a
+                                  Base Antiga, onde o recebimento entra só no CSC. Dá para desfazer
+                                  com "Cobrar royalties".
+                                </p>
+                              </ConfirmarAcao>
                             )}
                           {!readOnly &&
                             !it.churn_pipefy_card_id &&
@@ -1963,14 +2231,7 @@ function SecaoGrupo({
                               />
                             )}
                           {!readOnly && it.fonte === "manual" && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => onDelete(it)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <ExcluirManualButton it={it} onConfirm={() => onDelete(it)} />
                           )}
                           {!readOnly && it.fonte !== "manual" && onExcluir && (
                             <ExcluirItemButton
@@ -2109,7 +2370,10 @@ function BaseAntigaTable({
               onSort={onSort}
               align="right"
             />
-            <th className="px-3 py-2 text-center">✓</th>
+            <th className="px-3 py-2 text-center">
+                      <Check className="mx-auto h-3.5 w-3.5" aria-hidden />
+                      <span className="sr-only">Confirmado</span>
+                    </th>
             <th className="px-3 py-2"></th>
           </tr>
         </thead>
@@ -2157,33 +2421,30 @@ function BaseAntigaTable({
               </td>
               <td className="px-3 py-2 text-right whitespace-nowrap">
                 {!readOnly && onCobrarRoyalties && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
-                    title="Cobrar royalties deste cliente — move pra Conciliação com % escolhido"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Passar ${it.razao_social} a cobrar royalties? Ele sai do CSC e vai pra Conciliação, onde você escolhe o %.`,
-                        )
-                      ) {
-                        onCobrarRoyalties(it);
-                      }
-                    }}
+                  <ConfirmarAcao
+                    titulo={`Passar ${it.razao_social} a cobrar royalties?`}
+                    rotuloConfirmar="Cobrar royalties"
+                    onConfirmar={() => onCobrarRoyalties(it)}
+                    gatilho={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        title="Cobrar royalties deste cliente — move pra Conciliação com % escolhido"
+                        aria-label={`Cobrar royalties de ${it.razao_social}`}
+                      >
+                        <Coins className="h-3.5 w-3.5" aria-hidden />
+                      </Button>
+                    }
                   >
-                    <Coins className="h-3.5 w-3.5" />
-                  </Button>
+                    <p>
+                      O cliente sai do CSC da Base Antiga e vai para a Conciliação, onde você escolhe
+                      o % de royalties. Dá para desfazer com "Mover para a Base Antiga".
+                    </p>
+                  </ConfirmarAcao>
                 )}
                 {!readOnly && it.fonte === "manual" && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => onDelete(it)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <ExcluirManualButton it={it} onConfirm={() => onDelete(it)} />
                 )}
                 {!readOnly && it.fonte !== "manual" && onExcluir && (
                   <ExcluirItemButton
@@ -2220,7 +2481,7 @@ function ExcluidosSection({
         <CollapsibleTrigger className="flex w-full items-center justify-between border-b px-4 py-3 text-left">
           <div>
             <div className="font-medium">
-              🚫 Excluídos deste mês{" "}
+              Excluídos deste mês{" "}
               <span className="text-xs text-muted-foreground">({itens.length})</span>
             </div>
             <div className="text-xs text-muted-foreground">

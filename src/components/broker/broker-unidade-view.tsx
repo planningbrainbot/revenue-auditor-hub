@@ -46,7 +46,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { KpiCard } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Procedencia,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { BotaoComMotivo } from "@/components/gente/estados-gente";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 
 const NA = "—";
 
@@ -59,6 +71,15 @@ const cb = (v: number | null | undefined) =>
   v === null || v === undefined
     ? NA
     : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} CB`;
+
+// Situação da fatura: ícone + palavra (V7), com acento.
+const STATUS_FATURA: Record<string, { rotulo: string; tom: TomStatus }> = {
+  aberta: { rotulo: "Aberta", tom: "atencao" },
+  paga: { rotulo: "Paga", tom: "sucesso" },
+  cancelada: { rotulo: "Cancelada", tom: "neutro" },
+};
+const statusFatura = (v: string) =>
+  STATUS_FATURA[v] ?? { rotulo: v.charAt(0).toUpperCase() + v.slice(1), tom: "neutro" as const };
 
 const dataCurta = (v: string | null) =>
   v ? new Date(v).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : NA;
@@ -201,7 +222,7 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
   const fnReservar = useServerFn(reservarParaMinhaUnidade);
   const fnLiberar = useServerFn(liberarMinhaReserva);
 
-  const { data, isLoading, error } = useQuery<BrokerUnidadeData>({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery<BrokerUnidadeData>({
     // A unidade simulada entra na chave porque ela muda a resposta do servidor.
     // Sem isso, entrar ou sair de "ver como" reaproveita por 30s (o staleTime
     // global) a resposta da identidade anterior, e quem estava parado no /broker
@@ -212,7 +233,8 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
     queryFn: () => carregar(),
   });
 
-  const [busca, setBusca] = useState("");
+  // Busca na URL (N7): recarregar ou colar o link reproduz a fila filtrada.
+  const [busca, setBusca] = useFiltroNaUrl("busca", "");
   const [comprando, setComprando] = useState(false);
   const [precificando, setPrecificando] = useState<FilaUnidadeRow | null>(null);
   const [mrr, setMrr] = useState("");
@@ -278,7 +300,7 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
     onError: aoFalhar,
   });
 
-  const { disponiveis, minhas, compradas } = useMemo(() => {
+  const { disponiveis, totalDisponiveis, minhas, compradas } = useMemo(() => {
     const f = data?.fila ?? [];
     const termo = busca.trim().toLowerCase();
     const casa = (r: FilaUnidadeRow) =>
@@ -287,37 +309,72 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
       (r.segmento ?? "").toLowerCase().includes(termo);
     return {
       disponiveis: f.filter((r) => r.status === "disponivel" && casa(r)),
+      totalDisponiveis: f.filter((r) => r.status === "disponivel").length,
       minhas: f.filter((r) => r.status === "reservado" && r.minha_reserva),
       compradas: f.filter((r) => r.status === "comprado" && r.minha_reserva),
     };
   }, [data?.fila, busca]);
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
-  if (error)
+  // Procedência da fila (N3), visível também nos estados degradados.
+  const procedencia =
+    secao === "oportunidades" ? (
+      <Procedencia
+        fonte="Broker: fila da rede (Pipedrive, sync a cada 15 min) e saldo da unidade"
+        atualizadoEm={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+        regua="1 CashBrain = R$ 1,00"
+      />
+    ) : null;
+
+  if (isLoading)
     return (
-      <Card className="border-destructive/40 p-4">
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Falha ao carregar."}
-        </p>
-      </Card>
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        {procedencia}
+      </div>
     );
+  if (error) {
+    const msg = error instanceof Error ? error.message : "Falha ao carregar.";
+    // O servidor recusa com "Acesso negado: …" quando falta view.broker.
+    return (
+      <div className="space-y-4">
+        {msg.startsWith("Acesso negado") ? (
+          <EstadoSemAcesso oQueFalta="view.broker" />
+        ) : (
+          <EstadoErro
+            titulo="Não foi possível ler o Broker da sua unidade"
+            detalhe={`Resposta do servidor: ${msg}`}
+            tentarNovamente={recarregar}
+          />
+        )}
+        {procedencia}
+      </div>
+    );
+  }
   if (!data) return null;
 
   if (data.semVinculo)
     return (
-      <Card className="p-5">
-        <p className="font-medium">Seu usuário ainda não está vinculado a uma unidade.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Sem esse vínculo não dá para mostrar o seu saldo nem reservar cliente. Peça à matriz para
-          fazer a ligação do seu login com a unidade.
-        </p>
-      </Card>
+      <div className="space-y-4">
+        <EstadoVazio
+          titulo="Seu usuário ainda não está vinculado a uma unidade"
+          descricao="Sem esse vínculo não dá para mostrar o seu saldo nem reservar cliente. Peça à matriz para fazer a ligação do seu login com a unidade."
+        />
+        {procedencia}
+      </div>
     );
 
   const s = data.saldo;
   const cacSaldo = data.cacSaldo;
   // Saldo negativo é crédito da unidade: ela pagou mais do que foi cobrada.
   const cacDevendo = (cacSaldo?.a_pagar ?? 0) > 0;
+  // Aviso, não trava (decisão da revisão de 24/09): a tela da unidade não sabe
+  // se `bloqueio_por_saldo` está ligado, então quem decide é o servidor, e a
+  // recusa volta pelo toast.
+  const saldoAbaixoDoPreco = (o: FilaUnidadeRow) =>
+    o.preco_cb !== null &&
+    s?.disponivel !== null &&
+    s?.disponivel !== undefined &&
+    s.disponivel < o.preco_cb;
 
   return (
     <div className="space-y-4">
@@ -338,41 +395,54 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
 
       {/* O saldo só aparece onde o crédito é gasto. Movimentações já é o extrato. */}
       {secao === "oportunidades" || secao === "reservas" ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Card className="p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Disponível</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{cb(s?.disponivel)}</p>
-            <div className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
-              <p className="flex justify-between gap-2">
-                <span>Crédito recebido</span>
-                <span className="tabular-nums">{cb(s?.credito_recebido)}</span>
-              </p>
-              <p className="flex justify-between gap-2">
-                <span>Crédito comprado</span>
-                <span className="tabular-nums">{cb(s?.credito_comprado)}</span>
-              </p>
-            </div>
-          </Card>
-          <Kpi rotulo="Reservado" valor={cb(s?.bloqueado)} nota={`${minhas.length} cliente(s)`} />
+        <KpiGrade colunas={3}>
+          <KpiCard
+            rotulo="Disponível (CB)"
+            valor={cb(s?.disponivel)}
+            estado={s?.disponivel === null || s?.disponivel === undefined ? "nao-apurado" : "ok"}
+            nota={
+              <>
+                crédito recebido <span className="num">{cb(s?.credito_recebido)}</span> · crédito
+                comprado <span className="num">{cb(s?.credito_comprado)}</span>
+              </>
+            }
+          />
+          {/* N11: "Reservado" na Matriz é contagem; aqui é o CashBrain bloqueado. */}
           <Kpi
-            rotulo="Investido"
+            rotulo="Reservado (CB)"
+            valor={cb(s?.bloqueado)}
+            nota={`bloqueado · ${minhas.length} cliente(s)`}
+          />
+          <Kpi
+            rotulo="Investido (CB)"
             valor={cb(s?.investido)}
             nota={`${compradas.length} fechado(s)`}
           />
-        </div>
+        </KpiGrade>
       ) : null}
 
       {secao === "oportunidades" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <Input
+              type="search"
+              aria-label="Buscar por empresa ou segmento"
               placeholder="Buscar por empresa ou segmento"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="max-w-sm"
             />
             <span className="text-sm text-muted-foreground">
-              {disponiveis.length} cliente(s) disponível(is)
+              {busca.trim() ? (
+                <>
+                  <span className="num">{disponiveis.length}</span> de{" "}
+                  <span className="num">{totalDisponiveis}</span> cliente(s) disponível(is)
+                </>
+              ) : (
+                <>
+                  <span className="num">{disponiveis.length}</span> cliente(s) disponível(is)
+                </>
+              )}
             </span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -409,23 +479,42 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
                       )}
                     </p>
                   </div>
-                  <Button
+                  <BotaoComMotivo
                     size="sm"
                     disabled={simulando}
-                    title={simulando ? motivoSimulacao : undefined}
+                    motivo={simulando ? motivoSimulacao : null}
                     onClick={() => setConfirmando(o)}
                   >
                     <ShoppingCart className="mr-1.5 h-3.5 w-3.5" /> Reservar
-                  </Button>
+                  </BotaoComMotivo>
                 </div>
+                {saldoAbaixoDoPreco(o) ? (
+                  <p className="text-[13px] text-muted-foreground">
+                    O saldo exibido é menor que o preço; a reserva pode ser recusada.
+                  </p>
+                ) : null}
               </Card>
             ))}
-            {disponiveis.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {busca ? "Nada encontrado com esse termo." : "Nenhum cliente disponível agora."}
-              </p>
-            ) : null}
           </div>
+          {disponiveis.length === 0 ? (
+            busca.trim() && totalDisponiveis > 0 ? (
+              <EstadoVazio
+                titulo="Nenhum cliente com esse termo"
+                total={totalDisponiveis}
+                acao={
+                  <Button variant="outline" size="sm" onClick={() => setBusca("")}>
+                    Limpar busca
+                  </Button>
+                }
+              />
+            ) : (
+              <EstadoVazio
+                titulo="Nenhum cliente disponível agora"
+                descricao="A fila é sincronizada do Pipedrive a cada 15 minutos."
+              />
+            )
+          ) : null}
+          {procedencia}
         </div>
       ) : null}
 
@@ -648,15 +737,9 @@ export function BrokerUnidadeView({ secao }: { secao: SecaoBroker }) {
                         <span className="text-muted-foreground">· {cb(f.valor_cb)}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            f.status === "paga" && "bg-success/10 text-success",
-                            f.status === "aberta" && "bg-warning/10 text-warning",
-                          )}
-                        >
-                          {f.status}
-                        </Badge>
+                        <StatusBadge tom={statusFatura(f.status).tom}>
+                          {statusFatura(f.status).rotulo}
+                        </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
                         {f.status === "aberta" ? (

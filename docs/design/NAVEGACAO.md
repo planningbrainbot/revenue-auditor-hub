@@ -111,7 +111,7 @@ Planning People (people)
   A rede ............. Cadastro · Clima · Adoção por unidade
 Monetização (monetizacao)
   Oportunidades ...... Operação diária · Temporal e previsão · Projetado × realizado
-                       · Capacidade e alocação · Follow Day   (/monetizacao?aba=…) · Fila Cella /fila-cella
+                       · Capacidade e alocação · Follow Day   (/monetizacao?aba=…)   [Fila Cella aposentada em 24/09]
   Desenv. comercial .. Funil comercial · Pessoas e PDI · Abordagens · Distribuição (/monetizacao?aba=…)
 Broker (broker)
   Broker ............. Fila de oportunidades /broker · Matriz /broker/admin [área broker_matriz]
@@ -194,7 +194,7 @@ Rede                    Visão geral · IDU · Indicadores do Trimestre · Reali
 Base de clientes        Base de clientes (visões por URL) · CS · NPS · Base de Contatos* · Auditoria Interna
                         · Reforma Tributária · Disparos de WhatsApp
 Receita e Repasses      (sem mudança de estrutura; aplicar nomes 4.2)
-Monetização             Visão geral · Fila Cella · Operação diária · Follow Day · Temporal e previsão
+Monetização             Visão geral · Operação diária · Follow Day · Temporal e previsão
                         · Projetado × realizado · Capacidade e alocação · Funil comercial · Abordagens
                         · Distribuição* · Pessoas e PDI*
 Broker, Minha Unidade, Planning People, Administração   (sem mudança de estrutura)

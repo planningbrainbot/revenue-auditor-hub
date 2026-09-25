@@ -169,7 +169,7 @@ export function FxcView() {
                     {dre.map((m) => (
                       <th key={m.mes} className="py-2 px-4 text-right text-xs font-bold uppercase whitespace-nowrap" style={{ color: OLIVE }}>{m.label}</th>
                     ))}
-                    <th className="py-2 px-4 text-right text-xs font-bold uppercase" style={{ color: OLIVE }}>Grand Total</th>
+                    <th className="py-2 px-4 text-right text-xs font-bold uppercase" style={{ color: OLIVE }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -198,7 +198,7 @@ export function FxcView() {
                   {dre.map((m) => (
                     <th key={m.mes} className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{m.label}</th>
                   ))}
-                  <th className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Grand Total</th>
+                  <th className="py-2 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,7 +279,7 @@ export function FxcView() {
                 })}
 
                 <tr className="border-t-2 border-border font-bold" style={{ background: OLIVE_BG }}>
-                  <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Grand Total</td>
+                  <td className="py-3 px-5 text-xs font-bold uppercase tracking-wide" style={{ color: OLIVE }}>Total</td>
                   {dre.map((m) => (
                     <td key={m.mes} className="py-3 px-4 text-right whitespace-nowrap font-bold" style={{ color: m.grand_total >= 0 ? "var(--success)" : "var(--danger)" }}>
                       {fmtN(m.grand_total)}
