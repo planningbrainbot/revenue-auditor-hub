@@ -13,7 +13,7 @@ set -a; source .env.local; set +a
 export COCKPIT_IA_KEYCHAIN=1
 export COCKPIT_IA_AVALIACAO="${COCKPIT_IA_AVALIACAO:-0}"
 export COCKPIT_IA_KEYCHAIN_SERVICO="${COCKPIT_IA_KEYCHAIN_SERVICO:-planning-openrouter-cockpit-2}"
-export COCKPIT_CONVERSA_MODELO="${COCKPIT_CONVERSA_MODELO:-anthropic/claude-sonnet-5}"
+export COCKPIT_CONVERSA_MODELO="${COCKPIT_CONVERSA_MODELO:-openai/gpt-5.5}"
 export NODE_OPTIONS="--max-old-space-size=8192"
 PORTA="${PORTA:-8082}"
 echo "Entre em http://127.0.0.1:${PORTA}/auth e abra http://127.0.0.1:${PORTA}/cockpit-ceo/perguntar"

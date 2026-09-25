@@ -96,36 +96,62 @@ export type VisaoDefinicao = z.infer<typeof VisaoDefinicaoSchema>;
 
 export class EspecificacaoRecusada extends Error {}
 
-/** Proposta do modelo → definição executável, com as consultas autorizadas desta rodada. */
+/** Tipo que desenha a forma quando o pedido não desenha: a mesma informação, sem inventar layout. */
+const TIPO_PARA_FORMA: Record<Forma, TipoBloco> = {
+  kpi: "kpi",
+  serie: "serie",
+  categorias: "barras",
+  funil: "funil",
+  ponte: "ponte",
+  tabela: "tabela",
+  coorte: "coorte",
+  acoes: "acoes",
+};
+
+/**
+ * Proposta do modelo → definição executável, com as consultas autorizadas desta rodada.
+ * Bloco com tipo que não desenha o resultado é ajustado para o tipo da forma; bloco que aponta
+ * para resultado inexistente cai sozinho. Cada ajuste ou descarte volta em `ajustes`. Sem nenhum
+ * bloco válido, a proposta é recusada.
+ */
 export function definicaoDaProposta(
   proposta: unknown,
   registro: Map<string, Resultado>,
+  ajustes: string[] = [],
 ): VisaoDefinicao {
   const p = PropostaVisaoSchema.safeParse(proposta);
   if (!p.success)
     throw new EspecificacaoRecusada(
       `Especificação fora do schema: ${p.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}.`,
     );
-  const blocos = p.data.blocos.map((b, i) => {
+  const blocos: VisaoDefinicao["blocos"] = [];
+  p.data.blocos.forEach((b, i) => {
     const r = registro.get(b.resultado);
-    if (!r)
-      throw new EspecificacaoRecusada(
-        `O bloco ${i + 1} aponta para ${b.resultado}, que não existe nesta conversa.`,
-      );
-    if (!FORMAS_DO_BLOCO[b.tipo].includes(r.dados.forma))
-      throw new EspecificacaoRecusada(
-        `O bloco ${i + 1} (${b.tipo}) não desenha um resultado de forma ${r.dados.forma}.`,
-      );
-    return {
-      id: `b${i + 1}`,
-      tipo: b.tipo,
+    if (!r) {
+      ajustes.push(`bloco ${i + 1} descartado: ${b.resultado} não existe nesta rodada`);
+      return;
+    }
+    let tipo = b.tipo;
+    if (!FORMAS_DO_BLOCO[tipo].includes(r.dados.forma)) {
+      tipo = TIPO_PARA_FORMA[r.dados.forma];
+      ajustes.push(`bloco ${i + 1}: ${b.tipo} não desenha ${r.dados.forma}; mostrado como ${tipo}`);
+    }
+    blocos.push({
+      id: `b${blocos.length + 1}`,
+      tipo,
       ...(b.titulo ? { titulo: b.titulo } : {}),
       consulta: { nome: r.consulta as NomeConsulta, args: r.args },
-    };
+      // Índice da proposta original, para quem precisa casar bloco e resultado.
+    });
+    origem.set(blocos[blocos.length - 1], b.resultado);
   });
-  if (!blocos.length) throw new EspecificacaoRecusada("A especificação não tem bloco.");
+  if (!blocos.length) throw new EspecificacaoRecusada("A especificação não tem bloco válido.");
   return { versao: VERSAO_SPEC, titulo: p.data.titulo, filtros: p.data.filtros ?? {}, blocos };
 }
+
+/** Resultado de onde cada bloco da última definição veio (para resolver sem recalcular). */
+const origem = new WeakMap<object, string>();
+export const resultadoDoBloco = (bloco: object) => origem.get(bloco);
 
 /** Chaves de filtro que a consulta aceita, lidas do próprio schema dela. */
 export function chavesDeFiltro(nome: NomeConsulta): (keyof Filtros)[] {

@@ -21,6 +21,7 @@ import {
 } from "../adaptador-brain";
 import type { FonteCockpit } from "../indicadores";
 import type { ContextoCockpit } from "../contexto";
+import { criarCachePorPessoa } from "./cache";
 import { lerReceitaCockpit } from "../receita.functions";
 import { lerCaixaCockpit } from "../caixa.functions";
 import { lerAquisicaoCockpit } from "../aquisicao.functions";
@@ -29,6 +30,20 @@ import { lerRetencaoCockpit } from "../retencao.functions";
 import { lerClientesAtivosCockpit } from "../clientes-ativos.functions";
 
 export const VALIDADE_CACHE_MS = 10 * 60_000;
+export const CACHE_COM_ERRO_MS = 30_000;
+
+/** Alguma leitura da carga respondeu com erro (não "sem acesso", que é estado estável). */
+export function temParteComErro(f: FonteCockpit): boolean {
+  return [
+    f.monetizacao,
+    f.receita,
+    f.clientesAtivos,
+    f.retencao,
+    f.caixa,
+    f.aquisicao,
+    f.operacao,
+  ].some((p) => p?.estado === "erro");
+}
 
 export class SemAreaCockpit extends Error {
   constructor() {
@@ -88,7 +103,13 @@ export async function montarFonteServidor(
   const hoje = hojeSaoPaulo();
   const comCarteira = acesso.acessoBase || acesso.acessoNegocios;
   const [mon, receita, clientes, retencao, caixa, aquisicao, operacao] = await Promise.all([
-    comCarteira ? ler(() => lerMonetizacaoCompleta(ctx)) : Promise.resolve(null),
+    // A carteira vem em ~26 lotes; em paralelo com as outras fontes um lote pode passar do teto do
+    // PostgREST (medido em 25/09). Uma nova tentativa, depois das outras leituras, resolve.
+    comCarteira
+      ? ler(() => lerMonetizacaoCompleta(ctx)).then((r) =>
+          r.error ? ler(() => lerMonetizacaoCompleta(ctx)) : r,
+        )
+      : Promise.resolve(null),
     ler(() => lerReceitaCockpit(ctx)),
     ler(() => lerClientesAtivosCockpit(ctx)),
     ler(() => lerRetencaoCockpit(ctx)),
@@ -117,7 +138,11 @@ export async function montarFonteServidor(
   };
 }
 
-const cache = new Map<string, { em: number; fonte: Promise<FonteCockpit> }>();
+const cache = criarCachePorPessoa<FonteCockpit>({
+  validadeMs: VALIDADE_CACHE_MS,
+  validadeComErroMs: CACHE_COM_ERRO_MS,
+  temErro: temParteComErro,
+});
 
 /** Fonte da pessoa, do cache dela quando ainda vale. A chave é o id do usuário, nunca outra coisa. */
 export function fonteDaPessoa(
@@ -127,17 +152,11 @@ export function fonteDaPessoa(
 ): Promise<FonteCockpit> {
   if (acesso.userId !== ctx.userId) throw new Error("Acesso e sessão de pessoas diferentes.");
   const agora = opcoes.agora ?? Date.now();
-  const chave = ctx.userId;
-  const guardada = cache.get(chave);
-  if (guardada && agora - guardada.em < VALIDADE_CACHE_MS) return guardada.fonte;
-  const fonte = (opcoes.montar ?? montarFonteServidor)(ctx, acesso, new Date(agora).toISOString());
-  cache.set(chave, { em: agora, fonte });
-  // Uma carga que falhou inteira não fica guardada: a próxima pergunta tenta de novo.
-  fonte.catch(() => cache.delete(chave));
-  return fonte;
+  return cache.obter(ctx.userId, agora, () =>
+    (opcoes.montar ?? montarFonteServidor)(ctx, acesso, new Date(agora).toISOString()),
+  );
 }
 
 export function limparCache(userId?: string) {
-  if (userId) cache.delete(userId);
-  else cache.clear();
+  cache.limpar(userId);
 }

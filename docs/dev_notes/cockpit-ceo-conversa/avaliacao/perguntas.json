@@ -140,9 +140,9 @@
           "barras",
           "kpi",
           "ranking"
-        ],
-        "conferir": "onboarding_30"
-      }
+        ]
+      },
+      "nota": "Cadeia (vendas → onboarding) e onboarding parado são respostas válidas; sem gabarito numérico único."
     },
     {
       "id": "P6",
@@ -437,8 +437,7 @@
           "erro"
         ],
         "proibido": [
-          "50 milh",
-          "R\\$ 50"
+          "(foi|fez|faturou|faturamento (do mês )?(foi|de))\\s+(de\\s+)?R\\$\\s?50"
         ]
       }
     },

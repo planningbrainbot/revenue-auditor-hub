@@ -5,7 +5,9 @@
 // COCKPIT_IA_KEYCHAIN=1, ela pode vir do Keychain do macOS (a mesma do piloto). A chave nunca vai
 // para o navegador, log ou banco.
 import { execFile } from "node:child_process";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { custoEstimadoOpenAI, idNoProvedor, provedorDo } from "./provedores";
 import { decidirJev, obterChaveKeychain } from "../jev/adaptador.server";
 import type { LedgerJev } from "../jev/adaptador.server";
 import { JEV_MODELO } from "../jev/contrato";
@@ -25,11 +27,14 @@ import type { VisaoDefinicao } from "./spec";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-export const MODELO_PADRAO = "anthropic/claude-sonnet-5";
+/** Escolhido pela avaliação de 25/09 (docs/dev_notes/cockpit-ceo-conversa/avaliacao/relatorio.md). */
+export const MODELO_PADRAO = "openai/gpt-5.5";
 /** Modelos que o servidor aceita; a escolha vem da avaliação (relatório), não do nome. */
 export const MODELOS_PERMITIDOS = [
   "anthropic/claude-sonnet-5",
   "anthropic/claude-opus-5.5",
+  "openai/gpt-5.5",
+  "openai/gpt-5.4-mini",
 ] as const;
 
 export function modeloDoAmbiente(env = process.env): string {
@@ -43,6 +48,14 @@ export async function obterChaveOpenRouter(env = process.env): Promise<string | 
     return env.COCKPIT_IA_KEYCHAIN_SERVICO
       ? lerKeychain(env.COCKPIT_IA_KEYCHAIN_SERVICO)
       : obterChaveKeychain();
+  return null;
+}
+
+/** Chave da OpenAI: OPENAI_API_KEY no servidor; no local, o Keychain `planning-openai-cockpit`. */
+export async function obterChaveOpenAI(env = process.env): Promise<string | null> {
+  if (env.OPENAI_API_KEY) return env.OPENAI_API_KEY;
+  if (env.NODE_ENV !== "production" && env.COCKPIT_IA_KEYCHAIN === "1")
+    return lerKeychain(env.COCKPIT_IA_KEYCHAIN_OPENAI ?? "planning-openai-cockpit");
   return null;
 }
 
@@ -189,13 +202,17 @@ export async function rodadaNoServidor(
     .from("cockpit_mensagens")
     .insert({ conversa_id: conversaId, papel: "usuario", texto: pedido.pergunta });
 
-  const chave = await obterChaveOpenRouter();
   const avaliacao =
     process.env.COCKPIT_IA_AVALIACAO === "1" && process.env.NODE_ENV !== "production";
   const nomeModelo =
     avaliacao && pedido.modelo && (MODELOS_PERMITIDOS as readonly string[]).includes(pedido.modelo)
       ? pedido.modelo
       : modeloDoAmbiente();
+  const provedorModelo = provedorDo(nomeModelo);
+  const chave =
+    provedorModelo === "openai" ? await obterChaveOpenAI() : await obterChaveOpenRouter();
+  // O Jev mora no OpenRouter, com chave própria; sem ela ele só fica indisponível.
+  const chaveJev = jevLigado() ? await obterChaveOpenRouter() : null;
   const limites = limitesDoAmbiente(process.env);
   let resposta: RespostaFinal;
   if (!chave) {
@@ -218,10 +235,21 @@ export async function rodadaNoServidor(
     };
     emitir({ type: "data-resposta", data: resposta });
   } else {
-    const provedor = createOpenRouter({ apiKey: chave });
+    const modelo =
+      provedorModelo === "openai"
+        ? createOpenAI({ apiKey: chave })(idNoProvedor(nomeModelo))
+        : createOpenRouter({ apiKey: chave })(nomeModelo, { usage: { include: true } });
     resposta = await responder(pedido.pergunta, {
-      modelo: provedor(nomeModelo, { usage: { include: true } }),
+      modelo,
       nomeModelo,
+      // Raciocínio curto: a conversa precisa de resposta rápida, e o cálculo é das consultas.
+      ...(provedorModelo === "openai"
+        ? {
+            opcoesProvedor: { openai: { reasoningEffort: "low" } },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            custoDoPasso: (p: any) => custoEstimadoOpenAI(nomeModelo, p.usage),
+          }
+        : {}),
       hoje: hojeSaoPaulo(),
       historico,
       abortSignal,
@@ -229,14 +257,14 @@ export async function rodadaNoServidor(
       // Jev só com COCKPIT_IA_JEV=1. Desligado (decisão do Pedro em 25/09, até resolver os
       // créditos), a pergunta segue como "Jev indisponível": modelo com todas as consultas.
       classificar: (pergunta, contexto) =>
-        !jevLigado()
+        !jevLigado() || !chaveJev
           ? Promise.resolve({
               estado: "desativado",
               codigo: "desativado",
               mensagem: "Jev desligado.",
             })
           : decidirJev(pedidoConversa(pergunta, contexto), {
-              obterChave: async () => chave,
+              obterChave: async () => chaveJev,
               ledger: ledgerJevNoBanco(db, ctx.userId),
               exemplo: "conversa",
               timeoutMs: 6_000,
