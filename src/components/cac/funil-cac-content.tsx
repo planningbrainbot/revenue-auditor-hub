@@ -16,6 +16,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { OctagonAlert } from "lucide-react";
 import {
+  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
@@ -33,7 +36,9 @@ import {
   StatusBadge,
 } from "@/components/planning";
 import { ErroDaConsulta } from "@/components/receita/moldura";
-import { CORES_SERIE } from "@/lib/planning/grafico";
+import {
+  CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps,
+} from "@/lib/planning/grafico";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +99,34 @@ const fmtBRL = (v: number | null | undefined) =>
   v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: string | null) =>
   d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** "2026-07" → "jul/26". */
+const fmtMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
+const fmtBRLCurto = (v: number) =>
+  v >= 1000 ? `R$ ${Math.round(v / 1000).toLocaleString("pt-BR")} mil` : fmtBRL(v);
+
+/** Meses de `de` a `ate`, inclusive, em AAAA-MM. */
+function mesesEntre(de: string, ate: string): string[] {
+  const out: string[] = [];
+  let [a, m] = de.split("-").map(Number);
+  const [aFim, mFim] = ate.split("-").map(Number);
+  while (a < aFim || (a === aFim && m <= mFim)) {
+    out.push(`${a}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) { m = 1; a += 1; }
+  }
+  return out;
+}
+
+type Mes = {
+  mes: string;
+  vendas: number;
+  mrrVendido: number;
+  assinadas: number;
+  mrrAssinado: number;
+  /** Das vendas ganhas neste mês, quantas já assinaram (em qualquer mês). */
+  vendasJaAssinadas: number;
+};
 
 /**
  * Valor de CAC de uma linha, para o funil descer em dinheiro e não só em
@@ -143,6 +176,9 @@ export function FunilCacContent() {
   const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
   const [soChurn, setSoChurn] = useFiltroNaUrl("churn", false);
   const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa", "churn"]);
+  // Período da análise mês a mês. Vazio = do começo da régua até o mês atual.
+  const [de, setDe] = useFiltroNaUrl("de", "");
+  const [ate, setAte] = useFiltroNaUrl("ate", "");
 
   useEffect(() => {
     let vivo = true;
@@ -249,6 +285,57 @@ export function FunilCacContent() {
     }
     return ETAPAS.filter((e) => m.has(e.chave)).map((e) => ({ ...e, ...m.get(e.chave)! }));
   }, [daUnidade]);
+
+  // Venda e assinatura mês a mês. Cada uma cai no seu próprio mês: a venda pelo
+  // `ganho_em`, a assinatura pela `data_assinatura`. Assim "assinei em agosto"
+  // inclui venda de julho que só assinou em agosto, e não depende do mês da
+  // venda. Não se usa "Data da Venda" como data de assinatura (decisão de
+  // 21/09/2026): contrato assinado sem data fica fora da coluna e é contado à
+  // parte.
+  const todosOsMeses = useMemo(() => {
+    const hoje = new Date();
+    const atual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+    return mesesEntre("2026-02", atual);
+  }, []);
+  const deEf = todosOsMeses.includes(de) ? de : todosOsMeses[0];
+  const ateEf = todosOsMeses.includes(ate) ? ate : todosOsMeses[todosOsMeses.length - 1];
+  const [ini, fim] = deEf <= ateEf ? [deEf, ateEf] : [ateEf, deEf];
+
+  const periodo = useMemo(() => {
+    const meses = mesesEntre(ini, fim);
+    const m = new Map<string, Mes>(meses.map((mes) => [mes, {
+      mes, vendas: 0, mrrVendido: 0, assinadas: 0, mrrAssinado: 0, vendasJaAssinadas: 0,
+    }]));
+    let assinadasSemData = 0;
+    for (const r of daUnidade) {
+      if (r.contrato_id == null) continue;
+      const mrr = Number(r.mrr_mensal ?? 0);
+      const v = r.ganho_em ? m.get(r.ganho_em.slice(0, 7)) : undefined;
+      if (v) {
+        v.vendas += 1;
+        v.mrrVendido += mrr;
+        if (r.assinado) v.vendasJaAssinadas += 1;
+      }
+      const a = r.data_assinatura ? m.get(r.data_assinatura.slice(0, 7)) : undefined;
+      if (a) {
+        a.assinadas += 1;
+        a.mrrAssinado += mrr;
+      }
+      if (r.assinado && !r.data_assinatura && v) assinadasSemData += 1;
+    }
+    const linhasMes = [...m.values()];
+    const total = linhasMes.reduce(
+      (t, x) => ({
+        vendas: t.vendas + x.vendas,
+        mrrVendido: t.mrrVendido + x.mrrVendido,
+        assinadas: t.assinadas + x.assinadas,
+        mrrAssinado: t.mrrAssinado + x.mrrAssinado,
+        vendasJaAssinadas: t.vendasJaAssinadas + x.vendasJaAssinadas,
+      }),
+      { vendas: 0, mrrVendido: 0, assinadas: 0, mrrAssinado: 0, vendasJaAssinadas: 0 },
+    );
+    return { meses: linhasMes, total, assinadasSemData };
+  }, [daUnidade, ini, fim]);
 
   if (loading) {
     return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
@@ -380,6 +467,140 @@ export function FunilCacContent() {
           </ul>
         </Secao>
       )}
+
+      <Secao
+        titulo="Quanto foi vendido e assinado, mês a mês?"
+        descricao="Venda no mês em que foi ganha; assinatura no mês em que o contrato foi assinado. Valor é o honorário mensal (MRR) do contrato. Respeita o filtro de unidade; o período vale só para esta seção."
+        acoes={
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+            <span>De</span>
+            <Select value={deEf} onValueChange={(v) => setDe(v === todosOsMeses[0] ? "" : v)}>
+              <SelectTrigger className="w-[110px]" aria-label="Mês inicial"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {todosOsMeses.map((m) => <SelectItem key={m} value={m}>{fmtMes(m)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span>até</span>
+            <Select
+              value={ateEf}
+              onValueChange={(v) => setAte(v === todosOsMeses[todosOsMeses.length - 1] ? "" : v)}
+            >
+              <SelectTrigger className="w-[110px]" aria-label="Mês final"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {todosOsMeses.map((m) => <SelectItem key={m} value={m}>{fmtMes(m)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <KpiGrade>
+            <KpiCard
+              rotulo="Vendido no período"
+              valor={fmtBRL(periodo.total.mrrVendido)}
+              nota={`${periodo.total.vendas} vendas · MRR`}
+            />
+            <KpiCard
+              rotulo="Assinado no período"
+              valor={fmtBRL(periodo.total.mrrAssinado)}
+              nota={`${periodo.total.assinadas} contratos · MRR`}
+            />
+            <KpiCard
+              rotulo="Vendas do período já assinadas"
+              valor={
+                periodo.total.vendas > 0
+                  ? `${Math.round((periodo.total.vendasJaAssinadas / periodo.total.vendas) * 100)}%`
+                  : "—"
+              }
+              nota={`${periodo.total.vendasJaAssinadas} de ${periodo.total.vendas}${
+                periodo.assinadasSemData > 0 ? ` · ${periodo.assinadasSemData} sem data de assinatura` : ""
+              }`}
+            />
+          </KpiGrade>
+
+          <div className="rounded-xl border bg-card p-4">
+            <div
+              className="h-56 w-full"
+              role="img"
+              aria-label={`MRR vendido e assinado por mês, de ${fmtMes(ini)} a ${fmtMes(fim)}`}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={periodo.meses.map((m) => ({ ...m, rotulo: fmtMes(m.mes) }))}
+                  margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis dataKey="rotulo" {...eixoProps} />
+                  <YAxis {...eixoProps} width={84} tickFormatter={(v: number) => fmtBRLCurto(v)} />
+                  <Tooltip {...tooltipProps} formatter={(v, nome) => [fmtBRL(Number(v)), nome]} />
+                  <Legend {...legendaProps} />
+                  <Bar
+                    dataKey="mrrVendido"
+                    name="Vendido"
+                    fill={CORES_SERIE[0]}
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    dataKey="mrrAssinado"
+                    name="Assinado"
+                    fill={CORES_SERIE[1]}
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mês</TableHead>
+                  <TableHead className="text-right">Vendas</TableHead>
+                  <TableHead className="text-right">MRR vendido</TableHead>
+                  <TableHead className="text-right">Assinados</TableHead>
+                  <TableHead className="text-right">MRR assinado</TableHead>
+                  <TableHead className="text-right">Vendas do mês já assinadas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {periodo.meses.map((m) => (
+                  <TableRow key={m.mes}>
+                    <TableCell className="font-medium">{fmtMes(m.mes)}</TableCell>
+                    <TableCell className="num text-right">{m.vendas}</TableCell>
+                    <TableCell className="num text-right">{fmtBRL(m.mrrVendido)}</TableCell>
+                    <TableCell className="num text-right">{m.assinadas}</TableCell>
+                    <TableCell className="num text-right">{fmtBRL(m.mrrAssinado)}</TableCell>
+                    <TableCell className="num text-right text-muted-foreground">
+                      {m.vendas > 0
+                        ? `${m.vendasJaAssinadas} de ${m.vendas} · ${Math.round((m.vendasJaAssinadas / m.vendas) * 100)}%`
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="border-t-2">
+                  <TableCell className="font-semibold">Total</TableCell>
+                  <TableCell className="num text-right font-semibold">{periodo.total.vendas}</TableCell>
+                  <TableCell className="num text-right font-semibold">{fmtBRL(periodo.total.mrrVendido)}</TableCell>
+                  <TableCell className="num text-right font-semibold">{periodo.total.assinadas}</TableCell>
+                  <TableCell className="num text-right font-semibold">{fmtBRL(periodo.total.mrrAssinado)}</TableCell>
+                  <TableCell className="num text-right text-muted-foreground">
+                    {periodo.total.vendasJaAssinadas} de {periodo.total.vendas}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Entram as vendas do Inside Sales das unidades deste funil (as que cobram CAC ou já
+            abriram card de cobrança), elegíveis ou não. Contrato assinado sem data de
+            assinatura no Pipefy conta como “já assinada”, mas não entra na coluna “Assinados”
+            de mês nenhum.
+          </p>
+        </div>
+      </Secao>
 
       <Secao
         titulo="Onde a venda deixa de virar cobrança?"
