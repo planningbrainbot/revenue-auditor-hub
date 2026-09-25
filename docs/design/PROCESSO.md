@@ -44,7 +44,7 @@ No PR C, conflito de classe não se resolve à mão, mas o codemod sozinho tamb�
 5. Build + `npm run design:lint` (0 erros, catraca) + `npm run design:capturar -- integracao`.
 6. Merge no mesmo dia.
 
-Antes de cada merge, o preview da Vercel é aberto nas cinco telas de conferência (Overview da Rede, Base de clientes, Fila Cella, Apuração de Royalties e Admin › Usuários), nos dois temas. Se der errado, volta com `git revert` do merge.
+Antes de cada merge, o preview da Vercel é aberto nas cinco telas de conferência (Overview da Rede, Base de clientes, Follow Day da Monetização, Apuração de Royalties e Admin › Usuários), nos dois temas. Se der errado, volta com `git revert` do merge.
 
 Antes de começar, falta confirmar uma coisa. O `AGENTS.md` do app diz que `git push origin main` publica. A memória de operação do Pedro diz que o deploy do Ops é pela CLI. Quem sabe qual vale é o Eliezek, e isso muda o risco do PR C.
 
@@ -86,7 +86,7 @@ Uma área por vez, por impacto no objetivo do Brain (`PRODUCT.md` §1) e com o d
 
 | Semana | Módulo | Arquétipo principal | Por que agora | Dono |
 |---|---|---|---|---|
-| 1 | Monetização · Fila Cella | Fila de trabalho | é onde o Brain vira receita; KR semanal | Pedro |
+| 1 | Monetização (a Fila Cella foi aposentada em 24/09) | Fila de trabalho (Follow Day) + Lista | é onde o Brain vira receita | Pedro |
 | 2 | Rede · Overview + IDU | Visão geral | primeira tela da diretoria; cards que não batem com o destino (N2) | Eliezek |
 | 3 | Base de clientes | Lista/Relatório + Ficha | decisão pendente sobre rotas irmãs × faixa única (`PRODUCT.md` §5) | Pedro |
 | 4 | Receita e Repasses | Fila (apuração) + Relatório | fechamento do mês; a controladoria usa todo dia | Eliezek |

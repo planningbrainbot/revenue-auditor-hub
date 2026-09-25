@@ -12,7 +12,18 @@ import {
 import type { GrupoRecon } from "@/lib/monetizacao/recon";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { Conta } from "@/lib/monetizacao/types";
-import { date, downloadCsv, Field, inputClass, Kpi, Notice, number, Panel } from "./common";
+import { EstadoVazio, KpiCard, KpiGrade } from "@/components/planning";
+import {
+  BotaoComMotivo,
+  date,
+  downloadCsv,
+  Field,
+  FOCO_VISIVEL,
+  inputClass,
+  NotaApoio,
+  number,
+  SecaoCartao,
+} from "./common";
 import { FieldMulti, MultiSelect } from "./multi-select";
 
 export function ReconAquario({
@@ -62,6 +73,37 @@ export function ReconAquario({
     [accounts, status, query, unit, contact],
   );
   const selected = accounts.filter((a) => picked.has(a.key));
+  // O checkbox do cabeçalho marca o FILTRO inteiro, inclusive as linhas além da página: diz isso.
+  const visiveis = Math.min(limit, rows.length);
+  const todasDoFiltro = rows.length > 0 && rows.every((a) => picked.has(a.key));
+  const algumaDoFiltro = rows.some((a) => picked.has(a.key));
+  const chavesDoFiltro = new Set(rows.map((a) => a.key));
+  const foraDoFiltro = selected.filter((a) => !chavesDoFiltro.has(a.key)).length;
+  const rotuloCabecalho = todasDoFiltro
+    ? `Desmarcar as ${number(rows.length)} contas do filtro`
+    : rows.length > limit
+      ? `Selecionar as ${number(rows.length)} contas do filtro, não só as ${number(visiveis)} desta página`
+      : `Selecionar as ${number(rows.length)} contas do filtro`;
+  // Marcar soma o filtro ao que já está selecionado; desmarcar tira só as contas do filtro.
+  const marcarFiltro = (marcar: boolean) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      for (const a of rows) {
+        if (marcar) next.add(a.key);
+        else next.delete(a.key);
+      }
+      return next;
+    });
+  // Cartão ou grupo filtra a tabela e leva até ela. O cartão conta sobre todas as contas, então
+  // busca, unidade e contato são limpos para o total da tabela bater com o do cartão.
+  const filtrar = (s: string[]) => {
+    setQuery("");
+    setUnit([]);
+    setContact([]);
+    setStatus(s);
+    setLimit(50);
+    document.getElementById("recon-tabela")?.scrollIntoView({ behavior: "smooth" });
+  };
   const exportRows = (items: Conta[]) =>
     downloadCsv("aquario-recon.csv", [
       [
@@ -97,91 +139,86 @@ export function ReconAquario({
     ]);
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi
-          label="Contas no radar Recon"
-          value={number(potential.length)}
-          hint="Aptas + pendentes abaixo · contas únicas"
-          onClick={() => {
-            setStatus(["potencial"]);
-            setLimit(50);
-          }}
+      <KpiGrade colunas={4}>
+        <KpiCard
+          rotulo="Contas no radar Recon"
+          valor={number(potential.length)}
+          nota="Aptas + pendentes abaixo · contas únicas"
+          abrir={{ rotulo: "Filtrar a tabela", onClick: () => filtrar(["potencial"]) }}
         />
-        <Kpi
-          label="Aptas nos dados conferidos"
-          value={number(eligible.length)}
-          hint="Acima de R$ 5 mi · fora de qualquer BPO"
-          accent
-          onClick={() => {
-            setStatus(["elegivel"]);
-            setLimit(50);
-          }}
+        <KpiCard
+          rotulo="Aptas nos dados conferidos"
+          valor={number(eligible.length)}
+          nota="Acima de R$ 5 mi · fora de qualquer BPO"
+          tom="sucesso"
+          abrir={{ rotulo: "Filtrar a tabela", onClick: () => filtrar(["elegivel"]) }}
         />
-        <Kpi
-          label="Acima de R$ 5 mi · conferir BPO"
-          value={number(counts.confirmar_bpo)}
-          hint="Falta identificação ou comprovar serviços"
-          onClick={() => {
-            setStatus(["confirmar_bpo"]);
-            setLimit(50);
-          }}
+        <KpiCard
+          rotulo="Acima de R$ 5 mi · conferir BPO"
+          valor={number(counts.confirmar_bpo)}
+          nota="Falta identificação ou comprovar serviços"
+          abrir={{ rotulo: "Filtrar a tabela", onClick: () => filtrar(["confirmar_bpo"]) }}
         />
-        <Kpi
-          label="Faixa atravessa R$ 5 mi"
-          value={number(counts.faixa_limite)}
-          hint="Confirmar valor anual e eventuais serviços pendentes"
-          onClick={() => {
-            setStatus(["faixa_limite"]);
-            setLimit(50);
-          }}
+        <KpiCard
+          rotulo="Faixa atravessa R$ 5 mi"
+          valor={number(counts.faixa_limite)}
+          nota="Confirmar valor anual e eventuais serviços pendentes"
+          abrir={{ rotulo: "Filtrar a tabela", onClick: () => filtrar(["faixa_limite"]) }}
         />
-      </div>
-      <Notice>
+      </KpiGrade>
+      <NotaApoio>
         {number(potential.length)} contas no radar = {number(eligible.length)} aptas +{" "}
         {number(counts.confirmar_bpo)} para conferir BPO + {number(counts.faixa_limite)} com faixa
         atravessando o corte. Pendência não equivale a aprovação. Contato e regime não são vetos.
-        Conferido em {date(updated)}; veja a data da fonte em cada conta. Seleção somente no
-        Aquário.
-      </Notice>
+        Conferido em {date(updated)}; veja a data da fonte em cada conta. Seleção e exportação
+        somente aqui: o Recon ainda não envia ao Pipedrive.
+      </NotaApoio>
       <details className="rounded-lg border bg-card p-4 text-sm">
-        <summary className="cursor-pointer font-medium">
+        <summary className={`cursor-pointer font-medium ${FOCO_VISIVEL}`}>
           De onde saem os números · {number(accounts.length)} contas analisadas
         </summary>
         <p className="mt-2 text-xs text-muted-foreground">
           Grupos sem sobreposição. Uma conta com BPO identificado sai antes da análise do
           faturamento. Contas sem faturamento ou com divergências continuam disponíveis para
-          conferência.
+          conferência. Cada grupo filtra a tabela abaixo.
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <KpiGrade colunas={3} className="mt-3">
           {(Object.entries(GRUPOS_RECON) as [GrupoRecon, string][]).map(([g, label]) => (
-            <button
+            <KpiCard
               key={g}
-              className="flex justify-between rounded border p-2 text-left hover:bg-muted/50"
-              onClick={() => {
-                setStatus([g]);
-                setLimit(50);
-              }}
-            >
-              <span>{label}</span>
-              <strong>{number(counts[g])}</strong>
-            </button>
+              rotulo={label}
+              valor={number(counts[g])}
+              abrir={{ rotulo: "Filtrar a tabela", onClick: () => filtrar([g]) }}
+            />
           ))}
-        </div>
+        </KpiGrade>
       </details>
-      <Panel
-        title="Recon · carteira para trabalhar"
-        action={
+      <SecaoCartao
+        titulo="Recon · carteira para trabalhar"
+        acoes={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportRows(rows)}>
+            <BotaoComMotivo
+              variant="outline"
+              size="sm"
+              disabled={!rows.length}
+              motivo={!rows.length ? "Nenhuma conta neste filtro" : null}
+              onClick={() => exportRows(rows)}
+            >
               <Download className="mr-1 h-3 w-3" />
-              Exportar filtro
-            </Button>
-            <Button size="sm" disabled={!selected.length} onClick={() => exportRows(selected)}>
-              Exportar seleção ({selected.length})
-            </Button>
+              Exportar filtro ({number(rows.length)})
+            </BotaoComMotivo>
+            <BotaoComMotivo
+              size="sm"
+              disabled={!selected.length}
+              motivo={!selected.length ? "Marque ao menos uma conta na tabela" : null}
+              onClick={() => exportRows(selected)}
+            >
+              Exportar seleção ({number(selected.length)})
+            </BotaoComMotivo>
           </div>
         }
       >
+        <span id="recon-tabela" className="block scroll-mt-4" />
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Buscar empresa">
             <div className="relative">
@@ -243,7 +280,12 @@ export function ReconAquario({
           </FieldMulti>
         </div>
         <p className="mb-3 text-xs text-muted-foreground">
-          {number(rows.length)} contas · clique na empresa para ver os detalhes e as fontes.
+          {number(rows.length)} contas no filtro · {number(visiveis)} nesta página · clique na
+          empresa para ver os detalhes e as fontes.
+          {selected.length > 0 &&
+            ` ${number(selected.length)} selecionada(s)${foraDoFiltro ? `, ${number(foraDoFiltro)} fora deste filtro (entram na exportação da seleção)` : ""}.`}{" "}
+          {rows.length > limit &&
+            "O quadrado do cabeçalho marca todas as contas do filtro, inclusive as que ainda não aparecem na página."}
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -251,12 +293,16 @@ export function ReconAquario({
               <tr>
                 <th className="p-3">
                   <input
-                    aria-label="Selecionar todas as contas filtradas"
+                    aria-label={rotuloCabecalho}
+                    title={rotuloCabecalho}
                     type="checkbox"
-                    checked={rows.length > 0 && rows.every((a) => picked.has(a.key))}
-                    onChange={(e) =>
-                      setPicked(e.target.checked ? new Set(rows.map((a) => a.key)) : new Set())
-                    }
+                    className={FOCO_VISIVEL}
+                    disabled={!rows.length}
+                    checked={todasDoFiltro}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !todasDoFiltro && algumaDoFiltro;
+                    }}
+                    onChange={(e) => marcarFiltro(e.target.checked)}
                   />
                 </th>
                 <th className="p-3">Empresa / unidade</th>
@@ -273,6 +319,7 @@ export function ReconAquario({
                     <input
                       aria-label={`Selecionar ${a.name}`}
                       type="checkbox"
+                      className={FOCO_VISIVEL}
                       checked={picked.has(a.key)}
                       onChange={(e) =>
                         setPicked((prev) => {
@@ -286,7 +333,8 @@ export function ReconAquario({
                   </td>
                   <td className="p-3">
                     <button
-                      className="text-left font-medium text-primary-text underline-offset-2 hover:underline"
+                      type="button"
+                      className={`text-left font-medium text-primary-text underline-offset-2 hover:underline ${FOCO_VISIVEL}`}
                       onClick={() => showAccount(a)}
                     >
                       {a.name}
@@ -300,7 +348,7 @@ export function ReconAquario({
                     {faturamentoRecon(a)}
                     {!!a.recon?.revenue_sources?.length && (
                       <details className="mt-1 text-xs text-muted-foreground">
-                        <summary className="cursor-pointer">Ver fonte</summary>
+                        <summary className={`cursor-pointer ${FOCO_VISIVEL}`}>Ver fonte</summary>
                         {a.recon.revenue_sources.map((source) => (
                           <p key={source} className="mt-1">
                             {source}
@@ -339,17 +387,39 @@ export function ReconAquario({
             </tbody>
           </table>
         </div>
-        {!rows.length && (
-          <p className="p-8 text-center text-sm text-muted-foreground">
-            Nenhuma conta neste filtro.
-          </p>
+        {!rows.length && !accounts.length && (
+          <EstadoVazio
+            titulo="Nenhuma conta analisada pelo Recon"
+            descricao="O recorte da página não tem contas. Ajuste a unidade ou a origem no topo."
+          />
+        )}
+        {!rows.length && !!accounts.length && (
+          <EstadoVazio
+            titulo="Nenhuma conta neste filtro"
+            total={accounts.length}
+            acao={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatus(["potencial"]);
+                  setQuery("");
+                  setUnit([]);
+                  setContact([]);
+                  setLimit(50);
+                }}
+              >
+                Voltar ao radar
+              </Button>
+            }
+          />
         )}
         {rows.length > limit && (
           <Button className="mt-4" variant="outline" onClick={() => setLimit((v) => v + 50)}>
             Mostrar mais
           </Button>
         )}
-      </Panel>
+      </SecaoCartao>
     </div>
   );
 }

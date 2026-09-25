@@ -1512,12 +1512,12 @@ function FilaDeTrabalho() {
   const linhas = filtro ? FILA.filter(filtro.teste) : FILA;
 
   return (
-    <Arquetipo n={2} nome="Fila de trabalho" rota="/fila-cella">
+    <Arquetipo n={2} nome="Fila de trabalho" rota="/monetizacao?aba=follow-day">
       <PageHeader
         area="monetizacao"
-        titulo="Fila Cella"
-        pergunta="Quem eu abordo agora na base instalada?"
-        descricao="312 contas na fila · vendedor exclusivo: Matheus · daily às 13h30 · ordem: vencidos primeiro, depois score"
+        titulo="Follow Day"
+        pergunta="Qual negócio aberto eu destravo hoje?"
+        descricao="312 negócios abertos · dono atual: Matheus · daily às 13h30 · ordem: vencidos primeiro, depois dias parado"
         procedencia={{ fonte: "Pipedrive · Pipefy", atualizadoEm: AGORA }}
       />
 

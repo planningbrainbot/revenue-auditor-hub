@@ -92,7 +92,6 @@ migration; reconciliar é trabalho separado. (b) as oito chaves
 concedido aqui só vira barreira de verdade quando ele for espalhado, e isso NÃO
 pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
 
-
 ## [YYYY-MM-DD] Título curto da decisão
 
 **Contexto:** por que isso surgiu / qual problema resolve.
@@ -1175,7 +1174,6 @@ escopo do cockpit a partir de `role_permissions` e passar a ler
 comportamento de hoje. E a Fase 4, tirar `data.scope.own_unit_only` das 8
 policies em favor de um nome honesto.
 
-
 ## [2026-09-15] Aquário em Clientes; operação e análises dentro de Monetização
 
 **Contexto:** Pedro pediu incorporar o painel Caixa de Oportunidade e as análises estudadas no Growth ao Planning Brain. A orientação final coloca as carteiras e listas do Aquário dentro do módulo Clientes. Há autorização explícita para publicar na Vercel, usar o acesso central de Pedro e Matheus e enviar somente oportunidades selecionadas e validadas.
@@ -1193,7 +1191,6 @@ policies em favor de um nome honesto.
 
 **Status:** implementação nativa e migrations aplicadas. Primeira carga conciliada: 128 cards; 1.683 registros da auditoria inicial, mais 81 cadastros novos do Ops e um vínculo por identidade (1.764 registros, não declaração de clientes pagantes). Testes de regras (15) e RLS/revisão/reserva em transação passaram. Build de revisão Vercel `dpl_8hMAU1uFRzWMgGfCZu36AL1VRb6e` Ready; publicação final será registrada em entrada própria após verificação. Identidade de Matheus no login central pendente de confirmação: o e-mail do CRM ainda não tem conta em `auth.users`; não foi enviado convite nem criada senha.
 
-
 ## [2026-09-15] Publicação da integração e conferência no domínio
 
 **Status:** versão `81ecd67` publicada em `planningbrain.com.br` pelo deploy Vercel `dpl_B3b2xCaPXRwCBYya7XtSj3TUyxCq` (promoção autorizada, build Ready). `/aquario` está no módulo Clientes; `/monetizacao` no módulo Monetização. Verificadas no Chrome com a sessão existente de Pedro: navegação de Clientes, carteira lateral de Belém, ficha da empresa com fontes/contatos e preparação da lista para sócio, sem salvar lista de teste nem enviar oportunidade. Rotas do domínio respondem 200; endpoint de envio sem login responde 401. Carga corrente confirmou as 15 validadas de Matheus em 01–14/09. Sync v6 reaproveita históricos inalterados e os relê integralmente no máximo a cada 24h ou quando etapas/cadastro do negócio mudam; a contagem continua conciliada em toda rodada.
@@ -1202,7 +1199,6 @@ policies em favor de um nome honesto.
 
 **Repositório:** PR https://github.com/planningbrainbot/revenue-auditor-hub/pull/2 aberto. A revisão automática rejeitou push direto para `main`; aguarda autorização específica para merge. A publicação autorizada na Vercel foi feita separadamente sem alterar `main`. Até incorporar o PR, uma publicação de uma main antiga pode remover estas rotas. Não presumir que o deploy e a branch padrão já estão alinhados.
 
-
 ## [2026-09-15] Metas preservadas e ajuste final da publicação
 
 **Decisão:** as metas já informadas para setembro foram preservadas via interface autenticada: Matheus, 120 leads/mês, teto de 60 reuniões/mês, 8 contratos/mês e 7 leads/dia útil. O plano está salvo no banco central. A alocação por produto permanece não definida (zero alocado, 120 vagas para distribuir), e as hipóteses de conversão são nulas. Os oito contratos continuam sendo meta, nunca previsão automática a partir de um mix de ofertas que não foi trabalhado.
@@ -1210,7 +1206,6 @@ policies em favor de um nome honesto.
 **Status:** ajuste final de disponibilidade e período mensal (`b568aec`) publicado pelo deploy Vercel `dpl_9Tmj2RjFA7BDW1MPLNuECSiibHT9`, build Ready. A conferência de interface não salvou lista fictícia nem enviou negócio: contagens de listas/envios permanecem zero. A última carga consultada em 15/09 às 11h55 (São Paulo) concluiu sem erro. Os testes de domínio seguem 15/15. A conferência visual da carteira, ficha, preparação de lista e salvamento das metas foi concluída; o Computer Use perdeu a janela do Chrome antes de uma rodada completa das demais análises, que têm build e rotas conferidos.
 
 **Pendências externas:** PR #2 aguarda a autorização de merge solicitada após rejeição do push direto pela revisão automática. O e-mail de login central de Matheus ainda aguarda confirmação. Nenhuma senha paralela ou convite foi criado. O painel independente antigo não foi redirecionado nesta publicação; as rotas oficiais integradas são `/aquario` e `/monetizacao` do Planning Brain.
-
 
 ## [2026-09-15] Três listas de produto e forecast comparado ao realizado
 
@@ -1284,7 +1279,6 @@ policies em favor de um nome honesto.
 - O aviso de conflito de unidade atualmente compara também rótulos equivalentes e códigos ainda não traduzidos. Aliases conhecidos como Sudeste (RJ)/Rio de Janeiro devem resolver para o mesmo ID. Unidade da carteira, cidade do cliente e unidade do cadastro financeiro representam conceitos distintos; coincidência de CNPJ entre unidades não autoriza escolher uma delas ou reatribuir carteira automaticamente.
 - A rotina `monetizacao_refresh_ops` atualiza segmento, regime e contatos, mas não reconcilia a unidade e sua evidência histórica. A correção precisa atingir a fonte e o refresh, preservando decisão, responsável e procedência, para não recolocar uma divergência já resolvida.
 - A revisão encontrou funções de cadastro Pipefy implantadas sem webhooks visíveis nas tabelas auditadas, rotinas atrasadas e falha de parsing de data em Auditoria Interna. A carga Omie necessita revisão da cobertura por conta e da flag `is_planning` (paginação, normalização e status do contrato). Os resultados individuais e consultas ficam no artefato privado da auditoria. Esta entrada registra diagnóstico e escopo proposto; nenhuma automação ou carteira foi alterada nesta revisão.
-
 
 ## [2026-09-17] Clientes único, espelho Pipefy e preservação no primeiro cruzamento
 
@@ -3008,6 +3002,33 @@ fora da lista de domínios.
 **Não publicado.** Pendências no relatório: crédito e avaliação, revogação das chaves, chave e tetos na Vercel, "contrato ok", área para o CEO.
 
 **Adendo 25/09:** o Jev da conversa fica **desligado** até o Pedro resolver os créditos do OpenRouter (pedido dele). Liga com `COCKPIT_IA_JEV=1`; desligado, a pergunta segue como "Jev indisponível", com o modelo recebendo todas as consultas (caminho já testado).
+
+## [2026-09-24] Fila Cella aposentada; Monetização migra para o DS v2 pelas propostas dos contratos
+
+**Contexto:** na migração das telas para o Design System v2 (módulo 1, Monetização), a medição de 23/09 mostrou que a Fila Cella nunca operou em produção: `ops.v_fila_cella`, `ops.fila_cella_toques` e `ops.fila_cella_ciclos` com 0 linhas desde sempre (o sync da fase F1 nunca rodou). Os contratos das dez telas do módulo foram escritos em `docs/design/contratos/` e levados ao Pedro.
+
+**Decisão:**
+1. **A Fila Cella sai** ("ela tá obsoleta", Pedro, 24/09). O item sai do menu de Monetização (`areas.ts`, uma linha); a rota `/fila-cella` continua viva e explica a saída, com botão para o Follow Day (N14: rota aposentada explica, não some). Os componentes, hooks e server functions da tela saem do repositório. **Banco não muda:** tabelas, view, migrations e as chaves `view/manage.fila_cella*` ficam (a matriz de permissões e `cockpit-ceo/portas.ts` ainda citam a chave; remover é outra decisão). O trabalho por negócio fica no Follow Day; a pendência 5.2 do `PRODUCT.md` perde uma das três casas.
+2. **As propostas dos contratos valem como aprovadas** ("pode seguir conforme suas propostas; depois eu mudo"): perguntas das telas; zeros Z0–Z5 (responsável Matheus mantido como padrão, mas na URL e escrito no cabeçalho; carga parada, negócio sem histórico e receita parcial viram `parcial`; "Disponíveis agora" sem base e Capacidade sem plano viram "não apurado"); F1 (a faixa de abas dentro de `/monetizacao` sai, a lateral é o único menu); F5 (Follow Day em ordem de trabalho com botão "Abrir no Pipedrive"); nome único "Leads trabalhados" para o evento `started`; conflitos 5.7 e 5.8 migrados sem fusão, com o perímetro declarado na `descricao`.
+3. **Growth fica fora desta rodada.** O Pedro notou que o Growth parece segregado (outro menu, outra casca): é outro app (`brain-web`, Next.js, do Mika) montado em `/growth`. A casca única é decisão do Eliezek com o Mika (DECISIONS 14/09).
+
+**Status:** Fila Cella aposentada no código da branch `feat/ds-v2-migracao-monetizacao-20260923` (não publicada). Migração das nove visões em andamento; PR ao fim do módulo.
+
+## [2026-09-24] Base de clientes no DS v2: filtros na URL, busca única, cartões que batem com o destino
+
+**Contexto:** módulo 3b da migração (contrato docs/design/contratos/clientes.md, propostas aprovadas pelo Pedro em 24/09). Regras de oferta, disponibilidade, limite de 300, reserva, envio e RLS não mudam.
+
+**Decisões:**
+1. **Estado na URL** (components/clientes/busca.ts). Chaves antigas (view, status, unidade, q, origem, gate) continuam aceitas. Novas: produto, situacao (ausente = situação padrão do produto; "todas" = todas), abordagem, faixa, driva, segmento, regime, receita, contato, sobreposicao, pagina (Validar origem e Contratos; volta a 1 ao trocar de visão ou de filtro), churn, erp, segmentoContrato (chave própria, porque segmento da Base é outra régua), assinatura. Valor igual ao padrão não vai para a URL.
+2. **Unidade e origem continuam de múltipla escolha** (18/09): MultiSelect no topo, lista na URL; link antigo com valor único vira lista de um. Contratos e churn filtra uma unidade por vez e grava o nome; com mais de uma, ou sem a carga da Base, abre sem unidade e diz por quê.
+3. **A origem do topo passa a usar origemBase (4 valores)**, a mesma régua da tabela. Antes lia base.origin (3 valores) e "A confirmar" nunca casava conta sem base: o mesmo link ?origem=confirmar passa a trazer mais contas.
+4. **Busca única (q) para todas as visões**, inclusive Contratos. Em Contratos a busca é mais estreita: só razão social, título e CNPJ, sem segmento nem unidade, e dígitos soltos não casam com CNPJ formatado. O texto acompanha a troca de visão; se já houver texto em q ao abrir Contratos, a busca no Omie dispara; o selo "Validar origem (N)" conta sobre ele.
+5. **Cartões e números que filtram abrem o destino com o mesmo objeto de filtro**, e o total bate (N2). Não abrem, de propósito: "carteira retroativa (base inteira)" (nenhuma situação da tabela é esse conjunto) e as duas linhas de disponibilidade da matriz em "Entenda os números" (incluem os só no Omie).
+6. **"Enviar ao Pipedrive (N)" mostra o N do modal**, inclusive os só no Omie; o modal diz quantos são. Com produto escolhido e nenhuma selecionada enviável, o botão fica desabilitado com o motivo (antes abria o modal vazio).
+7. **Contratos e churn:** "Clientes sem churn" (sem card na Central de Tratativas) × "Pagou nos últimos 90 dias" (status_financeiro=ATIVO); 100 por página; falha na leitura de unidades ou de tratativas vira EstadoErro (antes lista vazia ou churn zerado com cara de dado).
+8. **Um "Atualizar" só (o do Freshness):** com escopo geral dispara a carga; sem ele relê e diz por quê. O selo de Validar origem conta depois do refinamento, como o cabeçalho. A fila ordena por correção no Pipefy, motivo, unidade e nome.
+
+**Status:** branch feat/ds-v2-migracao-monetizacao-20260923 (commits d6dba22..dc3cd17), não publicada.
 
 ## [2026-09-25] Cockpit do CEO (leitura de dez segundos + Perguntar ao Brain) publicado; a main volta a ser igual à produção (adendo à entrada de 24/09)
 

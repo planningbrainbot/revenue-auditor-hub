@@ -2,11 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Download, RefreshCw, Search, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Search, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +25,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
+import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import {
   contatosBase,
   estadoSincronizacaoBase,
@@ -30,11 +39,37 @@ import {
   situacaoForaDeOferta,
 } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS, type Conta } from "@/lib/monetizacao/types";
-import { downloadCsv, inputClass, LoadingState, number } from "@/components/monetizacao/common";
+import {
+  BotaoComMotivo,
+  downloadCsv,
+  FOCO_VISIVEL,
+  Freshness,
+  inputClass,
+  number,
+  podeEscrever,
+} from "@/components/monetizacao/common";
 import { AccountDetail } from "@/components/monetizacao/account-detail";
 import { Aquario, type SecaoAquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
-import { PageHeader } from "@/components/planning";
+import {
+  BarraFiltros,
+  Carregando,
+  ChipFiltro,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+} from "@/components/planning";
+import {
+  ORIGENS_BASE,
+  origemBase,
+  type OrigemBase,
+  type PortfolioFilters,
+} from "@/lib/monetizacao/portfolio";
+import { MultiSelect } from "@/components/monetizacao/multi-select";
+import { buscaDosFiltros, filtrosDaBusca, type BuscaClientes } from "./busca";
 
 // UM menu só. Antes eram duas faixas empilhadas: estas seis abas mais as cinco do Aquário por
 // dentro. As do Aquário subiram para cá ("Base de clientes", "Produtos e listas", "Entenda os
@@ -50,6 +85,36 @@ const views = [
   ["contratos", "Contratos e churn"],
   ["gates", "Entenda os números"],
 ];
+// Título (o item do menu interno) e pergunta (N1) de cada visão: contrato `clientes.md`.
+const VISOES: Record<string, { titulo: string; pergunta: string }> = {
+  monetizacao: {
+    titulo: "Base de clientes",
+    pergunta:
+      "Quais contas desta unidade atendem ao recorte, e quais estão prontas para trabalhar?",
+  },
+  produtos: {
+    titulo: "Produtos e listas",
+    pergunta: "Quantas contas cada produto pode trabalhar agora, e em que lista elas estão?",
+  },
+  pendencias: {
+    titulo: "Validar origem",
+    pergunta: "Quais contas ainda precisam ter a origem confirmada?",
+  },
+  contratos: {
+    titulo: "Contratos e churn",
+    pergunta: "Quais clientes estão ativos, e quais deram churn?",
+  },
+  gates: { titulo: "Entenda os números", pergunta: "De onde vem cada número da base?" },
+  contatos: {
+    titulo: "Contatos",
+    pergunta: "Quem são as pessoas das empresas deste recorte?",
+  },
+};
+// A mensagem do servidor quando falta view.aquario, view.clientes e view.monetizacao ao mesmo
+// tempo (`carregarMonetizacao`): vira EstadoSemAcesso, não erro.
+const ACESSO_NEGADO = /^Seu acesso não inclui/;
+const MOTIVO_ATUALIZAR_SEM_ESCOPO = "Relê a tela; disparar a carga do CRM exige escopo geral";
+const FONTE_BASE = "Catálogo da Base (Pipefy + Omie, conciliados)";
 // As três views que o Aquário atende, e a seção que cada uma pede.
 const SECOES_AQUARIO: Record<string, SecaoAquario> = {
   monetizacao: "base",
@@ -64,20 +129,30 @@ const VIEW_DA_SECAO: Record<SecaoAquario, string> = {
 // Fora da faixa, mas endereçável: o link no rodapé do funil leva aqui. Sem isso a view cairia
 // no fallback e os contatos ficariam inalcançáveis.
 const viewsOcultas = ["contatos"];
-const originNames: Record<string, string> = {
-  nova: "Base nova",
-  antiga: "Base antiga",
-  confirmar: "A confirmar",
-};
+// Degraus do funil de refinamento: `gate` da URL, rótulo e chave em `counts`. "Com CNPJ" (não
+// "válido"): o degrau só testa se há CNPJ.
+const FUNIL = [
+  ["", "Bruta"],
+  ["cnpj", "Com CNPJ"],
+  ["contato", "Com contato"],
+  ["ecd", "Com ECD registrada"],
+] as const;
+const precisaValidar = (a: Conta) =>
+  !!(a.base?.needs_validation || a.base?.needs_source_correction);
+// Motivo de trabalho da linha: o que o catálogo diz (origin_reason) ou, sem ele, o passo.
+const motivoDe = (a: Conta) =>
+  a.base?.origin_reason ||
+  (a.base?.needs_source_correction ? "Corrigir origem no Pipefy" : "Validar origem com a unidade");
 const at = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
     : "Sem leitura confirmada";
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
 export function ClientesBase() {
   const query = useMonetizacao(),
     invalidate = useAtualizarMonetizacao(),
+    sync = useServerFn(acionarMonetizacao),
     perms = usePermissions();
+  const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
   const search = useSearch({ from: "/_authenticated/clientes" }),
     navigate = useNavigate({ from: "/clientes" });
@@ -85,12 +160,13 @@ export function ClientesBase() {
     views.some(([v]) => v === search.view) || viewsOcultas.includes(search.view)
       ? search.view
       : "monetizacao";
-  const change = (patch: Record<string, string>) => {
-    setPage(1);
-    void navigate({ search: { ...search, ...patch }, replace: true });
+  // Toda mudança de visão ou de filtro volta à primeira página; a página só muda pelo rodapé.
+  const change = (patch: Partial<BuscaClientes>) => {
+    void navigate({ search: { ...search, pagina: undefined, ...patch }, replace: true });
   };
-  const [page, setPage] = useState(1),
-    [detail, setDetail] = useState<Conta | null>(null),
+  const page = search.pagina ?? 1,
+    setPage = (p: number) => change({ pagina: p > 1 ? p : undefined });
+  const [detail, setDetail] = useState<Conta | null>(null),
     [validation, setValidation] = useState<Conta | null>(null);
   const healthFn = useServerFn(estadoSincronizacaoBase),
     contactsFn = useServerFn(contatosBase);
@@ -107,21 +183,31 @@ export function ClientesBase() {
     enabled: view === "contatos" && perms.can("view.contatos"),
     staleTime: 30000,
   });
-  const rows = useMemo(() => {
+  // Unidades do topo resolvidas (a URL aceita chave ou nome; múltipla escolha, DECISIONS 18/09).
+  const unidadesUrl = search.unidade ?? [];
+  const origensUrl = search.origem ?? [];
+  const unidadesSelecionadas = useMemo(
+    () =>
+      unidadesUrl.length && query.data
+        ? query.data.units.filter((u) =>
+            unidadesUrl.some((v) => u.key === v || normal(u.name) === normal(v)),
+          )
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [query.data, JSON.stringify(unidadesUrl)],
+  );
+  // O recorte do topo sem a origem: os cartões de origem da gaveta da unidade contam sobre ele,
+  // para nunca mostrar 0 numa origem que o próprio clique vai aplicar (e abrir N).
+  const rowsSemOrigem = useMemo(() => {
     const data = query.data;
     if (!data) return [];
-    const selectedUnit = search.unidade
-      ? data.units.find(
-          (u) => u.key === search.unidade || normal(u.name) === normal(search.unidade),
-        )
-      : null;
-    const unitKeys = new Set(selectedUnit?.account_keys);
+    const unitKeys = new Set(unidadesSelecionadas.flatMap((u) => u.account_keys));
     return data.accounts.filter((a) => {
-      if (search.unidade && !unitKeys.has(a.key)) return false;
-      if (search.origem && a.base?.origin !== search.origem) return false;
+      if (unidadesUrl.length && !unitKeys.has(a.key)) return false;
+      // A busca é uma só (a da tabela saiu): nome, segmento, unidade e CNPJ.
       if (
         search.q &&
-        !normal([a.name, a.unit_label, ...(a.base?.cnpjs || [])].join(" ")).includes(
+        !normal([a.name, a.segment, a.unit_label, ...(a.base?.cnpjs || [])].join(" ")).includes(
           normal(search.q),
         ) &&
         !(
@@ -132,7 +218,18 @@ export function ClientesBase() {
         return false;
       return true;
     });
-  }, [query.data, search.unidade, search.origem, search.q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.data, unidadesSelecionadas, search.q]);
+  // Origem pela régua da tabela (`origemBase`, 4 valores). A antiga lia `base.origin`, com 3
+  // valores e outro sentido: "A confirmar" do topo nunca casava conta sem `base`.
+  const rows = useMemo(
+    () =>
+      origensUrl.length
+        ? rowsSemOrigem.filter((a) => origensUrl.includes(origemBase(a)))
+        : rowsSemOrigem,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowsSemOrigem, JSON.stringify(origensUrl)],
+  );
   const counts = useMemo(
     () => ({
       raw: rows.length,
@@ -146,12 +243,163 @@ export function ClientesBase() {
     () => rows.filter((a) => passaRefinamento(a, search.gate as Refinamento)),
     [rows, search.gate],
   );
-  const visible =
-    view === "pendencias"
-      ? filtered.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
-      : filtered;
+  // Validar origem é Fila (N5): a ordem padrão é a de trabalho, por motivo e depois por unidade
+  // (antes era a do catálogo). Correção no Pipefy primeiro: ela já tem a evidência e só espera o
+  // espelho; depois as que pedem conversa com a unidade.
+  const visible = useMemo(
+    () =>
+      view === "pendencias"
+        ? filtered
+            .filter(precisaValidar)
+            .sort(
+              (a, b) =>
+                Number(!a.base?.needs_source_correction) -
+                  Number(!b.base?.needs_source_correction) ||
+                motivoDe(a).localeCompare(motivoDe(b), "pt-BR") ||
+                (a.unit_label || "\uffff").localeCompare(b.unit_label || "\uffff", "pt-BR") ||
+                a.name.localeCompare(b.name, "pt-BR"),
+            )
+        : filtered,
+    [filtered, view],
+  );
   const accountKeys = useMemo(() => new Set(filtered.map((a) => a.key)), [filtered]);
-  if (!query.data) return <LoadingState error={query.error} retry={() => query.refetch()} />;
+  const accountKeysSemOrigem = useMemo(
+    () =>
+      new Set(
+        rowsSemOrigem
+          .filter((a) => passaRefinamento(a, search.gate as Refinamento))
+          .map((a) => a.key),
+      ),
+    [rowsSemOrigem, search.gate],
+  );
+  // Filtros da tabela da Base, lidos da URL. A assinatura segura a identidade do objeto: a
+  // tabela recalcula a carteira inteira quando ele muda.
+  const unidadeKeys = unidadesSelecionadas.map((u) => u.key);
+  const assinaturaFiltros = JSON.stringify([
+    unidadeKeys,
+    search.origem,
+    search.produto,
+    search.situacao,
+    search.abordagem,
+    search.faixa,
+    search.driva,
+    search.segmento,
+    search.regime,
+    search.receita,
+    search.contato,
+    search.sobreposicao,
+  ]);
+  const filtros = useMemo(
+    () => filtrosDaBusca(search, unidadeKeys),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [assinaturaFiltros],
+  );
+  const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario) => {
+    void navigate({
+      search: {
+        ...search,
+        pagina: undefined,
+        ...buscaDosFiltros(f),
+        ...(destino ? { view: VIEW_DA_SECAO[destino] } : {}),
+      },
+      replace: true,
+    });
+  };
+  const meta = VISOES[view] ?? VISOES.monetizacao;
+  // O selo da aba conta a mesma base do cabeçalho da visão: depois do recorte do topo e do
+  // refinamento (antes contava antes do refinamento, e os dois números não batiam).
+  const pendentes = filtered.filter(precisaValidar).length;
+  const nav = (
+    <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
+      {views.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          aria-current={view === key ? "page" : undefined}
+          onClick={() => change({ view: key })}
+          className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${FOCO_VISIVEL} ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          {label}
+          {key === "pendencias" && query.data && (
+            <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
+              {pendentes}
+            </span>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+  // A visão Contratos e churn lê as próprias fontes (empresas, Central de Tratativas): não espera
+  // a carga da Monetização, e uma falha dela não tranca esta visão.
+  if (view === "contratos") {
+    // Contratos filtra UMA unidade, por nome. A chave da URL só vira nome quando a carga chega;
+    // antes disso (ou se ela falhar) ContratosClientes usa o valor cru da URL quando ele já é o
+    // nome de uma unidade regional, e a unidade resolvida entra quando a carga chega.
+    const falhou = !!query.error && !query.data;
+    const nomes = query.data
+      ? unidadesUrl.map(
+          (v) =>
+            query.data!.units.find((u) => u.key === v || normal(u.name) === normal(v))?.name ?? v,
+        )
+      : [];
+    const aviso = !unidadesUrl.length
+      ? null
+      : falhou
+        ? "A carga da Base falhou: a unidade da URL só é aplicada se for o nome de uma unidade regional."
+        : nomes.length > 1
+          ? "Contratos e churn filtra uma unidade por vez: a lista abre sem filtro de unidade."
+          : null;
+    return (
+      <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
+        <PageHeader
+          titulo={meta.titulo}
+          pergunta={meta.pergunta}
+          descricao="Empresas de unidades regionais na base de empresas · MRR pela cascata Omie > Pipefy > Pipedrive · churn pela Central de Tratativas"
+          // Defeito de dado registrado no contrato (não corrigido aqui): a leitura da Central de
+          // Tratativas corta em 1.000 cards, e a contagem de churn pode estar baixa.
+          procedencia={{
+            fonte: "empresas, contratos e Central de Tratativas, lidos ao abrir",
+            regua: "churn lido em até 1.000 cards",
+          }}
+        />
+        {nav}
+        {aviso && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {aviso}
+          </p>
+        )}
+        <ContratosClientes
+          // A Base guarda a CHAVE da unidade na URL (`monetizacao_unidades.key`), e a de
+          // contratos filtra por nome (`empresas.unidade`). Sem traduzir aqui, trocar de visão
+          // com uma unidade filtrada zerava a lista inteira.
+          unidadeParam={nomes.length === 1 ? nomes[0] : ""}
+          unidadesUrl={unidadesUrl}
+        />
+      </main>
+    );
+  }
+  if (!query.data) {
+    const erro = query.error;
+    return (
+      <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
+        <PageHeader titulo={meta.titulo} pergunta={meta.pergunta} />
+        {nav}
+        {!erro ? (
+          <>
+            <Carregando variante="kpis" />
+            <Carregando variante="tabela" />
+          </>
+        ) : ACESSO_NEGADO.test(erro.message) ? (
+          <EstadoSemAcesso oQueFalta="view.aquario, view.clientes ou view.monetizacao" />
+        ) : (
+          <EstadoErro
+            detalhe={`Fonte: carga da Base de clientes. ${erro.message}`}
+            tentarNovamente={() => void query.refetch()}
+          />
+        )}
+      </main>
+    );
+  }
   const data = query.data,
     units = data.units.filter((u) => u.account_keys.length),
     pages = Math.max(1, Math.ceil(visible.length / 50)),
@@ -164,7 +412,7 @@ export function ClientesBase() {
       Empresa: a.name,
       CNPJ: a.base?.cnpjs.join(" / ") || "",
       Unidade: a.unit_label || "A confirmar",
-      Origem: originNames[a.base?.origin || "confirmar"],
+      Origem: ORIGENS_BASE[origemBase(a)],
       Motivo: a.base?.origin_reason || "",
       Origem_no_Pipefy: a.base?.declared_origin.join(" / ") || "",
       Omie: a.base?.omie_units.join(" / ") || "",
@@ -192,405 +440,446 @@ export function ClientesBase() {
       ...records.map((r) => Object.values(r)),
     ]);
   };
+  // Um "Atualizar" só (o do Freshness): com escopo geral dispara a carga do CRM; sem ele, relê a
+  // tela e o botão diz por quê. Antes havia dois, com efeitos diferentes.
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const disparou = podeEscrever(data);
+      if (disparou) await sync({ data: { action: "sync" } });
+      await invalidate();
+      void health.refetch();
+      if (view === "contatos") void contacts.refetch();
+      toast.success(disparou ? "Carga pedida" : "Tela relida");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  const perimetro = unidadesSelecionadas.length
+    ? unidadesSelecionadas.map((u) => u.name).join(", ")
+    : "todas as unidades liberadas";
+  const temFiltroTopo = !!(search.q || unidadesUrl.length || origensUrl.length || search.gate);
+  const descricao =
+    view === "produtos"
+      ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · Consultoria, Cella, Finance e Recon, cada um pela própria régua · a mesma conta pode estar em mais de um produto`
+      : view === "pendencias"
+        ? `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`
+        : view === "gates"
+          ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · os recortes se sobrepõem e não somam`
+          : view === "contatos"
+            ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
+            : `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · catálogo Pipefy + Omie · uma conta pode reunir CNPJs vinculados`;
   return (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
       <PageHeader
-        titulo="Base de clientes"
-        descricao="Uma base · empresas, contatos, negócios e oportunidades"
+        titulo={meta.titulo}
+        pergunta={meta.pergunta}
+        descricao={descricao}
+        procedencia={{ fonte: FONTE_BASE, atualizadoEm: data.catalog_at }}
         acoes={
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={query.isFetching}
-            onClick={() => {
-              void invalidate();
-              void health.refetch();
-              void contacts.refetch();
-            }}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Atualizar
-          </Button>
+          <Freshness
+            data={data}
+            refreshing={refreshing}
+            onRefresh={refresh}
+            motivoAtualizar={podeEscrever(data) ? null : MOTIVO_ATUALIZAR_SEM_ESCOPO}
+          />
         }
       />
-      <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
-        {views.map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => change({ view: key })}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {label}
-            {key === "pendencias" && (
-              <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
-                {
-                  rows.filter((a) => a.base?.needs_validation || a.base?.needs_source_correction)
-                    .length
-                }
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-      {view === "contratos" ? (
-        <ContratosClientes
-          statusParam={search.status}
-          // A aba Empresas guarda a CHAVE da unidade na URL (`monetizacao_unidades.key`),
-          // e a de contratos filtra por nome (`empresas.unidade`). Sem traduzir aqui,
-          // trocar de aba com uma unidade filtrada zerava a lista inteira.
-          unidadeParam={data.units.find((u) => u.key === search.unidade)?.name ?? search.unidade}
-        />
-      ) : (
-        <>
-          <section
-            className="grid gap-3 rounded-xl border bg-card p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
-            aria-label="Filtros da base"
-          >
-            <label className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                aria-label="Buscar empresa ou CNPJ"
-                className="pl-9"
-                value={search.q}
-                placeholder="Buscar empresa ou CNPJ"
-                onChange={(e) => change({ q: e.target.value })}
-              />
-            </label>
-            <select
-              aria-label="Unidade"
-              className={inputClass}
-              value={search.unidade}
-              onChange={(e) => change({ unidade: e.target.value })}
-            >
-              <option value="">Todas as unidades liberadas</option>
-              {units.map((u) => (
-                <option key={u.key} value={u.key}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Origem da base"
-              className={inputClass}
-              value={search.origem}
-              onChange={(e) => change({ origem: e.target.value })}
-            >
-              <option value="">Todas as origens</option>
-              {Object.entries(originNames).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <Button
-              variant="ghost"
-              onClick={() => change({ q: "", unidade: "", origem: "", gate: "" })}
-            >
-              Limpar
-            </Button>
-          </section>
-          <section
-            aria-label="Funil de refinamento"
-            className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-          >
-            {[
-              ["", "Bruta", counts.raw],
-              ["cnpj", "Com CNPJ válido", counts.cnpj],
-              ["contato", "Com contato", counts.contato],
-              ["ecd", "Com ECD registrada", counts.ecd],
-            ].map(([gate, label, value], index) => (
-              <button
-                key={String(gate)}
-                onClick={() => change({ gate: String(gate) })}
-                className={`relative rounded-xl border p-4 text-left transition-colors ${search.gate === gate ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/40"}`}
-              >
-                <div className="text-xs font-medium text-muted-foreground">
-                  {index + 1} · {label}
-                </div>
-                <div className="mt-1 text-3xl font-semibold tabular-nums">
-                  {number(Number(value))}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {index === 0
-                    ? "Contas conciliadas, sem multiplicar por contato"
-                    : "Dentro do degrau anterior"}
-                </p>
-                {index < 3 && (
-                  <ArrowRight className="absolute right-3 top-5 h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-            ))}
-          </section>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>
-              Funil cumulativo. Contato e ECD medem completude; não bloqueiam Consultoria. Uma conta
-              pode reunir CNPJs vinculados.
-            </p>
-            <button className="underline" onClick={() => change({ view: "pendencias" })}>
-              {health.isError
-                ? "Sincronização indisponível"
-                : `${health.data?.pending_changes ?? 0} alterações na fila de envio ao Pipefy`}
-            </button>
-            {perms.can("view.contatos") && (
-              <button className="underline" onClick={() => change({ view: "contatos" })}>
-                Ver contatos vinculados
-              </button>
-            )}
-          </div>
-          {SECOES_AQUARIO[view] ? (
-            // Mesma posição no JSX para as tres seções: o Aquario NAO desmonta ao trocar de
-            // entrada do menu, entao filtro, seleção e rascunho de lista sobrevivem à navegação.
-            <Aquario
-              embedded
-              accountKeys={accountKeys}
-              secao={SECOES_AQUARIO[view]}
-              irPara={(s) => change({ view: VIEW_DA_SECAO[s] })}
+      {nav}
+      <>
+        <BarraFiltros>
+          {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
+              Base não tem controle próprio para elas. */}
+          <label className="relative min-w-56 flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              aria-label="Buscar empresa, segmento ou CNPJ"
+              className="pl-9"
+              value={search.q}
+              placeholder="Buscar empresa, segmento ou CNPJ"
+              onChange={(e) => change({ q: e.target.value })}
             />
-          ) : view === "contatos" ? (
-            <section className="overflow-hidden rounded-xl border bg-card">
-              <div className="border-b p-4 text-sm font-medium">
-                {contactsRows.length} pessoas vinculadas às empresas deste recorte
-              </div>
-              {!perms.can("view.contatos") ? (
-                <p className="p-4 text-sm">Seu acesso não inclui os dados dos contatos.</p>
-              ) : contacts.isPending ? (
-                <p className="p-4">Carregando contatos…</p>
-              ) : contacts.isError ? (
-                <p className="p-4 text-destructive">
-                  Não foi possível consultar os contatos. Atualize para tentar novamente.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-                      <tr>
-                        {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
-                          <th key={h} className="p-3">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contactsRows.map((c) => (
-                        <tr key={c.id} className="border-t">
-                          <td className="p-3">
-                            {c.name}
-                            <div className="text-xs text-muted-foreground">{c.role}</div>
-                          </td>
-                          <td className="p-3">{c.email || "—"}</td>
-                          <td className="p-3">{c.phone || "—"}</td>
-                          <td className="p-3">
-                            {c.accounts
-                              .filter((k) => accountKeys.has(k))
-                              .map((k) => (
-                                <button
-                                  key={k}
-                                  className="block text-left text-primary-text underline"
-                                  onClick={() =>
-                                    setDetail(data.accounts.find((a) => a.key === k) || null)
-                                  }
-                                >
-                                  {data.accounts.find((a) => a.key === k)?.name}
-                                </button>
-                              ))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+          </label>
+          {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
+          <div className="w-56">
+            <MultiSelect
+              label="Unidade"
+              placeholder="Todas as unidades liberadas"
+              value={unidadeKeys}
+              onChange={(v) => change({ unidade: v.length ? v : undefined })}
+              options={units.map((u) => ({ value: u.key, label: u.name }))}
+            />
+          </div>
+          <div className="w-56">
+            <MultiSelect
+              label="Origem da base"
+              placeholder="Todas as origens"
+              value={origensUrl}
+              onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
+              options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
+            />
+          </div>
+          {search.gate && (
+            <ChipFiltro
+              rotulo="Refinamento"
+              valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
+              aoRemover={() => change({ gate: "" })}
+            />
+          )}
+          {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
+          <BotaoComMotivo
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-muted-foreground"
+            disabled={!temFiltroTopo}
+            motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
+            onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
+          >
+            <X className="size-4" aria-hidden />
+            Limpar filtros
+          </BotaoComMotivo>
+        </BarraFiltros>
+        <KpiGrade colunas={4}>
+          {FUNIL.map(([gate, label], index) => {
+            const ativo = search.gate === gate;
+            return (
+              <KpiCard
+                key={gate}
+                rotulo={`${index + 1} · ${label}`}
+                valor={number(counts[gate || "raw"])}
+                nota={`${
+                  index === 0
+                    ? "Contas conciliadas, sem multiplicar por contato"
+                    : "Dentro do degrau anterior"
+                }${ativo && gate ? " · filtro aplicado" : ""}`}
+                abrir={{
+                  // Clicar de novo no degrau aplicado tira o filtro (volta à base bruta).
+                  rotulo: ativo && gate ? "Tirar o filtro" : "Filtrar",
+                  onClick: () => change({ gate: ativo ? "" : gate }),
+                }}
+                className={ativo ? "border-primary-text" : undefined}
+              />
+            );
+          })}
+        </KpiGrade>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <p>
+            Funil cumulativo. Contato e ECD medem completude; não bloqueiam Consultoria. Uma conta
+            pode reunir CNPJs vinculados.
+          </p>
+          {/* Texto, não link: nenhuma visão lista a fila de envio ao Pipefy, e um link com total
+              que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
+          <p>
+            {health.isError
+              ? "Sincronização com o Pipefy indisponível"
+              : health.isPending
+                ? "Fila de envio ao Pipefy · carregando…"
+                : `${number(health.data?.pending_changes ?? 0)} alterações na fila de envio ao Pipefy`}
+          </p>
+          {perms.can("view.contatos") && (
+            <button
+              type="button"
+              className={`underline ${FOCO_VISIVEL}`}
+              onClick={() => change({ view: "contatos" })}
+            >
+              Ver contatos vinculados
+            </button>
+          )}
+        </div>
+        {SECOES_AQUARIO[view] ? (
+          // Mesma posição no JSX para as tres seções: o Aquario NAO desmonta ao trocar de
+          // entrada do menu, entao filtro, seleção e rascunho de lista sobrevivem à navegação.
+          <Aquario
+            embedded
+            accountKeys={accountKeys}
+            secao={SECOES_AQUARIO[view]}
+            irPara={(s) => change({ view: VIEW_DA_SECAO[s] })}
+            accountKeysSemOrigem={accountKeysSemOrigem}
+            filtros={filtros}
+            mudarFiltros={mudarFiltros}
+            recorte={JSON.stringify([unidadeKeys, origensUrl, search.gate])}
+          />
+        ) : view === "contatos" ? (
+          // O número de pessoas só aparece com o dado: sem acesso ou carregando, "0 pessoas"
+          // parecia recorte vazio (N4).
+          !perms.can("view.contatos") ? (
+            <EstadoSemAcesso oQueFalta="view.contatos" />
+          ) : contacts.isPending ? (
+            <Carregando variante="tabela" />
+          ) : contacts.isError ? (
+            <EstadoErro
+              detalhe="Fonte: contatos vinculados no seu escopo."
+              tentarNovamente={() => void contacts.refetch()}
+            />
+          ) : // Zero pessoas no recorte é vazio de filtro: diz quantas existem no seu escopo (N4).
+          !contactsRows.length ? (
+            <EstadoVazio
+              titulo="Nenhuma pessoa vinculada às empresas deste recorte"
+              total={contacts.data?.length ? contacts.data.length : undefined}
+              descricao={
+                contacts.data?.length
+                  ? undefined
+                  : "Nenhum contato vinculado a empresas no seu escopo."
+              }
+            />
           ) : (
             <section className="overflow-hidden rounded-xl border bg-card">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-                <div>
-                  <h2 className="font-semibold">
-                    {view === "pendencias"
-                      ? "Validação da carteira por unidade"
-                      : "Empresas da base"}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {number(visible.length)} contas ·{" "}
-                    {view === "pendencias"
-                      ? "Confira a origem, registre a evidência e acompanhe a correção."
-                      : "Clique na empresa para abrir fontes, contatos e oportunidades."}
-                  </p>
-                </div>
-                <Button size="sm" variant="outline" onClick={exportRows}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar recorte
-                </Button>
+              <div className="border-b p-4 text-sm font-medium">
+                <span className="num">{number(contactsRows.length)}</span> pessoas vinculadas às
+                empresas deste recorte
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      {[
-                        "Empresa / CNPJ",
-                        "Unidade",
-                        "Origem",
-                        "Contato / ECD",
-                        "Situação",
-                        view === "pendencias" ? "Validação" : "Produtos",
-                      ].map((h) => (
-                        <th className="px-4 py-3" key={h}>
-                          {h}
-                        </th>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.slice((currentPage - 1) * 50, currentPage * 50).map((a) => (
-                      <tr className="border-t hover:bg-muted/20" key={a.key}>
-                        <td className="max-w-xs px-4 py-3">
-                          <button
-                            className="text-left font-medium hover:text-primary-text hover:underline"
-                            onClick={() => setDetail(a)}
-                          >
-                            {a.name}
-                          </button>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
-                          </p>
-                        </td>
-                        <td className="max-w-[180px] px-4 py-3">{a.unit_label || "A confirmar"}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant={a.base?.origin === "confirmar" ? "outline" : "secondary"}>
-                            {originNames[a.base?.origin || "confirmar"]}
-                          </Badge>
-                          {view === "pendencias" && (
-                            <p className="mt-2 max-w-xs text-xs text-muted-foreground">
-                              {a.base?.origin_reason}
-                            </p>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-xs">
-                          <div>{a.contact ? "Com contato" : "Sem contato"}</div>
-                          <div className="mt-1 text-muted-foreground">
-                            {a.base?.ecd.length
-                              ? `ECD: ${[...new Set(a.base.ecd.map((e) => e.year))].join(", ")}`
-                              : "ECD não vinculada"}
-                          </div>
-                        </td>
-                        <td className="max-w-[190px] px-4 py-3 text-xs">
-                          {a.base?.needs_source_correction ? (
-                            <span className="text-warning">Origem a corrigir no Pipefy</span>
-                          ) : a.base?.source_status === "ok" ? (
-                            <span className="inline-flex items-center gap-1 text-success">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Pipefy conferido
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-warning">
-                              <AlertCircle className="h-3 w-3" />
-                              {a.base?.source_status === "absent"
-                                ? "Ausente no Pipefy"
-                                : a.base?.source_status === "not_linked"
-                                  ? "Sem vínculo Pipefy"
-                                  : a.base?.synced_at
-                                    ? "Cadastro com divergências"
-                                    : "Leitura pendente"}
-                            </span>
-                          )}
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {a.base?.synced_at
-                              ? at(a.base.synced_at)
-                              : `${a.base?.omie_records || 0} registros Omie`}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          {view === "pendencias" ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!data.permissions.manage}
-                              onClick={() => setValidation(a)}
-                            >
-                              Validar origem
-                            </Button>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").map(
-                                (p) => (
-                                  <Badge key={p} variant="outline">
-                                    {NOMES[p]}
-                                  </Badge>
-                                ),
-                              )}
-                              {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") &&
-                                (situacaoForaDeOferta(a) ? (
-                                  // Empresa fechada não é falta de dado: dizer "a qualificar" manda
-                                  // o operador atrás de informação de um CNPJ que não existe mais.
-                                  <span
-                                    className="text-xs font-medium text-muted-foreground"
-                                    title={a.situacao_receita_fonte ?? undefined}
-                                  >
-                                    Fora das ofertas · {rotuloSituacaoReceita(a)}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">
-                                    A qualificar
-                                  </span>
-                                ))}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contactsRows.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          {c.name}
+                          <div className="text-xs text-muted-foreground">{c.role}</div>
+                        </TableCell>
+                        <TableCell>{c.email || "—"}</TableCell>
+                        <TableCell>{c.phone || "—"}</TableCell>
+                        <TableCell>
+                          {c.accounts
+                            .filter((k) => accountKeys.has(k))
+                            .map((k) => (
+                              <button
+                                key={k}
+                                type="button"
+                                className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
+                                onClick={() =>
+                                  setDetail(data.accounts.find((a) => a.key === k) || null)
+                                }
+                              >
+                                {data.accounts.find((a) => a.key === k)?.name}
+                              </button>
+                            ))}
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-                {!visible.length && (
-                  <p className="p-8 text-center text-sm text-muted-foreground">
-                    Nenhuma empresa neste recorte. Limpe os filtros para revisar a base.
-                  </p>
-                )}
+                  </TableBody>
+                </Table>
               </div>
-              <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
-                <span>
-                  Página {currentPage} de {pages} · 50 por página
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 1}
-                    onClick={() => setPage(currentPage - 1)}
-                  >
-                    Anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === pages}
-                    onClick={() => setPage(currentPage + 1)}
-                  >
-                    Próxima
-                  </Button>
-                </div>
-              </footer>
             </section>
-          )}
-          <details className="rounded-lg border bg-card px-4 py-3 text-xs">
-            <summary className="cursor-pointer font-medium">Atualização das fontes</summary>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {(health.data?.sources || []).map((s: any) => (
-                <div key={s.fonte} className="rounded border p-3">
-                  <strong>{s.fonte}</strong>
-                  <p className="mt-1">
-                    {s.status} · {at(s.fim || s.inicio)} · {s.gravados}/{s.recebidos} registros
-                  </p>
-                  {s.erro && <p className="mt-1 text-destructive">{s.erro}</p>}
-                </div>
-              ))}
-              {!health.data?.sources?.length && (
-                <p>Ainda não há reconciliação concluída registrada.</p>
+          )
+        ) : (
+          <section className="overflow-hidden rounded-xl border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
+              <div>
+                <h2 className="font-semibold">
+                  {view === "pendencias" ? "Validação da carteira por unidade" : "Empresas da base"}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {number(visible.length)} contas ·{" "}
+                  {view === "pendencias"
+                    ? "Confira a origem, registre a evidência e acompanhe a correção."
+                    : "Clique na empresa para abrir fontes, contatos e oportunidades."}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={exportRows}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar recorte
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    {[
+                      "Empresa / CNPJ",
+                      "Unidade",
+                      "Origem",
+                      "Contato / ECD",
+                      "Situação",
+                      view === "pendencias" ? "Validação" : "Produtos",
+                    ].map((h) => (
+                      <th className="px-4 py-3" key={h}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.slice((currentPage - 1) * 50, currentPage * 50).map((a) => (
+                    <tr className="border-t hover:bg-muted/20" key={a.key}>
+                      <td className="max-w-xs px-4 py-3">
+                        <button
+                          type="button"
+                          className={`text-left font-medium hover:text-primary-text hover:underline ${FOCO_VISIVEL}`}
+                          onClick={() => setDetail(a)}
+                        >
+                          {a.name}
+                        </button>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
+                        </p>
+                      </td>
+                      <td className="max-w-[180px] px-4 py-3">{a.unit_label || "A confirmar"}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={origemBase(a) === "confirmar" ? "outline" : "secondary"}>
+                          {ORIGENS_BASE[origemBase(a)]}
+                        </Badge>
+                        {view === "pendencias" && (
+                          <p className="mt-2 max-w-xs text-xs text-muted-foreground">
+                            {a.base?.origin_reason}
+                          </p>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">
+                        <div>{a.contact ? "Com contato" : "Sem contato"}</div>
+                        <div className="mt-1 text-muted-foreground">
+                          {a.base?.ecd.length
+                            ? `ECD: ${[...new Set(a.base.ecd.map((e) => e.year))].join(", ")}`
+                            : "ECD não vinculada"}
+                        </div>
+                      </td>
+                      <td className="max-w-[190px] px-4 py-3 text-xs">
+                        {a.base?.needs_source_correction ? (
+                          <span className="text-warning">Origem a corrigir no Pipefy</span>
+                        ) : a.base?.source_status === "ok" ? (
+                          <span className="inline-flex items-center gap-1 text-success">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Pipefy conferido
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-warning">
+                            <AlertCircle className="h-3 w-3" />
+                            {a.base?.source_status === "absent"
+                              ? "Ausente no Pipefy"
+                              : a.base?.source_status === "not_linked"
+                                ? "Sem vínculo Pipefy"
+                                : a.base?.synced_at
+                                  ? "Cadastro com divergências"
+                                  : "Leitura pendente"}
+                          </span>
+                        )}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {a.base?.synced_at
+                            ? at(a.base.synced_at)
+                            : `${a.base?.omie_records || 0} registros Omie`}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {view === "pendencias" ? (
+                          // Desabilitado diz o motivo (N8), em vez de um botão cinza mudo.
+                          <BotaoComMotivo
+                            size="sm"
+                            variant="outline"
+                            disabled={!data.permissions.manage}
+                            motivo={data.permissions.manage ? null : "Exige manage.aquario"}
+                            onClick={() => setValidation(a)}
+                          >
+                            Validar origem
+                          </BotaoComMotivo>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").map((p) => (
+                              <Badge key={p} variant="outline">
+                                {NOMES[p]}
+                              </Badge>
+                            ))}
+                            {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") &&
+                              (situacaoForaDeOferta(a) ? (
+                                // Empresa fechada não é falta de dado: dizer "a qualificar" manda
+                                // o operador atrás de informação de um CNPJ que não existe mais.
+                                <span
+                                  className="text-xs font-medium text-muted-foreground"
+                                  title={a.situacao_receita_fonte ?? undefined}
+                                >
+                                  Fora das ofertas · {rotuloSituacaoReceita(a)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">A qualificar</span>
+                              ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!visible.length && (
+                // Vazio com total (N4): sem filtro é a fila zerada; com filtro, diz quantas
+                // pendências existem fora dele.
+                <EstadoVazio
+                  className="m-4"
+                  titulo={
+                    view === "pendencias"
+                      ? temFiltroTopo
+                        ? "Nenhuma conta a validar neste recorte"
+                        : "Nenhuma conta com origem a validar"
+                      : "Nenhuma empresa neste recorte"
+                  }
+                  total={
+                    temFiltroTopo
+                      ? view === "pendencias"
+                        ? data.accounts.filter(precisaValidar).length
+                        : data.accounts.length
+                      : undefined
+                  }
+                  descricao={
+                    view === "pendencias" && !temFiltroTopo
+                      ? "Toda conta do seu escopo tem a origem confirmada ou já está com a correção na fila do Pipefy."
+                      : undefined
+                  }
+                />
               )}
             </div>
-          </details>
-        </>
-      )}
+            <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
+              <span>
+                Página {currentPage} de {pages} · 50 por página · {number(visible.length)} contas
+              </span>
+              <div className="flex gap-2">
+                <BotaoComMotivo
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  motivo={currentPage === 1 ? "Já é a primeira página" : null}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  Anterior
+                </BotaoComMotivo>
+                <BotaoComMotivo
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === pages}
+                  motivo={currentPage === pages ? "Já é a última página" : null}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Próxima
+                </BotaoComMotivo>
+              </div>
+            </footer>
+          </section>
+        )}
+        <details className="rounded-lg border bg-card px-4 py-3 text-xs">
+          <summary className="cursor-pointer font-medium">Atualização das fontes</summary>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {(health.data?.sources || []).map((s: any) => (
+              <div key={s.fonte} className="rounded border p-3">
+                <strong>{s.fonte}</strong>
+                <p className="mt-1">
+                  {s.status} · {at(s.fim || s.inicio)} · {s.gravados}/{s.recebidos} registros
+                </p>
+                {s.erro && <p className="mt-1 text-destructive">{s.erro}</p>}
+              </div>
+            ))}
+            {!health.data?.sources?.length && (
+              <p>Ainda não há reconciliação concluída registrada.</p>
+            )}
+          </div>
+        </details>
+      </>
       <AccountDetail account={detail} cards={data.cards} close={() => setDetail(null)} />
       <ValidarOrigem
         account={validation}
@@ -604,6 +893,9 @@ export function ClientesBase() {
     </main>
   );
 }
+// Os mínimos que o botão já exigia, agora ditos no diálogo (a régua não muda).
+const MIN_RESPONSAVEL = 3;
+const MIN_EVIDENCIA = 10;
 function ValidarOrigem({
   account,
   close,
@@ -670,7 +962,11 @@ function ValidarOrigem({
             value={responsible}
             onChange={(e) => setResponsible(e.target.value)}
             placeholder="Quem confirmou a origem"
+            aria-describedby="validar-min-responsavel"
           />
+          <span id="validar-min-responsavel" className="block text-muted-foreground">
+            Mínimo de {MIN_RESPONSAVEL} letras
+          </span>
         </label>
         <label className="space-y-1 text-xs">
           Evidência da confirmação
@@ -679,20 +975,36 @@ function ValidarOrigem({
             value={evidence}
             onChange={(e) => setEvidence(e.target.value)}
             placeholder="Como e quando a unidade confirmou esta carteira"
+            aria-describedby="validar-min-evidencia"
           />
+          <span id="validar-min-evidencia" className="block text-muted-foreground">
+            Mínimo de {MIN_EVIDENCIA} caracteres ·{" "}
+            <span className="num">{evidence.trim().length}</span> escritos
+          </span>
         </label>
         <p className="text-xs text-muted-foreground">
           O registro guarda seu usuário e a data. Se houver correção no Pipefy, o espelho muda após
           a confirmação da origem.
         </p>
-        <Button
+        <BotaoComMotivo
           disabled={
-            saving || !origin || responsible.trim().length < 3 || evidence.trim().length < 10
+            saving ||
+            !origin ||
+            responsible.trim().length < MIN_RESPONSAVEL ||
+            evidence.trim().length < MIN_EVIDENCIA
           }
+          motivo={[
+            saving && "Registrando a validação",
+            !origin && "Escolha a origem confirmada",
+            responsible.trim().length < MIN_RESPONSAVEL &&
+              `O responsável precisa de ${MIN_RESPONSAVEL}+ letras`,
+            evidence.trim().length < MIN_EVIDENCIA &&
+              `A evidência precisa de ${MIN_EVIDENCIA}+ caracteres`,
+          ]}
           onClick={submit}
         >
           {saving ? "Registrando…" : "Registrar validação"}
-        </Button>
+        </BotaoComMotivo>
       </DialogContent>
     </Dialog>
   );

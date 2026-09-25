@@ -2,6 +2,11 @@
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Victor Eliezek (repo)   **Data:** 24/09/2026
 
+Integração DS v2 (25/09/2026): este contrato (molde do Recon, 24/09) substitui a proposta de 23/09
+da branch de migração ("O ritmo de hoje leva à meta do mês?", quatro KPIs e funil do dono atual).
+A moldura comum (cabeçalho, filtros, estados, detalhe) segue `monetizacao.md`, sem o seletor de
+responsável.
+
 ## Propósito
 - **Pergunta que responde (h1):** O farmer está no ritmo, e onde a base trava?
 - **Público:** Pedro (dono da frente), Matheus Carvalho (farmer).
@@ -25,11 +30,11 @@
 ## Estados
 | Estado | Quando | O que mostra |
 |---|---|---|
-| Carregando | sem dado | `LoadingState` |
+| Carregando | sem dado | `Carregando` (moldura) |
 | Não apurado | carga anterior à v4 | "—" na etapa, com nota |
 | Sem meta | plano sem meta para o número | quadro sem selo |
-| Erro de carga | `sync_error` | `FalhaDeCarga` |
-| Sem acesso | sem `view` | aviso + link para o Aquário |
+| Erro de carga | `sync_error` | `EstadoErro` / `EstadoVazio` da moldura |
+| Sem acesso | sem `view` | `EstadoSemAcesso` + link para Produtos e listas |
 
 ## Filtros na URL (N7)
 | Parâmetro | Valores | Padrão | Afeta |

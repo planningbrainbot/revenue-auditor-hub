@@ -461,7 +461,6 @@ export const AREAS: Area[] = [
           { title: "Projetado × realizado", url: "/monetizacao?aba=forecast", icon: BarChart3 },
           { title: "Capacidade e alocação", url: "/monetizacao?aba=capacidade", icon: Gauge },
           { title: "Follow Day", url: "/monetizacao?aba=follow-day", icon: CalendarClock },
-          { title: "Fila Cella", url: "/fila-cella", icon: ListChecks },
         ],
       },
       {
