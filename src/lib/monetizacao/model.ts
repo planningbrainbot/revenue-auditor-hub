@@ -1,5 +1,5 @@
 import { NOMES, PRODUTOS } from "./types.ts";
-import type { Conta, Metrica, Negocio, Oferta, Plano, Produto, Revisao } from "./types";
+import type { Conta, Metrica, Movimento, Negocio, Oferta, Plano, Produto, Revisao } from "./types";
 
 export const METRICAS: { key: Metrica; label: string }[] = [
   { key: "loaded", label: "Fila carregada" },
@@ -394,4 +394,197 @@ export function csv(rows: unknown[][]) {
       )
       .join("\r\n")
   );
+}
+// Farmer da Monetização. Único da frente desde set/2026 (decisão do dono em 24/09/2026): a Operação
+// mede o trabalho dele e não oferece mais o seletor de responsável.
+export const FARMER = { id: 28381245, nome: "Matheus Carvalho" } as const;
+
+/** Conversão de uma etapa para a seguinte, com uma casa. Etapa de cima vazia não tem taxa. */
+export function taxa(valor: number, anterior: number): number | null {
+  return anterior > 0 ? valor / anterior : null;
+}
+
+export interface EtapaFunil {
+  key: string;
+  nome: string;
+  stage_id: number | null;
+  /** Cards que entraram na etapa no período. `null` = a carga ainda não mede esta etapa. */
+  entraram: Negocio[] | null;
+  /** Cards abertos na etapa agora, como no pipe. `null` para Ganho. */
+  parados: Negocio[] | null;
+}
+
+const standBy = (nome: string) => /stand ?by/i.test(nome);
+// Sem `moves` (carga anterior à versão 4) só as etapas com evento próprio são mensuráveis.
+const EVENTO_DA_ETAPA: [RegExp, Metrica][] = [
+  [/base/i, "loaded"],
+  [/reuni.*(agend|marc)/i, "scheduled"],
+  [/reuni.*realiz/i, "meeting"],
+];
+
+/**
+ * Funil da Operação, no molde do painel do Recon: por etapa, quantos entraram no período (filtro de
+ * datas, produto e farmer) e quantos estão parados nela hoje (o pipe inteiro, sem filtro de data e
+ * sem filtro de dono, para bater com o Pipedrive). Stand by fica fora da sequência: é espera, não
+ * passo. Ganho fecha o funil pelo evento de ganho.
+ */
+export function funil(
+  cards: Negocio[],
+  stages: { id: number; name: string; order: number }[],
+  f: Filtro,
+) {
+  const pool = cards.filter((c) => !f.product || c.route === f.product);
+  const vale = (m: Movimento) =>
+    m.date >= f.from && m.date <= f.to && (!f.owner || m.actor_id === f.owner);
+  const porEtapa = pool.some((c) => Array.isArray(c.moves));
+  const ordenadas = [...stages].sort((a, b) => a.order - b.order);
+  const etapa = (s: { id: number; name: string }): EtapaFunil => {
+    const evento = EVENTO_DA_ETAPA.find(([re]) => re.test(s.name))?.[1];
+    return {
+      key: String(s.id),
+      nome: s.name,
+      stage_id: s.id,
+      entraram: porEtapa
+        ? pool.filter((c) => c.moves?.some((m) => m.stage_id === s.id && vale(m)))
+        : evento
+          ? pool.filter((c) => c.events[evento].some(vale))
+          : null,
+      parados: pool.filter((c) => c.status === "open" && c.stage_id === s.id),
+    };
+  };
+  const etapas = [
+    ...ordenadas.filter((s) => !standBy(s.name)).map(etapa),
+    {
+      key: "ganho",
+      nome: "Ganho",
+      stage_id: null,
+      entraram: pool.filter((c) => c.events.signed.some(vale)),
+      parados: null,
+    },
+  ];
+  const espera = ordenadas.filter((s) => standBy(s.name)).map(etapa);
+  const medePerda = pool.some((c) => c.lost_on !== undefined);
+  const perdidos = medePerda
+    ? pool.filter(
+        (c) =>
+          c.status === "lost" &&
+          !!c.lost_on &&
+          c.lost_on >= f.from &&
+          c.lost_on <= f.to &&
+          (!f.owner || c.owner_id === f.owner),
+      )
+    : null;
+  return {
+    etapas,
+    espera,
+    perdidos,
+    porEtapa,
+    abertos: pool.filter((c) => c.status === "open").length,
+  };
+}
+
+export type StatusMeta = "na-meta" | "fora" | "dia-em-curso" | "sem-meta";
+export interface QuadroMeta {
+  chave: "started" | "scheduled" | "meeting" | "validated" | "signed";
+  rotulo: string;
+  /** Número do quadro: ritmo por dia útil ou total do período. */
+  valor: number;
+  unidade?: string;
+  total: number;
+  meta: number | null;
+  status: StatusMeta;
+  nota: string;
+  formula: string;
+}
+
+/**
+ * Os cinco quadros de meta do farmer, no molde dos quadros de meta do Recon. Ritmo é total do
+ * período ÷ dias úteis do período (segunda a sexta, sem feriado), e não depende do tamanho do
+ * período. Contrato é total contra a meta mensal proporcional aos dias úteis do período.
+ * Abaixo da meta num período que é só hoje é "dia em curso", não "fora".
+ */
+export function metasOperacao(
+  view: ReturnType<typeof operacao>,
+  plan: Plano | undefined,
+  f: Filtro,
+  hojeIso = hoje(),
+): { quadros: QuadroMeta[]; uteis: number } {
+  const n = uteis(f.from, f.to);
+  const soHoje = f.from === hojeIso && f.to === hojeIso;
+  const ritmo = (total: number) => (n ? Math.round((total / n) * 10) / 10 : 0);
+  const status = (valor: number, meta: number | null): StatusMeta =>
+    meta === null ? "sem-meta" : valor >= meta ? "na-meta" : soHoje ? "dia-em-curso" : "fora";
+  const emDias = (total: number) => `${total} em ${n} ${n === 1 ? "dia útil" : "dias úteis"}`;
+  const mes = f.to.slice(0, 7);
+  const uteisMes = uteis(mes + "-01", fimDoMes(mes));
+  const metaContratos =
+    plan?.target_contracts && uteisMes
+      ? Math.round(((plan.target_contracts * Math.min(n, uteisMes)) / uteisMes) * 10) / 10
+      : null;
+  const t = (k: Metrica) => view.rows[k].length;
+  const metaLeads = plan?.daily_target || null;
+  const quadros: QuadroMeta[] = [
+    {
+      chave: "started",
+      rotulo: "Leads trabalhados por dia útil",
+      valor: ritmo(t("started")),
+      total: t("started"),
+      meta: metaLeads,
+      status: status(ritmo(t("started")), metaLeads),
+      nota: emDias(t("started")),
+      formula:
+        "Cards que saíram da Base elegível no período, pelo movimento do farmer, divididos pelos dias úteis.",
+    },
+    {
+      chave: "scheduled",
+      rotulo: "Reuniões marcadas por dia útil",
+      valor: ritmo(t("scheduled")),
+      total: t("scheduled"),
+      meta: null,
+      status: "sem-meta",
+      nota: emDias(t("scheduled")),
+      formula: "Cards movidos para Reunião agendada no período, divididos pelos dias úteis.",
+    },
+    {
+      chave: "meeting",
+      rotulo: "Reuniões realizadas por dia útil",
+      valor: ritmo(t("meeting")),
+      total: t("meeting"),
+      meta: null,
+      status: "sem-meta",
+      nota: emDias(t("meeting")),
+      formula: "Cards movidos para Reunião realizada no período, divididos pelos dias úteis.",
+    },
+    {
+      chave: "validated",
+      rotulo: "Oportunidades validadas",
+      valor: t("validated"),
+      total: t("validated"),
+      meta: null,
+      status: "sem-meta",
+      nota: view.rows.meeting.length
+        ? `${view.convertedMeetings.length} de ${view.rows.meeting.length} reuniões viraram oportunidade`
+        : "Nenhuma reunião realizada no período",
+      formula:
+        "Primeiro avanço a Em negociação ou etapa posterior no período, atribuído a quem moveu o card.",
+    },
+    {
+      chave: "signed",
+      rotulo: "Contratos ganhos",
+      valor: t("signed"),
+      total: t("signed"),
+      meta: metaContratos,
+      status: status(t("signed"), metaContratos),
+      nota: plan?.target_contracts
+        ? `Meta de ${plan.target_contracts} no mês, proporcional a ${n} de ${uteisMes} dias úteis`
+        : "Meta do mês a definir",
+      formula:
+        "Negócios marcados como ganhos no Pipedrive no período, pelo farmer. Card ganho por outra pessoa em outro pipe e trazido depois para cá não conta.",
+    },
+  ];
+  return { quadros, uteis: n };
+}
+function fimDoMes(mes: string) {
+  const [a, m] = mes.split("-").map(Number);
+  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 }
