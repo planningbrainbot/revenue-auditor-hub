@@ -15,9 +15,15 @@ export function monthRange(mes: string): { start: string; end: string; firstDay:
   return { start: startStr, end: fmt(end), firstDay: startStr };
 }
 
-/** Verifica perfil admin via RPC `has_role`. Lança Error em caso de negação. */
+/**
+ * Verifica super admin ATIVO via `ops.eh_super_admin`. Lança Error na negação.
+ *
+ * Era `has_role(admin)`, que não olha `profiles.ativo`: um admin desativado com
+ * o token ainda válido continuava passando aqui. `eh_super_admin` é a mesma
+ * pergunta que a RLS faz (migration 20260925100000).
+ */
 export async function assertAdmin(supabase: any, userId: string): Promise<void> {
-  const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+  const { data, error } = await supabase.rpc("eh_super_admin", { _user: userId });
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Acesso negado: necessário perfil admin.");
 }

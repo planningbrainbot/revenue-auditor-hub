@@ -214,11 +214,13 @@ export function emailPedidoRecebido(params: {
   email: string;
   unidade: string;
   link: string | null;
+  /** Para quem já tem senha: a página onde confirma que pediu (ou diz que não foi ela). */
+  linkConfirmar?: string | null;
 }) {
   const primeiroNome = params.nome.trim().split(/\s+/)[0] || params.nome;
   const passoSenha = params.link
     ? `<p style="margin:0 0 12px 0;">Enquanto isso, defina sua senha no botão abaixo.</p>`
-    : `<p style="margin:0 0 12px 0;">Você já tem senha: use a mesma de sempre.</p>`;
+    : `<p style="margin:0 0 12px 0;">Você já tem senha. Para o pedido chegar ao sócio, entre e confirme no botão abaixo. Se não foi você que pediu, a mesma página tem "Não fui eu".</p>`;
   return {
     subject: "Recebemos seu pedido de acesso · Planning Brain",
     html: layout({
@@ -229,7 +231,9 @@ export function emailPedidoRecebido(params: {
         <p style="margin:0;">Seu usuário é <strong>${escapeHtml(params.email)}</strong>.</p>`,
       botao: params.link
         ? { texto: "Definir minha senha", url: params.link }
-        : { texto: "Abrir o Planning Brain", url: "https://planningbrain.com.br/auth" },
+        : params.linkConfirmar
+          ? { texto: "Confirmar meu pedido", url: params.linkConfirmar }
+          : { texto: "Abrir o Planning Brain", url: "https://planningbrain.com.br/auth" },
       rodape: params.link
         ? `${VALIDADE} Se ele expirar, use "Esqueci minha senha" na tela de login. Se você não pediu acesso, ignore este e-mail.`
         : "Se você não pediu acesso, ignore este e-mail.",

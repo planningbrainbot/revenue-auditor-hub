@@ -55,6 +55,8 @@ export function AcessosUsuarioDialog({
   onClose: () => void;
 }) {
   const getFn = useServerFn(getAcessosDoUsuario);
+  // Revogar a porta pede um segundo clique, no lugar do `confirm()` do navegador.
+  const [confirmarRevogar, setConfirmarRevogar] = useState(false);
   const q = useQuery({
     queryKey: ["acessos-usuario", userId],
     queryFn: () => getFn({ data: { userId } }),
@@ -67,8 +69,8 @@ export function AcessosUsuarioDialog({
           <div>
             <h2 className="text-sm font-semibold text-foreground">Acessos de {nome}</h2>
             <p className="text-xs text-muted-foreground">
-              Área por área, o que esta pessoa faz além do perfil dela. As unidades e empresas
-              ficam na coluna "Unidade" da lista.
+              Área por área, o que esta pessoa faz além do perfil dela. As unidades que ela vê
+              ficam em "Recorte", na ficha.
             </p>
           </div>
           <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-accent" aria-label="Fechar">
@@ -96,7 +98,11 @@ export function AcessosUsuarioDialog({
             </div>
             <button
               onClick={() => {
-                if (porta.tem && !confirm(`Revogar o acesso de ${nome} ao Ops?`)) return;
+                if (porta.tem && !confirmarRevogar) {
+                  setConfirmarRevogar(true);
+                  return;
+                }
+                setConfirmarRevogar(false);
                 porta.onDefinir(!porta.tem);
               }}
               disabled={porta.salvando}
@@ -107,7 +113,13 @@ export function AcessosUsuarioDialog({
                   : "bg-primary text-primary-foreground hover:opacity-90",
               )}
             >
-              {porta.salvando ? "Salvando..." : porta.tem ? "Revogar acesso" : "Conceder acesso"}
+              {porta.salvando
+                ? "Salvando..."
+                : porta.tem
+                  ? confirmarRevogar
+                    ? "Clique de novo para revogar"
+                    : "Revogar acesso"
+                  : "Conceder acesso"}
             </button>
           </div>
         )}
@@ -140,7 +152,8 @@ export function AcessosUsuarioDialog({
             </div>
             {!q.data?.temUnidade && (
               <p className="mx-5 mt-4 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
-                Sem unidade no Escopo. Para nomear como sócio, defina a unidade primeiro.
+                Sem unidade no recorte. Para nomear como sócio, defina as unidades primeiro, em
+                "Recorte" na ficha.
               </p>
             )}
             <ul className="divide-y">
@@ -188,11 +201,13 @@ function LinhaDaArea({ userId, area }: { userId: string; area: AcessoPorArea }) 
     onSuccess: (r) => {
       setAviso(
         r.ficouSemArea
-          ? "Salvo. Esta pessoa ficou sem nenhuma área: desative a conta se ela não precisa mais entrar."
+          ? "Salvo. Esta pessoa ficou sem nenhuma área. Para desligá-la de tudo, use Desativar na ficha."
           : "Salvo.",
       );
       qc.invalidateQueries({ queryKey: ["acessos-usuario", userId] });
       qc.invalidateQueries({ queryKey: ["area-admins"] });
+      qc.invalidateQueries({ queryKey: ["ficha-pessoa", userId] });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
       qc.invalidateQueries({ queryKey: ["my-perms"] });
     },
     onError: () => setAviso(null),

@@ -608,24 +608,20 @@ export const AREAS: Area[] = [
   },
   {
     slug: "admin",
-    descricao: "Usuários, papéis, permissões e integrações.",
+    descricao: "Pessoas, perfis, áreas e integrações.",
     nome: "Administração",
     icone: ShieldCheck,
     grupos: [
       {
         label: "Pessoas e acesso",
         items: [
-          { title: "Usuários", url: "/admin/usuarios", icon: Users },
-          // O quadro do super admin: nível de cada pessoa em cada área.
-          { title: "Níveis de acesso", url: "/admin/niveis", icon: ShieldCheck },
+          // Pessoas: a lista e a ficha de cada uma (o que acessa e por quê).
+          // "Níveis de acesso" e "Perfis" saíram em 24/09/2026: o nível de cada
+          // área está na ficha, e o cadastro de perfis está em Perfis e áreas.
+          { title: "Pessoas", url: "/admin/usuarios", icon: Users },
+          { title: "Perfis e áreas", url: "/admin/permissoes", icon: UserCog },
           // A mesma tela que admin e sócio abrem pelo rodapé; aqui com todas as áreas.
           { title: "Equipes", url: "/equipe", icon: UsersRound },
-          { title: "Perfis", url: "/admin/perfis", icon: UserCog },
-          {
-            title: "Permissões",
-            url: "/admin/permissoes",
-            icon: ShieldCheck,
-          },
           // A EXCEÇÃO de que o tipo `Item` fala, e o único item da Administração
           // que declara área própria. A fronteira do MENU diz "isto é
           // administração"; a fronteira de CONFIANÇA diz outra coisa: quem

@@ -2950,3 +2950,153 @@ conceder quem é sócio ou admin da área, o que gestor comum não é.
 
 **Em aberto:** 49 pessoas do Gente usam `@br.planning.com.br`, que ficou de
 fora da lista de domínios.
+
+## [2026-09-25] Gestão de acessos: auditoria completa e o plano de melhoria executado (sem publicar)
+
+**Contexto:** o dono disse "essa parte de gestão de acessos e usuários não tá
+boa, tô um pouco ansioso com isso, gostaria que você auditasse tudo" e, depois
+de ver a auditoria, "execute todo o plano de melhoria". A auditoria (24/09/2026)
+leu o código, o banco e o estado real das 43 contas. O modelo por baixo (área +
+recorte por pessoa + admin delegado + porta por produto) se sustentou; o que
+não se sustentava era desligar, o alcance do admin de área, a criação de pessoa
+e a quantidade de telas.
+
+**Achados que motivaram cada mudança (medidos em 24/09/2026):**
+- Desligar não desligava: `can_user()` e 162 policies PERMISSIVE em 72 tabelas
+  (Gente inteiro, contratos, Omie, financeiro_dashboard) não olhavam nem a porta
+  do produto nem `profiles.ativo`. 109 sessões abertas de 40 pessoas.
+- O admin de área (nível 3) administrava qualquer pessoa que não fosse admin,
+  inclusive quem nem é da área; como o recorte vale para todas as áreas, o admin
+  de People reescrevia as unidades de alguém só de Clientes.
+- Criar como "Diretor" (o padrão do formulário) gravava zero perfil: o código
+  contava com o gatilho `handle_new_user_role`, que o banco único não tem.
+- As duas contas criadas em 24/09 (Willian, com o e-mail `@planning.combr`, e
+  Paula) nasceram sem recorte: a trava de unidade fecha, as telas abrem vazias.
+- Tirar da área apagava também as páginas NEGADAS pelo super admin; nomear admin
+  marcava "todas as unidades e empresas" e nada desfazia no rebaixamento; o
+  super admin não conseguia rebaixar admin a sócio pela tela.
+- "Tirar da área" podia banir a conta sem nenhuma tela mostrar ou desfazer.
+- O histórico (`acessos_log`) só tinha ações de área: criar conta, perfil,
+  porta, senha e excluir não deixavam rastro; nenhuma tela lia o log.
+- Três definições de admin nas policies (`has_role`, `eh_super_admin`,
+  `can('view.admin.*')`); as de escrita da matriz pediam a chave, as server
+  functions pediam o perfil.
+- A informação "o que a Fulana vê" estava em 6 telas e 5 diálogos.
+
+**Decisão: a trava de "pessoa ativa + porta" mora nas funções centrais, não nas
+policies.** `can_user`, `eh_super_admin`, `nivel_na_area`, `minha_pessoa_id` e
+`e_gestor_de` passam a exigir `profiles.ativo`; `can_user` passa a exigir a
+porta do produto da chave (a do Ops, ou a do Financeiro para chave que só mora
+em `financeiro`/`admin_financeiro`). Com isso as 162 policies respeitam o
+desligamento sem reescrever nenhuma. Migration
+`20260925100000_acessos_travas.sql`, gate `supabase/gates/20260925_acessos_travas.sql`
+(40/40 no banco real, em transação desfeita, incluindo leitura pelo PostgREST
+como a própria pessoa): 3.311 pares pessoa × chave e o menu das 43 pessoas
+idênticos antes e depois.
+
+**Decisão: desativar é o desligamento, e é um ato explícito do super admin.**
+`ops.acesso_desativar` marca `ativo = false`, apaga `auth.sessions` (os refresh
+tokens caem em cascata) e registra; o servidor bane no Auth e manda
+`financeiro: false` ao cockpit. Nada é apagado: reativar devolve tudo.
+**Revisa a decisão de 17/09** ("tirar da área desativa a conta quando ela não
+entra em mais nada"): o banimento automático era invisível e irreversível pela
+tela. Agora tirar da última área só fecha a porta do Ops.
+
+**Decisão: o delegado só administra quem já é da área.** `pode_administrar` exige
+o alvo na área (nível ≥ 1); quem é de fora entra pelo convite, e o admin da área
+pode convidar sem mexer nas unidades da pessoa. A Administração deixa de ser
+delegável (nem o super admin a concede pessoa a pessoa: vem do perfil). As
+policies de escrita da matriz passam a pedir `eh_super_admin`.
+
+**Decisão: o recorte de antes de virar admin volta sozinho.** A decisão 9 (admin
+vê todas as unidades e empresas) fica; `area_admins.escopo_anterior` guarda o
+recorte na nomeação e um gatilho o devolve quando a pessoa deixa de ser admin de
+qualquer área. Quem já era admin antes desta migration não tem o que devolver.
+
+**Decisão: a gestão de pessoas vira lista + ficha.** `/admin/usuarios` passa a
+se chamar **Pessoas** e mostra a SITUAÇÃO de cada pessoa (ativa, com pendência,
+convite pendente, pediu acesso, desativada) com as pendências em frases que
+dizem o efeito. Tudo o que se faz com uma pessoa mora na **ficha**
+(`/admin/usuarios/$userId`): produtos, áreas com a origem de cada uma (perfil,
+dada a ela, admin ou sócio da área), recorte, cadastros ligados (Gente, sócio,
+pedido), histórico, e as ações (editar, senha, desativar/reativar, excluir). O
+acesso efetivo vem de `ops.acesso_do_usuario`, a mesma regra do menu e da RLS.
+"Nova pessoa" exige perfil (sem padrão pré-marcado) e recorte, grava a unidade do
+sócio regional por id e avisa domínio fora do grupo. Excluir só vale para conta
+que nunca entrou. Perfis passam a ser lista: editar não apaga mais o segundo
+perfil de quem tem dois.
+
+**Decisão: menos telas e uma palavra por conceito.** `/admin/perfis` juntou-se a
+`/admin/permissoes` ("Perfis e áreas": criar, renomear e excluir perfil no mesmo
+painel das áreas); `/admin/niveis` saiu (o nível está na ficha, e quem administra
+cada área está em Perfis e áreas, com link para a ficha). As duas rotas antigas
+redirecionam. Na interface a palavra é PERFIL; `papel`/`role` ficam no código.
+As empresas do Financeiro saem do diálogo de recorte e ficam só em
+`/admin/acessos-financeiro`: o diálogo aplicava a regra "o grupo só abre com
+todas as empresas" e não sincronizava o cockpit, que aplica "basta uma".
+
+**Outras correções:**
+- Todo `ilike("email", …)` de acesso virou igualdade exata (o `_` era curinga).
+- Autocadastro: teto de 30 pedidos por hora; pedido sempre nasce sem confirmação
+  (quem já tem senha confirma entrando), e a confirmação roda em toda entrada no
+  `/inicio`, não só para quem não tem produto.
+- Senha provisória não vale mais para outro super admin; o diálogo do Growth não
+  cria conta nem troca senha (trocava a senha dos três produtos em silêncio).
+- Gente (`darAcesso`, commit `20a8e95`): ligar uma conta que já existe exige que
+  ela esteja em branco ou dentro do recorte de quem liga, e nunca de super admin.
+- `emitirSessaoGrowth` removida (ninguém chamava; emitia magic link do projeto
+  antigo do Growth). `listUsers` do Financeiro paginado (só lia 50).
+- Painel do Financeiro recusa gravar quando o catálogo do cockpit vem vazio (antes
+  virava "todas as empresas").
+- Textos: o link de senha vale 1 hora (a tela dizia 24 horas em dois lugares).
+
+**Não mexido de propósito:**
+- A troca da senha provisória continua no navegador (decisão de 23/09: a senha
+  não passa pelo nosso servidor). O risco de alguém limpar a marca na mão não
+  escala privilégio.
+- O perfil "gestão" do Planning People (commit `20a8e95`) dá o nível sócio da
+  área People a quem é criado por um sócio regional (nível 1). Contraria a não
+  escalada de 17/09, mas foi decidido em 24/09; ficou para o dono escolher.
+- As duas ocorrências da regra V4 (fonte de 10px) em `components/idu/` já
+  estavam no `main` e reprovam a catraca do `design:lint` global.
+
+**Status:** tudo no worktree `~/planning-dashboard-acessos`, branch
+`acessos/plano-melhoria`. **Nada commitado, migration NÃO aplicada, nada
+publicado.** `tsc` sem erro novo; `design:lint --changed` sem erro nos arquivos
+tocados. Sem a migration aplicada, desativar/reativar e o registro no histórico
+falham no dev local (as funções novas não existem no banco). Contratos em
+`docs/design/contratos/admin-usuarios.md` e `admin-usuarios-ficha.md`, sem o
+"contrato ok" do dono. Falta a captura escuro/claro: não há login de teste.
+
+**Dados a corrigir depois de publicar (pela ficha, que registra no histórico):**
+e-mail do Willian (`@planning.combr`) e recorte do Willian e da Paula Almeida.
+
+## [2026-09-25] Gestão de acessos: o que a revisão independente mudou (adendo à entrada anterior)
+
+Uma revisão do diff inteiro (outro agente, só leitura) não achou erro que
+bloqueasse a migration e achou quatro brechas de lógica, todas fechadas:
+
+1. **O admin de área contornava a trava de recorte em dois passos**: convidava
+   sem unidade e, já "da área", mexia no recorte. Agora só mexe nas unidades de
+   alguém quem administra (como admin) TODAS as áreas dessa pessoa
+   (`ops._alvo_so_nas_areas_do_ator`, em `acesso_adicionar_na_area` e em
+   `acesso_definir_unidades`). O gate ganhou os dois passos: 43/43.
+2. **Confirmar pedido entrando no /inicio reabria o pedido forjado.** Quem já
+   tem senha recebe no e-mail um link para `/inicio?pedido=confirmar`, onde
+   escolhe "Confirmo que pedi" ou "Não fui eu" (`recusarMeuPedido`). Teto do
+   autocadastro: 60/hora no total e 3 por e-mail em 24 horas.
+3. **O vínculo automático com o Gente pelo caminho inverso** (cadastro manual
+   feito antes da conta existir) só liga sozinho quando o cadastro veio do
+   Qulture ou a unidade dele está no recorte da conta nova. O resto aparece na
+   ficha com o gestor à vista, e o super admin liga com um clique.
+4. **Contas banidas pelo fluxo antigo** (nenhuma hoje) aparecem como pendência
+   e ganham "Liberar login" na ficha.
+
+Menores: excluir não apaga se a leitura da conta falhar, e registra só depois
+de dar certo; o diálogo de recorte não salva se a leitura falhou; o recorte
+salvo pelo super admin de quem é admin vira a referência que volta no
+rebaixamento.
+
+O rollback foi ensaiado de verdade: migration + rollback numa transação
+desfeita deixam funções, policies, FKs, colunas e gatilhos idênticos ao estado
+de 25/09/2026.

@@ -253,6 +253,37 @@ type Cliente = any;
  * Conta que já existe NÃO ganha nada além do vínculo: pode ser de outra
  * unidade, de admin, ou um pedido de acesso pendente em /equipe.
  */
+/**
+ * Uma conta que JÁ existe só pode ser ligada a um cadastro do Gente por quem
+ * responde por ela: a conta tem de estar em branco (sem perfil, área nem
+ * recorte) ou com todas as unidades dentro do recorte de quem liga, e nunca ser
+ * de super admin. Sem isto, um sócio que cadastrasse no Gente o e-mail de
+ * alguém da Matriz virava gestor dessa pessoa no People e lia os 1:1 e PDIs
+ * dela (auditoria de 24/09/2026).
+ */
+async function podeLigarConta(db: Cliente, adm: Cliente, ator: string, alvo: string): Promise<boolean> {
+  if (alvo === ator) return true;
+  const [papeis, areas, admins, escopo, unidades] = await Promise.all([
+    adm.from("user_roles").select("role").eq("user_id", alvo),
+    adm.from("usuario_areas").select("area").eq("user_id", alvo).limit(1),
+    adm.from("area_admins").select("area").eq("user_id", alvo).limit(1),
+    adm.from("usuario_escopo").select("todas_unidades").eq("user_id", alvo).maybeSingle(),
+    adm.from("usuario_unidades").select("unidade_id").eq("user_id", alvo).limit(1),
+  ]);
+  const roles = ((papeis.data ?? []) as { role: string }[]).map((r) => r.role);
+  if (roles.includes("admin")) return false;
+  const emBranco =
+    !roles.length &&
+    !(areas.data ?? []).length &&
+    !(admins.data ?? []).length &&
+    !escopo.data?.todas_unidades &&
+    !(unidades.data ?? []).length;
+  if (emBranco) return true;
+  if (!(unidades.data ?? []).length && !escopo.data?.todas_unidades) return false;
+  const { data: contido } = await db.rpc("escopo_contido", { _alvo: alvo, _ator: ator });
+  return Boolean(contido);
+}
+
 async function darAcesso(
   db: Cliente,
   ator: string,
@@ -293,9 +324,14 @@ async function darAcesso(
   const { data: existente } = await adm
     .from("profiles")
     .select("user_id")
-    .ilike("email", email)
+    .eq("email", email)
     .maybeSingle();
   if (existente?.user_id) {
+    if (!(await podeLigarConta(db, adm, ator, existente.user_id))) {
+      throw new Error(
+        "Este e-mail já tem conta no Brain fora da sua unidade. Peça à Matriz para ligar o cadastro.",
+      );
+    }
     await ligar(existente.user_id);
     return { situacao: "vinculado", emailEnviado: false, link: null };
   }
@@ -489,7 +525,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
     const id = criada.id as number;
     if (!data.acesso) {
       // Sem login novo, mas se o e-mail já tem conta, liga do mesmo jeito.
-      const r = await darAcessoSoVinculo(supabase, id);
+      const r = await darAcessoSoVinculo(supabase, context.userId, id);
       return { id, ...r, erroAcesso: null as string | null };
     }
 
@@ -511,7 +547,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
   });
 
 /** Liga a pessoa a uma conta que já existe com o mesmo e-mail. Não cria nada. */
-async function darAcessoSoVinculo(db: Cliente, pessoaId: number): Promise<AcessoResult> {
+async function darAcessoSoVinculo(db: Cliente, ator: string, pessoaId: number): Promise<AcessoResult> {
   const { data: pessoa } = await db
     .from("gente_pessoas")
     .select("email")
@@ -522,9 +558,12 @@ async function darAcessoSoVinculo(db: Cliente, pessoaId: number): Promise<Acesso
   const { data: perfil } = await (supabaseAdmin as Cliente)
     .from("profiles")
     .select("user_id")
-    .ilike("email", String(pessoa.email).trim())
+    .eq("email", String(pessoa.email).trim().toLowerCase())
     .maybeSingle();
   if (!perfil?.user_id) return { situacao: "sem_acesso", emailEnviado: false, link: null };
+  if (!(await podeLigarConta(db, supabaseAdmin, ator, perfil.user_id))) {
+    return { situacao: "sem_acesso", emailEnviado: false, link: null };
+  }
   const { error } = await db
     .from("gente_pessoas")
     .update({ user_id: perfil.user_id })

@@ -447,7 +447,7 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
   const remover = useMutation({
     mutationFn: () => removerFn({ data: { userId: pessoa.userId, area: area.slug } }),
     onSuccess: (r) => {
-      setAviso(r.contaDesativada ? "Removida. A conta foi desativada porque não entra em mais nada." : "Removida da área.");
+      setAviso(r.saiuDoOps ? "Removida. Ela não entra em mais nenhuma área do Ops." : "Removida da área.");
       recarregar();
     },
   });

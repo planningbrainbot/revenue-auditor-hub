@@ -77,6 +77,7 @@ import { Route as AuthenticatedAdminIntegracoesRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminCredenciaisRouteImport } from './routes/_authenticated/admin.credenciais'
 import { Route as AuthenticatedAdminAcessosFinanceiroRouteImport } from './routes/_authenticated/admin.acessos-financeiro'
 import { Route as AuthenticatedRoyaltiesUnidadeIdMesRouteImport } from './routes/_authenticated/royalties.$unidadeId.$mes'
+import { Route as AuthenticatedAdminUsuariosUserIdRouteImport } from './routes/_authenticated/admin.usuarios_.$userId'
 
 const VitrineRoute = VitrineRouteImport.update({
   id: '/vitrine',
@@ -458,6 +459,12 @@ const AuthenticatedRoyaltiesUnidadeIdMesRoute =
     path: '/$unidadeId/$mes',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
   } as any)
+const AuthenticatedAdminUsuariosUserIdRoute =
+  AuthenticatedAdminUsuariosUserIdRouteImport.update({
+    id: '/admin/usuarios_/$userId',
+    path: '/admin/usuarios/$userId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -526,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades/': typeof AuthenticatedUnidadesIndexRoute
+  '/admin/usuarios/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesByTo {
@@ -593,6 +601,7 @@ export interface FileRoutesByTo {
   '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades': typeof AuthenticatedUnidadesIndexRoute
+  '/admin/usuarios/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
   '/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRoutesById {
@@ -664,6 +673,7 @@ export interface FileRoutesById {
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/unidades/': typeof AuthenticatedUnidadesIndexRoute
+  '/_authenticated/admin/usuarios_/$userId': typeof AuthenticatedAdminUsuariosUserIdRoute
   '/_authenticated/royalties/$unidadeId/$mes': typeof AuthenticatedRoyaltiesUnidadeIdMesRoute
 }
 export interface FileRouteTypes {
@@ -735,6 +745,7 @@ export interface FileRouteTypes {
     | '/broker/'
     | '/royalties/'
     | '/unidades/'
+    | '/admin/usuarios/$userId'
     | '/royalties/$unidadeId/$mes'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -802,6 +813,7 @@ export interface FileRouteTypes {
     | '/broker'
     | '/royalties'
     | '/unidades'
+    | '/admin/usuarios/$userId'
     | '/royalties/$unidadeId/$mes'
   id:
     | '__root__'
@@ -872,6 +884,7 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
     | '/_authenticated/unidades/'
+    | '/_authenticated/admin/usuarios_/$userId'
     | '/_authenticated/royalties/$unidadeId/$mes'
   fileRoutesById: FileRoutesById
 }
@@ -1363,6 +1376,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoyaltiesUnidadeIdMesRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
     }
+    '/_authenticated/admin/usuarios_/$userId': {
+      id: '/_authenticated/admin/usuarios_/$userId'
+      path: '/admin/usuarios/$userId'
+      fullPath: '/admin/usuarios/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsuariosUserIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -1459,6 +1479,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
   AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
+  AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1519,6 +1540,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
   AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
+  AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

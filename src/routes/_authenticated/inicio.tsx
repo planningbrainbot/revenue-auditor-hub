@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Landmark, Rocket } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
-import { confirmarMeuPedido, meuPedidoDeAcesso } from "@/lib/pedidos-acesso.functions";
+import { confirmarMeuPedido, meuPedidoDeAcesso, recusarMeuPedido } from "@/lib/pedidos-acesso.functions";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
 import { AREAS, areaDoItem, type Area } from "@/lib/areas";
@@ -48,8 +49,84 @@ export function lerProdutoPadrao(): string | null {
 
 export const Route = createFileRoute("/_authenticated/inicio")({
   head: () => ({ meta: [{ title: "Início – Planning Brain" }] }),
-  component: InicioPage,
+  // `?pedido=confirmar` vem do e-mail de quem já tem senha e pediu o Ops.
+  validateSearch: (s: Record<string, unknown>): { pedido?: "confirmar" } =>
+    s.pedido === "confirmar" ? { pedido: "confirmar" } : {},
+  component: PortaDeEntrada,
 });
+
+/**
+ * Quem chega pelo link do e-mail de pedido vê a confirmação antes de qualquer
+ * redirecionamento: quem tem um produto só seria mandado direto para ele e
+ * nunca veria a pergunta.
+ */
+function PortaDeEntrada() {
+  const { pedido } = Route.useSearch();
+  return pedido === "confirmar" ? <ConfirmarPedido /> : <InicioPage />;
+}
+
+/**
+ * "Confirmo que pedi" ou "Não fui eu". Para quem já tinha senha, entrar não
+ * basta para confirmar um pedido (revisão de 25/09/2026): o formulário de
+ * cadastro é público, e um pedido no nome de um colega seria confirmado no
+ * primeiro login dele, sem ele saber. Aqui a pessoa decide.
+ */
+function ConfirmarPedido() {
+  const navigate = useNavigate();
+  const pedidoFn = useServerFn(meuPedidoDeAcesso);
+  const confirmarFn = useServerFn(confirmarMeuPedido);
+  const recusarFn = useServerFn(recusarMeuPedido);
+  const q = useQuery({ queryKey: ["meu-pedido-acesso"], queryFn: () => pedidoFn(), retry: false });
+  const [feito, setFeito] = useState<null | "confirmado" | "recusado">(null);
+  const confirmar = useMutation({ mutationFn: () => confirmarFn(), onSuccess: () => setFeito("confirmado") });
+  const recusar = useMutation({ mutationFn: () => recusarFn(), onSuccess: () => setFeito("recusado") });
+
+  if (q.isLoading) return null;
+  const p = q.data;
+  const titulo = feito === "confirmado"
+    ? "Pedido confirmado"
+    : feito === "recusado"
+      ? "Pedido cancelado"
+      : !p
+        ? "Nenhum pedido aberto"
+        : p.confirmado
+          ? "Seu pedido já está com o sócio da unidade"
+          : "Você pediu acesso ao Ops?";
+  const texto = feito === "confirmado"
+    ? "O sócio da unidade foi avisado. Você recebe um e-mail quando ele liberar."
+    : feito === "recusado"
+      ? "Ninguém foi avisado e nada foi liberado. Se alguém pediu no seu nome, vale avisar a Administração."
+      : !p
+        ? "Não há pedido de acesso aberto nesta conta."
+        : p.confirmado
+          ? `O pedido para ${p.unidade} foi enviado em ${new Date(p.criadoEm).toLocaleDateString("pt-BR")}.`
+          : `Recebemos um pedido de acesso em seu nome: ${p.cargo}, unidade ${p.unidade}, em ${new Date(p.criadoEm).toLocaleDateString("pt-BR")}. Ele só chega ao sócio se você confirmar.`;
+  const pendente = p && !p.confirmado && !feito;
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-12 text-center">
+      <PlanningLogo className="h-9 w-auto" />
+      <div className="max-w-md space-y-2">
+        <h1 className="text-xl font-semibold text-foreground">{titulo}</h1>
+        <p className="text-sm text-muted-foreground">{texto}</p>
+      </div>
+      {pendente ? (
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={recusar.isPending || confirmar.isPending} onClick={() => recusar.mutate()}>
+            Não fui eu
+          </Button>
+          <Button disabled={recusar.isPending || confirmar.isPending} onClick={() => confirmar.mutate()}>
+            Confirmo que pedi
+          </Button>
+        </div>
+      ) : (
+        <Button variant="outline" onClick={() => navigate({ to: "/inicio", search: {} })}>
+          Continuar
+        </Button>
+      )}
+    </div>
+  );
+}
 
 type Produto = {
   slug: string;

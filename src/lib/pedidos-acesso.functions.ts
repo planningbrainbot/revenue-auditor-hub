@@ -23,6 +23,17 @@ export const DOMINIOS_CADASTRO = ["planning.com.br", "grupoplanning.com.br"];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const REENVIO_MIN = 15;
+/**
+ * Teto de pedidos novos por hora, somando todos. `pedirCadastro` é pública e
+ * cria conta no Auth a cada chamada: sem teto, um script cria contas em massa
+ * com qualquer endereço dos dois domínios e dispara e-mail para todas
+ * (auditoria de 24/09/2026). O teto global é folga larga para uma rede que
+ * recebeu zero pedidos no primeiro dia; o por e-mail impede que um script
+ * esgote o global insistindo num endereço só.
+ */
+const TETO_POR_HORA = 60;
+/** Pedidos para o MESMO e-mail em 24 horas. Acima disso responde igual e não faz nada. */
+const TETO_POR_EMAIL_DIA = 3;
 
 function appUrl() {
   return (process.env.APP_URL || "https://planningbrain.com.br").replace(/\/+$/, "");
@@ -112,7 +123,23 @@ export const pedirCadastro = createServerFn({ method: "POST" })
     const { data: un } = await adm.from("unidades").select("id").eq("id", data.unidadeId).maybeSingle();
     if (!un) throw new Error("Escolha sua unidade.");
 
-    const { data: perfil } = await adm.from("profiles").select("user_id").ilike("email", data.email).maybeSingle();
+    const { count: naUltimaHora } = await adm
+      .from("acesso_pedidos")
+      .select("id", { count: "exact", head: true })
+      .gte("criado_em", new Date(Date.now() - 3600_000).toISOString());
+    if ((naUltimaHora ?? 0) >= TETO_POR_HORA) {
+      throw new Error("Muitos pedidos agora. Tente de novo em alguns minutos.");
+    }
+    const { count: desteEmail } = await adm
+      .from("acesso_pedidos")
+      .select("id", { count: "exact", head: true })
+      .eq("email", data.email)
+      .gte("criado_em", new Date(Date.now() - 86_400_000).toISOString());
+    // Resposta igual à de sucesso: não revela que o endereço já pediu.
+    if ((desteEmail ?? 0) >= TETO_POR_EMAIL_DIA) return { ok: true };
+
+    // Igualdade exata: com `ilike` o `_` do e-mail é curinga.
+    const { data: perfil } = await adm.from("profiles").select("user_id").eq("email", data.email).maybeSingle();
     let userId: string = perfil?.user_id ?? "";
     let jaTemSenha = false;
 
@@ -166,8 +193,13 @@ export const pedirCadastro = createServerFn({ method: "POST" })
       email: data.email,
       unidade_id: data.unidadeId,
       observacao: data.observacao,
-      // Quem já tem senha já provou a caixa: o pedido vai direto ao líder.
-      confirmado_em: jaTemSenha ? new Date().toISOString() : null,
+      // Sempre nasce sem confirmação, mesmo para quem já tem senha. Até
+      // 24/09/2026 a conta com senha confirmava na hora, e qualquer um que
+      // soubesse o e-mail de um colega do Growth ou do Financeiro abria um
+      // pedido no nome dele, com cargo e recado inventados, que ia direto ao
+      // sócio. Agora a confirmação é o próximo login da própria pessoa
+      // (`confirmarMeuPedido`, no /inicio).
+      confirmado_em: null,
     });
     // 23505: outro pedido aberto entrou ao mesmo tempo. O que importa já existe.
     if (insErr && insErr.code !== "23505") {
@@ -185,16 +217,16 @@ export const pedirCadastro = createServerFn({ method: "POST" })
         console.error("[pedirCadastro] link de senha falhou:", e);
       }
     }
-    await enviarEmail({ to: data.email, ...emailPedidoRecebido({ nome: data.nome, email: data.email, unidade, link }) });
-    if (jaTemSenha) {
-      await avisarLideres(adm, {
+    await enviarEmail({
+      to: data.email,
+      ...emailPedidoRecebido({
         nome: data.nome,
-        cargo: data.cargo,
         email: data.email,
-        unidadeId: data.unidadeId,
-        observacao: data.observacao,
-      });
-    }
+        unidade,
+        link,
+        linkConfirmar: jaTemSenha ? `${appUrl()}/inicio?pedido=confirmar` : null,
+      }),
+    });
     return { ok: true };
   });
 
@@ -266,16 +298,55 @@ export type PedidoDeAcesso = {
 /** O meu pedido aberto, para o /inicio de quem ainda não entra em nada. */
 export const meuPedidoDeAcesso = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ unidade: string; criadoEm: string } | null> => {
-    const db = context.supabase as Cliente;
-    const { data } = await db
+  .handler(
+    async ({ context }): Promise<{ unidade: string; criadoEm: string; cargo: string; confirmado: boolean } | null> => {
+      const db = context.supabase as Cliente;
+      const { data } = await db
+        .from("acesso_pedidos")
+        .select("criado_em, cargo, confirmado_em, unidades(nome_da_praca)")
+        .eq("user_id", context.userId)
+        .eq("status", "pendente")
+        .maybeSingle();
+      if (!data) return null;
+      return {
+        unidade: data.unidades?.nome_da_praca ?? "",
+        criadoEm: data.criado_em,
+        cargo: data.cargo ?? "",
+        confirmado: Boolean(data.confirmado_em),
+      };
+    },
+  );
+
+/**
+ * "Não fui eu": o titular da conta recusa um pedido aberto no nome dele. Existe
+ * porque o pedido de quem já tem senha passou a exigir confirmação explícita
+ * (revisão de 25/09/2026): o formulário é público e qualquer um digita o e-mail
+ * de um colega. O pedido fecha como recusado e o sócio nunca é avisado.
+ */
+export const recusarMeuPedido = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const adm = await admin();
+    const { data } = await adm
       .from("acesso_pedidos")
-      .select("criado_em, unidades(nome_da_praca)")
+      .update({
+        status: "recusado",
+        motivo: "Não reconhecido pelo titular da conta.",
+        decidido_por: context.userId,
+        decidido_em: new Date().toISOString(),
+      })
       .eq("user_id", context.userId)
       .eq("status", "pendente")
-      .maybeSingle();
-    if (!data) return null;
-    return { unidade: data.unidades?.nome_da_praca ?? "", criadoEm: data.criado_em };
+      .select("id");
+    if ((data ?? []).length) {
+      await adm.from("acessos_log").insert({
+        ator: context.userId,
+        alvo: context.userId,
+        acao: "pedido_recusado",
+        detalhe: { motivo: "não reconhecido pelo titular" },
+      });
+    }
+    return { ok: true };
   });
 
 /** Pedidos abertos que eu posso decidir. A RLS já recorta pela unidade. */
@@ -363,13 +434,17 @@ export const aprovarPedidoAcesso = createServerFn({ method: "POST" })
     if (addErr) throw new Error(addErr.message || "Não foi possível liberar o acesso.");
 
     const adm = await admin();
-    await adm
+    const { error: portaErr } = await adm
       .schema("public")
       .from("produto_acesso")
       .upsert(
         { user_id: pedido.user_id, produto: "ops", concedido_por: context.userId },
         { onConflict: "user_id,produto", ignoreDuplicates: true },
       );
+    if (portaErr) {
+      console.error("[aprovarPedidoAcesso] porta do Ops falhou:", portaErr);
+      throw new Error("O acesso foi gravado, mas a porta do Ops não abriu. Tente liberar de novo.");
+    }
 
     const { error: decErr } = await db.rpc("acesso_decidir_pedido", {
       _pedido: pedido.id,
@@ -381,17 +456,14 @@ export const aprovarPedidoAcesso = createServerFn({ method: "POST" })
 
     // Cadastro do Gente com o mesmo e-mail e sem login: liga agora, senão 1:1 e
     // feedback barram a pessoa em silêncio (ver memória do vínculo user_id).
-    await adm
-      .from("gente_pessoas")
-      .update({ user_id: pedido.user_id })
-      .ilike("email", pedido.email)
-      .is("user_id", null);
+    const { vincularCadastroDeGente } = await import("@/lib/gente-vinculo.server");
+    await vincularCadastroDeGente(adm, pedido.user_id, pedido.email, { todas: false, unidades: data.unidades });
     // O cargo informado só preenche o que o Gente não tem. Nunca sobrescreve
     // o cadastro do RH.
     await adm
       .from("gente_pessoas")
       .update({ cargo: pedido.cargo })
-      .ilike("email", pedido.email)
+      .eq("email", pedido.email.trim().toLowerCase())
       .is("cargo", null);
 
     const { data: areaRow } = await adm.from("areas").select("nome").eq("slug", data.area).maybeSingle();

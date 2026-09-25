@@ -47,6 +47,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAffected } from "@/lib/supabase-assert";
 import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
 import { emailAcessoFinanceiro } from "@/lib/email-templates";
+import { registrarAcesso } from "@/lib/acessos.server";
 
 const PRODUTO = "financeiro";
 
@@ -224,6 +225,12 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
     const db = supabaseAdmin as any;
 
     const unidades = await unidadesComEmpresas();
+    // Catálogo vazio é falha de conexão com o cockpit, não "nenhuma unidade":
+    // seguir em frente fazia `tudo` virar verdadeiro com a lista vazia e
+    // gravava "todas as empresas" (auditoria de 24/09/2026).
+    if (!unidades.length) {
+      throw new Error("Não foi possível ler as unidades do Financeiro agora. Nada foi alterado; tente de novo.");
+    }
     const validas = new Set(unidades.map((u) => u.id));
     const invalidas = data.unidades.filter((e) => !validas.has(e));
     if (invalidas.length) {
@@ -293,6 +300,10 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
       await aplicarConcessaoNoFinanceiro(data.userId, perfil.email);
     }
 
+    await registrarAcesso(context.userId, data.userId, "financeiro_conceder", {
+      unidades: data.unidades,
+      todas_empresas: tudo,
+    });
     return { userId: data.userId, unidades: data.unidades, emailEnviado };
   });
 
@@ -325,5 +336,6 @@ export const revogarAcessoFinanceiro = createServerFn({ method: "POST" })
       ? await aplicarConcessaoNoFinanceiro(data.userId, perfil.email)
       : { ok: false as const };
 
+    await registrarAcesso(context.userId, data.userId, "financeiro_revogar", { sincronizado: sinc.ok });
     return { userId: data.userId, sincronizado: sinc.ok };
   });

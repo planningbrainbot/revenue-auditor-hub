@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertAdmin } from "@/lib/server-utils";
+import { registrarAcesso } from "@/lib/acessos.server";
 
 export type AppRole = string;
 
@@ -743,7 +744,7 @@ export const listRoleAreas = createServerFn({ method: "GET" })
       db.from("role_areas").select("role, area, allowed"),
       db
         .from("roles")
-        .select("key, label, description, is_system")
+        .select("id, key, label, description, is_system")
         .order("is_system", { ascending: false })
         .order("label"),
       db.from("area_chaves").select("area, permission_key"),
@@ -770,6 +771,7 @@ export const listRoleAreas = createServerFn({ method: "GET" })
       areas: (areasRes.data ?? []) as Area[],
       grants: (grantsRes.data ?? []) as { role: string; area: string; allowed: boolean }[],
       roles: (rolesRes.data ?? []) as {
+        id: string;
         key: string;
         label: string;
         description: string;
@@ -864,59 +866,85 @@ export const getEscopoDoUsuario = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * O recorte de UNIDADES de uma pessoa (o que ela vê nas áreas do Ops).
+ *
+ * Até 24/09/2026 este diálogo gravava também as empresas do Financeiro, com a
+ * regra "só abre o grupo com todas as empresas marcadas", enquanto o cockpit e
+ * `/admin/acessos-financeiro` aplicam "basta uma". E esta gravação não
+ * sincronizava o cockpit, então a mudança não chegava a ninguém. As empresas
+ * agora moram num lugar só, a tela do Financeiro; aqui não se toca nelas.
+ */
 export const salvarEscopoDoUsuario = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (input: {
-      userId: string;
-      todas_unidades: boolean;
-      todas_empresas: boolean;
-      unidades: number[];
-      empresas: string[];
-    }) => {
-      if (!input?.userId) throw new Error("Usuário inválido.");
-      return {
-        userId: input.userId,
-        todas_unidades: !!input.todas_unidades,
-        todas_empresas: !!input.todas_empresas,
-        unidades: Array.isArray(input.unidades) ? input.unidades : [],
-        empresas: Array.isArray(input.empresas) ? input.empresas : [],
-      };
-    },
-  )
+  .inputValidator((input: { userId: string; todas_unidades: boolean; unidades: number[] }) => {
+    if (!input?.userId) throw new Error("Usuário inválido.");
+    return {
+      userId: input.userId,
+      todas_unidades: !!input.todas_unidades,
+      unidades: Array.isArray(input.unidades)
+        ? Array.from(new Set(input.unidades.map(Number).filter((n) => Number.isInteger(n) && n > 0)))
+        : [],
+    };
+  })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
 
-    const { error: e1 } = await db.from("usuario_escopo").upsert(
-      {
-        user_id: data.userId,
-        todas_unidades: data.todas_unidades,
-        todas_empresas: data.todas_empresas,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    );
-    if (e1) throw new Error("Erro ao salvar o escopo.");
+    const { data: antes } = await db
+      .from("usuario_escopo")
+      .select("todas_unidades")
+      .eq("user_id", data.userId)
+      .maybeSingle();
 
-    // Apaga e reinsere: a lista é pequena (11 unidades, 17 empresas) e um diff
-    // incremental aqui só criaria estado intermediário para dar errado.
-    await db.from("usuario_unidades").delete().eq("user_id", data.userId);
+    // Só a coluna de unidades: `todas_empresas` é do Financeiro.
+    const { error: e1 } = antes
+      ? await db
+          .from("usuario_escopo")
+          .update({ todas_unidades: data.todas_unidades, updated_at: new Date().toISOString() })
+          .eq("user_id", data.userId)
+      : await db
+          .from("usuario_escopo")
+          .insert({ user_id: data.userId, todas_unidades: data.todas_unidades, todas_empresas: false });
+    if (e1) throw new Error("Erro ao salvar o recorte.");
+
+    // Apaga e reinsere: a lista é pequena e um diff incremental só criaria
+    // estado intermediário para dar errado.
+    const { error: eDel } = await db.from("usuario_unidades").delete().eq("user_id", data.userId);
+    if (eDel) throw new Error("Erro ao salvar as unidades.");
     if (!data.todas_unidades && data.unidades.length) {
       const { error } = await db
         .from("usuario_unidades")
         .insert(data.unidades.map((unidade_id) => ({ user_id: data.userId, unidade_id })));
       if (error) throw new Error("Erro ao salvar as unidades.");
     }
+    // Se a pessoa é admin de alguma área, o recorte de antes da nomeação está
+    // guardado para voltar quando ela deixar de ser admin. A escolha que o
+    // super admin acabou de fazer é a nova referência: sem isto, o rebaixamento
+    // desfaria esta mudança (revisão de 25/09/2026).
+    const { data: esc } = await db
+      .from("usuario_escopo")
+      .select("todas_empresas")
+      .eq("user_id", data.userId)
+      .maybeSingle();
+    const { error: eAnterior } = await db
+      .from("area_admins")
+      .update({
+        escopo_anterior: {
+          existia: true,
+          todas_unidades: data.todas_unidades,
+          todas_empresas: Boolean(esc?.todas_empresas),
+        },
+      })
+      .eq("user_id", data.userId)
+      .eq("nivel", "admin");
+    if (eAnterior) console.error("[salvarEscopoDoUsuario] escopo_anterior não atualizado:", eAnterior.message);
 
-    await db.from("usuario_empresas").delete().eq("user_id", data.userId);
-    if (!data.todas_empresas && data.empresas.length) {
-      const { error } = await db
-        .from("usuario_empresas")
-        .insert(data.empresas.map((empresa_id) => ({ user_id: data.userId, empresa_id })));
-      if (error) throw new Error("Erro ao salvar as empresas.");
-    }
+    await registrarAcesso(context.userId, data.userId, "definir_recorte", {
+      todas_unidades: data.todas_unidades,
+      unidades: data.todas_unidades ? [] : data.unidades,
+    });
     return { ok: true };
   });
 
@@ -968,7 +996,7 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = context.supabase as any;
-    const [areasRes, papeisRes, chavesRes, adminsRes, membrosRes, porPessoaRes, unidadesRes] =
+    const [areasRes, papeisRes, chavesRes, adminsRes, membrosRes, porPessoaRes, unidadesRes, escopoRes] =
       await Promise.all([
         db.from("areas").select("slug, nome, escopo, ordem").eq("ativa", true).order("ordem"),
         db.from("user_roles").select("role").eq("user_id", data.userId),
@@ -977,6 +1005,7 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
         db.from("usuario_areas").select("area, allowed").eq("user_id", data.userId),
         db.from("usuario_chaves").select("permission_key, allowed").eq("user_id", data.userId),
         db.from("usuario_unidades").select("unidade_id").eq("user_id", data.userId),
+        db.from("usuario_escopo").select("todas_unidades").eq("user_id", data.userId).maybeSingle(),
       ]);
     for (const r of [areasRes, papeisRes, chavesRes, adminsRes, membrosRes, porPessoaRes]) {
       if (r?.error) {
@@ -1023,12 +1052,18 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
     const liberadas = new Set(porPessoa.filter((p) => p.allowed).map((p) => p.permission_key));
     const negadas = new Set(porPessoa.filter((p) => !p.allowed).map((p) => p.permission_key));
 
+    // A Administração não se concede pessoa a pessoa: vem só do perfil Super
+    // admin (migration 20260925100000 recusa no banco).
     const areas: AcessoPorArea[] = (
       (areasRes.data ?? []) as Omit<
         AcessoPorArea,
         "pelo_papel" | "nivel" | "paginas" | "liberadas" | "negadas"
       >[]
-    ).map((a) => {
+    )
+      // "Brain Financeiro" também sai: quem entra no Financeiro é a porta do
+      // produto e as empresas (/admin/acessos-financeiro), não esta área.
+      .filter((a) => a.slug !== "admin" && a.slug !== "financeiro")
+      .map((a) => {
       const chaves = chavesPorArea.get(a.slug) ?? [];
       return {
         slug: a.slug,
@@ -1050,7 +1085,11 @@ export const getAcessosDoUsuario = createServerFn({ method: "POST" })
     return {
       superAdmin: papeis.includes("admin"),
       papeis: ((rotulosPapeis ?? []) as { key: string; label: string }[]).map((r) => r.label),
-      temUnidade: ((unidadesRes?.data ?? []) as unknown[]).length > 0,
+      // Quem vê todas as unidades não tem linhas em `usuario_unidades` (salvar
+      // o recorte com "todas" apaga as linhas). Olhar só a lista dava "sem
+      // unidade" para a Matriz inteira.
+      temUnidade:
+        Boolean(escopoRes?.data?.todas_unidades) || ((unidadesRes?.data ?? []) as unknown[]).length > 0,
       areas,
     };
   });
@@ -1172,105 +1211,4 @@ export const listAdministradoresPorArea = createServerFn({ method: "GET" })
         nome: nome.get(l.user_id) ?? l.user_id,
       }),
     );
-  });
-
-/**
- * O quadro de /admin/niveis: cada pessoa, o perfil, e o nível em cada área.
- * Só para o super admin.
- */
-export const listNiveisDeAcesso = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context.supabase, context.userId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = context.supabase as any;
-    const [areasRes, perfisRes, papeisRes, rotulosRes, roleAreasRes, adminsRes, membrosRes] =
-      await Promise.all([
-        db
-          .from("areas")
-          .select("slug, nome, ordem")
-          .eq("ativa", true)
-          .neq("slug", "admin")
-          .order("ordem"),
-        db.from("profiles").select("user_id, nome, email"),
-        db.from("user_roles").select("user_id, role"),
-        db.from("roles").select("key, label"),
-        db.from("role_areas").select("role, area").eq("allowed", true),
-        db.from("area_admins").select("user_id, area, nivel"),
-        db.from("usuario_areas").select("user_id, area, allowed"),
-      ]);
-    for (const r of [
-      areasRes,
-      perfisRes,
-      papeisRes,
-      rotulosRes,
-      roleAreasRes,
-      adminsRes,
-      membrosRes,
-    ]) {
-      if (r?.error) {
-        console.error("[listNiveisDeAcesso]", r.error);
-        throw new Error("Erro ao carregar os níveis de acesso.");
-      }
-    }
-    const rotulo = new Map(
-      ((rotulosRes.data ?? []) as { key: string; label: string }[]).map((r) => [r.key, r.label]),
-    );
-    const areasDoPapel = new Map<string, Set<string>>();
-    for (const r of (roleAreasRes.data ?? []) as { role: string; area: string }[]) {
-      const set = areasDoPapel.get(r.role) ?? new Set<string>();
-      set.add(r.area);
-      areasDoPapel.set(r.role, set);
-    }
-    const papeisDe = new Map<string, string[]>();
-    for (const r of (papeisRes.data ?? []) as { user_id: string; role: string }[]) {
-      papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), r.role]);
-    }
-    const delegado = new Map<string, "admin" | "socio" | "usuario" | "bloqueado">();
-    for (const m of (membrosRes.data ?? []) as {
-      user_id: string;
-      area: string;
-      allowed: boolean;
-    }[])
-      delegado.set(`${m.user_id}|${m.area}`, m.allowed ? "usuario" : "bloqueado");
-    for (const a of (adminsRes.data ?? []) as {
-      user_id: string;
-      area: string;
-      nivel: "admin" | "socio";
-    }[])
-      delegado.set(`${a.user_id}|${a.area}`, a.nivel);
-
-    const areas = (areasRes.data ?? []) as { slug: string; nome: string }[];
-    const pessoas = (
-      (perfisRes.data ?? []) as { user_id: string; nome: string | null; email: string | null }[]
-    )
-      .map((p) => {
-        const papeis = papeisDe.get(p.user_id) ?? [];
-        const superAdmin = papeis.includes("admin");
-        const pelosPapeis = new Set(papeis.flatMap((r) => [...(areasDoPapel.get(r) ?? [])]));
-        return {
-          userId: p.user_id,
-          nome: p.nome || p.email || "Sem nome",
-          email: p.email ?? "",
-          perfis: papeis.map((r) => rotulo.get(r) ?? r),
-          superAdmin,
-          niveis: Object.fromEntries(
-            areas.map((a) => [
-              a.slug,
-              superAdmin
-                ? "super_admin"
-                : (delegado.get(`${p.user_id}|${a.slug}`) ??
-                  (pelosPapeis.has(a.slug) ? "perfil" : "nenhum")),
-            ]),
-          ) as Record<
-            string,
-            "super_admin" | "admin" | "socio" | "usuario" | "perfil" | "bloqueado" | "nenhum"
-          >,
-        };
-      })
-      .sort(
-        (x, y) =>
-          Number(y.superAdmin) - Number(x.superAdmin) || x.nome.localeCompare(y.nome, "pt-BR"),
-      );
-    return { areas, pessoas };
   });

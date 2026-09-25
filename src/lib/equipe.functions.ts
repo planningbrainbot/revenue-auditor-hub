@@ -198,7 +198,16 @@ export const convidarParaEquipe = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const adm = supabaseAdmin as Cliente;
 
-    const { data: existente } = await adm.from("profiles").select("user_id").ilike("email", data.email).maybeSingle();
+    // Igualdade exata: com `ilike` o `_` do e-mail é curinga (auditoria 24/09).
+    const { data: existente } = await adm
+      .schema("public")
+      .from("profiles")
+      .select("user_id, ativo")
+      .eq("email", data.email)
+      .maybeSingle();
+    if (existente && existente.ativo === false) {
+      throw new Error("Esta conta está desativada. Só o super admin reativa.");
+    }
     let userId: string = existente?.user_id ?? "";
     let criou = false;
     if (!userId) {
@@ -230,13 +239,17 @@ export const convidarParaEquipe = createServerFn({ method: "POST" })
     }
 
     // A porta do Ops. Sem ela as policies com tem_produto('ops') barram tudo.
-    await adm
+    const { error: portaErr } = await adm
       .schema("public")
       .from("produto_acesso")
       .upsert({ user_id: userId, produto: "ops", concedido_por: eu }, { onConflict: "user_id,produto", ignoreDuplicates: true });
+    if (portaErr) {
+      console.error("[convidarParaEquipe] porta do Ops falhou:", portaErr);
+      throw new Error("O acesso na área foi gravado, mas a porta do Ops não abriu. Tente de novo.");
+    }
 
     const { vincularCadastroDeGente } = await import("@/lib/gente-vinculo.server");
-    await vincularCadastroDeGente(adm, userId, data.email);
+    await vincularCadastroDeGente(adm, userId, data.email, { todas: false, unidades: data.unidades });
 
     let emailEnviado = false;
     let emailErro: string | null = null;
@@ -281,8 +294,14 @@ export const definirPaginasEquipe = createServerFn({ method: "POST" })
   });
 
 /**
- * Tira a pessoa da área. A conta só é desativada quando ela não entra em mais
- * nada: nem outra área do Ops, nem Growth, nem Financeiro (furo 2).
+ * Tira a pessoa da área. Quando ela não entra em mais nenhuma área do Ops, a
+ * porta do Ops fecha também.
+ *
+ * Até 24/09/2026 a conta era BANIDA quando sobrava sem produto nenhum (decisão
+ * de 17/09). O banimento não aparecia em tela nenhuma e nada o desfazia: quem
+ * era reconvidado depois recebia o convite e não conseguia entrar. Sem porta a
+ * conta já não abre nada; desligar alguém de verdade virou ato explícito do
+ * super admin ("Desativar" na ficha da pessoa), visível e reversível.
  */
 export const removerDaEquipe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -294,18 +313,18 @@ export const removerDaEquipe = createServerFn({ method: "POST" })
     const semArea = Boolean(
       await rpc(context.supabase, "acesso_remover_da_area", { _alvo: data.userId, _area: data.area }),
     );
-    if (!semArea) return { ok: true, contaDesativada: false };
+    if (!semArea) return { ok: true, saiuDoOps: false };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const adm = supabaseAdmin as Cliente;
-    await adm.schema("public").from("produto_acesso").delete().eq("user_id", data.userId).eq("produto", "ops");
-    const { data: outros } = await adm.schema("public").from("produto_acesso").select("produto").eq("user_id", data.userId);
-    if ((outros ?? []).length > 0) return { ok: true, contaDesativada: false };
-
-    // Desativar é reversível: banimento longo, não exclusão.
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, { ban_duration: "876000h" });
-    if (error) console.error("[removerDaEquipe] desativar conta falhou:", error);
-    return { ok: true, contaDesativada: !error };
+    const { error } = await adm
+      .schema("public")
+      .from("produto_acesso")
+      .delete()
+      .eq("user_id", data.userId)
+      .eq("produto", "ops");
+    if (error) console.error("[removerDaEquipe] fechar a porta do Ops falhou:", error);
+    return { ok: true, saiuDoOps: !error };
   });
 
 /** Só o admin da área: transforma um membro em sócio. */

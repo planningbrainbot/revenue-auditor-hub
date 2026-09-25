@@ -1,33 +1,71 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  adminCreateUser,
-  adminAccessEmailStatus,
-  adminDefinirPortaOps,
-  adminDeleteUser,
-  adminEnviarRedefinicaoSenha,
-  adminGerarSenhaProvisoria,
-  adminGrantGrowthAccess,
-  adminListGrowthAccess,
-  adminListUsers,
-  adminRevokeGrowthAccess,
-  adminUpdateUser,
-} from "@/lib/admin-users.functions";
-import { getSocioUnidadeByEmail } from "@/lib/permissions.functions";
+import { toast } from "sonner";
+import { ChevronRight, Plus, Search } from "lucide-react";
+import { adminCreateUser, adminListUsers, type PessoaNaLista } from "@/lib/admin-users.functions";
 import { listRoles } from "@/lib/roles.functions";
-import { generatePassword } from "@/lib/password-utils";
-import { useAuth } from "@/hooks/use-auth";
+import {
+  ROTULO_SITUACAO,
+  TOM_SITUACAO,
+  dominioIncomum,
+  haQuanto,
+  pendenciasDe,
+  situacaoDe,
+  type Situacao,
+} from "@/lib/pessoas-situacao";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
-import { EscopoUsuarioDialog } from "@/components/admin/escopo-usuario-dialog";
-import { AcessosUsuarioDialog } from "@/components/admin/acessos-usuario-dialog";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import { PainelResultado, type ResultadoDeAcesso } from "@/components/admin/pessoa-dialogos";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+
+/**
+ * Pessoas: quem entra no Brain, em quê, e o que está pendente.
+ *
+ * Refeita em 24/09/2026 depois da auditoria da gestão de acessos. A tela antiga
+ * fazia tudo numa linha (papel, recorte, três produtos, senha, excluir) e não
+ * respondia a pergunta que importa: o que esta pessoa acessa, e por quê. Agora
+ * a lista diz a SITUAÇÃO de cada pessoa e aponta o que está errado; tudo o que
+ * se faz com uma pessoa mora na ficha dela (/admin/usuarios/$userId).
+ */
+const SITUACOES: Situacao[] = ["ativa", "pendencia", "convite", "pedido", "desativada"];
+type FiltroSituacao = Situacao | "todas";
 
 export const Route = createFileRoute("/_authenticated/admin/usuarios")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Usuários – Planning Brain" }] }),
+  head: () => ({ meta: [{ title: "Pessoas – Planning Brain" }] }),
+  // Os dois filtros são opcionais na URL: sem eles, a lista abre inteira. Assim
+  // qualquer link para Pessoas funciona sem ter de repetir o padrão.
+  validateSearch: (s: Record<string, unknown>): { situacao?: Situacao; busca?: string } => ({
+    ...((SITUACOES as string[]).includes(String(s.situacao)) ? { situacao: s.situacao as Situacao } : {}),
+    ...(typeof s.busca === "string" && s.busca ? { busca: s.busca } : {}),
+  }),
   beforeLoad: async ({ context }) => {
     const user = (context as { user?: { id: string } }).user;
     if (!user) throw redirect({ to: "/auth" });
@@ -39,969 +77,505 @@ export const Route = createFileRoute("/_authenticated/admin/usuarios")({
       .maybeSingle();
     if (!role) throw redirect({ to: "/" });
   },
-  component: UsersPage,
+  component: PessoasPage,
 });
 
-type Role = string;
+function normalizar(s: string) {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
 
-// Papel e produto são CATEGORIA, não status. Pintados com as cores de status,
-// "auditor" parecia erro, "sócio" parecia sucesso e sócio e sócio regional
-// ficavam iguais. A palavra já diz qual é; a pílula é neutra para todos.
-const ROLE_PILL = "border border-input text-foreground";
-const CUSTOM_ROLE_PILL = "bg-muted text-foreground";
-
-// Papéis e departamentos do Growth — espelham os CHECK de public.membros lá.
-const GROWTH_PAPEIS = ["admin", "gestao", "operacional"] as const;
-const GROWTH_DEPARTAMENTOS = ["comercial", "diretoria", "marketing", "backoffice", "parcerias"] as const;
-
-/**
- * Os três produtos da plataforma, na ordem de `public.produtos`.
- *
- * A porta de todos eles é a mesma tabela (`public.produto_acesso`); o que
- * muda é onde se administra o que a pessoa vê DENTRO de cada um: no Ops são
- * as áreas ("Acessos") e o escopo; no Growth, papel e departamento; no
- * Financeiro, as unidades, que moram na página dedicada porque o recorte é
- * por empresa e não cabe numa linha de tabela.
- */
-const PRODUTOS = [
-  { slug: "ops", rotulo: "Ops" },
-  { slug: "growth", rotulo: "Growth" },
-  { slug: "financeiro", rotulo: "Financeiro" },
-] as const;
-
-const PRODUTO_PILL_OFF =
-  "border border-dashed border-border text-muted-foreground hover:border-solid hover:bg-accent";
-
-type GrowthAlvo = {
-  email: string;
-  nome: string;
-  papel: string;
-  departamento: string;
-  jaTemAcesso: boolean;
-};
-
-function UsersPage() {
+function PessoasPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { isAdmin, loading: roleLoading } = usePermissions();
-  const qc = useQueryClient();
+  const nav = Route.useNavigate();
+  const search = Route.useSearch();
+  const situacao: FiltroSituacao = search.situacao ?? "todas";
+  const busca = search.busca ?? "";
+  const { isAdmin, loading } = usePermissions();
 
   const listFn = useServerFn(adminListUsers);
-  const emailStatusFn = useServerFn(adminAccessEmailStatus);
-  const createFn = useServerFn(adminCreateUser);
-  const resetFn = useServerFn(adminEnviarRedefinicaoSenha);
-  const senhaProvisoriaFn = useServerFn(adminGerarSenhaProvisoria);
-  const deleteFn = useServerFn(adminDeleteUser);
-  const updateFn = useServerFn(adminUpdateUser);
-  const lookupFn = useServerFn(getSocioUnidadeByEmail);
   const rolesFn = useServerFn(listRoles);
-  const growthListFn = useServerFn(adminListGrowthAccess);
-  const growthGrantFn = useServerFn(adminGrantGrowthAccess);
-  const growthRevokeFn = useServerFn(adminRevokeGrowthAccess);
-  const portaOpsFn = useServerFn(adminDefinirPortaOps);
 
   useEffect(() => {
-    if (!roleLoading && !isAdmin) navigate({ to: "/" });
-  }, [roleLoading, isAdmin, navigate]);
+    if (!loading && !isAdmin) navigate({ to: "/" });
+  }, [loading, isAdmin, navigate]);
 
-  const usersQuery = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => listFn(),
-    enabled: isAdmin,
-  });
-
-  const emailStatus = useQuery({
-    queryKey: ["admin-access-email-status"],
-    queryFn: () => emailStatusFn(),
-    enabled: isAdmin,
-  });
-
-  const rolesQuery = useQuery({
-    queryKey: ["admin-roles"],
-    queryFn: () => rolesFn(),
-    enabled: isAdmin,
-  });
-  const roles = rolesQuery.data ?? [];
-
-  const unidadesQuery = useQuery({
-    queryKey: ["admin-unidades"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("unidades")
-        .select("nome_da_praca")
-        .eq("tipo", "regional")
-        .order("nome_da_praca");
-      if (error) throw error;
-      return (data ?? []).map((u) => u.nome_da_praca as string);
-    },
-    enabled: isAdmin,
-  });
-  const unidades = unidadesQuery.data ?? [];
-  const growthQuery = useQuery({
-    queryKey: ["admin-growth-access"],
-    queryFn: () => growthListFn(),
-    enabled: isAdmin,
-  });
-  const growthConfigurado = growthQuery.data?.configured ?? false;
-  const growthPorEmail = new Map(
-    (growthQuery.data?.membros ?? []).map((m) => [String(m.email).toLowerCase(), m]),
+  const q = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn(), enabled: isAdmin });
+  const perfisQ = useQuery({ queryKey: ["admin-roles"], queryFn: () => rolesFn(), enabled: isAdmin });
+  const rotuloPerfil = useMemo(
+    () => new Map((perfisQ.data ?? []).map((r) => [r.key, r.label])),
+    [perfisQ.data],
   );
 
-  const roleLabel = (key: string) => roles.find((r) => r.key === key)?.label ?? key;
+  const [criando, setCriando] = useState(false);
+  const [resultado, setResultado] = useState<(ResultadoDeAcesso & { userId?: string }) | null>(null);
 
-  const [showForm, setShowForm] = useState(false);
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("diretor");
-  const [credential, setCredential] = useState<{
-    email: string;
-    password: string;
-    unidade?: string | null;
-    /** Senha gerada para uma conta que já existe, que a pessoa terá de trocar. */
-    provisoria?: boolean;
-  } | null>(null);
-  // Alvo do diálogo de senha. `modo` é o que o admin escolheu ali: link por
-  // e-mail (não mexe na senha atual) ou senha provisória em tela.
-  const [senhaAlvo, setSenhaAlvo] = useState<{
-    userId: string;
-    nome: string;
-    email: string;
-    modo: "link" | "provisoria";
-  } | null>(null);
-  const [acesso, setAcesso] = useState<{
-    modo: "convite" | "reset";
-    email: string;
-    link: string | null;
-    enviado: boolean;
-    erro: string | null;
-    unidade?: string | null;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [socioUnidade, setSocioUnidade] = useState<string | null>(null);
-  const [escopoAlvo, setEscopoAlvo] = useState<{ userId: string; nome: string } | null>(null);
-  // `tem` é a porta do Ops, que o diálogo de Acessos mostra e liga/desliga.
-  const [acessosAlvo, setAcessosAlvo] = useState<{ userId: string; nome: string; tem: boolean } | null>(null);
-  const [lookingUp, setLookingUp] = useState(false);
-  const [unidadeSel, setUnidadeSel] = useState("");
+  const pessoas = useMemo(
+    () =>
+      (q.data ?? []).map((p) => {
+        const entrada = { ...p, unidadeSocio: p.unidade };
+        return { ...p, situacao: situacaoDe(entrada), pendencias: pendenciasDe(entrada) };
+      }),
+    [q.data],
+  );
 
-  // Preview da unidade quando role=socio + email digitado
-  useEffect(() => {
-    if (role !== "socio" || !email.includes("@")) {
-      setSocioUnidade(null);
-      return;
-    }
-    let cancel = false;
-    setLookingUp(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await lookupFn({ data: { email } });
-        if (!cancel) setSocioUnidade(res.unidade);
-      } finally {
-        if (!cancel) setLookingUp(false);
-      }
-    }, 400);
-    return () => {
-      cancel = true;
-      clearTimeout(t);
-    };
-  }, [email, role, lookupFn]);
+  const contagem = useMemo(() => {
+    const c = Object.fromEntries(SITUACOES.map((s) => [s, 0])) as Record<Situacao, number>;
+    for (const p of pessoas) c[p.situacao]++;
+    return c;
+  }, [pessoas]);
 
-  const portaOpsMut = useMutation({
-    mutationFn: (input: { userId: string; conceder: boolean }) => portaOpsFn({ data: input }),
-    onSuccess: (res) => {
-      // O diálogo fica aberto: quem acabou de conceder normalmente quer
-      // marcar as áreas em seguida, e fechar aqui obrigaria a reabrir.
-      setAcessosAlvo((a) => (a ? { ...a, tem: res.conceder } : a));
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao mudar o acesso ao Ops"),
-  });
+  const filtradas = useMemo(() => {
+    const t = normalizar(busca);
+    return pessoas
+      .filter((p) => situacao === "todas" || p.situacao === situacao)
+      .filter(
+        (p) =>
+          !t ||
+          normalizar(
+            `${p.nome ?? ""} ${p.email} ${p.papeis.map((r) => rotuloPerfil.get(r) ?? r).join(" ")} ${p.escopo.unidades.join(" ")}`,
+          ).includes(t),
+      )
+      .sort((a, b) => (a.nome ?? a.email).localeCompare(b.nome ?? b.email, "pt-BR"));
+  }, [pessoas, situacao, busca, rotuloPerfil]);
 
-  const [growthAlvo, setGrowthAlvo] = useState<GrowthAlvo | null>(null);
-
-  const growthGrantMut = useMutation({
-    mutationFn: (input: { email: string; nome: string; papel: string; departamento: string; password?: string }) =>
-      growthGrantFn({ data: input }),
-    onSuccess: (res, variables) => {
-      if (res.loginCriado && variables.password) {
-        setCredential({ email: `${res.email} (Growth)`, password: variables.password });
-      }
-      setGrowthAlvo(null);
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao conceder acesso no Growth"),
-  });
-
-  const growthRevokeMut = useMutation({
-    mutationFn: (email: string) => growthRevokeFn({ data: { email } }),
-    onSuccess: () => {
-      setGrowthAlvo(null);
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao revogar acesso no Growth"),
-  });
-
-  const createMut = useMutation({
-    mutationFn: (input: { nome: string; email: string; role: Role; password: string; unidade?: string }) => createFn({ data: input }),
-    onSuccess: (res) => {
-      setAcesso({
-        modo: "convite",
-        email: res.email,
-        link: res.link,
-        enviado: res.emailEnviado,
-        erro: res.emailErro,
-        unidade: res.unidade,
-      });
-      setNome("");
-      setEmail("");
-      setRole("diretor");
-      setSocioUnidade(null);
-      setUnidadeSel("");
-      setShowForm(false);
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao criar usuário"),
-  });
-
-  const resetMut = useMutation({
-    mutationFn: ({ user_id }: { user_id: string }) => resetFn({ data: { user_id } }),
-    onSuccess: (res) => {
-      setCredential(null);
-      setSenhaAlvo(null);
-      setError(null);
-      setAcesso({
-        modo: "reset",
-        email: res.email,
-        link: res.link,
-        enviado: res.emailEnviado,
-        erro: res.emailErro,
-      });
-      mostrarResultadoNoTopo();
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao enviar a redefinição de senha"),
-  });
-
-  const senhaProvisoriaMut = useMutation({
-    mutationFn: ({ user_id }: { user_id: string }) => senhaProvisoriaFn({ data: { user_id } }),
-    onSuccess: (res) => {
-      // Os dois painéis nunca aparecem juntos: são dois caminhos para a mesma
-      // pergunta ("como essa pessoa entra?"), e ver os dois faria duvidar de
-      // qual valeu.
-      setAcesso(null);
-      setSenhaAlvo(null);
-      setError(null);
-      setCredential({ email: res.email, password: res.senha, provisoria: true });
-      mostrarResultadoNoTopo();
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao gerar a senha provisória"),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (user_id: string) => deleteFn({ data: { user_id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-users"] }),
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao excluir"),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: (input: { user_id: string; nome: string; role?: string | null }) => updateFn({ data: input }),
-    onSuccess: () => {
-      setEditingId(null);
-      setEditingNome("");
-      setEditingRole("");
-      setError(null);
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao atualizar"),
-  });
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingNome, setEditingNome] = useState("");
-  // "" é sem papel. O papel só existia no cadastro: mudar depois pedia SQL.
-  const [editingRole, setEditingRole] = useState("");
-
-  function abrirEdicao(u: { user_id: string; nome: string | null; role: string | null }) {
-    setEditingId(u.user_id);
-    setEditingNome(u.nome || "");
-    setEditingRole(u.role ?? "");
-    setError(null);
-  }
-
-  function salvarEdicao(u: { user_id: string; role: string | null }) {
-    const nome = editingNome.trim();
-    if (!nome) return;
-    const roleAtual = u.role ?? "";
-    updateMut.mutate({
-      user_id: u.user_id,
-      nome,
-      // Só manda o papel quando mudou: assim salvar um nome nunca reescreve
-      // user_roles sem querer.
-      ...(editingRole === roleAtual ? {} : { role: editingRole || null }),
+  const mudarFiltro = (next: Partial<{ situacao: FiltroSituacao; busca: string }>) =>
+    nav({
+      search: (s) => {
+        const proximo = { ...s, ...next };
+        return {
+          ...(proximo.situacao && proximo.situacao !== "todas" ? { situacao: proximo.situacao as Situacao } : {}),
+          ...(proximo.busca ? { busca: proximo.busca } : {}),
+        };
+      },
+      replace: true,
     });
-  }
 
-  /**
-   * Os dois painéis de resultado (link enviado, senha gerada) moram no topo da
-   * página, e o botão que os dispara está numa linha da tabela que pode estar
-   * na altura do rodapé. Sem isto, gerar uma senha parece não ter feito nada.
-   */
-  function mostrarResultadoNoTopo() {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function copyLink() {
-    if (acesso?.link) navigator.clipboard?.writeText(acesso.link);
-  }
-
-  function copyCred() {
-    if (!credential) return;
-    const text = `Email: ${credential.email}\nSenha: ${credential.password}`;
-    navigator.clipboard?.writeText(text);
-  }
-
-  if (roleLoading) return <div className="p-8 text-muted-foreground">Carregando...</div>;
-  if (!isAdmin) return null;
+  if (loading || !isAdmin) return null;
 
   return (
-    <AppShell title="Gerenciar usuários" subtitle="Cadastre admins, diretores e sócios">
-      <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        <section className="rounded-xl border bg-card px-5 py-4">
-          <h2 className="text-sm font-semibold">Emails de acesso</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Convites e redefinições saem como Planning Brain · noreply@planningbrain.com.br. Para
-            uma conta existente, use “Senha” na linha do usuário: de lá sai o link por e-mail, com a
-            pessoa definindo a própria senha, ou uma senha provisória em tela, para quando ela não
-            acessa o e-mail.
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground" role="status">
-            {emailStatus.isError
-              ? "Não foi possível consultar a configuração de envio."
-              : !emailStatus.data
-                ? "Conferindo o envio…"
-                : emailStatus.data.configured
-                  ? "Resend configurado · link de uso único, válido por 1 hora."
-                  : "Resend pendente de configuração. O administrador pode copiar o link após gerá-lo."}
-          </p>
-        </section>
-        {acesso && (
-          <div
-            className={`rounded-xl border p-4 ${
-              acesso.enviado
-                ? "border-success/40 bg-success/5"
-                : "border-warning/50 bg-warning/5"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {acesso.enviado
-                    ? acesso.modo === "convite"
-                      ? "Convite enviado"
-                      : "Redefinição enviada"
-                    : "Usuário pronto, mas o e-mail não saiu"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {acesso.enviado ? (
-                    <>
-                      {acesso.email} recebeu um link para cadastrar a própria senha. O link vale por
-                      24 horas e é de uso único.
-                    </>
-                  ) : (
-                    <>
-                      Não foi possível enviar o e-mail para {acesso.email}
-                      {acesso.erro ? ` (${acesso.erro})` : ""}. Copie o link abaixo e mande por um
-                      canal seguro.
-                    </>
-                  )}
-                </p>
-                {acesso.unidade !== undefined && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Unidade: <span className="text-foreground">{acesso.unidade ?? "—"}</span>
-                  </p>
-                )}
-                {acesso.link && (
-                  <div className="mt-3 break-all rounded-lg bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
-                    {acesso.link}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                {acesso.link && (
-                  <button
-                    onClick={copyLink}
-                    className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    Copiar link
-                  </button>
-                )}
-                <button
-                  onClick={() => setAcesso(null)}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {credential && (
-          <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {credential.provisoria ? "Senha provisória gerada" : "Credenciais geradas"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Copie e envie para o usuário por um canal seguro. Esta senha só aparece uma vez.
-                </p>
-                {credential.provisoria && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    A senha anterior já não vale. No próximo acesso, a pessoa é levada a cadastrar a
-                    dela antes de usar o Ops.
-                  </p>
-                )}
-                <div className="mt-3 rounded-lg bg-background px-3 py-2 font-mono text-sm">
-                  <div><span className="text-muted-foreground">Email:</span> {credential.email}</div>
-                  <div><span className="text-muted-foreground">Senha:</span> {credential.password}</div>
-                  {credential.unidade !== undefined && (
-                    <div><span className="text-muted-foreground">Unidade:</span> {credential.unidade ?? "—"}</div>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={copyCred} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">
-                  Copiar
-                </button>
-                <button onClick={() => setCredential(null)} className="rounded-full border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent">
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Usuários ({usersQuery.data?.length ?? 0})</h2>
-          <button
-            onClick={() => { setShowForm((s) => !s); setError(null); }}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          >
-            {showForm ? "Cancelar" : "Novo usuário"}
-          </button>
-        </div>
-
-        {showForm && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMut.mutate({
-                nome,
-                email,
-                role,
-                password: generatePassword(12),
-                unidade: role === "socio_regional" ? unidadeSel : undefined,
-              });
-            }}
-            className="rounded-xl border bg-card p-4 grid gap-3 sm:grid-cols-4"
-          >
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-medium text-foreground">Nome</label>
-              <input required value={nome} onChange={(e) => setNome(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-foreground">Email</label>
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-              {role === "socio" && email.includes("@") && (
-                <p className="mt-1 text-xs">
-                  {lookingUp ? (
-                    <span className="text-muted-foreground">Buscando unidade…</span>
-                  ) : socioUnidade ? (
-                    <span className="text-success">
-                      Unidade vinculada: <strong>{socioUnidade}</strong>
-                    </span>
-                  ) : (
-                    <span className="text-warning">
-                      Email não encontrado na tabela de sócios. O acesso será criado, mas a unidade ficará vazia.
-                    </span>
-                  )}
-                </p>
-              )}
-            </div>
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-medium text-foreground">Papel</label>
-              <select
-                value={role}
-                onChange={(e) => { setRole(e.target.value as Role); setUnidadeSel(""); }}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+    <AppShell
+      title="Quem entra no Brain, e em quê?"
+      subtitle={
+        q.data
+          ? `${q.data.length} pessoas com conta · Ops, Growth e Financeiro · a situação de cada uma e o que está pendente`
+          : "Pessoas com conta no Brain"
+      }
+      headerExtra={
+        <Button onClick={() => setCriando(true)}>
+          <Plus className="size-4" aria-hidden /> Nova pessoa
+        </Button>
+      }
+    >
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        {resultado && (
+          <div className="space-y-2">
+            <PainelResultado r={resultado} onFechar={() => setResultado(null)} />
+            {resultado.userId && (
+              <Link
+                to="/admin/usuarios/$userId"
+                params={{ userId: resultado.userId }}
+                className="text-sm font-medium text-primary-text hover:underline"
               >
-                {roles.map((r) => (
-                  <option key={r.key} value={r.key}>
-                    {r.label}
-                    {!r.is_system ? " (customizado)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {role === "socio_regional" && (
-              <div className="sm:col-span-1">
-                <label className="block text-xs font-medium text-foreground">Unidade</label>
-                <select
-                  required
-                  value={unidadeSel}
-                  onChange={(e) => setUnidadeSel(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="" disabled>Selecione…</option>
-                  {unidades.map((u) => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
-                </select>
-              </div>
+                Abrir a ficha da pessoa criada
+              </Link>
             )}
-            <div className="sm:col-span-4 flex justify-end">
-              <button type="submit" disabled={createMut.isPending} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                {createMut.isPending ? "Criando..." : "Criar e enviar acesso"}
-              </button>
-            </div>
-          </form>
+          </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="min-w-full text-sm">
-            <thead className="bg-accent/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2">Nome</th>
-                <th className="px-4 py-2">Email</th>
-                <th className="px-4 py-2">Papel</th>
-                <th className="px-4 py-2">Unidade</th>
-                <th className="px-4 py-2">Produtos</th>
-                <th className="px-4 py-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersQuery.isLoading && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
-              )}
-              {usersQuery.data?.map((u) => (
-                <tr key={u.user_id} className="border-t">
-                  <td className="px-4 py-2 text-foreground">
-                    {editingId === u.user_id ? (
-                      <input
-                        autoFocus
-                        value={editingNome}
-                        onChange={(e) => setEditingNome(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") salvarEdicao(u);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
-                        className="w-full rounded border border-input bg-background px-2 py-1 text-sm"
-                      />
-                    ) : (
-                      u.nome || "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-foreground">{u.email}</td>
-                  <td className="px-4 py-2">
-                    {editingId === u.user_id ? (
-                      <>
-                        <select
-                          value={editingRole}
-                          onChange={(e) => setEditingRole(e.target.value)}
-                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
-                        >
-                          <option value="">sem papel</option>
-                          {roles.map((r) => (
-                            <option key={r.key} value={r.key}>{r.label}</option>
-                          ))}
-                        </select>
-                        {editingRole !== (u.role ?? "") && (
-                          <p className="mt-1 text-xs leading-tight text-muted-foreground">
-                            Troca as áreas que vêm do perfil. O que foi dado a ela em Acessos
-                            continua igual.
-                          </p>
-                        )}
-                      </>
-                    ) : u.role ? (
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicao(u)}
-                        title="Clique para trocar o papel desta pessoa"
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 ${ROLE_PILL}`}
-                      >
-                        {roleLabel(u.role)}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicao(u)}
-                        title="Sem papel no Ops. Pode entrar por área, pela pílula Ops. Clique para definir um papel."
-                        className="rounded px-1 py-0.5 text-xs text-muted-foreground underline decoration-dotted underline-offset-4 hover:bg-accent hover:text-foreground"
-                      >
-                        sem papel
-                      </button>
-                    )}
-                  </td>
-                  {/* Unidade é o escopo: o que a pessoa enxerga nas áreas do
-                      Ops. Editar aqui mesmo evita o botão "Escopo" no fim da
-                      linha, que dizia menos do que a própria coluna. */}
-                  <td className="px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => setEscopoAlvo({ userId: u.user_id, nome: u.nome || u.email })}
-                      title="Clique para escolher as unidades e empresas que esta pessoa enxerga"
-                      className="rounded px-1 py-0.5 text-left text-xs text-muted-foreground underline decoration-dotted underline-offset-4 hover:bg-accent hover:text-foreground"
-                    >
-                      {u.escopo.todas ? (
-                        <span className="text-foreground">Todas as unidades</span>
-                      ) : u.escopo.unidades.length === 0 ? (
-                        <span className="text-warning">nenhuma unidade</span>
-                      ) : u.escopo.unidades.length === 1 ? (
-                        <span className="text-foreground">{u.escopo.unidades[0]}</span>
-                      ) : (
-                        <span className="text-foreground" title={u.escopo.unidades.join(", ")}>
-                          {u.escopo.unidades[0]} +{u.escopo.unidades.length - 1}
-                        </span>
-                      )}
-                      {(u.role === "socio" || u.role === "socio_regional") && (
-                        <span className="mt-0.5 block text-xs normal-case">
-                          {u.unidade ? (
-                            <>sócio de {u.unidade}</>
-                          ) : (
-                            <span className="text-warning">sócio não vinculado</span>
-                          )}
-                        </span>
-                      )}
-                    </button>
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {PRODUTOS.map((prod) => {
-                        const tem = u.produtos.includes(prod.slug);
-                        const membroGrowth =
-                          prod.slug === "growth" ? growthPorEmail.get(u.email.toLowerCase()) : undefined;
-                        // A porta sem o cadastro do Growth é acesso que não
-                        // funciona: a pessoa entra e o `e_membro()` de lá barra.
-                        const inconsistente = prod.slug === "growth" && tem && !membroGrowth;
-                        const titulo = !tem
-                          ? `Sem acesso ao ${prod.rotulo}. Clique para conceder.`
-                          : inconsistente
-                            ? "Tem a porta do Growth mas não está em growth.membros — clique para acertar o papel."
-                            : membroGrowth
-                              ? `${membroGrowth.papel} · ${membroGrowth.departamento ?? "sem departamento"}`
-                              : `Entra no ${prod.rotulo}. Clique para administrar.`;
-                        return (
-                          <button
-                            key={prod.slug}
-                            type="button"
-                            title={titulo}
-                            disabled={prod.slug === "growth" && !growthConfigurado}
-                            onClick={() => {
-                              if (prod.slug === "ops") {
-                                setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email, tem });
-                                return;
-                              }
-                              if (prod.slug === "growth") {
-                                const m = growthPorEmail.get(u.email.toLowerCase());
-                                setGrowthAlvo({
-                                  email: u.email,
-                                  nome: u.nome || u.email,
-                                  papel: String(m?.papel ?? "operacional"),
-                                  departamento: String(m?.departamento ?? "comercial"),
-                                  jaTemAcesso: Boolean(m),
-                                });
-                                return;
-                              }
-                              navigate({ to: "/admin/acessos-financeiro" });
-                            }}
-                            className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-40 ${
-                              tem ? CUSTOM_ROLE_PILL : PRODUTO_PILL_OFF
-                            }`}
-                          >
-                            {prod.rotulo}
-                            {inconsistente && <span className="ml-1 text-warning">!</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2">
-                    {editingId === u.user_id ? (
-                      <>
-                        <button
-                          onClick={() => salvarEdicao(u)}
-                          disabled={updateMut.isPending || !editingNome.trim()}
-                          className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                        >
-                          {updateMut.isPending ? "Salvando..." : "Salvar"}
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                        >
-                          Cancelar
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => abrirEdicao(u)}
-                          title="Nome e papel"
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                        >
-                          Editar
-                        </button>
-                        {/* "Escopo" e "Acessos" saíram daqui: o primeiro é a
-                            coluna Unidade, o segundo é a pílula Ops. Dois
-                            caminhos para a mesma janela só faziam duvidar se
-                            eram a mesma coisa. */}
-                        {/* Um botão para os dois caminhos de senha. Dois botões
-                            na linha obrigariam a escolher entre eles sem ver a
-                            diferença, que é justamente o que o diálogo explica:
-                            o link não toca na senha atual, a provisória troca. */}
-                        <button
-                          onClick={() =>
-                            setSenhaAlvo({
-                              userId: u.user_id,
-                              nome: u.nome || u.email || "",
-                              email: u.email || "",
-                              modo: "link",
-                            })
-                          }
-                          title="Enviar link de redefinição ou gerar uma senha provisória"
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                        >
-                          Senha
-                        </button>
-                        {u.user_id !== user?.id && (
-                          <button
-                            onClick={() => { if (confirm(`Excluir ${u.email}?`)) deleteMut.mutate(u.user_id); }}
-                            disabled={deleteMut.isPending}
-                            className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                          >
-                            Excluir
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {usersQuery.data && usersQuery.data.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Nenhum usuário.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {q.isLoading ? (
+          <Carregando variante="pagina" />
+        ) : q.isError ? (
+          <EstadoErro detalhe={(q.error as Error)?.message} tentarNovamente={() => q.refetch()} />
+        ) : (
+          <>
+            <KpiGrade colunas={4}>
+              <KpiCard
+                rotulo="Com pendência"
+                valor={contagem.pendencia}
+                nota="acesso que não funciona como parece"
+                tom={contagem.pendencia ? "atencao" : undefined}
+                abrir={{ onClick: () => mudarFiltro({ situacao: "pendencia" }), rotulo: "Ver quem" }}
+              />
+              <KpiCard
+                rotulo="Convite pendente"
+                valor={contagem.convite}
+                nota="têm conta e nunca entraram"
+                abrir={{ onClick: () => mudarFiltro({ situacao: "convite" }), rotulo: "Ver quem" }}
+              />
+              <KpiCard
+                rotulo="Pediram acesso"
+                valor={contagem.pedido}
+                nota="aguardam o sócio da unidade, em Equipes"
+                abrir={{ onClick: () => mudarFiltro({ situacao: "pedido" }), rotulo: "Ver quem" }}
+              />
+              <KpiCard
+                rotulo="Desativadas"
+                valor={contagem.desativada}
+                nota="fora dos três produtos; reativar devolve tudo"
+                abrir={{ onClick: () => mudarFiltro({ situacao: "desativada" }), rotulo: "Ver quem" }}
+              />
+            </KpiGrade>
 
-        {senhaAlvo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-foreground">Senha de acesso</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {senhaAlvo.nome} · {senhaAlvo.email}
-              </p>
-
-              <div className="mt-5 space-y-3">
-                <label className="flex cursor-pointer gap-3 rounded-lg border border-input p-3 hover:bg-accent">
-                  <input
-                    type="radio"
-                    name="modo-senha"
-                    className="mt-0.5"
-                    checked={senhaAlvo.modo === "link"}
-                    onChange={() => setSenhaAlvo({ ...senhaAlvo, modo: "link" })}
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-foreground">
-                      Enviar link por e-mail
-                    </span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      A pessoa cadastra a própria senha. A senha atual continua valendo até ela
-                      fazer isso. Link de uso único, válido por 24 horas.
-                    </span>
-                  </span>
-                </label>
-
-                <label
-                  className={`flex gap-3 rounded-lg border border-input p-3 ${
-                    senhaAlvo.userId === user?.id ? "opacity-50" : "cursor-pointer hover:bg-accent"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="modo-senha"
-                    className="mt-0.5"
-                    disabled={senhaAlvo.userId === user?.id}
-                    checked={senhaAlvo.modo === "provisoria"}
-                    onChange={() => setSenhaAlvo({ ...senhaAlvo, modo: "provisoria" })}
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-foreground">
-                      Gerar senha provisória
-                    </span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {senhaAlvo.userId === user?.id
-                        ? "Não vale para a sua própria conta: use “Esqueci minha senha” na tela de login."
-                        : "A senha aparece aqui para você copiar e mandar. A senha atual para de valer na hora, e no próximo acesso a pessoa é obrigada a cadastrar a dela."}
-                    </span>
-                  </span>
-                </label>
-              </div>
-
-              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
-
-              <div className="mt-6 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => {
-                    setSenhaAlvo(null);
-                    setError(null);
-                  }}
-                  className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() =>
-                    senhaAlvo.modo === "provisoria"
-                      ? senhaProvisoriaMut.mutate({ user_id: senhaAlvo.userId })
-                      : resetMut.mutate({ user_id: senhaAlvo.userId })
+            <Secao
+              titulo="Pessoas"
+              descricao="Clique numa pessoa para ver o que ela acessa, de onde vem cada acesso, e mudar."
+              acoes={
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={situacao} onValueChange={(v) => mudarFiltro({ situacao: v as FiltroSituacao })}>
+                    <SelectTrigger className="h-9 w-[190px]" aria-label="Situação">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as situações</SelectItem>
+                      {SITUACOES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {ROTULO_SITUACAO[s]} ({contagem[s]})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search
+                      className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <Input
+                      value={busca}
+                      onChange={(e) => mudarFiltro({ busca: e.target.value })}
+                      placeholder="Nome, e-mail, perfil ou unidade"
+                      aria-label="Buscar pessoa"
+                      className="h-9 w-[260px] pl-8"
+                    />
+                  </div>
+                </div>
+              }
+            >
+              {filtradas.length === 0 ? (
+                <EstadoVazio
+                  titulo="Ninguém com esse filtro"
+                  total={pessoas.length}
+                  acao={
+                    <Button variant="outline" size="sm" onClick={() => mudarFiltro({ situacao: "todas", busca: "" })}>
+                      Limpar filtros
+                    </Button>
                   }
-                  disabled={resetMut.isPending || senhaProvisoriaMut.isPending}
-                  className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                >
-                  {resetMut.isPending || senhaProvisoriaMut.isPending
-                    ? "Aplicando..."
-                    : senhaAlvo.modo === "provisoria"
-                      ? "Gerar senha"
-                      : "Enviar link"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {growthAlvo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-            <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-foreground">Acesso ao Growth</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {growthAlvo.nome} · {growthAlvo.email}
-              </p>
-
-              <div className="mt-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground">Papel no Growth</label>
-                  <select
-                    value={growthAlvo.papel}
-                    onChange={(e) => setGrowthAlvo({ ...growthAlvo, papel: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    {GROWTH_PAPEIS.map((pp) => (
-                      <option key={pp} value={pp}>{pp}</option>
-                    ))}
-                  </select>
+                />
+              ) : (
+                <div className="overflow-hidden rounded-xl border bg-card">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Pessoa</TableHead>
+                        <TableHead>Situação</TableHead>
+                        <TableHead>Perfil</TableHead>
+                        <TableHead>Unidades que vê</TableHead>
+                        <TableHead>Produtos</TableHead>
+                        <TableHead>Último acesso</TableHead>
+                        <TableHead>
+                          <span className="sr-only">Abrir</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filtradas.map((p) => (
+                        <LinhaPessoa key={p.user_id} p={p} rotuloPerfil={rotuloPerfil} />
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground">Departamento</label>
-                  <select
-                    value={growthAlvo.departamento}
-                    onChange={(e) => setGrowthAlvo({ ...growthAlvo, departamento: e.target.value })}
-                    className="mt-1 block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    {GROWTH_DEPARTAMENTOS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Havia aqui um campo de senha, de quando o Growth era outro
-                    banco e outro login. Desde a migração de 18/09/2026 a conta
-                    é a mesma: digitar uma senha nesta tela trocaria também a
-                    senha do Ops e do Financeiro, sem avisar. Para trocar senha
-                    existe o botão "Senha", na linha da pessoa. */}
-                <p className="text-xs text-muted-foreground">
-                  Mesma conta do Ops e do Financeiro. Aqui se define só o que a pessoa é dentro
-                  do Growth.
-                </p>
-              </div>
-
-              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
-
-              <div className="mt-6 flex items-center justify-between">
-                {growthAlvo.jaTemAcesso ? (
-                  <button
-                    onClick={() => {
-                      if (confirm(`Revogar o acesso de ${growthAlvo.email} ao Growth?`)) {
-                        growthRevokeMut.mutate(growthAlvo.email);
-                      }
-                    }}
-                    disabled={growthRevokeMut.isPending}
-                    className="rounded-full border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                  >
-                    Revogar acesso
-                  </button>
-                ) : (
-                  <span />
-                )}
-
-                <div className="space-x-2">
-                  <button
-                    onClick={() => { setGrowthAlvo(null); setError(null); }}
-                    className="rounded-full border border-border px-4 py-1.5 text-xs text-foreground hover:bg-accent"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() =>
-                      growthGrantMut.mutate({
-                        email: growthAlvo.email,
-                        nome: growthAlvo.nome,
-                        papel: growthAlvo.papel,
-                        departamento: growthAlvo.departamento,
-                      })
-                    }
-                    disabled={growthGrantMut.isPending}
-                    className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                  >
-                    {growthGrantMut.isPending ? "Salvando..." : growthAlvo.jaTemAcesso ? "Salvar" : "Conceder acesso"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {escopoAlvo && (
-          <EscopoUsuarioDialog
-            userId={escopoAlvo.userId}
-            nome={escopoAlvo.nome}
-            onClose={() => setEscopoAlvo(null)}
-          />
-        )}
-        {acessosAlvo && (
-          <AcessosUsuarioDialog
-            userId={acessosAlvo.userId}
-            nome={acessosAlvo.nome}
-            porta={{
-              tem: acessosAlvo.tem,
-              salvando: portaOpsMut.isPending,
-              erro: portaOpsMut.isError ? (portaOpsMut.error as Error)?.message : null,
-              onDefinir: (conceder) => portaOpsMut.mutate({ userId: acessosAlvo.userId, conceder }),
-            }}
-            onClose={() => setAcessosAlvo(null)}
-          />
+              )}
+            </Secao>
+          </>
         )}
       </div>
+
+      {criando && (
+        <NovaPessoaDialog
+          perfis={(perfisQ.data ?? []).map((r) => ({ key: r.key, label: r.label, areas: r.areas }))}
+          onFechar={() => setCriando(false)}
+          onCriada={(r) => setResultado(r)}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function LinhaPessoa({
+  p,
+  rotuloPerfil,
+}: {
+  p: PessoaNaLista & { situacao: Situacao; pendencias: string[] };
+  rotuloPerfil: Map<string, string>;
+}) {
+  const navigate = useNavigate();
+  const abrir = () => navigate({ to: "/admin/usuarios/$userId", params: { userId: p.user_id } });
+  return (
+    <TableRow className="cursor-pointer" onClick={abrir}>
+      <TableCell>
+        <Link
+          to="/admin/usuarios/$userId"
+          params={{ userId: p.user_id }}
+          className="font-medium text-foreground hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {p.nome || p.email}
+        </Link>
+        <p className="text-[13px] text-muted-foreground">{p.email}</p>
+      </TableCell>
+      <TableCell>
+        <StatusBadge tom={TOM_SITUACAO[p.situacao]}>{ROTULO_SITUACAO[p.situacao]}</StatusBadge>
+        {p.pendencias.length > 0 && (
+          <p className="mt-1 max-w-[260px] text-[13px] text-muted-foreground" title={p.pendencias.join("\n")}>
+            {p.pendencias[0]}
+            {p.pendencias.length > 1 && ` (+${p.pendencias.length - 1})`}
+          </p>
+        )}
+      </TableCell>
+      <TableCell className="text-sm">
+        {p.papeis.length ? (
+          p.papeis.map((r) => rotuloPerfil.get(r) ?? r).join(" + ")
+        ) : (
+          <span className="text-muted-foreground">sem perfil</span>
+        )}
+        {p.administra.length > 0 && (
+          <p className="text-[13px] text-muted-foreground">
+            administra {p.administra.length} {p.administra.length === 1 ? "área" : "áreas"}
+          </p>
+        )}
+      </TableCell>
+      <TableCell className="text-sm">
+        {p.escopo.todas ? (
+          "Todas"
+        ) : p.escopo.unidades.length === 0 ? (
+          <span className="text-muted-foreground">nenhuma</span>
+        ) : (
+          <span title={p.escopo.unidades.join(", ")}>
+            {p.escopo.unidades[0]}
+            {p.escopo.unidades.length > 1 && ` +${p.escopo.unidades.length - 1}`}
+          </span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {(["ops", "growth", "financeiro"] as const).map((prod) => (
+            <span
+              key={prod}
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs",
+                p.produtos.includes(prod)
+                  ? "bg-muted font-medium text-foreground"
+                  : "border border-dashed text-muted-foreground line-through",
+              )}
+            >
+              {prod === "ops" ? "Ops" : prod === "growth" ? "Growth" : "Financeiro"}
+            </span>
+          ))}
+        </div>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{haQuanto(p.ultimoLogin)}</TableCell>
+      <TableCell className="text-right">
+        <ChevronRight className="ml-auto size-4 text-muted-foreground" aria-hidden />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * Nova pessoa, inteira de uma vez: conta, perfil, recorte de unidades e
+ * cadastro de sócio. Até 24/09/2026 o recorte era um segundo passo que a tela
+ * não pedia, e o perfil "Diretor", marcado por padrão, não era gravado.
+ */
+function NovaPessoaDialog({
+  perfis,
+  onFechar,
+  onCriada,
+}: {
+  perfis: { key: string; label: string; areas: string[] }[];
+  onFechar: () => void;
+  onCriada: (r: ResultadoDeAcesso & { userId?: string }) => void;
+}) {
+  const qc = useQueryClient();
+  const criarFn = useServerFn(adminCreateUser);
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  // Sem perfil pré-marcado: o antigo vinha em "Diretor" e ninguém percebia.
+  const [perfil, setPerfil] = useState<string>("");
+  const [recorte, setRecorte] = useState<"todas" | "escolher">("escolher");
+  const [unidades, setUnidades] = useState<number[]>([]);
+  const [unidadeSocio, setUnidadeSocio] = useState<string>("");
+
+  const unidadesQ = useQuery({
+    queryKey: ["admin-unidades-catalogo"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("unidades").select("id, nome_da_praca").order("nome_da_praca");
+      if (error) throw error;
+      return ((data ?? []) as { id: number; nome_da_praca: string | null }[]).filter((u) => u.nome_da_praca);
+    },
+  });
+
+  const semOps = perfil === "__sem_ops__";
+  const socioRegional = perfil === "socio_regional";
+  const perfilEscolhido = perfis.find((p) => p.key === perfil);
+  const precisaRecorte = Boolean(perfil) && !semOps && !socioRegional;
+  const recorteOk = !precisaRecorte || recorte === "todas" || unidades.length > 0;
+  const pronto =
+    nome.trim() && email.trim() && perfil && recorteOk && (!socioRegional || unidadeSocio);
+
+  const criar = useMutation({
+    mutationFn: () =>
+      criarFn({
+        data: {
+          nome: nome.trim(),
+          email: email.trim().toLowerCase(),
+          role: semOps ? null : perfil,
+          escopo: { todas: precisaRecorte && recorte === "todas", unidades: precisaRecorte ? unidades : [] },
+          unidadeSocio: socioRegional ? Number(unidadeSocio) : null,
+        },
+      }),
+    onSuccess: (r) => {
+      toast.success(`${nome.trim()} criada.`);
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      onCriada({
+        tipo: "link",
+        titulo: r.emailEnviado ? "Convite enviado" : "Pessoa criada, mas o e-mail não saiu",
+        email: r.email,
+        link: r.emailEnviado ? null : r.link,
+        enviado: r.emailEnviado,
+        erro: r.emailErro,
+        userId: r.user_id,
+      });
+      onFechar();
+    },
+  });
+
+  const alterna = (id: number) =>
+    setUnidades((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
+
+  return (
+    <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nova pessoa</DialogTitle>
+          <DialogDescription>
+            A pessoa recebe um e-mail para definir a própria senha. Growth e Financeiro se dão na
+            ficha dela, depois de criada.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="nova-nome">Nome</Label>
+              <Input id="nova-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="nova-email">E-mail</Label>
+              <Input id="nova-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              {email.includes("@") && dominioIncomum(email) && (
+                <p className="text-[13px] text-warning">
+                  Domínio fora do grupo. Confira a digitação: um e-mail errado não recebe o convite.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Perfil no Ops</Label>
+            <Select value={perfil} onValueChange={setPerfil}>
+              <SelectTrigger>
+                <SelectValue placeholder="Escolha o perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                {perfis.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    {p.label}
+                    {p.key !== "admin" && !p.areas.length ? " · não abre nenhuma área" : ""}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__sem_ops__">Sem acesso ao Ops (só Growth ou Financeiro)</SelectItem>
+              </SelectContent>
+            </Select>
+            {perfilEscolhido && (
+              <p className="text-[13px] text-muted-foreground">
+                {perfilEscolhido.key === "admin"
+                  ? "Acesso total, inclusive a esta Administração."
+                  : perfilEscolhido.areas.length
+                    ? `Abre: ${perfilEscolhido.areas.join(", ")}.`
+                    : "Este perfil não abre nenhuma área. A pessoa entra e não vê nada até alguém dar áreas a ela."}
+              </p>
+            )}
+          </div>
+
+          {socioRegional && (
+            <div className="space-y-1">
+              <Label>Unidade do sócio</Label>
+              <Select value={unidadeSocio} onValueChange={setUnidadeSocio}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(unidadesQ.data ?? []).map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.nome_da_praca}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[13px] text-muted-foreground">
+                O sócio regional vê só esta unidade, e ela vai também para o cadastro de sócio.
+              </p>
+            </div>
+          )}
+
+          {precisaRecorte && (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-foreground">Unidades que a pessoa vê</legend>
+              <RadioGroup value={recorte} onValueChange={(v) => setRecorte(v as "todas" | "escolher")} className="flex gap-4">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="recorte-todas" value="todas" />
+                  <Label htmlFor="recorte-todas" className="font-normal">
+                    Todas, inclusive as futuras
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="recorte-escolher" value="escolher" />
+                  <Label htmlFor="recorte-escolher" className="font-normal">
+                    Escolher
+                  </Label>
+                </div>
+              </RadioGroup>
+              {recorte === "escolher" && (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(unidadesQ.data ?? []).map((u) => (
+                    <div key={u.id} className="flex items-center gap-2">
+                      <Checkbox id={`nova-un-${u.id}`} checked={unidades.includes(u.id)} onCheckedChange={() => alterna(u.id)} />
+                      <Label htmlFor={`nova-un-${u.id}`} className="truncate font-normal">
+                        {u.nome_da_praca}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!recorteOk && (
+                <p className="text-[13px] text-warning">
+                  Sem nenhuma unidade, as telas recortadas por unidade abrem vazias. Marque as
+                  unidades ou "Todas".
+                </p>
+              )}
+            </fieldset>
+          )}
+        </div>
+
+        {criar.isError && <p className="text-sm text-danger">{(criar.error as Error)?.message}</p>}
+        <DialogFooter>
+          <Button variant="outline" onClick={onFechar}>
+            Cancelar
+          </Button>
+          <Button onClick={() => criar.mutate()} disabled={!pronto || criar.isPending}>
+            {criar.isPending ? "Criando…" : "Criar e enviar convite"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

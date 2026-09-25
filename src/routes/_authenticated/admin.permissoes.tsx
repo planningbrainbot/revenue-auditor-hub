@@ -1,9 +1,10 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, Minus, Search, ShieldCheck, Users } from "lucide-react";
+import { Check, Minus, Plus, Search, ShieldCheck, Users } from "lucide-react";
+import { createRole, deleteRole, slugifyRoleKey, updateRole } from "@/lib/roles.functions";
 import {
   listAdministradoresPorArea,
   listRoleAreas,
@@ -24,6 +25,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -71,12 +81,17 @@ import { cn } from "@/lib/utils";
  * cabe dizer quem são as pessoas afetadas e mostrar o efeito em palavras antes
  * de gravar. É o arquétipo Configuração de docs/design/ARQUETIPOS.md §5.
  *
- * O segundo nível, QUAIS unidades e empresas cada pessoa enxerga, continua
- * sendo por usuário e mora em /admin/usuarios.
+ * O segundo nível, QUAIS unidades cada pessoa enxerga, continua sendo por
+ * pessoa e mora na ficha dela (/admin/usuarios/$userId).
+ *
+ * Desde 24/09/2026 esta é também a tela de CADASTRO de perfis: /admin/perfis
+ * editava o mesmo objeto em outra página, e as duas mostravam quantas pessoas e
+ * quais áreas cada perfil tem. Criar, renomear e excluir moram aqui agora. Na
+ * interface a palavra é PERFIL; `papel`/`role` sobrevivem só no código.
  */
 export const Route = createFileRoute("/_authenticated/admin/permissoes")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Permissões – Planning" }] }),
+  head: () => ({ meta: [{ title: "Perfis e áreas – Planning" }] }),
   beforeLoad: async ({ context }) => {
     const user = (context as { user?: { id: string } }).user;
     if (!user) throw redirect({ to: "/auth" });
@@ -113,7 +128,7 @@ const FUNDO_CABECALHO_GRUDADO = "bg-[color-mix(in_oklab,var(--muted)_40%,var(--c
 const FUNDO_LINHA_GRUDADA_HOVER =
   "group-hover:bg-[color-mix(in_oklab,var(--muted)_40%,var(--card))]";
 
-type Papel = { key: string; label: string; description: string; is_system: boolean };
+type Papel = { id: string; key: string; label: string; description: string; is_system: boolean };
 type Pessoa = { role: string; userId: string; nome: string };
 
 /** Busca sem acento e sem caixa: "monetizacao" acha "Monetização". */
@@ -147,10 +162,10 @@ function PermissionsPage() {
     enabled: isAdmin,
   });
   const adminsPorArea = useMemo(() => {
-    const map = new Map<string, { nome: string; nivel: "admin" | "socio" }[]>();
+    const map = new Map<string, { userId: string; nome: string; nivel: "admin" | "socio" }[]>();
     for (const l of adminsQ.data ?? []) {
       const lista = map.get(l.area) ?? [];
-      lista.push({ nome: l.nome, nivel: l.nivel });
+      lista.push({ userId: l.user_id, nome: l.nome, nivel: l.nivel });
       map.set(l.area, lista);
     }
     for (const lista of map.values())
@@ -225,15 +240,21 @@ function PermissionsPage() {
   const semResultado = Boolean(busca) && linhas === papeisOrdenados && colunas === areas;
 
   const [editando, setEditando] = useState<Papel | null>(null);
+  const [criando, setCriando] = useState(false);
 
   if (loading || !isAdmin) return null;
 
   return (
     <AppShell
       title="Quem vê o quê, em cada área?"
+      headerExtra={
+        <Button onClick={() => setCriando(true)}>
+          <Plus className="size-4" aria-hidden /> Novo perfil
+        </Button>
+      }
       subtitle={
         q.data
-          ? `${plural(papeis.length, "papel", "papéis")} · ${plural(areas.length, "área", "áreas")} · ${plural(new Set(pessoas.map((p) => p.userId)).size, "pessoa", "pessoas")} · a mudança vale no próximo carregamento`
+          ? `${plural(papeis.length, "perfil", "perfis")} · ${plural(areas.length, "área", "áreas")} · ${plural(new Set(pessoas.map((p) => p.userId)).size, "pessoa", "pessoas")} · a mudança vale no próximo carregamento`
           : "A mudança vale no próximo carregamento."
       }
     >
@@ -245,7 +266,8 @@ function PermissionsPage() {
             <p className="text-muted-foreground">
               Quem tem a área tem <strong>todas</strong> as páginas e ações dela, e quem não tem não
               enxerga a área nem no menu. A tabela abaixo é o retrato: para mudar, abra{" "}
-              <strong>Editar</strong> no papel, um papel por vez.
+              <strong>Editar</strong> no perfil, um perfil por vez. Criar, renomear e excluir
+              perfil também é por aqui.
             </p>
             <p className="text-muted-foreground">
               Página nova não precisa de permissão nova: ela herda a área em que mora.
@@ -254,8 +276,8 @@ function PermissionsPage() {
         </div>
 
         <Secao
-          titulo="Matriz de papéis"
-          descricao="Papel na linha, área na coluna. É leitura: nada aqui salva sozinho."
+          titulo="Matriz de perfis"
+          descricao="Perfil na linha, área na coluna. É leitura: nada aqui salva sozinho."
           acoes={
             <div className="relative">
               <Search
@@ -265,8 +287,8 @@ function PermissionsPage() {
               <Input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar papel ou área"
-                aria-label="Buscar papel ou área"
+                placeholder="Buscar perfil ou área"
+                aria-label="Buscar perfil ou área"
                 className="h-9 w-[240px] pl-8"
               />
             </div>
@@ -282,8 +304,8 @@ function PermissionsPage() {
 
           {semResultado ? (
             <EstadoVazio
-              titulo="Nenhum papel e nenhuma área com esse termo"
-              descricao="Tente o nome do papel (CS, Diretor) ou o da área (Receita, Broker)."
+              titulo="Nenhum perfil e nenhuma área com esse termo"
+              descricao="Tente o nome do perfil (CS, Diretor) ou o da área (Receita, Broker)."
               acao={
                 <Button variant="outline" size="sm" onClick={() => setBusca("")}>
                   Limpar busca
@@ -300,7 +322,7 @@ function PermissionsPage() {
                       <TableHead
                         className={cn("sticky left-0 z-20 min-w-[220px]", FUNDO_CABECALHO_GRUDADO)}
                       >
-                        Papel
+                        Perfil
                       </TableHead>
                       {colunas.map((a) => (
                         <TableHead
@@ -394,7 +416,7 @@ function PermissionsPage() {
 
         <Secao
           titulo="Quem administra cada área"
-          descricao="Nível delegado por pessoa, concedido em Usuários → Acessos. Não vem do papel."
+          descricao="Nível dado pessoa a pessoa, na ficha de cada uma em Pessoas. Não vem do perfil."
         >
           <ul className="divide-y rounded-xl border bg-card text-sm">
             {areas.map((a) => {
@@ -405,9 +427,19 @@ function PermissionsPage() {
                   <span className="text-muted-foreground">
                     {lista.length === 0
                       ? "Só o super admin"
-                      : lista
-                          .map((x) => `${x.nome} (${x.nivel === "admin" ? "admin" : "sócio"})`)
-                          .join(", ")}
+                      : lista.map((x, i) => (
+                          <span key={x.userId}>
+                            {i > 0 && ", "}
+                            <Link
+                              to="/admin/usuarios/$userId"
+                              params={{ userId: x.userId }}
+                              className="text-foreground underline-offset-4 hover:underline"
+                            >
+                              {x.nome}
+                            </Link>{" "}
+                            ({x.nivel === "admin" ? "admin" : "sócio"} da área)
+                          </span>
+                        ))}
                   </span>
                 </li>
               );
@@ -420,12 +452,16 @@ function PermissionsPage() {
           <div className="flex-1">
             <p className="font-semibold">Segundo nível: quem vê o quê dentro da área</p>
             <p className="mt-1 text-muted-foreground">
-              Unidades da rede e empresas do grupo são filtro <strong>por pessoa</strong>, não por
-              papel: dois analistas com o mesmo papel podem cuidar de unidades diferentes. Isso se
-              edita em{" "}
-              <a href="/admin/usuarios" className="font-medium text-primary-text hover:underline">
-                Usuários
-              </a>
+              Unidades da rede são filtro <strong>por pessoa</strong>, não por perfil: dois
+              analistas com o mesmo perfil podem cuidar de unidades diferentes. Isso se edita na
+              ficha de cada pessoa, em{" "}
+              <Link to="/admin/usuarios" className="font-medium text-primary-text hover:underline">
+                Pessoas
+              </Link>
+              . As empresas do Financeiro ficam em{" "}
+              <Link to="/admin/acessos-financeiro" className="font-medium text-primary-text hover:underline">
+                Acessos do Financeiro
+              </Link>
               .
             </p>
           </div>
@@ -445,6 +481,7 @@ function PermissionsPage() {
           onFechar={() => setEditando(null)}
         />
       )}
+      {criando && <NovoPerfilDialog onFechar={() => setCriando(false)} />}
     </AppShell>
   );
 }
@@ -473,6 +510,33 @@ function EditorDoPapel({
 }) {
   const qc = useQueryClient();
   const salvarFn = useServerFn(salvarAreasDoPapel);
+  const renomearFn = useServerFn(updateRole);
+  const excluirFn = useServerFn(deleteRole);
+  const [nome, setNome] = useState(papel.label);
+  const [descricao, setDescricao] = useState(papel.description ?? "");
+  const [excluindo, setExcluindo] = useState(false);
+  const identidadeMudou = nome.trim() !== papel.label || descricao.trim() !== (papel.description ?? "");
+
+  const renomear = useMutation({
+    mutationFn: () => renomearFn({ data: { id: papel.id, label: nome.trim(), description: descricao.trim() } }),
+    onSuccess: () => {
+      toast.success("Perfil renomeado.");
+      qc.invalidateQueries({ queryKey: ["role-areas"] });
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao renomear."),
+  });
+
+  const excluir = useMutation({
+    mutationFn: () => excluirFn({ data: { id: papel.id } }),
+    onSuccess: () => {
+      toast.success(`Perfil ${papel.label} excluído.`);
+      qc.invalidateQueries({ queryKey: ["role-areas"] });
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
+      onFechar();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao excluir."),
+  });
 
   const original = useMemo(() => {
     const m = new Map<string, boolean>();
@@ -533,17 +597,52 @@ function EditorDoPapel({
           <SheetDescription>{papel.description || "Sem descrição cadastrada."}</SheetDescription>
           <p className="pt-1 text-[13px] text-muted-foreground">
             {pessoas.length === 0 ? (
-              "Ninguém tem este papel hoje, então mudar aqui não afeta nenhuma pessoa agora."
+              "Ninguém tem este perfil hoje, então mudar aqui não afeta nenhuma pessoa agora."
             ) : (
               <>
                 <strong className="text-foreground">
                   {plural(pessoas.length, "pessoa", "pessoas")}
                 </strong>{" "}
-                com este papel: {pessoas.map((p) => p.nome).join(", ")}.
+                com este perfil: {pessoas.map((p) => p.nome).join(", ")}.
               </>
             )}
           </p>
         </SheetHeader>
+
+        {!papel.is_system && (
+          <div className="space-y-2 border-b px-6 py-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="perfil-nome">Nome</Label>
+                <Input id="perfil-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="perfil-descricao">Descrição</Label>
+                <Input id="perfil-descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-between gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-danger"
+                disabled={pessoas.length > 0 || excluir.isPending}
+                title={pessoas.length > 0 ? "Tire o perfil das pessoas antes de excluir." : undefined}
+                onClick={() => setExcluindo(true)}
+              >
+                Excluir perfil
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!identidadeMudou || !nome.trim() || renomear.isPending}
+                onClick={() => renomear.mutate()}
+              >
+                {renomear.isPending ? "Salvando…" : "Salvar nome"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 border-b px-6 py-3">
           <span className="shrink-0 text-[13px] text-muted-foreground">Comparar com</span>
@@ -554,10 +653,10 @@ function EditorDoPapel({
             onValueChange={(v) => setComparar(v === SEM_COMPARACAO ? "" : v)}
           >
             <SelectTrigger className="h-8 flex-1">
-              <SelectValue placeholder="nenhum papel" />
+              <SelectValue placeholder="nenhum perfil" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={SEM_COMPARACAO}>nenhum papel</SelectItem>
+              <SelectItem value={SEM_COMPARACAO}>nenhum perfil</SelectItem>
               {papeis
                 .filter((p) => p.key !== papel.key)
                 .map((p) => (
@@ -571,7 +670,7 @@ function EditorDoPapel({
             <Button
               variant="outline"
               size="sm"
-              title={`Marcar exatamente as áreas de ${outro.label} neste papel`}
+              title={`Marcar exatamente as áreas de ${outro.label} neste perfil`}
               onClick={() =>
                 setRascunho(
                   new Map(areas.map((a) => [a.slug, temNoOutro(a.slug)] as [string, boolean])),
@@ -678,14 +777,34 @@ function EditorDoPapel({
          * dele abre e não recebe clique. Aninhado, o Radix empilha as duas
          * camadas e a de cima fica clicável.
          */}
+        <AlertDialog open={excluindo} onOpenChange={setExcluindo}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir o perfil {papel.label}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Ninguém tem este perfil hoje. As áreas que ele abre deixam de existir junto.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                onClick={() => excluir.mutate()}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Isto tira acesso de quem já tem</AlertDialogTitle>
               <AlertDialogDescription>
                 {pessoas.length === 0
-                  ? `Ninguém tem o papel ${papel.label} hoje, mas quem receber daqui em diante vem sem `
-                  : `${plural(pessoas.length, "pessoa", "pessoas")} com o papel ${papel.label} ${pessoas.length === 1 ? "deixa" : "deixam"} de ver `}
+                  ? `Ninguém tem o perfil ${papel.label} hoje, mas quem receber daqui em diante vem sem `
+                  : `${plural(pessoas.length, "pessoa", "pessoas")} com o perfil ${papel.label} ${pessoas.length === 1 ? "deixa" : "deixam"} de ver `}
                 {perdas.map((a) => a.nome).join(", ")}
                 {pessoas.length > 0 && ` (${pessoas.map((p) => p.nome).join(", ")})`}. A área some
                 do menu no próximo carregamento.
@@ -704,5 +823,84 @@ function EditorDoPapel({
         </AlertDialog>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Perfil novo nasce sem área nenhuma: é um modelo vazio, e as áreas se marcam
+ * em seguida no painel dele. Veio de /admin/perfis em 24/09/2026.
+ */
+function NovoPerfilDialog({ onFechar }: { onFechar: () => void }) {
+  const qc = useQueryClient();
+  const criarFn = useServerFn(createRole);
+  const [nome, setNome] = useState("");
+  const [chave, setChave] = useState("");
+  const [chaveTocada, setChaveTocada] = useState(false);
+  const [descricao, setDescricao] = useState("");
+
+  const criar = useMutation({
+    mutationFn: () => criarFn({ data: { key: chave, label: nome.trim(), description: descricao.trim() } }),
+    onSuccess: () => {
+      toast.success(`Perfil ${nome.trim()} criado. Abra "Editar" nele para marcar as áreas.`);
+      qc.invalidateQueries({ queryKey: ["role-areas"] });
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
+      onFechar();
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo perfil</DialogTitle>
+          <DialogDescription>
+            Um perfil é um modelo: abre um conjunto de áreas para quem o recebe. Nasce sem área
+            nenhuma.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="novo-perfil-nome">Nome</Label>
+            <Input
+              id="novo-perfil-nome"
+              value={nome}
+              placeholder="Financeiro"
+              onChange={(e) => {
+                setNome(e.target.value);
+                if (!chaveTocada) setChave(slugifyRoleKey(e.target.value));
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="novo-perfil-chave">Chave</Label>
+            <Input
+              id="novo-perfil-chave"
+              value={chave}
+              className="font-mono"
+              onChange={(e) => {
+                setChave(slugifyRoleKey(e.target.value));
+                setChaveTocada(true);
+              }}
+            />
+            <p className="text-[13px] text-muted-foreground">Identificador técnico. Não muda depois.</p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="novo-perfil-descricao">Descrição (opcional)</Label>
+            <Input id="novo-perfil-descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+          </div>
+          {criar.isError && (
+            <p className="text-sm text-danger">{(criar.error as Error)?.message ?? "Falha ao criar."}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onFechar}>
+            Cancelar
+          </Button>
+          <Button disabled={!nome.trim() || !chave || criar.isPending} onClick={() => criar.mutate()}>
+            {criar.isPending ? "Criando…" : "Criar perfil"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

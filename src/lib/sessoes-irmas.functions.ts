@@ -1,5 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { todasAsContasDoAuth } from "@/lib/acessos.server";
+
+/** A conta do cockpit para um e-mail, varrendo todas as páginas do Auth de lá. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function contaNoFinanceiro(admin: any, email: string) {
+  const alvo = email.toLowerCase();
+  return (await todasAsContasDoAuth(admin)).find((u) => u.email?.toLowerCase() === alvo) ?? null;
+}
 
 /**
  * Emite a sessão do Financial Brain para quem acabou de autenticar no Ops.
@@ -73,6 +81,16 @@ async function permissoesDoCockpit(userId: string) {
     .eq("produto", "financeiro")
     .maybeSingle();
   if (!acesso) return null;
+
+  // Conta desativada não entra no cockpit, com porta ou sem ela. É o que faz o
+  // "Desativar" da ficha da pessoa valer também aqui (auditoria 24/09/2026).
+  const { data: perfil } = await (supabaseAdmin as any)
+    .schema("public")
+    .from("profiles")
+    .select("ativo")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!perfil || perfil.ativo === false) return null;
 
   // ── O QUE ela vê dentro do cockpit ──────────────────────────────────────
   //
@@ -168,51 +186,9 @@ async function unidadesParaEmpresas(empresaIds: string[] | null): Promise<string
     .map((u) => u.id);
 }
 
-/**
- * Emite a sessão do GROWTH para quem acabou de autenticar no Ops.
- *
- * Por que não usa `signInWithPassword` como antes: aquilo exigia a senha ser
- * idêntica nos dois bancos, e não é — verificado em 02/09/2026, o login do
- * Growth vinha falhando em silêncio desde sempre por isso. Emitir a sessão a
- * partir da identidade já verificada no Ops elimina a exigência de paridade
- * de senha, que era a fragilidade do desenho anterior.
- *
- * Diferença deliberada em relação ao Financial: aqui NÃO criamos usuário. O
- * Growth tem base própria (28 pessoas) e autoriza por e-mail em `membros` —
- * quem não existe lá não deve passar a existir só por ter logado no Ops.
- */
-export const emitirSessaoGrowth = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const email = (context.claims as { email?: string } | undefined)?.email;
-    if (!email) return { ok: false as const, motivo: "sem-email" };
-
-    const { getGrowthAdmin } = await import(
-      "@/integrations/supabase/client.growth.server"
-    );
-    const admin = getGrowthAdmin();
-    if (!admin) return { ok: false as const, motivo: "nao-configurado" };
-
-    try {
-      const { data: lista } = await admin.auth.admin.listUsers();
-      const existe = lista?.users?.some(
-        (u) => u.email?.toLowerCase() === email.toLowerCase(),
-      );
-      // Sem conta no Growth não há sessão a emitir — e isso não é erro.
-      if (!existe) return { ok: false as const, motivo: "sem-conta-no-growth" };
-
-      const r = await admin.auth.admin.generateLink({ type: "magiclink", email });
-      const tokenHash = r.data?.properties?.hashed_token;
-      if (r.error || !tokenHash) {
-        console.warn("[growth] generateLink falhou:", r.error?.message);
-        return { ok: false as const, motivo: "gerar-token" };
-      }
-      return { ok: true as const, tokenHash };
-    } catch (err) {
-      console.warn("[growth] emissão de sessão falhou:", err);
-      return { ok: false as const, motivo: "excecao" };
-    }
-  });
+// `emitirSessaoGrowth` saiu em 24/09/2026. Desde 17/09 o Growth mora no banco
+// único e lê o mesmo cookie do Ops, e ninguém mais a chamava; mas ela seguia
+// no ar emitindo magic link do projeto ANTIGO do Growth para quem pedisse.
 
 /**
  * Atualiza a concessão do Financeiro no app_metadata de quem JÁ tem sessão lá.
@@ -258,9 +234,7 @@ export async function aplicarConcessaoNoFinanceiro(userId: string, email: string
 
   try {
     const permissao = await permissoesDoCockpit(userId);
-    const alvo = (await admin.auth.admin.listUsers()).data?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase(),
-    );
+    const alvo = await contaNoFinanceiro(admin, email);
     // Sem conta do outro lado não há metadata para escrever, e criar uma aqui
     // seria dar entrada a quem talvez não deva entrar. Não é erro: é o estado
     // de quem nunca abriu o cockpit.
@@ -333,10 +307,9 @@ export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
       // Usuário anterior pode ter sido criado sem confirmação (por um
       // generateLink de antes desta correção) — normaliza.
       if (jaExistia) {
-        const { data: lista } = await admin.auth.admin.listUsers();
-        const existente = lista?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase(),
-        );
+        const existente = (await contaNoFinanceiro(admin, email)) as
+          | { id: string; email_confirmed_at?: string | null }
+          | null;
         if (existente && !existente.email_confirmed_at) {
           await admin.auth.admin.updateUserById(existente.id, { email_confirm: true });
         }
@@ -346,9 +319,7 @@ export const emitirSessaoFinanceiro = createServerFn({ method: "POST" })
       // já vá dentro do JWT. app_metadata (e não user_metadata) porque só o
       // service role escreve nele — o usuário não consegue alterar a própria
       // permissão pelo cliente.
-      const alvo = (await admin.auth.admin.listUsers()).data?.users?.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase(),
-      );
+      const alvo = await contaNoFinanceiro(admin, email);
       if (alvo) {
         await admin.auth.admin.updateUserById(alvo.id, {
           app_metadata: {
