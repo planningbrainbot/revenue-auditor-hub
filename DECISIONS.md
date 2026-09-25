@@ -3296,3 +3296,31 @@ rebaixamento.
 O rollback foi ensaiado de verdade: migration + rollback numa transação
 desfeita deixam funções, policies, FKs, colunas e gatilhos idênticos ao estado
 de 25/09/2026.
+
+## [2026-09-25] Gestão de acessos publicada (adendo às duas entradas anteriores)
+
+**Autorização:** o dono pediu "pode publicar".
+
+**Antes de publicar:** a `main` tinha recebido a integração do DS v2 (que já
+estava em produção desde 10h59) e o PR #25 do Cockpit (publicado por outra
+sessão às 12h27, durante este trabalho). As duas foram mergeadas nesta branch;
+conflitos resolvidos como descrito no commit `9a58658`. O deploy da outra
+sessão foi esperado até READY antes deste, para um não sobrescrever o outro.
+
+**Banco:** migration `20260925100000_acessos_travas.sql` aplicada no
+`npknehhyyzelmrbbxvtu` em transação única, depois de o gate passar 43/43 contra
+o banco daquele momento. Conferido: 8 funções novas, 2 gatilhos, a coluna
+`area_admins.escopo_anterior` e as policies de escrita da matriz em
+`eh_super_admin`. Rollback: `supabase/rollback/20260925100000_acessos_travas_rollback.sql`
+(ensaiado).
+
+**Código:** `862297a` na `main`. Deploy `dpl_6hdmF4q2SV164NgGaUG4BumL7f8E`
+pela CLI (projeto `ops-brain`, time `planning17`), de um worktree limpo;
+`planningbrain.com.br` aponta para ele. Conferido no bundle servido: os
+chunks de Pessoas e da ficha. Rollback do código: promover
+`dpl_B88CjuzXgF96nCqXHh3qAYe3HQHp` (Cockpit PR #25, o anterior).
+
+**Pendente do dono:** perfil "gestão" do Planning People (escalada de nível,
+ver entrada anterior); e-mail certo do Willian; recorte do Willian e da Paula
+(sugestão: todas as unidades, como os colegas de perfil); "contrato ok" das
+duas telas.
