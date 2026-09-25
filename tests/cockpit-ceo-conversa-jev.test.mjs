@@ -63,8 +63,11 @@ test("confiança abaixo do limiar: modelo com todas as ferramentas, sem escolher
 });
 
 test("ambígua sem contexto anterior pede esclarecimento; com contexto, segue", () => {
-  assert.equal(decidirEncaminhamento(ok("receita", 0.9, 0.9), false).esclarecer, true);
-  assert.equal(decidirEncaminhamento(ok("receita", 0.9, 0.9), true).esclarecer, false);
+  const L = { dominio: 0.7, ambigua: 0.7, foraDoEscopo: 0.85 };
+  assert.equal(decidirEncaminhamento(ok("receita", 0.9, 0.9), false, L).esclarecer, true);
+  assert.equal(decidirEncaminhamento(ok("receita", 0.9, 0.9), true, L).esclarecer, false);
+  // Calibração de 24/09: o sinal de ambiguidade do Jev não separa; no padrão ele não dispara.
+  assert.equal(decidirEncaminhamento(ok("receita", 0.9, 0.99), false).esclarecer, false);
   assert.equal(
     decidirEncaminhamento(ok("receita", 0.9, LIMIARES_PADRAO.ambigua - 0.01), false).esclarecer,
     false,

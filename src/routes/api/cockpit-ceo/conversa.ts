@@ -12,6 +12,9 @@ const Corpo = z
   .object({
     conversaId: z.string().uuid().nullable().optional(),
     pergunta: z.string().trim().min(1).max(2000),
+    // Só para a avaliação local (COCKPIT_IA_AVALIACAO=1, fora de produção): o servidor ignora em
+    // qualquer outro ambiente e só aceita os modelos permitidos.
+    modelo: z.string().max(80).optional(),
   })
   .strict();
 
@@ -52,7 +55,11 @@ export const Route = createFileRoute("/api/cockpit-ceo/conversa")({
             writer.write({ type: "start" });
             await rodadaNoServidor(
               ctx,
-              { conversaId: corpo.conversaId ?? null, pergunta: corpo.pergunta },
+              {
+                conversaId: corpo.conversaId ?? null,
+                pergunta: corpo.pergunta,
+                modelo: corpo.modelo,
+              },
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (parte) => writer.write(parte as any),
               request.signal,

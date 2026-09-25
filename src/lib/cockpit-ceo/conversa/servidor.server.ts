@@ -140,6 +140,8 @@ const tituloDaPergunta = (p: string) => (p.length > 80 ? p.slice(0, 77).trimEnd(
 export interface PedidoConversa {
   conversaId?: string | null;
   pergunta: string;
+  /** Troca de modelo por pedido: só na avaliação local, e só entre os permitidos. */
+  modelo?: string;
 }
 
 /**
@@ -185,7 +187,12 @@ export async function rodadaNoServidor(
     .insert({ conversa_id: conversaId, papel: "usuario", texto: pedido.pergunta });
 
   const chave = await obterChaveOpenRouter();
-  const nomeModelo = modeloDoAmbiente();
+  const avaliacao =
+    process.env.COCKPIT_IA_AVALIACAO === "1" && process.env.NODE_ENV !== "production";
+  const nomeModelo =
+    avaliacao && pedido.modelo && (MODELOS_PERMITIDOS as readonly string[]).includes(pedido.modelo)
+      ? pedido.modelo
+      : modeloDoAmbiente();
   const limites = limitesDoAmbiente(process.env);
   let resposta: RespostaFinal;
   if (!chave) {

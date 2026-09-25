@@ -309,7 +309,10 @@ test("ambígua: o modelo pode pedir esclarecimento com opções", async () => {
   );
   const r = await responder(
     "Como está a receita?",
-    deps(m, { classificar: jevOk("receita", 0.9, 0.9) }).d,
+    deps(m, {
+      classificar: jevOk("receita", 0.9, 0.9),
+      limiares: { dominio: 0.7, ambigua: 0.7, foraDoEscopo: 0.85 },
+    }).d,
   );
   assert.equal(r.estado, "esclarecimento");
   assert.deepEqual(r.opcoes, ["Grupo", "Rede"]);

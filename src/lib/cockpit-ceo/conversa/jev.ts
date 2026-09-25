@@ -33,8 +33,16 @@ export const OPCOES_DOMINIO = {
 export type DominioJev = keyof typeof OPCOES_DOMINIO;
 export const DOMINIOS_JEV = Object.keys(OPCOES_DOMINIO) as DominioJev[];
 
-/** Limiares calibrados (ver relatório de calibração). Probabilidade da opção escolhida. */
-export const LIMIARES_PADRAO = { dominio: 0.7, ambigua: 0.7, foraDoEscopo: 0.85 } as const;
+/**
+ * Limiares calibrados em 24/09/2026 com 36 perguntas rotuladas (docs/dev_notes/cockpit-ceo-conversa/
+ * jev-calibracao.json):
+ * - domínio: 34/36 certos; em 0,7 o único erro acima do limiar (u2 → receita) mantém as ferramentas
+ *   certas, e 5 perguntas vão ao modelo sem dica;
+ * - ambiguidade: o `noul` não separa (clara 0,94, ambígua 0,90); acertaria 7 a 11 de 31. Fica
+ *   DESLIGADO (limiar acima de 1): quem pergunta de volta é o modelo, pelas réguas padrão;
+ * - fora do escopo: 1,0 nos dois casos fictícios.
+ */
+export const LIMIARES_PADRAO = { dominio: 0.7, ambigua: 1.01, foraDoEscopo: 0.85 };
 
 export function pedidoConversa(pergunta: string, contexto: string): PedidoJev {
   return {

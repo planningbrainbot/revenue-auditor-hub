@@ -11,6 +11,7 @@ cd "$(dirname "$0")/../.."
 [ -f .env.local ] || { echo "Falta .env.local (vercel env pull)."; exit 1; }
 set -a; source .env.local; set +a
 export COCKPIT_IA_KEYCHAIN=1
+export COCKPIT_IA_AVALIACAO="${COCKPIT_IA_AVALIACAO:-0}"
 export COCKPIT_IA_KEYCHAIN_SERVICO="${COCKPIT_IA_KEYCHAIN_SERVICO:-planning-openrouter-cockpit-2}"
 export COCKPIT_CONVERSA_MODELO="${COCKPIT_CONVERSA_MODELO:-anthropic/claude-sonnet-5}"
 export NODE_OPTIONS="--max-old-space-size=8192"

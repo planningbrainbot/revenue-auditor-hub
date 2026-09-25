@@ -43,7 +43,15 @@ export interface RespostaFinal {
   proximas: string[];
   opcoes: string[];
   descartadas: string[];
-  consultas: { id: string; consulta: string; titulo: string; estado: string }[];
+  /** Consultas feitas na rodada, com os argumentos já validados pelo schema. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  consultas: {
+    id: string;
+    consulta: string;
+    titulo: string;
+    estado: string;
+    args?: Record<string, any>;
+  }[];
   jev: { classe: string | null; confianca: number | null; motivo: Encaminhamento["motivo"] };
   modelo: string | null;
   latenciaMs: number;
@@ -246,7 +254,7 @@ export async function responder(pergunta: string, deps: DepsResposta): Promise<R
           const r = executarConsulta(e, nome, args, `r${++seq}`);
           registro.set(r.id, r);
           const resumo = { id: r.id, consulta: nome, titulo: r.titulo, estado: r.estado };
-          consultas.push(resumo);
+          consultas.push({ ...resumo, args: r.args });
           deps.emitir({ type: "data-consulta", id: r.id, data: resumo });
           return paraModelo(r);
         } catch (err) {
