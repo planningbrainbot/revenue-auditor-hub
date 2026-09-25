@@ -1,6 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRoyaltiesUnidades } from "@/hooks/use-royalties";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -9,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listarFaturasRoyalties, type FaturaDoMes } from "@/lib/royalties-faturamento.functions";
 import {
+  BarraFiltros,
   Carregando,
   EstadoSemAcesso,
   EstadoVazio,
@@ -40,6 +51,105 @@ const STATUS_APURACAO: Record<string, { label: string; tom: TomStatus }> = {
   confirmado: { label: "Confirmado", tom: "sucesso" },
   faturado: { label: "Faturado", tom: "sucesso" },
 };
+
+/**
+ * Filtros da tabela, na URL (N7). Cada opção corresponde a um selo que a
+ * célula mostra, para o filtro nunca separar o que a tela junta.
+ */
+export const CHAVES_FILTRO_APURACAO = ["busca", "apuracao", "fatura", "recebimento"] as const;
+const TODOS = "todos";
+
+const OPCOES_APURACAO: Record<string, string> = {
+  nao_iniciada: "Não iniciada",
+  rascunho: "Rascunho",
+  em_revisao: "Em revisão",
+  confirmado: "Confirmado",
+  faturado: "Faturado",
+};
+
+const OPCOES_FATURA: Record<string, string> = {
+  nao_emitida: "Não emitida",
+  emitida: "Emitida",
+  sem_boleto: "OS sem boleto",
+  erro: "Erro na emissão",
+};
+
+const OPCOES_RECEBIMENTO: Record<string, string> = {
+  recebido: "Recebido",
+  a_vencer: "A vencer",
+  atrasado: "Atrasado",
+  aguardando_sync: "Aguardando sync",
+  cancelado: "Título cancelado",
+  sem_fatura: "Sem fatura",
+};
+
+function estadoFatura(f: FaturaDoMes | undefined): string {
+  if (!f) return "nao_emitida";
+  if (f.status === "erro") return "erro";
+  if (f.status === "criada") return "sem_boleto";
+  return "emitida"; // faturada ou emitida à mão (ja_existia)
+}
+
+function estadoRecebimento(f: FaturaDoMes | undefined): string {
+  if (!f || f.status === "erro") return "sem_fatura";
+  const r = f.recebimento;
+  if (!r) return "aguardando_sync";
+  switch (r.status) {
+    case "RECEBIDO":
+      return "recebido";
+    case "ATRASADO":
+      return "atrasado";
+    case "CANCELADO":
+      return "cancelado";
+    default:
+      return "a_vencer";
+  }
+}
+
+/** Sem acento e minúsculo: "maceio" acha "Maceió". */
+const normalizar = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+function SeletorFiltro({
+  rotulo,
+  todos,
+  opcoes,
+  valor,
+  aoMudar,
+  motivoIndisponivel,
+}: {
+  rotulo: string;
+  todos: string;
+  opcoes: Record<string, string>;
+  valor: string;
+  aoMudar: (v: string) => void;
+  motivoIndisponivel?: string;
+}) {
+  return (
+    <span title={motivoIndisponivel}>
+      <Select
+        value={valor || TODOS}
+        onValueChange={(v) => aoMudar(v === TODOS ? "" : v)}
+        disabled={!!motivoIndisponivel}
+      >
+        <SelectTrigger className="h-8 w-44" aria-label={rotulo}>
+          <SelectValue placeholder={rotulo} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>{todos}</SelectItem>
+          {Object.entries(opcoes).map(([v, label]) => (
+            <SelectItem key={v} value={v}>
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </span>
+  );
+}
 
 function CelulaFatura({ f }: { f: FaturaDoMes | undefined }) {
   if (!f) return <StatusBadge tom="neutro">Não emitida</StatusBadge>;
@@ -157,6 +267,45 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
     return new Map([...ids].map((id) => [id, faturaDaUnidade(faturas, id)]));
   }, [faturasData]);
 
+  const [busca, setBusca] = useFiltroNaUrl("busca", "");
+  const [filtroApuracao, setFiltroApuracao] = useFiltroNaUrl("apuracao", "");
+  const [filtroFatura, setFiltroFatura] = useFiltroNaUrl("fatura", "");
+  const [filtroRecebimento, setFiltroRecebimento] = useFiltroNaUrl("recebimento", "");
+  const limparFiltros = useLimparFiltrosNaUrl([...CHAVES_FILTRO_APURACAO]);
+  const filtroAtivo = !!busca || !!filtroApuracao || !!filtroFatura || !!filtroRecebimento;
+
+  // Sem dado de fatura (mês em andamento, carregando ou erro do Omie) os dois
+  // filtros do Omie ficam travados e não se aplicam: filtrar por ausência de
+  // dado esconderia todas as linhas sem explicar por quê.
+  const motivoSemFatura = emAndamento
+    ? "Fatura e recebimento só aparecem em mês encerrado."
+    : carregandoFaturas
+      ? "Carregando as faturas do Omie."
+      : erroFaturas
+        ? "Não foi possível ler as faturas no Omie."
+        : undefined;
+
+  const filtradas = useMemo(() => {
+    const termo = normalizar(busca.trim());
+    return rows.filter((u) => {
+      if (termo && !normalizar(u.nome_da_praca ?? "").includes(termo)) return false;
+      if (filtroApuracao && (u.apuracao?.status ?? "nao_iniciada") !== filtroApuracao) return false;
+      if (motivoSemFatura) return true;
+      const f = faturaPorUnidade.get(u.id);
+      if (filtroFatura && estadoFatura(f) !== filtroFatura) return false;
+      if (filtroRecebimento && estadoRecebimento(f) !== filtroRecebimento) return false;
+      return true;
+    });
+  }, [
+    rows,
+    busca,
+    filtroApuracao,
+    filtroFatura,
+    filtroRecebimento,
+    motivoSemFatura,
+    faturaPorUnidade,
+  ]);
+
   const totais = useMemo(
     () =>
       rows.reduce(
@@ -251,10 +400,55 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
               titulo="Não foi possível ler as faturas no Omie; as colunas de fatura e recebimento ficam sem dado"
             />
           )}
+          {!isLoading && rows.length > 0 && (
+            <BarraFiltros aoLimpar={filtroAtivo ? limparFiltros : undefined} className="mb-3">
+              <div className="relative">
+                <Search
+                  className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  aria-label="Buscar unidade"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Unidade"
+                  className="h-8 w-44 pl-8"
+                />
+              </div>
+              <SeletorFiltro
+                rotulo="Apuração"
+                todos="Toda apuração"
+                opcoes={OPCOES_APURACAO}
+                valor={filtroApuracao}
+                aoMudar={setFiltroApuracao}
+              />
+              <SeletorFiltro
+                rotulo="Fatura no Omie"
+                todos="Toda fatura"
+                opcoes={OPCOES_FATURA}
+                valor={filtroFatura}
+                aoMudar={setFiltroFatura}
+                motivoIndisponivel={motivoSemFatura}
+              />
+              <SeletorFiltro
+                rotulo="Recebimento"
+                todos="Todo recebimento"
+                opcoes={OPCOES_RECEBIMENTO}
+                valor={filtroRecebimento}
+                aoMudar={setFiltroRecebimento}
+                motivoIndisponivel={motivoSemFatura}
+              />
+              <span className="num text-[13px] text-muted-foreground">
+                {filtradas.length} de {rows.length} unidades
+              </span>
+            </BarraFiltros>
+          )}
           {isLoading ? (
             <Carregando variante="tabela" />
           ) : rows.length === 0 ? (
             <EstadoVazio titulo="Nenhuma unidade para apurar neste mês" />
+          ) : filtradas.length === 0 ? (
+            <EstadoVazio titulo="Nenhuma unidade com esses filtros" />
           ) : (
             <div className="overflow-hidden rounded-xl border bg-card">
               {/* Cabeçalho fixo: a rolagem acontece dentro deste container, não na
@@ -281,7 +475,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((u) => {
+                    {filtradas.map((u) => {
                       const ap = u.apuracao;
                       const st = ap?.status ? STATUS_APURACAO[ap.status] : undefined;
                       const cscModel =

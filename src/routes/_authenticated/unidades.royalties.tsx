@@ -1,14 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { GuardaUnidades } from "@/components/unidades/guarda-unidades";
-import { ApuracaoRoyaltiesContent } from "@/components/royalties/apuracao-royalties-content";
+import {
+  ApuracaoRoyaltiesContent,
+  CHAVES_FILTRO_APURACAO,
+} from "@/components/royalties/apuracao-royalties-content";
 import { MolduraReceita, SeletorMes, useMesNaUrl } from "@/components/receita/moldura";
+
+const CHAVES_BUSCA = ["mes", ...CHAVES_FILTRO_APURACAO] as const;
+type ChaveBusca = (typeof CHAVES_BUSCA)[number];
 
 export const Route = createFileRoute("/_authenticated/unidades/royalties")({
   // O mês mora na URL (N7): a Visão geral e a ficha voltam para cá com ?mes=,
-  // e o total da origem bate com o desta lista (N2).
-  validateSearch: (search: Record<string, unknown>): { mes?: string } =>
-    typeof search.mes === "string" ? { mes: search.mes } : {},
+  // e o total da origem bate com o desta lista (N2). Os filtros da tabela
+  // também moram aqui; chave não declarada seria descartada.
+  validateSearch: (search: Record<string, unknown>): Partial<Record<ChaveBusca, string>> =>
+    Object.fromEntries(
+      CHAVES_BUSCA.filter((c) => typeof search[c] === "string").map((c) => [
+        c,
+        search[c] as string,
+      ]),
+    ),
   head: () => ({
     meta: [
       { title: "Apuração de Royalties – Planning" },
