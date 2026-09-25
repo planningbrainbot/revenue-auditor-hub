@@ -3297,6 +3297,20 @@ O rollback foi ensaiado de verdade: migration + rollback numa transação
 desfeita deixam funções, policies, FKs, colunas e gatilhos idênticos ao estado
 de 25/09/2026.
 
+**Adendo 25/09 — publicado.**
+- **PR:** #25 (`5883a1a`).
+- **Deploy:** `dpl_B88CjuzXgF96nCqXHh3qAYe3HQHp` pela CLI da planningbrainbot-4862. Ele parte do que estava no ar (`85cc298`, integração DS v2), então nada de terceiros saiu.
+- **Rollback:** promover `dpl_3vdPx4bxcNZEeG2K1nG8MXNtDsWa`.
+- **Variáveis de Production do `ops-brain`:** `OPENAI_API_KEY` e `COCKPIT_CONVERSA_MODELO=openai/gpt-5.5`, criptografadas. `COCKPIT_IA_JEV` fica sem valor (Jev desligado).
+
+**Conferido no ar com a sessão do Pedro:** "Compare Curitiba e Belém nos últimos três meses" e "E só em Belém?" responderam com a leitura da rede. Os números batem ao centavo com SQL independente:
+- Curitiba: R$ 613.734,74;
+- Belém: R$ 597.574,41, queda de 36,3% em agosto.
+
+Tempos: 31 s na primeira pergunta (carga fria) e 7 s na seguinte, cerca de US$ 0,02 cada. A conversa de teste foi apagada.
+
+**A chave da OpenAI passou pelo chat:** trocar por uma nova e atualizar a variável.
+
 ## [2026-09-25] Gestão de acessos publicada (adendo às duas entradas anteriores)
 
 **Autorização:** o dono pediu "pode publicar".
