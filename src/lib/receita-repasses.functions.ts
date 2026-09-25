@@ -64,6 +64,38 @@ export interface FaturaDoRepasse {
   } | null;
 }
 
+/**
+ * Por onde cada pedaço do repasse é cobrado. São três trilhos no Omie da
+ * Partners, e só o primeiro tem vínculo exato com a competência:
+ *
+ * - `nd`: a nota de débito da rotina (`royalties_faturas`), com royalties, CAC
+ *   e outras receitas, mais as notas avulsas de `1.01.99` (CS, Gente) que cobrem
+ *   o que entrou na apuração depois da ND sair;
+ * - `csc`: títulos `1.01.96` (CSC fixo e base antiga);
+ * - `midia`: títulos `1.03.96` (reembolso de tráfego pago).
+ */
+export type ComponenteFunil = "nd" | "csc" | "midia";
+
+export interface TituloEmAberto {
+  componente: ComponenteFunil;
+  valor: number;
+  vencimento: string | null;
+  /** Status do título no Omie; `null` quando a ND saiu e o sync não achou o título. */
+  status: string | null;
+}
+
+/** Apurado → faturado → recebido de uma unidade com o mês fechado. */
+export interface FunilUnidade {
+  apurado: number;
+  /** Cobrado até o apurado, componente a componente (o excedente fica em `acimaDoApurado`). */
+  faturado: number;
+  recebido: number;
+  naoFaturado: { componente: ComponenteFunil; valor: number }[];
+  titulosEmAberto: TituloEmAberto[];
+  /** Título no mês de cobrança acima do apurado do componente: cobrança atrasada de outra competência ou apuração reeditada para baixo. */
+  acimaDoApurado: { componente: ComponenteFunil; valor: number }[];
+}
+
 export interface RepasseUnidade {
   unidade_id: number;
   unidade: string;
@@ -77,6 +109,8 @@ export interface RepasseUnidade {
   outras: number;
   receitaBase: number | null;
   fatura: FaturaDoRepasse | null;
+  /** `null` enquanto a apuração não fecha: o que não fechou não entra no funil. */
+  funil: FunilUnidade | null;
 }
 
 export interface ReceitaMes {
@@ -123,6 +157,18 @@ function mesesDaJanela(mes: string): string[] {
 }
 
 const N = (v: unknown) => Number(v ?? 0);
+const centavos = (v: number) => Math.round(v * 100) / 100;
+const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+/** Categoria do título avulso → trilho do funil. A ND da rotina vem sem categoria. */
+const CATEGORIA_FUNIL: Record<string, ComponenteFunil> = {
+  "1.01.99": "nd",
+  "1.01.96": "csc",
+  "1.03.96": "midia",
+};
+
+const FATURA_VALIDA = (status: string | null | undefined) =>
+  status !== "erro" && status !== "cancelada";
 
 export const carregarReceitaRepasses = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -151,10 +197,15 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
     const fimExclusivo = proximoMesPrimeiroDia(data.mes);
     const mesInicio = `${data.mes}-01`;
 
-    const [unidadesRes, apuracoesRes, faturasRes, reconcRes] = await Promise.all([
+    // A cobrança da competência M sai no mês M+1 (ND, CSC e mídia): é a janela
+    // em que os títulos avulsos são procurados.
+    const cobrancaInicio = proximoMesPrimeiroDia(data.mes);
+    const cobrancaFim = primeiroDia(data.mes, 2);
+
+    const [unidadesRes, apuracoesRes, faturasRes, reconcRes, avulsosRes] = await Promise.all([
       sb
         .from("unidades")
-        .select("id,nome_da_praca")
+        .select("id,nome_da_praca,cnpj")
         .eq("tipo", "regional")
         .order("nome_da_praca"),
       podeRepasse
@@ -182,6 +233,16 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
             .gte("mes", inicio)
             .lt("mes", fimExclusivo)
         : Promise.resolve({ data: [], error: null }),
+      podeRepasse
+        ? sb
+            .from("contas_receber")
+            .select("codigo_omie,codigo_categoria,cpf_cnpj,status_pagamento,data_vencimento,valor")
+            .eq("unidade", "Partners")
+            .in("codigo_categoria", Object.keys(CATEGORIA_FUNIL))
+            .neq("status_pagamento", "CANCELADO")
+            .gte("data_vencimento", cobrancaInicio)
+            .lt("data_vencimento", cobrancaFim)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     for (const [rotulo, res] of [
@@ -189,11 +250,16 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       ["Apurações", apuracoesRes],
       ["Faturas", faturasRes],
       ["Receita da rede", reconcRes],
+      ["Títulos avulsos do repasse", avulsosRes],
     ] as const) {
       if (res.error) throw new Error(`${rotulo}: ${res.error.message}`);
     }
 
-    const unidades = (unidadesRes.data ?? []) as { id: number; nome_da_praca: string }[];
+    const unidades = (unidadesRes.data ?? []) as {
+      id: number;
+      nome_da_praca: string;
+      cnpj: string | null;
+    }[];
     const nomeUnidade = new Map(unidades.map((u) => [u.id, u.nome_da_praca]));
     const apuracoes = (apuracoesRes.data ?? []) as any[];
     const faturas = (faturasRes.data ?? []) as any[];
@@ -286,9 +352,106 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
         .map((a) => [a.unidade_id, a] as const),
     );
 
+    // Títulos avulsos amarrados à unidade pelo CNPJ do sacado. Curitiba guarda
+    // quatro CNPJs no mesmo campo, um por linha.
+    const unidadePorCnpj = new Map<string, number>();
+    for (const u of unidades) {
+      for (const c of String(u.cnpj ?? "").split("\n")) {
+        const d = soDigitos(c);
+        if (d) unidadePorCnpj.set(d, u.id);
+      }
+    }
+    const avulsosPorUnidade = new Map<number, any[]>();
+    for (const t of (avulsosRes.data ?? []) as any[]) {
+      const id = unidadePorCnpj.get(soDigitos(t.cpf_cnpj));
+      if (id == null) continue;
+      const lista = avulsosPorUnidade.get(id) ?? [];
+      lista.push(t);
+      avulsosPorUnidade.set(id, lista);
+    }
+
+    /**
+     * O funil de uma unidade, componente a componente. O faturado de cada
+     * trilho é limitado ao apurado dele: título a mais no mês de cobrança (CSC
+     * atrasado de outra competência, por exemplo) não pode tapar o que faltou
+     * cobrar em outro trilho, e vai para `acimaDoApurado`.
+     */
+    function funilDa(a: any, fatura: FaturaDoRepasse | null, avulsos: any[]): FunilUnidade {
+      const apuradoPor: Record<ComponenteFunil, number> = {
+        nd: N(a.royalties_valor) + N(a.cac_valor) + N(a.outras_receitas),
+        csc: N(a.csc_valor_fixo) + N(a.csc_base_antiga_valor),
+        midia: N(a.csc_trafego_pago),
+      };
+      const cobradoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0 };
+      const pagoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0 };
+      const titulosEmAberto: TituloEmAberto[] = [];
+
+      if (fatura && FATURA_VALIDA(fatura.status)) {
+        cobradoPor.nd += fatura.valor_total;
+        if (fatura.recebimento?.status === "RECEBIDO") pagoPor.nd += fatura.valor_total;
+        else
+          titulosEmAberto.push({
+            componente: "nd",
+            valor: fatura.valor_total,
+            vencimento: fatura.recebimento?.vencimento ?? fatura.vence_em,
+            status: fatura.recebimento?.status ?? null,
+          });
+      }
+      for (const t of avulsos) {
+        const c = CATEGORIA_FUNIL[t.codigo_categoria];
+        if (!c) continue;
+        cobradoPor[c] += N(t.valor);
+        if (t.status_pagamento === "RECEBIDO") pagoPor[c] += N(t.valor);
+        else
+          titulosEmAberto.push({
+            componente: c,
+            valor: N(t.valor),
+            vencimento: t.data_vencimento,
+            status: t.status_pagamento,
+          });
+      }
+
+      let apurado = 0;
+      let faturado = 0;
+      let recebido = 0;
+      const acimaDoApurado: FunilUnidade["acimaDoApurado"] = [];
+      const naoFaturado: FunilUnidade["naoFaturado"] = [];
+      for (const c of ["nd", "csc", "midia"] as const) {
+        const ap = centavos(apuradoPor[c]);
+        const fat = Math.min(ap, centavos(cobradoPor[c]));
+        apurado += ap;
+        faturado += fat;
+        recebido += Math.min(fat, centavos(pagoPor[c]));
+        const acima = centavos(cobradoPor[c] - ap);
+        if (acima >= 0.01) acimaDoApurado.push({ componente: c, valor: acima });
+        if (ap - fat >= 0.01) naoFaturado.push({ componente: c, valor: centavos(ap - fat) });
+      }
+      titulosEmAberto.sort((x, y) => String(x.vencimento).localeCompare(String(y.vencimento)));
+      return {
+        apurado: centavos(apurado),
+        faturado: centavos(faturado),
+        recebido: centavos(recebido),
+        naoFaturado,
+        titulosEmAberto,
+        acimaDoApurado,
+      };
+    }
+
+    const faturaDoRepasse = (f: any): FaturaDoRepasse => ({
+      status: f.status,
+      num_os: f.num_os ? String(Number(f.num_os)) : null,
+      valor_total: N(f.valor_total),
+      vence_em: f.vence_em,
+      faturada_em: f.faturada_em,
+      erro: f.erro,
+      recebimento: recebimentoDa(f),
+    });
+
     const unidadesDoMes: RepasseUnidade[] = unidades.map((u) => {
       const a = apuracaoDoMes.get(u.id);
       const f = faturaPorUnidade.get(u.id);
+      const fatura = f ? faturaDoRepasse(f) : null;
+      const fechada = a && (a.status === "confirmado" || a.status === "faturado");
       return {
         unidade_id: u.id,
         unidade: u.nome_da_praca,
@@ -300,17 +463,8 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
         midia: N(a?.csc_trafego_pago),
         outras: N(a?.outras_receitas),
         receitaBase: a?.receita_base == null ? null : N(a.receita_base),
-        fatura: f
-          ? {
-              status: f.status,
-              num_os: f.num_os ? String(Number(f.num_os)) : null,
-              valor_total: N(f.valor_total),
-              vence_em: f.vence_em,
-              faturada_em: f.faturada_em,
-              erro: f.erro,
-              recebimento: recebimentoDa(f),
-            }
-          : null,
+        fatura,
+        funil: fechada ? funilDa(a, fatura, avulsosPorUnidade.get(u.id) ?? []) : null,
       };
     });
 
@@ -329,15 +483,8 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
         midia: 0,
         outras: 0,
         receitaBase: null,
-        fatura: {
-          status: f.status,
-          num_os: f.num_os ? String(Number(f.num_os)) : null,
-          valor_total: N(f.valor_total),
-          vence_em: f.vence_em,
-          faturada_em: f.faturada_em,
-          erro: f.erro,
-          recebimento: recebimentoDa(f),
-        },
+        fatura: faturaDoRepasse(f),
+        funil: null,
       });
     }
 

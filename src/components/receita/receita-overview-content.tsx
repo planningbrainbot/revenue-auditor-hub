@@ -60,6 +60,7 @@ import {
   TooltipMoeda,
   useMesNaUrl,
 } from "./moldura";
+import { FunilRepasse } from "./funil-repasse";
 
 /**
  * A abertura da área Receita e Repasses (Visão geral; contrato
@@ -496,6 +497,9 @@ export function ReceitaOverviewContent() {
                 />
               </div>
             </div>
+
+            {/* ---- apurado → faturado → recebido ---- */}
+            <FunilRepasse unidades={data.unidadesDoMes} nomeMes={nomeMes} destino={destinoApuracao} />
 
             {/* ---- séries ---- */}
             <div className="grid gap-3 lg:grid-cols-2">
