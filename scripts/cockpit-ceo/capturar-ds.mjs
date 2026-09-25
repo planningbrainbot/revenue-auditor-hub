@@ -22,9 +22,17 @@ const TEMAS = { escuro: "escuro", claro: "claro" };
 const VISTAS = [
   ["executiva", ""],
   // As nove frentes da versão empresarial (23/09), na ordem da lateral.
-  ...["receita", "comercial", "clientes", "retencao", "operacao", "rede", "portfolio", "caixa", "capital"].map(
-    (f) => [f, `?frente=${f}`],
-  ),
+  ...[
+    "receita",
+    "comercial",
+    "clientes",
+    "retencao",
+    "operacao",
+    "rede",
+    "portfolio",
+    "caixa",
+    "capital",
+  ].map((f) => [f, `?frente=${f}`]),
 ];
 
 const rotulo = process.argv[2];
@@ -69,7 +77,9 @@ const base = `http://127.0.0.1:${portaVite}/piloto/cockpit-ceo`;
 let pronto = false;
 for (let i = 0; i < 120 && !pronto; i++) {
   await esperar(1000);
-  pronto = await fetch(base).then((r) => r.ok).catch(() => false);
+  pronto = await fetch(base)
+    .then((r) => r.ok)
+    .catch(() => false);
 }
 if (!pronto) {
   process.kill(-vite.pid);
@@ -89,7 +99,9 @@ const chrome = spawn(CHROME, [
 let alvo;
 for (let i = 0; i < 50 && !alvo; i++) {
   try {
-    alvo = await (await fetch(`http://127.0.0.1:${portaCdp}/json/new?about:blank`, { method: "PUT" })).json();
+    alvo = await (
+      await fetch(`http://127.0.0.1:${portaCdp}/json/new?about:blank`, { method: "PUT" })
+    ).json();
   } catch {
     await esperar(200);
   }
@@ -113,9 +125,15 @@ const cdp = (method, params = {}) =>
     ws.send(JSON.stringify({ id, method, params }));
   });
 const avaliar = async (expr) =>
-  (await cdp("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true })).result.value;
+  (await cdp("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true }))
+    .result.value;
 const foto = async (arquivo, altura = ALTURA) => {
-  await cdp("Emulation.setDeviceMetricsOverride", { width: LARGURA, height: altura, deviceScaleFactor: 1, mobile: false });
+  await cdp("Emulation.setDeviceMetricsOverride", {
+    width: LARGURA,
+    height: altura,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await esperar(400);
   const { data } = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(join(destino, arquivo), Buffer.from(data, "base64"));
@@ -130,7 +148,12 @@ for (const [tema, modo] of Object.entries(TEMAS)) {
     source: `try { document.cookie = "pb_tema=${modo}; path=/"; localStorage.setItem("pb:tema", "${modo}"); } catch {}`,
   });
   for (const [vista, busca] of VISTAS) {
-    await cdp("Emulation.setDeviceMetricsOverride", { width: LARGURA, height: ALTURA, deviceScaleFactor: 1, mobile: false });
+    await cdp("Emulation.setDeviceMetricsOverride", {
+      width: LARGURA,
+      height: ALTURA,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
     await cdp("Page.navigate", { url: base + busca });
     // Espera o conteúdo, não um tempo fixo: na primeira carga o Vite ainda otimiza dependências.
     for (let i = 0; i < 60 && !(await avaliar("!!document.querySelector('main h1')")); i++)

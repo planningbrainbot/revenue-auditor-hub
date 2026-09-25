@@ -183,7 +183,10 @@ export function PerguntarAoBrain({
         api: "/api/cockpit-ceo/conversa",
         headers: cabecalhoDeSessao,
         prepareSendMessagesRequest: async ({ messages }) => ({
-          body: { conversaId: conversaRef.current, pergunta: textoDe(messages[messages.length - 1]) },
+          body: {
+            conversaId: conversaRef.current,
+            pergunta: textoDe(messages[messages.length - 1]),
+          },
           headers: await cabecalhoDeSessao(),
         }),
       }),
@@ -223,7 +226,8 @@ export function PerguntarAoBrain({
         consultadoEm: new Date().toISOString(),
         origem: "resposta",
       });
-    if (ultimaResposta.visaoSalva) qc.invalidateQueries({ queryKey: ["cockpit-conversa", "visoes"] });
+    if (ultimaResposta.visaoSalva)
+      qc.invalidateQueries({ queryKey: ["cockpit-conversa", "visoes"] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ultima?.id, ultimaResposta?.estado]);
 
@@ -308,7 +312,11 @@ export function PerguntarAoBrain({
         });
         aoMudarBusca({ visao: id });
       } catch {
-        setPainel((p) => ({ ...p, carregando: false, erro: "Visão não encontrada ou sem acesso." }));
+        setPainel((p) => ({
+          ...p,
+          carregando: false,
+          erro: "Visão não encontrada ou sem acesso.",
+        }));
       }
     },
     [abrirVisaoFn, aoMudarBusca],
@@ -361,7 +369,12 @@ export function PerguntarAoBrain({
         aria-label="Conversa"
         className="flex min-h-[32rem] flex-col rounded-xl border bg-card lg:h-[calc(100vh-13rem)]"
       >
-        <BarraConversa conversaId={conversaId} aoAbrir={abrirConversa} aoNova={novaConversa} ocupado={ocupado} />
+        <BarraConversa
+          conversaId={conversaId}
+          aoAbrir={abrirConversa}
+          aoNova={novaConversa}
+          ocupado={ocupado}
+        />
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4" aria-live="polite">
           {carregandoHistorico && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -409,10 +422,7 @@ export function PerguntarAoBrain({
           {ocupado && ultima?.role === "user" && <Progresso etapa={etapa} consultas={[]} />}
           {error && (
             <div className="space-y-2">
-              <EstadoErro
-                titulo="A conversa não respondeu"
-                detalhe={mensagemDeErro(error)}
-              />
+              <EstadoErro titulo="A conversa não respondeu" detalhe={mensagemDeErro(error)} />
               <Button
                 variant="outline"
                 size="sm"
@@ -449,7 +459,11 @@ export function PerguntarAoBrain({
                 enviar(texto);
               }
             }}
-            placeholder={messages.length ? "Refine: “agora só a base nova”, “e em Curitiba?”" : "Pergunte sobre a empresa"}
+            placeholder={
+              messages.length
+                ? "Refine: “agora só a base nova”, “e em Curitiba?”"
+                : "Pergunte sobre a empresa"
+            }
             rows={2}
             maxLength={2000}
             className="min-h-[2.75rem] resize-none"
@@ -515,7 +529,9 @@ function Progresso({
   );
 }
 
-const SELO: Partial<Record<RespostaFinal["estado"], { tom: "atencao" | "perigo" | "info" | "neutro"; texto: string }>> = {
+const SELO: Partial<
+  Record<RespostaFinal["estado"], { tom: "atencao" | "perigo" | "info" | "neutro"; texto: string }>
+> = {
   erro: { tom: "perigo", texto: "Sem resposta" },
   cancelada: { tom: "neutro", texto: "Cancelada" },
   sem_orcamento: { tom: "atencao", texto: "IA pausada" },
@@ -572,7 +588,11 @@ function TurnoAssistente({
             {selecionado ? "Na área visual" : "Mostrar a visão"}
           </button>
         )}
-        {r.consultas.length > 0 && <span>{r.consultas.length} consulta{r.consultas.length > 1 ? "s" : ""}</span>}
+        {r.consultas.length > 0 && (
+          <span>
+            {r.consultas.length} consulta{r.consultas.length > 1 ? "s" : ""}
+          </span>
+        )}
         {r.historico && r.criadaEm && <span>respondido em {hora(r.criadaEm)}</span>}
         {r.descartadas.length > 0 && (
           <span title={r.descartadas.join("\n")}>
@@ -613,25 +633,42 @@ function BarraConversa({
   const qc = useQueryClient();
   const listarFn = useServerFn(listarConversas);
   const excluirFn = useServerFn(excluirConversa);
-  const lista = useQuery({ queryKey: ["cockpit-conversa", "lista"], queryFn: () => listarFn(), staleTime: 30_000 });
+  const lista = useQuery({
+    queryKey: ["cockpit-conversa", "lista"],
+    queryFn: () => listarFn(),
+    staleTime: 30_000,
+  });
   const [apagar, setApagar] = useState<{ id: string; titulo: string } | null>(null);
   const atual = lista.data?.find((c) => c.id === conversaId);
   return (
     <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="min-w-0 max-w-[70%] justify-start" disabled={ocupado}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-w-0 max-w-[70%] justify-start"
+            disabled={ocupado}
+          >
             <History className="size-4 shrink-0" aria-hidden />
-            <span className="truncate">{atual?.titulo ?? (conversaId ? "Conversa" : "Nova conversa")}</span>
+            <span className="truncate">
+              {atual?.titulo ?? (conversaId ? "Conversa" : "Nova conversa")}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-80">
           <DropdownMenuLabel>Suas conversas (só você vê)</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {lista.isLoading && <DropdownMenuItem disabled>Carregando…</DropdownMenuItem>}
-          {lista.data?.length === 0 && <DropdownMenuItem disabled>Nenhuma conversa ainda.</DropdownMenuItem>}
+          {lista.data?.length === 0 && (
+            <DropdownMenuItem disabled>Nenhuma conversa ainda.</DropdownMenuItem>
+          )}
           {lista.data?.map((c) => (
-            <DropdownMenuItem key={c.id} className="flex items-start justify-between gap-2" onSelect={() => aoAbrir(c.id)}>
+            <DropdownMenuItem
+              key={c.id}
+              className="flex items-start justify-between gap-2"
+              onSelect={() => aoAbrir(c.id)}
+            >
               <span className="min-w-0">
                 <span className="block truncate">{c.titulo}</span>
                 <span className="text-xs text-muted-foreground">{hora(c.atualizada_em)}</span>
@@ -695,12 +732,22 @@ const PERIODOS: { chave: string; rotulo: string; valor: PeriodoFiltro }[] = [
   { chave: "mes_anterior", rotulo: "Mês anterior", valor: { tipo: "mes_anterior" } },
   { chave: "u3", rotulo: "Últimos 3 meses fechados", valor: { tipo: "ultimos_meses", meses: 3 } },
   { chave: "u6", rotulo: "Últimos 6 meses fechados", valor: { tipo: "ultimos_meses", meses: 6 } },
-  { chave: "u12", rotulo: "Últimos 12 meses fechados", valor: { tipo: "ultimos_meses", meses: 12 } },
+  {
+    chave: "u12",
+    rotulo: "Últimos 12 meses fechados",
+    valor: { tipo: "ultimos_meses", meses: 12 },
+  },
   { chave: "trimestre", rotulo: "Trimestre atual", valor: { tipo: "trimestre" } },
   { chave: "ano", rotulo: "Ano atual", valor: { tipo: "ano" } },
 ];
 const chaveDoPeriodo = (p?: PeriodoFiltro) =>
-  !p ? "" : p.tipo === "ultimos_meses" ? `u${p.meses ?? 6}` : p.tipo === "intervalo" ? "intervalo" : p.tipo;
+  !p
+    ? ""
+    : p.tipo === "ultimos_meses"
+      ? `u${p.meses ?? 6}`
+      : p.tipo === "intervalo"
+        ? "intervalo"
+        : p.tipo;
 
 function Controles({
   definicao,
@@ -718,7 +765,11 @@ function Controles({
   if (!aceitas.size) return null;
   const unidades = filtros.unidades ?? [];
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/20 px-3 py-2.5" role="group" aria-label="Filtros da visão">
+    <div
+      className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/20 px-3 py-2.5"
+      role="group"
+      aria-label="Filtros da visão"
+    >
       {aceitas.has("periodo") && (
         <Campo rotulo="Período">
           <Select
@@ -731,7 +782,9 @@ function Controles({
             </SelectTrigger>
             <SelectContent>
               {!filtros.periodo && <SelectItem value="padrao">Padrão da consulta</SelectItem>}
-              {filtros.periodo?.tipo === "intervalo" && <SelectItem value="intervalo">Intervalo da pergunta</SelectItem>}
+              {filtros.periodo?.tipo === "intervalo" && (
+                <SelectItem value="intervalo">Intervalo da pergunta</SelectItem>
+              )}
               {PERIODOS.map((p) => (
                 <SelectItem key={p.chave} value={p.chave}>
                   {p.rotulo}
@@ -786,7 +839,9 @@ function Controles({
           <Select
             disabled={desabilitado}
             value={filtros.produto ?? "todos"}
-            onValueChange={(v) => aoMudar({ produto: v === "todos" ? undefined : (v as Filtros["produto"]) })}
+            onValueChange={(v) =>
+              aoMudar({ produto: v === "todos" ? undefined : (v as Filtros["produto"]) })
+            }
           >
             <SelectTrigger className="h-8 w-[10rem]" aria-label="Produto">
               <SelectValue />
@@ -806,7 +861,10 @@ function Controles({
         <Campo rotulo="Unidades">
           <div className="flex flex-wrap items-center gap-1.5">
             {unidades.map((u) => (
-              <span key={u} className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-[13px]">
+              <span
+                key={u}
+                className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-[13px]"
+              >
                 {u}
                 <button
                   type="button"
@@ -850,7 +908,9 @@ function Controles({
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{rotulo}</span>
+      <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {rotulo}
+      </span>
       {children}
     </div>
   );
@@ -876,8 +936,14 @@ function AreaVisual({
   const salvarFn = useServerFn(salvarVisao);
   const renomearFn = useServerFn(renomearVisao);
   const excluirFn = useServerFn(excluirVisao);
-  const visoes = useQuery({ queryKey: ["cockpit-conversa", "visoes"], queryFn: () => listarFn(), staleTime: 30_000 });
-  const [dialogo, setDialogo] = useState<null | { modo: "salvar" } | { modo: "renomear"; id: string; nome: string }>(null);
+  const visoes = useQuery({
+    queryKey: ["cockpit-conversa", "visoes"],
+    queryFn: () => listarFn(),
+    staleTime: 30_000,
+  });
+  const [dialogo, setDialogo] = useState<
+    null | { modo: "salvar" } | { modo: "renomear"; id: string; nome: string }
+  >(null);
   const [nome, setNome] = useState("");
   const [apagar, setApagar] = useState<{ id: string; nome: string } | null>(null);
   const d = painel.definicao;
@@ -926,18 +992,28 @@ function AreaVisual({
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <Bookmark className="size-4" aria-hidden /> Visões salvas
-                {visoes.data?.length ? <span className="num text-muted-foreground">({visoes.data.length})</span> : null}
+                {visoes.data?.length ? (
+                  <span className="num text-muted-foreground">({visoes.data.length})</span>
+                ) : null}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel>Suas visões (só você vê)</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {visoes.data?.length === 0 && <DropdownMenuItem disabled>Nenhuma visão salva.</DropdownMenuItem>}
+              {visoes.data?.length === 0 && (
+                <DropdownMenuItem disabled>Nenhuma visão salva.</DropdownMenuItem>
+              )}
               {visoes.data?.map((v) => (
-                <DropdownMenuItem key={v.id} className="flex items-center justify-between gap-2" onSelect={() => aoAbrirSalva(v.id)}>
+                <DropdownMenuItem
+                  key={v.id}
+                  className="flex items-center justify-between gap-2"
+                  onSelect={() => aoAbrirSalva(v.id)}
+                >
                   <span className="min-w-0">
                     <span className="block truncate">{v.nome}</span>
-                    <span className="text-xs text-muted-foreground">salva em {hora(v.atualizada_em)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      salva em {hora(v.atualizada_em)}
+                    </span>
                   </span>
                   <span className="flex shrink-0 gap-1">
                     <button
@@ -984,7 +1060,14 @@ function AreaVisual({
         </div>
       </div>
 
-      {d && <Controles definicao={d} filtros={painel.filtros} aoMudar={aoMudarFiltros} desabilitado={!!painel.carregando || ocupado} />}
+      {d && (
+        <Controles
+          definicao={d}
+          filtros={painel.filtros}
+          aoMudar={aoMudarFiltros}
+          desabilitado={!!painel.carregando || ocupado}
+        />
+      )}
 
       {painel.erro && <EstadoErro titulo="A visão não abriu" detalhe={painel.erro} />}
       {painel.carregando && (
@@ -997,7 +1080,12 @@ function AreaVisual({
           titulo="A resposta aparece aqui"
           descricao="Cada gráfico vem de uma consulta às fontes do cockpit, com a data e a fonte ao pé."
           acao={
-            <Button variant="outline" size="sm" onClick={() => aoPerguntar(SUGESTOES[0])} disabled={ocupado}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => aoPerguntar(SUGESTOES[0])}
+              disabled={ocupado}
+            >
               {SUGESTOES[0]}
             </Button>
           }
@@ -1009,7 +1097,8 @@ function AreaVisual({
             <div
               key={b.id}
               className={cn(
-                ["serie", "ponte", "tabela", "coorte", "acoes"].includes(b.tipo) || painel.blocos.length === 1
+                ["serie", "ponte", "tabela", "coorte", "acoes"].includes(b.tipo) ||
+                  painel.blocos.length === 1
                   ? "xl:col-span-2"
                   : undefined,
               )}
@@ -1030,7 +1119,9 @@ function AreaVisual({
       <Dialog open={!!dialogo} onOpenChange={(o) => !o && setDialogo(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialogo?.modo === "renomear" ? "Renomear visão" : "Salvar visão"}</DialogTitle>
+            <DialogTitle>
+              {dialogo?.modo === "renomear" ? "Renomear visão" : "Salvar visão"}
+            </DialogTitle>
             <DialogDescription>
               Guarda as consultas e os filtros. Ao abrir, os números são consultados de novo com o
               seu acesso daquele momento.
@@ -1044,7 +1135,13 @@ function AreaVisual({
             className="space-y-2"
           >
             <Label htmlFor="nome-visao">Nome</Label>
-            <Input id="nome-visao" value={nome} maxLength={120} onChange={(e) => setNome(e.target.value)} autoFocus />
+            <Input
+              id="nome-visao"
+              value={nome}
+              maxLength={120}
+              onChange={(e) => setNome(e.target.value)}
+              autoFocus
+            />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogo(null)}>
                 Cancelar
@@ -1061,7 +1158,9 @@ function AreaVisual({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir a visão?</AlertDialogTitle>
-            <AlertDialogDescription>“{apagar?.nome}” deixa de existir para você.</AlertDialogDescription>
+            <AlertDialogDescription>
+              “{apagar?.nome}” deixa de existir para você.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Manter</AlertDialogCancel>

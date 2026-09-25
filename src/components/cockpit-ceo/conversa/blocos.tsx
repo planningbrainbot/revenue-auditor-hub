@@ -45,8 +45,7 @@ import {
 // como código ou marcação; o único texto do modelo que aparece é o título opcional do bloco, como
 // texto puro. Todo número sai de `bloco.resultado`.
 
-const mesCurto = (x: string) =>
-  /^\d{4}-\d{2}$/.test(x) ? `${x.slice(5, 7)}/${x.slice(2, 4)}` : x;
+const mesCurto = (x: string) => (/^\d{4}-\d{2}$/.test(x) ? `${x.slice(5, 7)}/${x.slice(2, 4)}` : x);
 
 export function curto(v: number | null, unidade: UnidadeContagem): string {
   if (v === null || !Number.isFinite(v)) return "—";
@@ -84,7 +83,8 @@ function SemNumero({ r }: { r: Resultado }) {
 function Destino({ r }: { r: Resultado }) {
   if (!r.destino) return null;
   const { to, search } = partesDoLink(
-    r.destino.rota + (Object.keys(r.destino.search).length ? "?" + new URLSearchParams(r.destino.search) : ""),
+    r.destino.rota +
+      (Object.keys(r.destino.search).length ? "?" + new URLSearchParams(r.destino.search) : ""),
   );
   return (
     <Link
@@ -99,13 +99,7 @@ function Destino({ r }: { r: Resultado }) {
 }
 
 /** Moldura de um bloco: pergunta/título, conteúdo, avisos curtos e procedência. */
-export function MolduraBloco({
-  bloco,
-  children,
-}: {
-  bloco: BlocoResolvido;
-  children: ReactNode;
-}) {
+export function MolduraBloco({ bloco, children }: { bloco: BlocoResolvido; children: ReactNode }) {
   const r = bloco.resultado;
   const avisos = temNumero(r) ? r.avisos.slice(0, 2) : [];
   return (
@@ -115,7 +109,9 @@ export function MolduraBloco({
         {r.estado === "parcial" && <StatusBadge tom="atencao">Dado parcial</StatusBadge>}
       </header>
       {r.filtrosAplicados.length > 0 && (
-        <p className="text-[13px] text-muted-foreground">{r.filtrosAplicados.filter(Boolean).join(" · ")}</p>
+        <p className="text-[13px] text-muted-foreground">
+          {r.filtrosAplicados.filter(Boolean).join(" · ")}
+        </p>
       )}
       <div className="min-w-0">{temNumero(r) ? children : <SemNumero r={r} />}</div>
       {avisos.length > 0 && (
@@ -140,13 +136,19 @@ function BlocoKpi({ r }: { r: Resultado }) {
   const d = r.dados;
   if (d.forma !== "kpi") return null;
   const c = d.comparacoes[0];
-  const delta = r.destaques.find((x) => x.unidade === "percentual" && x.rotulo.startsWith("Variação"));
+  const delta = r.destaques.find(
+    (x) => x.unidade === "percentual" && x.rotulo.startsWith("Variação"),
+  );
   return (
     <KpiCard
       rotulo={r.titulo}
       valor={curto(d.valor, r.unidade)}
       nota={c ? `${c.rotulo}: ${curto(c.valor, c.unidade ?? r.unidade)}` : undefined}
-      delta={delta?.valor != null ? { valor: delta.valor, rotulo: c?.rotulo ? `vs ${c.rotulo.toLowerCase()}` : undefined } : undefined}
+      delta={
+        delta?.valor != null
+          ? { valor: delta.valor, rotulo: c?.rotulo ? `vs ${c.rotulo.toLowerCase()}` : undefined }
+          : undefined
+      }
       estado={r.estado === "parcial" ? "parcial" : "ok"}
       className="border-0 p-0"
     />
@@ -166,7 +168,10 @@ function BlocoSerie({ r }: { r: Resultado }) {
           <CartesianGrid {...gradeProps} />
           <XAxis dataKey="x" {...eixoProps} />
           <YAxis {...eixoProps} width={84} tickFormatter={(v: number) => curto(v, r.unidade)} />
-          <Tooltip {...tooltipProps} formatter={(v) => curto(v === null ? null : Number(v), r.unidade)} />
+          <Tooltip
+            {...tooltipProps}
+            formatter={(v) => curto(v === null ? null : Number(v), r.unidade)}
+          />
           {d.series.length > 1 && <Legend {...legendaProps} />}
           {realizados.map((s, i) => (
             <Line
@@ -213,7 +218,13 @@ function BlocoBarras({ r, ranking }: { r: Resultado; ranking?: boolean }) {
             <Tooltip {...tooltipProps} formatter={(v) => curto(Number(v), r.unidade)} />
             {d.series.length > 1 && <Legend {...legendaProps} />}
             {d.series.slice(0, 3).map((s, i) => (
-              <Bar key={s.chave} dataKey={s.chave} name={s.rotulo} fill={CORES_SERIE[i]} isAnimationActive={false} />
+              <Bar
+                key={s.chave}
+                dataKey={s.chave}
+                name={s.rotulo}
+                fill={CORES_SERIE[i]}
+                isAnimationActive={false}
+              />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -232,7 +243,10 @@ function BlocoBarras({ r, ranking }: { r: Resultado; ranking?: boolean }) {
     <div className="space-y-2">
       <ol className="space-y-2">
         {itens.map((i, n) => (
-          <li key={`${i.rotulo}-${n}`} className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3">
+          <li
+            key={`${i.rotulo}-${n}`}
+            className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3"
+          >
             <span className="truncate text-sm" title={i.rotulo}>
               {ranking && <span className="num mr-1.5 text-muted-foreground">{n + 1}.</span>}
               {i.rotulo}
@@ -248,7 +262,9 @@ function BlocoBarras({ r, ranking }: { r: Resultado; ranking?: boolean }) {
             </span>
             <span className="num text-right text-sm font-medium">
               {curto(i.valor, r.unidade)}
-              {i.detalhe && <span className="block text-xs font-normal text-muted-foreground">{i.detalhe}</span>}
+              {i.detalhe && (
+                <span className="block text-xs font-normal text-muted-foreground">{i.detalhe}</span>
+              )}
             </span>
           </li>
         ))}
@@ -266,14 +282,21 @@ function BlocoBarras({ r, ranking }: { r: Resultado; ranking?: boolean }) {
 function BlocoFunil({ r }: { r: Resultado }) {
   const d = r.dados;
   const etapas =
-    d.forma === "funil" ? d.etapas : d.forma === "categorias" ? d.itens.map((i) => ({ rotulo: i.rotulo, valor: i.valor })) : [];
+    d.forma === "funil"
+      ? d.etapas
+      : d.forma === "categorias"
+        ? d.itens.map((i) => ({ rotulo: i.rotulo, valor: i.valor }))
+        : [];
   const primeiro = etapas[0]?.valor ?? null;
   return (
     <ol className="space-y-2">
       {etapas.map((e, i) => {
         const pct = primeiro && e.valor !== null ? (e.valor / primeiro) * 100 : null;
         return (
-          <li key={e.rotulo} className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3">
+          <li
+            key={e.rotulo}
+            className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3"
+          >
             <span className="text-sm">{e.rotulo}</span>
             <span className="h-5 overflow-hidden rounded bg-muted" aria-hidden>
               <span
@@ -287,7 +310,9 @@ function BlocoFunil({ r }: { r: Resultado }) {
             <span className="num text-right text-sm font-medium">
               {e.valor === null ? "—" : formatarNumero(e.valor, r.unidade)}
               {pct !== null && i > 0 && (
-                <span className="ml-1.5 text-xs font-normal text-muted-foreground">{pct.toFixed(0)}%</span>
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {pct.toFixed(0)}%
+                </span>
               )}
             </span>
           </li>
@@ -323,7 +348,11 @@ function BlocoPonte({ r }: { r: Resultado }) {
       </dl>
       <div className="h-56 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={dados} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
+          <BarChart
+            data={dados}
+            layout="vertical"
+            margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
+          >
             <CartesianGrid {...gradeProps} horizontal={false} vertical />
             <XAxis type="number" {...eixoProps} tickFormatter={(v: number) => curto(v, "reais")} />
             <YAxis type="category" dataKey="rotulo" width={150} {...eixoProps} />
@@ -352,30 +381,50 @@ function BlocoTabela({ r }: { r: Resultado }) {
   const d = r.dados;
   let colunas: { chave: string; rotulo: string; num?: boolean }[] = [];
   let linhas: Record<string, string | number | null>[] = [];
-  const f = (v: unknown) => (typeof v === "number" ? formatarNumero(v, r.unidade) : v == null ? "—" : String(v));
+  const f = (v: unknown) =>
+    typeof v === "number" ? formatarNumero(v, r.unidade) : v == null ? "—" : String(v);
   switch (d.forma) {
     case "tabela":
       colunas = d.colunas.map((c) => ({ chave: c.chave, rotulo: c.rotulo }));
       linhas = d.linhas;
       break;
     case "serie":
-      colunas = [{ chave: "x", rotulo: "Mês" }, ...d.series.map((s) => ({ chave: s.chave, rotulo: s.rotulo, num: true }))];
+      colunas = [
+        { chave: "x", rotulo: "Mês" },
+        ...d.series.map((s) => ({ chave: s.chave, rotulo: s.rotulo, num: true })),
+      ];
       linhas = d.pontos.map((p) => ({ x: mesCurto(p.x), ...p.valores }));
       break;
     case "categorias":
-      colunas = [{ chave: "rotulo", rotulo: "Item" }, { chave: "valor", rotulo: "Valor", num: true }];
+      colunas = [
+        { chave: "rotulo", rotulo: "Item" },
+        { chave: "valor", rotulo: "Valor", num: true },
+      ];
       linhas = d.itens.map((i) => ({ rotulo: i.rotulo, valor: i.valor }));
       break;
     case "funil":
-      colunas = [{ chave: "rotulo", rotulo: "Etapa" }, { chave: "valor", rotulo: "Quantidade", num: true }];
+      colunas = [
+        { chave: "rotulo", rotulo: "Etapa" },
+        { chave: "valor", rotulo: "Quantidade", num: true },
+      ];
       linhas = d.etapas.map((e) => ({ rotulo: e.rotulo, valor: e.valor }));
       break;
     case "kpi":
-      colunas = [{ chave: "rotulo", rotulo: "Parcela" }, { chave: "valor", rotulo: "Valor", num: true }];
-      linhas = [{ rotulo: r.titulo, valor: d.valor }, ...d.comparacoes.map((c) => ({ rotulo: c.rotulo, valor: c.valor })), ...d.composicao.map((c) => ({ rotulo: c.rotulo, valor: c.valor }))];
+      colunas = [
+        { chave: "rotulo", rotulo: "Parcela" },
+        { chave: "valor", rotulo: "Valor", num: true },
+      ];
+      linhas = [
+        { rotulo: r.titulo, valor: d.valor },
+        ...d.comparacoes.map((c) => ({ rotulo: c.rotulo, valor: c.valor })),
+        ...d.composicao.map((c) => ({ rotulo: c.rotulo, valor: c.valor })),
+      ];
       break;
     case "ponte":
-      colunas = [{ chave: "rotulo", rotulo: "Parcela" }, { chave: "valor", rotulo: "Valor", num: true }];
+      colunas = [
+        { chave: "rotulo", rotulo: "Parcela" },
+        { chave: "valor", rotulo: "Valor", num: true },
+      ];
       linhas = [d.inicio, ...d.passos, d.fim].map((p) => ({ rotulo: p.rotulo, valor: p.valor }));
       break;
     default:
@@ -397,7 +446,10 @@ function BlocoTabela({ r }: { r: Resultado }) {
           {linhas.map((l, i) => (
             <TableRow key={i}>
               {colunas.map((c) => (
-                <TableCell key={c.chave} className={c.num || typeof l[c.chave] === "number" ? "num text-right" : undefined}>
+                <TableCell
+                  key={c.chave}
+                  className={c.num || typeof l[c.chave] === "number" ? "num text-right" : undefined}
+                >
                   {f(l[c.chave])}
                 </TableCell>
               ))}
@@ -440,7 +492,9 @@ function BlocoCoorte({ r }: { r: Resultado }) {
                     style={
                       v == null
                         ? undefined
-                        : { background: `color-mix(in oklab, ${CORES_SERIE[0]} ${Math.round(v * 0.45)}%, var(--card))` }
+                        : {
+                            background: `color-mix(in oklab, ${CORES_SERIE[0]} ${Math.round(v * 0.45)}%, var(--card))`,
+                          }
                     }
                   >
                     {v == null ? "" : `${v.toFixed(0)}%`}
@@ -462,7 +516,9 @@ function BlocoAcoes({ r }: { r: Resultado }) {
     <ul className="divide-y rounded-lg border">
       {d.itens.map((a) => (
         <li key={a.titulo} className="flex flex-wrap items-start gap-3 px-3 py-2.5">
-          <StatusBadge tom={a.gravidade === "alta" ? "perigo" : a.gravidade === "media" ? "atencao" : "info"}>
+          <StatusBadge
+            tom={a.gravidade === "alta" ? "perigo" : a.gravidade === "media" ? "atencao" : "info"}
+          >
             {a.gravidade === "alta" ? "Alta" : a.gravidade === "media" ? "Média" : "Decisão"}
           </StatusBadge>
           <div className="min-w-0 flex-1">

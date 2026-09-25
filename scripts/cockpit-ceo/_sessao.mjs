@@ -9,12 +9,20 @@ export async function abrirSessao(email) {
   const url = process.env.SUPABASE_URL;
   const publica = process.env.SUPABASE_PUBLISHABLE_KEY;
   const servico = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !publica || !servico) throw new Error("Faltam SUPABASE_URL/PUBLISHABLE_KEY/SERVICE_ROLE_KEY.");
-  const admin = createClient(url, servico, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!url || !publica || !servico)
+    throw new Error("Faltam SUPABASE_URL/PUBLISHABLE_KEY/SERVICE_ROLE_KEY.");
+  const admin = createClient(url, servico, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   if (error) throw new Error(`generateLink: ${error.message}`);
-  const anon = createClient(url, publica, { auth: { persistSession: false, autoRefreshToken: false } });
-  const v = await anon.auth.verifyOtp({ token_hash: data.properties.hashed_token, type: "magiclink" });
+  const anon = createClient(url, publica, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const v = await anon.auth.verifyOtp({
+    token_hash: data.properties.hashed_token,
+    type: "magiclink",
+  });
   if (v.error || !v.data.session) throw new Error(`verifyOtp: ${v.error?.message}`);
   return v.data.session;
 }

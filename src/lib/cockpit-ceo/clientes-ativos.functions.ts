@@ -25,8 +25,8 @@ const menos90 = (hoje: string) => {
   return d.toISOString().slice(0, 10);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const leituras = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   hoje: string,
 ): Record<IdDefinicao, () => Promise<(string | null)[]>> => ({

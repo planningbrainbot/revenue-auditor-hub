@@ -381,7 +381,11 @@ test("Cockpit produz exatamente os indicadores declarados, e seis na primeira do
   const c = montarCockpit(fonteOk(), recorte());
   assert.deepEqual(c.indicadores.map((i) => i.id).sort(), [...IDS_INDICADORES].sort());
   assert.equal(c.primeiraDobra.length, 6);
-  for (const id of c.primeiraDobra) assert.ok(c.indicadores.some((i) => i.id === id), id);
+  for (const id of c.primeiraDobra)
+    assert.ok(
+      c.indicadores.some((i) => i.id === id),
+      id,
+    );
   for (const i of c.indicadores) {
     assert.ok(i.definicao && i.fonte && i.versaoRegra && i.pergunta, i.id);
     assert.equal(i.dataApuracao, "2026-09-22T15:00:00Z");

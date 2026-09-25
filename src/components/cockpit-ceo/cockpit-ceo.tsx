@@ -42,6 +42,9 @@ import { SinteticoBadge } from "./estado";
 import { Motores, PonteDoMes, SemPainel } from "./empresa";
 import { VistaFrente } from "./frentes";
 import { cartaoDoIndicador } from "./indicador";
+import { BotaoPerguntar, SaudeDasFontes, VisaoExecutivaLeitura } from "./visao-executiva";
+import { montarLeituraExecutiva } from "@/lib/cockpit-ceo/visao-executiva";
+import { useMemo } from "react";
 
 // Cockpit do CEO no Design System v2 (contrato docs/design/contratos/cockpit-ceo.md, aprovado em
 // 23/09/2026). Arquétipo Visão geral: agrega, aponta a pendência e manda para a tela dona; não
@@ -57,6 +60,10 @@ import { cartaoDoIndicador } from "./indicador";
 export type MudarBusca = (parcial: Partial<BuscaCockpit>) => void;
 
 /** A pergunta da Visão executiva (N1). Texto aprovado no contrato de 23/09. */
+/** Universo da Visão executiva (N1): o que os quatro números medem, numa linha. */
+const DESCRICAO_EXECUTIVA =
+  "Empresa inteira · último mês fechado, mês corrente e fotografias de hoje · R$";
+
 export const PERGUNTA_EXECUTIVA =
   "Estamos no plano para o bilhão, o que mudou e o que é decisão minha?";
 
@@ -414,6 +421,7 @@ export function CockpitCeo({
   // Procedência do cabeçalho: o Financeiro, fonte do faturamento da primeira dobra. Cada número e
   // cada painel declara a sua ao lado (N3); a frente Evidências e capital lista o frescor de todas.
   const fin = cockpit.empresa.frescor[0];
+  const saude = useMemo(() => montarLeituraExecutiva(cockpit).saude, [cockpit]);
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
@@ -421,33 +429,46 @@ export function CockpitCeo({
         area="cockpit_ceo"
         titulo={frente ? FRENTES[frente].titulo : "Visão executiva"}
         pergunta={frente ? FRENTES[frente].pergunta : PERGUNTA_EXECUTIVA}
-        descricao={cockpit.universo}
-        procedencia={{
-          fonte: cockpit.sintetico
-            ? "SINTÉTICO · Financeiro, Growth, Ops e Monetização"
-            : "Financeiro (Financial Brain), Growth, Ops e Monetização",
-          atualizadoEm: fin?.atualizadoEm ?? null,
-          regua: "faturamento por emissão; eventos pela data do evento; fuso de São Paulo",
-        }}
+        descricao={frente ? cockpit.universo : DESCRICAO_EXECUTIVA}
+        // Na Visão executiva a procedência completa sai do cabeçalho: cada número traz o nome da
+        // fonte e a data, e o selo de saúde abre o frescor de todas (revisão de 24/09).
+        procedencia={
+          frente
+            ? {
+                fonte: cockpit.sintetico
+                  ? "SINTÉTICO · Financeiro, Growth, Ops e Monetização"
+                  : "Financeiro (Financial Brain), Growth, Ops e Monetização",
+                atualizadoEm: fin?.atualizadoEm ?? null,
+                regua: "faturamento por emissão; eventos pela data do evento; fuso de São Paulo",
+              }
+            : undefined
+        }
         acoes={
           <>
             {cockpit.sintetico && <SinteticoBadge />}
-            {frente && (
+            {frente ? (
               <Button variant="outline" size="sm" onClick={() => aoMudar({ frente: "" })}>
                 <ArrowLeft className="size-4" aria-hidden />
                 Visão executiva
               </Button>
+            ) : (
+              <SaudeDasFontes saude={saude} />
             )}
+            {!preview && <BotaoPerguntar />}
             {topo}
           </>
         }
+        // Os quatro números da Visão executiva não dependem do período nem da unidade (último mês
+        // fechado, fotografias de hoje e mês corrente do Growth): o filtro fica nas frentes.
         filtros={
-          <Filtros
-            busca={busca}
-            periodo={periodo}
-            perimetros={cockpit.perimetros}
-            aoMudar={aoMudar}
-          />
+          frente ? (
+            <Filtros
+              busca={busca}
+              periodo={periodo}
+              perimetros={cockpit.perimetros}
+              aoMudar={aoMudar}
+            />
+          ) : undefined
         }
       />
       {avisos.map((a) => (
@@ -464,13 +485,16 @@ export function CockpitCeo({
           irParaFrente={irParaFrente}
         />
       ) : (
-        <VisaoExecutiva
-          cockpit={cockpit}
-          abrir={abrir}
-          preview={preview}
-          jev={jev?.(irParaFrente)}
-          irParaFrente={irParaFrente}
-        />
+        <>
+          <VisaoExecutivaLeitura
+            cockpit={cockpit}
+            abrir={abrir}
+            preview={preview}
+            irParaFrente={irParaFrente}
+          />
+          {/* Só o preview do piloto passa o Jev; fica abaixo de tudo, fora da primeira leitura. */}
+          {jev?.(irParaFrente)}
+        </>
       )}
 
       <ComposicaoIndicador indicador={aberto} onFechar={fechar} preview={preview} />

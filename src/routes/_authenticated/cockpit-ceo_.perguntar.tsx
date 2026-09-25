@@ -30,7 +30,12 @@ function Pagina() {
   const navigate = Route.useNavigate();
   return (
     <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:px-6 md:py-5">
-      <PageHeader area="cockpit_ceo" titulo="Perguntar ao Brain" pergunta={PERGUNTA} descricao={DESCRICAO} />
+      <PageHeader
+        area="cockpit_ceo"
+        titulo="Perguntar ao Brain"
+        pergunta={PERGUNTA}
+        descricao={DESCRICAO}
+      />
       {perms.loading ? (
         <Carregando variante="pagina" />
       ) : !perms.temArea("cockpit_ceo") ? (
