@@ -1,9 +1,8 @@
-import { useMemo, useState } from "react";
-import { Clock, MessageCircleMore, PhoneCall, RotateCw, Send, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Clock, MessageCircleMore, PhoneCall, RotateCw, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -38,6 +37,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Phone, TriangleAlert, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  BarraFiltros,
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  Procedencia,
+  Secao,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
+import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/hooks/use-auth";
+import { getMyPermissions } from "@/lib/permissions.functions";
+import {
   useNpsExecucao,
   useAudienciaPorUnidade,
   useDispararCampanha,
@@ -62,13 +79,17 @@ function categorize(score: string | null): Categoria {
 }
 
 function npsBadge(cat: Categoria) {
-  if (cat === "promotor")
-    return <Badge variant="outline" className="border-success/30 bg-success/[0.07] text-success">Promotor</Badge>;
-  if (cat === "neutro")
-    return <Badge variant="outline" className="border-warning/30 bg-warning/[0.07] text-warning">Neutro</Badge>;
-  if (cat === "detrator")
-    return <Badge variant="outline" className="border-danger/30 bg-danger/[0.07] text-danger">Detrator</Badge>;
+  if (cat === "promotor") return <StatusBadge tom="sucesso">Promotor</StatusBadge>;
+  if (cat === "neutro") return <StatusBadge tom="atencao">Neutro</StatusBadge>;
+  if (cat === "detrator") return <StatusBadge tom="perigo">Detrator</StatusBadge>;
   return null;
+}
+
+// "aaaa-mm-dd" → "dd/mm/aaaa" direto da string: `new Date` leria meia-noite
+// UTC e mostraria o dia anterior no Brasil.
+function dataPura(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
 function tempoDecorrido(iso: string): string {
@@ -115,22 +136,26 @@ function statusKey(row: NpsExecucaoRow): StatusKey {
   }
 }
 
+const STATUS_TOM: Record<StatusKey, TomStatus> = {
+  respondido: "sucesso",
+  failed: "perigo",
+  read: "info",
+  delivered: "neutro",
+  sent: "atencao",
+  sem_status: "neutro",
+};
+
 function statusBadge(row: NpsExecucaoRow) {
   const key = statusKey(row);
-  const classes: Record<StatusKey, string> = {
-    respondido: "border-success/30 bg-success/[0.07] text-success",
-    failed: "border-danger/30 bg-danger/[0.07] text-danger",
-    read: "border-info/30 bg-info/[0.07] text-info",
-    delivered: "border-muted-foreground/30 bg-muted-foreground/[0.07]",
-    sent: "border-warning/30 bg-warning/[0.07] text-warning",
-    sem_status: "",
-  };
-  return (
-    <Badge variant="outline" className={classes[key] || undefined}>
-      {STATUS_LABELS[key]}
-    </Badge>
-  );
+  return <StatusBadge tom={STATUS_TOM[key]}>{STATUS_LABELS[key]}</StatusBadge>;
 }
+
+// Sem `edit.nps` o servidor recusa o registro; o botão diz isso antes do clique (N8).
+// Enquanto a permissão carrega, ou se a leitura falhou, o motivo é esse, não
+// "você não tem": dizer que falta a chave antes de saber seria falso.
+const MOTIVO_SEM_EDIT_NPS = "Sem a permissão edit.nps: só quem edita NPS registra ligação e resposta.";
+const MOTIVO_CONFERINDO = "Conferindo permissão…";
+const MOTIVO_FALHA_PERMISSAO = "Não foi possível conferir a permissão edit.nps. Recarregue a página.";
 
 function erroResumo(erro: NpsExecucaoRow["erro"]): string | null {
   if (!erro) return null;
@@ -151,7 +176,16 @@ type ResultadoLigacao = "" | "nao_atendeu" | "atendeu_retornar" | "atendeu_outro
 // Log de tentativa de ligação — separado da resposta final da pesquisa.
 // CS liga, às vezes não atende, às vezes atende e pede pra ligar depois; cada
 // tentativa vira uma linha no histórico, sem precisar fechar a pesquisa.
-function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; historico: NpsLigacaoRow[] }) {
+function RegistrarLigacaoForm({
+  row,
+  historico,
+  motivoBloqueio,
+}: {
+  row: NpsExecucaoRow;
+  historico: NpsLigacaoRow[];
+  /** `null` = pode registrar; texto = por que o botão está desabilitado. */
+  motivoBloqueio: string | null;
+}) {
   const registrar = useRegistrarLigacao();
   const [resultado, setResultado] = useState<ResultadoLigacao>("");
   const [retornarEm, setRetornarEm] = useState("");
@@ -189,7 +223,7 @@ function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; histori
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center gap-2 text-sm font-medium">
-        <PhoneCall className="size-4 text-muted-foreground" />
+        <PhoneCall className="size-4 text-muted-foreground" aria-hidden />
         Registrar tentativa de ligação
       </div>
 
@@ -224,9 +258,20 @@ function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; histori
         />
       </div>
 
-      <Button onClick={handleSubmit} disabled={registrar.isPending} variant="outline" className="w-full">
+      <Button
+        onClick={handleSubmit}
+        disabled={registrar.isPending || motivoBloqueio !== null}
+        variant="outline"
+        className="w-full"
+        aria-describedby={motivoBloqueio === null ? undefined : `motivo-ligacao-${row.id}`}
+      >
         {registrar.isPending ? "Registrando…" : "Registrar ligação"}
       </Button>
+      {motivoBloqueio !== null && (
+        <p id={`motivo-ligacao-${row.id}`} className="text-[13px] text-muted-foreground">
+          {motivoBloqueio}
+        </p>
+      )}
 
       {historico.length > 0 && (
         <div className="space-y-1.5 border-t pt-3">
@@ -245,9 +290,7 @@ function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; histori
                   <span className="text-muted-foreground">{tempoDecorrido(l.criadoEm)}</span>
                 </div>
                 {l.retornarEm && (
-                  <div className="mt-1 text-warning">
-                    Retornar em {new Date(`${l.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
-                  </div>
+                  <div className="mt-1 text-warning">Retornar em {dataPura(l.retornarEm)}</div>
                 )}
                 {l.observacao && <div className="mt-1 text-muted-foreground">{l.observacao}</div>}
                 {l.criadoPor && <div className="mt-1 text-xs text-muted-foreground">por {l.criadoPor}</div>}
@@ -260,7 +303,15 @@ function RegistrarLigacaoForm({ row, historico }: { row: NpsExecucaoRow; histori
   );
 }
 
-function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; onDone: () => void }) {
+function RegistrarRespostaLigacaoForm({
+  row,
+  onDone,
+  motivoBloqueio,
+}: {
+  row: NpsExecucaoRow;
+  onDone: () => void;
+  motivoBloqueio: string | null;
+}) {
   const registrar = useRegistrarRespostaPorLigacao();
   const [recebeuMensagem, setRecebeuMensagem] = useState("");
   const [nota, setNota] = useState("");
@@ -332,7 +383,7 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <div className="flex items-center gap-2 text-sm font-medium">
-        <Phone className="size-4 text-muted-foreground" />
+        <Phone className="size-4 text-muted-foreground" aria-hidden />
         Registrar resposta colhida por telefone
       </div>
 
@@ -411,21 +462,33 @@ function RegistrarRespostaLigacaoForm({ row, onDone }: { row: NpsExecucaoRow; on
 
       <div className="space-y-1.5">
         <Label className="text-xs">Gravação da ligação (opcional)</Label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2.5 text-xs text-muted-foreground hover:bg-muted/50">
-          <Upload className="size-3.5 shrink-0" />
+        {/* O input fica visível só para leitor de tela e teclado (sr-only, não
+            hidden): assim o Tab chega nele e o anel de foco aparece no rótulo. */}
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-input p-2.5 text-xs text-muted-foreground hover:bg-muted/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background">
+          <Upload className="size-4 shrink-0" aria-hidden />
           {arquivo ? arquivo.name : "Escolher arquivo de áudio ou vídeo…"}
           <input
             type="file"
             accept="audio/*,video/*"
-            className="hidden"
+            className="sr-only"
             onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
           />
         </label>
       </div>
 
-      <Button onClick={handleSubmit} disabled={registrar.isPending || enviandoArquivo} className="w-full">
+      <Button
+        onClick={handleSubmit}
+        disabled={registrar.isPending || enviandoArquivo || motivoBloqueio !== null}
+        className="w-full"
+        aria-describedby={motivoBloqueio === null ? undefined : `motivo-resposta-${row.id}`}
+      >
         {enviandoArquivo ? "Enviando gravação…" : registrar.isPending ? "Registrando…" : "Registrar resposta"}
       </Button>
+      {motivoBloqueio !== null && (
+        <p id={`motivo-resposta-${row.id}`} className="text-[13px] text-muted-foreground">
+          {motivoBloqueio}
+        </p>
+      )}
     </div>
   );
 }
@@ -461,9 +524,11 @@ function DispararCampanhaCard() {
     <Card className="p-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Disparar campanha</div>
+          <div id="rotulo-disparar" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Disparar campanha
+          </div>
           <Select value={unidadeEscolhida} onValueChange={setUnidadeEscolhida} disabled={isLoading}>
-            <SelectTrigger className="h-9 w-56">
+            <SelectTrigger className="h-9 w-56" aria-labelledby="rotulo-disparar">
               <SelectValue placeholder="Escolher unidade…" />
             </SelectTrigger>
             <SelectContent>
@@ -479,7 +544,7 @@ function DispararCampanhaCard() {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button disabled={!unidadeEscolhida || disparar.isPending} className="gap-2">
-              <Send className="size-4" />
+              <Send className="size-4" aria-hidden />
               {disparar.isPending ? "Disparando…" : "Disparar"}
             </Button>
           </AlertDialogTrigger>
@@ -497,13 +562,16 @@ function DispararCampanhaCard() {
                       : ""}
                     . Não tem como cancelar depois de enviado.
                   </p>
-                  <p className="rounded-md border border-warning/30 bg-warning/[0.07] p-2.5 text-warning">
+                  <p className="rounded-md bg-warning-soft p-2.5 text-warning">
                     Custo estimado:{" "}
                     <strong>
                       US$ {custoEstimado.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </strong>{" "}
                     (~US$ {CUSTO_POR_MENSAGEM_USD.toFixed(4)}/mensagem, cobrado pela Meta no envio — não pela entrega
                     confirmada).
+                  </p>
+                  <p className="text-[13px] text-muted-foreground">
+                    Estimativa em US$ por mensagem; a cobrança real é por conversa, em R$ (aba Custos).
                   </p>
                 </div>
               </AlertDialogDescription>
@@ -517,7 +585,7 @@ function DispararCampanhaCard() {
       </div>
 
       <div className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
-        <Clock className="mt-0.5 size-3.5 shrink-0" />
+        <Clock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
         <span>
           Os envios só saem entre <strong className="font-medium text-foreground">8h e 19h</strong> (horário de
           Brasília) — é uma regra automática do workflow, não manual. Se o lote for grande e não terminar até às
@@ -555,7 +623,7 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2" disabled={reenviar.isPending}>
-          <RotateCw className="size-3.5" />
+          <RotateCw className="size-4" aria-hidden />
           {reenviar.isPending ? "Reenviando…" : "Reenviar pesquisa"}
         </Button>
       </AlertDialogTrigger>
@@ -569,8 +637,11 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
                 <strong className="text-foreground">{row.telefone}</strong>. Não afeta os outros contatos da unidade.
                 Não tem como cancelar depois de enviado.
               </p>
-              <p className="rounded-md border border-warning/30 bg-warning/[0.07] p-2.5 text-warning">
+              <p className="rounded-md bg-warning-soft p-2.5 text-warning">
                 Custo estimado: <strong>US$ {CUSTO_POR_MENSAGEM_USD.toFixed(2)}</strong> (cobrado pela Meta no envio).
+              </p>
+              <p className="text-[13px] text-muted-foreground">
+                Estimativa em US$ por mensagem; a cobrança real é por conversa, em R$ (aba Custos).
               </p>
             </div>
           </AlertDialogDescription>
@@ -585,14 +656,131 @@ function ReenviarPesquisaButton({ row }: { row: NpsExecucaoRow }) {
 }
 
 type SituacaoLigacao = "todas" | "ja_ligamos" | "agendado" | "nunca_ligamos";
+const SITUACOES: { valor: Exclude<SituacaoLigacao, "todas">; rotulo: string }[] = [
+  { valor: "nunca_ligamos", rotulo: "Nunca ligamos" },
+  { valor: "ja_ligamos", rotulo: "Já ligamos" },
+  { valor: "agendado", rotulo: "Agendado para retornar" },
+];
+
+const TODAS = "todas";
+const TODOS = "todos";
+const CHAVES_FILTRO = ["rodada", "unidade", "status", "ligacao", "pendentes"];
+const FONTE = "nps_envio_map (webhook de status da Cloud API) · nps_ligacoes";
+
+// A próxima ação da linha (Fila, ARQUETIPOS §2): o que o CS faz com esse
+// contato agora, com data quando há retorno marcado. A ação em si acontece no
+// Sheet, que a linha abre.
+//
+// O retorno marcado vem antes da falha de envio: o cliente pediu a ligação, e
+// isso vale mais que o status do template. Sem `edit.nps` a pessoa não liga
+// nem registra por aqui, então a coluna não promete isso ("Ver contato").
+function hojeLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function proximaAcao(
+  r: NpsExecucaoRow,
+  ultima: NpsLigacaoRow | undefined,
+  podeRegistrar: boolean,
+): { rotulo: string; vencido: boolean } {
+  if (r.respondido) return { rotulo: "Ver resposta", vencido: false };
+  if (ultima?.retornarEm) {
+    // Comparação de "aaaa-mm-dd" como texto: sem fuso no meio.
+    const vencido = ultima.retornarEm.slice(0, 10) < hojeLocal();
+    return {
+      rotulo: podeRegistrar ? `Ligar em ${dataPura(ultima.retornarEm)}` : "Ver contato",
+      vencido,
+    };
+  }
+  if (statusKey(r) === "failed") return { rotulo: "Reenviar", vencido: false };
+  if (!podeRegistrar) return { rotulo: "Ver contato", vencido: false };
+  if (ultima?.atendeu) return { rotulo: "Registrar resposta", vencido: false };
+  if (ultima) return { rotulo: "Ligar de novo", vencido: false };
+  return { rotulo: "Ligar", vencido: false };
+}
+
+// "atualizado há Ns" que anda sozinho: sem o relógio, o número só mudava
+// quando a próxima leitura de 15 s re-renderizava a tela.
+function AtualizadoHa({ quando }: { quando: number }) {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setAgora(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const s = Math.max(0, Math.round((agora - quando) / 1000));
+  const texto = s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`;
+  return (
+    <span className="num inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="off">
+      <Clock className="size-3.5 shrink-0" aria-hidden />
+      atualizado há {texto}
+    </span>
+  );
+}
+
+function Filtro({
+  valor,
+  aoMudar,
+  todos,
+  padrao,
+  opcoes,
+  rotulo,
+}: {
+  valor: string;
+  aoMudar: (v: string) => void;
+  todos: string;
+  padrao: string;
+  opcoes: { valor: string; rotulo: string }[];
+  rotulo: string;
+}) {
+  // Valor da URL que não existe mais nas opções continua visível (e removível).
+  const lista =
+    valor !== padrao && !opcoes.some((o) => o.valor === valor) ? [...opcoes, { valor, rotulo: valor }] : opcoes;
+  return (
+    <Select value={valor} onValueChange={(v) => aoMudar(v)}>
+      <SelectTrigger className="h-8 w-auto min-w-[150px]" aria-label={rotulo}>
+        <SelectValue placeholder={rotulo} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={padrao}>{todos}</SelectItem>
+        {lista.map((o) => (
+          <SelectItem key={o.valor} value={o.valor}>
+            {o.rotulo}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+const NUM = new Intl.NumberFormat("pt-BR");
 
 export function NpsExecucaoTab() {
-  const { data, isLoading, error, dataUpdatedAt } = useNpsExecucao();
-  const [rodada, setRodada] = useState<string>("todas");
-  const [unidade, setUnidade] = useState<string>("todas");
-  const [status, setStatus] = useState<string>("todos");
-  const [situacaoLigacao, setSituacaoLigacao] = useState<SituacaoLigacao>("todas");
-  const [soNaoRespondidos, setSoNaoRespondidos] = useState(false);
+  const { data, isLoading, error, dataUpdatedAt, refetch } = useNpsExecucao();
+  const perms = usePermissions();
+  // Mesmo cache do usePermissions (mesma chave), sem buscar de novo: só para
+  // saber se a leitura falhou, que o hook não expõe.
+  const { user } = useAuth();
+  const permsFn = useServerFn(getMyPermissions);
+  const permsQuery = useQuery({
+    queryKey: ["my-perms", user?.id],
+    queryFn: () => permsFn(),
+    enabled: false,
+  });
+  const podeRegistrar = !perms.loading && perms.can("edit.nps");
+  const motivoBloqueio: string | null = permsQuery.isError
+    ? MOTIVO_FALHA_PERMISSAO
+    : perms.loading
+      ? MOTIVO_CONFERINDO
+      : podeRegistrar
+        ? null
+        : MOTIVO_SEM_EDIT_NPS;
+  const [rodada, setRodada] = useFiltroNaUrl("rodada", TODAS);
+  const [unidade, setUnidade] = useFiltroNaUrl("unidade", TODAS);
+  const [status, setStatus] = useFiltroNaUrl("status", TODOS);
+  const [situacaoLigacao, setSituacaoLigacao] = useFiltroNaUrl("ligacao", TODAS);
+  const [soNaoRespondidos, setSoNaoRespondidos] = useFiltroNaUrl("pendentes", false);
+  const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
   const [selected, setSelected] = useState<NpsExecucaoRow | null>(null);
 
   // Mensagens de texto livre desse contato — cruza por telefone canônico
@@ -637,11 +825,11 @@ export function NpsExecucaoTab() {
   const filteredRows = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((r) => {
-      if (rodada !== "todas" && r.rodada !== rodada) return false;
-      if (unidade !== "todas" && r.unidade !== unidade) return false;
-      if (status !== "todos" && statusKey(r) !== status) return false;
+      if (rodada !== TODAS && r.rodada !== rodada) return false;
+      if (unidade !== TODAS && r.unidade !== unidade) return false;
+      if (status !== TODOS && statusKey(r) !== status) return false;
       if (soNaoRespondidos && r.respondido) return false;
-      if (situacaoLigacao !== "todas") {
+      if (situacaoLigacao !== TODAS) {
         const list = ligacoesPorTelefone.get(validarTelefone(r.telefone).digitos) ?? [];
         if (situacaoLigacao === "nunca_ligamos" && list.length > 0) return false;
         if (situacaoLigacao === "ja_ligamos" && list.length === 0) return false;
@@ -658,162 +846,148 @@ export function NpsExecucaoTab() {
     return STATUS_ORDEM.filter((k) => presentes.has(k));
   }, [data]);
 
-  const activeFilters =
-    (rodada !== "todas" ? 1 : 0) + (unidade !== "todas" ? 1 : 0) + (status !== "todos" ? 1 : 0) +
-    (situacaoLigacao !== "todas" ? 1 : 0) + (soNaoRespondidos ? 1 : 0);
+  // Frescor = o evento mais recente que a fonte devolve (envio, status do
+  // webhook ou ligação registrada), não a hora em que a tela leu.
+  const ultimoEvento = useMemo(() => {
+    if (!data) return null;
+    // Date.parse, não comparação de texto: timestamptz pode vir com "Z" ou "+00:00".
+    let max = 0;
+    const ver = (iso: string | null) => {
+      const t = iso ? Date.parse(iso) : NaN;
+      if (Number.isFinite(t) && t > max) max = t;
+    };
+    for (const r of data.rows) {
+      ver(r.enviadoEm);
+      ver(r.statusAtualizadoEm);
+    }
+    for (const l of data.ligacoes) ver(l.criadoEm);
+    return max > 0 ? new Date(max) : null;
+  }, [data]);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Acompanha em tempo real os disparos feitos pelo workflow de WhatsApp — atualiza sozinho a cada 15s.
-        </p>
-        {dataUpdatedAt > 0 && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            atualizado há {Math.round((Date.now() - dataUpdatedAt) / 1000)}s
-          </span>
-        )}
+  const temFiltro =
+    rodada !== TODAS || unidade !== TODAS || status !== TODOS || situacaoLigacao !== TODAS || soNaoRespondidos;
+
+  let conteudo: ReactNode;
+  if (isLoading) {
+    conteudo = (
+      <div className="space-y-4">
+        <Carregando variante="kpis" />
+        <Carregando variante="tabela" />
       </div>
+    );
+  } else if (error || !data) {
+    conteudo = (
+      <EstadoErro
+        titulo="Não foi possível carregar os disparos"
+        detalhe={`Fonte: ${FONTE}: ${error instanceof Error ? error.message : String(error ?? "sem resposta")}`}
+        tentarNovamente={() => void refetch()}
+      />
+    );
+  } else {
+    conteudo = (
+      <>
+        <Secao
+          titulo="Como está a rodada?"
+          descricao="Enviados, respondidos, aguardando e falhas contam os últimos 500 envios. Ligações contam todas as registradas (até 1.000), fora desse recorte. Os KPIs não obedecem aos filtros da tabela."
+        >
+          <KpiGrade colunas={6}>
+            <KpiCard rotulo="Enviados" valor={NUM.format(data.totalEnviados)} nota="dos últimos 500 envios" />
+            <KpiCard rotulo="Respondidos" valor={NUM.format(data.totalRespondidos)} />
+            <KpiCard rotulo="Aguardando" valor={NUM.format(data.totalAguardando)} nota="sem resposta e sem falha" />
+            <KpiCard
+              rotulo="Falhas"
+              valor={NUM.format(data.totalFalhas)}
+              tom={data.totalFalhas > 0 ? "perigo" : undefined}
+            />
+            <KpiCard
+              rotulo="Ligações feitas"
+              valor={NUM.format(data.ligacoes.length)}
+              nota={`${NUM.format(ligacoesPorTelefone.size)} contatos ligados`}
+            />
+            <KpiCard
+              rotulo="Agendados para retornar"
+              valor={NUM.format(totalAgendados)}
+              nota="última ligação com retorno marcado"
+            />
+          </KpiGrade>
+        </Secao>
 
-      <DispararCampanhaCard />
+        <Secao
+          titulo="Para quem eu ligo agora?"
+          descricao="Mais recentes primeiro. Clique na linha para abrir o contato, ligar, registrar a resposta ou reenviar."
+          acoes={
+            <span className="num text-[13px] text-muted-foreground">
+              {NUM.format(filteredRows.length)} de {NUM.format(data.rows.length)}
+            </span>
+          }
+        >
+          <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-pressed={soNaoRespondidos}
+              className={soNaoRespondidos ? "gap-2 border-input bg-muted" : "gap-2"}
+              onClick={() => setSoNaoRespondidos(!soNaoRespondidos)}
+            >
+              <Phone className="size-4" aria-hidden />
+              Só quem não respondeu
+            </Button>
+            <Filtro
+              rotulo="Rodada"
+              valor={rodada}
+              aoMudar={setRodada}
+              padrao={TODAS}
+              todos="Todas as rodadas"
+              opcoes={data.rodadas.map((r) => ({ valor: r, rotulo: r }))}
+            />
+            <Filtro
+              rotulo="Unidade"
+              valor={unidade}
+              aoMudar={setUnidade}
+              padrao={TODAS}
+              todos="Todas as unidades"
+              opcoes={data.unidades.map((u) => ({ valor: u, rotulo: u }))}
+            />
+            <Filtro
+              rotulo="Status"
+              valor={status}
+              aoMudar={setStatus}
+              padrao={TODOS}
+              todos="Todos os status"
+              opcoes={statusDisponiveis.map((k) => ({ valor: k, rotulo: STATUS_LABELS[k] }))}
+            />
+            <Filtro
+              rotulo="Situação da ligação"
+              valor={situacaoLigacao}
+              aoMudar={setSituacaoLigacao}
+              padrao={TODAS}
+              todos="Todas as situações"
+              opcoes={SITUACOES}
+            />
+          </BarraFiltros>
 
-      {isLoading && <Card className="p-6 text-sm text-muted-foreground">Carregando execução…</Card>}
-      {error && <Card className="p-6 text-sm text-danger">Erro ao carregar execução.</Card>}
-
-      {data && (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Enviados</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums">{data.totalEnviados}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Respondidos</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-success">{data.totalRespondidos}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Aguardando</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-warning">{data.totalAguardando}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Falhas</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-danger">{data.totalFalhas}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Ligações feitas</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums">{data.ligacoes.length}</div>
-              <div className="mt-0.5 text-xs text-muted-foreground">{ligacoesPorTelefone.size} contatos ligados</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-xs text-muted-foreground">Agendados p/ retornar</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-info">{totalAgendados}</div>
-            </Card>
-          </div>
-
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
-              <span className="text-sm font-medium">Disparos (mais recentes primeiro)</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={soNaoRespondidos ? "default" : "outline"}
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setSoNaoRespondidos((v) => !v)}
-                >
-                  <Phone className="size-3.5" />
-                  Ligar pra quem não respondeu
-                </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <SlidersHorizontal className="size-3.5" />
-                    Filtros
-                    {activeFilters > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                        {activeFilters}
-                      </Badge>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-64 space-y-3">
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Rodada de disparo</span>
-                    <Select value={rodada} onValueChange={setRodada}>
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todas">Todas</SelectItem>
-                        {data.rodadas.map((r) => (
-                          <SelectItem key={r} value={r}>
-                            {r}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Unidade</span>
-                    <Select value={unidade} onValueChange={setUnidade}>
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todas">Todas</SelectItem>
-                        {data.unidades.map((u) => (
-                          <SelectItem key={u} value={u}>
-                            {u}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Status</span>
-                    <Select value={status} onValueChange={setStatus}>
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {statusDisponiveis.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {STATUS_LABELS[k]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Situação da ligação</span>
-                    <Select value={situacaoLigacao} onValueChange={(v) => setSituacaoLigacao(v as SituacaoLigacao)}>
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todas">Todas</SelectItem>
-                        <SelectItem value="nunca_ligamos">Nunca ligamos</SelectItem>
-                        <SelectItem value="ja_ligamos">Já ligamos</SelectItem>
-                        <SelectItem value="agendado">Agendado pra retornar</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              </div>
-            </div>
-            <div className="relative max-h-[600px] overflow-auto">
+          {data.rows.length === 0 ? (
+            <EstadoVazio
+              titulo="Nenhum disparo ainda"
+              descricao='Assim que o workflow "NPS - Criar Card e Enviar WhatsApp" rodar, os envios aparecem aqui.'
+            />
+          ) : filteredRows.length === 0 ? (
+            <EstadoVazio titulo="Nenhum disparo com esses filtros" total={data.rows.length} />
+          ) : (
+            <div className="overflow-hidden rounded-xl border bg-card [&>div]:max-h-[600px]">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableHeader grudavel>
                   <TableRow>
-                    <TableHead className="bg-background">Telefone</TableHead>
-                    <TableHead className="bg-background">Empresa</TableHead>
-                    <TableHead className="bg-background">Unidade</TableHead>
-                    <TableHead className="bg-background">Rodada</TableHead>
-                    <TableHead className="bg-background">Enviado há</TableHead>
-                    <TableHead className="bg-background">Status</TableHead>
-                    <TableHead className="bg-background">Ligação</TableHead>
-                    <TableHead className="bg-background text-center">NPS</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Empresa</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead>Rodada</TableHead>
+                    <TableHead>Enviado há</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ligação</TableHead>
+                    <TableHead className="num text-right">NPS</TableHead>
+                    <TableHead>Próxima ação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -821,81 +995,98 @@ export function NpsExecucaoTab() {
                     const validacao = validarTelefone(r.telefone);
                     const ligacoesDoContato = ligacoesPorTelefone.get(validacao.digitos) ?? [];
                     const ultimaLigacao = ligacoesDoContato[0];
+                    const abrir = () => setSelected(r);
+                    const acao = proximaAcao(r, ultimaLigacao, podeRegistrar);
                     return (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">
-                        <span className="inline-flex items-center gap-1.5">
-                          {r.telefone}
-                          {!validacao.valido && (
-                            <TriangleAlert
-                              className="size-3.5 shrink-0 text-warning"
-                              aria-label={validacao.motivo ?? "Formato suspeito"}
-                            >
-                              <title>{validacao.motivo ?? "Formato suspeito"}</title>
-                            </TriangleAlert>
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => setSelected(r)}
-                          className="text-left underline-offset-2 hover:underline"
-                        >
+                      <TableRow
+                        key={r.id}
+                        tabIndex={0}
+                        aria-haspopup="dialog"
+                        onClick={abrir}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            abrir();
+                          }
+                        }}
+                        // Outline no <tr> (Chrome/Firefox) e anel inset nas células,
+                        // porque o Safari não desenha outline em linha de tabela.
+                        className="cursor-pointer focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring focus-visible:[&>td]:shadow-[inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)] focus-visible:[&>td:first-child]:shadow-[inset_2px_0_0_0_var(--ring),inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)] focus-visible:[&>td:last-child]:shadow-[inset_-2px_0_0_0_var(--ring),inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring)]"
+                      >
+                        <TableCell className="font-mono text-xs">
+                          <span className="inline-flex items-center gap-1.5">
+                            {r.telefone}
+                            {!validacao.valido && (
+                              <TriangleAlert
+                                className="size-3.5 shrink-0 text-warning"
+                                aria-label={validacao.motivo ?? "Formato suspeito"}
+                              >
+                                <title>{validacao.motivo ?? "Formato suspeito"}</title>
+                              </TriangleAlert>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <span className="sr-only">Abrir </span>
                           {r.empresa ?? "—"}
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.unidade ?? "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.rodada ?? "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(r.enviadoEm)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          {statusBadge(r)}
-                          {r.status === "failed" && erroResumo(r.erro) && (
-                            <span className="text-xs text-muted-foreground" title={erroResumo(r.erro) ?? undefined}>
-                              {erroResumo(r.erro)}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {ligacoesDoContato.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : (
-                          <div className="flex flex-col gap-1">
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.unidade ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.rodada ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{tempoDecorrido(r.enviadoEm)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {statusBadge(r)}
+                            {r.status === "failed" && erroResumo(r.erro) && (
+                              <span className="text-xs text-muted-foreground" title={erroResumo(r.erro) ?? undefined}>
+                                {erroResumo(r.erro)}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {ligacoesDoContato.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
                             <span className="text-xs text-muted-foreground">
                               {ligacoesDoContato.length}x · {ultimaLigacao.atendeu ? "atendeu" : "não atendeu"}
                             </span>
-                            {ultimaLigacao.retornarEm && (
-                              <Badge
-                                variant="outline"
-                                className="w-fit border-info/30 bg-info/[0.07] text-info"
-                              >
-                                Retornar {new Date(`${ultimaLigacao.retornarEm}T00:00:00`).toLocaleDateString("pt-BR")}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">{r.npsRecomendacao ?? "—"}</TableCell>
-                    </TableRow>
+                          )}
+                        </TableCell>
+                        <TableCell className="num text-right">{r.npsRecomendacao ?? "—"}</TableCell>
+                        <TableCell>
+                          {/* Texto, não botão: a linha inteira já é o controle
+                              (um segundo alvo de Tab por linha dobraria o caminho). */}
+                          <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-[13px] font-medium text-primary-text">{acao.rotulo} →</span>
+                            {acao.vencido && <StatusBadge tom="atencao">vencido</StatusBadge>}
+                          </span>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                  {filteredRows.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                        {data.rows.length === 0
-                          ? 'Nenhum disparo ainda. Assim que o workflow "NPS - Criar Card e Enviar WhatsApp" rodar, os envios aparecem aqui em tempo real.'
-                          : "Nenhum disparo com esses filtros."}
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </div>
-          </Card>
-        </>
-      )}
+          )}
+          <Procedencia fonte={FONTE} atualizadoEm={ultimoEvento} />
+        </Secao>
+      </>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Acompanha os disparos feitos pelo workflow de WhatsApp. A leitura se renova sozinha a cada 15 s.
+        </p>
+        {dataUpdatedAt > 0 && <AtualizadoHa quando={dataUpdatedAt} />}
+      </div>
+
+      <DispararCampanhaCard />
+
+      {conteudo}
 
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -911,7 +1102,7 @@ export function NpsExecucaoTab() {
 
               <div className="mt-6 space-y-6">
                 <div>
-                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Status do disparo
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -928,8 +1119,8 @@ export function NpsExecucaoTab() {
 
                 {mensagensDoSelecionado.length > 0 && (
                   <div>
-                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      <MessageCircleMore className="size-3.5" />
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <MessageCircleMore className="size-4" aria-hidden />
                       Mensagens de texto livre
                     </div>
                     <div className="space-y-2">
@@ -945,26 +1136,32 @@ export function NpsExecucaoTab() {
 
                 {!selected.respondido ? (
                   <>
-                    <RegistrarLigacaoForm row={selected} historico={ligacoesDoSelecionado} />
-                    <RegistrarRespostaLigacaoForm row={selected} onDone={() => setSelected(null)} />
+                    <RegistrarLigacaoForm
+                      row={selected}
+                      historico={ligacoesDoSelecionado}
+                      motivoBloqueio={motivoBloqueio}
+                    />
+                    <RegistrarRespostaLigacaoForm
+                      row={selected}
+                      onDone={() => setSelected(null)}
+                      motivoBloqueio={motivoBloqueio}
+                    />
                   </>
                 ) : (
                   <>
                     {selected.canalResposta === "ligacao" && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="gap-1.5">
-                          <Phone className="size-3" />
+                        <StatusBadge tom="neutro" icone={Phone}>
                           Respondida por telefone
-                        </Badge>
+                        </StatusBadge>
                         {selected.recebeuMensagem && (
-                          <Badge
-                            variant="outline"
-                            className={
+                          <StatusBadge
+                            tom={
                               selected.recebeuMensagem === "sim"
-                                ? "border-success/30 bg-success/[0.07] text-success"
+                                ? "sucesso"
                                 : selected.recebeuMensagem === "nao"
-                                  ? "border-danger/30 bg-danger/[0.07] text-danger"
-                                  : "border-warning/30 bg-warning/[0.07] text-warning"
+                                  ? "perigo"
+                                  : "atencao"
                             }
                           >
                             {selected.recebeuMensagem === "sim"
@@ -972,22 +1169,22 @@ export function NpsExecucaoTab() {
                               : selected.recebeuMensagem === "nao"
                                 ? "Diz que NÃO recebeu a mensagem"
                                 : "Não lembra se recebeu"}
-                          </Badge>
+                          </StatusBadge>
                         )}
                       </div>
                     )}
                     <div>
-                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Recomendação (NPS)
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl font-semibold tabular-nums">{selected.npsRecomendacao ?? "—"}</span>
+                        <span className="num text-2xl font-semibold">{selected.npsRecomendacao ?? "—"}</span>
                         {npsBadge(categorize(selected.npsRecomendacao))}
                       </div>
                     </div>
 
                     <div>
-                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Contato que respondeu
                       </div>
                       <div className="text-sm">{selected.nomeContato ?? "—"}</div>
@@ -995,28 +1192,28 @@ export function NpsExecucaoTab() {
                     </div>
 
                     <div>
-                      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Avaliação por serviço (CSAT)
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-md border p-2">
                           <div className="text-xs text-muted-foreground">Fiscal</div>
-                          <div className="text-lg font-semibold">{selected.avaliacaoFiscal ?? "—"}</div>
+                          <div className="num text-lg font-semibold">{selected.avaliacaoFiscal ?? "—"}</div>
                         </div>
                         <div className="rounded-md border p-2">
                           <div className="text-xs text-muted-foreground">Contábil</div>
-                          <div className="text-lg font-semibold">{selected.avaliacaoContabil ?? "—"}</div>
+                          <div className="num text-lg font-semibold">{selected.avaliacaoContabil ?? "—"}</div>
                         </div>
                         <div className="rounded-md border p-2">
                           <div className="text-xs text-muted-foreground">Folha</div>
-                          <div className="text-lg font-semibold">{selected.avaliacaoFolhaPagamento ?? "—"}</div>
+                          <div className="num text-lg font-semibold">{selected.avaliacaoFolhaPagamento ?? "—"}</div>
                         </div>
                       </div>
                     </div>
 
                     {selected.servicosContratados && selected.servicosContratados.length > 0 && (
                       <div>
-                        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Serviços contratados
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -1031,14 +1228,14 @@ export function NpsExecucaoTab() {
 
                     {selected.gravacaoUrl && (
                       <div>
-                        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Gravação da ligação
                         </div>
                         <a
                           href={selected.gravacaoUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-primary-text underline underline-offset-2"
+                          className="rounded-sm text-xs text-primary-text underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           ouvir/baixar gravação
                         </a>
