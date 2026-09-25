@@ -135,7 +135,10 @@ const estadoDaReceita = (e: EntradaConsulta): { estado: Estado; motivo: string }
 // ── Consultas ────────────────────────────────────────────────────────────────
 
 const ArgsIndicador = z
-  .object({ id: z.enum(IDS_INDICADORES), filtros: FiltrosSchema.optional() })
+  .object({
+    id: z.enum(IDS_INDICADORES),
+    filtros: FiltrosSchema.pick({ periodo: true, unidades: true }).strict().optional(),
+  })
   .strict();
 
 function consultaIndicador(e: EntradaConsulta, a: z.infer<typeof ArgsIndicador>): SemId {
@@ -201,7 +204,13 @@ export function deIndicador(i: Indicador, avisosExtra: string[] = []): SemId {
   };
 }
 
-const ArgsSerie = z.object({ filtros: FiltrosSchema.optional() }).strict();
+const ArgsSerie = z
+  .object({
+    filtros: FiltrosSchema.pick({ periodo: true, leitura: true, unidades: true, base: true })
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 /**
  * Faturamento mensal. Grupo = Financeiro (fn_faturamento_mensal, a mesma série da tela de
@@ -1317,15 +1326,13 @@ function consultaAcoes(e: EntradaConsulta): SemId {
     dados: {
       forma: "acoes",
       itens: [
-        ...ameacas
-          .slice(0, 5)
-          .map((a) => ({
-            titulo: a.titulo,
-            detalhe: a.detalhe,
-            gravidade: a.gravidade,
-            responsavel: donoDaAmeaca(a),
-            destino: destinoDe(a.indicador),
-          })),
+        ...ameacas.slice(0, 5).map((a) => ({
+          titulo: a.titulo,
+          detalhe: a.detalhe,
+          gravidade: a.gravidade,
+          responsavel: donoDaAmeaca(a),
+          destino: destinoDe(a.indicador),
+        })),
         ...c.decisoes.map((d) => ({
           titulo: d.titulo,
           detalhe: d.porque,
