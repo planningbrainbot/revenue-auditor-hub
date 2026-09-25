@@ -60,7 +60,7 @@ export function PageHeader({
       )}
 
       <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3">
-        <div className="min-w-0 max-w-3xl flex-1 space-y-2">
+        <div className="min-w-[min(100%,26rem)] max-w-3xl flex-1 space-y-2">
           {temEyebrow && (
             <div className="flex min-h-6 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {slug && Icone && <AnelArea area={slug} icone={Icone} tamanho="sm" />}
@@ -76,7 +76,7 @@ export function PageHeader({
         </div>
 
         {(procedencia || acoes) && (
-          <div className="flex flex-col items-end gap-3">
+          <div className="flex min-w-0 max-w-md flex-col items-end gap-3">
             {procedencia && <Procedencia {...procedencia} className="justify-end text-right" />}
             {acoes && <div className="flex flex-wrap items-center justify-end gap-2">{acoes}</div>}
           </div>
