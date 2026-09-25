@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { ContextoCockpit } from "./contexto";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { clienteFinancialBrain, conferirPortaFinanceiro } from "./financeiro-porta";
@@ -42,59 +43,61 @@ function parte<T>(
   }
 }
 
+/** A leitura sem o transporte: a mesma regra serve a tela e as ferramentas da conversa. */
+export async function lerCaixaCockpit(context: ContextoCockpit): Promise<RespostaCaixa> {
+  const { supabase, userId } = context;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const [acesso, escopo] = await Promise.all([
+    acessoDoUsuario(db, userId),
+    db.from("usuario_escopo").select("todas_empresas").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (!acesso.areas.includes("cockpit_ceo"))
+    throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
+  const lidoEm = new Date().toISOString();
+  const hoje = hojeSaoPaulo();
+  const ate = mesAnterior(hoje.slice(0, 7));
+  const janela = { de: `${ate.slice(0, 4)}-01`, ate };
+  const todas = (motivo: string, estado: "acesso_insuficiente" | "fonte_indisponivel") => {
+    const p = { estado, motivo } as const;
+    return { lidoEm, janela, emitidoRecebido: p, inadimplencia: p, indicadores: p };
+  };
+  if (escopo?.error) return todas("a leitura do seu escopo de acesso falhou", "fonte_indisponivel");
+  const porta = await conferirPortaFinanceiro(db, Boolean(escopo?.data?.todas_empresas));
+  if (!porta.aberta) return todas(porta.motivo, porta.estado);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fin = (await clienteFinancialBrain()) as any;
+  if (!fin)
+    return todas(
+      "a credencial do Financial Brain não está configurada neste ambiente",
+      "fonte_indisponivel",
+    );
+  const de = `${janela.de}-01`;
+  const [er, ina, ind] = await Promise.all([
+    fin.rpc("fn_receita_emitido_recebido", { p_comp_de: de, p_comp_ate: ultimoDia(ate) }),
+    fin.rpc("fn_inadimplencia_live", {
+      p_grupos: null,
+      p_empresas: null,
+      p_prev_de: null,
+      p_prev_ate: null,
+    }),
+    fin.rpc("fn_cockpit_indicadores", {
+      p_grupos: null,
+      p_empresas: null,
+      p_departamentos: null,
+      p_comp_de: de,
+      p_comp_ate: ultimoDia(ate),
+    }),
+  ]);
+  return {
+    lidoEm,
+    janela,
+    emitidoRecebido: parte(er, extrairEmitidoRecebido, "emitido × recebido"),
+    inadimplencia: parte(ina, extrairInadimplencia, "inadimplência"),
+    indicadores: parte(ind, extrairIndicadores, "indicadores do Financeiro"),
+  };
+}
+
 export const carregarCaixaCockpit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<RespostaCaixa> => {
-    const { supabase, userId } = context;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
-    const [acesso, escopo] = await Promise.all([
-      acessoDoUsuario(db, userId),
-      db.from("usuario_escopo").select("todas_empresas").eq("user_id", userId).maybeSingle(),
-    ]);
-    if (!acesso.areas.includes("cockpit_ceo"))
-      throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
-    const lidoEm = new Date().toISOString();
-    const hoje = hojeSaoPaulo();
-    const ate = mesAnterior(hoje.slice(0, 7));
-    const janela = { de: `${ate.slice(0, 4)}-01`, ate };
-    const todas = (motivo: string, estado: "acesso_insuficiente" | "fonte_indisponivel") => {
-      const p = { estado, motivo } as const;
-      return { lidoEm, janela, emitidoRecebido: p, inadimplencia: p, indicadores: p };
-    };
-    if (escopo?.error)
-      return todas("a leitura do seu escopo de acesso falhou", "fonte_indisponivel");
-    const porta = await conferirPortaFinanceiro(db, Boolean(escopo?.data?.todas_empresas));
-    if (!porta.aberta) return todas(porta.motivo, porta.estado);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fin = (await clienteFinancialBrain()) as any;
-    if (!fin)
-      return todas(
-        "a credencial do Financial Brain não está configurada neste ambiente",
-        "fonte_indisponivel",
-      );
-    const de = `${janela.de}-01`;
-    const [er, ina, ind] = await Promise.all([
-      fin.rpc("fn_receita_emitido_recebido", { p_comp_de: de, p_comp_ate: ultimoDia(ate) }),
-      fin.rpc("fn_inadimplencia_live", {
-        p_grupos: null,
-        p_empresas: null,
-        p_prev_de: null,
-        p_prev_ate: null,
-      }),
-      fin.rpc("fn_cockpit_indicadores", {
-        p_grupos: null,
-        p_empresas: null,
-        p_departamentos: null,
-        p_comp_de: de,
-        p_comp_ate: ultimoDia(ate),
-      }),
-    ]);
-    return {
-      lidoEm,
-      janela,
-      emitidoRecebido: parte(er, extrairEmitidoRecebido, "emitido × recebido"),
-      inadimplencia: parte(ina, extrairInadimplencia, "inadimplência"),
-      indicadores: parte(ind, extrairIndicadores, "indicadores do Financeiro"),
-    };
-  });
+  .handler(({ context }) => lerCaixaCockpit(context));

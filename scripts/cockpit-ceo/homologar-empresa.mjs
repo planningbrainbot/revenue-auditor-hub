@@ -110,17 +110,35 @@ for (const s of ponteSql) {
     ["retornos", t?.retornos.valor, s.retornos],
     ["semFaturamento", t?.semFaturamento.valor, s.sem],
   ];
-  for (const [k, ts, sq] of par) if (cent(ts ?? 0) !== Number(sq ?? 0)) difs.push({ mes: s.mes, k, ts, sql: Number(sq ?? 0) / 100 });
-  if (t && (t.novos.clientes !== Number(s.n_novos) || t.semFaturamento.clientes !== Number(s.n_sem)))
-    difs.push({ mes: s.mes, k: "clientes", ts: [t.novos.clientes, t.semFaturamento.clientes], sql: [s.n_novos, s.n_sem] });
+  for (const [k, ts, sq] of par)
+    if (cent(ts ?? 0) !== Number(sq ?? 0))
+      difs.push({ mes: s.mes, k, ts, sql: Number(sq ?? 0) / 100 });
+  if (
+    t &&
+    (t.novos.clientes !== Number(s.n_novos) || t.semFaturamento.clientes !== Number(s.n_sem))
+  )
+    difs.push({
+      mes: s.mes,
+      k: "clientes",
+      ts: [t.novos.clientes, t.semFaturamento.clientes],
+      sql: [s.n_novos, s.n_sem],
+    });
 }
-conf("ponte TS × SQL (parcelas e clientes)", difs.length === 0 && ponteSql.length === ponte.meses.length, {
-  meses: ponte.meses.length,
-  diferencas: difs.slice(0, 5),
-});
-conf("ponte fecha com a série da fonte em todos os meses", ponte.meses.every((m) => m.fecha), {
-  naoFecham: ponte.meses.filter((m) => !m.fecha).map((m) => m.mes),
-});
+conf(
+  "ponte TS × SQL (parcelas e clientes)",
+  difs.length === 0 && ponteSql.length === ponte.meses.length,
+  {
+    meses: ponte.meses.length,
+    diferencas: difs.slice(0, 5),
+  },
+);
+conf(
+  "ponte fecha com a série da fonte em todos os meses",
+  ponte.meses.every((m) => m.fecha),
+  {
+    naoFecham: ponte.meses.filter((m) => !m.fecha).map((m) => m.mes),
+  },
+);
 
 // A cópia congelada no banco único (o que o cockpit lia até 23/09).
 const copia = await ro(`
@@ -128,22 +146,38 @@ const copia = await ro(`
   from jsonb_array_elements(financeiro.fn_faturamento_mensal(p_comp_de => '${de}', p_comp_ate => '${ate}', p_limite_clientes => 1)->'serie') s`);
 r.financeiro.copiaCongelada = copia.map((c) => {
   const canon = f.serie.find((s) => s.mes === c.mes)?.valor ?? null;
-  return { mes: c.mes, copia: Number(c.receita), canonico: canon, diferencaPct: canon ? Number(((Number(c.receita) / canon - 1) * 100).toFixed(1)) : null };
+  return {
+    mes: c.mes,
+    copia: Number(c.receita),
+    canonico: canon,
+    diferencaPct: canon ? Number(((Number(c.receita) / canon - 1) * 100).toFixed(1)) : null,
+  };
 });
 
 // ── 2. Caixa e margem ──────────────────────────────────────────────────────
 const ultimoFechado = fechados.at(-1);
-const fimUltimo = new Date(Date.UTC(Number(ultimoFechado.slice(0, 4)), Number(ultimoFechado.slice(5, 7)), 0)).toISOString().slice(0, 10);
+const fimUltimo = new Date(
+  Date.UTC(Number(ultimoFechado.slice(0, 4)), Number(ultimoFechado.slice(5, 7)), 0),
+)
+  .toISOString()
+  .slice(0, 10);
 const [{ j: indj }] = await medir("fn_cockpit_indicadores", () =>
-  fin(`select public.fn_cockpit_indicadores(null, null, null, '${ultimoFechado.slice(0, 4)}-01-01', '${fimUltimo}') j`),
+  fin(
+    `select public.fn_cockpit_indicadores(null, null, null, '${ultimoFechado.slice(0, 4)}-01-01', '${fimUltimo}') j`,
+  ),
 );
 const ind = extrairIndicadores(indj);
 const grupoSql = await fin(`
   select e->>'grupo_apuracao' g, round(sum((e->>'receita_bruta')::numeric) * 100)::bigint c
   from jsonb_array_elements(public.fn_cockpit_indicadores(null, null, null, '${ultimoFechado.slice(0, 4)}-01-01', '${fimUltimo}')->'por_empresa') e
   group by 1`);
-const difG = grupoSql.filter((g) => cent(ind.porGrupo.find((x) => x.grupo === g.g)?.receitaBruta ?? -1) !== Number(g.c));
-conf("margem por grupo TS × SQL", difG.length === 0, { grupos: ind.porGrupo.length, diferencas: difG.map((g) => g.g) });
+const difG = grupoSql.filter(
+  (g) => cent(ind.porGrupo.find((x) => x.grupo === g.g)?.receitaBruta ?? -1) !== Number(g.c),
+);
+conf("margem por grupo TS × SQL", difG.length === 0, {
+  grupos: ind.porGrupo.length,
+  diferencas: difG.map((g) => g.g),
+});
 r.caixa = {
   receitaBruta: ind.receitaBruta,
   lucroBruto: ind.lucroBruto,
@@ -161,15 +195,25 @@ conf("inadimplência: faixas somam o vencido", Math.abs(somaFaixas - cent(ina.at
   somaFaixas: somaFaixas / 100,
   sincronizadoEm: ina.sincronizadoEm,
 });
-r.caixa.inadimplencia = { emAberto: ina.emAberto, atrasado: ina.atrasado, titulos: ina.titulosAtrasados, faixas: ina.faixas, semSync: ina.empresasSemSync };
-const [frescor] = await fin(`select max(carregado_em) carregado, max(cobre_ate) cobre from public.dado_frescor where dataset = 'lancamentos'`);
+r.caixa.inadimplencia = {
+  emAberto: ina.emAberto,
+  atrasado: ina.atrasado,
+  titulos: ina.titulosAtrasados,
+  faixas: ina.faixas,
+  semSync: ina.empresasSemSync,
+};
+const [frescor] = await fin(
+  `select max(carregado_em) carregado, max(cobre_ate) cobre from public.dado_frescor where dataset = 'lancamentos'`,
+);
 r.financeiro.frescor = frescor;
 
 // ── 3. Growth ──────────────────────────────────────────────────────────────
 const [serie, metas, abertos, dist] = await Promise.all([
   ro(`select mes, vendas, mrr, investimento, leads, mql from growth.serie_mensal order by mes`),
   ro(`select mes, papel, metrica, alvo from growth.metas where papel = 'funil'`),
-  ro(`select deal_id, mrr, mrr_efetivo, expected_close_date from growth.deals where pipeline = 'Inside Sales' and status = 'open'`),
+  ro(
+    `select deal_id, mrr, mrr_efetivo, expected_close_date from growth.deals where pipeline = 'Inside Sales' and status = 'open'`,
+  ),
   ro(`select unidade, quarter, meta, vendido from growth.dist_metas`),
 ]);
 const aq = montarAquisicao({ serie, metas, mesCorrente: [], abertos, distMetas: dist }, hoje);
@@ -179,29 +223,64 @@ const ganhosSql = await ro(`
     and won_time >= '2026-01-01' group by 1 order by 1`);
 const difA = ganhosSql
   .map((g) => ({ g, s: aq.meses.find((m) => m.mes === g.mes) }))
-  .filter(({ g, s }) => !s || s.vendas !== g.vendas || Math.abs((s.mrrNovo ?? 0) - Number(g.mrr)) > 1)
-  .map(({ g, s }) => ({ mes: g.mes, serie: s ? [s.vendas, Math.round(s.mrrNovo ?? 0)] : null, deals: [g.vendas, Number(g.mrr)] }));
-conf("Growth: série mensal × ganhos contados em growth.deals", difA.length === 0, { diferencas: difA });
+  .filter(
+    ({ g, s }) => !s || s.vendas !== g.vendas || Math.abs((s.mrrNovo ?? 0) - Number(g.mrr)) > 1,
+  )
+  .map(({ g, s }) => ({
+    mes: g.mes,
+    serie: s ? [s.vendas, Math.round(s.mrrNovo ?? 0)] : null,
+    deals: [g.vendas, Number(g.mrr)],
+  }));
+conf("Growth: série mensal × ganhos contados em growth.deals", difA.length === 0, {
+  diferencas: difA,
+});
 const pipeSql = await ro(`
   select coalesce(to_char(expected_close_date, 'YYYY-MM'), 'sem data') mes, count(*)::int n,
          round(sum(coalesce(mrr_efetivo, mrr, 0)) * 100)::bigint c
   from growth.deals where pipeline = 'Inside Sales' and status = 'open' group by 1`);
 const semDataSql = pipeSql.find((p) => p.mes === "sem data");
 const totalSql = pipeSql.reduce((s, p) => s + Number(p.c), 0);
-conf("pipeline aberto TS × SQL", cent(aq.pipeline.mrr) === totalSql && aq.pipeline.semData.negocios === (semDataSql?.n ?? 0), {
-  negocios: aq.pipeline.negocios,
-  mrr: aq.pipeline.mrr,
-  semData: aq.pipeline.semData,
-  vencidos: aq.pipeline.vencidos,
-});
-r.aquisicao = { meses: aq.meses, pipeline: aq.pipeline, unidadesPorTrimestre: Object.entries(aq.unidades.reduce((o, u) => ((o[u.trimestre] ??= { unidades: 0, meta: 0, vendido: 0 }), o[u.trimestre].unidades++, (o[u.trimestre].meta += u.meta), (o[u.trimestre].vendido += u.vendido), o), {})) };
+conf(
+  "pipeline aberto TS × SQL",
+  cent(aq.pipeline.mrr) === totalSql && aq.pipeline.semData.negocios === (semDataSql?.n ?? 0),
+  {
+    negocios: aq.pipeline.negocios,
+    mrr: aq.pipeline.mrr,
+    semData: aq.pipeline.semData,
+    vencidos: aq.pipeline.vencidos,
+  },
+);
+r.aquisicao = {
+  meses: aq.meses,
+  pipeline: aq.pipeline,
+  unidadesPorTrimestre: Object.entries(
+    aq.unidades.reduce(
+      (o, u) => (
+        (o[u.trimestre] ??= { unidades: 0, meta: 0, vendido: 0 }),
+        o[u.trimestre].unidades++,
+        (o[u.trimestre].meta += u.meta),
+        (o[u.trimestre].vendido += u.vendido),
+        o
+      ),
+      {},
+    ),
+  ),
+};
 
 // ── 4. Onboarding e cadeia ─────────────────────────────────────────────────
-const cardsCrus = await ro(`select fase_atual, fase_atual_ordem, entrou_fase_atual_em, criado_em, concluido, empresa_id, fases_history from ops.cs_onboarding_cards`);
-const contratos = await ro(`select id, empresa_id, cnpj, ganho_em::text ganho_em, pipedrive_deal_id from ops.contratos where origem_pipeline = 'inside_sales'`);
+const cardsCrus = await ro(
+  `select fase_atual, fase_atual_ordem, entrou_fase_atual_em, criado_em, concluido, empresa_id, fases_history from ops.cs_onboarding_cards`,
+);
+const contratos = await ro(
+  `select id, empresa_id, cnpj, ganho_em::text ganho_em, pipedrive_deal_id from ops.contratos where origem_pipeline = 'inside_sales'`,
+);
 const ganhosPorEmpresa = new Map();
-for (const k of contratos) if (k.empresa_id !== null)
-  ganhosPorEmpresa.set(Number(k.empresa_id), [...(ganhosPorEmpresa.get(Number(k.empresa_id)) ?? []), k.ganho_em.slice(0, 10)]);
+for (const k of contratos)
+  if (k.empresa_id !== null)
+    ganhosPorEmpresa.set(Number(k.empresa_id), [
+      ...(ganhosPorEmpresa.get(Number(k.empresa_id)) ?? []),
+      k.ganho_em.slice(0, 10),
+    ]);
 const cards = cardsCrus.map(lerCard);
 const onb = montarOnboarding(cards, ganhosPorEmpresa, agora, { de: `${mesHoje}-01`, ate: hoje });
 const [onbSql] = await ro(`
@@ -210,7 +289,22 @@ const [onbSql] = await ro(`
          count(*) filter (where fase_atual not in ('Concluído','Churn no Onboarding') and floor(extract(epoch from (now() - entrou_fase_atual_em)) / 86400) > 60)::int p60,
          count(*) filter (where fase_atual = 'Concluído')::int concluidos
   from ops.cs_onboarding_cards`);
-conf("onboarding TS × SQL", onb.emCurso === onbSql.em_curso && onb.parados30 === onbSql.p30 && onb.parados60 === onbSql.p60 && onb.concluidos === onbSql.concluidos, { ts: { emCurso: onb.emCurso, p30: onb.parados30, p60: onb.parados60, concluidos: onb.concluidos }, sql: onbSql });
+conf(
+  "onboarding TS × SQL",
+  onb.emCurso === onbSql.em_curso &&
+    onb.parados30 === onbSql.p30 &&
+    onb.parados60 === onbSql.p60 &&
+    onb.concluidos === onbSql.concluidos,
+  {
+    ts: {
+      emCurso: onb.emCurso,
+      p30: onb.parados30,
+      p60: onb.parados60,
+      concluidos: onb.concluidos,
+    },
+    sql: onbSql,
+  },
+);
 const [medSql] = await ro(`
   with c as (
     select o.empresa_id, o.criado_em::date criado,
@@ -221,23 +315,45 @@ const [medSql] = await ro(`
   select count(*) filter (where ganho is not null and conc >= ganho)::int casos,
          percentile_cont(0.5) within group (order by round(extract(epoch from (conc - ganho::timestamptz)) / 86400)) filter (where ganho is not null and conc >= ganho) mediana
   from g`);
-conf("onboarding: mediana do ganho à conclusão TS × SQL", onb.ganhoAteConclusao.casos === medSql.casos && Math.abs((onb.ganhoAteConclusao.mediana ?? -1) - Number(medSql.mediana)) <= 1, { ts: onb.ganhoAteConclusao, sql: medSql });
+conf(
+  "onboarding: mediana do ganho à conclusão TS × SQL",
+  onb.ganhoAteConclusao.casos === medSql.casos &&
+    Math.abs((onb.ganhoAteConclusao.mediana ?? -1) - Number(medSql.mediana)) <= 1,
+  { ts: onb.ganhoAteConclusao, sql: medSql },
+);
 r.onboarding = onb;
 
 const desde = onb.desde;
-const cnpjEmpresa = new Map((await ro(`select id, cnpj from ops.empresas`)).map((e) => [Number(e.id), docDigitos(e.cnpj)]));
+const cnpjEmpresa = new Map(
+  (await ro(`select id, cnpj from ops.empresas`)).map((e) => [Number(e.id), docDigitos(e.cnpj)]),
+);
 const vendas = contratos
   .filter((k) => k.ganho_em >= desde && k.ganho_em <= hoje)
-  .map((k) => ({ empresaId: k.empresa_id === null ? null : Number(k.empresa_id), cnpj: docDigitos(k.cnpj) ?? (k.empresa_id === null ? null : cnpjEmpresa.get(Number(k.empresa_id)) ?? null), ganhoEm: k.ganho_em.slice(0, 10), dealId: k.pipedrive_deal_id === null ? null : String(k.pipedrive_deal_id) }));
+  .map((k) => ({
+    empresaId: k.empresa_id === null ? null : Number(k.empresa_id),
+    cnpj:
+      docDigitos(k.cnpj) ??
+      (k.empresa_id === null ? null : (cnpjEmpresa.get(Number(k.empresa_id)) ?? null)),
+    ganhoEm: k.ganho_em.slice(0, 10),
+    dealId: k.pipedrive_deal_id === null ? null : String(k.pipedrive_deal_id),
+  }));
 const titulosUnidadePorCnpj = new Map();
-for (const t of await ro(`select regexp_replace(cpf_cnpj, '[^0-9]', '', 'g') d, data_vencimento::text v, data_pagamento is not null pago from ops.contas_receber where regexp_replace(cpf_cnpj, '[^0-9]', '', 'g') in (${[...new Set(vendas.map((v) => v.cnpj).filter(Boolean))].map((c) => `'${c}'`).join(",") || "''"})`)) {
+for (const t of await ro(
+  `select regexp_replace(cpf_cnpj, '[^0-9]', '', 'g') d, data_vencimento::text v, data_pagamento is not null pago from ops.contas_receber where regexp_replace(cpf_cnpj, '[^0-9]', '', 'g') in (${[...new Set(vendas.map((v) => v.cnpj).filter(Boolean))].map((c) => `'${c}'`).join(",") || "''"})`,
+)) {
   const l = titulosUnidadePorCnpj.get(t.d) ?? [];
   l.push({ vencimento: t.v, pago: t.pago });
   titulosUnidadePorCnpj.set(t.d, l);
 }
-const churn = await ro(`select empresa_id, pipedrive_deal_id from ops.central_tratativas where status = 'lost'`);
+const churn = await ro(
+  `select empresa_id, pipedrive_deal_id from ops.central_tratativas where status = 'lost'`,
+);
 const cnpjs = [...new Set(vendas.map((v) => v.cnpj).filter(Boolean))];
-const cadastro = cnpjs.length ? await fin(`select doc_digitos, nome_norm, fantasia_norm from public.omie_contraparte where doc_digitos in (${cnpjs.map((c) => `'${c}'`).join(",")})`) : [];
+const cadastro = cnpjs.length
+  ? await fin(
+      `select doc_digitos, nome_norm, fantasia_norm from public.omie_contraparte where doc_digitos in (${cnpjs.map((c) => `'${c}'`).join(",")})`,
+    )
+  : [];
 const nomesPorCnpj = new Map();
 for (const c of cadastro) {
   const s = nomesPorCnpj.get(c.doc_digitos) ?? new Set();
@@ -245,24 +361,39 @@ for (const c of cadastro) {
   nomesPorCnpj.set(c.doc_digitos, s);
 }
 const nomes = [...new Set([...nomesPorCnpj.values()].flatMap((s) => [...s]))];
-const docs = nomes.length ? await fin(`select n, count(distinct doc_digitos)::int d from (select nome_norm n, doc_digitos from public.omie_contraparte where nome_norm in (${nomes.map((n) => `'${n.replace(/'/g, "''")}'`).join(",")}) union all select fantasia_norm, doc_digitos from public.omie_contraparte where fantasia_norm in (${nomes.map((n) => `'${n.replace(/'/g, "''")}'`).join(",")})) x where doc_digitos is not null group by 1`) : [];
-const [{ j: fatSafra }] = await fin(`select public.fn_faturamento_mensal(p_comp_de => '${desde.slice(0, 7)}-01', p_comp_ate => '${ate}') j`);
+const docs = nomes.length
+  ? await fin(
+      `select n, count(distinct doc_digitos)::int d from (select nome_norm n, doc_digitos from public.omie_contraparte where nome_norm in (${nomes.map((n) => `'${n.replace(/'/g, "''")}'`).join(",")}) union all select fantasia_norm, doc_digitos from public.omie_contraparte where fantasia_norm in (${nomes.map((n) => `'${n.replace(/'/g, "''")}'`).join(",")})) x where doc_digitos is not null group by 1`,
+    )
+  : [];
+const [{ j: fatSafra }] = await fin(
+  `select public.fn_faturamento_mensal(p_comp_de => '${desde.slice(0, 7)}-01', p_comp_ate => '${ate}') j`,
+);
 const mesesFaturadosPorNome = new Map();
 for (const l of fatSafra.linhas ?? []) {
   const n = normContraparte(l.cliente);
   if (!n) continue;
   const s = mesesFaturadosPorNome.get(n) ?? new Set();
-  for (const m of l.meses ?? []) if (m.receita !== null && Number(m.receita) !== 0) s.add(m.competencia.slice(0, 7));
+  for (const m of l.meses ?? [])
+    if (m.receita !== null && Number(m.receita) !== 0) s.add(m.competencia.slice(0, 7));
   mesesFaturadosPorNome.set(n, s);
 }
 const cad = montarCadeia({
   vendas,
-  onboarding: new Map(cards.filter((c) => c.empresaId !== null).map((c) => [c.empresaId, { concluido: c.fase === "Concluído" }])),
+  onboarding: new Map(
+    cards
+      .filter((c) => c.empresaId !== null)
+      .map((c) => [c.empresaId, { concluido: c.fase === "Concluído" }]),
+  ),
   nomesPorCnpj,
   documentosPorNome: new Map(docs.map((d) => [d.n, d.d])),
   mesesFaturadosPorNome,
-  churnEmpresas: new Set(churn.filter((c) => c.empresa_id !== null).map((c) => Number(c.empresa_id))),
-  churnNegocios: new Set(churn.filter((c) => c.pipedrive_deal_id !== null).map((c) => String(c.pipedrive_deal_id))),
+  churnEmpresas: new Set(
+    churn.filter((c) => c.empresa_id !== null).map((c) => Number(c.empresa_id)),
+  ),
+  churnNegocios: new Set(
+    churn.filter((c) => c.pipedrive_deal_id !== null).map((c) => String(c.pipedrive_deal_id)),
+  ),
   faturamentoLido: true,
   titulosUnidadePorCnpj,
   unidadesLidas: true,
@@ -276,7 +407,26 @@ const [cadSql] = await ro(`
     count(*) filter (where exists (select 1 from ops.contas_receber r where regexp_replace(r.cpf_cnpj, '[^0-9]', '', 'g') = coalesce(case when length(regexp_replace(v.cnpj, '[^0-9]', '', 'g')) = 14 then regexp_replace(v.cnpj, '[^0-9]', '', 'g') end, (select case when length(regexp_replace(e.cnpj, '[^0-9]', '', 'g')) = 14 then regexp_replace(e.cnpj, '[^0-9]', '', 'g') end from ops.empresas e where e.id = v.empresa_id)) and r.data_vencimento >= v.ganho_em))::int na_unidade,
     count(*) filter (where exists (select 1 from ops.contas_receber r where regexp_replace(r.cpf_cnpj, '[^0-9]', '', 'g') = coalesce(case when length(regexp_replace(v.cnpj, '[^0-9]', '', 'g')) = 14 then regexp_replace(v.cnpj, '[^0-9]', '', 'g') end, (select case when length(regexp_replace(e.cnpj, '[^0-9]', '', 'g')) = 14 then regexp_replace(e.cnpj, '[^0-9]', '', 'g') end from ops.empresas e where e.id = v.empresa_id)) and r.data_vencimento >= v.ganho_em and r.data_pagamento is not null))::int recebidas
   from v`);
-conf("cadeia TS × SQL (venda, ativação, título e pagamento na unidade, saída)", cad.vendas === cadSql.vendas && cad.ativacaoIniciada === cadSql.iniciada && cad.ativacaoConcluida === cadSql.concluida && cad.saidas === cadSql.saidas && cad.faturadasNaUnidade === cadSql.na_unidade && cad.recebidasNaUnidade === cadSql.recebidas, { ts: { vendas: cad.vendas, iniciada: cad.ativacaoIniciada, concluida: cad.ativacaoConcluida, naUnidade: cad.faturadasNaUnidade, recebidas: cad.recebidasNaUnidade, saidas: cad.saidas }, sql: cadSql });
+conf(
+  "cadeia TS × SQL (venda, ativação, título e pagamento na unidade, saída)",
+  cad.vendas === cadSql.vendas &&
+    cad.ativacaoIniciada === cadSql.iniciada &&
+    cad.ativacaoConcluida === cadSql.concluida &&
+    cad.saidas === cadSql.saidas &&
+    cad.faturadasNaUnidade === cadSql.na_unidade &&
+    cad.recebidasNaUnidade === cadSql.recebidas,
+  {
+    ts: {
+      vendas: cad.vendas,
+      iniciada: cad.ativacaoIniciada,
+      concluida: cad.ativacaoConcluida,
+      naUnidade: cad.faturadasNaUnidade,
+      recebidas: cad.recebidasNaUnidade,
+      saidas: cad.saidas,
+    },
+    sql: cadSql,
+  },
+);
 r.cadeia = cad;
 
 // ── 5. Permissões: a porta de cada leitura nova, por perfil ────────────────
@@ -303,7 +453,9 @@ for (const p of perfis) {
       public.tem_produto('growth') growth, growth.e_membro() membro_growth,
       ops.can('view.painel_cs') painel_cs, ops.can('view.fila_cella') fila_cella,
       (select count(*) from growth.midia_paga)::int midia_visivel,
-      (select count(*) from ops.cs_onboarding_cards)::int onboarding_visivel`).catch((e) => [{ erro: e.message.slice(0, 160) }]);
+      (select count(*) from ops.cs_onboarding_cards)::int onboarding_visivel`).catch((e) => [
+    { erro: e.message.slice(0, 160) },
+  ]);
   r.permissoes.push({
     perfil: p.rotulo,
     ...x,
@@ -312,13 +464,24 @@ for (const p of perfis) {
       : {
           financeiro: x.financeiro && x.todas_empresas ? "abre" : "acesso insuficiente",
           growth: x.growth && x.membro_growth ? "abre" : "acesso insuficiente",
-          onboarding: (x.painel_cs || x.fila_cella) && x.todas_unidades ? "abre" : "acesso insuficiente",
+          onboarding:
+            (x.painel_cs || x.fila_cella) && x.todas_unidades ? "abre" : "acesso insuficiente",
         },
   });
 }
-const [totais] = await ro(`select (select count(*) from growth.midia_paga)::int midia, (select count(*) from ops.cs_onboarding_cards)::int onboarding`);
-const divergencias = r.permissoes.filter((p) => p.portas && ((p.portas.growth === "abre" && p.midia_visivel !== totais.midia) || (p.portas.onboarding === "abre" && p.onboarding_visivel !== totais.onboarding)));
-conf("porta abre ⇒ RLS entrega a tabela inteira", divergencias.length === 0, { divergencias: divergencias.map((d) => d.perfil), totais });
+const [totais] = await ro(
+  `select (select count(*) from growth.midia_paga)::int midia, (select count(*) from ops.cs_onboarding_cards)::int onboarding`,
+);
+const divergencias = r.permissoes.filter(
+  (p) =>
+    p.portas &&
+    ((p.portas.growth === "abre" && p.midia_visivel !== totais.midia) ||
+      (p.portas.onboarding === "abre" && p.onboarding_visivel !== totais.onboarding)),
+);
+conf("porta abre ⇒ RLS entrega a tabela inteira", divergencias.length === 0, {
+  divergencias: divergencias.map((d) => d.perfil),
+  totais,
+});
 
 r.tempos = tempos;
 mkdirSync(SAIDA, { recursive: true });

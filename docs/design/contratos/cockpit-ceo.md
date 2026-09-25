@@ -6,6 +6,39 @@ Estado: **aprovado pelo Pedro em 23/09/2026** (frentes na lateral, pergunta do t
 
 Base: piloto `feat/cockpit-ceo-piloto` (rodadas 1 e 2, relatório `docs/dev_notes/cockpit-ceo-piloto/relatorio-rodada-2.md`), PRD do cockpit e as entradas de 22/09 do `DECISIONS.md`. Regras de cálculo, consultas, `portas.ts`, RLS e homologação **não mudam** nesta etapa: o contrato descreve o que já existe e como ele passa a ser mostrado.
 
+## Revisão de 24/09/2026 — leitura de dez segundos
+
+**Estado:** implementada sob pedido explícito do Pedro em 24/09, na branch `feat/cockpit-ceo-conversa-20260924`. Falta o "contrato ok" formal. Cálculos, contratos de indicador, portas e RLS não mudam.
+
+**Primeira dobra da Visão executiva** (medida por CDP em 1280×800 e 1440×900):
+1. **Cabeçalho** com a pergunta aprovada, o universo numa linha, o selo de saúde das fontes e o botão "Perguntar ao Brain".
+
+   O filtro de período e unidade sai desta vista e continua nas frentes. Nenhum dos quatro números depende dele: último mês fechado, mês corrente do Growth e fotografias de hoje.
+2. **Quatro números**, com rótulo curto, comparação e tendência:
+   - `faturamento-mes`: 12 meses fechados;
+   - `mrr-vendido`: 6 meses fechados, com o plano;
+   - `vencido-em-aberto`;
+   - `onboarding-parado`.
+3. **"Como o faturamento evoluiu até MM/AAAA?"**: barras do grupo, meses fechados, com a linha "entrou × saiu" da ponte.
+
+   O cartão, a última barra e o total da ponte são o mesmo número (`conciliado`, testado ao centavo).
+4. **"O que pede sua atenção?"**: até 3 exceções das regras fixas, cada uma com impacto, responsável (`donos.ts`, dono do contrato do indicador) e destino.
+
+**Abaixo da dobra:**
+- decisões com alternativas tiradas dos dados (leituras candidatas da meta; prazo de 30 × 60 dias com a contagem de hoje; réguas de cliente ativo) e o efeito esperado;
+- atalhos para as nove frentes.
+
+**Sai da Visão executiva:**
+- o cartão da meta de R$ 1 bi: sempre "não apurado", e vira decisão com alternativas;
+- "Faturamento que saiu da base": vai para a linha "saiu" do gráfico e para a composição;
+- os motores;
+- os cartões de frente com contagem de perguntas;
+- a procedência técnica do cabeçalho.
+
+Número sem dado sai da grade e vira aviso curto, com o último mês confiável. "Sem acesso" continua visível.
+
+**Menu:** entra "Perguntar ao Brain" (`/cockpit-ceo/perguntar`), contrato próprio em `cockpit-ceo-perguntar.md`.
+
 ## Revisão de 23/09/2026 — escopo da empresa inteira
 
 **Estado: revisão pedida pelo Pedro em 23/09.** Implementada na branch `feat/cockpit-ceo-empresa-20260923` sob instrução explícita dele ("implemente as mudanças em lotes"). **Falta o "contrato ok" formal** antes do merge (PROCESSO §4). As seções abaixo desta revisão descrevem a versão publicada em 23/09 e ficam como histórico.

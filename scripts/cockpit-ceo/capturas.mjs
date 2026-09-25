@@ -161,9 +161,7 @@ conferir("Selo de dados sintéticos visível", dobra.sintetico);
 await foto("02-pagina-inteira", { inteira: true });
 
 // Número → composição → retorno.
-await avaliar(
-  `${cartao("Contas prontas para trabalhar")}.click()`,
-);
+await avaliar(`${cartao("Contas prontas para trabalhar")}.click()`);
 await espera(900);
 const url1 = await avaliar("location.search");
 const folha = await avaliar(
@@ -190,9 +188,7 @@ conferir(
 // Fechar pelo X desempilha a entrada da composição: o "voltar" seguinte sai da tela.
 await abrir("/piloto/cockpit-ceo?periodo=ano");
 await abrir("/piloto/cockpit-ceo");
-await avaliar(
-  `${cartao("Contratos ganhos no CRM")}.click()`,
-);
+await avaliar(`${cartao("Contratos ganhos no CRM")}.click()`);
 await espera(800);
 await avaliar(
   `[...document.querySelectorAll('[role=dialog] button')].find((b) => /Close|Fechar/.test(b.textContent))?.click()`,

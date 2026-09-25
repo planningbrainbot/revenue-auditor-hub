@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { ContextoCockpit } from "./contexto";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { ORDEM_DEFINICOES, definicaoSemDado, montarDefinicao } from "./clientes-ativos";
@@ -24,8 +25,8 @@ const menos90 = (hoje: string) => {
   return d.toISOString().slice(0, 10);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const leituras = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   hoje: string,
 ): Record<IdDefinicao, () => Promise<(string | null)[]>> => ({
@@ -89,51 +90,56 @@ const leituras = (
   },
 });
 
+/** A leitura sem o transporte: a mesma regra serve a tela e as ferramentas da conversa. */
+export async function lerClientesAtivosCockpit(
+  context: ContextoCockpit,
+): Promise<{ definicoes: DefinicaoCliente[]; lidoEm: string }> {
+  const { supabase, userId } = context;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const [acesso, escopo] = await Promise.all([
+    acessoDoUsuario(db, userId),
+    db.from("usuario_escopo").select("todas_unidades").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (!acesso.areas.includes("cockpit_ceo"))
+    throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
+  const lidoEm = new Date().toISOString();
+  const todas = (estado: DefinicaoCliente["estado"], nota: string) => ({
+    lidoEm,
+    definicoes: ORDEM_DEFINICOES.map((id) => definicaoSemDado(id, estado, nota)),
+  });
+  if (escopo?.error) {
+    console.error("[cockpit-ceo] escopo de acesso:", escopo.error);
+    return todas("fonte_indisponivel", "não foi possível ler seu escopo de acesso");
+  }
+  const podeBase =
+    acesso.permissions.includes("view.aquario") || acesso.permissions.includes("view.clientes");
+  if (!podeBase) return todas("acesso_insuficiente", "sem as chaves da Base de clientes");
+  if (!escopo?.data?.todas_unidades)
+    return todas("acesso_insuficiente", "a contagem da rede exige ver todas as unidades");
+  const faltas = faltasDasDefinicoes(acesso);
+  const fontes = leituras(db, hojeSaoPaulo());
+  const definicoes = await Promise.all(
+    ORDEM_DEFINICOES.map(async (id) => {
+      if (faltas[id].length)
+        return definicaoSemDado(id, "acesso_insuficiente", motivoSemAcesso(faltas[id]));
+      try {
+        return montarDefinicao(id, await fontes[id]());
+      } catch (e) {
+        console.error(`[cockpit-ceo] cliente ativo ${id}:`, e);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const codigo = (e as any)?.code;
+        return definicaoSemDado(
+          id,
+          "fonte_indisponivel",
+          `a leitura falhou${codigo ? ` (código ${codigo})` : ""}`,
+        );
+      }
+    }),
+  );
+  return { lidoEm, definicoes };
+}
+
 export const carregarClientesAtivosCockpit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<{ definicoes: DefinicaoCliente[]; lidoEm: string }> => {
-    const { supabase, userId } = context;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
-    const [acesso, escopo] = await Promise.all([
-      acessoDoUsuario(db, userId),
-      db.from("usuario_escopo").select("todas_unidades").eq("user_id", userId).maybeSingle(),
-    ]);
-    if (!acesso.areas.includes("cockpit_ceo"))
-      throw new Error("Acesso negado: sua conta não tem a área Cockpit do CEO.");
-    const lidoEm = new Date().toISOString();
-    const todas = (estado: DefinicaoCliente["estado"], nota: string) => ({
-      lidoEm,
-      definicoes: ORDEM_DEFINICOES.map((id) => definicaoSemDado(id, estado, nota)),
-    });
-    if (escopo?.error) {
-      console.error("[cockpit-ceo] escopo de acesso:", escopo.error);
-      return todas("fonte_indisponivel", "não foi possível ler seu escopo de acesso");
-    }
-    const podeBase =
-      acesso.permissions.includes("view.aquario") || acesso.permissions.includes("view.clientes");
-    if (!podeBase) return todas("acesso_insuficiente", "sem as chaves da Base de clientes");
-    if (!escopo?.data?.todas_unidades)
-      return todas("acesso_insuficiente", "a contagem da rede exige ver todas as unidades");
-    const faltas = faltasDasDefinicoes(acesso);
-    const fontes = leituras(db, hojeSaoPaulo());
-    const definicoes = await Promise.all(
-      ORDEM_DEFINICOES.map(async (id) => {
-        if (faltas[id].length)
-          return definicaoSemDado(id, "acesso_insuficiente", motivoSemAcesso(faltas[id]));
-        try {
-          return montarDefinicao(id, await fontes[id]());
-        } catch (e) {
-          console.error(`[cockpit-ceo] cliente ativo ${id}:`, e);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const codigo = (e as any)?.code;
-          return definicaoSemDado(
-            id,
-            "fonte_indisponivel",
-            `a leitura falhou${codigo ? ` (código ${codigo})` : ""}`,
-          );
-        }
-      }),
-    );
-    return { lidoEm, definicoes };
-  });
+  .handler(({ context }) => lerClientesAtivosCockpit(context));

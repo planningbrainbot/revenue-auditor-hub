@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { carregarMonetizacao, carregarContasBase } from "@/lib/monetizacao/functions";
 import { useAuth } from "./use-auth";
 import { loadCatalogPages } from "@/lib/monetizacao/catalog-loader";
+import { juntarCarteira } from "@/lib/monetizacao/juntar-carteira";
 
 import type { BaseMonetizacao } from "@/lib/monetizacao/types";
 
@@ -35,18 +36,7 @@ export function useMonetizacao() {
           signal,
         },
       );
-      return {
-        ...data,
-        accounts,
-        units: data.units.map((u) => ({
-          ...u,
-          account_keys: accounts
-            .filter((a) =>
-              u.id ? a.unit_ids.includes(u.id) : a.units.includes(u.key) || a.unit_label === u.name,
-            )
-            .map((a) => a.key),
-        })),
-      };
+      return juntarCarteira(data, accounts);
     },
     enabled: !!user,
     staleTime: 30_000,

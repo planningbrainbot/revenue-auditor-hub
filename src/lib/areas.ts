@@ -42,6 +42,7 @@ import {
   CircleDollarSign,
   Database,
   UserX,
+  MessagesSquare,
 } from "lucide-react";
 
 /**
@@ -523,7 +524,11 @@ export const AREAS: Area[] = [
     grupos: [
       {
         label: "Cockpit do CEO",
-        items: [{ title: "Visão executiva", url: "/cockpit-ceo", icon: LayoutDashboard }],
+        // "Perguntar ao Brain" (24/09/2026): conversa com consultas ao mesmo dado do cockpit.
+        items: [
+          { title: "Visão executiva", url: "/cockpit-ceo", icon: LayoutDashboard },
+          { title: "Perguntar ao Brain", url: "/cockpit-ceo/perguntar", icon: MessagesSquare },
+        ],
       },
       {
         label: "Frentes",
@@ -533,12 +538,20 @@ export const AREAS: Area[] = [
             url: "/cockpit-ceo?frente=receita",
             icon: CircleDollarSign,
           },
-          { title: "Aquisição e conversão", url: "/cockpit-ceo?frente=comercial", icon: TrendingUp },
+          {
+            title: "Aquisição e conversão",
+            url: "/cockpit-ceo?frente=comercial",
+            icon: TrendingUp,
+          },
           { title: "Clientes", url: "/cockpit-ceo?frente=clientes", icon: Building2 },
           { title: "Retenção e expansão", url: "/cockpit-ceo?frente=retencao", icon: UserX },
           { title: "Operação e capacidade", url: "/cockpit-ceo?frente=operacao", icon: ListChecks },
           { title: "Unidades", url: "/cockpit-ceo?frente=rede", icon: Store },
-          { title: "Portfólio e monetização", url: "/cockpit-ceo?frente=portfolio", icon: Briefcase },
+          {
+            title: "Portfólio e monetização",
+            url: "/cockpit-ceo?frente=portfolio",
+            icon: Briefcase,
+          },
           { title: "Caixa e margem", url: "/cockpit-ceo?frente=caixa", icon: Wallet },
           { title: "Evidências e capital", url: "/cockpit-ceo?frente=capital", icon: Database },
         ],

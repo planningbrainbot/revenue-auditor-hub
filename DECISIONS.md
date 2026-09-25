@@ -2971,3 +2971,40 @@ fora da lista de domínios.
 **Filtros na URL (N7):** `de`, `ate` e `produto` entram no `validateSearch` de `/monetizacao`, com presets Hoje, 7 dias, 30 dias e Mês.
 
 **Status:** local, na branch `feat/monetizacao-operacao-recon-20260924`. Testes: 23/23. `design:lint:changed`: 0 no escopo. **Não publicado**: o front (CLI no `ops-brain`) e a Edge Function `monetizacao-crm` esperam o aceite do dono.
+
+## [2026-09-24] Cockpit do CEO: Visão executiva em leitura de dez segundos e "Perguntar ao Brain"
+
+**Contexto:** o Pedro pediu uma mudança real de experiência. Na Visão executiva ele quer entender em dez segundos como estamos, o que mudou, onde está o problema e o que é decisão dele, sem cartão de placeholder. Pediu também uma conversa com UI generativa sobre os mesmos dados. Branch `feat/cockpit-ceo-conversa-20260924`. Relatório: `docs/dev_notes/cockpit-ceo-conversa/relatorio.md`.
+
+**Decisões — Visão executiva:**
+- A primeira dobra tem quatro números:
+  - faturamento do último mês fechado;
+  - MRR novo vendido;
+  - vencido a receber;
+  - onboarding parado há mais de 30 dias.
+
+  Cada um com comparação e tendência (`KpiCard.tendencia`, prop nova do DS), mais um gráfico do faturamento e até três exceções com responsável.
+- O cartão, a última barra e o total da ponte são o mesmo número, e um teste confere ao centavo.
+- A meta de R$ 1 bi sai da grade, porque é sempre "não apurado", e vira decisão com as leituras candidatas como alternativas.
+- Número sem dado sai da grade e vira aviso curto com o último mês confiável. "Sem acesso" continua visível.
+- O filtro de período sai da Visão executiva, porque não altera nenhum dos quatro números, e continua nas frentes.
+- O responsável de cada exceção é o "Dono" do contrato do indicador (`src/lib/cockpit-ceo/donos.ts`).
+- O selo de saúde soma às fontes declaradas a data de cada número da primeira leitura: cartão parcial por dado velho não convive com "fontes em dia".
+
+**Decisões — Perguntar ao Brain (`/cockpit-ceo/perguntar`):**
+- Quatro camadas. O Jev classifica. O modelo escolhe consultas de um catálogo fechado (15) e propõe a visão. O servidor valida, executa as funções do cockpit com a sessão da pessoa e confere os números do texto. A tela renderiza só componentes do DS.
+- Sem SQL livre, sem HTML ou código do modelo, sem número escrito pelo modelo em bloco.
+- A conclusão só chega depois da conferência; o stream mostra as etapas, não os tokens.
+- A visão salva guarda definição e filtros, nunca números. Reabrir consulta de novo com o acesso vigente.
+- Tabelas privadas `ops.cockpit_conversas`, `cockpit_mensagens`, `cockpit_visoes` e `cockpit_ia_consumo` (RLS "só o dono" + área). **Aplicadas em produção com autorização do Pedro em 24/09**; rollback em `supabase/rollback/20260925000000_*`.
+- Teto de consumo conferido antes de cada chamada, com valores que vêm do ambiente e não se renovam por lote:
+  - US$ 20/mês para todos;
+  - US$ 3/dia e 150 chamadas/dia por pessoa.
+- Jev calibrado com 36 perguntas: domínio com limiar 0,7 (34/36); o sinal de ambiguidade não separa e ficou desligado.
+- Modelo padrão `anthropic/claude-sonnet-5` até a avaliação (pronta, pendente de crédito) decidir.
+- A leitura da rede ganhou as parcelas base nova e antiga (`porBase`), que somam a linha; nenhum total mudou.
+- As leituras do cockpit e da Monetização viraram funções exportadas (`ler*`), sem mudança de lógica, para o servidor da conversa usar a mesma regra da tela.
+
+**Não publicado.** Pendências no relatório: crédito e avaliação, revogação das chaves, chave e tetos na Vercel, "contrato ok", área para o CEO.
+
+**Adendo 25/09:** o Jev da conversa fica **desligado** até o Pedro resolver os créditos do OpenRouter (pedido dele). Liga com `COCKPIT_IA_JEV=1`; desligado, a pergunta segue como "Jev indisponível", com o modelo recebendo todas as consultas (caminho já testado).
