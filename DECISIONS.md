@@ -3130,6 +3130,23 @@ fora da lista de domínios.
 
 **Para ligar a conversa:** `OPENROUTER_API_KEY` de servidor na Vercel (com crédito) e redeploy. O Jev só volta com `COCKPIT_IA_JEV=1`. Tetos opcionais: `COCKPIT_IA_TETO_MES_USD`, `COCKPIT_IA_TETO_DIA_USD`, `COCKPIT_IA_CHAMADAS_DIA`.
 
+## [2026-09-25] "Perguntar ao Brain" ligado na OpenAI, com GPT-5.5 escolhido por avaliação
+
+**Contexto:** o OpenRouter está sem crédito. O Pedro forneceu uma chave da OpenAI e escolheu "OpenAI, escolha por avaliação". O Jev continua desligado.
+
+**Decisão:**
+- A conversa aceita modelos `openai/*`:
+  - chave `OPENAI_API_KEY` no servidor;
+  - esforço de raciocínio baixo;
+  - custo estimado pelos tokens com a tabela oficial de 25/09 (`provedores.ts`).
+- Padrão: **`openai/gpt-5.5`**. Na avaliação real (24 casos, gabaritos por SQL independente) ficou em 24/24, com mediana de 6,9 s e US$ 0,023 por pergunta. O GPT-5.4-mini ficou em 23/24, com US$ 0,004, mas teve três erros reais na rodada anterior. Gasto da avaliação: US$ 1,31 de um teto de US$ 5. Relatório: `docs/dev_notes/cockpit-ceo-conversa/avaliacao/relatorio.md`.
+- **Correções vindas da avaliação:**
+  - bloco em formato incompatível é ajustado ou descartado sozinho, sem derrubar a visão;
+  - data AAAA-MM não é número;
+  - número escrito nos textos da consulta ou nos parâmetros da visão anterior tem origem;
+  - a carteira da Monetização tem uma nova tentativa, e carga com parte em erro fica só 30 s no cache (antes, 10 min);
+  - pergunta fora do escopo é recusada em uma frase.
+
 ## [2026-09-25] Gestão de acessos: auditoria completa e o plano de melhoria executado (sem publicar)
 
 **Contexto:** o dono disse "essa parte de gestão de acessos e usuários não tá

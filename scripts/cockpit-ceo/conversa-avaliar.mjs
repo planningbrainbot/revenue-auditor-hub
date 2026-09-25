@@ -29,7 +29,12 @@ const opt = (n, p) => {
 const MODELOS = opt("--modelos", "anthropic/claude-sonnet-5,anthropic/claude-opus-5.5").split(",");
 const SO = opt("--casos", "") ? opt("--casos", "").split(",") : null;
 const TETO = Number(opt("--teto", "5"));
-const ESTIMATIVA = { "anthropic/claude-sonnet-5": 0.08, "anthropic/claude-opus-5.5": 0.16 };
+const ESTIMATIVA = {
+  "anthropic/claude-sonnet-5": 0.08,
+  "anthropic/claude-opus-5.5": 0.16,
+  "openai/gpt-5.5": 0.2,
+  "openai/gpt-5.4-mini": 0.04,
+};
 const PASTA = new URL("../../docs/dev_notes/cockpit-ceo-conversa/avaliacao/", import.meta.url);
 mkdirSync(PASTA, { recursive: true });
 const LEDGER = new URL("ledger.jsonl", PASTA);
@@ -61,9 +66,10 @@ const rede = async (base, unidades = ["Curitiba", "Belém"]) =>
     await consultar(`select sum(${base === "nova" ? "coalesce(a.receita_base,0)" : "coalesce(a.receita_base,0)+coalesce(a.receita_base_antiga,0)"})::numeric(14,2) v
       from ops.royalties_apuracao a join ops.unidades u on u.id=a.unidade_id
       where a.status='confirmado' and u.tipo='regional' and u.nome_da_praca in (${unidades.map((u) => `'${u}'`).join(",")})
-        and a.mes_referencia between '${mes(-3)}' and '${mes(-1)}' group by u.nome_da_praca, a.mes_referencia`)
+        and a.mes_referencia between '${mes(-3)}' and '${mes(-1)}' group by grouping sets ((u.nome_da_praca, a.mes_referencia), (u.nome_da_praca))`)
   ).map((r) => Number(r.v));
-const somas = (vs) => [...vs, vs.reduce((a, b) => a + b, 0)];
+// Valores por unidade e mês, somas por unidade no período e o total geral.
+const somas = (vs) => [...vs, vs.reduce((a, b) => a + b, 0) / 2];
 const GABARITO = {
   grupo_ultimo_fechado: [Number(fechadosG.at(-1).v)],
   grupo_setembro_parcial: serieG.filter((s) => s.parcial).map((s) => Number(s.v)),
@@ -117,7 +123,10 @@ function avaliar(caso, r) {
   if (e.min_blocos) c.visual &&= r.blocos.length >= e.min_blocos;
   const confere = e.conferir ?? (r.estado === "ok" ? e.conferir_se_ok : undefined);
   c.numero = confere ? citaGabarito(r.conclusao, confere) : true;
-  c.semInvencao = r.descartadas.filter((d) => !d.startsWith("falha")).length === 0;
+  // Só frase retirada pela conferência conta como invenção; ajuste de bloco e falha não.
+  c.semInvencao =
+    r.descartadas.filter((d) => !/^(falha|visão recusada|resposta final fora)/.test(d)).length ===
+    0;
   c.texto = (e.texto ?? []).every((t) => new RegExp(t, "i").test(r.conclusao));
   c.proibido = !(e.proibido ?? []).some((p) =>
     new RegExp(p, "i").test(r.conclusao + JSON.stringify(r.blocos)),

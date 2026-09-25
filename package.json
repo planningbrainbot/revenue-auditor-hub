@@ -16,6 +16,7 @@
     "design:codemod": "node scripts/design/codemod-cores.mjs"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.74",
     "@ai-sdk/react": "4.0.116",
     "@hookform/resolvers": "^5.2.2",
     "@openrouter/ai-sdk-provider": "3.1.0",

@@ -107,3 +107,20 @@ test("teto do mês conta chamada sem custo pelo custo estimado; dia por pessoa e
   assert.equal(avaliarOrcamento({ ...o, mes_usd: 0, dia_usuario_chamadas: 150 }, l).ok, false);
   assert.equal(limitesDoAmbiente({ COCKPIT_IA_TETO_MES_USD: "abc" }).mesUsd, 20);
 });
+
+// ── Provedor e custo (25/09) ──
+import { custoEstimadoOpenAI, provedorDo } from "../src/lib/cockpit-ceo/conversa/provedores.ts";
+test("custo estimado da OpenAI pelos tokens; sem preço ou sem token é desconhecido, nunca zero", () => {
+  assert.equal(provedorDo("openai/gpt-5.5"), "openai");
+  assert.equal(provedorDo("anthropic/claude-sonnet-5"), "openrouter");
+  // 10.000 de entrada (2.000 em cache) e 1.000 de saída no gpt-5.5:
+  // 8.000 × 5 + 2.000 × 0,5 + 1.000 × 30 = 71.000 / 1e6 = 0,071.
+  const c = custoEstimadoOpenAI("openai/gpt-5.5", {
+    inputTokens: 10_000,
+    outputTokens: 1_000,
+    inputTokenDetails: { cacheReadTokens: 2_000 },
+  });
+  assert.equal(Math.round(c * 1e6), 71_000);
+  assert.equal(custoEstimadoOpenAI("openai/gpt-9", { inputTokens: 1, outputTokens: 1 }), null);
+  assert.equal(custoEstimadoOpenAI("openai/gpt-5.5", { inputTokens: 1 }), null);
+});

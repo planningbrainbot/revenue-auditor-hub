@@ -88,7 +88,22 @@ test("proposta vira definição com a consulta autorizada, não com o id", () =>
   assert.equal(VisaoDefinicaoSchema.safeParse(d).success, true);
 });
 
-test("referência a resultado que não existe na rodada é recusada", () => {
+test("referência a resultado inexistente cai sozinha; sem bloco válido a proposta é recusada", () => {
+  const ajustes = [];
+  const d = definicaoDaProposta(
+    {
+      titulo: "x",
+      conclusao: "y",
+      blocos: [
+        { tipo: "kpi", resultado: "r9" },
+        { tipo: "ranking", resultado: "r2" },
+      ],
+    },
+    registro,
+    ajustes,
+  );
+  assert.equal(d.blocos.length, 1);
+  assert.match(ajustes[0], /r9/);
   assert.throws(
     () =>
       definicaoDaProposta(
@@ -99,15 +114,25 @@ test("referência a resultado que não existe na rodada é recusada", () => {
   );
 });
 
-test("bloco incompatível com a forma do resultado é recusado (funil sobre série)", () => {
-  assert.throws(
-    () =>
-      definicaoDaProposta(
-        { titulo: "x", conclusao: "y", blocos: [{ tipo: "funil", resultado: "r1" }] },
-        registro,
-      ),
-    EspecificacaoRecusada,
+test("bloco incompatível com a forma do resultado é ajustado para o tipo da forma", () => {
+  const ajustes = [];
+  const d = definicaoDaProposta(
+    {
+      titulo: "x",
+      conclusao: "y",
+      blocos: [
+        { tipo: "funil", resultado: "r1" },
+        { tipo: "kpi", resultado: "r2" },
+      ],
+    },
+    registro,
+    ajustes,
   );
+  assert.deepEqual(
+    d.blocos.map((b) => b.tipo),
+    ["serie", "barras"],
+  );
+  assert.equal(ajustes.length, 2);
 });
 
 test("controle de filtro altera só os filtros que a consulta aceita", () => {
@@ -176,4 +201,33 @@ test("sem nenhum resultado, qualquer valor em reais é descartado", () => {
   const c = conferirTexto("O faturamento foi R$ 5 mi.", [], "quanto faturamos?");
   assert.equal(c.texto, "");
   assert.equal(c.descartadas.length, 1);
+});
+
+test("número que a consulta escreveu no aviso também tem origem", () => {
+  const r = { ...r2, avisos: ["Falta conciliar 12 meses de faturamento."] };
+  const c = conferirTexto("Faltam 12 meses conciliados para o gap.", [r], "");
+  assert.deepEqual(c.descartadas, []);
+  assert.equal(conferirTexto("Faltam 13 meses.", [r], "").descartadas.length, 1);
+});
+
+test("data AAAA-MM não é número; horizonte da coorte e parâmetros anteriores têm origem", () => {
+  const coorte = {
+    ...r2,
+    dados: {
+      forma: "coorte",
+      colunas: Array.from({ length: 13 }, (_, i) => `M${i}`),
+      linhas: [{ coorte: "2025-06", base: 11, valores: [100, 45.5] }],
+    },
+    destaques: [],
+  };
+  const c = conferirTexto("A coorte de 2025-06 (base 11) reteve 45,5% em 12 meses.", [coorte], "");
+  assert.deepEqual(c.descartadas, []);
+  assert.deepEqual(
+    conferirTexto("O recorte salvo usa os últimos 3 meses.", [], "", [3]).descartadas,
+    [],
+  );
+  assert.equal(
+    conferirTexto("O recorte salvo usa os últimos 4 meses.", [], "", [3]).descartadas.length,
+    1,
+  );
 });

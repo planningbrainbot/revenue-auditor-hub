@@ -1,0 +1,93 @@
+{
+  "em": "2026-09-25T15:02:16.307Z",
+  "teto": 5,
+  "gastoAcumuladoUsd": 0.005356,
+  "gabaritos": {
+    "grupo_ultimo_fechado": [
+      7455047.01
+    ],
+    "grupo_setembro_parcial": [
+      6851979.08
+    ],
+    "onboarding_30": [
+      95
+    ],
+    "rede_cur_bel_todas": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ],
+    "rede_cur_bel_nova": [
+      191625.47,
+      247951.75,
+      157997.19,
+      194808.13,
+      201160.76,
+      217765.85,
+      1211309.15
+    ],
+    "rede_cur_pat_nova": [
+      194808.13,
+      201160.76,
+      217765.85,
+      129275.17,
+      120531.11,
+      176536,
+      1040077.02
+    ]
+  },
+  "porModelo": {
+    "openai/gpt-5.4-mini": {
+      "casos": 1,
+      "aprovados": 0,
+      "estado": 1,
+      "metrica": 1,
+      "visual": 1,
+      "numero": 1,
+      "semInvencao": 0,
+      "texto": 1,
+      "proibido": 1,
+      "latenciaMedianaS": 37.945,
+      "latenciaP90S": 37.945,
+      "custoTotalUsd": 0.0054,
+      "custoMedioUsd": 0.0054
+    }
+  },
+  "resultados": [
+    {
+      "modelo": "openai/gpt-5.4-mini",
+      "caso": "P1",
+      "categoria": "simples",
+      "estado": "ok",
+      "criterios": {
+        "estado": true,
+        "metrica": true,
+        "visual": true,
+        "numero": true,
+        "semInvencao": false,
+        "texto": true,
+        "proibido": true
+      },
+      "aprovado": false,
+      "conclusao": "Faturamos R$ 7.455.047,01 em 08/2026, que é o último mês fechado.",
+      "blocos": [
+        "kpi:indicador",
+        "kpi:indicador"
+      ],
+      "descartadas": [
+        "Contra a meta de R$ 1 bi, o dado ainda não está apurado porque falta definir o perímetro de leitura e conciliar 12 meses de faturamento."
+      ],
+      "jev": {
+        "classe": null,
+        "confianca": null,
+        "motivo": "jev_indisponivel"
+      },
+      "latenciaMs": 37945,
+      "custoUsd": 0.005356
+    }
+  ]
+}
