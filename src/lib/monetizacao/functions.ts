@@ -42,87 +42,129 @@ async function all(db: DB, table: string, columns: string, order: string) {
   }
   throw new Error("Consulta excedeu o limite de segurança. Nenhum total parcial foi exibido.");
 }
+/**
+ * A leitura sem o transporte: a tela e o servidor da conversa do Cockpit do CEO usam a mesma regra,
+ * com a sessão da pessoa.
+ */
+export async function lerMonetizacao(context: { supabase: unknown }): Promise<BaseMonetizacao> {
+  const db = context.supabase as DB;
+  const [aquario, operation, manage, send, scope, clients] = await Promise.all([
+    check(db, "view.aquario"),
+    check(db, "view.monetizacao"),
+    check(db, "manage.aquario"),
+    check(db, "send.monetizacao"),
+    (db as DB).schema("ops").rpc("monetizacao_scope", { _ids: [] }),
+    check(db, "view.clientes"),
+  ]);
+  if (!aquario && !operation && !clients)
+    throw new Error(
+      "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
+    );
+  const [units, cobertura, cards, lists, items, health, plans, records, reservations, forecasts] =
+    await Promise.all([
+      all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
+      all(
+        db,
+        "monetizacao_unidade_cobertura",
+        "key,contas,cnpjs,cnpjs_pipefy,cnpjs_omie,omie_integrado",
+        "key",
+      ),
+      all(db, "monetizacao_deals", "id,payload", "id"),
+      all(db, "monetizacao_listas", "*", "created_at"),
+      all(db, "monetizacao_itens", "*", "id"),
+      all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
+      all(db, "monetizacao_planos", "payload", "month"),
+      all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
+      all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
+      all(db, "monetizacao_forecasts", "payload", "id"),
+    ]);
+  const { data: catalog, error: catalogError } = await (db as DB)
+    .schema("ops")
+    .rpc("base_carteira_manifesto");
+  if (catalogError) throw new Error("Não foi possível conferir a base e seu escopo atual.");
+  const sync = health[0];
+  return {
+    base_count: catalog.count,
+    catalog_pages: catalog.pages,
+    scope_signature: catalog.scope_signature,
+    forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
+    reservations: reservations as BaseMonetizacao["reservations"],
+    accounts: [],
+    units: units.map((u) => {
+      const c = cobertura.find((x) => x.key === u.key);
+      return {
+        id: u.unidade_id,
+        key: u.key,
+        name: u.nome,
+        classification: u.classification,
+        account_keys: [],
+        // Cobertura vem do banco (ops.monetizacao_unidade_cobertura): CNPJs distintos é o
+        // tamanho da carteira; Pipefy e Omie dizem de onde ela é conhecida. Sem isso o card
+        // afirma censo com um número que só cobre o que foi conciliado.
+        cnpjs: (c?.cnpjs as number) ?? 0,
+        cnpjs_pipefy: (c?.cnpjs_pipefy as number) ?? 0,
+        cnpjs_omie: (c?.cnpjs_omie as number) ?? 0,
+        omie_integrado: (c?.omie_integrado as boolean) ?? false,
+      };
+    }),
+    cards: cards.map((d) => d.payload as Negocio),
+    lists: lists.map((l) => ({
+      ...l,
+      items: items.filter((i) => i.list_id === l.id) as ItemLista[],
+    })) as Lista[],
+    plans: plans.map((p) => p.payload) as Plano[],
+    records: records as Registro[],
+    measured_at: sync?.measured_at || null,
+    catalog_at: catalog.catalog_at,
+    sync_status: sync?.status || "pending",
+    sync_error: sync?.error || null,
+    stages: sync?.stages || [],
+    permissions: { view: operation, manage, send, all_units: scope.data === true },
+  };
+}
+
 export const carregarMonetizacao = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<BaseMonetizacao> => {
-    const db = context.supabase;
-    const [aquario, operation, manage, send, scope, clients] = await Promise.all([
-      check(db, "view.aquario"),
-      check(db, "view.monetizacao"),
-      check(db, "manage.aquario"),
-      check(db, "send.monetizacao"),
-      (db as DB).schema("ops").rpc("monetizacao_scope", { _ids: [] }),
-      check(db, "view.clientes"),
-    ]);
-    if (!aquario && !operation && !clients)
-      throw new Error(
-        "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
-      );
-    const [units, cobertura, cards, lists, items, health, plans, records, reservations, forecasts] =
-      await Promise.all([
-        all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
-        all(
-          db,
-          "monetizacao_unidade_cobertura",
-          "key,contas,cnpjs,cnpjs_pipefy,cnpjs_omie,omie_integrado",
-          "key",
-        ),
-        all(db, "monetizacao_deals", "id,payload", "id"),
-        all(db, "monetizacao_listas", "*", "created_at"),
-        all(db, "monetizacao_itens", "*", "id"),
-        all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
-        all(db, "monetizacao_planos", "payload", "month"),
-        all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
-        all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
-        all(db, "monetizacao_forecasts", "payload", "id"),
-      ]);
-    const { data: catalog, error: catalogError } = await (db as DB)
-      .schema("ops")
-      .rpc("base_carteira_manifesto");
-    if (catalogError) throw new Error("Não foi possível conferir a base e seu escopo atual.");
-    const sync = health[0];
-    return {
-      base_count: catalog.count,
-      catalog_pages: catalog.pages,
-      scope_signature: catalog.scope_signature,
-      forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
-      reservations: reservations as BaseMonetizacao["reservations"],
-      accounts: [],
-      units: units.map((u) => {
-        const c = cobertura.find((x) => x.key === u.key);
-        return {
-          id: u.unidade_id,
-          key: u.key,
-          name: u.nome,
-          classification: u.classification,
-          account_keys: [],
-          // Cobertura vem do banco (ops.monetizacao_unidade_cobertura): CNPJs distintos é o
-          // tamanho da carteira; Pipefy e Omie dizem de onde ela é conhecida. Sem isso o card
-          // afirma censo com um número que só cobre o que foi conciliado.
-          cnpjs: (c?.cnpjs as number) ?? 0,
-          cnpjs_pipefy: (c?.cnpjs_pipefy as number) ?? 0,
-          cnpjs_omie: (c?.cnpjs_omie as number) ?? 0,
-          omie_integrado: (c?.omie_integrado as boolean) ?? false,
-        };
-      }),
-      cards: cards.map((d) => d.payload as Negocio),
-      lists: lists.map((l) => ({
-        ...l,
-        items: items.filter((i) => i.list_id === l.id) as ItemLista[],
-      })) as Lista[],
-      plans: plans.map((p) => p.payload) as Plano[],
-      records: records as Registro[],
-      measured_at: sync?.measured_at || null,
-      catalog_at: catalog.catalog_at,
-      sync_status: sync?.status || "pending",
-      sync_error: sync?.error || null,
-      stages: sync?.stages || [],
-      permissions: { view: operation, manage, send, all_units: scope.data === true },
-    };
-  });
+  .handler(({ context }) => lerMonetizacao(context));
 
 // Paginação no transporte evita estourar o limite de resposta do servidor.
 // A interface só publica a contagem depois de carregar todas as páginas.
+export interface PaginaContasBase {
+  accounts: (Conta & { unit_ids: number[] })[];
+  next: string | null;
+  catalog_at: string | null;
+  scope_signature: string;
+}
+
+/** Um lote do catálogo, com a sessão da pessoa (a RPC confere usuário, permissão e unidades). */
+export async function lerContasBase(
+  context: { supabase: unknown },
+  data: { after: string | null; through?: string | null },
+): Promise<PaginaContasBase> {
+  const db = (context.supabase as DB).schema("ops");
+  // A RPC valida usuário ativo, permissão e unidades antes de consultar dados.
+  const { data: batch, error } = await db.rpc("base_carteira_pagina", {
+    _after: data.after,
+    _through: data.through ?? null,
+  });
+  if (error)
+    throw new Error("Não foi possível carregar as empresas. Nenhum total parcial foi exibido.");
+  const rows = batch.rows;
+  const master = batch.base;
+  const by = new Map<string, BaseEmpresa>((master || []).map((m: BaseEmpresa) => [m.key, m]));
+  if (rows.some((a: DB) => !by.has(a.key)))
+    throw new Error("A base mudou durante a leitura. Atualize para conferir os totais.");
+  return {
+    accounts: rows.map((a: DB) => ({
+      ...aplicarBase(a.perfil as Conta, by.get(a.key)),
+      unit_ids: a.unidade_ids,
+    })),
+    next: batch.next,
+    catalog_at: batch.catalog_at,
+    scope_signature: batch.scope_signature,
+  };
+}
+
 export const carregarContasBase = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -131,40 +173,7 @@ export const carregarContasBase = createServerFn({ method: "GET" })
       through: z.string().min(1).max(80).nullable().optional(),
     }),
   )
-  .handler(
-    async ({
-      context,
-      data,
-    }): Promise<{
-      accounts: (Conta & { unit_ids: number[] })[];
-      next: string | null;
-      catalog_at: string | null;
-      scope_signature: string;
-    }> => {
-      const db = (context.supabase as DB).schema("ops");
-      // A RPC valida usuário ativo, permissão e unidades antes de consultar dados.
-      const { data: batch, error } = await db.rpc("base_carteira_pagina", {
-        _after: data.after,
-        _through: data.through ?? null,
-      });
-      if (error)
-        throw new Error("Não foi possível carregar as empresas. Nenhum total parcial foi exibido.");
-      const rows = batch.rows;
-      const master = batch.base;
-      const by = new Map<string, BaseEmpresa>((master || []).map((m: BaseEmpresa) => [m.key, m]));
-      if (rows.some((a: DB) => !by.has(a.key)))
-        throw new Error("A base mudou durante a leitura. Atualize para conferir os totais.");
-      return {
-        accounts: rows.map((a: DB) => ({
-          ...aplicarBase(a.perfil as Conta, by.get(a.key)),
-          unit_ids: a.unidade_ids,
-        })),
-        next: batch.next,
-        catalog_at: batch.catalog_at,
-        scope_signature: batch.scope_signature,
-      };
-    },
-  );
+  .handler(({ context, data }) => lerContasBase(context, data));
 
 export const detalheAquario = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

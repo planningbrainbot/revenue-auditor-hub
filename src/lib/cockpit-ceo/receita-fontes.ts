@@ -269,14 +269,20 @@ export function montarLeituraRede(entrada: {
     mesDe(u.inauguracao) ?? primeiraApuracao.get(u.id) ?? null;
 
   const centavos = new Map<string, number>(); // "mes|unidade" → centavos
+  // As duas parcelas da mesma soma, para recortar por base sem outra régua (conversa, 24/09).
+  const porBaseCent = new Map<string, { nova: number; antiga: number }>();
   const royCent = new Map<string, number | null>();
   const temRoyalties = confirmadas.some((a) => a.royalties_valor !== undefined);
   const apuradas = new Map<string, Set<number>>();
   for (const a of confirmadas) {
     const m = mesDe(a.mes)!;
-    const v = cent(numero(a.receita_base) ?? 0) + cent(numero(a.receita_base_antiga) ?? 0);
+    const nova = cent(numero(a.receita_base) ?? 0);
+    const antiga = cent(numero(a.receita_base_antiga) ?? 0);
+    const v = nova + antiga;
     const k = `${m}|${a.unidade_id}`;
     centavos.set(k, (centavos.get(k) ?? 0) + v);
+    const b = porBaseCent.get(k) ?? { nova: 0, antiga: 0 };
+    porBaseCent.set(k, { nova: b.nova + nova, antiga: b.antiga + antiga });
     // Mesma soma de `roy_csc` da RPC de indicadores do trimestre (migration 20260826140000).
     // Royalties ausentes numa apuração confirmada não viram R$ 0: a unidade fica sem royalties no mês.
     if (temRoyalties) {
@@ -338,11 +344,21 @@ export function montarLeituraRede(entrada: {
         };
       })
     : undefined;
+  const porBase = [...porBaseCent].map(([k, c]) => {
+    const [mes, id] = k.split("|");
+    return {
+      mes,
+      chave: regionais.get(Number(id))!.nome,
+      nova: c.nova / 100,
+      antiga: c.antiga / 100,
+    };
+  });
   return {
     ...BASE_REDE,
     estado: "disponivel",
     nota: null,
     linhas,
+    porBase,
     cobertura,
     parciaisFonte,
     notasPorMes,
