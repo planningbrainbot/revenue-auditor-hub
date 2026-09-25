@@ -2985,3 +2985,5 @@ fora da lista de domínios.
 - As leituras do cockpit e da Monetização viraram funções exportadas (`ler*`), sem mudança de lógica, para o servidor da conversa usar a mesma regra da tela.
 
 **Não publicado.** Pendências no relatório: crédito e avaliação, revogação das chaves, chave e tetos na Vercel, "contrato ok", área para o CEO.
+
+**Adendo 25/09:** o Jev da conversa fica **desligado** até o Pedro resolver os créditos do OpenRouter (pedido dele). Liga com `COCKPIT_IA_JEV=1`; desligado, a pergunta segue como "Jev indisponível", com o modelo recebendo todas as consultas (caminho já testado).

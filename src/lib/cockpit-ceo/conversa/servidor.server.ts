@@ -56,6 +56,9 @@ function lerKeychain(servico: string): Promise<string | null> {
   );
 }
 
+/** O Jev da conversa só roda com a chave ligada no ambiente. */
+export const jevLigado = (env = process.env) => env.COCKPIT_IA_JEV === "1";
+
 // ── Ledger do Jev no banco (as linhas da própria pessoa, no mês) ──────────────
 const travas = new Map<string, Promise<unknown>>();
 function ledgerJevNoBanco(db: Db, userId: string): LedgerJev {
@@ -223,14 +226,22 @@ export async function rodadaNoServidor(
       historico,
       abortSignal,
       emitir,
+      // Jev só com COCKPIT_IA_JEV=1. Desligado (decisão do Pedro em 25/09, até resolver os
+      // créditos), a pergunta segue como "Jev indisponível": modelo com todas as consultas.
       classificar: (pergunta, contexto) =>
-        decidirJev(pedidoConversa(pergunta, contexto), {
-          obterChave: async () => chave,
-          ledger: ledgerJevNoBanco(db, ctx.userId),
-          exemplo: "conversa",
-          timeoutMs: 6_000,
-          limites: { tentativas: 3_000, custoUsd: 1 },
-        }),
+        !jevLigado()
+          ? Promise.resolve({
+              estado: "desativado",
+              codigo: "desativado",
+              mensagem: "Jev desligado.",
+            })
+          : decidirJev(pedidoConversa(pergunta, contexto), {
+              obterChave: async () => chave,
+              ledger: ledgerJevNoBanco(db, ctx.userId),
+              exemplo: "conversa",
+              timeoutMs: 6_000,
+              limites: { tentativas: 3_000, custoUsd: 1 },
+            }),
       carregarFonte: () => fonteDaPessoa(ctx, acesso),
       salvarVisao: async (nome: string, definicao: VisaoDefinicao) => {
         const { data, error } = await db
