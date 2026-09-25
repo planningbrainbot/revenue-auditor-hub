@@ -3008,3 +3008,23 @@ fora da lista de domínios.
 **Não publicado.** Pendências no relatório: crédito e avaliação, revogação das chaves, chave e tetos na Vercel, "contrato ok", área para o CEO.
 
 **Adendo 25/09:** o Jev da conversa fica **desligado** até o Pedro resolver os créditos do OpenRouter (pedido dele). Liga com `COCKPIT_IA_JEV=1`; desligado, a pergunta segue como "Jev indisponível", com o modelo recebendo todas as consultas (caminho já testado).
+
+## [2026-09-25] Cockpit do CEO (leitura de dez segundos + Perguntar ao Brain) publicado; a main volta a ser igual à produção (adendo à entrada de 24/09)
+
+**Autorização:** o Pedro pediu "pode subir", com o Jev da conversa desligado até resolver os créditos do OpenRouter.
+
+**Achado antes de publicar:** produção rodava `cdced02` (Monetização · Operação), publicado em 24/09 por outra sessão sem passar pela `main`. Publicar só a `main` + o cockpit tiraria essa mudança do ar. Por isso:
+- a branch foi subida e mergeada como **PR #22**, sem mudança nenhuma de código;
+- a `main` passou a ser igual à produção;
+- o cockpit entrou por cima como **PR #23** (`9b97842`). O conflito foi só no `DECISIONS.md`, e as duas entradas foram mantidas.
+
+**Publicação:** deploy `dpl_AgLgmTsg2v4Zf27SvHo1W2UeweyT` pela CLI da planningbrainbot-4862 (projeto `ops-brain`, time `planning17`), feito de um worktree limpo em `9b97842`. `planningbrain.com.br` aponta para ele. Rollback: promover `dpl_4beVH8zAaAsRdrRGGnoDamTdXiQF` (`cdced02`).
+
+**Conferido no ar com a sessão do Pedro:**
+- Visão executiva nova com dado real: 4 números, gráfico e atenção inteiros em 1440×900, nenhum "não apurado", sem erro no console.
+- `/cockpit-ceo/perguntar` abre.
+- A API recusa sem login (401).
+- Sem `OPENROUTER_API_KEY` na Vercel, a conversa responde "não está configurada neste ambiente… os painéis do cockpit funcionam normalmente", sem número. A conversa de teste foi apagada.
+- `/monetizacao` segue na aba Operação.
+
+**Para ligar a conversa:** `OPENROUTER_API_KEY` de servidor na Vercel (com crédito) e redeploy. O Jev só volta com `COCKPIT_IA_JEV=1`. Tetos opcionais: `COCKPIT_IA_TETO_MES_USD`, `COCKPIT_IA_TETO_DIA_USD`, `COCKPIT_IA_CHAMADAS_DIA`.
