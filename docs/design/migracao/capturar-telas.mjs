@@ -14,7 +14,7 @@
  * CDP pelo WebSocket nativo do Node 22 (mesma técnica de scripts/design/capturar.mjs).
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -141,29 +141,46 @@ try {
   if (!logado) throw new Error("sem sessão: rode `login` primeiro e feche o Chrome");
 
   for (const tema of ["escuro", "claro"]) {
-    await avaliar(`localStorage.setItem('pb:tema', ${JSON.stringify(tema)})`);
+    // O cookie pb_tema vence o localStorage (lib/tema-compartilhado.ts): grava os dois.
+    await avaliar(`localStorage.setItem('pb:tema', ${JSON.stringify(tema)}); document.cookie = 'pb_tema=${tema}; path=/; max-age=31536000'`);
     for (const rota of rotas) {
-      await viewport(ALTURA);
-      await ir(`${base}${rota}`);
-      // Espera a hidratação, as fontes e as consultas: até 25 s ou até sumirem os esqueletos.
-      await avaliar(`(async () => {
-        const fim = Date.now() + 25000;
-        await new Promise(r => setTimeout(r, 2500));
-        while (Date.now() < fim) {
-          const carregando = document.querySelector('[aria-busy="true"], .animate-pulse');
-          if (!carregando) break;
-          await new Promise(r => setTimeout(r, 500));
-        }
-        await document.fonts.ready;
-        await new Promise(r => setTimeout(r, 1500));
-      })()`);
       const nome = nomeArquivo(rota);
-      await foto(`${nome}--${tema}-viewport.png`);
-      const h = await avaliar("Math.min(document.documentElement.scrollHeight, 12000)");
-      await viewport(h);
-      await esperar(700);
-      await foto(`${nome}--${tema}-pagina.png`);
-      console.log(`  ${nome} (${tema})`);
+      if (existsSync(join(saida, `${nome}--${tema}-pagina.png`))) { console.log(`  ${nome} (${tema}) já existe`); continue; }
+      // A página pode se recarregar sozinha (o vite otimiza dependências na primeira visita): tenta de novo.
+      for (let tentativa = 1; tentativa <= 4; tentativa++) {
+        try {
+          await viewport(ALTURA);
+          await ir(`${base}${rota}`);
+          // Espera a hidratação, as fontes e as consultas: até 25 s ou até sumirem os esqueletos.
+          await avaliar(`(async () => {
+            const fim = Date.now() + ${Number(process.env.ESPERA_MS || 45000)};
+            await new Promise(r => setTimeout(r, 2500));
+            while (Date.now() < fim) {
+              const carregando = document.querySelector('[aria-busy="true"], .animate-pulse, .skeleton-shimmer')
+                || [...document.querySelectorAll('[role="status"]')].some(n => /Carregando/.test(n.textContent || ''));
+              // Página em branco (primeira compilação do vite) também é "carregando".
+              const vazia = !document.querySelector('h1') || (document.body.innerText || '').trim().length < 40;
+              if (!carregando && !vazia) break;
+              await new Promise(r => setTimeout(r, 500));
+            }
+            await document.fonts.ready;
+            await new Promise(r => setTimeout(r, 1500));
+          })()`);
+          const aindaCarregando = await avaliar(`!!(document.querySelector('[aria-busy="true"], .animate-pulse, .skeleton-shimmer') || [...document.querySelectorAll('[role="status"]')].some(n => /Carregando/.test(n.textContent || '')))`);
+          if (aindaCarregando) console.log(`  AVISO ${nome} (${tema}): ainda carregando no fim da espera`);
+          await foto(`${nome}--${tema}-viewport.png`);
+          const h = await avaliar("Math.min(document.documentElement.scrollHeight, 12000)");
+          await viewport(h);
+          await esperar(700);
+          await foto(`${nome}--${tema}-pagina.png`);
+          console.log(`  ${nome} (${tema})`);
+
+          break;
+        } catch (e) {
+          if (tentativa === 4) { console.error(`  ${nome} (${tema}) FALHOU: ${e.message}`); break; }
+          await esperar(4000);
+        }
+      }
     }
   }
   cdp.fechar();

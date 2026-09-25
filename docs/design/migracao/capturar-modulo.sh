@@ -31,4 +31,4 @@ NODE_OPTIONS=--max-old-space-size=4096 npx vite dev --port 8080 --strictPort > /
 VITE=$!
 trap 'kill $VITE 2>/dev/null; pkill -P $VITE 2>/dev/null; rm -rf "$LOCK"' EXIT
 for i in {1..120}; do curl -s -o /dev/null http://localhost:8080/ && break; sleep 1; done
-node "$AQUI/capturar-telas.mjs" capturar 8080 "$SAIDA" ${=ROTAS[$MOD]}
+node "$AQUI/capturar-telas.mjs" capturar 8080 "$SAIDA" ${=${ROTAS_OVERRIDE:-${ROTAS[$MOD]}}}

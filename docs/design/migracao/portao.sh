@@ -13,13 +13,19 @@ echo $$ > "$LOCK/pid"
 trap 'rm -rf "$LOCK"' EXIT
 cd "$DIR" || exit 2
 echo "== build ($DIR)"
-NODE_OPTIONS=--max-old-space-size=6144 npx vite build > .portao-build.log 2>&1
+[ -e node_modules ] || { echo "== npm ci"; npm ci --no-audit --no-fund > .portao-ci.log 2>&1 || tail -20 .portao-ci.log; }
+if [ -f next.config.ts ] || [ -f next.config.mjs ]; then
+  NODE_OPTIONS=--max-old-space-size=6144 npx next build > .portao-build.log 2>&1
+else
+  NODE_OPTIONS=--max-old-space-size=6144 npx vite build > .portao-build.log 2>&1
+fi
 B=$?; echo "build exit $B"; [ $B -ne 0 ] && tail -30 .portao-build.log
 echo "== tsc"
-npx tsc --noEmit -p . > .portao-tsc.log 2>&1
+if grep -q '"references"' tsconfig.json 2>/dev/null; then npx tsc -b > .portao-tsc.log 2>&1; else npx tsc --noEmit -p . > .portao-tsc.log 2>&1; fi
 grep "error TS" .portao-tsc.log | sed 's/(.*//' | sort | uniq -c
-echo "tsc erros: $(grep -c 'error TS' .portao-tsc.log) (a main tem 7)"
+echo "tsc erros: $(grep -c 'error TS' .portao-tsc.log) (compare com a base do app: Ops main = 7)"
 echo "== design:lint:changed"
-npm run -s design:lint:changed 2>&1 | tail -25
+if grep -q '"design:lint:changed"' package.json; then npm run -s design:lint:changed 2>&1 | tail -25; else echo "(sem design:lint neste app ainda)"; fi
+if grep -q '"vitest' package.json; then echo "== vitest"; npx vitest run > .portao-test.log 2>&1; echo "vitest exit $?"; grep -E "Tests|Test Files|FAIL" .portao-test.log | tail -8; rm -f .portao-test.log; fi
 rm -f .portao-build.log .portao-tsc.log
 exit $B
