@@ -29,7 +29,12 @@ const opt = (n, p) => {
 const MODELOS = opt("--modelos", "anthropic/claude-sonnet-5,anthropic/claude-opus-5.5").split(",");
 const SO = opt("--casos", "") ? opt("--casos", "").split(",") : null;
 const TETO = Number(opt("--teto", "5"));
-const ESTIMATIVA = { "anthropic/claude-sonnet-5": 0.08, "anthropic/claude-opus-5.5": 0.16 };
+const ESTIMATIVA = {
+  "anthropic/claude-sonnet-5": 0.08,
+  "anthropic/claude-opus-5.5": 0.16,
+  "openai/gpt-5.5": 0.2,
+  "openai/gpt-5.4-mini": 0.04,
+};
 const PASTA = new URL("../../docs/dev_notes/cockpit-ceo-conversa/avaliacao/", import.meta.url);
 mkdirSync(PASTA, { recursive: true });
 const LEDGER = new URL("ledger.jsonl", PASTA);

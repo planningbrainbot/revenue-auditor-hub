@@ -82,6 +82,15 @@ type SaidaJev =
 export interface DepsResposta {
   modelo: LanguageModel;
   nomeModelo: string;
+  /** Opções do provedor (ex.: esforço de raciocínio da OpenAI). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  opcoesProvedor?: Record<string, any>;
+  /**
+   * Custo de um passo. Padrão: o que o OpenRouter informa. Na OpenAI, estimado pelos tokens.
+   * `null` = desconhecido (o teto conta como caro, nunca como zero).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  custoDoPasso?: (passo: any) => number | null;
   classificar: (pergunta: string, contexto: string) => Promise<SaidaJev>;
   carregarFonte: () => Promise<FonteCockpit>;
   historico: TurnoAnterior[];
@@ -349,14 +358,17 @@ export async function responder(pergunta: string, deps: DepsResposta): Promise<R
         abortSignal: deps.abortSignal,
         maxRetries: 0,
         // Sem teto explícito o provedor reserva 65 mil tokens de saída por chamada (medido em 24/09).
-        maxOutputTokens: 2500,
+        maxOutputTokens: 4000,
+        ...(deps.opcoesProvedor ? { providerOptions: deps.opcoesProvedor } : {}),
         timeout: { totalMs: 120_000, stepMs: 60_000 },
       });
       let custoTentativa = 0;
       let conhecido = true;
       for (const s of r.steps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = (s.providerMetadata as any)?.openrouter?.usage?.cost;
+        const c = deps.custoDoPasso
+          ? deps.custoDoPasso(s)
+          : (s.providerMetadata as any)?.openrouter?.usage?.cost;
         if (typeof c === "number") custoTentativa += c;
         else conhecido = false;
       }

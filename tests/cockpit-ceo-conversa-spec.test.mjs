@@ -177,3 +177,10 @@ test("sem nenhum resultado, qualquer valor em reais é descartado", () => {
   assert.equal(c.texto, "");
   assert.equal(c.descartadas.length, 1);
 });
+
+test("número que a consulta escreveu no aviso também tem origem", () => {
+  const r = { ...r2, avisos: ["Falta conciliar 12 meses de faturamento."] };
+  const c = conferirTexto("Faltam 12 meses conciliados para o gap.", [r], "");
+  assert.deepEqual(c.descartadas, []);
+  assert.equal(conferirTexto("Faltam 13 meses.", [r], "").descartadas.length, 1);
+});

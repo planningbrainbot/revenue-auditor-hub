@@ -69,6 +69,14 @@ export function conferirTexto(
   const permitidos = new Set<number>([META_ANUAL, MEDIA_MENSAL_NECESSARIA, ANO_ALVO]);
   for (const r of resultados) {
     for (const n of numerosDoResultado(r)) permitidos.add(n);
+    // Números escritos nos textos da própria consulta (avisos, rótulos, recorte) também têm origem.
+    const textos = [
+      r.titulo,
+      ...r.avisos,
+      ...r.filtrosAplicados,
+      ...r.destaques.map((d) => d.rotulo),
+    ].join(" · ");
+    for (const n of lerNumeros(textos)) permitidos.add(n.valor);
     const d = r.dados;
     // Quantidade de itens mostrados ("2 unidades", "6 meses") é contagem visível na tela.
     const qtd =
