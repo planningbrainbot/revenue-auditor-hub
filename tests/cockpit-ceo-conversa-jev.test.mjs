@@ -85,3 +85,22 @@ test("composição e refinamento mantêm todas as ferramentas", () => {
   }
   assert.ok(consultasDoDominio("unidades").includes("ranking_unidades"));
 });
+
+// ── Orçamento ──
+import { avaliarOrcamento, limitesDoAmbiente } from "../src/lib/cockpit-ceo/conversa/orcamento.ts";
+
+test("teto do mês conta chamada sem custo pelo custo estimado; dia por pessoa e por chamadas", () => {
+  const l = limitesDoAmbiente({});
+  assert.deepEqual(l, {
+    mesUsd: 20,
+    diaUsuarioUsd: 3,
+    diaUsuarioChamadas: 150,
+    custoEstimadoDesconhecida: 0.25,
+  });
+  const o = { mes_usd: 19.8, mes_desconhecidas: 0, dia_usuario_usd: 0, dia_usuario_chamadas: 0 };
+  assert.equal(avaliarOrcamento(o, l).ok, true);
+  assert.equal(avaliarOrcamento({ ...o, mes_desconhecidas: 1 }, l).ok, false); // 19,8 + 0,25
+  assert.equal(avaliarOrcamento({ ...o, mes_usd: 0, dia_usuario_usd: 3 }, l).ok, false);
+  assert.equal(avaliarOrcamento({ ...o, mes_usd: 0, dia_usuario_chamadas: 150 }, l).ok, false);
+  assert.equal(limitesDoAmbiente({ COCKPIT_IA_TETO_MES_USD: "abc" }).mesUsd, 20);
+});

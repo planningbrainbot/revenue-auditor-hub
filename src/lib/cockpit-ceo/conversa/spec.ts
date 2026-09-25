@@ -6,8 +6,8 @@
 // validados). É essa definição que se salva: ao reabrir, as consultas rodam de novo com a permissão
 // vigente, e nenhum número fica guardado como se fosse atual.
 import { z } from "zod";
-import { CONSULTAS, NOMES_CONSULTAS } from "./metricas.ts";
-import type { NomeConsulta } from "./metricas.ts";
+import { CONSULTAS, NOMES_CONSULTAS, executarConsulta } from "./metricas.ts";
+import type { EntradaConsulta, NomeConsulta } from "./metricas.ts";
 import { FiltrosSchema } from "./filtros.ts";
 import type { Filtros } from "./filtros.ts";
 import type { Forma, Resultado } from "./resultado.ts";
@@ -66,7 +66,10 @@ export const PropostaVisaoSchema = z
 export type PropostaVisao = z.infer<typeof PropostaVisaoSchema>;
 
 export const ConsultaSchema = z
-  .object({ nome: z.enum(NOMES_CONSULTAS as [NomeConsulta, ...NomeConsulta[]]), args: z.record(z.unknown()) })
+  .object({
+    nome: z.enum(NOMES_CONSULTAS as [NomeConsulta, ...NomeConsulta[]]),
+    args: z.record(z.any()),
+  })
   .strict();
 
 export const VisaoDefinicaoSchema = z
@@ -105,9 +108,14 @@ export function definicaoDaProposta(
     );
   const blocos = p.data.blocos.map((b, i) => {
     const r = registro.get(b.resultado);
-    if (!r) throw new EspecificacaoRecusada(`O bloco ${i + 1} aponta para ${b.resultado}, que não existe nesta conversa.`);
+    if (!r)
+      throw new EspecificacaoRecusada(
+        `O bloco ${i + 1} aponta para ${b.resultado}, que não existe nesta conversa.`,
+      );
     if (!FORMAS_DO_BLOCO[b.tipo].includes(r.dados.forma))
-      throw new EspecificacaoRecusada(`O bloco ${i + 1} (${b.tipo}) não desenha um resultado de forma ${r.dados.forma}.`);
+      throw new EspecificacaoRecusada(
+        `O bloco ${i + 1} (${b.tipo}) não desenha um resultado de forma ${r.dados.forma}.`,
+      );
     return {
       id: `b${i + 1}`,
       tipo: b.tipo,
@@ -147,4 +155,44 @@ export function aplicarFiltros(d: VisaoDefinicao, controles: Filtros): VisaoDefi
     return { ...b, consulta: { ...b.consulta, args: { ...b.consulta.args, filtros: atuais } } };
   });
   return VisaoDefinicaoSchema.parse({ ...d, filtros, blocos });
+}
+
+/**
+ * Filtros que valem na visão: os declarados pelo modelo e, no que faltar, os que as consultas
+ * realmente usaram. É o que os controles editáveis da tela mostram.
+ */
+export function filtrosEfetivos(d: VisaoDefinicao): Filtros {
+  const out: Filtros = { ...d.filtros };
+  for (const b of d.blocos) {
+    const f = (b.consulta.args.filtros as Filtros | undefined) ?? {};
+    for (const [k, v] of Object.entries(f))
+      if (v !== undefined && !(k in out)) (out as Record<string, unknown>)[k] = v;
+  }
+  return FiltrosSchema.parse(out);
+}
+
+export interface BlocoResolvido {
+  id: string;
+  tipo: TipoBloco;
+  titulo?: string;
+  resultado: Resultado;
+}
+
+/**
+ * Executa uma definição (salva, do histórico ou com controles alterados) sobre a carga da pessoa.
+ * Cada bloco roda de novo a consulta; nada vem de número guardado.
+ */
+export function executarVisao(
+  entrada: EntradaConsulta,
+  definicao: unknown,
+  controles?: Filtros,
+): { definicao: VisaoDefinicao; blocos: BlocoResolvido[]; filtros: Filtros } {
+  const lida = VisaoDefinicaoSchema.safeParse(definicao);
+  if (!lida.success) throw new EspecificacaoRecusada("Definição de visão inválida.");
+  const d = controles ? aplicarFiltros(lida.data, controles) : lida.data;
+  const blocos = d.blocos.map((b) => {
+    const resultado = executarConsulta(entrada, b.consulta.nome, b.consulta.args, b.id);
+    return { id: b.id, tipo: b.tipo, ...(b.titulo ? { titulo: b.titulo } : {}), resultado };
+  });
+  return { definicao: d, blocos, filtros: filtrosEfetivos(d) };
 }

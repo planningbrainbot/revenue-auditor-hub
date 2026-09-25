@@ -72,20 +72,24 @@ export function conferirTexto(
     const d = r.dados;
     // Quantidade de itens mostrados ("2 unidades", "6 meses") é contagem visível na tela.
     const qtd =
-      d.forma === "categorias" ? d.itens.length
-      : d.forma === "serie" ? d.pontos.length
-      : d.forma === "funil" ? d.etapas.length
-      : d.forma === "acoes" ? d.itens.length
-      : d.forma === "coorte" ? d.linhas.length
-      : null;
+      d.forma === "categorias"
+        ? d.itens.length
+        : d.forma === "serie"
+          ? d.pontos.length
+          : d.forma === "funil"
+            ? d.etapas.length
+            : d.forma === "acoes"
+              ? d.itens.length
+              : d.forma === "coorte"
+                ? d.linhas.length
+                : null;
     if (qtd !== null) permitidos.add(qtd);
     if (d.forma === "serie") permitidos.add(d.series.length);
   }
   for (const n of lerNumeros(pergunta)) permitidos.add(n.valor);
   const lista = [...permitidos];
   const confere = (n: NumeroLido) =>
-    ehAno(n) ||
-    lista.some((p) => Math.abs(Math.abs(p) - Math.abs(n.valor)) <= n.tolerancia + 1e-9);
+    ehAno(n) || lista.some((p) => Math.abs(Math.abs(p) - Math.abs(n.valor)) <= n.tolerancia + 1e-9);
 
   const mantidas: string[] = [];
   const descartadas: string[] = [];

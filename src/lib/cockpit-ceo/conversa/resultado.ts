@@ -65,7 +65,8 @@ export interface Resultado {
   id: string;
   consulta: string;
   /** Argumentos validados: com eles a mesma consulta é refeita ao reabrir uma visão. */
-  args: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON validado pelo schema da consulta
+  args: Record<string, any>;
   versaoRegra: string;
   titulo: string;
   unidade: UnidadeContagem;
