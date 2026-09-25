@@ -3338,3 +3338,24 @@ chunks de Pessoas e da ficha. Rollback do código: promover
 ver entrada anterior); e-mail certo do Willian; recorte do Willian e da Paula
 (sugestão: todas as unidades, como os colegas de perfil); "contrato ok" das
 duas telas.
+
+## 2026-09-25 · Churn antes do 1º pagamento na aba Tratativas
+
+**Pedido:** saber, no `/painel-cs` (Tratativas), quantos churns saíram antes
+de pagar o primeiro honorário.
+
+**Régua:** `ops.v_tratativas_primeiro_pagamento` (security_invoker), uma linha
+por tratativa `lost` em três estados nunca somados: `pagou` (recebido no Omie
+até a data do churn), `nao_pagou` (títulos emitidos e nenhum pago até o
+churn, ou card do pipe Cobrança CAC em "Churn antes do 1º Fee") e `sem_dado`
+(nenhum título achado; Fortaleza e São Luís não têm Omie espelhado). Cliente
+casado por CNPJ (contratos/empresas pelo deal) e, sem CNPJ, por prefixo do
+nome na mesma unidade. O card mostra os confirmados como taxa e o teto
+(confirmados + sem dado) na nota, com estado "parcial" enquanto houver sem
+dado. Grade de KPIs passa a 3 colunas (9 cards).
+
+**Primeira medição:** 6 de 30 perdidos (20,0%), 7 sem dado, teto 43,3%.
+
+**Banco:** migration `20260925120000_tratativas_primeiro_pagamento.sql`
+aplicada no `npknehhyyzelmrbbxvtu` antes do deploy (1,6 s de execução; sem
+os CTEs materializados passava de 30 s).

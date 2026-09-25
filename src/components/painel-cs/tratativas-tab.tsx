@@ -68,6 +68,8 @@ type Tratativa = {
   pipefy_card_id: string | null;
 };
 
+type SituacaoPagamento = "pagou" | "nao_pagou" | "sem_dado";
+
 const NA = "—";
 const TODOS = "__all__";
 const CHAVES_FILTRO = ["q", "unidade", "status", "de", "ate"];
@@ -131,6 +133,8 @@ export function TratativasTab() {
   const [rows, setRows] = useState<Tratativa[]>([]);
   const [ganhoEmPorDealId, setGanhoEmPorDealId] = useState<Map<string, string>>(new Map());
   const [empresasBaseNova, setEmpresasBaseNova] = useState<{ pipedrive_id: string | null; unidade: string | null }[]>([]);
+  // null = a view não respondeu: o card fica "indisponível", não zero.
+  const [pagamentoPorTratativa, setPagamentoPorTratativa] = useState<Map<number, SituacaoPagamento> | null>(null);
   const [loading, setLoading] = useState(true);
   const [erros, setErros] = useState<string[]>([]);
   // Filtros na URL (N7): recarregar ou colar o link reproduz o recorte.
@@ -142,7 +146,7 @@ export function TratativasTab() {
   const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
 
   const carregar = useCallback(async () => {
-    const [tratativasRes, contratosRes, empresasRes] = await Promise.all([
+    const [tratativasRes, contratosRes, empresasRes, pagamentoRes] = await Promise.all([
       supabase
         .from("central_tratativas")
         .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id,pipefy_card_id")
@@ -158,6 +162,11 @@ export function TratativasTab() {
         .select("pipedrive_id,unidade")
         .eq("tipo_unidade", "franquia")
         .limit(5000),
+      // Pagou algum honorário antes de sair? Resolvido no banco (Omie por CNPJ
+      // ou nome + pipe Cobrança CAC): ver ops.v_tratativas_primeiro_pagamento.
+      // A view ainda não está nos tipos gerados.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("v_tratativas_primeiro_pagamento").select("id,situacao").limit(5000),
     ]);
     // Erro de leitura era engolido e a tela mostrava zeros (N4): cada fonte
     // que falhou é nomeada no EstadoErro.
@@ -166,6 +175,14 @@ export function TratativasTab() {
     if (contratosRes.error) falhas.push(`contratos (data do ganho): ${contratosRes.error.message}`);
     if (empresasRes.error) falhas.push(`empresas (base para o churn blended): ${empresasRes.error.message}`);
     setErros(falhas);
+    // Falha aqui não derruba a aba: só o card de 1º pagamento fica indisponível.
+    if (pagamentoRes.error) {
+      setPagamentoPorTratativa(null);
+    } else {
+      setPagamentoPorTratativa(
+        new Map((pagamentoRes.data as { id: number; situacao: SituacaoPagamento }[]).map((p) => [p.id, p.situacao])),
+      );
+    }
     if (tratativasRes.data) setRows(tratativasRes.data as Tratativa[]);
     if (contratosRes.data) {
       const map = new Map<string, string>();
@@ -299,6 +316,8 @@ export function TratativasTab() {
     let perdidosSemMrr = 0;
     let mrrRecuperado = 0;
     const tenures: number[] = [];
+    let churnAntesPagamento = 0;
+    let perdidosSemDadoPagamento = 0;
     for (const r of filtered) {
       const s = (r.status ?? "").toLowerCase();
       const mrr = r.mrr ?? 0;
@@ -308,6 +327,9 @@ export function TratativasTab() {
         if (r.mrr == null) perdidosSemMrr += 1;
         const t = tenureDias(r);
         if (t != null) tenures.push(t);
+        const pg = pagamentoPorTratativa?.get(r.id);
+        if (pg === "nao_pagou") churnAntesPagamento += 1;
+        else if (pg !== "pagou") perdidosSemDadoPagamento += 1;
       } else if (s === "won") {
         recuperados += 1;
         mrrRecuperado += mrr;
@@ -331,8 +353,15 @@ export function TratativasTab() {
       churnBlendedDenom: baseNovaStats.ativos,
       tenureMedioDias,
       tenureAmostra: tenures.length,
+      churnAntesPagamento,
+      perdidosSemDadoPagamento,
+      // Confirmados sobre os perdidos do recorte; "sem dado" não entra no
+      // numerador, e a nota mostra o teto se todos forem casos de não pagamento.
+      taxaChurnAntesPagamento: perdidos > 0 ? (churnAntesPagamento / perdidos) * 100 : null,
+      tetoChurnAntesPagamento:
+        perdidos > 0 ? ((churnAntesPagamento + perdidosSemDadoPagamento) / perdidos) * 100 : null,
     };
-  }, [filtered, ganhoEmPorDealId, baseNovaStats, churnedIdsEscopo]);
+  }, [filtered, ganhoEmPorDealId, baseNovaStats, churnedIdsEscopo, pagamentoPorTratativa]);
 
   const motivosPerda = useMemo(() => {
     const map = new Map<string, { motivo: string; count: number; mrr: number }>();
@@ -431,11 +460,11 @@ export function TratativasTab() {
       ) : (
       <>
 
-      {/* KPIs — oito números em duas linhas de quatro: a grade do design system
-          vai até seis por linha, e oito cards de 30px numa só não cabem. As
+      {/* KPIs — nove números em três linhas de três: a grade do design system
+          vai até seis por linha, e nove cards de 30px numa só não cabem. As
           cores de perdido/recuperado ficam como tom do KpiCard, com ícone de status
           junto da cor (V7). */}
-      <KpiGrade colunas={4}>
+      <KpiGrade colunas={3}>
         <KpiCard rotulo="Total" valor={kpis.total} />
         <KpiCard rotulo="Em aberto" valor={kpis.abertos} />
         <KpiCard rotulo="Perdidos" valor={kpis.perdidos} tom="perigo" />
@@ -468,6 +497,29 @@ export function TratativasTab() {
               ? `${kpis.tenureAmostra} caso(s) com contrato + data de churn`
               : "sem dados suficientes"
           }
+        />
+        <KpiCard
+          rotulo="Churn antes do 1º pagamento"
+          valor={fmtPct(kpis.taxaChurnAntesPagamento)}
+          estado={
+            pagamentoPorTratativa == null
+              ? "indisponivel"
+              : kpis.taxaChurnAntesPagamento == null
+                ? "nao-apurado"
+                : kpis.perdidosSemDadoPagamento > 0
+                  ? "parcial"
+                  : "ok"
+          }
+          tom="perigo"
+          nota={
+            kpis.perdidos === 0
+              ? "sem perdidos no recorte"
+              : `${kpis.churnAntesPagamento} de ${kpis.perdidos} perdidos sem pagar nenhum honorário` +
+                (kpis.perdidosSemDadoPagamento > 0
+                  ? ` · ${kpis.perdidosSemDadoPagamento} sem dado de pagamento (até ${fmtPct(kpis.tetoChurnAntesPagamento)})`
+                  : "")
+          }
+          procedencia={{ fonte: "Omie (contas a receber) + pipe Cobrança CAC" }}
         />
       </KpiGrade>
 
