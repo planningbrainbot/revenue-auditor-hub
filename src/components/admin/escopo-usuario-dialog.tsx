@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { Building2, Store, X } from "lucide-react";
 import { getEscopoDoUsuario, salvarEscopoDoUsuario } from "@/lib/permissions.functions";
 import { cn } from "@/lib/utils";
@@ -61,11 +62,33 @@ export function EscopoUsuarioDialog({
         },
       }),
     onSuccess: () => {
+      toast.success(`Recorte de ${nome}: ${descreverRecorte()}. Vale no próximo carregamento.`);
       qc.invalidateQueries({ queryKey: ["escopo-usuario", userId] });
       qc.invalidateQueries({ queryKey: ["my-perms"] });
       onClose();
     },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao salvar o escopo."),
   });
+
+  /** O recorte que vai ser salvo, em palavras, para o toast. */
+  function descreverRecorte(): string {
+    const nomesUnidades = (q.data?.unidades ?? [])
+      .filter((u) => unidades.includes(u.id))
+      .map((u) => u.nome_da_praca);
+    const u = todasUnidades
+      ? "todas as unidades"
+      : nomesUnidades.length === 0
+        ? "nenhuma unidade"
+        : nomesUnidades.length <= 3
+          ? nomesUnidades.join(", ")
+          : `${nomesUnidades.length} unidades`;
+    const e = todasEmpresas
+      ? "todas as empresas"
+      : empresas.length === 0
+        ? "nenhuma empresa"
+        : `${empresas.length} ${empresas.length === 1 ? "empresa" : "empresas"}`;
+    return `${u} · ${e}`;
+  }
 
   const porGrupo = useMemo(() => {
     const m = new Map<string, { id: string; apelido: string; nome_fantasia: string }[]>();

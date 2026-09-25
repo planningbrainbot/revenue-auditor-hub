@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PageHeader } from "@/components/planning";
+import { Carregando, EstadoErro, EstadoVazio, PageHeader } from "@/components/planning";
 
 export const Route = createFileRoute("/_authenticated/pagamentos-unidades")({
+  head: () => ({ meta: [{ title: "Títulos por vencimento · Planning Brain" }] }),
   component: PagamentosUnidadesPage,
 });
 
@@ -88,7 +89,8 @@ type UnidadePivot = {
   cats: CatPivot[];
 };
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
+// "Pagamentos" era o nome, mas a tela soma títulos a receber pelo mês de
+// vencimento, pagos ou não: o título diz isso (contrato de 24/09/2026).
 function PagamentosUnidadesPage() {
   const anoAtual = String(new Date().getFullYear());
   const [ano, setAno] = useState(anoAtual);
@@ -98,6 +100,7 @@ function PagamentosUnidadesPage() {
   const [categoriasMap, setCategoriasMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -115,7 +118,7 @@ function PagamentosUnidadesPage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [ano]);
+  }, [ano, tentativa]);
 
   const toggle = (key: string) =>
     setExpanded((prev) => {
@@ -192,13 +195,27 @@ function PagamentosUnidadesPage() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
-        titulo="Pagamentos das Unidades"
-        descricao={`Faturamento Partners por unidade e linha de receita — ${ano}`}
+        titulo="Títulos por vencimento"
+        pergunta="Quanto cada unidade tem em títulos a receber, mês a mês pelo vencimento?"
+        descricao={
+          <>
+            Títulos a receber da Partners no Omie, pagos ou não, somados pelo mês de vencimento ·{" "}
+            {ano} · valor do documento, sem cancelados. Tela fora do menu desde 14/09/2026; continua
+            aberta por link direto. O acompanhamento da receita da rede está em{" "}
+            <Link
+              to="/receita-overview"
+              className="rounded-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Receita e Repasses › Visão geral
+            </Link>
+            .
+          </>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={ano} onValueChange={setAno}>
-          <SelectTrigger className="w-[100px]">
+          <SelectTrigger className="w-[100px]" aria-label="Ano de vencimento">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -209,7 +226,7 @@ function PagamentosUnidadesPage() {
         </Select>
 
         <Select value={unidadeFilter} onValueChange={setUnidadeFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-[200px]" aria-label="Unidade">
             <SelectValue placeholder="Unidade" />
           </SelectTrigger>
           <SelectContent>
@@ -227,18 +244,21 @@ function PagamentosUnidadesPage() {
         )}
       </div>
 
-      {error && (
-        <Card className="p-4 border-danger/40 bg-danger-soft text-sm text-danger">{error}</Card>
-      )}
-
-      <Card className="overflow-x-auto">
-        {loading ? (
-          <div className="p-6 text-sm text-muted-foreground">Carregando...</div>
-        ) : pivot.length === 0 ? (
-          <div className="p-6 text-sm text-muted-foreground">
-            Nenhum dado para os filtros selecionados.
-          </div>
-        ) : (
+      {error ? (
+        <EstadoErro
+          titulo="Não foi possível carregar os títulos"
+          detalhe={error}
+          tentarNovamente={() => setTentativa((n) => n + 1)}
+        />
+      ) : loading ? (
+        <Carregando variante="tabela" />
+      ) : pivot.length === 0 ? (
+        <EstadoVazio
+          titulo={`Nenhum título a receber com vencimento em ${ano}`}
+          total={unidadeFilter !== "__all__" ? rows.length : undefined}
+        />
+      ) : (
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -263,14 +283,22 @@ function PagamentosUnidadesPage() {
                       onClick={() => toggle(u.nomeDisplay)}
                     >
                       <TableCell className="py-2 font-semibold sticky left-0 bg-muted/20">
-                        <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(u.nomeDisplay);
+                          }}
+                          className="flex items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        >
                           {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           ) : (
-                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                           )}
                           {u.nomeDisplay}
-                        </div>
+                        </button>
                       </TableCell>
                       {months.map((m) => (
                         <TableCell key={m} className="text-right tabular-nums py-2 font-semibold">
@@ -310,7 +338,7 @@ function PagamentosUnidadesPage() {
             </TableBody>
             <tfoot>
               <tr className="border-t-2 border-border bg-muted/40 font-bold">
-                <td className="py-2.5 px-4 text-sm sticky left-0 bg-muted/40">Grand Total</td>
+                <td className="py-2.5 px-4 text-sm sticky left-0 bg-muted/40">Total</td>
                 {months.map((m) => (
                   <td key={m} className="py-2.5 px-4 text-right tabular-nums text-sm">
                     {grandTotal.monthly[m] ? BRL(grandTotal.monthly[m]) : ""}
@@ -322,8 +350,8 @@ function PagamentosUnidadesPage() {
               </tr>
             </tfoot>
           </Table>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }

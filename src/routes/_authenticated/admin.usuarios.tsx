@@ -1,7 +1,9 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { Search } from "lucide-react";
 import {
   adminCreateUser,
   adminAccessEmailStatus,
@@ -15,12 +17,31 @@ import {
   adminRevokeGrowthAccess,
   adminUpdateUser,
 } from "@/lib/admin-users.functions";
-import { getSocioUnidadeByEmail } from "@/lib/permissions.functions";
+import { getAcessosDoUsuario, getSocioUnidadeByEmail } from "@/lib/permissions.functions";
 import { listRoles } from "@/lib/roles.functions";
 import { generatePassword } from "@/lib/password-utils";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { AppShell } from "@/components/app-shell";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+} from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { EscopoUsuarioDialog } from "@/components/admin/escopo-usuario-dialog";
 import { AcessosUsuarioDialog } from "@/components/admin/acessos-usuario-dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +93,56 @@ const PRODUTOS = [
 const PRODUTO_PILL_OFF =
   "border border-dashed border-border text-muted-foreground hover:border-solid hover:bg-accent";
 
+/** "A, B e C": a lista das áreas no texto do efeito. */
+function listar(itens: string[]): string {
+  if (itens.length <= 1) return itens.join("");
+  return `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+}
+
+/**
+ * O que muda nas áreas quando o papel troca, na mesma regra do servidor
+ * (`ops.acesso_do_usuario`, migration 20260917220000): áreas do papel menos as
+ * bloqueadas para a pessoa (o super admin não sofre bloqueio), mais as que ela
+ * tem por delegação (`area_admins`, `usuario_areas` liberada). O papel `admin`
+ * entra como qualquer outro, pelas áreas que `role_areas` dá a ele.
+ *
+ * Entra o que o cliente já carrega: áreas por papel (`listRoles`, por nome) e
+ * os acessos da pessoa (`getAcessosDoUsuario`, o mesmo do diálogo de acessos).
+ * Sem os dois, a tela não afirma efeito nenhum.
+ */
+type EfeitoPapel = { passa: string[]; deixa: string[] };
+
+const NIVEIS_DELEGADOS = new Set(["usuario", "socio", "admin"]);
+
+function efeitoDaTroca(
+  roles: { key: string; areas: string[] }[],
+  acessos: { areas: { nome: string; pelo_papel: boolean; nivel: string }[] },
+  de: string,
+  para: string,
+): EfeitoPapel {
+  const doPapel = (k: string) => new Set(k ? roles.find((r) => r.key === k)?.areas ?? [] : []);
+  const antes = doPapel(de);
+  const depois = doPapel(para);
+  const ve = (a: { nome: string; nivel: string }, papel: Set<string>, superAdmin: boolean) =>
+    NIVEIS_DELEGADOS.has(a.nivel) || (papel.has(a.nome) && (superAdmin || a.nivel !== "bloqueado"));
+  const passa: string[] = [];
+  const deixa: string[] = [];
+  for (const a of acessos.areas) {
+    const via = ve(a, antes, de === "admin");
+    const vera = ve(a, depois, para === "admin");
+    if (!via && vera) passa.push(a.nome);
+    if (via && !vera) deixa.push(a.nome);
+  }
+  return { passa, deixa };
+}
+
+function textoDoEfeito(e: EfeitoPapel): string {
+  const partes: string[] = [];
+  if (e.passa.length) partes.push(`Passa a ver ${listar(e.passa)}.`);
+  if (e.deixa.length) partes.push(`Deixa de ver ${listar(e.deixa)}.`);
+  return partes.length ? partes.join(" ") : "As áreas que ela vê continuam as mesmas.";
+}
+
 type GrowthAlvo = {
   email: string;
   nome: string;
@@ -99,6 +170,7 @@ function UsersPage() {
   const growthGrantFn = useServerFn(adminGrantGrowthAccess);
   const growthRevokeFn = useServerFn(adminRevokeGrowthAccess);
   const portaOpsFn = useServerFn(adminDefinirPortaOps);
+  const acessosFn = useServerFn(getAcessosDoUsuario);
 
   useEffect(() => {
     if (!roleLoading && !isAdmin) navigate({ to: "/" });
@@ -182,6 +254,24 @@ function UsersPage() {
   // `tem` é a porta do Ops, que o diálogo de Acessos mostra e liga/desliga.
   const [acessosAlvo, setAcessosAlvo] = useState<{ userId: string; nome: string; tem: boolean } | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  // Os dois destrutivos da tela confirmam em AlertDialog, com o efeito (V6).
+  const [excluirAlvo, setExcluirAlvo] = useState<{
+    user_id: string;
+    email: string;
+    nome: string;
+    produtos: string[];
+  } | null>(null);
+  const [revogarGrowth, setRevogarGrowth] = useState(false);
+  // Troca de papel que tira área: confirma antes (padrão de /admin/permissoes).
+  const [trocaComPerda, setTrocaComPerda] = useState<{
+    user_id: string;
+    nome: string;
+    role: string | null;
+    efeito?: string;
+    /** Os acessos da pessoa não carregaram: confirma sem afirmar efeito. */
+    semEfeito?: boolean;
+  } | null>(null);
+  const [busca, setBusca] = useFiltroNaUrl("q", "");
   const [unidadeSel, setUnidadeSel] = useState("");
 
   // Preview da unidade quando role=socio + email digitado
@@ -207,15 +297,25 @@ function UsersPage() {
   }, [email, role, lookupFn]);
 
   const portaOpsMut = useMutation({
-    mutationFn: (input: { userId: string; conceder: boolean }) => portaOpsFn({ data: input }),
-    onSuccess: (res) => {
+    mutationFn: (input: { userId: string; conceder: boolean; nome: string }) =>
+      portaOpsFn({ data: { userId: input.userId, conceder: input.conceder } }),
+    onSuccess: (res, variables) => {
+      toast.success(
+        res.conceder
+          ? `${variables.nome} passa a entrar no Ops, nas áreas marcadas abaixo. Vale no próximo carregamento.`
+          : `${variables.nome} deixa de entrar no Ops. As áreas marcadas ficam guardadas para quando a porta reabrir.`,
+      );
       // O diálogo fica aberto: quem acabou de conceder normalmente quer
       // marcar as áreas em seguida, e fechar aqui obrigaria a reabrir.
       setAcessosAlvo((a) => (a ? { ...a, tem: res.conceder } : a));
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao mudar o acesso ao Ops"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao mudar o acesso ao Ops";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const [growthAlvo, setGrowthAlvo] = useState<GrowthAlvo | null>(null);
@@ -224,6 +324,11 @@ function UsersPage() {
     mutationFn: (input: { email: string; nome: string; papel: string; departamento: string; password?: string }) =>
       growthGrantFn({ data: input }),
     onSuccess: (res, variables) => {
+      toast.success(
+        growthAlvo?.jaTemAcesso
+          ? `Growth de ${variables.nome} atualizado: ${variables.papel} · ${variables.departamento}.`
+          : `${variables.nome} passa a entrar no Growth como ${variables.papel} · ${variables.departamento}.`,
+      );
       if (res.loginCriado && variables.password) {
         setCredential({ email: `${res.email} (Growth)`, password: variables.password });
       }
@@ -231,22 +336,35 @@ function UsersPage() {
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao conceder acesso no Growth"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao conceder acesso no Growth";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const growthRevokeMut = useMutation({
     mutationFn: (email: string) => growthRevokeFn({ data: { email } }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      toast.success(`${res.email} deixa de entrar no Growth. Ops e Financeiro continuam como estavam.`);
+      setRevogarGrowth(false);
       setGrowthAlvo(null);
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao revogar acesso no Growth"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao revogar acesso no Growth";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const createMut = useMutation({
     mutationFn: (input: { nome: string; email: string; role: Role; password: string; unidade?: string }) => createFn({ data: input }),
     onSuccess: (res) => {
+      if (res.emailEnviado) toast.success(`${res.email} criado. O convite saiu por e-mail.`);
+      else toast.warning(`${res.email} criado, mas o e-mail não saiu. Copie o link no topo da página.`);
+      mostrarResultadoNoTopo();
       setAcesso({
         modo: "convite",
         email: res.email,
@@ -264,12 +382,19 @@ function UsersPage() {
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao criar usuário"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao criar usuário";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const resetMut = useMutation({
     mutationFn: ({ user_id }: { user_id: string }) => resetFn({ data: { user_id } }),
     onSuccess: (res) => {
+      if (res.emailEnviado)
+        toast.success(`Link de redefinição enviado a ${res.email}. A senha atual vale até ela trocar.`);
+      else toast.warning(`O e-mail para ${res.email} não saiu. Copie o link no topo da página.`);
       setCredential(null);
       setSenhaAlvo(null);
       setError(null);
@@ -282,7 +407,11 @@ function UsersPage() {
       });
       mostrarResultadoNoTopo();
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao enviar a redefinição de senha"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao enviar a redefinição de senha";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const senhaProvisoriaMut = useMutation({
@@ -291,37 +420,85 @@ function UsersPage() {
       // Os dois painéis nunca aparecem juntos: são dois caminhos para a mesma
       // pergunta ("como essa pessoa entra?"), e ver os dois faria duvidar de
       // qual valeu.
+      toast.success(`Senha provisória de ${res.email} gerada. A anterior já não vale.`);
       setAcesso(null);
       setSenhaAlvo(null);
       setError(null);
       setCredential({ email: res.email, password: res.senha, provisoria: true });
       mostrarResultadoNoTopo();
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao gerar a senha provisória"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao gerar a senha provisória";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const deleteMut = useMutation({
-    mutationFn: (user_id: string) => deleteFn({ data: { user_id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-users"] }),
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao excluir"),
+    mutationFn: (alvo: { user_id: string; email: string }) => deleteFn({ data: { user_id: alvo.user_id } }),
+    onSuccess: (_res, alvo) => {
+      toast.success(`${alvo.email} excluído. A conta não entra mais no Ops, no Growth nem no Financeiro.`);
+      setExcluirAlvo(null);
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-growth-access"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao excluir"),
   });
 
   const updateMut = useMutation({
-    mutationFn: (input: { user_id: string; nome: string; role?: string | null }) => updateFn({ data: input }),
-    onSuccess: () => {
+    mutationFn: (input: {
+      user_id: string;
+      nome: string;
+      role?: string | null;
+      efeito?: string;
+      semEfeito?: boolean;
+    }) =>
+      updateFn({ data: { user_id: input.user_id, nome: input.nome, role: input.role } }),
+    onSuccess: (_res, input) => {
+      toast.success(
+        input.efeito
+          ? `${input.nome}: papel trocado. ${input.efeito} Vale no próximo carregamento.`
+          : input.role !== undefined
+            ? `${input.nome}: papel trocado. Vale no próximo carregamento.`
+            : `${input.nome} atualizado.`,
+      );
       setEditingId(null);
       setEditingNome("");
       setEditingRole("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["acessos-usuario", input.user_id] });
+      qc.invalidateQueries({ queryKey: ["admin-roles"] });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Erro ao atualizar"),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : "Erro ao atualizar";
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingNome, setEditingNome] = useState("");
   // "" é sem papel. O papel só existia no cadastro: mudar depois pedia SQL.
   const [editingRole, setEditingRole] = useState("");
+
+  // Os acessos de quem está em edição, para dizer o efeito da troca de papel.
+  const acessosEdicao = useQuery({
+    queryKey: ["acessos-usuario", editingId],
+    queryFn: () => acessosFn({ data: { userId: editingId as string } }),
+    enabled: isAdmin && !!editingId,
+  });
+  const calculandoEfeito = rolesQuery.isPending || acessosEdicao.isPending;
+  const efeitoFalhou = rolesQuery.isError || acessosEdicao.isError;
+
+  /** O efeito da troca em texto, ou por que não há efeito para mostrar. */
+  function efeitoDaEdicao(roleAtual: string): { texto: string; efeito?: EfeitoPapel } {
+    if (efeitoFalhou) return { texto: "Não foi possível calcular o efeito desta troca." };
+    if (calculandoEfeito || !rolesQuery.data || !acessosEdicao.data)
+      return { texto: "Calculando o efeito…" };
+    const efeito = efeitoDaTroca(rolesQuery.data, acessosEdicao.data, roleAtual, editingRole);
+    return { texto: textoDoEfeito(efeito), efeito };
+  }
 
   function abrirEdicao(u: { user_id: string; nome: string | null; role: string | null }) {
     setEditingId(u.user_id);
@@ -334,13 +511,23 @@ function UsersPage() {
     const nome = editingNome.trim();
     if (!nome) return;
     const roleAtual = u.role ?? "";
-    updateMut.mutate({
-      user_id: u.user_id,
-      nome,
-      // Só manda o papel quando mudou: assim salvar um nome nunca reescreve
-      // user_roles sem querer.
-      ...(editingRole === roleAtual ? {} : { role: editingRole || null }),
-    });
+    // Só manda o papel quando mudou: assim salvar um nome nunca reescreve
+    // user_roles sem querer.
+    if (editingRole === roleAtual) {
+      updateMut.mutate({ user_id: u.user_id, nome });
+      return;
+    }
+    const base = { user_id: u.user_id, nome, role: editingRole || null };
+    const { texto, efeito } = efeitoDaEdicao(roleAtual);
+    // Sem o cálculo, não afirma efeito: pede confirmação dizendo isso.
+    if (!efeito) {
+      if (efeitoFalhou) setTrocaComPerda({ ...base, semEfeito: true });
+      return;
+    }
+    const input = { ...base, efeito: texto };
+    // Confirma só quando uma área realmente some; alargar ou manter salva direto.
+    if (efeito.deixa.length) setTrocaComPerda(input);
+    else updateMut.mutate(input);
   }
 
   /**
@@ -362,11 +549,49 @@ function UsersPage() {
     navigator.clipboard?.writeText(text);
   }
 
-  if (roleLoading) return <div className="p-8 text-muted-foreground">Carregando...</div>;
-  if (!isAdmin) return null;
+  const usuarios = usersQuery.data ?? [];
+  const termo = busca.trim().toLowerCase();
+  const filtrados = useMemo(
+    () =>
+      usuarios.filter(
+        (u) =>
+          !termo ||
+          (u.nome ?? "").toLowerCase().includes(termo) ||
+          (u.email ?? "").toLowerCase().includes(termo),
+      ),
+    [usuarios, termo],
+  );
+
+  const titulo = "Usuários";
+  const pergunta = "Quem acessa o Brain, com qual papel?";
+
+  if (roleLoading)
+    return (
+      <div className="p-4 md:p-6">
+        <Carregando variante="pagina" />
+      </div>
+    );
+  if (!isAdmin)
+    return (
+      <AppShell title={titulo} pergunta={pergunta}>
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <EstadoSemAcesso oQueFalta="admin (Administração)" />
+        </div>
+      </AppShell>
+    );
 
   return (
-    <AppShell title="Gerenciar usuários" subtitle="Cadastre admins, diretores e sócios">
+    <AppShell
+      title={titulo}
+      pergunta={pergunta}
+      subtitle={
+        <>
+          {usersQuery.data ? `${usuarios.length} ${usuarios.length === 1 ? "conta" : "contas"} · ` : ""}
+          Conta nova recebe o convite por e-mail. Papel e acessos valem no próximo carregamento da
+          pessoa; excluir apaga a conta nos três produtos.
+        </>
+      }
+    >
       <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
         <section className="rounded-xl border bg-card px-5 py-4">
           <h2 className="text-sm font-semibold">Emails de acesso</h2>
@@ -490,8 +715,20 @@ function UsersPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Usuários ({usersQuery.data?.length ?? 0})</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome ou e-mail"
+              aria-label="Buscar por nome ou e-mail"
+              className="h-9 w-[260px] pl-8"
+            />
+          </div>
           <button
             onClick={() => { setShowForm((s) => !s); setError(null); }}
             className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
@@ -576,6 +813,31 @@ function UsersPage() {
           </form>
         )}
 
+        {/* Motivo visível da pílula Growth desabilitada (N8), uma vez para a tabela. */}
+        {!growthConfigurado && (
+          <p id="motivo-growth" aria-live="polite" className="text-xs text-muted-foreground">
+            {growthQuery.isPending
+              ? "Conferindo a conexão com o Growth…"
+              : "O Growth não está conectado neste ambiente: a pílula Growth fica desabilitada."}
+          </p>
+        )}
+
+        {usersQuery.isLoading ? (
+          <Carregando variante="tabela" />
+        ) : usersQuery.isError ? (
+          <EstadoErro
+            titulo="Não foi possível carregar os usuários"
+            detalhe={usersQuery.error instanceof Error ? usersQuery.error.message : undefined}
+            tentarNovamente={() => usersQuery.refetch()}
+          />
+        ) : usuarios.length === 0 ? (
+          <EstadoVazio
+            titulo="Nenhum usuário cadastrado"
+            descricao="Use “Novo usuário” para cadastrar o primeiro."
+          />
+        ) : filtrados.length === 0 ? (
+          <EstadoVazio titulo="Ninguém com esse nome ou e-mail" total={usuarios.length} />
+        ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="min-w-full text-sm">
             <thead className="bg-accent/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -589,10 +851,7 @@ function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {usersQuery.isLoading && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Carregando...</td></tr>
-              )}
-              {usersQuery.data?.map((u) => (
+              {filtrados.map((u) => (
                 <tr key={u.user_id} className="border-t">
                   <td className="px-4 py-2 text-foreground">
                     {editingId === u.user_id ? (
@@ -614,10 +873,14 @@ function UsersPage() {
                   <td className="px-4 py-2">
                     {editingId === u.user_id ? (
                       <>
+                        <label htmlFor={`papel-${u.user_id}`} className="sr-only">
+                          Papel de {u.nome || u.email}
+                        </label>
                         <select
+                          id={`papel-${u.user_id}`}
                           value={editingRole}
                           onChange={(e) => setEditingRole(e.target.value)}
-                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs"
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <option value="">sem papel</option>
                           {roles.map((r) => (
@@ -625,9 +888,17 @@ function UsersPage() {
                           ))}
                         </select>
                         {editingRole !== (u.role ?? "") && (
-                          <p className="mt-1 text-xs leading-tight text-muted-foreground">
-                            Troca as áreas que vêm do perfil. O que foi dado a ela em Acessos
-                            continua igual.
+                          <p
+                            id={`efeito-${u.user_id}`}
+                            aria-live="polite"
+                            className="mt-1 max-w-56 text-xs leading-tight text-muted-foreground"
+                          >
+                            {(() => {
+                              const { texto, efeito } = efeitoDaEdicao(u.role ?? "");
+                              return efeito
+                                ? `${texto} O que foi dado a ela na pílula Ops continua igual.`
+                                : texto;
+                            })()}
                           </p>
                         )}
                       </>
@@ -692,7 +963,12 @@ function UsersPage() {
                         // A porta sem o cadastro do Growth é acesso que não
                         // funciona: a pessoa entra e o `e_membro()` de lá barra.
                         const inconsistente = prod.slug === "growth" && tem && !membroGrowth;
-                        const titulo = !tem
+                        const titulo =
+                          prod.slug === "growth" && !growthConfigurado
+                            ? growthQuery.isLoading
+                              ? "Conferindo a conexão com o Growth…"
+                              : "O Growth não está conectado neste ambiente: não dá para administrar o acesso daqui."
+                            : !tem
                           ? `Sem acesso ao ${prod.rotulo}. Clique para conceder.`
                           : inconsistente
                             ? "Tem a porta do Growth mas não está em growth.membros — clique para acertar o papel."
@@ -705,6 +981,9 @@ function UsersPage() {
                             type="button"
                             title={titulo}
                             disabled={prod.slug === "growth" && !growthConfigurado}
+                            aria-describedby={
+                              prod.slug === "growth" && !growthConfigurado ? "motivo-growth" : undefined
+                            }
                             onClick={() => {
                               if (prod.slug === "ops") {
                                 setAcessosAlvo({ userId: u.user_id, nome: u.nome || u.email, tem });
@@ -737,19 +1016,39 @@ function UsersPage() {
                   <td className="px-4 py-2 text-right space-x-2">
                     {editingId === u.user_id ? (
                       <>
-                        <button
-                          onClick={() => salvarEdicao(u)}
-                          disabled={updateMut.isPending || !editingNome.trim()}
-                          className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                        >
-                          {updateMut.isPending ? "Salvando..." : "Salvar"}
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent"
-                        >
-                          Cancelar
-                        </button>
+                        {(() => {
+                          const trocouPapel = editingRole !== (u.role ?? "");
+                          const motivo = !editingNome.trim()
+                            ? "Preencha o nome para salvar."
+                            : trocouPapel && calculandoEfeito && !efeitoFalhou
+                              ? "Calculando o efeito…"
+                              : null;
+                          return (
+                            <>
+                              <button
+                                onClick={() => salvarEdicao(u)}
+                                disabled={updateMut.isPending || !!motivo}
+                                aria-describedby={
+                                  motivo ? `motivo-${u.user_id}` : trocouPapel ? `efeito-${u.user_id}` : undefined
+                                }
+                                className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                              >
+                                {updateMut.isPending ? "Salvando..." : "Salvar"}
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="rounded-full border border-border px-3 py-1 text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              >
+                                Cancelar
+                              </button>
+                              {motivo && (
+                                <p id={`motivo-${u.user_id}`} aria-live="polite" className="mt-1 text-xs text-muted-foreground">
+                                  {motivo}
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </>
                     ) : (
                       <>
@@ -784,7 +1083,14 @@ function UsersPage() {
                         </button>
                         {u.user_id !== user?.id && (
                           <button
-                            onClick={() => { if (confirm(`Excluir ${u.email}?`)) deleteMut.mutate(u.user_id); }}
+                            onClick={() =>
+                              setExcluirAlvo({
+                                user_id: u.user_id,
+                                email: u.email,
+                                nome: u.nome || u.email,
+                                produtos: PRODUTOS.filter((p) => u.produtos.includes(p.slug)).map((p) => p.rotulo),
+                              })
+                            }
                             disabled={deleteMut.isPending}
                             className="rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
                           >
@@ -796,12 +1102,10 @@ function UsersPage() {
                   </td>
                 </tr>
               ))}
-              {usersQuery.data && usersQuery.data.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Nenhum usuário.</td></tr>
-              )}
             </tbody>
           </table>
         </div>
+        )}
 
         {senhaAlvo && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -940,11 +1244,7 @@ function UsersPage() {
               <div className="mt-6 flex items-center justify-between">
                 {growthAlvo.jaTemAcesso ? (
                   <button
-                    onClick={() => {
-                      if (confirm(`Revogar o acesso de ${growthAlvo.email} ao Growth?`)) {
-                        growthRevokeMut.mutate(growthAlvo.email);
-                      }
-                    }}
+                    onClick={() => setRevogarGrowth(true)}
                     disabled={growthRevokeMut.isPending}
                     className="rounded-full border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
                   >
@@ -996,11 +1296,95 @@ function UsersPage() {
               tem: acessosAlvo.tem,
               salvando: portaOpsMut.isPending,
               erro: portaOpsMut.isError ? (portaOpsMut.error as Error)?.message : null,
-              onDefinir: (conceder) => portaOpsMut.mutate({ userId: acessosAlvo.userId, conceder }),
+              onDefinir: (conceder) =>
+                portaOpsMut.mutate({ userId: acessosAlvo.userId, conceder, nome: acessosAlvo.nome }),
             }}
             onClose={() => setAcessosAlvo(null)}
           />
         )}
+
+        <AlertDialog open={!!excluirAlvo} onOpenChange={(o) => !o && setExcluirAlvo(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir {excluirAlvo?.nome}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                A conta {excluirAlvo?.email} é apagada, e com ela o login
+                {excluirAlvo?.produtos.length
+                  ? ` no ${listar(excluirAlvo.produtos)}`
+                  : ""}
+                . É a mesma conta nos três produtos, então a pessoa não entra em mais nenhum. Não
+                dá para desfazer: para voltar, ela precisa ser cadastrada de novo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleteMut.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (excluirAlvo) deleteMut.mutate({ user_id: excluirAlvo.user_id, email: excluirAlvo.email });
+                }}
+                className={buttonVariants({ variant: "destructive" })}
+              >
+                {deleteMut.isPending ? "Excluindo…" : "Excluir conta"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={revogarGrowth && !!growthAlvo} onOpenChange={setRevogarGrowth}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revogar o Growth de {growthAlvo?.nome}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {growthAlvo?.email} deixa de entrar no Growth e sai do cadastro de membros de lá
+                (papel e departamento se perdem). A conta continua valendo no Ops e no Financeiro.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={growthRevokeMut.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (growthAlvo) growthRevokeMut.mutate(growthAlvo.email);
+                }}
+                className={buttonVariants({ variant: "destructive" })}
+              >
+                {growthRevokeMut.isPending ? "Revogando…" : "Revogar acesso"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!trocaComPerda} onOpenChange={(o) => !o && setTrocaComPerda(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {trocaComPerda?.semEfeito
+                  ? `Trocar o papel de ${trocaComPerda.nome} sem ver o efeito?`
+                  : `Isto tira áreas de ${trocaComPerda?.nome}`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {trocaComPerda?.semEfeito
+                  ? "Não foi possível calcular o efeito: os acessos desta pessoa não carregaram. A troca pode tirar áreas que ela vê hoje. Vale no próximo carregamento."
+                  : `${trocaComPerda?.efeito ?? ""} Vale no próximo carregamento.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                className={buttonVariants({ variant: "destructive" })}
+                onClick={() => {
+                  if (trocaComPerda) updateMut.mutate(trocaComPerda);
+                  setTrocaComPerda(null);
+                }}
+              >
+                Trocar o papel
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppShell>
   );

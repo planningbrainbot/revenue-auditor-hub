@@ -3,7 +3,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Mail, UserPlus, Users, X } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { Carregando, EstadoErro, EstadoVazio, StatusBadge } from "@/components/planning";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   convidarParaEquipe,
   definirPaginasEquipe,
@@ -40,46 +57,58 @@ export const Route = createFileRoute("/_authenticated/equipe")({
   component: EquipePage,
 });
 
+const msgErro = (e: unknown) => (e instanceof Error ? e.message : "erro desconhecido");
+
 function EquipePage() {
   const areasFn = useServerFn(minhasAreasAdministradas);
   const areasQ = useQuery({ queryKey: ["equipe-areas"], queryFn: () => areasFn() });
-  const [areaSel, setAreaSel] = useState<string | null>(null);
+  // A área escolhida mora na URL (N7): recarregar ou colar o link volta nela.
+  const [areaSel, setAreaSel] = useFiltroNaUrl("area", "");
 
   const areas = areasQ.data ?? [];
   const area = areas.find((a) => a.slug === areaSel) ?? areas[0];
 
   return (
-    <AppShell title="Minha equipe" subtitle="Quem da sua equipe entra, em quais unidades e o que cada um vê.">
+    <AppShell
+      title="Equipes"
+      pergunta="Quem está na minha área, e com qual acesso?"
+      subtitle={
+        <>
+          {areasQ.data ? `${areas.length} ${areas.length === 1 ? "área administrada" : "áreas administradas"} · ` : ""}
+          Convidar dá acesso e envia e-mail com o link de entrada. Tirar alguém da área corta o
+          acesso dele a ela; quem fica sem nenhuma área perde a entrada no Ops.
+        </>
+      }
+    >
       <div className="mx-auto max-w-5xl space-y-5 px-4 py-6">
         {areasQ.isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando...</p>
+          <Carregando variante="tabela" />
         ) : areasQ.isError ? (
-          <p className="text-sm text-destructive">{(areasQ.error as Error).message}</p>
+          <EstadoErro
+            titulo="Não foi possível carregar as áreas que você administra"
+            detalhe={msgErro(areasQ.error)}
+            tentarNovamente={() => areasQ.refetch()}
+          />
         ) : !area ? (
-          <div className="flex items-start gap-3 rounded-xl border bg-card p-5">
-            <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="font-medium">Você não administra nenhuma área.</p>
-              <p className="mt-1 text-muted-foreground">
-                Quem nomeia sócios é o admin da área, e quem nomeia admins é o super admin.
-              </p>
-            </div>
-          </div>
+          <EstadoVazio
+            titulo="Você não administra nenhuma área"
+            descricao="Quem nomeia sócios é o admin da área, e quem nomeia admins é o super admin."
+          />
         ) : (
           <>
             {areas.length > 1 && (
-              <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Áreas que você administra">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Áreas que você administra">
                 {areas.map((a) => (
                   <button
                     key={a.slug}
-                    role="tab"
-                    aria-selected={a.slug === area.slug}
-                    onClick={() => setAreaSel(a.slug)}
+                    type="button"
+                    aria-pressed={a.slug === area.slug}
+                    onClick={() => setAreaSel(a.slug === areas[0].slug ? "" : a.slug)}
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs",
+                      "h-8 rounded-full border px-3 text-xs transition-colors duration-120 ease-planning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       a.slug === area.slug
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-foreground hover:bg-accent",
+                        : "border-border text-foreground hover:bg-muted",
                     )}
                   >
                     {a.nome}
@@ -120,13 +149,10 @@ function Equipe({ area }: { area: AreaAdministrada }) {
             {area.nivel === "socio" ? ` · ${area.unidades.map((u) => u.nome).join(", ")}` : " · todas as unidades"}.
           </p>
         </div>
-        <button
-          onClick={() => setConvidando((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
-        >
-          <UserPlus className="h-3.5 w-3.5" />
+        <Button size="sm" onClick={() => setConvidando((v) => !v)} aria-expanded={convidando}>
+          <UserPlus />
           Convidar pessoa
-        </button>
+        </Button>
       </div>
 
       <Pedidos area={area} />
@@ -134,13 +160,18 @@ function Equipe({ area }: { area: AreaAdministrada }) {
       {convidando && <Convite area={area} onFim={() => setConvidando(false)} />}
 
       {q.isLoading ? (
-        <p className="text-sm text-muted-foreground">Carregando a equipe...</p>
+        <Carregando variante="tabela" />
       ) : q.isError ? (
-        <p className="text-sm text-destructive">{(q.error as Error).message}</p>
+        <EstadoErro
+          titulo="Não foi possível carregar a equipe"
+          detalhe={msgErro(q.error)}
+          tentarNovamente={() => q.refetch()}
+        />
       ) : (q.data ?? []).length === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Ninguém na sua equipe ainda. Use "Convidar pessoa" para dar acesso a alguém.
-        </p>
+        <EstadoVazio
+          titulo="Ninguém na sua equipe ainda"
+          descricao="Use “Convidar pessoa” para dar acesso a alguém."
+        />
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
           {(q.data ?? []).map((p) => (
@@ -171,12 +202,10 @@ function SeletorPaginas({
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
         {area.paginas.map((p) => (
           <label key={p.key} htmlFor={`${id}-${p.key}`} className="flex items-center gap-2 text-xs">
-            <input
+            <Checkbox
               id={`${id}-${p.key}`}
-              type="checkbox"
               checked={valor.includes(p.key)}
-              onChange={() => onChange(valor.includes(p.key) ? valor.filter((x) => x !== p.key) : [...valor, p.key])}
-              className="h-3.5 w-3.5 rounded border-input accent-primary"
+              onCheckedChange={() => onChange(valor.includes(p.key) ? valor.filter((x) => x !== p.key) : [...valor, p.key])}
             />
             <span className="truncate">{p.label}</span>
           </label>
@@ -200,14 +229,22 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
     mutationFn: () => convidarFn({ data: { area: area.slug, nome, email, unidades, paginas } }),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["equipe", area.slug] });
-      if (r.jaExistia) setResultado(`${nome} já tinha conta e agora entra em ${area.nome}.`);
-      else if (r.emailEnviado) setResultado(`Convite enviado para ${email}.`);
-      else setResultado(`Acesso criado, mas o e-mail não saiu (${r.emailErro ?? "erro desconhecido"}). Envie o link abaixo.`);
+      if (r.jaExistia) {
+        setResultado(`${nome} já tinha conta e agora entra em ${area.nome}.`);
+        toast.success(`${nome} já tinha conta e agora entra em ${area.nome}.`);
+      } else if (r.emailEnviado) {
+        setResultado(`Convite enviado para ${email}.`);
+        toast.success(`Convite enviado para ${email}. A pessoa entra pelo link do e-mail.`);
+      } else {
+        setResultado(`Acesso criado, mas o e-mail não saiu (${r.emailErro ?? "erro desconhecido"}). Envie o link abaixo.`);
+        toast.warning(`Acesso de ${nome} criado, mas o e-mail não saiu. Envie o link que aparece no formulário.`);
+      }
       setLink(r.link);
       setNome("");
       setEmail("");
       setPaginas([]);
     },
+    onError: (e) => toast.error(`Não foi possível convidar ${nome || "a pessoa"}: ${msgErro(e)}`),
   });
 
   const id = `convite-${area.slug}`;
@@ -218,21 +255,19 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
       <div className="grid gap-3 sm:grid-cols-2">
         <label htmlFor={`${id}-nome`} className="text-xs">
           <span className="mb-1 block font-medium">Nome</span>
-          <input
+          <Input
             id={`${id}-nome`}
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
           />
         </label>
         <label htmlFor={`${id}-email`} className="text-xs">
           <span className="mb-1 block font-medium">E-mail</span>
-          <input
+          <Input
             id={`${id}-email`}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
           />
         </label>
       </div>
@@ -242,12 +277,10 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {area.unidades.map((u) => (
             <label key={u.id} htmlFor={`${id}-un-${u.id}`} className="flex items-center gap-2 text-xs">
-              <input
+              <Checkbox
                 id={`${id}-un-${u.id}`}
-                type="checkbox"
                 checked={unidades.includes(u.id)}
-                onChange={() => setUnidades((l) => (l.includes(u.id) ? l.filter((x) => x !== u.id) : [...l, u.id]))}
-                className="h-3.5 w-3.5 rounded border-input accent-primary"
+                onCheckedChange={() => setUnidades((l) => (l.includes(u.id) ? l.filter((x) => x !== u.id) : [...l, u.id]))}
               />
               {u.nome}
             </label>
@@ -265,17 +298,13 @@ function Convite({ area, onFim }: { area: AreaAdministrada; onFim: () => void })
 
       <div className="flex items-center justify-end gap-2">
         {falta && <span className="mr-auto text-xs text-muted-foreground">{falta}</span>}
-        <button onClick={onFim} className="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-accent">
+        <Button variant="ghost" size="sm" onClick={onFim}>
           Fechar
-        </button>
-        <button
-          onClick={() => mut.mutate()}
-          disabled={!!falta || mut.isPending}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
-        >
-          <Mail className="h-3.5 w-3.5" />
-          {mut.isPending ? "Enviando..." : "Enviar convite"}
-        </button>
+        </Button>
+        <Button size="sm" onClick={() => mut.mutate()} disabled={!!falta || mut.isPending}>
+          <Mail />
+          {mut.isPending ? "Enviando…" : "Enviar convite"}
+        </Button>
       </div>
     </div>
   );
@@ -416,7 +445,9 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
   const [aberto, setAberto] = useState(false);
   const [paginas, setPaginas] = useState(pessoa.paginas);
   const [unidades, setUnidades] = useState<number[]>([]);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [confirmar, setConfirmar] = useState<"remover" | "nomear" | null>(null);
+  // Níveis de acesso (/admin/niveis) só abre para admin do sistema; admin de área não chega lá.
+  const { isAdmin } = usePermissions();
 
   const idsDasUnidades = useMemo(
     () => area.unidades.filter((u) => pessoa.unidades.includes(u.nome)).map((u) => u.id),
@@ -440,26 +471,40 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
       if (mudouUnidade) await unidadesFn({ data: { userId: pessoa.userId, unidades } });
     },
     onSuccess: () => {
-      setAviso("Salvo.");
+      toast.success(`Acesso de ${pessoa.nome} em ${area.nome} salvo.`);
       recarregar();
     },
+    onError: (e) => toast.error(`Não foi possível salvar o acesso de ${pessoa.nome}: ${msgErro(e)}`),
   });
   const remover = useMutation({
     mutationFn: () => removerFn({ data: { userId: pessoa.userId, area: area.slug } }),
     onSuccess: (r) => {
-      setAviso(r.contaDesativada ? "Removida. A conta foi desativada porque não entra em mais nada." : "Removida da área.");
+      toast.success(
+        r.contaDesativada
+          ? `${pessoa.nome} saiu de ${area.nome}. A conta foi desativada porque não entra em mais nada.`
+          : `${pessoa.nome} saiu de ${area.nome}.`,
+      );
+      setConfirmar(null);
       recarregar();
     },
+    onError: (e) => toast.error(`Não foi possível tirar ${pessoa.nome} de ${area.nome}: ${msgErro(e)}`),
   });
   const nomear = useMutation({
     mutationFn: () => nomearFn({ data: { userId: pessoa.userId, area: area.slug } }),
     onSuccess: () => {
-      setAviso(`${pessoa.nome} agora é sócio nesta área.`);
+      toast.success(`${pessoa.nome} agora é sócio em ${area.nome}.`);
+      setConfirmar(null);
       recarregar();
     },
+    onError: (e) => toast.error(`Não foi possível nomear ${pessoa.nome} sócio: ${msgErro(e)}`),
   });
   const erro = (salvar.error ?? remover.error ?? nomear.error) as Error | null;
   const id = `pessoa-${pessoa.userId}`;
+  const semPagina = pessoa.nivel === "usuario" && paginas.length === 0;
+  // Só barra quando a pessoa tinha unidade e ficou sem: o servidor recusa lista vazia.
+  const semUnidade = podeNomear && unidades.length === 0 && idsDasUnidades.length > 0;
+  const motivoNomear = pessoa.unidades.length === 0 ? "Defina a unidade antes de nomear." : null;
+  const motivoSalvar = semPagina ? "Escolha ao menos uma página." : semUnidade ? "Escolha ao menos uma unidade." : null;
 
   return (
     <li className="px-4 py-3">
@@ -468,14 +513,14 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
           <p className="text-sm font-medium text-foreground">
             {pessoa.nome}
             {pessoa.nivel === "socio" && (
-              <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase text-primary-text">
-                sócio
-              </span>
+              <StatusBadge tom="neutro" icone={false} className="ml-2">
+                Sócio
+              </StatusBadge>
             )}
             {pessoa.pendente && (
-              <span className="ml-2 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-semibold uppercase text-warning">
-                convite pendente
-              </span>
+              <StatusBadge tom="atencao" className="ml-2">
+                Convite pendente
+              </StatusBadge>
             )}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -483,14 +528,15 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
             {pessoa.nivel === "usuario" && ` · ${pessoa.paginas.length} ${pessoa.paginas.length === 1 ? "página" : "páginas"}`}
           </p>
         </div>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setAberto((v) => !v)}
           aria-expanded={aberto}
           aria-controls={`${id}-detalhe`}
-          className="rounded-full border border-border px-3 py-1 text-xs hover:bg-accent"
         >
           {aberto ? "Fechar" : "Editar"}
-        </button>
+        </Button>
       </div>
 
       {aberto && (
@@ -507,12 +553,10 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {area.unidades.map((u) => (
                   <label key={u.id} htmlFor={`${id}-un-${u.id}`} className="flex items-center gap-2 text-xs">
-                    <input
+                    <Checkbox
                       id={`${id}-un-${u.id}`}
-                      type="checkbox"
                       checked={unidades.includes(u.id)}
-                      onChange={() => setUnidades((l) => (l.includes(u.id) ? l.filter((x) => x !== u.id) : [...l, u.id]))}
-                      className="h-3.5 w-3.5 rounded border-input accent-primary"
+                      onCheckedChange={() => setUnidades((l) => (l.includes(u.id) ? l.filter((x) => x !== u.id) : [...l, u.id]))}
                     />
                     {u.nome}
                   </label>
@@ -522,39 +566,110 @@ function Pessoa({ pessoa, area, podeNomear }: { pessoa: PessoaDaEquipe; area: Ar
           )}
 
           {erro && <p className="text-xs text-destructive">{erro.message}</p>}
-          {aviso && <p className="text-xs text-primary-text">{aviso}</p>}
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              onClick={() => {
-                if (window.confirm(`Tirar ${pessoa.nome} de ${area.nome}?`)) remover.mutate();
-              }}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmar("remover")}
               disabled={remover.isPending}
-              className="mr-auto rounded-full border border-destructive/40 px-3 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
+              className="mr-auto border-destructive/40 text-destructive hover:border-destructive hover:text-destructive"
             >
-              {remover.isPending ? "Removendo..." : "Tirar da área"}
-            </button>
+              {remover.isPending ? "Removendo…" : "Tirar da área"}
+            </Button>
             {podeNomear && pessoa.nivel === "usuario" && (
-              <button
-                onClick={() => nomear.mutate()}
-                disabled={nomear.isPending}
-                className="rounded-full border border-border px-3 py-1 text-xs hover:bg-accent disabled:opacity-40"
-              >
-                {nomear.isPending ? "Nomeando..." : "Nomear sócio"}
-              </button>
+              <>
+                {motivoNomear && (
+                  <span id={`${id}-motivo-nomear`} className="text-xs text-muted-foreground">
+                    {motivoNomear}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmar("nomear")}
+                  disabled={nomear.isPending || !!motivoNomear}
+                  aria-describedby={motivoNomear ? `${id}-motivo-nomear` : undefined}
+                >
+                  {nomear.isPending ? "Nomeando…" : "Nomear sócio"}
+                </Button>
+              </>
             )}
             {(pessoa.nivel === "usuario" || podeNomear) && (
-              <button
-                onClick={() => salvar.mutate()}
-                disabled={salvar.isPending || (pessoa.nivel === "usuario" && paginas.length === 0)}
-                className="rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
-              >
-                {salvar.isPending ? "Salvando..." : "Salvar"}
-              </button>
+              <>
+                {motivoSalvar && (
+                  <span id={`${id}-motivo-salvar`} className="text-xs text-muted-foreground">
+                    {motivoSalvar}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => salvar.mutate()}
+                  disabled={salvar.isPending || !!motivoSalvar}
+                  aria-describedby={motivoSalvar ? `${id}-motivo-salvar` : undefined}
+                >
+                  {salvar.isPending ? "Salvando…" : "Salvar"}
+                </Button>
+              </>
             )}
           </div>
         </div>
       )}
+
+      <AlertDialog open={confirmar !== null} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent>
+          {confirmar === "nomear" ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Nomear {pessoa.nome} sócio de {area.nome}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {pessoa.nome} deixa de ver só as {pessoa.paginas.length}{" "}
+                  {pessoa.paginas.length === 1 ? "página escolhida" : "páginas escolhidas"} e passa a ver a
+                  área inteira nas unidades dele ({pessoa.unidades.join(", ") || "sem unidade"}). Passa também
+                  a convidar pessoas para essas unidades e a escolher o que cada uma vê. {isAdmin
+                    ? "Para desfazer, só tirando da área ou em Níveis de acesso."
+                    : "Para desfazer, tire da área."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={nomear.isPending}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    nomear.mutate();
+                  }}
+                >
+                  {nomear.isPending ? "Nomeando…" : "Nomear sócio"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Tirar {pessoa.nome} de {area.nome}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {pessoa.nome} perde o acesso a {area.nome}. Se não estiver em nenhuma outra área, perde
+                  também a entrada no Ops; se não tiver acesso a nenhum outro produto, a conta é desativada.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={remover.isPending}
+                  className={buttonVariants({ variant: "destructive" })}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    remover.mutate();
+                  }}
+                >
+                  {remover.isPending ? "Removendo…" : "Tirar da área"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
 }

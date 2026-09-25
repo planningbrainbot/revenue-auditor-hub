@@ -2,10 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { GitCommit, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { Carregando, EstadoErro, EstadoVazio, StatusBadge } from "@/components/planning";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/atividade")({
   head: () => ({ meta: [{ title: "Atividade do Sistema – Planning" }] }),
@@ -38,36 +37,16 @@ type ParsedCommit = {
 // Prefixo "feat:", "fix:", "chore(escopo):" etc. — convenção conventional commits usada no repo
 const CONVENTIONAL_RE = /^([a-z]+)(\([^)]+\))?:\s*(.+)$/i;
 
-const TYPE_LABEL: Record<string, { label: string; tone: string }> = {
-  feat: {
-    label: "feature",
-    tone: "bg-success-soft text-success",
-  },
-  fix: { label: "correção", tone: "bg-danger-soft text-danger" },
-  chore: {
-    label: "manutenção",
-    tone: "bg-muted text-foreground",
-  },
-  refactor: {
-    label: "refatoração",
-    tone: "bg-info-soft text-info",
-  },
-  docs: {
-    label: "docs",
-    tone: "bg-muted text-foreground",
-  },
-  style: {
-    label: "estilo",
-    tone: "bg-muted text-foreground",
-  },
-  perf: {
-    label: "performance",
-    tone: "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300",
-  },
-  test: {
-    label: "teste",
-    tone: "bg-muted text-foreground",
-  },
+// Tipo do commit é categoria, não status: vai em StatusBadge neutro, sem ícone.
+const TYPE_LABEL: Record<string, string> = {
+  feat: "feature",
+  fix: "correção",
+  chore: "manutenção",
+  refactor: "refatoração",
+  docs: "docs",
+  style: "estilo",
+  perf: "performance",
+  test: "teste",
 };
 
 function parseCommit(c: GithubCommit): ParsedCommit {
@@ -177,7 +156,16 @@ function AtividadePage() {
   return (
     <AppShell
       title="Atividade do Sistema"
-      subtitle="O que mudou no Ops Board, dia a dia — direto do histórico de commits"
+      pergunta="O que mudou no sistema, e quem mudou?"
+      subtitle={
+        <>
+          {!loading && !error
+            ? `${commits.length} ${commits.length === 1 ? "commit" : "commits"} em ${groups.length} ${groups.length === 1 ? "dia" : "dias"} · `
+            : ""}
+          Histórico de commits do repositório {REPO} no GitHub (até {PAGE_SIZE * MAX_PAGES} mais
+          recentes), agrupado por dia no horário de Brasília. Só leitura: nada aqui muda o sistema.
+        </>
+      }
       headerExtra={
         <Button
           variant="outline"
@@ -191,27 +179,17 @@ function AtividadePage() {
       }
     >
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
-        {error && (
-          <Card className="border-danger/40 bg-danger-soft p-4 text-sm text-danger">
-            {error}
-          </Card>
-        )}
-
-        {loading && (
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        )}
-
-        {!loading && !error && groups.length === 0 && (
-          <Card className="p-6 text-center text-sm text-muted-foreground">
-            Nenhum commit encontrado.
-          </Card>
-        )}
-
-        {!loading &&
+        {loading ? (
+          <Carregando variante="tabela" />
+        ) : error ? (
+          <EstadoErro
+            titulo="Não foi possível carregar o histórico de commits"
+            detalhe={error}
+            tentarNovamente={() => setReloadKey((k) => k + 1)}
+          />
+        ) : groups.length === 0 ? (
+          <EstadoVazio titulo="Nenhum commit encontrado" />
+        ) : (
           groups.map(([key, items]) => (
             <div key={key}>
               <h2 className="mb-2 text-sm font-semibold text-foreground">{dayLabel(key)}</h2>
@@ -222,22 +200,20 @@ function AtividadePage() {
                     href={c.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-start gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
+                    className="flex items-start gap-3 px-4 py-2.5 text-sm transition-colors duration-120 ease-planning hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
-                    <GitCommit className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <GitCommit className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
                       <span className="break-words text-foreground">{c.subject}</span>
+                      <span className="block text-xs text-muted-foreground">{c.authorName}</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {c.type && TYPE_LABEL[c.type] && (
-                        <Badge
-                          variant="secondary"
-                          className={`${TYPE_LABEL[c.type].tone} border-0`}
-                        >
-                          {TYPE_LABEL[c.type].label}
-                        </Badge>
+                        <StatusBadge tom="neutro" icone={false}>
+                          {TYPE_LABEL[c.type]}
+                        </StatusBadge>
                       )}
-                      <span className="whitespace-nowrap text-xs text-muted-foreground">
+                      <span className="num whitespace-nowrap text-xs text-muted-foreground">
                         {timeLabel(c.date)}
                       </span>
                     </div>
@@ -245,7 +221,8 @@ function AtividadePage() {
                 ))}
               </Card>
             </div>
-          ))}
+          ))
+        )}
       </div>
     </AppShell>
   );
