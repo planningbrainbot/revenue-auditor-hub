@@ -72,6 +72,9 @@ export interface ApuracaoItem {
   valor_confirmado: number | null;
   royalties_percentual_override: number | null;
   is_cac: boolean;
+  // 1 = adiantamento de 50% na assinatura; 2 = 50% depois que a unidade recebe
+  // o 1º honorário (caixa). Nulo fora do CAC ou em CAC antigo não classificado.
+  cac_parcela: 1 | 2 | null;
   royalties_item: number | null;
   fonte: string;
   status_match: string | null;
@@ -1080,6 +1083,7 @@ export const updateItem = createServerFn({ method: "POST" })
       royalties_percentual_override?: number | null;
       mrr_override?: number | null;
       is_cac?: boolean;
+      cac_parcela?: 1 | 2 | null;
       venda_socios?: boolean;
       categoria?: "royalties" | "csc_base_antiga";
     }) => d,
@@ -1114,7 +1118,12 @@ export const updateItem = createServerFn({ method: "POST" })
     if ("royalties_percentual_override" in data)
       patch.royalties_percentual_override = data.royalties_percentual_override;
     if ("mrr_override" in data) patch.mrr_override = data.mrr_override;
-    if ("is_cac" in data) patch.is_cac = data.is_cac;
+    if ("is_cac" in data) {
+      patch.is_cac = data.is_cac;
+      // Parcela só faz sentido em item de CAC: desmarcar o CAC limpa a parcela.
+      if (!data.is_cac) patch.cac_parcela = null;
+    }
+    if ("cac_parcela" in data) patch.cac_parcela = data.cac_parcela;
     // Marca a venda como feita por sócio direto (fora do funil comercial padrão).
     // Um script separado (sync_socios_omie_to_pipedrive.py) lê itens com
     // venda_socios=true e pipedrive_deal_id_socios ainda nulo e cria o deal

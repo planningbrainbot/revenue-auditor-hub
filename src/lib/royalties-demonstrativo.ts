@@ -61,7 +61,34 @@ export interface DemonstrativoItem {
   royalties_percentual: number;
   royalties_item: number;
   is_cac: boolean;
+  /** 1 = adiantamento na assinatura; 2 = após o recebimento do 1º honorário. */
+  cac_parcela?: 1 | 2 | null;
   categoria: "royalties" | "csc_base_antiga";
+}
+
+/**
+ * O CAC aparece para a unidade separado pelo gatilho de cada metade: a que é
+ * adiantada na assinatura e a que só vem depois do 1º honorário recebido.
+ * Item sem parcela definida (histórico) fica num grupo à parte, sem rótulo.
+ */
+function gruposCac(cac: DemonstrativoItem[]) {
+  return [
+    {
+      titulo: "CAC — 1ª parcela (50% de adiantamento na assinatura)",
+      aba: "CAC - 1a parcela",
+      itens: cac.filter((i) => i.cac_parcela === 1),
+    },
+    {
+      titulo: "CAC — 2ª parcela (50% após o recebimento do 1º honorário)",
+      aba: "CAC - 2a parcela",
+      itens: cac.filter((i) => i.cac_parcela === 2),
+    },
+    {
+      titulo: "Clientes — CAC",
+      aba: "Clientes - CAC",
+      itens: cac.filter((i) => i.cac_parcela !== 1 && i.cac_parcela !== 2),
+    },
+  ].filter((g) => g.itens.length > 0);
 }
 
 export interface DemonstrativoOutraReceita {
@@ -179,7 +206,9 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
     doc.text(title, 40, cursorY);
     autoTable(doc, {
       startY: cursorY + 8,
-      head: [["Cliente", "CNPJ", "Data do ganho", "Assinatura do contrato", "Valor", "%", valorLabel]],
+      head: [
+        ["Cliente", "CNPJ", "Data do ganho", "Assinatura do contrato", "Valor", "%", valorLabel],
+      ],
       body: rows.map((r) => [
         r.razao_social,
         formatCnpj(r.cnpj),
@@ -229,7 +258,7 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
   }
 
   itemTable("Clientes — royalties", royalties, "Royalties");
-  itemTable("Clientes — CAC", cac, "Total a cobrar");
+  for (const g of gruposCac(cac)) itemTable(g.titulo, g.itens, "Total a cobrar");
   itemTable("Base antiga — CSC variável", baseAntiga, "CSC variável");
 
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -295,7 +324,11 @@ const sTotalLabel = {
   fill: { fgColor: { rgb: GREEN_LIGHT } },
   border: thinBorder,
 };
-const sTotalValue = { ...sTotalLabel, alignment: { horizontal: "right" as const }, numFmt: MONEY_FMT };
+const sTotalValue = {
+  ...sTotalLabel,
+  alignment: { horizontal: "right" as const },
+  numFmt: MONEY_FMT,
+};
 
 const sCell = { font: { sz: 10, color: { rgb: DARK } }, border: thinBorder };
 const sCellZebra = { ...sCell, fill: { fgColor: { rgb: ZEBRA } } };
@@ -424,7 +457,12 @@ function buildItemSheet(rows: DemonstrativoItem[], valorLabel: string): WorkShee
   ws["!views"] = [{ state: "frozen", ySplit: 1 }];
 
   ITEM_HEADER.forEach((_, c) => {
-    setCell(ws, 0, c, ITEM_MONEY_COLS.has(c) || ITEM_PCT_COLS.has(c) ? sSectionHeaderRight : sSectionHeader);
+    setCell(
+      ws,
+      0,
+      c,
+      ITEM_MONEY_COLS.has(c) || ITEM_PCT_COLS.has(c) ? sSectionHeaderRight : sSectionHeader,
+    );
   });
 
   rows.forEach((_, i) => {
@@ -477,16 +515,28 @@ export function gerarDemonstrativoRoyaltiesXlsx(data: DemonstrativoData) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildResumoSheet(data), "Resumo");
   if (royalties.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(royalties, "Royalties"), "Clientes - royalties");
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildItemSheet(royalties, "Royalties"),
+      "Clientes - royalties",
+    );
   }
-  if (cac.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(cac, "Total a cobrar"), "Clientes - CAC");
+  for (const g of gruposCac(cac)) {
+    XLSX.utils.book_append_sheet(wb, buildItemSheet(g.itens, "Total a cobrar"), g.aba);
   }
   if (baseAntiga.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildItemSheet(baseAntiga, "CSC variável"), "Base antiga - CSC");
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildItemSheet(baseAntiga, "CSC variável"),
+      "Base antiga - CSC",
+    );
   }
   if (data.outrasReceitasItens.length > 0) {
-    XLSX.utils.book_append_sheet(wb, buildOutrasReceitasSheet(data.outrasReceitasItens), "Outras receitas");
+    XLSX.utils.book_append_sheet(
+      wb,
+      buildOutrasReceitasSheet(data.outrasReceitasItens),
+      "Outras receitas",
+    );
   }
 
   XLSX.writeFile(wb, demonstrativoFilenameBase(data) + ".xlsx");

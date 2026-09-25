@@ -4130,6 +4130,7 @@ export type Database = {
           excluido_por: string | null
           fonte: string
           id: number
+          cac_parcela: number | null
           is_cac: boolean
           motivo_exclusao: string | null
           mrr_contratado: number | null
@@ -4161,6 +4162,7 @@ export type Database = {
           excluido_por?: string | null
           fonte?: string
           id?: number
+          cac_parcela?: number | null
           is_cac?: boolean
           motivo_exclusao?: string | null
           mrr_contratado?: number | null
@@ -4192,6 +4194,7 @@ export type Database = {
           excluido_por?: string | null
           fonte?: string
           id?: number
+          cac_parcela?: number | null
           is_cac?: boolean
           motivo_exclusao?: string | null
           mrr_contratado?: number | null

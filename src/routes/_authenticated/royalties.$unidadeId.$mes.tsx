@@ -514,6 +514,9 @@ function ApuracaoLoaded({
   let receitaBase = 0;
   let royaltiesValor = 0;
   let cacValor = 0;
+  // CAC por parcela: adiantamento na assinatura × 2ª metade que segue o caixa.
+  let cacAdiantamento = 0;
+  let cacCaixa = 0;
   let receitaBaseAntiga = 0;
   let confirmadosCount = 0;
   for (const it of ativos) {
@@ -523,8 +526,11 @@ function ApuracaoLoaded({
     if (it.categoria === "royalties") {
       receitaBase += v;
       const computado = (v * pctEfetivo(it)) / 100;
-      if (it.is_cac) cacValor += computado;
-      else royaltiesValor += computado;
+      if (it.is_cac) {
+        cacValor += computado;
+        if (it.cac_parcela === 1) cacAdiantamento += computado;
+        else if (it.cac_parcela === 2) cacCaixa += computado;
+      } else royaltiesValor += computado;
     } else if (it.categoria === "csc_base_antiga") {
       receitaBaseAntiga += v;
     }
@@ -582,6 +588,10 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
+  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | null) => {
+    updateItem.mutate({ id: it.id, cac_parcela: parcela });
+  };
+
   const toggleVendaSocios = (it: ApuracaoItem, checked: boolean) => {
     updateItem.mutate({ id: it.id, venda_socios: checked });
   };
@@ -608,6 +618,7 @@ function ApuracaoLoaded({
         royalties_percentual: pct,
         royalties_item: (valor * pct) / 100,
         is_cac: i.is_cac,
+        cac_parcela: i.cac_parcela ?? null,
         categoria: i.categoria as "royalties" | "csc_base_antiga",
       };
     });
@@ -952,6 +963,7 @@ function ApuracaoLoaded({
             flushPct={flushPct}
             toggleConfirm={toggleConfirm}
             toggleCac={toggleCac}
+            setCacParcela={setCacParcela}
             onDelete={handleDeleteManual}
             onMarcarChurn={handleMarcarChurn}
             churnPending={marcarChurn.isPending}
@@ -980,6 +992,7 @@ function ApuracaoLoaded({
             flushPct={flushPct}
             toggleConfirm={toggleConfirm}
             toggleCac={toggleCac}
+            setCacParcela={setCacParcela}
             toggleVendaSocios={toggleVendaSocios}
             onDelete={handleDeleteManual}
             extraHeader={
@@ -1053,6 +1066,18 @@ function ApuracaoLoaded({
           <ResumoLinha label="Base Planning" value={brl(receitaBase)} />
           <ResumoLinha label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} bold />
           {cacValor > 0 && <ResumoLinha label="CAC (itens marcados)" value={brl(cacValor)} bold />}
+          {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0) && (
+            <div className="space-y-1 pl-3 text-xs">
+              <ResumoLinha label="1ª parcela · adiantamento" value={brl(cacAdiantamento)} />
+              <ResumoLinha label="2ª parcela · após recebimento" value={brl(cacCaixa)} />
+              {cacValor - cacAdiantamento - cacCaixa > 0.005 && (
+                <ResumoLinha
+                  label="Sem parcela definida"
+                  value={brl(cacValor - cacAdiantamento - cacCaixa)}
+                />
+              )}
+            </div>
+          )}
           <div className="border-t pt-3 space-y-2">
             {cscFixo != null ? (
               <ResumoLinha label="CSC fixo" value={brl(cscFixo)} bold />
@@ -1251,6 +1276,7 @@ interface GrupoProps {
   flushPct: (it: ApuracaoItem) => void;
   toggleConfirm: (it: ApuracaoItem, c: boolean) => void;
   toggleCac?: (it: ApuracaoItem, c: boolean) => void;
+  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | null) => void;
   toggleVendaSocios?: (it: ApuracaoItem, c: boolean) => void;
   onDelete: (it: ApuracaoItem) => void;
   extraHeader?: React.ReactNode;
@@ -1709,6 +1735,7 @@ function SecaoGrupo({
   flushPct,
   toggleConfirm,
   toggleCac,
+  setCacParcela,
   toggleVendaSocios,
   onDelete,
   extraHeader,
@@ -2159,6 +2186,27 @@ function SecaoGrupo({
                               title="Marcar como CAC — o valor calculado entra na linha de CAC do resumo, não em Royalties"
                               onCheckedChange={(c) => toggleCac(it, Boolean(c))}
                             />
+                            {it.is_cac && setCacParcela && (
+                              <Select
+                                value={it.cac_parcela ? String(it.cac_parcela) : ""}
+                                disabled={readOnly}
+                                onValueChange={(v) => setCacParcela(it, v === "1" ? 1 : 2)}
+                              >
+                                <SelectTrigger
+                                  className={cn(
+                                    "mt-1 h-7 w-28 text-xs",
+                                    !it.cac_parcela && "border-warning",
+                                  )}
+                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário."
+                                >
+                                  <SelectValue placeholder="Parcela?" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1">1ª · adiantamento</SelectItem>
+                                  <SelectItem value="2">2ª · após receb.</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           </td>
                         )}
                         {toggleVendaSocios && (
