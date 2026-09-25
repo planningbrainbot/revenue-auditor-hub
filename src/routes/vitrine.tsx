@@ -1,7 +1,6 @@
 import { useLayoutEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import {
-  AlertTriangle,
   ArrowRight,
   Bell,
   Check,
@@ -107,7 +106,7 @@ import { COR_NEGATIVO, linhaMetaProps } from "@/lib/planning/grafico";
  *
  * Existe para revisar e fotografar a interface sem login e sem banco: tudo
  * aqui é dado sintético, e nenhum componente que busca dado ao montar entra
- * (ValidationBanner, DataFreshnessBar, AppSidebar, PlanningLogo). Esses
+ * (DataFreshnessBar, AppSidebar, PlanningLogo). Esses
  * aparecem como réplica estática com os mesmos primitivos. O PlanningLogo em
  * especial ficou de fora porque o `useTheme` dele grava a preferência e
  * reaplica o tema salvo, o que desfaria o `?tema=claro`.
@@ -331,17 +330,8 @@ function SecaoCasca({ tema }: { tema: string }) {
                   </Button>
                 </div>
               </header>
-              {/* AppShell: ValidationBanner + PageHeader + DataFreshnessBar */}
+              {/* AppShell: PageHeader + DataFreshnessBar */}
               <div className="min-h-0 flex-1 overflow-hidden">
-                <div className="sticky top-0 z-30 border-b border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-                  <div className="flex items-start gap-2 px-4 py-2 text-xs sm:text-sm">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p>
-                      <span className="font-semibold">Dados em validação:</span> as informações
-                      desta página ainda estão sendo conferidas e podem não estar 100% corretas.
-                    </p>
-                  </div>
-                </div>
                 <div className="border-b px-4 pt-6">
                   <PageHeader
                     area={rede.slug}

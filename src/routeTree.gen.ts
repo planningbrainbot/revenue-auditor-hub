@@ -70,7 +70,6 @@ import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_
 import { Route as AuthenticatedBrokerFaturasRouteImport } from './routes/_authenticated/broker.faturas'
 import { Route as AuthenticatedBrokerCacRouteImport } from './routes/_authenticated/broker.cac'
 import { Route as AuthenticatedBrokerAdminRouteImport } from './routes/_authenticated/broker.admin'
-import { Route as AuthenticatedAdminValidacaoRouteImport } from './routes/_authenticated/admin.validacao'
 import { Route as AuthenticatedAdminUsuariosRouteImport } from './routes/_authenticated/admin.usuarios'
 import { Route as AuthenticatedAdminPermissoesRouteImport } from './routes/_authenticated/admin.permissoes'
 import { Route as AuthenticatedAdminPerfisRouteImport } from './routes/_authenticated/admin.perfis'
@@ -418,12 +417,6 @@ const AuthenticatedBrokerAdminRoute =
     path: '/broker/admin',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAdminValidacaoRoute =
-  AuthenticatedAdminValidacaoRouteImport.update({
-    id: '/admin/validacao',
-    path: '/admin/validacao',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedAdminUsuariosRoute =
   AuthenticatedAdminUsuariosRouteImport.update({
     id: '/admin/usuarios',
@@ -533,7 +526,6 @@ export interface FileRoutesByFullPath {
   '/admin/perfis': typeof AuthenticatedAdminPerfisRoute
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
-  '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/broker/cac': typeof AuthenticatedBrokerCacRoute
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
@@ -603,7 +595,6 @@ export interface FileRoutesByTo {
   '/admin/perfis': typeof AuthenticatedAdminPerfisRoute
   '/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
-  '/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/broker/cac': typeof AuthenticatedBrokerCacRoute
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
@@ -677,7 +668,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/perfis': typeof AuthenticatedAdminPerfisRoute
   '/_authenticated/admin/permissoes': typeof AuthenticatedAdminPermissoesRoute
   '/_authenticated/admin/usuarios': typeof AuthenticatedAdminUsuariosRoute
-  '/_authenticated/admin/validacao': typeof AuthenticatedAdminValidacaoRoute
   '/_authenticated/broker/admin': typeof AuthenticatedBrokerAdminRoute
   '/_authenticated/broker/cac': typeof AuthenticatedBrokerCacRoute
   '/_authenticated/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
@@ -751,7 +741,6 @@ export interface FileRouteTypes {
     | '/admin/perfis'
     | '/admin/permissoes'
     | '/admin/usuarios'
-    | '/admin/validacao'
     | '/broker/admin'
     | '/broker/cac'
     | '/broker/faturas'
@@ -821,7 +810,6 @@ export interface FileRouteTypes {
     | '/admin/perfis'
     | '/admin/permissoes'
     | '/admin/usuarios'
-    | '/admin/validacao'
     | '/broker/admin'
     | '/broker/cac'
     | '/broker/faturas'
@@ -894,7 +882,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/perfis'
     | '/_authenticated/admin/permissoes'
     | '/_authenticated/admin/usuarios'
-    | '/_authenticated/admin/validacao'
     | '/_authenticated/broker/admin'
     | '/_authenticated/broker/cac'
     | '/_authenticated/broker/faturas'
@@ -1353,13 +1340,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrokerAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/admin/validacao': {
-      id: '/_authenticated/admin/validacao'
-      path: '/admin/validacao'
-      fullPath: '/admin/validacao'
-      preLoaderRoute: typeof AuthenticatedAdminValidacaoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/admin/usuarios': {
       id: '/_authenticated/admin/usuarios'
       path: '/admin/usuarios'
@@ -1512,7 +1492,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminPerfisRoute: typeof AuthenticatedAdminPerfisRoute
   AuthenticatedAdminPermissoesRoute: typeof AuthenticatedAdminPermissoesRoute
   AuthenticatedAdminUsuariosRoute: typeof AuthenticatedAdminUsuariosRoute
-  AuthenticatedAdminValidacaoRoute: typeof AuthenticatedAdminValidacaoRoute
   AuthenticatedBrokerAdminRoute: typeof AuthenticatedBrokerAdminRoute
   AuthenticatedBrokerCacRoute: typeof AuthenticatedBrokerCacRoute
   AuthenticatedBrokerFaturasRoute: typeof AuthenticatedBrokerFaturasRoute
@@ -1574,7 +1553,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminPerfisRoute: AuthenticatedAdminPerfisRoute,
   AuthenticatedAdminPermissoesRoute: AuthenticatedAdminPermissoesRoute,
   AuthenticatedAdminUsuariosRoute: AuthenticatedAdminUsuariosRoute,
-  AuthenticatedAdminValidacaoRoute: AuthenticatedAdminValidacaoRoute,
   AuthenticatedBrokerAdminRoute: AuthenticatedBrokerAdminRoute,
   AuthenticatedBrokerCacRoute: AuthenticatedBrokerCacRoute,
   AuthenticatedBrokerFaturasRoute: AuthenticatedBrokerFaturasRoute,

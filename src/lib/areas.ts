@@ -1,6 +1,5 @@
 import {
   Activity,
-  BadgeCheck,
   BarChart3,
   BookUser,
   BookmarkCheck,
@@ -666,11 +665,6 @@ export const AREAS: Area[] = [
             title: "Integrações",
             url: "/admin/integracoes",
             icon: KeyRound,
-          },
-          {
-            title: "Validação de páginas",
-            url: "/admin/validacao",
-            icon: BadgeCheck,
           },
         ],
       },

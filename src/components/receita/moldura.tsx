@@ -8,7 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ValidationBanner } from "@/components/validation-banner";
 import { DataFreshnessBar } from "@/components/data-freshness-bar";
 import { EstadoErro, EstadoSemAcesso, PageHeader } from "@/components/planning";
 import { tooltipProps } from "@/lib/planning/grafico";
@@ -385,7 +384,6 @@ export function MolduraReceita({
 }) {
   return (
     <div className="flex min-h-full flex-col">
-      <ValidationBanner />
       <div className="border-b px-4 pt-6 md:px-6">
         <PageHeader
           titulo={titulo}

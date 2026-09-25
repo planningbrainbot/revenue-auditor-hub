@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ValidationBanner } from "@/components/validation-banner";
 import { DataFreshnessBar } from "@/components/data-freshness-bar";
 import { PageHeader } from "@/components/planning";
 
@@ -19,7 +18,6 @@ interface AppShellProps {
 export function AppShell({ title, pergunta, subtitle, children, headerExtra }: AppShellProps) {
   return (
     <div className="flex min-h-full flex-col">
-      <ValidationBanner />
       <div className="border-b px-4 pt-6">
         <PageHeader
           titulo={title}
