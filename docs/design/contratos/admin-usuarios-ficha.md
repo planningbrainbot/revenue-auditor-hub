@@ -1,7 +1,7 @@
 # Contrato · Ficha da pessoa (`/admin/usuarios/$userId`)
 
 **Dono de produto:** Eliezek (Administração)   **Dono do código:** Eliezek   **Data:** 25/09/2026
-**Estado:** rascunho escrito junto com o código, a pedido do dono ("execute todo o plano", 24/09/2026). Falta o "contrato ok".
+**Estado:** aprovado ("contrato ok" do dono, Pedro Luca, em 25/09/2026). Tela publicada no mesmo dia.
 
 ## Propósito
 - **Pergunta que responde (h1):** "O que {primeiro nome} acessa, e por quê?"

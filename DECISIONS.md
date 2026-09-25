@@ -3380,3 +3380,10 @@ os CTEs materializados passava de 30 s).
 
 As duas correções de dado estão em `ops.acessos_log`, com o Pedro Luca como
 ator e a origem anotada.
+
+## [2026-09-25] Contratos de Pessoas e da ficha da pessoa aprovados
+
+O dono aprovou os contratos `docs/design/contratos/admin-usuarios.md` e
+`admin-usuarios-ficha.md` ("aprovo", 25/09/2026), depois de as duas telas irem
+ao ar. Fica fechada a gestão de acessos desta rodada; o que resta da checagem
+dos contratos é a captura escuro/claro, que depende de uma sessão logada.
