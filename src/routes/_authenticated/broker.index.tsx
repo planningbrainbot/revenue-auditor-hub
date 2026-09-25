@@ -6,13 +6,15 @@ export const Route = createFileRoute("/_authenticated/broker/")({
   component: BrokerOportunidadesPage,
 });
 
-// TODO(design): pergunta da tela — docs/design/NAVEGACAO.md N1
+// Contrato: docs/design/contratos/broker.md (Fila de trabalho). A procedência
+// com a hora da leitura fica no rodapé da fila, visível também nos estados.
 function BrokerOportunidadesPage() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
         titulo="Oportunidades"
-        descricao="Clientes disponíveis para a sua unidade e o seu saldo em CashBrain"
+        pergunta="Que oportunidade eu pego agora, e quanto de CashBrain ela custa?"
+        descricao="Fila da rede · saldo da unidade em CashBrain (CB)"
       />
       <BrokerUnidadeView secao="oportunidades" />
     </div>

@@ -3081,6 +3081,23 @@ fora da lista de domínios.
 
 **Status:** implementado na branch `feat/ds-v2-migracao-receita-20260924` (sem push). Os 12 defeitos de dado ficam no contrato e no PR para o Eliezek.
 
+## [2026-09-24] Planning People, Broker e Minha Unidade no DS v2: o que mudou de nome, de estado e de regra
+
+**Contexto:** migração do módulo 5 para o Design System v2 (contratos `docs/design/contratos/{gente,broker,minha-unidade}.md`, propostas aprovadas em bloco pelo Pedro em 24/09). Nenhuma query, RLS, permissão ou fórmula de servidor mudou.
+
+**Decisão:**
+1. **`/gente` perde a faixa de 11 abas (N6).** `?tela=` é o endereço; `?visao=` e `?aba=` antigos são traduzidos e saem da URL (`?tela=sentimento` cai em `lideranca`). Filtros por tela na URL: `rodada` (Clima), `ciclo` (Avaliação), `pessoa` (1:1), `tipo` (Feedback), `busca`/`unidade`/`departamento`/`status` (Cadastro).
+2. **Broker, Reservar sem trava de saldo:** com o saldo exibido menor que o preço, a fila mostra um aviso não bloqueante e a recusa vem do servidor. Motivo: a tela da unidade não sabe se `bloqueio_por_saldo` está ligado; travar no cliente impediria uma reserva que o servidor aceita. O botão só desabilita (com motivo) no "ver como".
+3. **Avaliação, Liberar devolutiva:** pede `AlertDialog` com o efeito, some em ciclo encerrado ou importado e quando todos já têm devolutiva; o texto avisa que liberar de novo regrava a data de quem já tinha. Notas do comitê gravam só com mudança e só dentro da escala do ciclo (validação nova, no cliente; o servidor não confere).
+4. **Clima:** o rótulo do eNPS diz o universo; com menos de 5 respostas fica "—". Enviar convites confirma com o número de pessoas ativas com e-mail no cadastro visível e, no reenvio, diz quantas já receberam (sem subtrair, porque o servidor tenta de novo quem falhou). Encerrar rodada confirma.
+5. **1:1, Registrar só para liderado direto:** a fila mostra o time em qualquer profundidade, mas o botão por linha só vale para liderado direto, como o formulário já fazia. O banco aceita qualquer pessoa (achado para o Eliezek).
+6. **Rótulos N11:** "Pessoas cadastradas (todos os status)" e "N de M (ativas)"; Matriz "Reservadas (oportunidades)" e "Valor da fila (soma dos preços)" × unidade "Reservado (CB)"; Painel "Contratos ativos", "Nota média das pesquisas (90 dias)", "Tratativas perdidas movidas no mês"; Adoção "com login" como número com %, sem selo vermelho fixo (N9).
+7. **Meus Royalties:** "Pago" quando o recebido cobre 99% do previsto; previsto 0 e recebido 0 é "Sem cobrança"; mês sem previsto ou com leitura falha é "—".
+8. **Adoção:** lista vazia lida pela chave: sem `view.gente.agregado` é "sem acesso"; com a chave é "nenhuma unidade".
+9. **Dívida:** `BotaoComMotivo`, `ErroDaFonte`, `AvisoCorte` e `dataSP` moram em `components/gente/estados-gente.tsx` e o Broker os importa dali; há cópias de `BotaoComMotivo` em Monetização e Receita. Consolidar em `components/planning` depois dos merges.
+
+**Status:** implementado na branch `feat/ds-v2-migracao-people-20260924` (sem push). Revisão do Eliezek no PR, com os achados de servidor e RLS listados lá.
+
 ## [2026-09-25] Cockpit do CEO (leitura de dez segundos + Perguntar ao Brain) publicado; a main volta a ser igual à produção (adendo à entrada de 24/09)
 
 **Autorização:** o Pedro pediu "pode subir", com o Jev da conversa desligado até resolver os créditos do OpenRouter.

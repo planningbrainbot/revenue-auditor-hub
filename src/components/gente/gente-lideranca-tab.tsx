@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertCircle, CalendarClock, HeartPulse, ListChecks, Send, Sparkles } from "lucide-react";
+import { CalendarClock, HeartPulse, ListChecks, Send, Sparkles } from "lucide-react";
 import {
   listLideranca,
   publicarElogio,
@@ -14,7 +14,20 @@ import {
   type SentimentoRow,
 } from "@/lib/gente-lideranca.functions";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  AvisoCorte,
+  BotaoComMotivo,
+  ErroDaFonte,
+  SemCadastroNaRede,
+  dataSP,
+} from "@/components/gente/estados-gente";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  Procedencia,
+  StatusBadge,
+} from "@/components/planning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,27 +83,19 @@ const fmtData = (d: string | null) =>
 const rotuloRate = (rate: string | null) =>
   rate ? (RATE_LABEL[rate] ?? rate.toLowerCase().replace(/_/g, " ")) : NA;
 
-function SemCadastro() {
-  return (
-    <Card className="flex items-start gap-3 p-6">
-      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-      <div className="text-sm">
-        <div className="font-medium">Seu usuário não está no cadastro de gente da rede.</div>
-        <p className="mt-1 text-muted-foreground">
-          Sentimento, prioridades e cadência dependem de saber quem é você e quem é seu time.
-        </p>
-      </div>
-    </Card>
-  );
-}
+const FONTE = "o pulso, as prioridades e as cadências";
+// A consulta pede no máximo 400 registros de pulso e 400 de prioridades, e 50
+// elogios (`listLideranca`); a régua da procedência diz isso.
+const LIMITE_PULSO = 400;
+const LIMITE_ELOGIOS = 50;
+const CORTE_TABELA = 40;
 
-function SemPermissao({ o_que }: { o_que: string }) {
-  return (
-    <Card className="p-6 text-sm text-muted-foreground">
-      Seu perfil não tem a permissão para {o_que}.
-    </Card>
-  );
-}
+const CADENCIAS: { valor: string; rotulo: string }[] = [
+  { valor: "7", rotulo: "Semanal" },
+  { valor: "14", rotulo: "Quinzenal" },
+  { valor: "30", rotulo: "Mensal" },
+  { valor: "60", rotulo: "A cada 2 meses" },
+];
 
 // Um por pessoa: o registro mais recente de cada um do time.
 function ultimoPorPessoa(linhas: SentimentoRow[]): SentimentoRow[] {
@@ -110,10 +115,11 @@ export type Escopo = "eu" | "time" | "tudo";
 export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
   const fn = useServerFn(listLideranca);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<LiderancaResult>({
+  const q = useQuery<LiderancaResult>({
     queryKey: ["gente-lideranca"],
     queryFn: () => fn({}),
   });
+  const data = q.data;
 
   const sentimentoFn = useServerFn(registrarSentimento);
   const prioridadesFn = useServerFn(salvarPrioridades);
@@ -152,9 +158,13 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
   });
 
   const gravarCadencia = useMutation({
-    mutationFn: (v: { lideradoId: number; intervaloDias: number }) => cadenciaFn({ data: v }),
-    onSuccess: () => {
-      toast.success("Cadência combinada.");
+    mutationFn: (v: { lideradoId: number; intervaloDias: number; nome: string }) =>
+      cadenciaFn({ data: { lideradoId: v.lideradoId, intervaloDias: v.intervaloDias } }),
+    onSuccess: (_r, v) => {
+      const rotulo = CADENCIAS.find((c) => c.valor === String(v.intervaloDias))?.rotulo;
+      toast.success(
+        `Cadência com ${v.nome}: ${(rotulo ?? `${v.intervaloDias} dias`).toLowerCase()}.`,
+      );
       qc.invalidateQueries({ queryKey: ["gente-lideranca"] });
     },
     onError: (erro: Error) => toast.error(erro.message),
@@ -165,14 +175,24 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
     [data?.sentimentosDoTime],
   );
 
-  if (isLoading) return <Card className="p-6 text-sm text-muted-foreground">Carregando…</Card>;
-  if (!data) return null;
-  if (!data.podeLideranca) return <SemPermissao o_que="ver sentimento e prioridades" />;
-  if (!data.minhaPessoaId) return <SemCadastro />;
+  // Separados (contrato gente.md, "Estados"). Dentro de "Minha vez" e "Meu time"
+  // o erro desta fonte já aparece em "O que espera por você", com "Tentar de
+  // novo"; repeti-lo embaixo seria o mesmo aviso duas vezes.
+  if (q.isLoading) return <Carregando variante="tabela" linhas={3} />;
+  if (q.isError || !data) {
+    if (escopo !== "tudo") return null;
+    return <ErroDaFonte fonte={FONTE} erro={q.error} tentar={() => q.refetch()} />;
+  }
+  if (!data.podeLideranca) return <EstadoSemAcesso oQueFalta="view.gente.lideranca" />;
+  if (!data.minhaPessoaId)
+    return <SemCadastroNaRede oQueDepende="Sentimento, prioridades e cadência" />;
 
   const atrasados = data.cadencias.filter((c) => c.atrasado);
   const mostraEu = escopo !== "time";
   const mostraTime = escopo !== "eu";
+  const pulsoMostrado = timeSentimento.slice(0, CORTE_TABELA);
+  const prioridadesMostradas = data.prioridadesDoTime.slice(0, CORTE_TABELA);
+  const lidera = data.meuTime.length > 0;
 
   return (
     <div className="space-y-4">
@@ -257,13 +277,24 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
         </div>
       )}
 
-      {mostraTime && data.meuTime.length > 0 && (
+      {/* Na tela Sentimento, quem não lidera ninguém vê só o próprio pulso; a
+          frase diz por que as tabelas do time não aparecem. */}
+      {escopo === "tudo" && !lidera && (
+        <p className="text-sm text-muted-foreground">
+          Você não lidera ninguém no cadastro da rede, então o pulso, as prioridades e a cadência do
+          time não aparecem aqui.
+        </p>
+      )}
+
+      {mostraTime && lidera && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-primary-text" />
             <h3 className="font-semibold">Cadência de 1:1 com meu time</h3>
             {atrasados.length > 0 && (
-              <Badge variant="destructive">{atrasados.length} atrasado(s)</Badge>
+              <StatusBadge tom="perigo">
+                <span className="num">{atrasados.length}</span> atrasado(s)
+              </StatusBadge>
             )}
           </div>
           <Table>
@@ -280,20 +311,20 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               {data.meuTime.map((pessoa) => {
                 const cadencia = data.cadencias.find((c) => c.lideradoId === pessoa.id);
                 return (
-                  <TableRow
-                    key={pessoa.id}
-                    className={cadencia?.atrasado ? "bg-destructive/5" : ""}
-                  >
+                  <TableRow key={pessoa.id}>
                     <TableCell className="font-medium">{pessoa.nome}</TableCell>
                     <TableCell>
                       {cadencia ? `${cadencia.intervaloDias} dias` : "sem combinado"}
                     </TableCell>
+                    {/* `v_gente_1a1_atraso.ultimo_em` é `date` (conferido no banco em
+                        24/09): dia de calendário, sem fuso; `fmtData` fixa meio-dia. */}
                     <TableCell>{fmtData(cadencia?.ultimoEm ?? null)}</TableCell>
                     <TableCell>
                       {cadencia?.diasDesde != null ? (
-                        <Badge variant={cadencia.atrasado ? "destructive" : "secondary"}>
-                          {cadencia.diasDesde}
-                        </Badge>
+                        <span className="inline-flex items-center gap-2">
+                          <span className="num">{cadencia.diasDesde}</span>
+                          {cadencia.atrasado && <StatusBadge tom="perigo">Atrasado</StatusBadge>}
+                        </span>
                       ) : (
                         NA
                       )}
@@ -301,18 +332,30 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
                     <TableCell className="text-right">
                       <Select
                         value={String(cadencia?.intervaloDias ?? "")}
+                        disabled={
+                          gravarCadencia.isPending &&
+                          gravarCadencia.variables?.lideradoId === pessoa.id
+                        }
                         onValueChange={(v) =>
-                          gravarCadencia.mutate({ lideradoId: pessoa.id, intervaloDias: Number(v) })
+                          gravarCadencia.mutate({
+                            lideradoId: pessoa.id,
+                            intervaloDias: Number(v),
+                            nome: pessoa.nome,
+                          })
                         }
                       >
-                        <SelectTrigger className="ml-auto w-32">
+                        <SelectTrigger
+                          className="ml-auto w-36"
+                          aria-label={`Cadência de 1:1 com ${pessoa.nome}`}
+                        >
                           <SelectValue placeholder="Intervalo" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="7">Semanal</SelectItem>
-                          <SelectItem value="14">Quinzenal</SelectItem>
-                          <SelectItem value="30">Mensal</SelectItem>
-                          <SelectItem value="60">A cada 2 meses</SelectItem>
+                          {CADENCIAS.map((c) => (
+                            <SelectItem key={c.valor} value={c.valor}>
+                              {c.rotulo}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -324,9 +367,19 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
         </Card>
       )}
 
+      {mostraTime && lidera && timeSentimento.length === 0 && (
+        <EstadoVazio
+          titulo="Ninguém do time respondeu o pulso ainda"
+          descricao="Cada pessoa responde em Minha vez ou nesta tela; a resposta mais recente de cada uma aparece aqui."
+        />
+      )}
+
       {mostraTime && timeSentimento.length > 0 && (
         <Card className="p-4">
-          <h3 className="mb-3 font-semibold">Pulso do time</h3>
+          <h3 className="mb-1 font-semibold">Pulso do time</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            A resposta mais recente de cada pessoa, da mais nova para a mais antiga.
+          </p>
           <Table>
             <TableHeader>
               <TableRow>
@@ -337,7 +390,7 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               </TableRow>
             </TableHeader>
             <TableBody>
-              {timeSentimento.slice(0, 40).map((linha) => (
+              {pulsoMostrado.map((linha) => (
                 <TableRow key={linha.id}>
                   <TableCell className="font-medium">{linha.pessoaNome ?? NA}</TableCell>
                   <TableCell>{fmtData(linha.periodoEm)}</TableCell>
@@ -349,7 +402,21 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               ))}
             </TableBody>
           </Table>
+          <div className="mt-3">
+            <AvisoCorte
+              mostrando={pulsoMostrado.length}
+              total={timeSentimento.length}
+              oQue="pessoas com pulso"
+            />
+          </div>
         </Card>
+      )}
+
+      {mostraTime && lidera && data.prioridadesDoTime.length === 0 && (
+        <EstadoVazio
+          titulo="Ninguém do time escreveu prioridades ainda"
+          descricao="As prioridades da semana de cada pessoa aparecem aqui assim que forem salvas."
+        />
       )}
 
       {mostraTime && data.prioridadesDoTime.length > 0 && (
@@ -364,7 +431,7 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.prioridadesDoTime.slice(0, 40).map((linha) => (
+              {prioridadesMostradas.map((linha) => (
                 <TableRow key={linha.id}>
                   <TableCell className="font-medium">{linha.pessoaNome ?? NA}</TableCell>
                   <TableCell>{fmtData(linha.periodoEm)}</TableCell>
@@ -373,7 +440,22 @@ export function GenteLiderancaTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
               ))}
             </TableBody>
           </Table>
+          <div className="mt-3">
+            <AvisoCorte
+              mostrando={prioridadesMostradas.length}
+              total={data.prioridadesDoTime.length}
+              oQue="registros de prioridades"
+            />
+          </div>
         </Card>
+      )}
+
+      {escopo === "tudo" && (
+        <Procedencia
+          fonte="Planning People: pulso, prioridades e cadências de 1:1"
+          atualizadoEm={q.dataUpdatedAt ? new Date(q.dataUpdatedAt) : null}
+          regua={`até os ${LIMITE_PULSO} registros de pulso e ${LIMITE_PULSO} de prioridades mais recentes que você enxerga`}
+        />
       )}
     </div>
   );
@@ -383,16 +465,17 @@ export function GenteElogiosTab() {
   const fn = useServerFn(listLideranca);
   const elogiarFn = useServerFn(publicarElogio);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<LiderancaResult>({
+  const q = useQuery<LiderancaResult>({
     queryKey: ["gente-lideranca"],
     queryFn: () => fn({}),
   });
+  const data = q.data;
 
   const [para, setPara] = useState<string>("");
   const [texto, setTexto] = useState("");
 
   const enviar = useMutation({
-    mutationFn: () => elogiarFn({ data: { paraIds: [Number(para)], texto } }),
+    mutationFn: () => elogiarFn({ data: { paraIds: [Number(para)], texto: texto.trim() } }),
     onSuccess: () => {
       toast.success("Elogio publicado.");
       setTexto("");
@@ -402,10 +485,19 @@ export function GenteElogiosTab() {
     onError: (erro: Error) => toast.error(erro.message),
   });
 
-  if (isLoading) return <Card className="p-6 text-sm text-muted-foreground">Carregando…</Card>;
-  if (!data) return null;
-  if (!data.podeElogios) return <SemPermissao o_que="ver o mural de elogios" />;
-  if (!data.minhaPessoaId) return <SemCadastro />;
+  if (q.isLoading) return <Carregando variante="tabela" linhas={3} />;
+  if (q.isError || !data)
+    return <ErroDaFonte fonte="os elogios" erro={q.error} tentar={() => q.refetch()} />;
+  if (!data.podeElogios) return <EstadoSemAcesso oQueFalta="view.gente.elogios" />;
+  if (!data.minhaPessoaId) return <SemCadastroNaRede oQueDepende="O mural de elogios" />;
+
+  // Elogio vazio só voltava com erro do servidor depois do clique; agora o botão
+  // fica desabilitado e diz o que falta.
+  const motivoPublicar = [
+    !para && "Escolha para quem é o elogio.",
+    !texto.trim() && "Escreva o que a pessoa fez.",
+    enviar.isPending && "Publicando…",
+  ];
 
   return (
     <div className="space-y-4">
@@ -436,14 +528,24 @@ export function GenteElogiosTab() {
           onChange={(e) => setTexto(e.target.value)}
           rows={3}
         />
-        <Button size="sm" onClick={() => enviar.mutate()} disabled={!para || enviar.isPending}>
-          <Send className="mr-2 h-4 w-4" />
-          Publicar
-        </Button>
+        <div>
+          <BotaoComMotivo
+            size="sm"
+            onClick={() => enviar.mutate()}
+            disabled={!para || !texto.trim() || enviar.isPending}
+            motivo={motivoPublicar}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Publicar
+          </BotaoComMotivo>
+        </div>
       </Card>
 
       {data.elogios.length === 0 ? (
-        <Card className="p-6 text-sm text-muted-foreground">Nenhum elogio publicado ainda.</Card>
+        <EstadoVazio
+          titulo="Nenhum elogio publicado ainda"
+          descricao="O primeiro elogio da unidade aparece aqui, para todos da unidade."
+        />
       ) : (
         <div className="space-y-3">
           {data.elogios.map((elogio) => (
@@ -452,13 +554,24 @@ export function GenteElogiosTab() {
                 <span className="font-medium">{elogio.deNome ?? NA}</span>
                 <span className="text-muted-foreground">elogiou</span>
                 <span className="font-medium">{elogio.paraNomes.join(", ") || NA}</span>
-                <Badge variant="secondary">{fmtData(elogio.criadoEm)}</Badge>
+                <span className="num text-xs text-muted-foreground">{dataSP(elogio.criadoEm)}</span>
               </div>
               <p className="whitespace-pre-line text-sm text-muted-foreground">{elogio.texto}</p>
             </Card>
           ))}
+          <AvisoCorte
+            mostrando={data.elogios.length}
+            oQue="elogios"
+            limiteDoServidor={LIMITE_ELOGIOS}
+          />
         </div>
       )}
+
+      <Procedencia
+        fonte="Planning People: mural de elogios da unidade"
+        atualizadoEm={q.dataUpdatedAt ? new Date(q.dataUpdatedAt) : null}
+        regua={`os ${LIMITE_ELOGIOS} elogios mais recentes que você enxerga`}
+      />
     </div>
   );
 }

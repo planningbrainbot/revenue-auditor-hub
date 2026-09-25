@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertCircle, GraduationCap, Plus } from "lucide-react";
+import { GraduationCap, Plus } from "lucide-react";
 import {
   criarPdi,
   listPdi,
@@ -13,7 +13,15 @@ import {
   type PdiRow,
 } from "@/lib/gente-pdi.functions";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { BotaoComMotivo, ErroDaFonte, SemCadastroNaRede } from "@/components/gente/estados-gente";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  Procedencia,
+  StatusBadge,
+  type TomStatus,
+} from "@/components/planning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +51,16 @@ const PROGRESSO_LABEL: Record<string, string> = {
   concluida: "Concluída",
   cancelada: "Cancelada",
 };
+
+const PROGRESSO_TOM: Record<string, TomStatus> = {
+  nao_iniciada: "neutro",
+  em_andamento: "info",
+  avancada: "info",
+  concluida: "sucesso",
+  cancelada: "neutro",
+};
+
+const FONTE = "os PDIs";
 
 const fmtData = (d: string | null) =>
   d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR") : NA;
@@ -80,8 +98,14 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
   });
 
   const mudar = useMutation({
-    mutationFn: (v: { id: number; progresso: string }) => progressoFn({ data: v }),
-    onSuccess: aoMudar,
+    mutationFn: (v: { id: number; progresso: string; titulo: string }) =>
+      progressoFn({ data: { id: v.id, progresso: v.progresso } }),
+    onSuccess: (_r, v) => {
+      toast.success(
+        `"${v.titulo}" agora está ${(PROGRESSO_LABEL[v.progresso] ?? v.progresso).toLowerCase()}.`,
+      );
+      aoMudar();
+    },
     onError: (erro: Error) => toast.error(erro.message),
   });
 
@@ -89,7 +113,7 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
     <Card className="space-y-4 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{plano.souEu ? "Meu PDI" : (plano.pessoaNome ?? NA)}</span>
-        <Badge variant="secondary">{plano.cicloNome}</Badge>
+        <span className="text-sm text-muted-foreground">· {plano.cicloNome}</span>
       </div>
 
       {plano.metas.length === 0 && (
@@ -100,7 +124,9 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
         <div key={meta.id} className="space-y-2 rounded-md border p-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{meta.titulo}</span>
-            <Badge variant="outline">{PROGRESSO_LABEL[meta.progresso] ?? meta.progresso}</Badge>
+            <StatusBadge tom={PROGRESSO_TOM[meta.progresso] ?? "neutro"}>
+              {PROGRESSO_LABEL[meta.progresso] ?? meta.progresso}
+            </StatusBadge>
           </div>
           {meta.descricao && (
             <p className="whitespace-pre-line text-sm text-muted-foreground">{meta.descricao}</p>
@@ -116,23 +142,24 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
               </TableHeader>
               <TableBody>
                 {meta.acoes.map((acao) => (
-                  <TableRow key={acao.id} className={acao.atrasada ? "bg-destructive/5" : ""}>
+                  <TableRow key={acao.id}>
                     <TableCell>{acao.titulo}</TableCell>
                     <TableCell>
-                      {fmtData(acao.prazo)}
-                      {acao.atrasada && (
-                        <Badge variant="destructive" className="ml-2">
-                          atrasada
-                        </Badge>
-                      )}
+                      <span className="inline-flex flex-wrap items-center gap-2">
+                        <span className="num">{fmtData(acao.prazo)}</span>
+                        {acao.atrasada && <StatusBadge tom="perigo">Atrasada</StatusBadge>}
+                      </span>
                     </TableCell>
                     <TableCell>
                       {plano.souEu ? (
                         <Select
                           value={acao.progresso}
-                          onValueChange={(v) => mudar.mutate({ id: acao.id, progresso: v })}
+                          disabled={mudar.isPending && mudar.variables?.id === acao.id}
+                          onValueChange={(v) =>
+                            mudar.mutate({ id: acao.id, progresso: v, titulo: acao.titulo })
+                          }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger aria-label={`Situação de ${acao.titulo}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -144,7 +171,9 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
                           </SelectContent>
                         </Select>
                       ) : (
-                        (PROGRESSO_LABEL[acao.progresso] ?? acao.progresso)
+                        <StatusBadge tom={PROGRESSO_TOM[acao.progresso] ?? "neutro"}>
+                          {PROGRESSO_LABEL[acao.progresso] ?? acao.progresso}
+                        </StatusBadge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -169,15 +198,19 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
                   onChange={(e) => setPrazo({ ...prazo, [meta.id]: e.target.value })}
                 />
               </div>
-              <Button
+              <BotaoComMotivo
                 size="sm"
                 variant="outline"
                 onClick={() => criarAcao.mutate(meta.id)}
-                disabled={!novaAcao[meta.id]}
+                disabled={!novaAcao[meta.id]?.trim() || criarAcao.isPending}
+                motivo={[
+                  !novaAcao[meta.id]?.trim() && "Escreva a ação.",
+                  criarAcao.isPending && "Gravando…",
+                ]}
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Adicionar
-              </Button>
+              </BotaoComMotivo>
             </div>
           )}
         </div>
@@ -197,9 +230,20 @@ function Plano({ plano, aoMudar }: { plano: PdiRow; aoMudar: () => void }) {
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
           />
-          <Button size="sm" onClick={() => criarMeta.mutate()} disabled={!novaMeta}>
-            Criar meta
-          </Button>
+          <div>
+            {/* Desabilitado enquanto grava: o clique duplo criava a meta duas vezes. */}
+            <BotaoComMotivo
+              size="sm"
+              onClick={() => criarMeta.mutate()}
+              disabled={!novaMeta.trim() || criarMeta.isPending}
+              motivo={[
+                !novaMeta.trim() && "Escreva o que você quer desenvolver.",
+                criarMeta.isPending && "Gravando a meta…",
+              ]}
+            >
+              Criar meta
+            </BotaoComMotivo>
+          </div>
         </div>
       )}
     </Card>
@@ -213,10 +257,11 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
   const fn = useServerFn(listPdi);
   const criarFn = useServerFn(criarPdi);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<PdiResult>({
+  const q = useQuery<PdiResult>({
     queryKey: ["gente-pdi"],
     queryFn: () => fn({}),
   });
+  const data = q.data;
 
   const abrir = useMutation({
     mutationFn: (cicloId: number) => criarFn({ data: { cicloId } }),
@@ -227,23 +272,15 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
     onError: (erro: Error) => toast.error(erro.message),
   });
 
-  if (isLoading) return <Card className="p-6 text-sm text-muted-foreground">Carregando…</Card>;
-  if (!data) return null;
-  if (!data.podeVer)
-    return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        Seu perfil não tem a permissão de ver PDI.
-      </Card>
-    );
-  if (!data.minhaPessoaId)
-    return (
-      <Card className="flex items-start gap-3 p-6">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-        <div className="text-sm">
-          <div className="font-medium">Seu usuário não está no cadastro de gente da rede.</div>
-        </div>
-      </Card>
-    );
+  // Dentro de "Minha vez" e "Meu time" o erro desta fonte já aparece em "O que
+  // espera por você", com "Tentar de novo".
+  if (q.isLoading) return <Carregando variante="tabela" linhas={3} />;
+  if (q.isError || !data) {
+    if (escopo !== "tudo") return null;
+    return <ErroDaFonte fonte={FONTE} erro={q.error} tentar={() => q.refetch()} />;
+  }
+  if (!data.podeVer) return <EstadoSemAcesso oQueFalta="view.gente.pdi" />;
+  if (!data.minhaPessoaId) return <SemCadastroNaRede oQueDepende="O PDI" />;
 
   const mostraEu = escopo !== "time";
   const mostraTime = escopo !== "eu";
@@ -253,10 +290,14 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <GraduationCap className="h-4 w-4 text-primary-text" />
-        <h3 className="font-semibold">Plano de desenvolvimento individual</h3>
-      </div>
+      {/* Na tela PDI o cabeçalho da página já diz o que é; o título fica para
+          quando o bloco aparece dentro de "Minha vez" e "Meu time". */}
+      {escopo !== "tudo" && (
+        <div className="flex items-center gap-2">
+          <GraduationCap className="h-4 w-4 text-primary-text" />
+          <h3 className="font-semibold">Plano de desenvolvimento individual</h3>
+        </div>
+      )}
 
       {mostraEu && meus.length === 0 && cicloAtivo && (
         <Card className="flex flex-wrap items-center gap-3 p-4">
@@ -267,6 +308,13 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
             Abrir meu PDI
           </Button>
         </Card>
+      )}
+
+      {mostraEu && meus.length === 0 && !cicloAtivo && (
+        <EstadoVazio
+          titulo="Não há ciclo de PDI ativo"
+          descricao="Você não tem PDI e não há ciclo aberto para começar um. Quem abre o ciclo é o RH da rede."
+        />
       )}
 
       {meus.map((plano) => (
@@ -295,13 +343,15 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
               {data.andamento.map((linha) => (
                 <TableRow key={linha.pdiId}>
                   <TableCell className="font-medium">{linha.pessoaNome}</TableCell>
-                  <TableCell className="text-right">{linha.metas}</TableCell>
-                  <TableCell className="text-right">{linha.metasConcluidas}</TableCell>
-                  <TableCell className="text-right">{linha.acoes}</TableCell>
-                  <TableCell className="text-right">{linha.acoesConcluidas}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="num text-right">{linha.metas}</TableCell>
+                  <TableCell className="num text-right">{linha.metasConcluidas}</TableCell>
+                  <TableCell className="num text-right">{linha.acoes}</TableCell>
+                  <TableCell className="num text-right">{linha.acoesConcluidas}</TableCell>
+                  <TableCell className="num text-right">
                     {linha.acoesAtrasadas > 0 ? (
-                      <Badge variant="destructive">{linha.acoesAtrasadas}</Badge>
+                      <StatusBadge tom="perigo">
+                        <span className="num">{linha.acoesAtrasadas}</span> atrasada(s)
+                      </StatusBadge>
                     ) : (
                       0
                     )}
@@ -320,6 +370,14 @@ export function GentePdiTab({ escopo = "tudo" }: { escopo?: Escopo } = {}) {
           aoMudar={() => qc.invalidateQueries({ queryKey: ["gente-pdi"] })}
         />
       ))}
+
+      {escopo === "tudo" && (
+        <Procedencia
+          fonte="Planning People: PDI (metas e ações)"
+          atualizadoEm={q.dataUpdatedAt ? new Date(q.dataUpdatedAt) : null}
+          regua="ação atrasada = prazo anterior a hoje e ação não concluída"
+        />
+      )}
     </div>
   );
 }

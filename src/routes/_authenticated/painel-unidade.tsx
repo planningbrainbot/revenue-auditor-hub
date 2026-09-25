@@ -1,13 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
-import { AppShell } from "@/components/app-shell";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
-import { KpiCard } from "@/components/planning";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  Secao,
+} from "@/components/planning";
+import { CORES_SERIE, eixoProps, gradeProps, tooltipProps } from "@/lib/planning/grafico";
 
 export const Route = createFileRoute("/_authenticated/painel-unidade")({
   head: () => ({ meta: [{ title: "Painel da Unidade – Planning" }] }),
@@ -16,8 +22,24 @@ export const Route = createFileRoute("/_authenticated/painel-unidade")({
 
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const fmtData = (d: string | null) => (d ? new Date(d).toLocaleDateString("pt-BR") : "—");
+// Data pura ("2026-09-01") é o dia local; `new Date` a lia como meia-noite UTC
+// e mostrava o dia anterior no Brasil.
+const fmtData = (d: string | null) => {
+  if (!d) return "—";
+  const soDia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  const data = soDia ? new Date(Number(soDia[1]), Number(soDia[2]) - 1, Number(soDia[3])) : new Date(d);
+  return Number.isNaN(data.getTime())
+    ? "—"
+    : data.toLocaleDateString("pt-BR", soDia ? undefined : { timeZone: "America/Sao_Paulo" });
+};
 const onlyDigits = (s: string | null | undefined) => (s ?? "").replace(/\D+/g, "");
+const NUM = new Intl.NumberFormat("pt-BR");
+// N2: o destino não recorta igual (Contratos e churn conta só franquias de
+// unidades regionais), então o card diz que o total pode ser outro.
+const AVISO_CONTRATOS = "Em Contratos e churn o recorte é outro (só franquias regionais) e o total pode diferir.";
+
+// Tetos das leituras (as consultas não mudam; a procedência diz o teto).
+const TETO = { empresas: 10000, contratos: 20000, tratativas: 10000, nps: 10000 } as const;
 
 type Empresa = { id: number; razao_social: string | null; cnpj: string | null; unidade: string | null; pipedrive_id: string | null; status_financeiro: string | null };
 type Contrato = { pipedrive_deal_id: string | null; mrr_mensal: number | null; status_contrato: string | null; ganho_em: string | null; unidade: string | null };
@@ -25,9 +47,21 @@ type CR = { valor: number | null; status_pagamento: string | null; data_pagament
 type Tratativa = { status: string | null; unidade: string | null; update_time: string | null; stage_change_time: string | null };
 type Nps = { nps_recomendacao: string | null; created_at: string | null; unidade: string | null };
 
+type Fonte = "empresas" | "contratos" | "tratativas" | "nps" | "cr";
+const NOME_FONTE: Record<Fonte, string> = {
+  empresas: "empresas",
+  contratos: "contratos",
+  tratativas: "central de tratativas",
+  nps: "pesquisas",
+  cr: "contas a receber",
+};
+
 function PainelUnidadePage() {
-  const { unidade: userUnidade, loading: permLoading } = usePermissions();
+  const { unidade: userUnidade, loading: permLoading, temArea } = usePermissions();
+  const [lidoEm, setLidoEm] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tentativa, setTentativa] = useState(0);
+  const [erros, setErros] = useState<Partial<Record<Fonte, string>>>({});
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [cr, setCr] = useState<CR[]>([]);
@@ -38,6 +72,7 @@ function PainelUnidadePage() {
     if (permLoading) return;
     let alive = true;
     setLoading(true);
+    setErros({});
     (async () => {
       const [e, c, t, n] = await Promise.all([
         // Sem filtro por tipo_unidade: a coluna está vazia em boa parte da base
@@ -51,27 +86,40 @@ function PainelUnidadePage() {
       const pageSize = 1000;
       let from = 0;
       const allCr: CR[] = [];
+      let erroCr: string | undefined;
       while (true) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("contas_receber")
           .select("valor,status_pagamento,data_pagamento,data_vencimento,cpf_cnpj,unidade")
           .neq("status_pagamento", "CANCELADO")
           .range(from, from + pageSize - 1);
+        if (error) {
+          erroCr = error.message;
+          break;
+        }
         const batch = (data ?? []) as CR[];
         allCr.push(...batch);
         if (batch.length < pageSize) break;
         from += pageSize;
       }
       if (!alive) return;
+      const novosErros: Partial<Record<Fonte, string>> = {};
+      if (e.error) novosErros.empresas = e.error.message;
+      if (c.error) novosErros.contratos = c.error.message;
+      if (t.error) novosErros.tratativas = t.error.message;
+      if (n.error) novosErros.nps = n.error.message;
+      if (erroCr) novosErros.cr = erroCr;
+      setErros(novosErros);
       setEmpresas((e.data ?? []) as Empresa[]);
       setContratos((c.data ?? []) as Contrato[]);
       setTratativas((t.data ?? []) as Tratativa[]);
       setNps((n.data ?? []) as Nps[]);
-      setCr(allCr);
+      setCr(erroCr ? [] : allCr);
+      setLidoEm(new Date());
       setLoading(false);
     })();
     return () => { alive = false; };
-  }, [permLoading]);
+  }, [permLoading, tentativa]);
 
   const empresasUnidade = useMemo(
     () => empresas.filter((e) => unitMatches(userUnidade, e.unidade)),
@@ -93,6 +141,7 @@ function PainelUnidadePage() {
 
   const now = new Date();
   const mesIni = new Date(now.getFullYear(), now.getMonth(), 1);
+  const mesLabel = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const churnMes = tratativas.filter(
     (t) =>
       (t.status ?? "").toLowerCase() === "lost" &&
@@ -171,97 +220,203 @@ function PainelUnidadePage() {
           .map((r) => r.data_pagamento as string)
           .sort()
           .pop();
-        return { empresa: e.razao_social ?? "—", status: e.status_financeiro ?? "—", ultimoPag: ultimoPag ?? null, atraso };
+        return {
+          id: e.id,
+          empresa: e.razao_social ?? "—",
+          // Busca da Base: CNPJ (≥3 dígitos) acha o cliente exato; sem CNPJ, o nome.
+          busca: onlyDigits(e.cnpj).length >= 3 ? onlyDigits(e.cnpj) : (e.razao_social ?? ""),
+          status: e.status_financeiro ?? "—",
+          ultimoPag: ultimoPag ?? null,
+          atraso,
+        };
       })
       .filter((r) => r.atraso > 0)
       .sort((a, b) => b.atraso - a.atraso)
       .slice(0, 5);
   }, [empresasUnidade, crUnidade]);
 
+  const carregando = loading || permLoading;
+  const destinoContratos = `/clientes?view=contratos&unidade=${encodeURIComponent(userUnidade ?? "")}`;
+  const fontesComErro = (Object.keys(erros) as Fonte[]).filter((f) => erros[f]);
+  const estado = (...fontes: Fonte[]) => (fontes.some((f) => erros[f]) ? "indisponivel" : "ok") as "indisponivel" | "ok";
+  const cortes = [
+    empresas.length >= TETO.empresas && `${NUM.format(TETO.empresas)} empresas`,
+    contratos.length >= TETO.contratos && `${NUM.format(TETO.contratos)} contratos`,
+    tratativas.length >= TETO.tratativas && `${NUM.format(TETO.tratativas)} tratativas`,
+    nps.length >= TETO.nps && `${NUM.format(TETO.nps)} pesquisas`,
+  ].filter(Boolean) as string[];
+
   return (
-    <AppShell title="Painel da Unidade" subtitle={`Visão geral — ${userUnidade ?? "minha unidade"}`}>
-      <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Kpi label="MRR Atual" value={loading ? "—" : fmtBRL(mrr)} />
-          <Kpi label="Clientes Ativos" value={loading ? "—" : String(clientesAtivos)} />
-          <Kpi label="Churn no Mês" value={loading ? "—" : String(churnMes)} />
-          <Kpi
-            label="Nota média (90d)"
-            value={loading ? "—" : npsScores.length ? npsMedio.toFixed(1) : "—"}
-            sub={`${npsScores.length} de ${npsRespostas.length} pesquisas com nota`}
-          />
-        </div>
+    <div className="space-y-6 p-4 md:p-6">
+      <PageHeader
+        titulo="Painel"
+        pergunta="Como a minha unidade está este mês, e o que pede atenção?"
+        descricao={`${userUnidade ?? "Sem unidade vinculada"} · ${mesLabel} · contratos, tratativas e títulos da unidade`}
+        procedencia={{
+          fonte: "Base única · contratos, central de tratativas, contas a receber, pesquisas",
+          // Hora da leitura desta tela: as tabelas não trazem data de sincronização aqui.
+          atualizadoEm: lidoEm,
+          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade; inadimplência = títulos ATRASADO ou VENCIDO",
+        }}
+      />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Alert tone="red" label="Inadimplência" value={fmtBRL(inadValor)} sub={`${inadClientes} cliente(s) com fatura em atraso`} loading={loading} />
-          <Alert tone="amber" label="Clientes em Risco" value={String(emRisco)} sub="status EM_ATRASO ou INADIMPLENTE" loading={loading} />
-        </div>
-
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Evolução — últimos 6 meses</h2>
-          {loading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={serie}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-                <RTooltip formatter={(v: number, name: string) => (name === "MRR" ? fmtBRL(v) : v)} />
-                <Legend />
-                <Bar yAxisId="right" dataKey="novos" name="Novos clientes" fill="hsl(160 60% 45%)" />
-                <Line yAxisId="left" dataKey="mrr_acum" name="MRR" stroke="hsl(220 70% 50%)" strokeWidth={2} />
-              </ComposedChart>
-            </ResponsiveContainer>
+      {carregando ? (
+        <Carregando variante="kpis" />
+      ) : !userUnidade ? (
+        <EstadoVazio
+          titulo="Seu usuário não tem unidade vinculada"
+          descricao="O painel recorta tudo pela unidade do seu usuário. Peça a quem administra os acessos para vincular a sua."
+        />
+      ) : (
+        <>
+          {fontesComErro.length > 0 && (
+            <EstadoErro
+              titulo={`Não foi possível ler ${fontesComErro.map((f) => NOME_FONTE[f]).join(", ")}`}
+              detalhe={`Os números que dependem dessa leitura aparecem como fonte indisponível. Resposta do servidor: ${fontesComErro.map((f) => erros[f]).join(" · ")}`}
+              tentarNovamente={() => setTentativa((x) => x + 1)}
+            />
           )}
-        </Card>
+          <p className="text-[13px] text-muted-foreground">
+            Leitura de até {NUM.format(TETO.empresas)} empresas, {NUM.format(TETO.contratos)} contratos,{" "}
+            {NUM.format(TETO.tratativas)} tratativas e {NUM.format(TETO.nps)} pesquisas; títulos sem teto.
+            {cortes.length > 0 && ` A leitura chegou ao teto de ${cortes.join(", ")}: pode haver registros fora da conta.`}
+          </p>
 
-        <Card className="overflow-hidden">
-          <div className="border-b px-4 py-3 text-sm font-semibold">Top 5 alertas</div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Último pagamento</TableHead>
-                <TableHead className="text-right">Em atraso</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topAlertas.length === 0 && !loading && (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">Nenhum alerta crítico.</TableCell>
-                </TableRow>
-              )}
-              {topAlertas.map((r, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{r.empresa}</TableCell>
-                  <TableCell>{r.status}</TableCell>
-                  <TableCell>{fmtData(r.ultimoPag)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-danger">{fmtBRL(r.atraso)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-    </AppShell>
-  );
-}
+          <KpiGrade colunas={4}>
+            <KpiCard
+              rotulo="MRR atual"
+              valor={fmtBRL(mrr)}
+              estado={estado("contratos")}
+              nota={`Soma do MRR dos contratos ativos. ${AVISO_CONTRATOS}`}
+              abrir={{ href: destinoContratos, rotulo: "Abrir contratos" }}
+            />
+            <KpiCard
+              rotulo="Contratos ativos"
+              valor={NUM.format(clientesAtivos)}
+              estado={estado("contratos")}
+              nota={AVISO_CONTRATOS}
+              abrir={{ href: destinoContratos, rotulo: "Abrir contratos" }}
+            />
+            <KpiCard
+              rotulo="Tratativas perdidas movidas no mês"
+              valor={NUM.format(churnMes)}
+              estado={estado("tratativas")}
+              nota="Perdidas com troca de fase ou atualização desde o dia 1"
+            />
+            <KpiCard
+              rotulo="Nota média das pesquisas (90 dias)"
+              valor={npsMedio.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              estado={erros.nps ? "indisponivel" : npsScores.length ? "ok" : "nao-apurado"}
+              nota={`${NUM.format(npsScores.length)} de ${NUM.format(npsRespostas.length)} pesquisas com nota`}
+            />
+          </KpiGrade>
 
-// Adaptador: assinatura antiga, desenho do KpiCard do design system (DESIGN §1.6).
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return <KpiCard rotulo={label} valor={value} nota={sub} />;
-}
+          <Secao titulo="O que pede atenção?" descricao="Títulos em atraso e clientes com situação financeira de risco">
+            <KpiGrade colunas={2}>
+              <KpiCard
+                rotulo="Inadimplência"
+                valor={fmtBRL(inadValor)}
+                estado={erros.cr ? "indisponivel" : erros.empresas ? "parcial" : "ok"}
+                tom={inadValor > 0 ? "perigo" : undefined}
+                tomRotulo="em atraso"
+                // Contas a Receber é da área Financeiro da unidade: sem ela, o card não abre.
+                abrir={temArea("minha_unidade_financeiro") ? { href: "/contas-receber", rotulo: "Abrir contas a receber" } : undefined}
+                nota={
+                  erros.empresas && !erros.cr
+                    ? "Só títulos com a unidade no próprio registro: a leitura de empresas falhou"
+                    : `${NUM.format(inadClientes)} cliente(s) com fatura atrasada ou vencida`
+                }
+              />
+              <KpiCard
+                rotulo="Clientes em risco"
+                valor={NUM.format(emRisco)}
+                estado={estado("empresas")}
+                tom={emRisco > 0 ? "atencao" : undefined}
+                tomRotulo="em risco"
+                nota="Situação financeira EM_ATRASO ou INADIMPLENTE. A Base de clientes abre sem esse filtro."
+                abrir={{ href: "/clientes", rotulo: "Abrir a Base" }}
+              />
+            </KpiGrade>
+          </Secao>
 
-function Alert({ tone, label, value, sub, loading }: { tone: "red" | "amber"; label: string; value: string; sub: string; loading: boolean }) {
-  const bg = tone === "red" ? "bg-danger-soft border-danger/40" : "bg-warning-soft border-warning/40";
-  return (
-    <Card className={`${bg} p-4`}>
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{loading ? "—" : value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-    </Card>
+          <Secao
+            titulo="Como o MRR dos contratos ativos hoje se formou, pelo mês de ganho?"
+            descricao="MRR acumulado em R$, últimos 6 meses. Só contratos ativos hoje, pelo mês de ganho: quem saiu não entra, então a curva não é o MRR que a unidade tinha em cada mês."
+          >
+            {erros.contratos ? (
+              <EstadoErro
+                titulo="Não foi possível ler os contratos"
+                detalhe={erros.contratos}
+                tentarNovamente={() => setTentativa((x) => x + 1)}
+              />
+            ) : (
+              <div className="rounded-xl border bg-card p-4">
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={serie} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid {...gradeProps} />
+                    <XAxis dataKey="mes" {...eixoProps} />
+                    <YAxis {...eixoProps} tickFormatter={(v: number) => `${NUM.format(Math.round(v / 1000))} mil`} width={64} />
+                    <RTooltip
+                      {...tooltipProps}
+                      formatter={(v, _n, item) => [
+                        `${fmtBRL(Number(v))} · ${NUM.format((item as { payload?: { novos?: number } })?.payload?.novos ?? 0)} contrato(s) ganho(s) no mês`,
+                        "MRR acumulado",
+                      ]}
+                    />
+                    <Line dataKey="mrr_acum" name="MRR acumulado" stroke={CORES_SERIE[0]} strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Secao>
+
+          <Secao
+            titulo="Quais clientes têm mais valor em atraso?"
+            descricao="Os 5 maiores valores atrasados ou vencidos; a linha abre o cliente na Base de clientes"
+          >
+            {erros.empresas || erros.cr ? (
+              <EstadoErro
+                titulo={`Não foi possível ler ${[erros.empresas && "empresas", erros.cr && "contas a receber"].filter(Boolean).join(" e ")}`}
+                detalhe={[erros.empresas, erros.cr].filter(Boolean).join(" · ")}
+                tentarNovamente={() => setTentativa((x) => x + 1)}
+              />
+            ) : topAlertas.length === 0 ? (
+              <EstadoVazio titulo="Nenhum cliente com valor em atraso" />
+            ) : (
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Empresa</TableHead>
+                      <TableHead>Situação financeira</TableHead>
+                      <TableHead>Último pagamento</TableHead>
+                      <TableHead className="text-right">Em atraso</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topAlertas.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">
+                          <Link
+                            to="/clientes"
+                            search={{ q: r.busca } as never}
+                            className="rounded-sm text-primary-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            {r.empresa}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{r.status}</TableCell>
+                        <TableCell className="tabular-nums">{fmtData(r.ultimoPag)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-danger">{fmtBRL(r.atraso)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Secao>
+        </>
+      )}
+    </div>
   );
 }
