@@ -3387,3 +3387,19 @@ O dono aprovou os contratos `docs/design/contratos/admin-usuarios.md` e
 `admin-usuarios-ficha.md` ("aprovo", 25/09/2026), depois de as duas telas irem
 ao ar. Fica fechada a gestão de acessos desta rodada; o que resta da checagem
 dos contratos é a captura escuro/claro, que depende de uma sessão logada.
+
+## [2026-09-27] O CEO (pedro.araujo) recebe a área Cockpit do CEO
+
+**Pedido do Pedro:** "dá acesso total ao pedro.araujo ao cockpit".
+
+**Feito:** linha em `ops.usuario_areas` (`cockpit_ceo`, `allowed = true`) só para ele. Os papéis `diretor` e `financeiro` não mudam, e nenhuma outra pessoa ganha a área.
+
+Ele já tinha o resto que os números do cockpit exigem:
+- produto Financeiro, com todas as empresas;
+- produto Growth, como membro;
+- `view.aquario`, `view.clientes`, `view.monetizacao`, `view.painel_cs` e `view.fila_cella`;
+- todas as unidades.
+
+Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financeiro')`, `tem_produto('growth')` e `growth.e_membro()` são todos verdadeiros. Ele vê a Visão executiva, as frentes e o "Perguntar ao Brain" (histórico e visões privados dele).
+
+**Reversão:** `update ops.usuario_areas set allowed = false where user_id = 'dd9d83f2-1538-46c2-918c-f0f7986a5a69' and area = 'cockpit_ceo';`.
