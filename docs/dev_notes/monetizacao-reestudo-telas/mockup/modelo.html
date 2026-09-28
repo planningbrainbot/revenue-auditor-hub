@@ -222,10 +222,13 @@ dialog::backdrop{background:rgba(11,18,22,.35)}
         <span class="item" data-menu="operacao" title="Mantida como está; outro chat corrige a Operação" style="color:var(--mfg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Operação diária</span>
         <a class="item" href="#funil" data-menu="funil"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>Funil e ciclo</a>
         <a class="item" href="#previsao" data-menu="previsao"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Previsão</a>
+        <span class="item" title="Fica como está (em stand by)" style="color:var(--mfg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>Follow Day</span>
       </div>
       <div class="grupo">
         <div class="g">Desenv. comercial</div>
         <a class="item" href="#menu" data-menu="roteiros"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Abordagens</a>
+        <span class="item" title="Fica como está (uso futuro)" style="color:var(--mfg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Pessoas e PDI</span>
+        <span class="item" title="Fica como está (uso futuro)" style="color:var(--mfg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>Distribuição</span>
       </div>
     </aside>
     <main class="principal" id="principal"></main>
@@ -445,6 +448,7 @@ function painelFunil(chave, ds){
   });
   return h('div',{class:'painel'},
     h('h3',null, h('span',{class:'sw o',style:'background:'+P.cor}), P.nome, h('span',{class:'n',text:'· '+plural(N,'criado','criados')})),
+    chave==='consultoria' ? h('span',{class:'estado',style:'background:var(--info-soft);color:var(--info);width:auto;max-width:100%;border-radius:8px'}, icone('info'), '26 do lote de 15/09 foram trabalhados como Finance: campo a trocar no Pipedrive') : null,
     h('div',{class:'rolagem'}, h('div',{class:'inner'}, svg)));
 }
 
@@ -534,7 +538,7 @@ function motivos(ds){
   g.append(h('div',{class:'hd',text:'Motivo'}));
   for (const p of cols) g.append(h('div',{class:'hd'}, h('span',{class:'sw o',style:'width:10px;height:10px;background:'+PROD[p].cor}), PROD[p].nome+' · '+perdidos.filter(d => d.p===p).length));
   cats.forEach(m => {
-    if (m===REMANEJADO) g.append(h('div',{class:'sep',text:'Não é perda comercial: o negócio foi trocado de produto, já estava em outro card ou era duplicado. Proposta: sai da taxa de perda e fica visível aqui.'}));
+    if (m===REMANEJADO) g.append(h('div',{class:'sep',text:'Não é perda comercial: o negócio foi trocado de produto, já estava em outro card ou era duplicado. Sai da taxa de perda e fica visível aqui (decidido em 28/09).'}));
     const tot = perdidos.filter(d => d.lc===m);
     const exemplos = [...new Set(tot.map(d => d.lr).filter(Boolean))].slice(0,1)[0];
     g.append(h('div',{class:'rt'}, m, h('small',{text: plural(tot.length,'perda','perdas') + (exemplos && m!=='Fora de perfil' && m!=='Sem interesse' ? ' · ex.: "'+exemplos.slice(0,48)+(exemplos.length>48?'…':'')+'"' : '')})));
@@ -607,7 +611,7 @@ function pranchaFunil(){
   // 3 · envelhecimento
   const env = envelhecimento(ds);
   out.push(secao('Onde os negócios abertos estão parados, e há quanto tempo?',
-    'Cada ponto é um negócio aberto, na etapa atual, pelos dias desde que entrou nela. A faixa cinza é o miolo (p25–p75) de quem já passou pela etapa, e o traço é a mediana. Faz o papel do Follow Day, que sai.',
+    'Cada ponto é um negócio aberto, na etapa atual, pelos dias desde que entrou nela. A faixa cinza é o miolo (p25–p75) de quem já passou pela etapa, e o traço é a mediana. O Follow Day continua no menu, em stand by, com a régua dele (a próxima atividade).',
     h('button',{type:'button',class:'link',onclick:() => abrirLista('Parados há 7 dias ou mais','Abertos há 7+ dias na etapa atual · '+nomeP, env.acima7)}, 'Ver os '+env.acima7.length+' parados há 7+ dias'),
     produto==='todos' ? legenda([...PRODS.map(p => [PROD[p].cor, PROD[p].nome, 'o']), ['var(--band)','Miolo de quem já passou (p25–p75)']]) : null,
     h('div',{class:'rolagem'}, h('div',{style:'min-width:760px'}, env.svg))));
@@ -624,7 +628,7 @@ function pranchaFunil(){
       h('dt',{text:'Coorte'}), h('dd',{text:'Negócios do pipe 39 criados no período do filtro. O período escolhe quem entra; os marcos contam até hoje. É outra régua da Operação diária, que conta movimentos no período.'}),
       h('dt',{text:'Chegou ao marco'}), h('dd',{text:'Tem o marco ou qualquer marco posterior. Negócio que foi direto a Negociação conta em Reunião realizada e aparece como "pulou o registro".'}),
       h('dt',{text:'Stand by'}), h('dd',{text:'Conta como reunião realizada (DECISIONS 28/09) e como oportunidade validada.'}),
-      h('dt',{text:'Produto'}), h('dd',{text:'Campo "Caixa · Produto" do Pipedrive. O título não conta: 3 negócios dizem outro produto no título (96070, 96094, 96110), e o registro de envio confirma o campo.'}),
+      h('dt',{text:'Produto'}), h('dd',{text:'Campo "Caixa · Produto" do Pipedrive. O lote de Consultoria de 15/09 (26 negócios) foi trabalhado como Finance, e um como Cella: o campo está errado e o Matheus vai trocar. Quando ele trocar, a carga relê o negócio e ele muda de painel sozinho.'}),
       h('dt',{text:'Dias na etapa'}), h('dd',{text:'Derivado da entrada em cada etapa gravada pela carga. Confere com o tempo por etapa do Pipedrive em 614 de 620 passagens; as 6 diferenças vêm de trocas de etapa no mesmo segundo, corrigidas na carga v6.'}),
       h('dt',{text:'Sem produto'}), h('dd',{text:'Entra no Geral e em "Todos"; não tem painel próprio no funil. TECH MED (ganho em abril, em outro pipe) fica fora da coorte.'})
     )));
@@ -768,33 +772,33 @@ function abrirPlano(){
 /* ============ PRANCHA 3 · MENU, ROTAS E INVENTÁRIO ============ */
 function pranchaMenu(){
   const out = [];
-  out.push(cabecalho('Menu e rotas','O que sai, o que funde e para onde vai cada link antigo?','Nove abas de /monetizacao?aba= medidas em 28/09/2026 · frescor medido no banco (Management API, só leitura) e no Pipedrive', null));
-  const hoje = [['Operação diária','Mantém','sucesso'],['Temporal e previsão','Funde em Previsão','info'],['Projetado × realizado','Funde em Previsão','info'],['Capacidade e alocação','Funde em Previsão (Sheet do plano)','info'],['Follow Day','Sai','neutro'],['Funil comercial','Vira Funil e ciclo','info'],['Pessoas e PDI','Sai (PDI mora em Planning People)','neutro'],['Abordagens','Mantém','sucesso'],['Distribuição','Sai','neutro']];
-  const nova = [['Operação diária','O farmer está no ritmo, e onde a base trava?'],['Funil e ciclo','Onde cada produto perde negócios, e quanto tempo leva para fechar?'],['Previsão','O mês vai bater a meta, e quanto o pipe sustenta nos próximos meses?'],['Abordagens','O que eu digo para este produto e este segmento?']];
+  out.push(cabecalho('Menu e rotas','O que funde, o que fica e para onde vai cada link antigo?','Nove abas de /monetizacao?aba= medidas em 28/09/2026 · frescor medido no banco (Management API, só leitura) e no Pipedrive', null));
+  const hoje = [['Operação diária','Mantém','sucesso'],['Temporal e previsão','Funde em Previsão','info'],['Projetado × realizado','Funde em Previsão','info'],['Capacidade e alocação','Funde em Previsão (Sheet do plano)','info'],['Follow Day','Fica em stand by','neutro'],['Funil comercial','Vira Funil e ciclo','info'],['Pessoas e PDI','Fica (uso futuro)','sucesso'],['Abordagens','Mantém','sucesso'],['Distribuição','Fica (uso futuro)','sucesso']];
+  const nova = [['Operação diária','O farmer está no ritmo, e onde a base trava?'],['Funil e ciclo','Onde cada produto perde negócios, e quanto tempo leva para fechar?'],['Previsão','O mês vai bater a meta, e quanto o pipe sustenta nos próximos meses?'],['Follow Day','Sem mudança (em stand by)'],['Abordagens','O que eu digo para este produto e este segmento?'],['Pessoas e PDI','Sem mudança (uso futuro)'],['Distribuição','Sem mudança (uso futuro)']];
   out.push(h('div',{class:'menus'},
     h('div',{class:'menu'}, h('h3',{text:'Hoje · 9 itens'}), hoje.map(([n,v,t]) => h('div',{class:'it'}, h('span',{text:n}), badge(t, v)))),
-    h('div',{class:'menu'}, h('h3',{text:'Proposta · 4 itens'}), nova.map(([n,q]) => h('div',{class:'it',style:'flex-direction:column;align-items:flex-start;gap:2px'}, h('strong',{text:n}), h('span',{style:'font-size:13px;color:var(--mfg)',text:q}))))));
+    h('div',{class:'menu'}, h('h3',{text:'Proposta · 7 itens'}), nova.map(([n,q]) => h('div',{class:'it',style:'flex-direction:column;align-items:flex-start;gap:2px'}, h('strong',{text:n}), h('span',{style:'font-size:13px;color:var(--mfg)',text:q}))))));
   const inv = [
     ['Operação diária','Carga do CRM a cada 5 min (pg_cron → monetizacao-crm): 2.010 execuções em 7 dias, 0 falhas, última 28/09 15h20. Plano de set/26 salvo em 15/09.','Funil comercial, Projetado × realizado, Capacidade (mesmos eventos)','Mantém (outro chat corrige). O funil dela conta movimentos; o de Funil e ciclo conta coorte.','sucesso'],
     ['Temporal e previsão','Carga ativa, mas das 30 validadas abertas 0 têm data prevista e 0 têm valor. Hipóteses do plano nulas: o cenário nunca saiu de "sem hipótese".','Projetado × realizado (validadas com data), Funil comercial (validadas em aberto)','Funde em Previsão. Ciclo mediano vai para Funil e ciclo.','info'],
     ['Projetado × realizado','Planilha v10 de 09/09 importada à mão em 15/09 (1 linha em monetizacao_forecasts, nenhum importador no repo). Realizado pela carga.','Operação e Capacidade ("Leads trabalhados"), Temporal','Funde em Previsão. O modelo vem do chat de Forecast.','info'],
     ['Capacidade e alocação','1 plano em toda a história (set/26, 15/09), alocação 0/0/0, hipóteses vazias. Nenhum plano de out/26.','Projetado × realizado (disponíveis), Distribuição (capacidade)','Funde em Previsão: o editor vira Sheet.','info'],
-    ['Follow Day','Carga ativa, mas 92 de 105 abertos estão "sem próximo passo" e 0 têm atividade vencida: o Matheus registra ligação feita (68 em set) e não agenda a próxima. A fila é o pipe inteiro.','Distribuição ("abertas hoje" = total do Follow Day), Operação ("Hoje")','Sai. "Parados há 7+ dias" (46) vira o gráfico de envelhecimento.','neutro'],
+    ['Follow Day','Carga ativa, mas 92 de 105 abertos estão "sem próximo passo" e 0 têm atividade vencida: o Matheus registra ligação feita (68 em set) e não agenda a próxima. A fila é o pipe inteiro.','Distribuição ("abertas hoje" = total do Follow Day), Operação ("Hoje")','Fica em stand by (Pedro, 28/09). O envelhecimento de Funil e ciclo mostra os parados por outra régua.','neutro'],
     ['Funil comercial','Carga ativa.','Operação (marcadas, realizadas, validadas, ganhos por produto)','Vira Funil e ciclo, com a mesma URL (?aba=funil).','info'],
-    ['Pessoas e PDI','0 PDI gravado desde sempre.','/gente?tela=pdi e o PDI do Growth (PRODUCT 5.7)','Sai. Link antigo vai para Planning People com aviso.','neutro'],
+    ['Pessoas e PDI','0 PDI gravado desde sempre.','/gente?tela=pdi e o PDI do Growth (PRODUCT 5.7)','Fica (uso futuro, Pedro, 28/09).','sucesso'],
     ['Abordagens','4 abordagens, todas do Matheus em 23/09 (Finance e Cella aprovadas).','—','Mantém.','sucesso'],
-    ['Distribuição','0 decisões gravadas. Um farmer só desde 24/09; a lista de donos inclui quem não tem aberto.','Follow Day, Capacidade','Sai.','neutro']
+    ['Distribuição','0 decisões gravadas. Um farmer só desde 24/09; a lista de donos inclui quem não tem aberto.','Follow Day, Capacidade','Fica (uso futuro, Pedro, 28/09).','sucesso']
   ];
   out.push(secao('O que cada aba vira, e o dado que sustenta o veredito?', 'Quem alimenta cada aba, se essa automação está viva, com quais abas ela se repete, e o veredito.', null,
     h('div',{class:'rolagem'}, h('table',{class:'tab',style:'min-width:980px'},
       h('thead',null,h('tr',null, h('th',{text:'Aba'}), h('th',{text:'Quem alimenta, e quando escreveu por último'}), h('th',{text:'Repete com'}), h('th',{text:'Veredito'}))),
       h('tbody',null, inv.map(([a,b,c,v,t]) => h('tr',null, h('td',null,h('strong',{text:a})), h('td',{text:b}), h('td',{text:c}), h('td',null, badge(t, v)))))))));
-  const rotas = [['?aba=operacao (ou sem aba)','Operação diária','—'],['?aba=funil','Funil e ciclo','Nenhum: mesma URL, tela nova'],['?aba=follow-day','Funil e ciclo › parados (&secao=parados)','"O Follow Day saiu em out/26. Os negócios parados estão aqui, pelo tempo na etapa."'],['?aba=temporal','Previsão','"Temporal e previsão virou Previsão. O ciclo mediano está em Funil e ciclo."'],['?aba=forecast&mes=…','Previsão (&mes= preservado)','"Projetado × realizado virou Previsão."'],['?aba=capacidade','Previsão com o Sheet do plano aberto (&plano=1)','"Capacidade e alocação virou o plano do mês, dentro de Previsão."'],['?aba=pessoas','/gente?tela=pdi','"O PDI do hunter mora em Planning People."'],['?aba=distribuicao','Operação diária','"Distribuição saiu: há um farmer só desde 24/09."'],['/fila-cella','hoje manda para Follow Day → passa a mandar para Funil e ciclo','texto da rota aposentada atualizado']];
+  const rotas = [['?aba=operacao (ou sem aba)','Operação diária','—'],['?aba=funil','Funil e ciclo','Nenhum: mesma URL, tela nova'],['?aba=follow-day, pessoas, distribuicao, roteiros','iguais: as abas ficam','—'],['?aba=temporal','Previsão','"Temporal e previsão virou Previsão. O ciclo mediano está em Funil e ciclo."'],['?aba=forecast&mes=…','Previsão (&mes= preservado)','"Projetado × realizado virou Previsão."'],['?aba=capacidade','Previsão com o Sheet do plano aberto (&plano=1)','"Capacidade e alocação virou o plano do mês, dentro de Previsão."']];
   out.push(secao('Para onde vai cada link antigo?', 'Nenhum link quebra. O destino avisa de onde a pessoa veio (N14), e o aviso some depois de fechado.', null,
     h('div',{class:'rolagem'}, h('table',{class:'tab'},
       h('thead',null,h('tr',null, h('th',{text:'Link antigo'}), h('th',{text:'Destino'}), h('th',{text:'Aviso no destino'}))),
       h('tbody',null, rotas.map(([a,b,c]) => h('tr',null, h('td',null, h('span',{class:'url',text:a})), h('td',{text:b}), h('td',{text:c})))))),
-    h('div',{class:'aviso',role:'status'}, icone('info','var(--info)'), h('div',null, h('strong',{text:'Você veio do Follow Day, que saiu em out/2026.'}), h('p',{text:'Os negócios abertos parados há 7 dias ou mais estão no gráfico "Onde os negócios abertos estão parados", logo abaixo. Cada ponto abre o negócio no Pipedrive.'})), h('button',{type:'button',class:'btn'}, 'Entendi'))));
+    h('div',{class:'aviso',role:'status'}, icone('info','var(--info)'), h('div',null, h('strong',{text:'Você veio de Temporal e previsão, que virou Previsão.'}), h('p',{text:'As validadas em aberto estão no card abaixo, e o ciclo de vendas está em Funil e ciclo.'})), h('button',{type:'button',class:'btn'}, 'Entendi'))));
   out.push(secao('O que a tela Previsão recebe do chat de Forecast?', 'O modelo não é redesenhado aqui. A tela só precisa deste formato, gravado em ops.monetizacao_forecasts por um importador versionado.', null,
     h('div',{class:'rolagem'}, h('table',{class:'tab'},
       h('thead',null,h('tr',null, h('th',{text:'Campo'}), h('th',{text:'Formato'}), h('th',{text:'Uso na tela'}))),

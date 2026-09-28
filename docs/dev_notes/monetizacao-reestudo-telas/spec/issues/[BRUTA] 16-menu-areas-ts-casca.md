@@ -1,11 +1,12 @@
-# Menu de Monetização em areas.ts (casca)
+# Menu de Monetização em `areas.ts`
 
 ## Contexto (1-2 frases)
-Spec §5: o menu cai de 9 para 4 itens. Arquivo é da casca, dono Victor Eliezek.
+§5 da spec: o menu passa de 9 para 7 itens. Três abas fundem em Previsão; Follow Day, Pessoas e PDI e Distribuição ficam (Pedro, 28/09). O arquivo é da casca (dono: Eliezek).
 
 ## O que precisa acontecer
-- Atualizar `src/lib/areas.ts`: grupo "Oportunidades" com Operação diária, Funil e ciclo (`?aba=funil`) e Previsão (`?aba=previsao`); grupo "Desenvolvimento comercial" com Abordagens.
-- Remover as seis entradas antigas (Temporal, Projetado × realizado, Capacidade, Follow Day, Pessoas e PDI, Distribuição) do menu.
+- Grupo "Oportunidades": Operação diária, Funil e ciclo (`?aba=funil`, no lugar de "Funil comercial"), Previsão (`?aba=previsao`) e Follow Day.
+- Grupo "Desenvolvimento comercial": Abordagens, Pessoas e PDI e Distribuição.
+- Remover as três entradas que fundiram (Temporal e previsão, Projetado × realizado, Capacidade e alocação).
 - Só sobe depois que os redirects já existirem, para nenhum item sumir do menu antes do destino existir.
 
 ## Dependências

@@ -1,12 +1,12 @@
-# Remoção do código antigo do módulo
+# Remoção do código das abas que fundiram
 
 ## Contexto (1-2 frases)
-Spec §10: código das seis telas apagadas e das que mudaram de lugar, removido só depois que Funil e ciclo, Previsão e o menu novo já estão publicados.
+§10 da spec: sai o código de Temporal, Funil comercial, Projetado × realizado e Capacidade, que viraram Funil e ciclo e Previsão. Follow Day, Pessoas e PDI e Distribuição **ficam** (Pedro, 28/09) e não são tocados.
 
 ## O que precisa acontecer
-- Remover de `src/components/monetizacao/analysis.tsx`: `Temporal`, `FollowDay` e `SINAIS_FOLLOW`, `Funnel`, `People`, `Distribution` e `FotoDistribuicao`.
-- Remover de `forecast.tsx` os KPIs e tabelas que não migraram para a Previsão; remover o exemplo de Fila em `vitrine.tsx` (`:1418+`) que cita o Follow Day.
-- Remover `temporal()` de `model.ts` (o ciclo já está nas funções novas) e `distancia()` se ficar sem uso.
+- Remover de `src/components/monetizacao/analysis.tsx`: `Temporal` e `Funnel`.
+- Remover de `forecast.tsx` os KPIs e tabelas que não migraram para a Previsão; `Capacity` sai de `analysis.tsx` depois que o editor estiver no Sheet do plano.
+- Remover `temporal()` de `model.ts` (o ciclo já está nas funções novas). `distancia()` fica: o Follow Day usa.
 - Remover os casos de teste de `temporal` e os de `capacidade`/`forecastComparison` que deixarem de valer, em `tests/monetizacao.test.mjs`.
 
 ## Dependências

@@ -3431,3 +3431,15 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 7. **Previsão lê o forecast por nome de marco**, e não por número de linha da planilha. O formato está na spec §12; o modelo é do chat de Forecast (`feat/monetizacao-forecast-v12-20260928`).
 
 **Medido em 28/09:** carga viva (2.010 execuções em 7 dias, 0 falhas). Forecast com uma versão só, importada em 15/09. Um plano só (set/26, alocação 0/0/0) e nenhum de out/26. 0 PDI e 0 decisões de distribuição. Das 30 validadas abertas, nenhuma tem data prevista ou valor. `ops.acessos_log` não registra página vista, então os cortes se apoiam no dado que entra em cada tela, e não no uso.
+
+## [2026-09-28] Reestudo da Monetização: respostas do dono às perguntas P1–P6
+
+**Contexto:** respostas do Pedro às perguntas de negócio da spec `docs/dev_notes/monetizacao-reestudo-telas/spec.md` (§14), registradas na entrada anterior deste mesmo dia.
+
+**Decisões:**
+1. **Follow Day fica em stand by** (P1: "deixa lá em stand by"). Fica no menu, sem mudança, sem redirect e sem remoção. A PRODUCT 5.2 continua aberta.
+2. **Pessoas e PDI e Distribuição ficam** (P2: "vamos usar em algum momento"). O menu vai de 9 para 7 itens, e não para 4. Caiu a migration opcional que restringiria `monetizacao_registros.kind`.
+3. **Remanejamento sai da taxa de perda** (P5: "sim"). Duplicado, "feito em outro card" e troca de produto ficam em linha própria nos motivos. A lista fechada de motivos no Pipedrive também é sim, mas é configuração do Pipedrive, feita por quem o administra, e não do Brain.
+4. **Corrige o item 1 da entrada anterior.** Nos negócios divergentes, o que está errado é o **campo**, não o título. O lote de Consultoria enviado em 15/09 (26 dos 29 negócios de Consultoria) foi trabalhado quase todo como Finance, e um (Hospitel) como Cella. O Matheus vai trocar o campo no Pipedrive (P6). A regra de ler o campo não muda: a carga relê o negócio quando o campo muda (`update_time`), e ele passa de painel sozinho. Até a troca, nenhuma leitura de Consultoria (nem a de Finance) vale.
+
+**Pendentes:** P3, de onde vem a meta do mês (plano digitado, cenário base do modelo, ou o modelo sugere e alguém confirma; a spec recomenda a terceira). P4, data prevista e valor nas validadas (o Pedro vai alinhar com o Matheus).

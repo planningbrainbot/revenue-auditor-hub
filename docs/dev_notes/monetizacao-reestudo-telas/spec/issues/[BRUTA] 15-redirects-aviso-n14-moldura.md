@@ -1,14 +1,12 @@
 # Redirects das abas antigas e aviso N14
 
 ## Contexto (1-2 frases)
-Comportamento 11 do §8 e o mecanismo de migração do §11: nenhum link antigo pode quebrar.
+Comportamento 11 do §8 e o mecanismo de migração do §11: nenhum link antigo pode quebrar. Só três abas saem (Temporal, Projetado × realizado, Capacidade); Follow Day, Pessoas e PDI e Distribuição ficam (Pedro, 28/09).
 
 ## O que precisa acontecer
-- Atualizar `validarBuscaMonetizacao` (`busca.ts`) para mapear `?aba=follow-day`, `temporal`, `forecast`, `capacidade`, `distribuicao` para os destinos da tabela do §11, preservando `de`/`ate`/`produto`/`mes` quando fizer sentido, e acrescentando `origem=<aba antiga>`.
-- `pessoas` sai do módulo: `beforeLoad` de `/monetizacao` redireciona para `/gente?tela=pdi&origem=monetizacao-pessoas`.
+- Atualizar `validarBuscaMonetizacao` (`busca.ts`) para mapear `?aba=temporal` → `?aba=previsao`, `?aba=forecast` → `?aba=previsao` (preservando `mes`) e `?aba=capacidade` → `?aba=previsao&plano=1`, acrescentando `origem=<aba antiga>`.
 - `dashboard.tsx` mostra o aviso (`role="status"`) com o texto exato de cada linha da tabela do §11 e o botão "Entendi", que tira `origem` da URL.
-- Remover os parâmetros aposentados `dias` e `sinal` (Follow Day) de `busca.ts`.
+- `?aba=funil` não redireciona: a tela nova ocupa o mesmo endereço.
 
 ## Dependências
-- `04-funil-ciclo-pagina-filtros-kpis` (destino `?aba=funil&secao=parados` precisa existir).
 - `11-previsao-pagina-kpis-atencao` (destino `?aba=previsao` precisa existir).

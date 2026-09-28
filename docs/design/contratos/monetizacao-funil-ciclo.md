@@ -10,7 +10,7 @@ Spec: `docs/dev_notes/monetizacao-reestudo-telas/spec.md`. Mockup com dado real 
 - **Decisão ou ação que provoca:**
   - atacar o marco com a pior saída de cada produto (por exemplo, a lista de Finance com 28 perdas "fora de perfil" na Base elegível);
   - destravar os abertos parados há 7 dias ou mais na etapa;
-  - revisar o produto que não converte (Consultoria: 29 negócios e 0 reuniões em setembro).
+  - revisar o produto que não converte. Atenção: até o Matheus trocar o campo no Pipedrive, o painel de Consultoria mostra o lote de 15/09 que foi trabalhado como Finance (spec §4.2, P6), e a leitura de Consultoria não vale.
 - **Métrica de sucesso da tela:** na daily, o Pedro diz em um minuto qual produto perde onde e quantos dias leva da criação à reunião. Nenhuma planilha paralela de funil por produto.
 - **Arquétipo:** Lista/Relatório, variante **relatório analítico**. **Lacuna registrada:** o arquétipo prevê um gráfico, e esta tela tem cinco. Proposta de regra nova para `ARQUETIPOS.md`: *"Relatório analítico: PageHeader, filtros, até 4 KpiCard, até 5 Secao com um gráfico cada, títulos-pergunta em ordem de leitura, nenhuma tabela linha a linha na página (a lista vive no detalhe)"*. A hierarquia segue a ordem da leitura do funil: até onde chega → quanto tempo → onde para → por que perde → está melhorando.
 - **Universo medido (`descricao`):** "Pipe Monetização (39) · coorte: negócios criados de {de} a {até} · unidade: negócio · os marcos contam até hoje · {produto}".
@@ -33,7 +33,7 @@ Spec: `docs/dev_notes/monetizacao-reestudo-telas/spec.md`. Mockup com dado real 
 | Coortes · % da semana no marco | por semana de criação (segunda-feira), chegaram ao marco ÷ criados na semana; marca "amadurecendo" se a semana tem menos de 14 dias | %, negócio | eventos | idem | lista | sim |
 
 - **N11:** "Reunião realizada" aqui conta quem **chegou ao marco** (inclui quem pulou o registro). Na Operação, o mesmo nome conta o **evento no período**. O rótulo desta tela sempre diz "chegaram"; a da Operação diz "por dia útil" ou "entraram". Os números não se somam nem se comparam na mesma tela.
-- **Régua de envelhecimento:** o que conta são os **dias na etapa atual**, não "dias sem movimento". Uma ligação feita não tira o negócio da lista: o que importa é o negócio andar no funil. O tooltip mostra também o último movimento e a próxima atividade. Em 28/09: 57 abertos há 7+ dias na etapa, contra 46 pela régua antiga do Follow Day.
+- **Régua de envelhecimento:** o que conta são os **dias na etapa atual**, não "dias sem movimento". Uma ligação feita não tira o negócio da lista: o que importa é o negócio andar no funil. O tooltip mostra também o último movimento e a próxima atividade. Em 28/09: 57 abertos há 7+ dias na etapa, contra 46 pela régua do Follow Day, que continua no menu em stand by (Pedro, 28/09). As duas telas convivem, cada uma com sua régua declarada.
 
 ## Estados
 | Estado | Quando acontece | O que a tela mostra |
@@ -51,7 +51,7 @@ Spec: `docs/dev_notes/monetizacao-reestudo-telas/spec.md`. Mockup com dado real 
 |---|---|---|---|
 | `de`, `ate` | `aaaa-mm-dd` | últimos 90 dias até hoje; presets 30 · 90 · 180 dias · mês | quem entra na coorte |
 | `produto` | `cella`, `consultoria`, `finance` | todos | tudo: KPIs, painéis, curvas, pontos, matriz, coortes |
-| `secao` | `parados` | — | rola até o envelhecimento (destino do link antigo do Follow Day) |
+| `secao` | `parados` | — | rola até o envelhecimento (atalho para os parados) |
 | `origem` | aba antiga | — | mostra o aviso N14 até "Entendi" |
 
 O filtro de produto **escopa** tudo abaixo dele; a cor de cada produto não muda com o filtro.

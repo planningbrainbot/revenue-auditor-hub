@@ -2,7 +2,7 @@
 
 **Frente:** PLANNING (interno) · **Dono de produto:** Pedro Luca · **Código:** Pedro Luca (telas) · Victor Eliezek (casca, `areas.ts`, merge e deploy)
 **Data:** 28/09/2026 · **Branch:** `docs/monetizacao-reestudo-telas-20260928` (base `origin/main` `4302f48`)
-**Estado:** proposta. Nada aqui foi implementado. Falta o "contrato ok" das duas telas novas (PROCESSO §4) e as respostas de §14.
+**Estado:** proposta, com as respostas do Pedro de 28/09 aplicadas (§14). Nada foi implementado. Faltam o "contrato ok" das duas telas novas (PROCESSO §4), a P3 (de onde vem a meta) e a P4 (alinhamento com o Matheus).
 **Mockup com dado real:** https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F (privado; o modelo sem dado e o gerador estão em `mockup/`)
 **Medições:** `medicoes.md`, nesta pasta. **Contratos novos:** `docs/design/contratos/monetizacao-funil-ciclo.md` e `docs/design/contratos/monetizacao-previsao.md`.
 
@@ -12,16 +12,16 @@
 
 O módulo `/monetizacao` tem nove abas. Três delas (Temporal e previsão, Projetado × realizado, Capacidade e alocação) respondem pedaços da mesma pergunta, que é se o mês fecha. Outras três não têm dado entrando: Follow Day, Pessoas e PDI, Distribuição. O funil por produto e o ciclo de vendas, que são o que o dono quer ler, não existem em tela nenhuma. Os números que existem estão espalhados: o evento "lead trabalhado" aparece em cinco abas, cada uma com um recorte de ator ou período diferente.
 
-A medição de 28/09 dá o tamanho do problema e da oportunidade. O pipe 39 tem 194 negócios, 189 deles criados em setembro. Consultoria teve 29 negócios e nenhuma reunião. Finance perdeu 28 negócios por "fora de perfil" direto da Base elegível. Cella fez 3 dos 3 contratos e tem 11 negócios parados em "Proposta enviada" há 7 dias ou mais. Nenhuma tela de hoje mostra essas três coisas.
+A medição de 28/09 dá o tamanho do problema e da oportunidade. O pipe 39 tem 194 negócios, 189 deles criados em setembro. Consultoria aparece com 29 negócios e nenhuma reunião, mas 26 deles são o lote de 15/09 que na prática foi trabalhado como Finance (e um como Cella), com o campo ainda por trocar (§4.2). Finance perdeu 28 negócios por "fora de perfil" direto da Base elegível. Cella fez 3 dos 3 contratos e tem 11 negócios parados em "Proposta enviada" há 7 dias ou mais. Nenhuma tela de hoje mostra essas três coisas.
 
 Quem ganha: o Pedro, que lê o funil por produto sem planilha; o Matheus, que vê onde o pipe dele está parado; e a daily, que ganha uma tela de previsão só.
 
 ## 2. A proposta em cinco linhas
 
-1. O menu cai de 9 para 4 itens: **Operação diária** (mantida) · **Funil e ciclo** (nova, na URL `?aba=funil`) · **Previsão** (nova, `?aba=previsao`) · **Abordagens** (mantida).
-2. **Funil e ciclo** junta Funil comercial, o ciclo da Temporal e o que o Follow Day tentava mostrar. Os gráficos são: funil por produto com as saídas em cada marco, curvas de tempo até cada marco, envelhecimento dos abertos, motivos de perda e coortes semanais.
+1. O menu cai de 9 para 7 itens. Ficam **Operação diária**, **Follow Day** (em stand by), **Abordagens**, **Pessoas e PDI** e **Distribuição** (as duas últimas para uso futuro). Entram **Funil e ciclo** (na URL `?aba=funil`) e **Previsão** (`?aba=previsao`).
+2. **Funil e ciclo** junta Funil comercial e o ciclo da Temporal, e mostra os abertos parados pelo tempo na etapa. Os gráficos são: funil por produto com as saídas em cada marco, curvas de tempo até cada marco, envelhecimento dos abertos, motivos de perda e coortes semanais.
 3. **Previsão** junta Temporal, Projetado × realizado e Capacidade. Tem meta × projetado × realizado, contratos por mês com a faixa de cenários do modelo novo, desvio por produto, e o plano do mês num Sheet.
-4. **Saem** Follow Day, Pessoas e PDI e Distribuição. Nenhum link quebra: todo `?aba=` antigo redireciona e o destino avisa de onde a pessoa veio (N14).
+4. **Nenhuma aba é apagada.** As três que fundem em Previsão redirecionam, e o destino avisa de onde a pessoa veio (N14). Follow Day, Pessoas e PDI e Distribuição ficam como estão (Pedro, 28/09).
 5. A carga do CRM ganha a **v6**. Ela corrige a ordem de duas trocas de etapa no mesmo segundo e grava a hora exata de ganho e perda. O resto do dado de funil e ciclo já está gravado.
 
 ---
@@ -42,11 +42,11 @@ Frescor medido em 28/09/2026 pela Management API (`npknehhyyzelmrbbxvtu`, só le
 | **Temporal e previsão** (`temporal`) | Quando as oportunidades abertas devem virar contrato, e quanto valem? | Validadas em aberto pelo dono atual; ciclo `won_on − started_at`; receita (`revenue`); `expected_close`; cenário = validadas com data × `plan.rates` (`model.ts` `temporal()`, `receitaSomada()`) | Carga ativa, mas **das 30 validadas abertas, 0 têm data prevista e 0 têm valor** no Pipedrive. `rates` do plano nulas desde sempre: o cenário sempre diz "Sem hipótese". A tabela semanal, a receita e o cenário nunca mostraram dado | Projetado × realizado (validadas com data no mês); Funil comercial (validadas em aberto); Cockpit do CEO (`receita-prevista-aberta`) | **Fundir em Previsão.** Os dois números vivos vão cada um para uma tela: "validadas em aberto" para Previsão, o ciclo para Funil e ciclo. A tabela por semana de fechamento só volta se o CRM passar a ter data prevista (§14, P4). |
 | **Projetado × realizado** (`forecast`) | O mês está acima ou abaixo do que a planilha projetou? | Linhas 25–41 da planilha v10 × eventos do mês com qualquer ator (`forecast.ts` `forecastComparison()`); contas disponíveis da Base; grade do modelo (`forecast-model.tsx`) | `monetizacao_forecasts`: **1 versão** (v10 de 09/09), importada em 15/09. Nenhum processo recorrente grava nessa tabela: `scripts/monetizacao/import_forecast.py` só gera JSON. O realizado vem da carga ativa | Operação e Capacidade (mesmos eventos, outro recorte de ator); Temporal; Capacidade (disponíveis) | **Fundir em Previsão.** O modelo com cenários vem do chat de Forecast (branch `feat/monetizacao-forecast-v12-20260928`) e não é redesenhado aqui (§12). |
 | **Capacidade e alocação** (`capacidade`) | A base disponível cobre o que planejamos trabalhar em cada produto neste mês? | `plano.capacity/allocation/rates`; "Leads trabalhados" do mês; Base (`oferta`, `disponibilidade` sobre `monetizacao_contas`) (`model.ts` `capacidade()`) | Plano: **1 linha em toda a história** (set/26, 15/09), com alocação 0/0/0 e hipóteses vazias. **Não existe plano de out/26**: a partir de 01/10 a Operação fica sem meta. Base viva (`monetizacao_contas` com 10.314 linhas atualizadas às 15h20; cron `monetizacao-cobertura-10min` com 989 execuções em 7 dias, 0 falhas) | Projetado × realizado (disponíveis); Distribuição (capacidade); Operação (metas do mesmo plano) | **Fundir em Previsão.** O editor do plano vira um Sheet "Plano do mês", e o resumo de base disponível vai junto dele. |
-| **Follow Day** (`follow-day`) | Qual negócio aberto eu destravo hoje? | `next_activity`, `last_activity_date` e datas de evento dos abertos do Matheus (`analysis.tsx` `FollowDay`) | Carga ativa, mas o sinal não separa nada. **92 dos 105 abertos (88%) estão "sem próximo passo", 13 têm atividade futura e 0 têm atividade vencida.** O Matheus registrou 75 atividades em setembro (68 ligações concluídas), mas não agenda a próxima no Pipedrive. A fila é o pipe inteiro. O único corte que separa é "sem movimento há 7+ dias": 46 negócios | Distribuição (as "abertas hoje" do Matheus são o total do Follow Day); Operação ("Hoje" do funil) | **Apagar: confirmado com dado.** Os parados viram o gráfico de envelhecimento em Funil e ciclo, com a lista a um clique. A casa da fila de ligação (PRODUCT 5.2) é pergunta de negócio (§14, P1). |
+| **Follow Day** (`follow-day`) | Qual negócio aberto eu destravo hoje? | `next_activity`, `last_activity_date` e datas de evento dos abertos do Matheus (`analysis.tsx` `FollowDay`) | Carga ativa, mas o sinal não separa nada. **92 dos 105 abertos (88%) estão "sem próximo passo", 13 têm atividade futura e 0 têm atividade vencida.** O Matheus registrou 75 atividades em setembro (68 ligações concluídas), mas não agenda a próxima no Pipedrive. A fila é o pipe inteiro. O único corte que separa é "sem movimento há 7+ dias": 46 negócios | Distribuição (as "abertas hoje" do Matheus são o total do Follow Day); Operação ("Hoje" do funil) | **Fica em stand by** (Pedro, 28/09): sem investimento, sem remoção. O dado mostra que o sinal dela não separa negócio nenhum enquanto a próxima atividade não for agendada no Pipedrive. O envelhecimento de Funil e ciclo mostra os parados por outra régua. |
 | **Funil comercial** (`funil`) | Quantas reuniões marcadas acontecem, e quantas validadas viram contrato? | Coortes de `scheduled` e `validated` com o Matheus como ator; tabela por produto (`analysis.tsx` `Funnel`) | Carga ativa | Operação (marcadas, realizadas, validadas e ganhos por produto); Temporal (validadas em aberto) | **Vira Funil e ciclo, na mesma URL.** As duas coortes de hoje ficam contidas no funil de marcos. |
-| **Pessoas e PDI** (`pessoas`) | Como o hunter está nos cinco critérios, e qual é o próximo passo de desenvolvimento dele? | `monetizacao_registros` com `kind='pdi'` | Escrita manual. **0 PDI gravado desde a criação** (15/09) | `/gente?tela=pdi`, Growth `/pdi` (PRODUCT 5.7) | **Apagar.** Sem registro nenhum, não há o que migrar. O link antigo vai para Planning People com aviso (§14, P2). |
+| **Pessoas e PDI** (`pessoas`) | Como o hunter está nos cinco critérios, e qual é o próximo passo de desenvolvimento dele? | `monetizacao_registros` com `kind='pdi'` | Escrita manual. **0 PDI gravado desde a criação** (15/09) | `/gente?tela=pdi`, Growth `/pdi` (PRODUCT 5.7) | **Fica** (Pedro, 28/09: "vamos usar em algum momento"). Sem mudança nesta spec. |
 | **Abordagens** (`roteiros`) | O que eu digo para este produto e este segmento? | `monetizacao_registros` com `kind='roteiro'` | Escrita manual. **4 registros, todos do Matheus em 23/09** entre 11h29 e 11h44: Finance e Cella aprovadas, 1 rascunho, 1 arquivada | Growth `/roteiros` (outro público) | **Manter.** É a única aba, fora a Operação, que o operador usou. |
-| **Distribuição** (`distribuicao`) | A carga está bem dividida entre os responsáveis, ou alguém está sem base? | Eventos por dono; `plano.capacity` por dono; decisões em `monetizacao_registros` com `kind='distribuicao'` | Escrita manual. **0 decisões gravadas.** Um farmer só desde 24/09 (DECISIONS). O Matheus é dono de 189 dos 194 negócios. A lista de donos inclui quem não tem nenhum aberto (`analysis.tsx:1987`), o que contradiz a descrição da tela | Follow Day, Capacidade | **Apagar.** Com um farmer, não há o que distribuir. A alocação por produto fica no plano do mês. |
+| **Distribuição** (`distribuicao`) | A carga está bem dividida entre os responsáveis, ou alguém está sem base? | Eventos por dono; `plano.capacity` por dono; decisões em `monetizacao_registros` com `kind='distribuicao'` | Escrita manual. **0 decisões gravadas.** Um farmer só desde 24/09 (DECISIONS). O Matheus é dono de 189 dos 194 negócios. A lista de donos inclui quem não tem nenhum aberto (`analysis.tsx:1987`), o que contradiz a descrição da tela | Follow Day, Capacidade | **Fica** (Pedro, 28/09). Sem mudança nesta spec; o defeito da lista de donos fica registrado. |
 
 **O que o inventário não mede:** uso. `ops.acessos_log` tem 77 linhas, todas de ação administrativa, e nenhum registro de página vista (PRODUCT 5.15). Os cortes acima se apoiam no dado que entra em cada tela, não em quem abre a tela. O código fica no histórico do Git: desfazer um corte é um `git revert`.
 
@@ -76,8 +76,11 @@ Unidade: **negócio** do pipe 39. Fonte: `ops.monetizacao_deals.payload` (carga 
 **Regra: o produto é o campo "Caixa · Produto"** (`0646513e…`: 1128 Cella, 1129 Consultoria, 1130 Finance), como já decidido em DECISIONS 15/09, item 5 ("Não inferir pelo título"). A medição de 28/09 confirma:
 
 - Nos 194 negócios, campo e título concordam em 127. Outros 52 têm o produto só no campo, 10 não têm produto em lugar nenhum, e em 2 o nome da empresa contém "Consultoria" mas o sufixo confere com o campo.
-- **3 divergem de verdade:** 96070 "Hospitel · CELLA", 96094 "SAM MEDIC · FINANCE" e 96110 "RV Industria · FINANCE", todos com o campo em Consultoria. Os três vieram do envio da Base de 15/09 às 13h21, e `ops.monetizacao_envios.product` diz **consultoria** nos três. O histórico do Pipedrive não mostra mudança do campo nem do título depois da criação. Quem está errado é o título, não o campo.
-- A tela não "corrige" nada. A lista de qualidade da moldura ("negócios sem produto · sem organização · sem histórico lido", `dashboard.tsx:461`) ganha uma linha: "título indica outro produto: 3". Ela abre a lista para quem quiser acertar no Pipedrive (§14, P6).
+- **3 divergem de verdade:** 96070 "Hospitel · CELLA", 96094 "SAM MEDIC · FINANCE" e 96110 "RV Industria · FINANCE", todos com o campo em Consultoria. Os três vieram do envio da Base de 15/09 às 13h21, e `ops.monetizacao_envios.product` diz **consultoria** nos três. O histórico do Pipedrive não mostra mudança do campo nem do título depois da criação.
+- **O que o dono esclareceu em 28/09:** o lote de Consultoria de 15/09 (26 dos 29 negócios de Consultoria; os outros 3 vieram em 28/09) **não foi trabalhado como Consultoria**. Foi trabalhado quase todo como Finance, e um como Cella (Hospitel). Nos 3 divergentes, o título mostra o produto real, e **o campo é que está errado**. O Matheus vai trocar o campo no Pipedrive.
+- **A regra não muda:** a tela lê o campo. Quando o campo for trocado, o `update_time` do negócio muda e a carga relê o negócio em até 5 minutos. O negócio passa para o painel do produto certo em todo o histórico, e nada precisa mudar no código.
+- **Até a troca, o funil de Consultoria não mede Consultoria.** Os "29 negócios e 0 reuniões" são o lote de Finance mal rotulado, e Finance aparece menor do que é. Não tire conclusão de Consultoria antes da troca. O mockup de 28/09 mostra o dado antes da troca.
+- A tela não "corrige" nada. A lista de qualidade da moldura ("negócios sem produto · sem organização · sem histórico lido", `dashboard.tsx:461`) ganha uma linha: "título indica outro produto: N". Ela abre a lista para quem for acertar o campo no Pipedrive. Essa linha só pega os casos em que o título denuncia a troca; o resto do lote de 15/09 depende do Matheus.
 
 ### 4.3 O que a carga precisa passar a gravar (v6)
 
@@ -97,7 +100,7 @@ A carga já grava quase tudo. A v6 muda três coisas. Todas ficam na Edge Functi
 | **Chegou ao marco** | O negócio tem o marco ou qualquer marco posterior | Sem isso o funil não fecha: 7 negócios foram a Negociação sem reunião registrada. A tela mostra quantos "pularam o registro" |
 | **Marcos** | Criado · Trabalhado · Reunião agendada · Reunião realizada · Oportunidade validada · Ganho (os eventos que a carga já grava) | São os mesmos nomes da Operação e do plano. Não se cria evento novo |
 | **Stand by** | Conta como reunião realizada (DECISIONS 28/09) e como validada | Mesma regra da carga v5 |
-| **Remanejado ou duplicado** | Perda cujo motivo é duplicado, "feito em outro card", troca de produto ou "volta à fila". Aparece em linha própria nos motivos e **sai da taxa de perda** | Não é perda comercial. Hoje são 14 de 85 (§14, P5) |
+| **Remanejado ou duplicado** | Perda cujo motivo é duplicado, "feito em outro card", troca de produto ou "volta à fila". Aparece em linha própria nos motivos e **sai da taxa de perda** | Não é perda comercial. Hoje são 14 de 85. **Decidido pelo Pedro em 28/09** (P5) |
 | **Sem produto** | Entra em "Todos" e no painel Geral. Não tem painel próprio | São 10 negócios, 9 perdidos. Não há produto para comparar |
 | **Fora da coorte** | O TECH MED (78988), ganho em abril noutro pipe e trazido já ganho, fica fora | DECISIONS 24/09 |
 | **Produto** | Campo "Caixa · Produto" (§4.2) | DECISIONS 15/09 |
@@ -111,26 +114,31 @@ Menu da área Monetização (proposta para o `areas.ts`, que é do Eliezek):
 
 ```
 Oportunidades
-  Operação diária      /monetizacao                 O farmer está no ritmo, e onde a base trava?                      (mantida)
-  Funil e ciclo        /monetizacao?aba=funil       Onde cada produto perde negócios, e quanto tempo leva para fechar? (nova)
-  Previsão             /monetizacao?aba=previsao    O mês vai bater a meta, e quanto o pipe sustenta nos próximos meses? (nova)
+  Operação diária      /monetizacao                   O farmer está no ritmo, e onde a base trava?                        (mantida)
+  Funil e ciclo        /monetizacao?aba=funil         Onde cada produto perde negócios, e quanto tempo leva para fechar?  (nova, no lugar de Funil comercial)
+  Previsão             /monetizacao?aba=previsao      O mês vai bater a meta, e quanto o pipe sustenta nos próximos meses? (nova)
+  Follow Day           /monetizacao?aba=follow-day    Qual negócio aberto eu destravo hoje?                               (em stand by, sem mudança)
 Desenvolvimento comercial
-  Abordagens           /monetizacao?aba=roteiros    O que eu digo para este produto e este segmento?                   (mantida)
+  Abordagens           /monetizacao?aba=roteiros      O que eu digo para este produto e este segmento?                    (mantida)
+  Pessoas e PDI        /monetizacao?aba=pessoas       (sem mudança; uso futuro)
+  Distribuição         /monetizacao?aba=distribuicao  (sem mudança; uso futuro)
 ```
+
+Nove itens viram sete: Temporal e previsão, Projetado × realizado e Capacidade e alocação fundem em Previsão, e Funil comercial vira Funil e ciclo.
 
 | Tela | Arquétipo | Absorve | Não repete |
 |---|---|---|---|
 | **Operação diária** | Fila de trabalho (faixa de ritmo) + funil do dia (lacuna já registrada no contrato dela) | — | Ganha um link "Ver por produto e ciclo →" no funil, que abre Funil e ciclo com o mesmo produto |
-| **Funil e ciclo** | Lista/Relatório, variante **relatório analítico** (lacuna: o arquétipo prevê um gráfico, esta tela tem cinco; proposta de regra no contrato) | Funil comercial; ciclo mediano da Temporal; parados do Follow Day; perdidos por etapa | Não mostra meta nem ritmo diário (é da Operação) nem projetado (é da Previsão) |
+| **Funil e ciclo** | Lista/Relatório, variante **relatório analítico** (lacuna: o arquétipo prevê um gráfico, esta tela tem cinco; proposta de regra no contrato) | Funil comercial; ciclo mediano da Temporal; perdidos por etapa | Não mostra meta nem ritmo diário (é da Operação) nem projetado (é da Previsão) |
 | **Previsão** | Visão geral, com o plano do mês num Sheet (Configuração, sem trocar de rota) | Temporal; Projetado × realizado; Capacidade | Não mostra funil nem ciclo |
 | **Abordagens** | Lista/Relatório (biblioteca) | — | — |
 
-**O que acontece com as outras quatro.**
+**O que acontece com as outras.**
 
 - **Operação:** fica como está nesta spec. A única mudança é o link para Funil e ciclo. As metas dela passam a vir do plano salvo na Previsão; a tabela é a mesma, `monetizacao_planos`.
-- **Pessoas e PDI:** sai. O PDI de carreira mora em `/gente?tela=pdi`, e aqui não há registro para migrar.
+- **Follow Day:** fica em stand by (Pedro, 28/09), sem mudança e sem investimento. O envelhecimento de Funil e ciclo mostra os parados por outra régua (dias na etapa), e os dois convivem.
+- **Pessoas e PDI e Distribuição:** ficam (Pedro, 28/09: "vamos usar em algum momento"), sem mudança nesta spec. A PRODUCT 5.7 (PDI em três casas) continua aberta.
 - **Abordagens:** fica, sem mudança.
-- **Distribuição:** sai. A alocação por produto é campo do plano do mês.
 
 ---
 
@@ -158,7 +166,7 @@ Regras gerais, que valem para todo gráfico abaixo (DESIGN §5 e skill `dataviz`
 | K | Quatro `KpiCard` | Criados na coorte · Chegaram à reunião realizada (% e n de N) · Reunião realizada → ganho · Da criação ao ganho (mediana; `parcial` com menos de 5 ganhos) | coorte do filtro | cada card abre a lista do conjunto |
 | 1 | **Até onde cada produto chega, e onde os negócios saem?** | Pequenos múltiplos: Geral + um painel por produto (só o do produto, quando há filtro). Uma linha por marco, com barra horizontal empilhada em três partes: **avançou** (cor cheia do produto), **ainda aberto neste marco** (tom claro) e **perdido neste marco** (cinza claro). À direita, o número que chegou e a conversão sobre o marco anterior. A escala de cada painel são os criados do produto | `funilMarcos(coorte)`: por marco, quem chegou, avançou, parou aberto ou foi perdido; e quem "pulou o registro" | segmento abre a lista do segmento; o número abre quem chegou. O tooltip mostra os que pularam o registro |
 | 2 | **Em quanto tempo o negócio chega a cada marco?** | Três pequenos múltiplos (até a reunião realizada, até a validação, até o ganho). Cada um tem uma linha em degrau por produto: a % da coorte que alcançou o marco N dias após a criação (incidência acumulada, com a perda como risco concorrente). A linha para quando restam menos de 5 negócios em observação. Eixo de 0 a 60%, comum aos três | `curvaMarco(coorte, marco)` | cruz vertical com tooltip de todas as séries naquele dia; o clique abre quem alcançou o marco |
-| 3 | **Onde os negócios abertos estão parados, e há quanto tempo?** | Faixa de pontos por etapa (8 linhas). Cada ponto é um negócio aberto, posto pelos dias desde a entrada na etapa atual e colorido pelo produto. Atrás, uma faixa cinza com o miolo (p25–p75) e o traço da mediana de quem já passou pela etapa. Linha tracejada neutra em 7 dias, rotulada "régua: 7 dias na etapa". À direita: abertos na etapa e "N há 7+ d" | `permanencias(coorte)` a partir de `moves` | o ponto abre o negócio (e ele abre o Pipedrive); "N há 7+ d" abre os parados da etapa; a ação da seção abre todos os parados. **Faz o papel do Follow Day** |
+| 3 | **Onde os negócios abertos estão parados, e há quanto tempo?** | Faixa de pontos por etapa (8 linhas). Cada ponto é um negócio aberto, posto pelos dias desde a entrada na etapa atual e colorido pelo produto. Atrás, uma faixa cinza com o miolo (p25–p75) e o traço da mediana de quem já passou pela etapa. Linha tracejada neutra em 7 dias, rotulada "régua: 7 dias na etapa". À direita: abertos na etapa e "N há 7+ d" | `permanencias(coorte)` a partir de `moves` | o ponto abre o negócio (e ele abre o Pipedrive); "N há 7+ d" abre os parados da etapa; a ação da seção abre todos os parados. Não substitui o Follow Day, que fica em stand by: a régua aqui é o tempo na etapa, e a do Follow Day é a próxima atividade |
 | 4 | **Por que perdemos, em cada produto?** | Matriz de barras: linhas = grupo de motivo, colunas = produto, uma barra por célula na cor do produto, com escala comum. "Remanejado ou duplicado" fica separado no fim, com a nota "não é perda comercial" | `grupoMotivo(lost_reason)` (§6.5) × produto | a célula abre os perdidos; o tooltip mostra em que etapa eles saíram; a lista mostra o texto original do motivo |
 | 5 | **As coortes mais novas avançam mais que as antigas?** | Mapa de calor em tabela: linhas = semana de criação, colunas = marco, célula = % da semana que chegou ao marco, com "n de N". Rampa sequencial verde de 5 passos. Semana com menos de 14 dias leva a marca "amadurecendo" | `coortesSemanais(coorte)` | a célula abre quem chegou |
 | — | **Como contamos** | `details` recolhido com as regras do §4.4 | — | — |
@@ -238,7 +246,6 @@ A lista fica no código porque é pequena e tem teste. Se o Pipedrive passar a a
 | Moldura de `/monetizacao` | `busca.ts`: abas novas, mapa dos links antigos e o parâmetro `origem` do aviso; `dashboard.tsx`: títulos, perguntas, barra de filtros por aba, aviso N14; lista de qualidade com "título indica outro produto" |
 | Operação diária | só o link "Ver por produto e ciclo →" no funil |
 | Casca | `src/lib/areas.ts`: menu de 4 itens (Eliezek) |
-| Rota aposentada `/fila-cella` | o botão passa a levar para Funil e ciclo |
 | Cockpit do CEO | links que apontam para `?aba=temporal` (`indicadores.ts:608-614`) e `?aba=capacidade` (`:897-921`) passam para `?aba=previsao` e `?aba=previsao&plano=1` |
 | Vitrine | os 4 componentes novos em `#graficos`; o exemplo de Fila (`vitrine.tsx:1418+`) deixa de citar o Follow Day |
 
@@ -254,7 +261,7 @@ A lista fica no código porque é pequena e tem teste. Se o Pipedrive passar a a
 8. **Ver contratos por mês contra o projetado e a faixa de cenários**, e abrir os ganhos do mês.
 9. **Ver o desvio por produto e por marco** (halteres) e abrir o realizado.
 10. **Editar e salvar o plano do mês num Sheet**, sem sair da Previsão, com confirmação de efeito.
-11. **Abrir um link antigo** (`?aba=follow-day`, `temporal`, `forecast`, `capacidade`, `pessoas`, `distribuicao`) e cair no destino novo com o aviso de onde veio (N14).
+11. **Abrir um link antigo** (`?aba=temporal`, `forecast`, `capacidade`) e cair na Previsão com o aviso de onde veio (N14).
 12. **Ver no Pipedrive** qualquer negócio de qualquer lista (já existe no `DealDetails`).
 
 ## 9. Mudanças de schema e carga
@@ -264,21 +271,19 @@ A lista fica no código porque é pequena e tem teste. Se o Pipedrive passar a a
 | S1 | **Carga v6** (§4.3): desempate de trocas de etapa no mesmo segundo; `won_at` e `lost_at` com hora; `metric_version` 6 | `supabase/functions/monetizacao-crm/crm.mjs`, `index.ts` (condição de releitura) | Deploy da Edge Function. Nenhuma tabela nova: o payload é jsonb |
 | S2 | **Tipos** de `Negocio` com `won_at` e `lost_at` opcionais | `src/lib/monetizacao/types.ts` | A carga v5 continua lida enquanto a v6 não roda |
 | S3 | **Forecast com cenários** em `ops.monetizacao_forecasts` | chat de Forecast | **Dependência, não trabalho desta spec.** O formato que a Previsão lê está em §12 |
-| S4 | *(opcional, por último)* Restringir `monetizacao_registros.kind` a `roteiro` | migration nova | Hoje há 0 `pdi`, 0 `distribuicao` e 0 `followup`. Fazer só depois das telas saírem, com conferência de 0 linhas na hora da migration |
 
 Nenhuma tabela é apagada. `ops.monetizacao_planos`, `ops.monetizacao_forecasts` e `ops.monetizacao_registros` continuam em uso.
 
-## 10. O que é apagado
+## 10. O que é apagado (só o que fundiu)
 
 | Tipo | O quê | Onde |
 |---|---|---|
-| Aba (valor de `?aba=`) | `follow-day`, `temporal`, `forecast`, `capacidade`, `pessoas`, `distribuicao` viram redirect (§11) | `busca.ts:11-21` (`ABAS`), `:73-89` |
-| Componente | `Temporal` (`analysis.tsx:178-462`), `FollowDay` e `SINAIS_FOLLOW` (`:939-1139`), `Funnel` (`:1195-1375`), `People` (`:1388-1577`), `Distribution` e `FotoDistribuicao` (`:1982-2235`) | `src/components/monetizacao/analysis.tsx` |
+| Aba (valor de `?aba=`) | `temporal`, `forecast`, `capacidade` viram redirect (§11). `follow-day`, `pessoas` e `distribuicao` ficam | `busca.ts:11-21` (`ABAS`), `:73-89` |
+| Componente | `Temporal` (`analysis.tsx:178-462`) e `Funnel` (`:1195-1375`). `FollowDay`, `People` e `Distribution` ficam | `src/components/monetizacao/analysis.tsx` |
 | Componente que muda de lugar | `Capacity` (`:513-937`): o editor vira o Sheet do plano; `Forecast` (`forecast.tsx`): KPIs e tabelas saem, o que servir vai para a Previsão; `ForecastModel` vira `Dialog` | idem, `forecast.tsx`, `forecast-model.tsx` |
-| Parâmetro de URL | `dias`, `sinal` (Follow Day). `responsavel` já não existe | `busca.ts:29-31`, `:48-52` |
-| Função de modelo | `temporal()` (o ciclo vai para as funções novas); `distancia()` se ficar sem uso | `model.ts:295-323`, `:54` |
-| Menu | Seis itens saem (Temporal, Projetado × realizado, Capacidade, Follow Day, Pessoas e PDI, Distribuição); Funil comercial vira Funil e ciclo; Previsão entra | `src/lib/areas.ts:459-471` |
-| Contrato de tela | `monetizacao-{temporal,forecast,capacidade,follow-day,pessoas,distribuicao}.md` e `monetizacao-funil.md` vão para `docs/design/contratos/aposentados/` com a data e o destino | `docs/design/contratos/` |
+| Função de modelo | `temporal()` (o ciclo vai para as funções novas). `distancia()` fica: o Follow Day usa | `model.ts:295-323` |
+| Menu | Três itens saem (Temporal, Projetado × realizado, Capacidade); Funil comercial vira Funil e ciclo; Previsão entra | `src/lib/areas.ts:459-471` |
+| Contrato de tela | `monetizacao-{temporal,forecast,capacidade}.md` e `monetizacao-funil.md` vão para `docs/design/contratos/aposentados/` com a data e o destino | `docs/design/contratos/` |
 | Teste | casos de `temporal` (`tests/monetizacao.test.mjs:286-291`) e os de `capacidade`, `forecastComparison` que deixarem de valer | `tests/` |
 | Tabela, view, edge function | **nenhuma** nesta spec. `fila_cella_*` (0 linhas) seguem fora, por DECISIONS 24/09 | — |
 
@@ -288,19 +293,16 @@ Nenhuma tabela é apagada. `ops.monetizacao_planos`, `ops.monetizacao_forecasts`
 
 - `validarBuscaMonetizacao` (`busca.ts`) mapeia a aba antiga para a nova e acrescenta `origem=<aba antiga>`.
 - O `dashboard.tsx` mostra no topo um aviso (`role="status"`) com o texto da tabela abaixo e o botão "Entendi", que tira `origem` da URL.
-- `pessoas` sai do módulo: o `beforeLoad` de `/monetizacao` faz `redirect` para `/gente?tela=pdi&origem=monetizacao-pessoas`.
 - O mapa fica para sempre: custa três linhas e protege favoritos e mensagens antigas.
 
 | Link antigo | Destino | Aviso no destino |
 |---|---|---|
 | `/monetizacao` ou `?aba=operacao` | igual | — |
 | `?aba=funil` (+ `de`, `ate`, `produto`) | Funil e ciclo, na mesma URL | — (a tela nova ocupa o mesmo endereço) |
-| `?aba=follow-day` (+ `dias`, `sinal`, `produto`) | `?aba=funil&secao=parados` (+ `produto`) | "O Follow Day saiu em {data}. Os negócios parados estão aqui, pelo tempo na etapa." |
+| `?aba=follow-day`, `?aba=pessoas`, `?aba=distribuicao` | iguais (as abas ficam) | — |
 | `?aba=temporal` | `?aba=previsao` | "Temporal e previsão virou Previsão. O ciclo de vendas está em Funil e ciclo." |
 | `?aba=forecast` (+ `mes`) | `?aba=previsao` (+ `mes`) | "Projetado × realizado virou Previsão." |
 | `?aba=capacidade` | `?aba=previsao&plano=1` (abre o Sheet) | "Capacidade e alocação virou o plano do mês, dentro de Previsão." |
-| `?aba=pessoas` | `/gente?tela=pdi` | "O PDI mora em Planning People." |
-| `?aba=distribuicao` | `/monetizacao` | "Distribuição saiu: há um farmer só desde 24/09." |
 | `?aba=roteiros` | igual | — |
 
 **Ordem de entrega** (cada passo publica sozinho e se desfaz com `git revert`):
@@ -309,9 +311,8 @@ Nenhuma tabela é apagada. `ops.monetizacao_planos`, `ops.monetizacao_forecasts`
 2. **Componentes de gráfico no DS** (`FaixaPontos`, `Halteres`, `MapaCalor`, `MatrizBarras`, tokens, `COR_PRODUTO`), com vitrine.
 3. **Funil e ciclo** em `?aba=funil`. Entra no lugar do Funil comercial, sem mudar o menu.
 4. **Previsão** em `?aba=previsao`. Depende do chat de Forecast ter publicado a v12 com cenários. Sem ela, a tela sobe com a v10 e o estado "cenários não importados".
-5. **Redirects, avisos e menu** (`busca.ts`, `dashboard.tsx`, `areas.ts` pelo Eliezek), mais os links do Cockpit e da `/fila-cella`. Só aqui as abas somem do menu.
-6. **Remoção do código antigo** e arquivamento dos contratos.
-7. *(Opcional)* S4.
+5. **Redirects, avisos e menu** (`busca.ts`, `dashboard.tsx`, `areas.ts` pelo Eliezek), mais os links do Cockpit. Só aqui as três abas que fundiram somem do menu. A `/fila-cella` continua mandando para o Follow Day.
+6. **Remoção do código que fundiu** (Temporal, Funil comercial, partes de Projetado × realizado e Capacidade) e arquivamento dos quatro contratos.
 
 Conferência de cada passo: build, `npm run test:monetizacao` (ou o nome que o planner achar), `npm run design:lint:changed` e captura das duas telas nos dois temas. Os números são recontados de forma independente contra a Management API (definição de pronto, `docs/design/README.md`).
 
@@ -340,20 +341,40 @@ Hoje a Projetado × realizado usa **linhas fixas** da planilha v10 (29/35/37/41 
 - Qualquer escrita no Pipedrive a partir do Brain.
 - Tabelas da Fila Cella (DECISIONS 24/09).
 - A tela `/crm` do Bodra (PRODUCT 5.2).
+- Qualquer mudança em Follow Day, Pessoas e PDI e Distribuição (ficam como estão, P1 e P2).
+- A lista fechada de motivos de perda no Pipedrive (P5): é configuração do Pipedrive, não do Brain.
 
-## 14. Perguntas de negócio (para o Pedro)
+## 14. Perguntas de negócio: respostas do Pedro (28/09)
 
-Só o que depende de decisão de negócio. O técnico está decidido acima.
+| # | Pergunta | Resposta | Efeito na spec |
+|---|---|---|---|
+| P1 | O Follow Day sai? | "Deixa lá em stand by." | Fica no menu, sem mudança e sem investimento. Não há redirect nem remoção. A PRODUCT 5.2 (casa da fila de ligação) continua aberta |
+| P2 | Pessoas e PDI e Distribuição saem? | "Não. Vamos usar em algum momento." | Ficam, sem mudança. A migration S4 (restringir os tipos de registro) caiu |
+| P3 | De onde vem a meta do mês? | "Não consegui avaliar ainda." | **Pendente.** Explicação abaixo |
+| P4 | O Matheus vai preencher data prevista e valor nas validadas? | "Vou alinhar isso com ele." | **Pendente.** A Previsão sobe sem a seção "quando fecha"; o card "Validadas em aberto" mostra "Sem data: N" até o dado existir |
+| P5 | O remanejamento sai da taxa de perda? Travar o motivo numa lista fechada no Pipedrive? | "Sim." | Decidido: o remanejamento fica em linha própria e fora da taxa. A lista fechada é configuração do Pipedrive, feita por quem administra o Pipedrive, fora deste repositório |
+| P6 | Os 3 títulos divergentes | "O Matheus tem que trocar o campo. De regra, nenhum de consultoria inicial foi trabalhado como consultoria, e sim Finance principalmente. Só um foi para Cella." | O campo está errado no lote de 15/09 (26 negócios), e não só nos 3. A regra de ler o campo não muda; a troca no Pipedrive corrige a tela sozinha (§4.2). Até lá, nenhuma leitura de Consultoria vale |
 
-1. **P1 · Follow Day sai de vez?** A proposta é apagar: 92 dos 105 abertos não têm próxima atividade, e a fila vira o pipe inteiro. Os parados passam a aparecer no envelhecimento de Funil e ciclo. Se a resposta for sim, a fila de ligação mora no próprio Pipedrive, e a pendência 5.2 do PRODUCT fecha com "Pipedrive, não o Brain"? Ou o Matheus passa a agendar a próxima atividade, e aí um Follow Day volta a ter sinal?
-2. **P2 · Pessoas e PDI e Distribuição saem do menu?** Nenhuma das duas tem registro. O PDI iria para `/gente`.
-3. **P3 · A meta do mês vem de onde?** Continua digitada no plano (hoje 8 contratos e 7 leads por dia), ou passa a vir do cenário base do modelo novo, com o plano só ajustando?
-4. **P4 · O Matheus passa a preencher data prevista e valor nas validadas?** Sem isso, a Previsão não mostra "quando fecha" nem receita, e a tabela semanal da antiga Temporal não volta.
-5. **P5 · Remanejamento sai da taxa de perda?** São 14 de 85 perdas: duplicado, feito em outro card, troca de produto. A proposta é que saiam. E vale travar o motivo de perda do pipe 39 numa lista fechada no Pipedrive, com um motivo "Remanejado" próprio?
-6. **P6 · Os 3 títulos divergentes.** Hospitel (aberto), SAM MEDIC e RV Industria (perdidos) dizem CELLA ou FINANCE no título, e o campo diz Consultoria. O envio registrou Consultoria. Algum deles devia estar em outro produto?
+### P3 explicada: de onde vem a meta do mês
+
+Hoje existem **dois números-alvo** para o mesmo mês, gravados em lugares diferentes:
+
+- **O plano do mês.** Alguém digita à mão na aba Capacidade, e ele fica em `ops.monetizacao_planos`. Para set/26: 8 contratos, 7 leads por dia útil, 120 leads no mês e alocação por produto 0/0/0. **É dele que a Operação diária tira a meta:** o "no ritmo / abaixo" dos quadros de leads por dia e de contratos compara com esse plano.
+- **O modelo de forecast.** É a planilha: a v10 hoje e, em breve, a v12 com cenários, do chat de Forecast. Ela projeta mês a mês, por produto, leads trabalhados, reuniões, validadas e contratos. A v10 dá para set/26 8 contratos (1 Cella, 4 Consultoria e 3 Finance). De out/26 em diante dá 16 contratos por mês, porque supõe 2 closers.
+
+Em setembro os dois dão 8, porque o plano foi digitado a partir da planilha. **A partir de outubro eles se separam:** o plano de out/26 não existe, e a planilha diz 16. Com a v12 serão três números por mês (pessimista, base e otimista). A pergunta é: quando a Operação mostrar "Contratos ganhos: 3 de **8**", de onde vem o 8?
+
+| Opção | Como funciona | A favor | Contra |
+|---|---|---|---|
+| **A. Meta digitada (como hoje)** | O plano é independente do modelo, e alguém salva todo mês | A meta é decisão da gestão e pode ser mais ambiciosa ou mais conservadora que o modelo | Alguém precisa lembrar todo mês: out/26 ainda não foi salvo, e em 01/10 a Operação fica sem meta. Meta e projetado podem divergir sem ninguém ver |
+| **B. Meta = cenário base do modelo** | Ao importar o modelo, a meta de cada mês é o cenário base | Uma fonte só, que nunca fica vazia | A meta vira previsão (é o que a regra N13 do Brain proíbe): "abaixo da meta" passa a querer dizer "abaixo do que o modelo previu". Com a v10, a meta de outubro dobraria sozinha para 16 |
+| **C. O modelo sugere, alguém confirma** (recomendada) | A partir do dia 20, o plano do mês seguinte nasce preenchido com o cenário base: contratos, leads por dia útil (leads do mês ÷ dias úteis) e alocação por produto. A Previsão mostra "Plano de out/26 sugerido pelo modelo, não confirmado" até alguém salvar, igual ou mudado. Enquanto não houver confirmação, a Operação mostra a meta com o selo "sugerida" | Não fica mês sem meta. A meta continua sendo decisão de alguém, com registro de quem salvou e quando. Divergência entre meta e modelo fica visível na Previsão | Um passo a mais por mês (confirmar) |
+
+Para decidir, basta escolher A, B ou C. Com C, o Sheet do plano (issue 14) ganha o pré-preenchimento pelo cenário base e o selo "sugerida", e a Operação ganha o selo. É uma mudança pequena na tela do outro chat, a combinar com ele.
 
 ## 15. Riscos e lacunas
 
+- **Consultoria mal rotulada até a troca do campo:** 26 dos 29 negócios de Consultoria foram trabalhados como Finance ou Cella (P6). Qualquer número de Consultoria e de Finance anterior à troca está trocado entre os dois painéis.
 - **Amostra pequena:** 32 dias de pipe e 3 ganhos. A tela declara isso: KPI `parcial`, curva que para com menos de 5 em observação, coorte "amadurecendo". Box plot e cumulative flow ficam para depois (§6.3).
 - **Lacuna de arquétipo:** Funil e ciclo tem cinco gráficos, e o Lista/Relatório prevê um. O contrato propõe a regra "Relatório analítico". A hierarquia é mantida pela ordem de leitura (chega → quanto tempo → onde para → por que perde → está melhorando), e nenhuma tabela linha a linha entra na página.
 - **Tema escuro:** verde e ciano da marca ficam claros demais para gráfico (§6). É achado do DS, para o Mika.
