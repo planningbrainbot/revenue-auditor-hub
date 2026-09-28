@@ -3442,3 +3442,30 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 **Achado no caminho:** abrir `?indicador=` empilhava o histórico, mas qualquer outro parâmetro de gaveta seria gravado com `replace`, e fechar com Esc sairia da página. O `?grafico=` foi incluído na regra de empilhar.
 
 **Status:** PR aberto, **não publicado** (deploy do `ops-brain` é pela CLI e é do Eliezek).
+
+## [2026-09-28] Cockpit do CEO visual publicado; área liberada para Paulo Carvalho, Eduardo Torres e Mikael (adendo à entrada anterior)
+
+**Autorização:** o Pedro pediu "publica" e "passa acesso para o paulo, eduardo torres, mikael, eliezek".
+
+**Publicação:**
+- PR #28 mergeado na `main` (`949e097`). Antes, a branch recebeu a `main` `4302f48` (Operação da Monetização e importação de pessoas). O único conflito foi no `DECISIONS.md`, e as duas entradas foram mantidas.
+- Deploy `dpl_7w7VgnumkQys9GjokJQXXDzDaivi` pela CLI da planningbrainbot-4862, projeto `ops-brain` do time `planning17`, feito de um worktree limpo. `planningbrain.com.br` aponta para ele.
+- Antes de publicar, o que estava no ar era `4302f48`, que faz parte da `main` nova.
+- Rollback: promover `dpl_CQmSwmfiSwAc8oiX87LpdNwydMVu` (`4302f48`).
+- Conferido no pacote servido: "Trajetória rumo ao bilhão", "D0 pendente" e "Perguntar ao Brain sobre este gráfico". A API da conversa recusa sem login (401).
+
+**Acessos** (só a área `cockpit_ceo`, decisão do Pedro; nenhuma fonte nova aberta). Concedidos pela `ops.acesso_adicionar_na_area`, com o Pedro como ator:
+- Paulo Carvalho (`paulo.carvalho@`, escolhido entre os dois Paulos);
+- Eduardo Torres;
+- Mikael Ribeiro.
+
+Conferido com a identidade de cada um: `tem_area('cockpit_ceo')` é verdadeiro. O que a conta de cada um não lê aparece como "acesso insuficiente":
+- Paulo não tem todas as empresas no Financeiro;
+- Eduardo não tem o Financeiro;
+- Mikael não tem o Financeiro.
+
+O Eliezek já tinha a área pelo papel `admin` (conta `victor.eliezek@planning.com.br`), e nada mudou para ele.
+
+**Achado:** em 28/09 às 09h27, o Eliezek tirou o CEO (`pedro.araujo`) da área `cockpit_ceo`. Na mesma ação, bloqueou broker, broker_matriz, monetização, people e clientes e gerou senha provisória (`ops.acessos_log`). A liberação de 27/09 deixou de valer, e o CEO hoje **não** abre o cockpit. Não foi desfeito: a decisão é do Pedro com o Eliezek.
+
+**Pendente:** crédito da chave da OpenAI. A chamada local respondeu "no credits remaining". Se a de produção for a mesma, o "Perguntar ao Brain" está parado.
