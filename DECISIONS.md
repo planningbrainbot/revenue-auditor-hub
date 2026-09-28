@@ -3480,3 +3480,15 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 **Pendente:** incluir ou não na base os 363 clientes da Consultoria que o Brain não conhece; resposta do Pedro Siqueira sobre inativos, valor a recuperar, status da proposta e CNPJ nas propostas.
 
 **Status:** migration ensaiada contra a produção em transação desfeita antes de aplicar; testes 314/314 depois do rebase sobre `949e097`.
+
+## [2026-09-28] Distrato e Consultoria publicados (adendo à entrada anterior)
+
+**Banco (npknehhyyzelmrbbxvtu):** migration `20260928200000_base_sinais_distrato_consultoria.sql` aplicada às 19:30 UTC. Segredo `base_sinais_cron_secret` criado no Vault; `SINAIS_CRON_SECRET`, `CONSULTORIA_API_URL` e `CONSULTORIA_API_KEY` nos segredos das funções. Edge functions `pipefy-tratativas-sync` (versão do repositório, substitui a v14 de fora do git) e `consultoria-sync` publicadas com `--no-verify-jwt`; chamada sem o cabeçalho devolve 401.
+
+**Primeira carga (19:37 UTC):** Tratativas 32 cards (30 concluídos, 2 em tratativa, 30 empresas resolvidas); Consultoria 679 clientes e 58 propostas. O job `pipefy-tratativas-sync-15min` rodou sozinho às 19:45 (trigger "cron", sucesso) e o monitor (`v_integracoes_status`) tirou o atraso de 313 h. `consultoria-sync-hora` roda aos 20 minutos de cada hora.
+
+**App:** `3d3f05c` (main `949e097` + este trabalho) publicado por CLI no `ops-brain` como `dpl_Eieb7XFfwGuPo8uZQvY3P89VZqDj`, apontado para `planningbrain.com.br`; rollback = `dpl_7w7VgnumkQys9GjokJQXXDzDaivi` (`949e097`). Conferido no bundle servido pelo domínio: "Distrato · Central de Tratativas", "Cliente da Consultoria", "Ver essas contas" e "Distrato e Consultoria" no chunk `clientes`.
+
+**Régua depois da publicação** (catálogo de 19:42 UTC, sinais lidos do catálogo em produção): idêntica à simulação da entrada anterior (Consultoria 2.284 aptas, Finance 160, Cella 604; 28 contas fora da tabela padrão).
+
+**Não conferido:** captura escuro/claro da tela logada (sem sessão nesta máquina). A sync do CRM seguiu normal depois da migration (194 negócios a cada 5 min).
