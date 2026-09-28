@@ -3548,3 +3548,13 @@ Com o ok do dono. `main` `e1ad4da` → `621eedb` (fast-forward). A função `mon
 - Cella: 59 criados, 62 trabalhados, 24 agendadas, 22 realizadas, 25 validadas, 3 ganhos, 18 perdidos, 44 abertos.
 
 Os números mudaram desde a análise da tarde por movimento novo no Pipedrive. Um exemplo: a operação trocou o campo da BADAX (97782) de Consultoria para Cella. As divergências 96070, 96094 e 96110 e as 4 oportunidades repetidas continuam, à espera de correção no Pipedrive. Não gravei nada lá.
+
+## [2026-09-28] Forecast v12 ganha a coluna Realizado por mês na planilha
+
+**Pedido do Pedro:** "Preciso de uma coluna aglutinada para cada mês. É a coluna de realizado. [...] considere a base real que está no Brain base de clientes para colocar a base ali."
+
+**Decisão:**
+- Nas abas `Forecast <cenário>` da v12, cada mês virou o par Projetado | Realizado (C/D, E/F, …, Y/Z) e o total virou "No ano" (AA) e "Realizado no ano" (AB). Os números de linha não mudaram.
+- O realizado da planilha é um retrato datado (valores fixos), medido com a régua desta tela: `operacao` sobre a carga do CRM (pipe 39, frente inteira) para leads, reuniões, oportunidades e contratos por produto; `receitaSomada` dos ganhos para receita; Base de clientes (`oferta` elegível + `disponibilidade` livre) para as linhas de base. Mês futuro fica em branco; receita de contrato ganho sem valor no CRM fica em branco (zero seria falso).
+- `import_forecast.py` lê só as colunas de projetado e grava `columns` na fonte; a grade usa `columns` na dica de célula. A tela continua medindo o próprio realizado do CRM: o realizado da planilha não entra na fonte.
+

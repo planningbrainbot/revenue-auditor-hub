@@ -272,6 +272,11 @@ export interface ForecastSource {
   default?: boolean;
   /** Aba de origem na planilha; sem ela, "Forecast" (v10). */
   sheet?: string;
+  /**
+   * Coluna de cada mês na aba de origem. Desde 28/09 a v12 alterna Projetado | Realizado (C, E, G…);
+   * sem o campo, os meses são contíguos a partir de C (v10).
+   */
+  columns?: string[];
   source_name: string;
   source_date: string;
   sha256: string;

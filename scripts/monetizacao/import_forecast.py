@@ -95,14 +95,20 @@ class Model:
 def months_from(start_year, start_month, n=12):
     return [f'{start_year+(start_month-1+i)//12}-{(start_month-1+i)%12+1:02}' for i in range(n)]
 
-def read_rows(model, sheet, last, money, percent):
+def read_rows(model, sheet, last, money, percent, cols=tuple(range(3, 15))):
     rows = []
     for r in range(12, last + 1):
         label = model.cells[sheet].get('B'+str(r),{}).get('value')
         first = model.cells[sheet].get('C'+str(r),{})
         if not isinstance(label, str) or not (first.get('formula') or isinstance(first.get('value'),(int,float))): continue
-        rows.append({'row':r,'label':label.strip(),'format':'percent' if r in percent else 'money' if r in money else 'number','values':[model.value(sheet,col_name(c)+str(r)) for c in range(3,15)],'formulas':[model.cells[sheet].get(col_name(c)+str(r),{}).get('formula') for c in range(3,15)]})
+        rows.append({'row':r,'label':label.strip(),'format':'percent' if r in percent else 'money' if r in money else 'number','values':[model.value(sheet,col_name(c)+str(r)) for c in cols],'formulas':[model.cells[sheet].get(col_name(c)+str(r),{}).get('formula') for c in cols]})
     return rows
+
+def projected_columns(model, sheet):
+    """Colunas do projetado. Desde 28/09 a v12 alterna Projetado | Realizado por mês (C, E, G...);
+    o realizado da planilha é retrato datado e não entra na fonte: a tela mede o seu do CRM."""
+    if model.cells[sheet].get('D11', {}).get('value') == 'Realizado': return tuple(3 + 2*i for i in range(12))
+    return tuple(range(3, 15))
 
 def identities(by, contract_rows_integer):
     for i in range(12):
@@ -141,7 +147,8 @@ def build_v12(model, path, source_date):
     docs, out = {}, []
     for nome, sufixo in CENARIOS:
         sheet = f'Forecast {nome}'
-        rows = read_rows(model, sheet, 72, MONEY | {71, 72}, PERCENT)
+        cols = projected_columns(model, sheet)
+        rows = read_rows(model, sheet, 72, MONEY | {71, 72}, PERCENT, cols)
         by = {r['row']:r['values'] for r in rows}
         assert len(rows) >= 44 and 71 in by and 72 in by, (nome, len(rows))
         identities(by, False)
@@ -149,7 +156,7 @@ def build_v12(model, path, source_date):
         for i in range(12):
             if by[38][i]: assert by[71][i] >= by[46][i] - 1e-6
         docs[nome] = rows
-        out.append({'id':f'v12-{source_date}{sufixo}','version':f'v12 · {nome}','scenario':nome,'default':nome=='Estimado','sheet':sheet,
+        out.append({'id':f'v12-{source_date}{sufixo}','version':f'v12 · {nome}','scenario':nome,'default':nome=='Estimado','sheet':sheet,'columns':[col_name(c) for c in cols],
                     'source_name':path.name,'source_date':source_date,'sha256':sha,'scope':'front','months':months_from(2026,9),'rows':rows,'note':NOTA_V12[nome]})
     # Conservador ≤ Estimado ≤ Otimista em contratos e receita assinada, como os cenários foram montados.
     tot = lambda nome, row: sum(next(r for r in docs[nome] if r['row']==row)['values'])

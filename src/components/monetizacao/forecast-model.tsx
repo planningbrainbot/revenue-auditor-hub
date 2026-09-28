@@ -204,7 +204,7 @@ export function ForecastModel({
                             <td
                               key={source.months[i]}
                               className={`border-b px-4 py-3.5 tabular-nums whitespace-nowrap ${i === source.months.indexOf(selectedMonth) ? "bg-primary/5 border-x border-x-primary/15" : bg} ${r.format === "money" && v < 0 ? "text-danger" : ""}`}
-                              title={`${aba}!${String.fromCharCode(67 + i)}${r.row}${r.formulas[i] ? " = " + r.formulas[i] : " · entrada da planilha"}`}
+                              title={`${aba}!${source.columns?.[i] ?? String.fromCharCode(67 + i)}${r.row}${r.formulas[i] ? " = " + r.formulas[i] : " · entrada da planilha"}`}
                             >
                               {v == null
                                 ? "—"
