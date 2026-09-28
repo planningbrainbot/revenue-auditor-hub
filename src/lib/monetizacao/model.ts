@@ -577,6 +577,8 @@ const mesLocal = (at: string) =>
  * - `duplicados`: mesma organização e mesmo produto, com os dois abertos ou criados no mesmo mês
  *   (a régua de duplicidade do envio). Cada card conta, como no Pipedrive; o alerta diz que são
  *   a mesma oportunidade.
+ * - `semProduto`: aberto sem produto no campo nem no título; não entra em linha de produto
+ *   nenhuma. Os fechados sem produto (a limpeza da API em 27/08–01/09) não pedem ação.
  */
 export function cadastroACorrigir(cards: Negocio[], product: Produto | "sem_produto" | "" = "") {
   const doFiltro = (c: Negocio, titulo: Produto | null) =>
@@ -601,8 +603,15 @@ export function cadastroACorrigir(cards: Negocio[], product: Produto | "sem_prod
       ),
     )
     .filter((g) => g.length > 1);
+  const semProduto =
+    !product || product === "sem_produto"
+      ? cards.filter(
+          (c) => c.status === "open" && c.route === "sem_produto" && !produtoDoTitulo(c.title),
+        )
+      : [];
   return {
     produtoDivergente,
+    semProduto,
     duplicados: repetidos.flat(),
     /** Quantas oportunidades (organização × produto) têm mais de um card. */
     oportunidadesDuplicadas: repetidos.length,

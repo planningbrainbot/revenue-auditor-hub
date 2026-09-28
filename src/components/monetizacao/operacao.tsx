@@ -690,8 +690,8 @@ export function CadastroACorrigir({
   dados: ReturnType<typeof cadastroACorrigir>;
   abrir: Abrir;
 }) {
-  const { produtoDivergente: div, duplicados: dup, oportunidadesDuplicadas: n } = dados;
-  if (!div.length && !dup.length) return null;
+  const { produtoDivergente: div, semProduto, duplicados: dup, oportunidadesDuplicadas: n } = dados;
+  if (!div.length && !semProduto.length && !dup.length) return null;
   const recorte = "Pipe 39 inteiro, qualquer data · corrigir no Pipedrive";
   return (
     <section
@@ -716,6 +716,21 @@ export function CadastroACorrigir({
           <strong className="num font-semibold text-foreground">{INT.format(div.length)}</strong>{" "}
           {div.length === 1 ? "negócio" : "negócios"} com o produto do título diferente do campo
           Caixa · Produto (a tela conta pelo campo)
+        </button>
+      )}
+      {semProduto.length > 0 && (
+        <button
+          type="button"
+          className={LINK_DISCRETO}
+          onClick={() =>
+            abrir("Abertos sem Caixa · Produto", semProduto, { estoque: true, recorte })
+          }
+        >
+          <strong className="num font-semibold text-foreground">
+            {INT.format(semProduto.length)}
+          </strong>{" "}
+          {semProduto.length === 1 ? "negócio aberto" : "negócios abertos"} sem Caixa · Produto
+          (fora de todas as linhas de produto)
         </button>
       )}
       {dup.length > 0 && (

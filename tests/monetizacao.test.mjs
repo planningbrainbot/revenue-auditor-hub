@@ -679,6 +679,15 @@ test("Cadastro a corrigir: produto do título contra o campo, e a mesma oportuni
     [90000, 96084],
   );
   assert.equal(cadastroACorrigir([a, b], "cella").duplicados.length, 0);
+
+  // aberto sem produto pede ação; fechado sem produto (limpeza da API) não
+  const aberto = card(raw({ id: 150, title: "Castropil", [PRODUCT]: null }));
+  const fechado = card(raw({ id: 151, title: "Portum", [PRODUCT]: null, status: "lost" }));
+  assert.deepEqual(
+    cadastroACorrigir([aberto, fechado, semCampo]).semProduto.map((x) => x.id),
+    [150],
+  );
+  assert.equal(cadastroACorrigir([aberto], "finance").semProduto.length, 0);
 });
 
 test("Carga parada é medição velha, com ou sem erro; falha isolada com dado fresco não é parada", () => {
