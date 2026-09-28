@@ -1531,8 +1531,7 @@ function CargaNaBase({ data }: { data: BaseMonetizacao }) {
         titulo={`A leitura do CRM está parada desde ${carga.desde}`}
         detalhe={
           <>
-            A última tentativa falhou porque{" "}
-            <span title={data.sync_error ?? undefined}>{carga.motivo}</span>. Negócios e
+            <span title={data.sync_error ?? undefined}>{carga.porque}</span> Negócios e
             disponibilidade são dessa última carga concluída, não de agora.
             {catalogoOk &&
               " A lista de empresas não foi afetada: ela vem de outra carga, que concluiu normalmente."}

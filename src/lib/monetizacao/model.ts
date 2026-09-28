@@ -32,6 +32,48 @@ export const normal = (v: string | null | undefined) =>
 // Carga com mais de 30 minutos é "parada": o sync roda a cada 5. Regra da barra de frescor da
 // Monetização, também usada pelo Cockpit do CEO para marcar número parcial.
 export const LIMITE_CARGA_PARADA_MS = 30 * 60_000;
+
+// A mensagem crua do banco não é para o sócio ler. "canceling statement due to statement
+// timeout" apareceu inteira na tela em 22/09, em inglês e minúscula, colada depois de um ponto.
+// Aqui ela vira frase, e o texto técnico continua acessível no title, para quem for investigar.
+const ERROS_CONHECIDOS: [RegExp, string][] = [
+  [/statement timeout/i, "o passo passou do tempo limite no banco"],
+  [/deadlock/i, "duas cargas tentaram escrever ao mesmo tempo"],
+  [/permission denied/i, "a carga não tem permissão para ler uma das fontes"],
+  [/connection|timeout of/i, "a conexão com a fonte caiu no meio da carga"],
+  // "Signal timed out.": o Pipedrive ou o banco não respondeu no prazo (sete vezes em 28/09)
+  [/timed out|aborted/i, "o Pipedrive ou o banco demorou demais para responder"],
+];
+export const motivoLegivel = (erro: string) =>
+  ERROS_CONHECIDOS.find(([re]) => re.test(erro))?.[1] ?? "a carga parou com um erro não previsto";
+
+/**
+ * Estado da carga do CRM (regra Z1). Parada é medição velha, com ou sem erro. Antes, parada era
+ * "tem erro": uma falha isolada com dado de 5 minutos virava "indicadores parados" em vermelho
+ * (28/09, 12:20 e 12:25, entre cargas boas), e o cron parado sem erro não avisava nada além do
+ * "(parados)" miúdo da barra de frescor.
+ */
+export function cargaDoCrm(
+  measuredAt: string | null,
+  syncError: string | null,
+  agora = Date.now(),
+) {
+  const parada = !!measuredAt && agora - Date.parse(measuredAt) > LIMITE_CARGA_PARADA_MS;
+  return {
+    /** O CRM nunca concluiu uma carga (`measured_at` nulo): KPIs de evento em `indisponivel`. */
+    nuncaSincronizou: !measuredAt,
+    /** A última carga concluída tem mais de 30 minutos; os números são dela, não de agora. */
+    parada,
+    /** Motivo em português da falha, quando há erro. */
+    motivo: syncError ? motivoLegivel(syncError) : undefined,
+    /** A frase do porquê: o erro da última tentativa, ou a carga automática que não rodou. */
+    porque: syncError
+      ? `A última tentativa falhou porque ${motivoLegivel(syncError)}.`
+      : "A atualização automática, de 5 em 5 minutos, não concluiu nenhuma carga desde então.",
+    /** Falha isolada com dado ainda fresco: a próxima rodada tenta de novo; não é carga parada. */
+    falhouAgora: !!syncError && !!measuredAt && !parada,
+  };
+}
 export const hoje = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",

@@ -5,7 +5,7 @@ import { Button, type ButtonProps } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { BaseMonetizacao, Conta, Negocio, Produto } from "@/lib/monetizacao/types";
 import { NOMES } from "@/lib/monetizacao/types";
-import { csv, LIMITE_CARGA_PARADA_MS, oferta } from "@/lib/monetizacao/model";
+import { cargaDoCrm, csv, LIMITE_CARGA_PARADA_MS, oferta } from "@/lib/monetizacao/model";
 import { FOCO_VISIVEL, KpiCard, Secao, tomDoLegado, type EstadoKpi } from "@/components/planning";
 
 export const number = (n: number | null | undefined) =>
@@ -205,24 +205,16 @@ const HORA_SP: Intl.DateTimeFormatOptions = {
 export const horaDaCarga = (v: string | null | undefined) =>
   v ? new Date(v).toLocaleString("pt-BR", HORA_SP) : null;
 
-export type EstadoDaCarga = {
-  /** O CRM nunca concluiu uma carga (`measured_at` nulo): KPIs de evento em `indisponivel`. */
-  nuncaSincronizou: boolean;
-  /** Z1: a última tentativa falhou (`sync_error`) e há carga anterior; os números são dela. */
-  parada: boolean;
+export type EstadoDaCarga = ReturnType<typeof cargaDoCrm> & {
   /** Hora da última carga concluída ("23/09, 20:20"), quando existe. */
   desde?: string;
-  /** Motivo em português da falha, quando há `sync_error`. */
-  motivo?: string;
 };
 
-export function estadoDaCarga(data: BaseMonetizacao): EstadoDaCarga {
-  const desde = horaDaCarga(data.measured_at) ?? undefined;
+/** Regra Z1 em `cargaDoCrm` (model): parada é medição com mais de 30 minutos, com ou sem erro. */
+export function estadoDaCarga(data: BaseMonetizacao, agora = Date.now()): EstadoDaCarga {
   return {
-    nuncaSincronizou: !data.measured_at,
-    parada: !!data.sync_error && !!data.measured_at,
-    desde,
-    motivo: data.sync_error ? motivoLegivel(data.sync_error) : undefined,
+    ...cargaDoCrm(data.measured_at, data.sync_error, agora),
+    desde: horaDaCarga(data.measured_at) ?? undefined,
   };
 }
 
@@ -270,47 +262,33 @@ export function Notice({ children }: { children: ReactNode }) {
   );
 }
 
-// A mensagem crua do banco não é para o sócio ler. "canceling statement due to statement
-// timeout" apareceu inteira na tela em 22/09, em inglês e minúscula, colada depois de um ponto.
-// Aqui ela vira frase, e o texto técnico continua acessível no title, para quem for investigar.
-const ERROS_CONHECIDOS: [RegExp, string][] = [
-  [/statement timeout/i, "o passo passou do tempo limite no banco"],
-  [/deadlock/i, "duas cargas tentaram escrever ao mesmo tempo"],
-  [/permission denied/i, "a carga não tem permissão para ler uma das fontes"],
-  [/connection|timeout of/i, "a conexão com a fonte caiu no meio da carga"],
-];
-export const motivoLegivel = (erro: string) =>
-  ERROS_CONHECIDOS.find(([re]) => re.test(erro))?.[1] ?? "a carga parou com um erro não previsto";
-
-/** O aviso de carga: diz qual passo caiu, desde quando, e o que continua confiável. */
+/** O aviso de carga: diz desde quando parou, por quê, e o que continua confiável. */
 export function FalhaDeCarga({ data }: { data: BaseMonetizacao }) {
-  if (!data.sync_error && data.measured_at) return null;
-  if (!data.sync_error)
+  const carga = estadoDaCarga(data);
+  if (carga.nuncaSincronizou)
     return (
       <Notice>
         O CRM ainda não teve uma sincronização concluída. Os indicadores comerciais são liberados
         depois da primeira carga; a lista de empresas não depende dela.
+        {carga.motivo && (
+          <>
+            {" "}
+            A última tentativa falhou porque{" "}
+            <span title={data.sync_error ?? undefined}>{carga.motivo}</span>.
+          </>
+        )}
       </Notice>
     );
-  const desde = data.measured_at
-    ? new Date(data.measured_at).toLocaleString("pt-BR", {
-        timeZone: "America/Sao_Paulo",
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  if (!carga.parada) return null;
   const catalogoOk =
     !!data.catalog_at &&
     (!data.measured_at || Date.parse(data.catalog_at) > Date.parse(data.measured_at));
   return (
     <Notice>
       <p>
-        <strong>Os indicadores comerciais estão parados{desde ? ` desde ${desde}` : ""}.</strong> A
-        última tentativa falhou porque{" "}
-        <span title={data.sync_error}>{motivoLegivel(data.sync_error)}</span>. Os números de
-        reuniões, oportunidades e contratos abaixo são dessa última carga concluída, não de agora.
+        <strong>Os indicadores comerciais estão parados desde {carga.desde}.</strong>{" "}
+        <span title={data.sync_error ?? undefined}>{carga.porque}</span> Os números de reuniões,
+        oportunidades e contratos abaixo são dessa última carga concluída, não de agora.
       </p>
       {catalogoOk && (
         <p className="mt-1">
@@ -378,6 +356,8 @@ export function Freshness({
       <span>
         Indicadores · {metricas ?? "primeira carga pendente"}
         {metricasVelhas && metricas ? " (parados)" : ""}
+        {/* falha isolada com dado fresco: diz, sem alarme; a próxima rodada tenta de novo */}
+        {data.sync_error && metricas && !metricasVelhas ? " · última tentativa falhou" : ""}
       </span>
       <BotaoComMotivo
         variant="outline"

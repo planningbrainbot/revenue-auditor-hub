@@ -446,8 +446,7 @@ export function DashboardMonetizacao({
           titulo={`Os indicadores comerciais estão parados desde ${carga.desde}`}
           detalhe={
             <>
-              A última tentativa falhou porque{" "}
-              <span title={data.sync_error ?? undefined}>{carga.motivo}</span>. Os números de
+              <span title={data.sync_error ?? undefined}>{carga.porque}</span> Os números de
               reuniões, oportunidades e contratos abaixo são dessa última carga concluída, não de
               agora.
               {!!data.catalog_at &&

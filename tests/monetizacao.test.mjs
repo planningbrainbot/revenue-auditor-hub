@@ -15,6 +15,8 @@ import {
   situacaoDoNegocio,
   produtoDoTitulo,
   cadastroACorrigir,
+  cargaDoCrm,
+  motivoLegivel,
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
@@ -677,4 +679,36 @@ test("Cadastro a corrigir: produto do título contra o campo, e a mesma oportuni
     [90000, 96084],
   );
   assert.equal(cadastroACorrigir([a, b], "cella").duplicados.length, 0);
+});
+
+test("Carga parada é medição velha, com ou sem erro; falha isolada com dado fresco não é parada", () => {
+  const agora = Date.parse("2026-09-28T15:25:00Z");
+  // 28/09 12:20: "Signal timed out." com a carga das 12:15 ainda boa
+  const isolada = cargaDoCrm("2026-09-28T15:15:10Z", "Signal timed out.", agora);
+  assert.equal(isolada.parada, false);
+  assert.equal(isolada.falhouAgora, true);
+  assert.equal(
+    motivoLegivel("Signal timed out."),
+    "o Pipedrive ou o banco demorou demais para responder",
+  );
+  // cron parado sem erro: antes não avisava
+  const semRodar = cargaDoCrm("2026-09-28T14:40:00Z", null, agora);
+  assert.equal(semRodar.parada, true);
+  assert.match(semRodar.porque, /não concluiu nenhuma carga/);
+  // erro persistente e medição velha
+  const persistente = cargaDoCrm(
+    "2026-09-28T14:40:00Z",
+    "canceling statement due to statement timeout",
+    agora,
+  );
+  assert.equal(persistente.parada, true);
+  assert.equal(
+    persistente.porque,
+    "A última tentativa falhou porque o passo passou do tempo limite no banco.",
+  );
+  assert.equal(persistente.falhouAgora, false);
+  const nunca = cargaDoCrm(null, "x", agora);
+  assert.equal(nunca.nuncaSincronizou, true);
+  assert.equal(nunca.parada, false);
+  assert.equal(cargaDoCrm("2026-09-28T15:20:00Z", null, agora).parada, false);
 });
