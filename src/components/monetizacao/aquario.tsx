@@ -49,13 +49,20 @@ import { AccountDetail } from "./account-detail";
 import { ReconAquario } from "./recon";
 import { ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
+import { ProcedenciaSinais, SelosSinais } from "./sinais";
+import { textoConsultoria, textoDistrato } from "@/lib/monetizacao/sinais";
 import { DirectSend } from "./direct-send";
 import { ProcedenciaBase } from "./procedencia-base";
 import {
   ABORDAGENS,
+  CONSULTORIA_FILTRO,
+  DISTRATO_PADRAO,
+  DISTRATOS_FILTRO,
   EMPTY_PORTFOLIO_FILTERS,
+  estadoDistrato,
   estadoProduto,
   filtrarCarteira,
+  motivoConsultoria,
   ORIGENS_BASE,
   origemBase,
   potencialConsultoria,
@@ -64,10 +71,12 @@ import {
   situacoesIniciais,
   SITUACOES,
   SITUACOES_RECEITA_FILTRO,
+  TODOS_DISTRATOS,
 } from "@/lib/monetizacao/portfolio";
 import type {
   Abordagem,
   EstadoProduto,
+  FiltroConsultoria,
   OrigemBase,
   PortfolioFilters,
   Situacao,
@@ -210,12 +219,13 @@ export function Aquario({
     consultPool = data.accounts.filter(potencialConsultoria),
     consultPending = consultPool.filter((a) => oferta(a, "consultoria").status === "revisar"),
     consultBase = data.accounts.filter(baseRetroativaConsultoria),
-    // Exclusão por regime e exclusão por situação cadastral são motivos diferentes; misturá-las
-    // faria o cartão afirmar que centenas de empresas fechadas são do Simples.
-    consultExcluded = consultBase.filter(
-      (a) => oferta(a, "consultoria").status === "fora_regra" && !situacaoForaDeOferta(a),
-    ),
+    // Exclusão por regime, por situação cadastral e por já ser cliente da Consultoria são motivos
+    // diferentes; misturá-los faria o cartão afirmar que empresas fechadas ou clientes da
+    // Consultoria são do Simples (motivoConsultoria, portfolio.ts).
+    consultExcluded = consultBase.filter((a) => motivoConsultoria(a) === "simples"),
     consultInativas = consultBase.filter((a) => situacaoForaDeOferta(a)),
+    consultClientes = consultBase.filter((a) => motivoConsultoria(a) === "cliente"),
+    distratosConcluidos = data.accounts.filter((a) => estadoDistrato(a) === "concluido"),
     finance = data.accounts.filter((a) => oferta(a, "finance").status === "elegivel");
   const overlap = data.accounts.filter(
     (a) =>
@@ -294,7 +304,11 @@ export function Aquario({
               <KpiCard
                 rotulo="Contas na base conciliada"
                 valor={number(data.accounts.length)}
-                nota="Uma conta, mesmo com mais de um produto"
+                nota={
+                  distratosConcluidos.length
+                    ? `Uma conta, mesmo com mais de um produto · inclui ${number(distratosConcluidos.length)} com distrato concluído, fora das ofertas`
+                    : "Uma conta, mesmo com mais de um produto"
+                }
               />
               <KpiCard
                 // N11: este número tira os "só no Omie"; o cartão do Cella, abaixo, os inclui.
@@ -316,7 +330,7 @@ export function Aquario({
                 // (a "base retroativa" da tabela já tira os fora da regra), e o total não bateria.
                 rotulo="Consultoria · carteira retroativa (base inteira)"
                 valor={number(consultBase.length)}
-                nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultPending.length)} a confirmar`}
+                nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultClientes.length)} já clientes da Consultoria · ${number(consultPending.length)} a confirmar`}
               />
               <KpiCard
                 rotulo="Finance · perfil aderente"
@@ -638,6 +652,7 @@ function PortfolioTable({
   const [sending, setSending] = useState<Conta[] | null>(null);
   const product = filters.product;
   const situacaoEfetiva = filters.status.length ? filters.status : situacoesIniciais(product);
+  const distratoEfetivo: string[] = filters.distrato.length ? filters.distrato : DISTRATO_PADRAO;
   // Mudar filtro limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
   const change = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters({
@@ -656,6 +671,15 @@ function PortfolioTable({
     }
   };
   const rows = useMemo(() => filtrarCarteira(accounts, filters, data), [accounts, filters, data]);
+  // "Concluído sai da base" (dono, 28/09): o padrão esconde o distrato concluído. A tabela diz
+  // quantas ficaram de fora com os mesmos filtros, e um clique as mostra.
+  const ocultasPorDistrato = useMemo(
+    () =>
+      filters.distrato.length
+        ? 0
+        : filtrarCarteira(accounts, { ...filters, distrato: ["concluido"] }, data).length,
+    [accounts, filters, data],
+  );
   const semSituacao = useMemo(
     () => (product ? filtrarCarteira(accounts, filters, data, { ignorarSituacao: true }) : []),
     [accounts, filters, data, product],
@@ -754,6 +778,8 @@ function PortfolioTable({
                   "Segmento",
                   "Regime",
                   "Contato",
+                  "Distrato · Central de Tratativas",
+                  "Vínculo com a Consultoria",
                   "Consultoria",
                   "Finance",
                   "Cella",
@@ -784,6 +810,8 @@ function PortfolioTable({
                     a.segment,
                     a.regime,
                     a.contact ? "Sim" : "Obter com o sócio",
+                    textoDistrato(a),
+                    textoConsultoria(a),
                     oferta(a, "consultoria").reason,
                     oferta(a, "finance").reason,
                     oferta(a, "cella").reason,
@@ -997,6 +1025,35 @@ function PortfolioTable({
             }))}
           />
         </FieldMulti>
+        <FieldMulti label="Distrato · Central de Tratativas">
+          <MultiSelect
+            label="Distrato · Central de Tratativas"
+            placeholder="Todas, inclusive distrato concluído"
+            // O padrão aparece marcado (sem o concluído); desmarcar tudo significa todas.
+            value={distratoEfetivo.filter((d) => d !== TODOS_DISTRATOS)}
+            onChange={(v) =>
+              change(
+                "distrato",
+                !v.length
+                  ? [TODOS_DISTRATOS]
+                  : v.length === DISTRATO_PADRAO.length &&
+                      DISTRATO_PADRAO.every((d) => v.includes(d))
+                    ? []
+                    : v,
+              )
+            }
+            options={Object.entries(DISTRATOS_FILTRO).map(([value, label]) => ({ value, label }))}
+          />
+        </FieldMulti>
+        <FieldMulti label="Consultoria · plataforma">
+          <MultiSelect
+            label="Consultoria · plataforma"
+            placeholder="Com e sem vínculo"
+            value={filters.consultoria}
+            onChange={(v) => change("consultoria", v as FiltroConsultoria[])}
+            options={Object.entries(CONSULTORIA_FILTRO).map(([value, label]) => ({ value, label }))}
+          />
+        </FieldMulti>
         <FieldMulti label="Contato · filtro opcional">
           <MultiSelect
             label="Contato"
@@ -1108,6 +1165,22 @@ function PortfolioTable({
           </p>
         </div>
       )}
+      {ocultasPorDistrato > 0 && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          {number(ocultasPorDistrato)}{" "}
+          {ocultasPorDistrato === 1
+            ? "conta com distrato concluído fica"
+            : "contas com distrato concluído ficam"}{" "}
+          fora desta tabela e de todas as ofertas.{" "}
+          <button
+            type="button"
+            className={`font-medium text-primary-text underline-offset-2 hover:underline ${FOCO_VISIVEL}`}
+            onClick={() => change("distrato", ["concluido"])}
+          >
+            Ver essas contas
+          </button>
+        </p>
+      )}
       <p className="mb-2 text-xs text-muted-foreground">
         {number(rows.length)} de {number(accounts.length)} contas ·{" "}
         {product
@@ -1201,6 +1274,7 @@ function PortfolioTable({
                       <OfertaTag account={a} product="finance" />
                       <OfertaTag account={a} product="cella" />
                     </div>
+                    <SelosSinais account={a} />
                   </td>
                   {e && (
                     <td className="min-w-56 p-2 align-top">
@@ -1269,6 +1343,7 @@ function PortfolioTable({
           Mostrar mais 50
         </Button>
       )}
+      <ProcedenciaSinais data={data} />
     </SecaoCartao>
   );
 }
@@ -1552,10 +1627,7 @@ function Gates({
     {
       rotulo: "Consultoria · excluídas por Simples/MEI",
       n: data.accounts.filter(
-        (a) =>
-          baseRetroativaConsultoria(a) &&
-          oferta(a, "consultoria").status === "fora_regra" &&
-          !situacaoForaDeOferta(a),
+        (a) => baseRetroativaConsultoria(a) && motivoConsultoria(a) === "simples",
       ).length,
       porque:
         "Pertencem à carteira retroativa, mas o regime conhecido não atende à regra de Consultoria.",
@@ -1566,6 +1638,28 @@ function Gates({
         .length,
       porque:
         "Baixadas, inaptas ou suspensas na consulta em lote. Saem das ofertas e formam a lista separada de empresas inativas; o regime delas não foi avaliado.",
+    },
+    {
+      rotulo: "Consultoria · já clientes da Consultoria",
+      n: data.accounts.filter(
+        (a) => baseRetroativaConsultoria(a) && motivoConsultoria(a) === "cliente",
+      ).length,
+      porque:
+        "Pertencem à carteira retroativa, mas a plataforma da Consultoria já as tem como cliente (CNPJ ou mesma raiz), contrato ou proposta em aberto. Não recebem Consultoria. Sem link: o filtro de Consultoria da tabela não se restringe à carteira retroativa, e o total não bateria.",
+    },
+    {
+      rotulo: "Com distrato concluído na Central de Tratativas",
+      n: data.accounts.filter((a) => estadoDistrato(a) === "concluido").length,
+      porque:
+        "Churn confirmado no Pipefy. Saem das ofertas dos quatro produtos e da tabela padrão; aparecem pelo filtro de distrato.",
+      filtro: { distrato: ["concluido"] },
+    },
+    {
+      rotulo: "Em tratativa de distrato",
+      n: data.accounts.filter((a) => estadoDistrato(a) === "tratativa").length,
+      porque:
+        "Pediram distrato e a Central de Tratativas ainda não decidiu. Ficam na tabela, marcadas, e fora do envio ao CRM até a tratativa terminar.",
+      filtro: { distrato: ["tratativa"] },
     },
     {
       rotulo: "Consultoria · regime a confirmar",

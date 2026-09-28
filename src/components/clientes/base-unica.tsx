@@ -288,6 +288,8 @@ export function ClientesBase() {
     search.receita,
     search.contato,
     search.sobreposicao,
+    search.distrato,
+    search.consultoria,
   ]);
   const filtros = useMemo(
     () => filtrosDaBusca(search, unidadeKeys),

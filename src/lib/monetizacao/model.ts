@@ -82,6 +82,95 @@ export function situacaoForaDeOferta(a: Conta, review: Revisao = {}): string | n
   if (!s || s === "ativa") return null;
   return `Empresa ${s} na Receita Federal${a.situacao_receita_fonte ? ` (${a.situacao_receita_fonte})` : ""}. Fora das ofertas; fica na lista de empresas inativas.`;
 }
+const dataBr = (iso: string | null | undefined) =>
+  iso ? iso.slice(0, 10).split("-").reverse().join("/") : null;
+/** Valor curto para selo e motivo: "R$ 92 mil", "R$ 1,2 mi". */
+export function reaisCurto(v: number): string {
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  if (v >= 1_000_000) return `R$ ${fmt(v / 1_000_000)} mi`;
+  if (v >= 1_000) return `R$ ${fmt(v / 1_000)} mil`;
+  return `R$ ${fmt(v)}`;
+}
+
+// Distrato pedido na Central de Tratativas do Pipefy (decisão do dono em 28/09/2026). Concluído é
+// churn: sai das ofertas dos quatro produtos e da tabela padrão da base. Em tratativa ainda pode
+// reverter: fica visível e marcado, fora do envio até a tratativa terminar. Não há revisão manual:
+// o caminho de volta é o card ir para "Cliente Recuperado" no Pipefy, que vira "retido".
+export const ESTADOS_DISTRATO = {
+  tratativa: "Em tratativa de distrato",
+  concluido: "Distrato concluído",
+  revertido: "Retido na tratativa",
+} as const;
+export function distratoForaDeOferta(a: Conta): Oferta | null {
+  const d = a.base?.distrato;
+  if (d?.estado === "concluido")
+    return {
+      status: "fora_regra",
+      reason: `Distrato concluído na Central de Tratativas${d.data_churn ? ` (churn em ${dataBr(d.data_churn)})` : ""}. Fora das ofertas.`,
+    };
+  if (d?.estado === "tratativa")
+    return {
+      status: "revisar",
+      reason: `Cliente em tratativa de distrato na Central de Tratativas${d.fase ? ` (${d.fase})` : ""}. Fora do envio até a tratativa terminar.`,
+    };
+  return null;
+}
+/**
+ * Concluído vale antes de tudo (é definitivo, como a baixa na Receita). A tratativa só rebaixa o que
+ * o produto aceitaria ou deixaria pendente: conta que já está fora da regra continua fora pelo
+ * motivo dela, em vez de virar "a confirmar" por causa da tratativa.
+ */
+export function comTratativa(a: Conta, resultado: Oferta): Oferta {
+  const d = distratoForaDeOferta(a);
+  return d && d.status === "revisar" && resultado.status !== "fora_regra" ? d : resultado;
+}
+
+// Operação da Consultoria (plataforma do Pedro Siqueira). Casamento por CNPJ completo ou pela raiz
+// (mesma pessoa jurídica) vale como fato; proposta sem CNPJ casada pelo nome é selo incerto e não
+// entra em regra nenhuma. Ex-cliente (ativo = false, quando a API trouxer) não bloqueia.
+type PropostaConsultoria = NonNullable<
+  NonNullable<Conta["base"]>["consultoria"]
+>["propostas"][number];
+export const propostasAbertas = (a: Conta, { incertas = false } = {}): PropostaConsultoria[] =>
+  (a.base?.consultoria?.propostas ?? []).filter(
+    (p) =>
+      (incertas || p.casamento !== "nome") &&
+      p.categoria === "Proposta" &&
+      (p.status ?? "aberta") === "aberta",
+  );
+/** Soma do valor total das propostas; proposta sem valor não vira zero, é contada à parte. */
+export function valorPropostas(ps: PropostaConsultoria[]) {
+  const comValor = ps.filter((p) => p.valor_total != null);
+  return {
+    total: comValor.reduce((s, p) => s + (p.valor_total ?? 0), 0),
+    semValor: ps.length - comValor.length,
+  };
+}
+export function consultoriaForaDeOferta(a: Conta): string | null {
+  const c = a.base?.consultoria;
+  if (!c) return null;
+  if (c.cliente && c.cliente.ativo !== false)
+    return c.cliente.casamento === "raiz"
+      ? `A mesma empresa (raiz do CNPJ ${c.cliente.cnpj.slice(0, 8)}) já é cliente da Consultoria. Não oferecer Consultoria.`
+      : "Já é cliente da Consultoria (plataforma da Consultoria). Não oferecer Consultoria.";
+  if (c.propostas.some((p) => p.casamento !== "nome" && p.categoria === "Contrato"))
+    return "Contrato da Consultoria registrado na plataforma. Não oferecer Consultoria.";
+  const abertas = propostasAbertas(a);
+  if (abertas.length) {
+    const v = valorPropostas(abertas);
+    const enviada = abertas
+      .map((p) => p.data_envio)
+      .filter(Boolean)
+      .sort()[0];
+    const partes = [
+      v.total ? reaisCurto(v.total) : null,
+      enviada ? `enviada em ${dataBr(enviada)}` : null,
+    ].filter(Boolean);
+    return `Proposta da Consultoria em aberto${partes.length ? ` (${partes.join(", ")})` : ""}. Não duplicar a oferta.`;
+  }
+  return null;
+}
+
 // Teto legal pelo porte quando não há faixa declarada. Um só limite para oferta, filtro e ordenação.
 export const limiteFaturamento = (
   a: Conta,
@@ -104,6 +193,9 @@ export function tetoContradizFaixa(a: Conta): string | null {
   return `Faixa declarada acima do teto do porte na Receita (até ${tetoEmReais(a.faturamento_teto)}). Confirmar com o sócio.`;
 }
 export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta {
+  return comTratativa(a, ofertaDoProduto(a, produto, review));
+}
+function ofertaDoProduto(a: Conta, produto: Produto, review: Revisao): Oferta {
   if (a.base?.identity_conflict)
     return {
       status: "revisar",
@@ -119,6 +211,9 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
   const result = (status: Oferta["status"], reason: string) => ({ status, reason });
   const parada = situacaoForaDeOferta(a, review);
   if (parada) return result("fora_regra", parada);
+  // Mesma posição do servidor (ops.monetizacao_offer_issue): depois da situação cadastral, antes do
+  // que pede ação humana no cadastro. A tratativa entra por fora, em comTratativa.
+  if (a.base?.distrato?.estado === "concluido") return distratoForaDeOferta(a)!;
   if (a.base?.source_status === "absent")
     return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
   if (produto === "consultoria") {
@@ -137,6 +232,10 @@ export function oferta(a: Conta, produto: Produto, review: Revisao = {}): Oferta
         a.old_base ? "revisar" : "fora_regra",
         a.consultoria_origin?.reason || "Origem Base Antiga das unidades não comprovada.",
       );
+    // Quem já é cliente da Consultoria não recebe Consultoria (dono, 28/09/2026). Depois da origem,
+    // para o motivo das contas fora da base retroativa continuar sendo a origem.
+    const jaCliente = consultoriaForaDeOferta(a);
+    if (jaCliente) return result("fora_regra", jaCliente);
     if (
       /simples|mei/.test(regime) ||
       (!review.regime && a.consultoria_origin?.non_simples_confirmed === false)

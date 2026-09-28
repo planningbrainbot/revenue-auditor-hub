@@ -14,9 +14,10 @@ const lista = (chaves) => {
   return `array[${chaves.map((k) => `'${k}'`).join(",")}]::text[]`;
 };
 
-// Cópia literal do corpo de ops.base_unica_catalogo, sem o filtro de sessão e de escopo.
-const CATALOGO = (chaves) =>
-  `select coalesce(jsonb_agg(jsonb_build_object('key',a.key,'identity_conflict',a.identity_conflict,'cnpjs',a.cnpjs,'empresa_ids',a.empresa_ids,'pipefy_ids',a.pipefy_ids,'pipedrive_ids',a.pipedrive_ids,'omie_units',a.omie_unidades,'omie_records',a.omie_registros,'contact_count',a.contatos,'contact',a.com_contato,'ecd',a.ecd_registros,'declared_origin',a.declarada,'pending_fields',(select coalesce(jsonb_agg(distinct k.value),'[]') from jsonb_array_elements(coalesce(a.pendencias,'[]')) p(value) cross join lateral jsonb_object_keys(case when jsonb_typeof(p.value)='object' then p.value else '{}' end) k(value)),'origin',a.origem,'origin_reason',a.motivo,'origin_evidence',a.origin_evidence,'tax_evidence',a.tax_evidence,'responsible',a.responsavel,'validated_at',a.confirmado_em,'synced_at',a.sincronizado,'source_status',case when a.ausente then 'absent' when a.nao_lidas>0 then 'pending' when cardinality(a.pipefy_ids)>0 then 'ok' else 'not_linked' end,'needs_validation',a.origem='confirmar','needs_source_correction',a.origem in ('nova','antiga') and cardinality(a.pipefy_ids)>0 and a.declarada<>array[case when a.origem='nova' then 'Base Nova' else 'Base Antiga' end])),'[]') as base from ops.base_conta_estado a where a.key = any(${lista(chaves)})`;
+// Cópia literal do corpo de ops.base_unica_catalogo, sem o filtro de sessão e de escopo. Com
+// `sinais` (migration 20260928200000 aplicada), junta distrato e Consultoria como a função viva.
+const CATALOGO = (chaves, sinais = false) =>
+  `select coalesce(jsonb_agg(jsonb_build_object('key',a.key,'identity_conflict',a.identity_conflict,'cnpjs',a.cnpjs,'empresa_ids',a.empresa_ids,'pipefy_ids',a.pipefy_ids,'pipedrive_ids',a.pipedrive_ids,'omie_units',a.omie_unidades,'omie_records',a.omie_registros,'contact_count',a.contatos,'contact',a.com_contato,'ecd',a.ecd_registros,'declared_origin',a.declarada,'pending_fields',(select coalesce(jsonb_agg(distinct k.value),'[]') from jsonb_array_elements(coalesce(a.pendencias,'[]')) p(value) cross join lateral jsonb_object_keys(case when jsonb_typeof(p.value)='object' then p.value else '{}' end) k(value)),'origin',a.origem,'origin_reason',a.motivo,'origin_evidence',a.origin_evidence,'tax_evidence',a.tax_evidence,'responsible',a.responsavel,'validated_at',a.confirmado_em,'synced_at',a.sincronizado,'source_status',case when a.ausente then 'absent' when a.nao_lidas>0 then 'pending' when cardinality(a.pipefy_ids)>0 then 'ok' else 'not_linked' end,'needs_validation',a.origem='confirmar','needs_source_correction',a.origem in ('nova','antiga') and cardinality(a.pipefy_ids)>0 and a.declarada<>array[case when a.origem='nova' then 'Base Nova' else 'Base Antiga' end]${sinais ? ",'distrato',s.distrato,'consultoria',s.consultoria" : ""})),'[]') as base from ops.base_conta_estado a ${sinais ? `left join ops.base_conta_sinais(${lista(chaves)}) s on s.key = a.key ` : ""}where a.key = any(${lista(chaves)})`;
 
 export async function carregarBaseReal({ lote = 1000 } = {}) {
   const tempos = {};
@@ -61,11 +62,14 @@ export async function carregarBaseReal({ lote = 1000 } = {}) {
     after = pagina.at(-1).key;
   }
 
+  const [{ sinais }] = await q(
+    "select to_regprocedure('ops.base_conta_sinais(text[])') is not null as sinais",
+  );
   const catalogo = new Map();
   for (let i = 0; i < contas.length; i += lote) {
     const chaves = contas.slice(i, i + lote).map((c) => c.key);
     const [linha] = await medir("catalogo", () =>
-      q(CATALOGO(chaves), { transacaoSomenteLeitura: true }),
+      q(CATALOGO(chaves, sinais), { transacaoSomenteLeitura: true }),
     );
     for (const b of linha.base) catalogo.set(b.key, b);
   }

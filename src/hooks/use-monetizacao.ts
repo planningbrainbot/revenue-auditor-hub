@@ -21,7 +21,10 @@ export function useMonetizacao() {
         previous?.catalog_at &&
         previous.catalog_at === data.catalog_at &&
         previous.scope_signature === data.scope_signature &&
-        previous.base_count === data.base_count
+        previous.base_count === data.base_count &&
+        // Distrato e Consultoria são lidos junto com o catálogo; carga nova de sinal relê as contas.
+        previous.sinais_at?.tratativas === data.sinais_at?.tratativas &&
+        previous.sinais_at?.consultoria === data.sinais_at?.consultoria
       )
         return { ...data, accounts: previous.accounts, units: previous.units };
       if (!data.catalog_pages || data.base_count === undefined)

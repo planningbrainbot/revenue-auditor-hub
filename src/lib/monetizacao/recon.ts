@@ -1,9 +1,10 @@
-import { situacaoForaDeOferta } from "./model.ts";
+import { comTratativa, distratoForaDeOferta, situacaoForaDeOferta } from "./model.ts";
 import type { Conta, Oferta } from "./types";
 
 export const GRUPOS_RECON = {
   identidade: "CNPJ divergente",
   inativa: "Inativa na Receita · baixada, inapta ou suspensa",
+  distrato: "Distrato na Central de Tratativas · concluído ou em tratativa",
   elegivel: "Aptas",
   confirmar_bpo: "Acima de R$ 5 mi · confirmar BPO",
   faixa_limite: "Faixa atravessa R$ 5 mi",
@@ -19,6 +20,10 @@ export function grupoRecon(a: Conta): GrupoRecon {
   // Antes do corte por faturamento: "fora_regra" por situação cadastral não é prova de faturar
   // pouco, e cair em "Até R$ 5 mi" afirmaria um valor que ninguém apurou.
   if (situacaoForaDeOferta(a)) return "inativa";
+  // Mesmo motivo: distrato não é prova de faturamento baixo nem de BPO. A tratativa só conta como
+  // grupo quando é ela que segura a conta (ofertaRecon a deixa com o motivo dela).
+  const distrato = distratoForaDeOferta(a);
+  if (distrato && ofertaRecon(a).reason === distrato.reason) return "distrato";
   const r = a.recon;
   if (r?.bpo_status === "bpo") return "bpo";
   if (r?.revenue_conflict || a.band_conflict) return "divergencia";
@@ -43,10 +48,14 @@ export function faturamentoRecon(a: Conta): string {
 }
 
 export function ofertaRecon(a: Conta): Oferta {
+  return comTratativa(a, ofertaReconDoPerfil(a));
+}
+function ofertaReconDoPerfil(a: Conta): Oferta {
   if (a.base?.identity_conflict)
     return { status: "revisar", reason: "CNPJ divergente entre fontes; revisar a identidade." };
   const parada = situacaoForaDeOferta(a);
   if (parada) return { status: "fora_regra", reason: parada };
+  if (a.base?.distrato?.estado === "concluido") return distratoForaDeOferta(a)!;
   const r = a.recon;
   if (!r) return { status: "revisar", reason: "Contrato e carteira BPO ainda não conferidos." };
   if (r.bpo_status === "bpo") return { status: "fora_regra", reason: r.reason };

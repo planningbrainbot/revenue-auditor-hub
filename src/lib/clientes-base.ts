@@ -1,4 +1,53 @@
 import type { Conta } from "./monetizacao/types";
+/**
+ * Pedido de distrato, lido da Central de Tratativas do Pipefy (pipe 307196408) por
+ * ops.base_conta_sinais. `tratativa` pode reverter; `concluido` é churn confirmado; `revertido` é
+ * cliente retido. Com mais de um card, vale a tratativa aberta, depois o concluído.
+ */
+export type EstadoDistrato = "tratativa" | "concluido" | "revertido";
+export type SinalDistrato = {
+  estado: EstadoDistrato;
+  fase: string | null;
+  card_id: string;
+  data_churn: string | null;
+  categoria: string | null;
+  casamento: "pipefy" | "negocio";
+  cards: number;
+  atualizado_em: string | null;
+  sincronizado_em: string | null;
+};
+/** Casamento com a plataforma da Consultoria: CNPJ completo, raiz (mesma pessoa jurídica) ou nome. */
+export type CasamentoConsultoria = "cnpj" | "raiz" | "nome";
+export type SinalConsultoria = {
+  cliente: {
+    casamento: "cnpj" | "raiz";
+    cnpj: string;
+    razao_social: string | null;
+    ativo: boolean;
+    inativo_desde: string | null;
+    valor_a_recuperar: number | null;
+    valor_a_recuperar_em: string | null;
+    regime_tributario: string | null;
+    parceiro: string | null;
+    cadastrado_em: string | null;
+  } | null;
+  propostas: {
+    id: string;
+    categoria: string | null;
+    status: string | null;
+    produto: string | null;
+    linha_produto: string | null;
+    valor_total: number | null;
+    tipo_cobranca: string | null;
+    percentual_exito: number | null;
+    data_envio: string | null;
+    data_ultimo_fup: string | null;
+    data_proximo_fup: string | null;
+    responsavel: string | null;
+    casamento: CasamentoConsultoria;
+  }[];
+  sincronizado_em: string | null;
+};
 export type BaseEmpresa = {
   key: string;
   cnpjs: string[];
@@ -32,6 +81,9 @@ export type BaseEmpresa = {
   source_status: "ok" | "absent" | "pending" | "not_linked";
   needs_validation: boolean;
   needs_source_correction: boolean;
+  /** Sinais externos (migration 20260928200000). Ausente = sem card nem casamento. */
+  distrato?: SinalDistrato | null;
+  consultoria?: SinalConsultoria | null;
 };
 export type Refinamento = "" | "cnpj" | "contato" | "ecd";
 export function passaRefinamento(a: Conta, gate: Refinamento) {

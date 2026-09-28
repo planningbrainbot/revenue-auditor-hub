@@ -116,6 +116,11 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     records: records as Registro[],
     measured_at: sync?.measured_at || null,
     catalog_at: catalog.catalog_at,
+    // Antes da migration 20260928200000 o manifesto não traz `sinais`: a tela diz "sem carga".
+    sinais_at: {
+      tratativas: catalog.sinais?.tratativas ?? null,
+      consultoria: catalog.sinais?.consultoria ?? null,
+    },
     sync_status: sync?.status || "pending",
     sync_error: sync?.error || null,
     stages: sync?.stages || [],
@@ -230,6 +235,9 @@ const review = z.object({
   band: z.string().max(160).optional(),
   segment: z.string().max(160).optional(),
   regime: z.string().max(80).optional(),
+  // Caminho de volta da empresa barrada pela situação na Receita (DECISIONS 19/09). Sem esta
+  // chave o zod a descartava em silêncio e o servidor nunca recebia a revisão.
+  situacao_receita: z.enum(["ativa", "baixada", "inapta", "suspensa"]).optional(),
   note: z.string().max(3000).optional(),
   demand: z.string().max(200).optional(),
 });

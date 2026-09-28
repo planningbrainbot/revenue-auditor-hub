@@ -1,10 +1,15 @@
 import {
   baseRetroativaConsultoria,
+  consultoriaForaDeOferta,
   disponibilidade,
+  distratoForaDeOferta,
   hoje,
   limiteFaturamento,
+  ESTADOS_DISTRATO,
   normal,
   oferta,
+  propostasAbertas,
+  situacaoForaDeOferta,
   SITUACOES_RECEITA,
 } from "./model.ts";
 import { ofertaRecon } from "./recon.ts";
@@ -50,6 +55,19 @@ export function procedencia(a: Conta): Procedencia {
 // O grupo que precisa ficar separado na lista de um produto: entrou só pelo ERP da unidade,
 // então a régua do produto aprova sem ninguém nunca ter declarado que é cliente.
 export const soNoOmie = (a: Conta): boolean => procedencia(a) === "omie";
+// Por que uma conta da carteira retroativa está onde está em Consultoria. Cartões e "Entenda os
+// números" contam cada motivo à parte: um motivo não pode ser contado como outro (DECISIONS 19/09),
+// e quem já é cliente da Consultoria não é "excluída por Simples/MEI".
+export type MotivoConsultoria =
+  "apta" | "situacao" | "distrato" | "cliente" | "simples" | "confirmar";
+export function motivoConsultoria(a: Conta): MotivoConsultoria {
+  const o = oferta(a, "consultoria");
+  if (o.status === "elegivel") return "apta";
+  if (situacaoForaDeOferta(a)) return "situacao";
+  if (distratoForaDeOferta(a)) return "distrato";
+  if (o.status === "fora_regra" && o.reason === consultoriaForaDeOferta(a)) return "cliente";
+  return o.status === "fora_regra" ? "simples" : "confirmar";
+}
 // A conta retroativa sem regime continua visível para qualificação; não vira apta para envio.
 export const potencialConsultoria = (a: Conta) =>
   baseRetroativaConsultoria(a) && oferta(a, "consultoria").status !== "fora_regra";
@@ -91,6 +109,48 @@ export const SITUACOES_RECEITA_FILTRO = {
   sem_consulta: "Sem consulta na Receita",
 } as const;
 
+// Distrato na Central de Tratativas. "sem" = nenhum card casado com a conta. O padrão da tabela
+// esconde o concluído (dono, 28/09/2026: "concluído sai da base"); marcar "Distrato concluído" no
+// filtro mostra essas contas, e "todas" tira o filtro.
+export const DISTRATOS_FILTRO = {
+  sem: "Sem card na Central de Tratativas",
+  ...ESTADOS_DISTRATO,
+} as const;
+export type FiltroDistrato = keyof typeof DISTRATOS_FILTRO;
+export const DISTRATO_PADRAO: FiltroDistrato[] = ["sem", "tratativa", "revertido"];
+export const TODOS_DISTRATOS = "todas";
+export const estadoDistrato = (a: Conta): FiltroDistrato => a.base?.distrato?.estado ?? "sem";
+
+// Vínculo com a plataforma da Consultoria. Uma conta pode ter mais de um (cliente e proposta).
+export const CONSULTORIA_FILTRO = {
+  cliente: "Cliente da Consultoria · CNPJ",
+  cliente_raiz: "Cliente da Consultoria · mesma raiz de CNPJ",
+  ex_cliente: "Ex-cliente da Consultoria",
+  contrato: "Contrato da Consultoria registrado",
+  proposta: "Proposta da Consultoria em aberto",
+  proposta_incerta: "Proposta casada só pelo nome · incerta",
+  sem: "Sem vínculo com a Consultoria",
+} as const;
+export type FiltroConsultoria = keyof typeof CONSULTORIA_FILTRO;
+export function vinculosConsultoria(a: Conta): FiltroConsultoria[] {
+  const c = a.base?.consultoria;
+  const v: FiltroConsultoria[] = [];
+  if (c?.cliente)
+    v.push(
+      c.cliente.ativo === false
+        ? "ex_cliente"
+        : c.cliente.casamento === "raiz"
+          ? "cliente_raiz"
+          : "cliente",
+    );
+  if (c?.propostas.some((p) => p.casamento !== "nome" && p.categoria === "Contrato"))
+    v.push("contrato");
+  if (propostasAbertas(a).length) v.push("proposta");
+  if (propostasAbertas(a, { incertas: true }).some((p) => p.casamento === "nome"))
+    v.push("proposta_incerta");
+  return v.length ? v : ["sem"];
+}
+
 export type PortfolioFilters = {
   query: string;
   receita: string[];
@@ -105,6 +165,9 @@ export type PortfolioFilters = {
   approach: Abordagem[];
   overlap: boolean;
   unit: string[];
+  /** Vazio = DISTRATO_PADRAO (sem o concluído); ["todas"] = sem filtro. */
+  distrato: string[];
+  consultoria: FiltroConsultoria[];
 };
 export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   query: "",
@@ -120,6 +183,8 @@ export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   approach: [],
   overlap: false,
   unit: [],
+  distrato: [],
+  consultoria: [],
 };
 
 type Dados = Pick<BaseMonetizacao, "cards" | "reservations" | "units"> & {
@@ -310,6 +375,7 @@ export function filtrarCarteira(
     : null;
   const query = normal(f.query);
   const states = f.status.length ? f.status : situacoesIniciais(f.product);
+  const distratos: string[] = f.distrato.length ? f.distrato : DISTRATO_PADRAO;
   const estados = new Map<string, EstadoProduto>();
   const rows = accounts.filter((a) => {
     if (units && !units.has(a.key)) return false;
@@ -343,6 +409,10 @@ export function filtrarCarteira(
       return false;
     if (f.contact.length && !f.contact.includes(String(a.contact))) return false;
     if (f.receita.length && !f.receita.includes(a.situacao_receita ?? "sem_consulta")) return false;
+    if (!distratos.includes(TODOS_DISTRATOS) && !distratos.includes(estadoDistrato(a)))
+      return false;
+    if (f.consultoria.length && !vinculosConsultoria(a).some((v) => f.consultoria.includes(v)))
+      return false;
     if (
       f.overlap &&
       PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length +

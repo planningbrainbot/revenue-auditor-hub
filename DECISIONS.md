@@ -3442,3 +3442,41 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 **Achado no caminho:** abrir `?indicador=` empilhava o histórico, mas qualquer outro parâmetro de gaveta seria gravado com `replace`, e fechar com Esc sairia da página. O `?grafico=` foi incluído na regra de empilhar.
 
 **Status:** PR aberto, **não publicado** (deploy do `ops-brain` é pela CLI e é do Eliezek).
+
+## [2026-09-28] Distrato da Central de Tratativas e operação da Consultoria entram na geração de bases
+
+**Pedido do dono:** (A) saber, na hora de gerar bases, se o cliente pediu distrato no pipe de Tratativas do Pipefy; (B) enriquecer a base e o pipe com a operação da Consultoria, pela API que o Pedro Siqueira entregou. Branch `feat/base-sinais-distrato-consultoria-20260928`. Contrato: adendo de 28/09 em `docs/design/contratos/clientes.md`.
+
+**(A) O espelho estava morto, e a causa não era o n8n.** `ops.sync_log` tinha `pipefy_tratativas` parado em 15/09 17:37 UTC (o monitor já alertava "atrasada há 313h"). A edge function `pipefy-tratativas-sync` (v14) estava publicada **fora do git** e era disparada pelo pg_cron do Ops antigo (`ulgiochewwpmmssksqlw`), desligado na migração para o banco único em 24/08; o disparo que a substituiu parou em 15/09. **Decisão:** a função entra no repositório, reescrita, e passa a ser agendada no pg_cron do banco único (job `pipefy-tratativas-sync-15min`, segredo no Vault `base_sinais_cron_secret` + cabeçalho, mesmo padrão do `base-clientes-reconcile`). O espelho continua sendo `ops.central_tratativas`: painel de CS, NPS, qualidade da base, primeiro pagamento e royalties leem dele, e reviver a sync conserta todos. Correções na reescrita: o id de fase de "Cliente Recuperado" estava errado (343394577 não existe; é 343394575); a empresa era resolvida lendo todas as empresas, o que passava do corte de 1.000 linhas do PostgREST; falha não ia para o log; leitura vazia apagaria o espelho.
+
+**Estados do distrato pela fase** (pipe 307196408, 7 fases): tratativa = Contatar ASAP, Contato Inicial, Negociação em Andamento, Proposta de Retenção e Decisão do Cliente (fase final no Pipefy, mas sem desfecho); concluído = Churn Confirmado (Perdido); revertido = Cliente Recuperado (Ganho). Fase nova cai pelo nome, e o padrão é tratativa. **Chave de junção:** o conector `cliente` do card = `empresas.pipefy_record_id`; `id_deal_pipedrive` = `empresas.pipedrive_id` (id de negócio). Cobertura medida: 30 de 32 cards casam, e as duas chaves concordam em todos; os dois que não casam são um "Rascunho" e a CaptaMed, sem cliente nem negócio (não casar por nome). São 29 contas: duas WV TRANSPORTES caem na mesma conta.
+
+**Regra (recomendação do dono, confirmada com os números):** concluído sai das ofertas dos quatro produtos (Consultoria, Finance, Cella e Recon) e da tabela padrão; o filtro "Distrato" o mostra. Em tratativa só rebaixa o que o produto aceitaria: vira "a confirmar", fora do envio, e conta que já estava fora da regra continua fora pelo motivo dela. Não há revisão manual: o caminho de volta é o card ir para "Cliente Recuperado". Retido não muda nada.
+
+**(B) Consultoria.** API medida hoje: 679 clientes (todos `ativo=true`, `?ativo=false` ignorado), 58 propostas (56 Proposta, 2 Contrato; 11 com CNPJ; **sem campo de status**). **Decisão:** tabelas `ops.consultoria_clientes` e `ops.consultoria_propostas` (colunas `inativo_desde`, `valor_a_recuperar`, `valor_a_recuperar_em` e `status` já existem e ficam nulas até a API trazer), sync `consultoria-sync` de hora em hora (job `consultoria-sync-hora`), leitura completa, quem some fica com `ausente_desde` e sai do casamento. RLS sem política: só as funções da base leem. A chave da API é segredo da função, nunca código.
+
+**Casamento:** por CNPJ completo 312 contas, só pela raiz mais 101 (mesma pessoa jurídica; a 3E Eficiência Energética sozinha tem 23 filiais como contas separadas); 363 clientes da Consultoria não existem na base do Brain. Propostas: 8 contas por CNPJ ou raiz, 3 só pelo nome, que é selo incerto e não entra em regra. **Regra:** Consultoria não é oferecida a quem é cliente (CNPJ ou raiz), tem contrato registrado ou proposta aberta casada por CNPJ/raiz. Ex-cliente (`ativo=false`, quando vier) não bloqueia. Finance e Cella não mudam por este sinal.
+
+**Onde a regra mora:** cálculo na leitura (`ops.base_conta_sinais`), nunca gravado na conta. `ops.base_unica_catalogo` leva `distrato` e `consultoria` ao app; `oferta()`/`ofertaRecon()` aplicam no cliente; `ops.monetizacao_offer_issue` aplica no servidor (validação de lista e envio), na mesma ordem: situação na Receita → distrato concluído → cadastro ausente → origem → cliente da Consultoria → regra do produto → tratativa. Paridade em `tests/base-sinais.sql` (16 casos) e `tests/base-sinais.test.mjs`.
+
+**Efeito medido pela régua** (código do app, catálogo de 19:05 UTC, sinais do ensaio da migration em transação desfeita):
+- Consultoria: aptas 2.322 → 2.284; prontas 2.318 → 2.281; na carteira retroativa, 40 passam a "já clientes da Consultoria" (38 eram aptas, 2 eram "Simples/MEI").
+- Finance: aptas 171 → 160 (10 com distrato concluído, 1 em tratativa); prontas 127 → 121; já em trabalho 44 → 39.
+- Cella: aptas 607 → 604 (as 3 já estavam em trabalho); prontas 308 → 308.
+- 28 contas saem da tabela padrão.
+
+**Achado:** das 29 contas com distrato, 18 já tinham negócio no pipe 39, quase todos do lote de Finance de 11/09. **9 estão abertos hoje**, um em "Em negociação". O envio de 11/09 não tinha como saber: a Central de Tratativas estava sem sync.
+
+**Desempenho:** a primeira versão da função de sinais custava 350 ms por página de 400 contas, porque função SQL é planejada sem o valor do parâmetro e `_keys is null or key = any(_keys)` varre a base inteira. Com a lista de chaves resolvida uma vez, 37 ms; o catálogo foi de ~390 para ~430 ms por página.
+
+**Correção de passagem:** o zod de `salvarListaAquario` descartava `review.situacao_receita`, então o caminho de volta da empresa inativa na Receita (entrada de 19/09) nunca chegava ao servidor.
+
+**Respostas do dono (28/09, mesmo dia):**
+- Publicar tudo (banco, syncs, app) e dar push na main; o ok vale como "contrato ok" do adendo da tela.
+- Raiz de CNPJ bloqueia Consultoria como o CNPJ completo (mesma pessoa jurídica): 38 aptas saem, 8 por CNPJ e 30 pela raiz.
+- **Nada no Pipedrive por enquanto:** sem campo novo e sem gravar em negócio. O campo entra quando a API trouxer inativos e valor a recuperar, para ser criado uma vez só.
+- Os 9 negócios abertos de clientes com distrato: só a lista para o dono e o Matheus decidirem; nada é escrito no Pipedrive.
+
+**Pendente:** incluir ou não na base os 363 clientes da Consultoria que o Brain não conhece; resposta do Pedro Siqueira sobre inativos, valor a recuperar, status da proposta e CNPJ nas propostas.
+
+**Status:** migration ensaiada contra a produção em transação desfeita antes de aplicar; testes 314/314 depois do rebase sobre `949e097`.

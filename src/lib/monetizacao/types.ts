@@ -251,6 +251,8 @@ export interface BaseMonetizacao {
   records: Registro[];
   measured_at: string | null;
   catalog_at: string | null;
+  /** Última carga concluída de cada sinal externo (sync_log), para a procedência da tabela. */
+  sinais_at?: { tratativas: string | null; consultoria: string | null };
   sync_status: string;
   sync_error: string | null;
   stages: { id: number; name: string; order: number }[];

@@ -1,11 +1,19 @@
 import { PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import {
+  CONSULTORIA_FILTRO,
+  DISTRATOS_FILTRO,
   EMPTY_PORTFOLIO_FILTERS,
   ORIGENS_BASE,
   situacoesIniciais,
+  TODOS_DISTRATOS,
 } from "@/lib/monetizacao/portfolio";
-import type { Abordagem, OrigemBase, PortfolioFilters } from "@/lib/monetizacao/portfolio";
+import type {
+  Abordagem,
+  FiltroConsultoria,
+  OrigemBase,
+  PortfolioFilters,
+} from "@/lib/monetizacao/portfolio";
 
 /**
  * Estado de tela de `/clientes` na URL (contrato `docs/design/contratos/clientes.md`, moldura).
@@ -56,6 +64,13 @@ export type BuscaClientes = {
   /** Só as aderentes a mais de um produto. */
   sobreposicao?: boolean;
   /**
+   * Distrato na Central de Tratativas (`DISTRATOS_FILTRO`). Ausente = padrão, que esconde o
+   * concluído; `["todas"]` = sem filtro.
+   */
+  distrato?: string[];
+  /** Vínculo com a plataforma da Consultoria (`CONSULTORIA_FILTRO`). */
+  consultoria?: FiltroConsultoria[];
+  /**
    * Página da tabela da visão (Validar origem, Contratos e churn), a partir de 1. Ausente = 1;
    * trocar de visão ou de filtro volta à primeira.
    */
@@ -82,6 +97,7 @@ const lista = (v: unknown): string[] | undefined => {
       : [];
   return l.length ? l : undefined;
 };
+const vazioOuLista = <T>(l: T[] | undefined) => (l?.length ? l : undefined);
 const umDe = <T extends string>(opcoes: readonly T[], v: unknown): T | undefined =>
   typeof v === "string" && (opcoes as readonly string[]).includes(v) ? (v as T) : undefined;
 
@@ -110,6 +126,12 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     receita: lista(s.receita),
     contato: lista(s.contato),
     sobreposicao: s.sobreposicao === true || s.sobreposicao === "true" ? true : undefined,
+    distrato: vazioOuLista(
+      lista(s.distrato)?.filter((d) => d === TODOS_DISTRATOS || d in DISTRATOS_FILTRO),
+    ),
+    consultoria: vazioOuLista(
+      lista(s.consultoria)?.filter((c): c is FiltroConsultoria => c in CONSULTORIA_FILTRO),
+    ),
     pagina: paginaDe(s.pagina),
     churn: umDe(["sim", "nao"], s.churn),
     erp: texto(s.erp) || undefined,
@@ -138,6 +160,8 @@ export function filtrosDaBusca(b: BuscaClientes, unidadeKeys: string[]): Portfol
     receita: b.receita ?? [],
     contact: b.contato ?? [],
     overlap: !!b.sobreposicao,
+    distrato: b.distrato ?? [],
+    consultoria: b.consultoria ?? [],
   };
 }
 
@@ -165,5 +189,7 @@ export function buscaDosFiltros(f: PortfolioFilters): Partial<BuscaClientes> {
     receita: vazio(f.receita),
     contato: vazio(f.contact),
     sobreposicao: f.overlap || undefined,
+    distrato: vazio(f.distrato),
+    consultoria: vazio(f.consultoria) as FiltroConsultoria[] | undefined,
   };
 }

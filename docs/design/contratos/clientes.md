@@ -48,3 +48,19 @@ Cartões locais do funil, das unidades, dos produtos, dos chips, dos grupos do R
 
 ## O que NÃO entra
 Rotas irmãs (5.4), guarda `view.aquario` (5.5), fusão com `/base-contatos` (5.9), `?conta=`.
+
+## Adendo 28/09/2026 · Distrato e Consultoria na Base
+Pedido do Pedro (28/09): considerar na geração de bases o pedido de distrato da Central de Tratativas (Pipefy) e o vínculo com a plataforma da Consultoria. Estado: **proposto, aguardando "contrato ok"** (pedido junto com o ok de publicação). Arquétipo e anatomia não mudam (Lista/Relatório).
+
+**Entra**
+- **Selos na linha da tabela** (abaixo dos selos de produto, `StatusBadge`): "Distrato concluído · dd/mm/aaaa" (perigo), "Em tratativa de distrato" (atenção), "Retido na tratativa" (sucesso); "Cliente da Consultoria" (info, "· raiz do CNPJ" quando casou pela raiz, "· R$ X a recuperar" quando a plataforma informar), "Ex-cliente da Consultoria" (neutro), "Contrato da Consultoria" (info), "Proposta Consultoria · R$ X" (info) e "Proposta Consultoria? · pelo nome" (neutro, incerta). O título do selo traz o motivo da regra.
+- **Dois filtros** de múltipla escolha, na URL (`distrato`, `consultoria`): "Distrato · Central de Tratativas" (padrão marcado: sem card, em tratativa, retido; desmarcar tudo = todas) e "Consultoria · plataforma" (cliente por CNPJ, pela raiz, ex-cliente, contrato, proposta em aberto, proposta incerta, sem vínculo).
+- **Distrato concluído sai da tabela padrão** e das ofertas; a tabela diz "N contas com distrato concluído ficam fora desta tabela e de todas as ofertas · Ver essas contas" (conta com os mesmos filtros).
+- **Procedência** no pé da tabela, uma linha por fonte, com a data da última carga concluída (N3).
+- **Ficha da conta**: painel "Distrato e Consultoria" com fase, data do churn, categoria, link "Abrir o card no Pipefy", cliente (razão social, CNPJ, desde, regime, parceiro, valor a recuperar), propostas (valor, produto, envio, último FUP, como casou) e o motivo da regra.
+- **CSV**: colunas "Distrato · Central de Tratativas" e "Vínculo com a Consultoria".
+- **Números**: cartão "Consultoria · carteira retroativa" separa "já clientes da Consultoria" de "por Simples/MEI"; "Contas na base conciliada" diz quantas têm distrato concluído; "Entenda os números" ganha "Consultoria · já clientes da Consultoria" (sem link: o filtro da tabela não se restringe à carteira retroativa), "Com distrato concluído" e "Em tratativa de distrato" (com link, total bate).
+
+**Para onde manda**: o card da Central de Tratativas no Pipefy (ficha). A plataforma da Consultoria não tem link público por cliente.
+
+**Não entra**: campo novo no negócio do Pipedrive (pipe 39) e gravação em negócio (pedem ok do Pedro); revisão manual que libere conta em tratativa (o caminho é o card ir para "Cliente Recuperado"); inclusão na base dos clientes da Consultoria que não existem no Brain (decisão de negócio pendente).

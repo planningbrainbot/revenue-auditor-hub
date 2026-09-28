@@ -15,6 +15,7 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import { ofertaRecon } from "@/lib/monetizacao/recon";
 import type { Conta, Negocio } from "@/lib/monetizacao/types";
 import { date, money, Notice, Panel } from "./common";
+import { SinaisDetalhe } from "./sinais";
 
 export function AccountDetail({
   account,
@@ -143,6 +144,11 @@ export function AccountDetail({
                 )}
               </Panel>
             )}
+            {/* Sinais externos lidos junto com o catálogo (DECISIONS 28/09/2026). O painel aparece
+                sempre: "nenhum card" e "não é cliente" também são informação para quem vai ofertar. */}
+            <Panel title="Distrato e Consultoria">
+              <SinaisDetalhe account={account} />
+            </Panel>
             <Panel title="Oportunidades desta empresa">
               <div className="space-y-3">
                 {account.base_origin && (
