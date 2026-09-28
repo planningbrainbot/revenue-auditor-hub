@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { CircleX, Trophy } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,15 @@ import {
 } from "@/components/ui/table";
 import { useAtualizarMonetizacao, useMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
-import { FARMER, funil, hoje, METRICAS, metasOperacao, operacao } from "@/lib/monetizacao/model";
+import {
+  FARMER,
+  funil,
+  hoje,
+  METRICAS,
+  metasOperacao,
+  operacao,
+  situacaoDoNegocio,
+} from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
@@ -55,6 +64,7 @@ import {
   EstadoSemAcesso,
   EstadoVazio,
   PageHeader,
+  StatusBadge,
   useFocoDeVolta,
 } from "@/components/planning";
 import { cn } from "@/lib/utils";
@@ -640,6 +650,7 @@ function DealDetails({
                           .map((e) => ({ kind, e })),
                       )
                       .sort((a, b) => b.e.date.localeCompare(a.e.date));
+                    const situacao = situacaoDoNegocio(c);
                     return (
                       <TableRow key={c.id} className="align-top">
                         <TableCell>
@@ -680,7 +691,23 @@ function DealDetails({
                         </TableCell>
                         <TableCell>{NOMES[c.route]}</TableCell>
                         <TableCell>{c.owner}</TableCell>
-                        <TableCell>{c.stage}</TableCell>
+                        <TableCell>
+                          {situacao.rotulo ? (
+                            <>
+                              <StatusBadge
+                                tom={situacao.encerrado === "won" ? "sucesso" : "neutro"}
+                                icone={situacao.encerrado === "won" ? Trophy : CircleX}
+                              >
+                                {situacao.rotulo}
+                              </StatusBadge>
+                              <span className="mt-1 block text-xs text-muted-foreground">
+                                {situacao.etapa}
+                              </span>
+                            </>
+                          ) : (
+                            situacao.etapa
+                          )}
+                        </TableCell>
                         <TableCell>{date(c.expected_close)}</TableCell>
                         <TableCell className="text-right num">
                           {money(c.revenue.total.amount ?? c.revenue.sum, c.revenue.total.currency)}

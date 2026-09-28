@@ -12,6 +12,7 @@ import {
   funil,
   metasOperacao,
   taxa,
+  situacaoDoNegocio,
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
@@ -482,4 +483,25 @@ test("Stand by conta como reunião realizada, sem contar em dobro", () => {
   assert.equal(realizada.entraram.length, 2);
   assert.equal(realizada.parados.length, 2);
   assert.deepEqual(realizada.inclui, { nome: "Stand by", parados: 2 });
+});
+
+test("Detalhe diz que o negócio perdido ou ganho está encerrado, e a etapa vira 'estava em'", () => {
+  // Bigens · Consultoria (96074): perdido às 10:03 de 28/09 em Gatilho identificado. O detalhe
+  // mostrava só a etapa, e o card parecia aberto.
+  const lost = card(raw({ status: "lost", stage_id: 3, lost_time: "2026-09-28 13:03:59" }));
+  assert.deepEqual(situacaoDoNegocio({ ...lost, stage: "3 · Gatilho identificado" }), {
+    encerrado: "lost",
+    rotulo: "Perdido em 28/09/2026",
+    etapa: "estava em 3 · Gatilho identificado",
+  });
+  const won = card(raw({ status: "won", won_time: "2026-09-24 20:04:00" }), [
+    change("open", "won", "2026-09-24 20:04:00", 20, "status"),
+  ]);
+  assert.equal(situacaoDoNegocio(won).rotulo, "Ganho em 24/09/2026");
+  const aberto = card();
+  assert.deepEqual(situacaoDoNegocio(aberto), {
+    encerrado: null,
+    rotulo: null,
+    etapa: aberto.stage,
+  });
 });

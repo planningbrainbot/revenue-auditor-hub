@@ -498,6 +498,33 @@ export function csv(rows: unknown[][]) {
 // mede o trabalho dele e não oferece mais o seletor de responsável.
 export const FARMER = { id: 28381245, nome: "Matheus Carvalho" } as const;
 
+const dataBr = (iso: string | null | undefined) =>
+  iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : null;
+
+/**
+ * Situação do negócio no detalhe. O Pipedrive guarda a última etapa de um card perdido ou ganho;
+ * mostrar só a etapa fazia o perdido parecer aberto (relato de 28/09/2026: Bigens · Consultoria,
+ * perdido às 10:03, aparecia em "3 · Gatilho identificado"). Encerrado diz isso primeiro, com a
+ * data, e a etapa vira "estava em".
+ */
+export function situacaoDoNegocio(c: Negocio): {
+  encerrado: "won" | "lost" | "other" | null;
+  rotulo: string | null;
+  etapa: string;
+} {
+  if (c.status === "open") return { encerrado: null, rotulo: null, etapa: c.stage };
+  const etapa = `estava em ${c.stage}`;
+  if (c.status === "lost") {
+    const quando = dataBr(c.lost_on);
+    return { encerrado: "lost", rotulo: quando ? `Perdido em ${quando}` : "Perdido", etapa };
+  }
+  if (c.status === "won") {
+    const quando = dataBr(c.won_on);
+    return { encerrado: "won", rotulo: quando ? `Ganho em ${quando}` : "Ganho", etapa };
+  }
+  return { encerrado: "other", rotulo: "Encerrado no CRM", etapa };
+}
+
 /** Conversão de uma etapa para a seguinte, com uma casa. Etapa de cima vazia não tem taxa. */
 export function taxa(valor: number, anterior: number): number | null {
   return anterior > 0 ? valor / anterior : null;
