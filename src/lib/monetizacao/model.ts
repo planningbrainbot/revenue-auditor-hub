@@ -412,6 +412,8 @@ export interface EtapaFunil {
   entraram: Negocio[] | null;
   /** Cards abertos na etapa agora, como no pipe. `null` para Ganho. */
   parados: Negocio[] | null;
+  /** Etapa somada a esta (Stand by dentro de Reunião realizada), com quantos estão nela hoje. */
+  inclui?: { nome: string; parados: number };
 }
 
 const standBy = (nome: string) => /stand ?by/i.test(nome);
@@ -425,8 +427,9 @@ const EVENTO_DA_ETAPA: [RegExp, Metrica][] = [
 /**
  * Funil da Operação, no molde do painel do Recon: por etapa, quantos entraram no período (filtro de
  * datas, produto e farmer) e quantos estão parados nela hoje (o pipe inteiro, sem filtro de data e
- * sem filtro de dono, para bater com o Pipedrive). Stand by fica fora da sequência: é espera, não
- * passo. Ganho fecha o funil pelo evento de ganho.
+ * sem filtro de dono, para bater com o Pipedrive). Stand by é espera depois da reunião e antes do
+ * ganho (dono, 28/09/2026): soma na linha de Reunião realizada, em "entraram" e em "hoje", para a
+ * oportunidade parada não sair da contagem. Ganho fecha o funil pelo evento de ganho.
  */
 export function funil(
   cards: Negocio[],
@@ -452,8 +455,29 @@ export function funil(
       parados: pool.filter((c) => c.status === "open" && c.stage_id === s.id),
     };
   };
+  const espera = ordenadas.filter((s) => standBy(s.name)).map(etapa);
+  const unir = (a: Negocio[] | null, b: Negocio[] | null) =>
+    a && b ? [...new Map([...a, ...b].map((c) => [c.id, c])).values()] : a;
+  const sequencia = ordenadas
+    .filter((s) => !standBy(s.name))
+    .map((s) => {
+      const e = etapa(s);
+      if (!/reuni.*realiz/i.test(s.name) || !espera.length) return e;
+      return {
+        ...e,
+        // sem `moves`, o evento de reunião da carga já inclui a entrada em Stand by
+        entraram: porEtapa
+          ? espera.reduce((acc, x) => unir(acc, x.entraram), e.entraram)
+          : e.entraram,
+        parados: espera.reduce((acc, x) => unir(acc, x.parados), e.parados),
+        inclui: {
+          nome: espera.map((x) => x.nome.replace(/^\d+\s*·\s*/, "")).join(", "),
+          parados: espera.reduce((n, x) => n + (x.parados?.length ?? 0), 0),
+        },
+      };
+    });
   const etapas = [
-    ...ordenadas.filter((s) => !standBy(s.name)).map(etapa),
+    ...sequencia,
     {
       key: "ganho",
       nome: "Ganho",
@@ -462,7 +486,6 @@ export function funil(
       parados: null,
     },
   ];
-  const espera = ordenadas.filter((s) => standBy(s.name)).map(etapa);
   const medePerda = pool.some((c) => c.lost_on !== undefined);
   const perdidos = medePerda
     ? pool.filter(
@@ -476,7 +499,6 @@ export function funil(
     : null;
   return {
     etapas,
-    espera,
     perdidos,
     porEtapa,
     abertos: pool.filter((c) => c.status === "open").length,

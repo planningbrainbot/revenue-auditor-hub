@@ -362,7 +362,7 @@ test("Assinatura preenchida não fabrica ganho; reaberto/perdido sai do realizad
 
 test("Carga v4 grava a entrada em cada etapa e a data da perda", () => {
   const c = card();
-  assert.equal(c.metric_version, 4);
+  assert.equal(c.metric_version, 5);
   assert.deepEqual(
     c.moves.map((m) => [m.stage_id, m.date, m.actor_id]),
     [
@@ -377,7 +377,7 @@ test("Carga v4 grava a entrada em cada etapa e a data da perda", () => {
   assert.equal(lost.lost_on, "2026-09-10");
 });
 
-test("Funil: entraram pelo período e pelo farmer; parados é o pipe de hoje; Stand by fora da sequência", () => {
+test("Funil: entraram pelo período e pelo farmer; parados é o pipe de hoje", () => {
   const st = [
     { id: 1, name: "1 · Base elegível", order: 1 },
     { id: 2, name: "2 · Abordagem em curso", order: 2 },
@@ -403,7 +403,6 @@ test("Funil: entraram pelo período e pelo farmer; parados é o pipe de hoje; St
       "Ganho",
     ],
   );
-  assert.equal(f.espera[0].nome, "8 · Stand by");
   // b entrou em agosto; outro foi movido por outra pessoa
   assert.equal(linha("2").entraram.length, 1);
   // parados não filtra data nem dono: bate com o pipe
@@ -442,4 +441,45 @@ test("Metas: ritmo por dia útil, contrato proporcional ao mês, dia em curso n�
   const hojeF = { ...filter, from: "2026-09-24", to: "2026-09-24" };
   const h = metasOperacao(operacao([card()], hojeF), plan, hojeF, "2026-09-24");
   assert.equal(h.quadros[0].status, "dia-em-curso");
+});
+
+test("Stand by conta como reunião realizada, sem contar em dobro", () => {
+  const st = [...stages.slice(0, 6), { id: 8, order_nr: 8, name: "Stand by" }];
+  const sum = (flow, id) =>
+    summarize([raw({ id, stage_id: 8 })], st, { [id]: flow }, "2026-09").cards[0];
+  // agendada direto para Stand by: ganha a reunião no dia da entrada
+  const direto = sum(
+    [change(1, 3, "2026-09-02 12:00:00"), change(3, 8, "2026-09-05 12:00:00")],
+    100,
+  );
+  assert.deepEqual(
+    direto.events.meeting.map((e) => [e.date, e.source]),
+    [["2026-09-05", "stand_by"]],
+  );
+  // já teve reunião: Stand by não cria outra
+  const depois = sum(
+    [change(3, 4, "2026-09-03 12:00:00"), change(4, 8, "2026-09-06 12:00:00")],
+    101,
+  );
+  assert.deepEqual(
+    depois.events.meeting.map((e) => e.date),
+    ["2026-09-03"],
+  );
+
+  const etapas = [
+    { id: 1, name: "1 · Base elegível", order: 1 },
+    { id: 3, name: "4 · Reunião agendada", order: 4 },
+    { id: 4, name: "5 · Reunião realizada", order: 5 },
+    { id: 5, name: "6 · Em negociação", order: 6 },
+    { id: 8, name: "8 · Stand by", order: 8 },
+  ];
+  const f = funil([direto, depois], etapas, filter);
+  const realizada = f.etapas.find((e) => e.key === "4");
+  assert.equal(
+    f.etapas.some((e) => e.key === "8"),
+    false,
+  );
+  assert.equal(realizada.entraram.length, 2);
+  assert.equal(realizada.parados.length, 2);
+  assert.deepEqual(realizada.inclui, { nome: "Stand by", parados: 2 });
 });

@@ -582,6 +582,232 @@ async function darAcessoSoVinculo(db: Cliente, ator: string, pessoaId: number): 
   return { situacao: error ? "sem_acesso" : "vinculado", emailEnviado: false, link: null };
 }
 
+export interface LinhaImportacao {
+  /** Número da linha na planilha, só para o relatório voltar apontando. */
+  linha: number;
+  nomeCompleto: string;
+  email: string;
+  cargo?: string;
+  departamento?: string;
+  tipoVinculo?: string;
+  dataAdmissao?: string;
+  /** E-mail do gestor: alguém já no cadastro ou outra linha da mesma planilha. */
+  emailGestor?: string;
+}
+
+export interface ResultadoLinha {
+  linha: number;
+  email: string;
+  situacao: "criada" | "ja_existe" | "erro";
+  mensagem: string | null;
+  /** Só quando o gestor informado não foi achado; a pessoa entra sem gestor. */
+  avisoGestor: string | null;
+  acesso: AcessoResult["situacao"] | null;
+  /** Convite que não saiu por e-mail, para repassar na mão. */
+  link: string | null;
+}
+
+const MAX_LINHAS_IMPORTACAO = 300;
+
+// Import em lote pelo RH da unidade (pedido de 28/09/2026). Mesmo caminho do
+// `criarPessoa`: o insert roda como o usuário, então a RLS decide a unidade.
+// Duas passadas porque o gestor pode ser outra linha da mesma planilha: primeiro
+// entram todos sem gestor, depois o gestor é ligado por e-mail.
+//
+// Acesso em lote é só `colaborador` ou nenhum. "Gestão de gente" é concessão de
+// nível sócio e continua sendo dada uma a uma, pelo "Dar acesso".
+export const importarPessoas = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { unidadeId: number; linhas: LinhaImportacao[]; acesso: "colaborador" | null }) => {
+      if (!Number.isInteger(input?.unidadeId)) throw new Error("Escolha a unidade.");
+      const linhas = Array.isArray(input?.linhas) ? input.linhas : [];
+      if (!linhas.length) throw new Error("A planilha não tem nenhuma linha válida.");
+      if (linhas.length > MAX_LINHAS_IMPORTACAO) {
+        throw new Error(`Importe no máximo ${MAX_LINHAS_IMPORTACAO} pessoas por vez.`);
+      }
+      const acesso = input.acesso ?? null;
+      if (acesso && acesso !== "colaborador") throw new Error("Perfil de acesso inválido.");
+      return {
+        unidadeId: input.unidadeId,
+        acesso,
+        linhas: linhas.map((l) => ({
+          linha: Number(l.linha),
+          nomeCompleto: String(l.nomeCompleto ?? "").trim().replace(/\s+/g, " "),
+          email: String(l.email ?? "").trim().toLowerCase(),
+          cargo: l.cargo?.trim() || null,
+          departamento: l.departamento?.trim() || null,
+          tipoVinculo: l.tipoVinculo || null,
+          dataAdmissao: l.dataAdmissao || null,
+          emailGestor: l.emailGestor?.trim().toLowerCase() || null,
+        })),
+      };
+    },
+  )
+  .handler(async ({ data, context }): Promise<{ resultados: ResultadoLinha[] }> => {
+    const supabase = context.supabase as Cliente;
+    const resultados: ResultadoLinha[] = [];
+    const vistos = new Set<string>();
+    const criados: { id: number; r: ResultadoLinha; emailGestor: string | null }[] = [];
+
+    const erro = (l: { linha: number; email: string }, mensagem: string): ResultadoLinha => ({
+      linha: l.linha,
+      email: l.email,
+      situacao: "erro",
+      mensagem,
+      avisoGestor: null,
+      acesso: null,
+      link: null,
+    });
+
+    for (const l of data.linhas) {
+      // O cliente já valida, mas a regra que vale é a daqui.
+      if (l.nomeCompleto.split(" ").length < 2) {
+        resultados.push(erro(l, "Informe nome e sobrenome."));
+        continue;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(l.email)) {
+        resultados.push(erro(l, "E-mail inválido."));
+        continue;
+      }
+      if (vistos.has(l.email)) {
+        resultados.push(erro(l, "E-mail repetido na planilha."));
+        continue;
+      }
+      vistos.add(l.email);
+      if (l.tipoVinculo && !VINCULOS.includes(l.tipoVinculo)) {
+        resultados.push(erro(l, "Vínculo inválido."));
+        continue;
+      }
+      if (l.dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(l.dataAdmissao)) {
+        resultados.push(erro(l, "Data de admissão inválida."));
+        continue;
+      }
+
+      const { data: criada, error } = await supabase
+        .from("gente_pessoas")
+        .insert({
+          nome_completo: l.nomeCompleto,
+          email: l.email,
+          unidade_id: data.unidadeId,
+          cargo: l.cargo,
+          departamento: l.departamento,
+          tipo_vinculo: l.tipoVinculo,
+          data_admissao: l.dataAdmissao,
+          status: "ativo",
+          origem: "planilha",
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        if (error.code === "23505") {
+          resultados.push({
+            ...erro(l, "Já está no cadastro da rede. Não foi alterada."),
+            situacao: "ja_existe",
+          });
+        } else if (error.code === "42501") {
+          resultados.push(erro(l, "Sem permissão para cadastrar gente nessa unidade."));
+        } else {
+          resultados.push(erro(l, error.message));
+        }
+        continue;
+      }
+
+      const r: ResultadoLinha = {
+        linha: l.linha,
+        email: l.email,
+        situacao: "criada",
+        mensagem: null,
+        avisoGestor: null,
+        acesso: null,
+        link: null,
+      };
+      resultados.push(r);
+      criados.push({ id: criada.id as number, r, emailGestor: l.emailGestor });
+    }
+
+    // Segunda passada: gestor por e-mail, entre quem o usuário enxerga (a RLS já
+    // recorta na unidade dele) e quem acabou de entrar.
+    const emailsGestor = Array.from(
+      new Set(criados.map((c) => c.emailGestor).filter((e): e is string => !!e)),
+    );
+    if (emailsGestor.length) {
+      // Lê todos os visíveis em vez de `.in("email")`: o e-mail do Qulture veio
+      // com maiúscula às vezes, e o `in` do PostgREST compara exato. Paginado
+      // pelo corte de 1000 linhas.
+      type G = { id: number; email: string; status: string };
+      const visiveis: G[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data: pag, error: eG } = await supabase
+          .from("gente_pessoas")
+          .select("id,email,status")
+          .not("email", "is", null)
+          .order("id")
+          .range(de, de + 999);
+        // O cadastro já está gravado: não derruba o relatório por causa do gestor.
+        if (eG) {
+          console.error("[gente.importarPessoas] leitura de gestores falhou:", eG);
+          break;
+        }
+        visiveis.push(...((pag ?? []) as G[]));
+        if (!pag || pag.length < 1000) break;
+      }
+      const porEmail = new Map<string, G>(
+        visiveis.map((g) => [String(g.email).trim().toLowerCase(), g]),
+      );
+      for (const c of criados) {
+        if (!c.emailGestor) continue;
+        const g = porEmail.get(c.emailGestor);
+        if (!g || g.status !== "ativo") {
+          c.r.avisoGestor = `Gestor ${c.emailGestor} não está no cadastro ativo; entrou sem gestor.`;
+          continue;
+        }
+        if (g.id === c.id) {
+          c.r.avisoGestor = "A pessoa não pode ser gestora de si mesma; entrou sem gestor.";
+          continue;
+        }
+        const { error } = await supabase.from("gente_pessoas").update({ gestor_id: g.id }).eq("id", c.id);
+        if (error) c.r.avisoGestor = `Gestor não ligado: ${error.message}`;
+      }
+    }
+
+    // Acesso por último, um por um: cada convite é uma conta nova. Falha aqui
+    // não desfaz o cadastro, igual ao `criarPessoa`.
+    const chavesDoAtor = data.acesso
+      ? (await acessoDoUsuario(supabase, context.userId)).permissions
+      : [];
+    for (const c of criados) {
+      try {
+        const a = data.acesso
+          ? await darAcesso(supabase, context.userId, chavesDoAtor, c.id, data.acesso)
+          : await darAcessoSoVinculo(supabase, context.userId, c.id);
+        c.r.acesso = a.situacao;
+        c.r.link = a.link;
+      } catch (e) {
+        c.r.acesso = "sem_acesso";
+        c.r.mensagem = `Cadastrada, mas o acesso falhou: ${e instanceof Error ? e.message : "erro"}`;
+      }
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: eLog } = await (supabaseAdmin as Cliente).from("acessos_log").insert({
+      ator: context.userId,
+      alvo: null,
+      acao: "gente_importar_planilha",
+      area: "people",
+      detalhe: {
+        unidade_id: data.unidadeId,
+        acesso: data.acesso,
+        linhas: data.linhas.length,
+        criadas: criados.length,
+      },
+    });
+    if (eLog) console.error("[gente.importarPessoas] log falhou:", eLog);
+
+    return { resultados: resultados.sort((a, b) => a.linha - b.linha) };
+  });
+
 /** "Dar acesso" na linha de quem está no cadastro e ainda não tem login. */
 export const darAcessoPessoa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

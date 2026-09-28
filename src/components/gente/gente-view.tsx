@@ -36,6 +36,7 @@ import {
 } from "@/components/planning";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { DarAcessoDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
+import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
 // `docs/design/contratos/gente.md`). Filtros na URL (N7): `busca`, `unidade`,
@@ -128,7 +129,10 @@ export function GenteView() {
   // Quem implanta o People na unidade cadastra direto daqui (main, 1783e31).
   const podeCadastrar = q.data.unidadesCadastro.length > 0;
   const novaPessoa = podeCadastrar ? (
-    <NovaPessoaDialog unidades={q.data.unidadesCadastro} gestores={q.data.gestores} />
+    <div className="flex flex-wrap gap-2">
+      <ImportarPessoasDialog unidades={q.data.unidadesCadastro} />
+      <NovaPessoaDialog unidades={q.data.unidadesCadastro} gestores={q.data.gestores} />
+    </div>
   ) : null;
 
   if (!unidades.length && !pessoas.length) {

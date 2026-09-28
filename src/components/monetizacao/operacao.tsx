@@ -312,6 +312,11 @@ function Linha({
         </span>
         <span className="truncate text-sm text-foreground">
           {etapa.nome.replace(/^\d+\s*·\s*/, "")}
+          {etapa.inclui && (
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              inclui {INT.format(etapa.inclui.parados)} em {etapa.inclui.nome}
+            </span>
+          )}
         </span>
       </button>
       {etapa.parados ? (
@@ -341,7 +346,7 @@ function Linha({
 }
 
 export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil>; abrir: Abrir }) {
-  const { etapas, espera, perdidos, porEtapa, abertos } = dados;
+  const { etapas, perdidos, porEtapa, abertos } = dados;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -390,41 +395,6 @@ export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil
             }
           />
         ))}
-        {espera.length > 0 && (
-          <div className="mt-2 border-t pt-2">
-            {espera.map((e) => (
-              <div key={e.key} className={cn(GRADE, "h-10")}>
-                <button
-                  type="button"
-                  disabled={!e.entraram}
-                  onClick={() => e.entraram && abrir(`${e.nome} · entraram no período`, e.entraram)}
-                  className="col-span-3 grid grid-cols-subgrid items-center rounded-md text-left outline-none transition-colors duration-[120ms] enabled:hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
-                >
-                  <span
-                    aria-hidden
-                    className="grid size-6 place-items-center rounded-md bg-muted text-muted-foreground"
-                  >
-                    <CirclePause className="size-4" strokeWidth={1.75} />
-                  </span>
-                  <span className="num text-right text-sm text-muted-foreground">
-                    {e.entraram ? INT.format(e.entraram.length) : "—"}
-                  </span>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {e.nome.replace(/^\d+\s*·\s*/, "")} · fora da sequência
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => abrir(`${e.nome} · no pipe hoje`, e.parados!)}
-                  className="num rounded-md text-right text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {INT.format(e.parados!.length)}
-                </button>
-                <span />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
       {!porEtapa && (
         <p className="mt-auto pt-3 text-xs text-muted-foreground">
