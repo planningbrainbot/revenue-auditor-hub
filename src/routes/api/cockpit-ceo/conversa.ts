@@ -12,6 +12,12 @@ const Corpo = z
   .object({
     conversaId: z.string().uuid().nullable().optional(),
     pergunta: z.string().trim().min(1).max(2000),
+    // Gráfico do cockpit de onde a pergunta saiu. Só o id: os dados são montados no servidor, com
+    // o acesso de quem pergunta, pelas mesmas regras da tela.
+    grafico: z
+      .string()
+      .regex(/^[a-z0-9-]{1,60}$/i)
+      .optional(),
     // Só para a avaliação local (COCKPIT_IA_AVALIACAO=1, fora de produção): o servidor ignora em
     // qualquer outro ambiente e só aceita os modelos permitidos.
     modelo: z.string().max(80).optional(),
@@ -59,6 +65,7 @@ export const Route = createFileRoute("/api/cockpit-ceo/conversa")({
                 conversaId: corpo.conversaId ?? null,
                 pergunta: corpo.pergunta,
                 modelo: corpo.modelo,
+                grafico: corpo.grafico,
               },
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (parte) => writer.write(parte as any),

@@ -12,7 +12,9 @@ import {
 import { formatarNumero, formatarValor, somaDaComposicao } from "@/lib/cockpit-ceo/contrato";
 import type { Destino, Indicador } from "@/lib/cockpit-ceo/contrato";
 import { dataBr } from "@/lib/cockpit-ceo/periodo";
+import type { Explicacao } from "@/lib/cockpit-ceo/explicacoes";
 import { EstadoBadge, SinteticoBadge } from "./estado";
+import { BotaoPerguntar } from "./visao-executiva";
 
 const quando = (iso: string | null) =>
   iso
@@ -87,18 +89,104 @@ export function BotaoDestino({
   );
 }
 
+function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <section className="space-y-1">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {titulo}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * A explicação de um gráfico ou cartão (revisão visual de 28/09/2026): o que diz; como se calcula;
+ * fonte, data e período; atenção ou limite; quem decide ou é dono; a tela que resolve; e a conversa
+ * com o gráfico como contexto. Os dados desenhados fecham a gaveta como tabela (a vista acessível).
+ */
+function ExplicacaoGrafico({ e, preview }: { e: Explicacao; preview: boolean }) {
+  return (
+    <>
+      <SheetHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <EstadoBadge estado={e.estado} />
+        </div>
+        <SheetTitle>{e.titulo}</SheetTitle>
+        <SheetDescription>{e.periodo}</SheetDescription>
+      </SheetHeader>
+      <div className="mt-4 space-y-5 text-sm">
+        {e.valor && <p className="num text-3xl font-semibold">{e.valor}</p>}
+        <Bloco titulo="O que diz">
+          <p>{e.oQueDiz}</p>
+        </Bloco>
+        <Bloco titulo="Como se calcula">
+          <p>{e.comoSeCalcula}</p>
+        </Bloco>
+        <Bloco titulo="Fonte, data e período">
+          <dl className="divide-y rounded-lg border px-3">
+            <Linha termo="Fonte">{e.fonte}</Linha>
+            <Linha termo="Data do dado">{quando(e.dataDado)}</Linha>
+            <Linha termo="Período">{e.periodo}</Linha>
+          </dl>
+        </Bloco>
+        {e.atencao.length > 0 && (
+          <Bloco titulo="Atenção ou limite">
+            <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+              {e.atencao.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </Bloco>
+        )}
+        <Bloco titulo="Quem decide ou é dono">
+          <p>{e.dono}</p>
+        </Bloco>
+        <div className="flex flex-wrap gap-2 border-t pt-4">
+          {e.destino && <BotaoDestino destino={e.destino} preview={preview} compacto />}
+          {!preview && (
+            <BotaoPerguntar
+              grafico={e.id}
+              rotulo="Perguntar ao Brain sobre este gráfico"
+              variante="default"
+            />
+          )}
+        </div>
+        {e.dados.length > 0 && (
+          <Bloco titulo="Dados desenhados">
+            <table className="w-full text-xs">
+              <tbody>
+                {e.dados.map((d) => (
+                  <tr key={d.rotulo} className="border-b last:border-0">
+                    <td className="py-1.5 pr-2">{d.rotulo}</td>
+                    <td className="num py-1.5 text-right">{d.valor}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Bloco>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function ComposicaoIndicador({
   indicador: i,
+  explicacao,
   onFechar,
   preview,
 }: {
   indicador: Indicador | null;
+  /** Gráfico aberto (`?grafico=`); vale quando não há indicador aberto. */
+  explicacao?: Explicacao | null;
   onFechar: () => void;
   preview: boolean;
 }) {
   return (
-    <Sheet open={!!i} onOpenChange={(open) => !open && onFechar()}>
+    <Sheet open={!!i || !!explicacao} onOpenChange={(open) => !open && onFechar()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[560px]">
+        {!i && explicacao && <ExplicacaoGrafico e={explicacao} preview={preview} />}
         {i && (
           <>
             <SheetHeader>
@@ -217,6 +305,13 @@ export function ComposicaoIndicador({
                 </section>
               )}
 
+              {!preview && (
+                <BotaoPerguntar
+                  grafico={`indicador-${i.id}`}
+                  rotulo="Perguntar ao Brain sobre este número"
+                  variante="outline"
+                />
+              )}
               {i.destino && (
                 <section className="space-y-2 border-t pt-3">
                   <h3 className="text-xs font-semibold">Tela de origem</h3>

@@ -365,3 +365,15 @@ export function montarLeituraRede(entrada: {
     ...(complementos ? { complementos } : {}),
   };
 }
+
+/** Meses que a ponte pode usar: fechados na fonte e anteriores ao mês corrente. */
+export function mesesFechadosDaFonte(
+  f: ReturnType<typeof extrairFaturamento>,
+  mesCorrente: string,
+): string[] {
+  const parciais = new Set([
+    ...f.serie.filter((s) => s.parcial).map((s) => s.mes),
+    ...f.meses.filter((m) => m.parcial || m.semCobertura).map((m) => m.mes),
+  ]);
+  return f.serie.map((s) => s.mes).filter((m) => m < mesCorrente && !parciais.has(m));
+}

@@ -24,10 +24,7 @@ export function ExportarEvidencias({ cockpit }: { cockpit: Cockpit }) {
   };
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">
-        Matriz de evidências: cada pergunta com cobertura, fonte, responsável, o que falta e o
-        estado atual dos números. Só catálogo e estados, sem dado de cliente.
-      </p>
+      <p className="text-sm">Matriz de evidências (CSV, sem dado de cliente)</p>
       <Button size="sm" variant="outline" onClick={baixar}>
         <Download className="mr-1 h-3.5 w-3.5" />
         Exportar CSV

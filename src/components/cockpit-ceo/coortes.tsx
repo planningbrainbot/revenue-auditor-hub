@@ -22,11 +22,8 @@ export function CoortesRetencao({
   aviso: string | null;
 }) {
   return (
-    <section className="space-y-4 rounded-xl border bg-card p-4" aria-label="Coortes de retenção">
-      <header className="flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold">Quem permanece depois do ganho, por coorte?</h2>
-        {coortes && <EstadoBadge estado={coortes.estado} />}
-      </header>
+    <div className="space-y-4" aria-label="Coortes de retenção">
+      {coortes && coortes.estado !== "disponivel" && <EstadoBadge estado={coortes.estado} />}
       {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
       {coortes && coortes.linhas.length > 0 && (
         <div className="overflow-x-auto">
@@ -96,6 +93,6 @@ export function CoortesRetencao({
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }

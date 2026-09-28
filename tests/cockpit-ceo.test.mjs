@@ -98,11 +98,21 @@ test("Plano mensal só se compara a período dentro de um mês", () => {
 test("Busca da URL aceita só strings e descarta o resto", () => {
   assert.deepEqual(
     validarBusca({ periodo: "ano", de: 3, perimetro: "ex-norte", frente: "comercial", lixo: "x" }),
-    { periodo: "ano", de: "", ate: "", perimetro: "ex-norte", frente: "comercial", indicador: "" },
+    {
+      periodo: "ano",
+      de: "",
+      ate: "",
+      perimetro: "ex-norte",
+      frente: "comercial",
+      indicador: "",
+      grafico: "",
+    },
   );
   assert.equal(validarBusca({ perimetro: "rede" }).perimetro, "");
   assert.equal(validarBusca({ perimetro: "unidade-exemplo" }).perimetro, "unidade-exemplo");
   assert.equal(validarBusca({ frente: "inexistente" }).frente, "");
+  assert.equal(validarBusca({ grafico: "trajetoria" }).grafico, "trajetoria");
+  assert.equal(validarBusca({ grafico: "<script>" }).grafico, "");
 });
 
 test("Ausência não vira zero na formatação e na soma da composição", () => {
@@ -545,8 +555,11 @@ test("Ritmo abaixo da meta e plano sem alocação viram ameaça e decisão", () 
     "1 ganho contra ~remaining ritmo de 6",
   );
   assert.ok(c.decisoes.some((d) => d.id === "alocar-plano"));
-  assert.ok(c.decisoes.length <= 3);
-  assert.equal(c.decisoes[0].id, "perimetro-meta");
+  // Desde 28/09 a lista vai inteira (a Visão executiva mostra o total e três títulos), com D0 antes.
+  assert.deepEqual(
+    c.decisoes.slice(0, 2).map((d) => d.id),
+    ["d0-bilhao", "perimetro-meta"],
+  );
 });
 
 test("Meta de R$ 1 bi fica não apurada, com lacuna e responsável", () => {

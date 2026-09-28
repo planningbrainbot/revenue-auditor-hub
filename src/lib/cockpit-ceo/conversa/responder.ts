@@ -27,7 +27,7 @@ import {
 import type { BlocoResolvido, VisaoDefinicao } from "./spec.ts";
 import type { Filtros } from "./filtros.ts";
 import { mesBr, somaMeses } from "./filtros.ts";
-import { conferirTexto } from "./conferir.ts";
+import { conferirTexto, lerNumeros } from "./conferir.ts";
 import { LIMIARES_PADRAO, RESPOSTA_FORA_DO_ESCOPO, decidirEncaminhamento } from "./jev.ts";
 import type { Encaminhamento } from "./jev.ts";
 import type { RespostaJev } from "../jev/contrato.ts";
@@ -97,6 +97,11 @@ export interface DepsResposta {
   classificar: (pergunta: string, contexto: string) => Promise<SaidaJev>;
   carregarFonte: () => Promise<FonteCockpit>;
   historico: TurnoAnterior[];
+  /**
+   * A pergunta nasceu de um gráfico do cockpit: título e dados desenhados, montados no servidor com
+   * o acesso da pessoa. Os números deste texto contam como já mostrados na conferência.
+   */
+  contextoGrafico?: { titulo: string; texto: string } | null;
   salvarVisao: (nome: string, definicao: VisaoDefinicao) => Promise<{ id: string }>;
   /** Confere o teto antes de cada chamada ao modelo. */
   orcamento: () => Promise<{ ok: boolean; motivo?: string }>;
@@ -308,7 +313,17 @@ export async function responder(pergunta: string, deps: DepsResposta): Promise<R
   });
 
   // ── B. Modelo, com tentativas limitadas ─────────────────────────────────
+  const grafico = deps.contextoGrafico ?? null;
   const mensagens = [
+    ...(grafico
+      ? [
+          {
+            role: "user" as const,
+            content: `Estou olhando o gráfico "${grafico.titulo}" do cockpit.`,
+          },
+          { role: "assistant" as const, content: grafico.texto },
+        ]
+      : []),
     ...deps.historico.slice(-6).flatMap((t) => [
       { role: "user" as const, content: t.pergunta },
       {
@@ -453,7 +468,7 @@ export async function responder(pergunta: string, deps: DepsResposta): Promise<R
   const prop = PropostaVisaoSchema.safeParse(final.input);
   const resultados = [...registro.values()];
   // Parâmetros das visões anteriores (meses, datas de recorte) também já foram mostrados.
-  const extras: number[] = [];
+  const extras: number[] = grafico ? lerNumeros(grafico.texto).map((n) => n.valor) : [];
   JSON.stringify(
     deps.historico.map((t) => t.definicao?.blocos.map((b) => b.consulta.args)),
     (_k, v) => {

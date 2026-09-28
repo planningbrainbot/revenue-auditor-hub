@@ -29,6 +29,21 @@ import { montarAquisicao } from "../../src/lib/cockpit-ceo/aquisicao.ts";
 import { lerCard, montarOnboarding } from "../../src/lib/cockpit-ceo/operacao.ts";
 import { docDigitos, montarCadeia, normContraparte } from "../../src/lib/cockpit-ceo/cadeia.ts";
 import { hoje as hojeSP } from "../../src/lib/monetizacao/model.ts";
+import {
+  mesesFechadosDaFonte,
+  montarLeituraGrupo,
+} from "../../src/lib/cockpit-ceo/receita-fontes.ts";
+import { resumirLeitura } from "../../src/lib/cockpit-ceo/receita.ts";
+import {
+  agregarFranqueadora,
+  agregarOmie,
+  agregarTratativas,
+  mesesFechados,
+  modeloComposicao,
+  modeloEntrega,
+  modeloTrajetoria,
+  taxasDaPonte,
+} from "../../src/lib/cockpit-ceo/visual.ts";
 
 const FIN = "itpddzjfrgrbathcqbpo";
 const SAIDA = "docs/dev_notes/cockpit-ceo-empresa/homologacao";
@@ -482,6 +497,273 @@ conf("porta abre ⇒ RLS entrega a tabela inteira", divergencias.length === 0, {
   divergencias: divergencias.map((d) => d.perfil),
   totais,
 });
+
+// ── Gráficos da revisão visual (28/09/2026) ────────────────────────────────
+// Cada modelo de `visual.ts` recebe as mesmas linhas que o servidor lê e é conferido contra uma
+// conta SQL escrita à parte. Só agregados vão para o arquivo.
+r.visual = {};
+const anoHoje = hoje.slice(0, 4);
+
+// Trajetória: média dos meses fechados do ano, degraus e distância.
+const resumoGrupo = resumirLeitura(montarLeituraGrupo({ acesso: true, faturamento: f }), hoje);
+const traj = modeloTrajetoria({ hoje, trajetoria: [resumoGrupo], trajetoriaAviso: null });
+const [trajSql] = await fin(`
+  with j as (select public.fn_faturamento_mensal(p_comp_de => '${de}', p_comp_ate => '${ate}') j),
+  pm as (select to_char((m->>'competencia')::date,'YYYY-MM') mes, coalesce((m->>'parcial')::boolean,false) or coalesce((m->>'sem_cobertura')::boolean,false) p
+         from j, jsonb_array_elements(j->'meses') m),
+  s as (select to_char((x->>'competencia')::date,'YYYY-MM') mes, (x->>'receita')::numeric v, coalesce((x->>'parcial')::boolean,false) p
+        from j, jsonb_array_elements(j->'serie') x)
+  select round(avg(s.v), 2) media, count(*)::int meses
+  from s where s.mes >= '${anoHoje}-01' and s.mes < '${mesHoje}' and not s.p
+    and s.mes not in (select mes from pm where p)`);
+const mediaSql = Number(trajSql.media);
+const ritmoSql = Math.pow(1e9 / 12 / mediaSql, 1 / (2030 - Number(anoHoje)));
+r.visual.trajetoria = {
+  media: traj.media,
+  meses: traj.mesesNaMedia,
+  degraus: traj.degraus.map((d) => ({ ano: d.ano, mi: +(d.media / 1e6).toFixed(1) })),
+  distancia: +traj.distancia.toFixed(2),
+  ritmoPctAa: +(traj.ritmoPct * 100).toFixed(1),
+};
+conf(
+  "trajetória: média do ano, ritmo e degraus TS × SQL",
+  cent(traj.media) === cent(mediaSql) &&
+    traj.mesesNaMedia === trajSql.meses &&
+    Math.abs(traj.ritmo - ritmoSql) < 1e-9,
+  { ts: r.visual.trajetoria, sql: { media: mediaSql, meses: trajSql.meses } },
+);
+
+// Composição: categorias dos meses fechados do ano; o total bate com a série da mesma janela.
+const fechadoAte = mesesFechados(hoje, 1)[0];
+const [{ j: catJ }] = await fin(
+  `select public.fn_faturamento_mensal(p_comp_de => '${anoHoje}-01-01', p_comp_ate => '${fechadoAte}-01', p_limite_clientes => 1) j`,
+);
+const comp = modeloComposicao({
+  categorias: {
+    estado: "ok",
+    de: `${anoHoje}-01`,
+    ate: fechadoAte,
+    itens: catJ.categorias.itens.map((i) => ({
+      categoria: i.categoria,
+      receita: Number(i.receita_no_recorte ?? i.receita ?? 0),
+      recorrente: typeof i.recorrente === "boolean" ? i.recorrente : null,
+      clientes: Number(i.clientes_no_recorte ?? i.clientes ?? 0),
+    })),
+  },
+});
+const [compSql] = await fin(`
+  with j as (select public.fn_faturamento_mensal(p_comp_de => '${anoHoje}-01-01', p_comp_ate => '${fechadoAte}-01', p_limite_clientes => 1) j)
+  select (select round(sum((x->>'receita')::numeric),2) from j, jsonb_array_elements(j->'serie') x) serie,
+         (select round(sum((i->>'receita_no_recorte')::numeric) filter (where (i->>'recorrente')::boolean),2) from j, jsonb_array_elements(j->'categorias'->'itens') i) recorrente`);
+r.visual.composicao = {
+  total: comp.total,
+  recorrentePct: +((comp.recorrente / comp.total) * 100).toFixed(1),
+  top3: comp.itens
+    .slice(0, 3)
+    .map((i) => ({ categoria: i.categoria, pct: +(i.participacao * 100).toFixed(1) })),
+};
+conf(
+  "composição: soma das categorias = faturamento da janela; recorrente TS × SQL",
+  cent(comp.total) === cent(Number(compSql.serie)) &&
+    cent(comp.recorrente) === cent(Number(compSql.recorrente)),
+  { ts: r.visual.composicao, sql: compSql },
+);
+
+// Omie das unidades: MRR ativo por base e taxa de encerramento por mês.
+const omieLinhas = await ro(
+  `select unidade, situacao, valor_mensal, vigencia_inicial::text, vigencia_final::text from ops.omie_contratos_servico`,
+);
+const omie = agregarOmie(
+  omieLinhas.map((x) => ({
+    unidade: x.unidade ?? "Sem unidade",
+    situacao: String(x.situacao ?? ""),
+    valorMensal: x.valor_mensal == null ? null : Number(x.valor_mensal),
+    vigenciaInicial: x.vigencia_inicial,
+    vigenciaFinal: x.vigencia_final,
+  })),
+  hoje,
+);
+const meses12 = mesesFechados(hoje);
+const omieSql = await ro(`
+  select unidade, round(sum(valor_mensal),2) mrr, count(*)::int n from ops.omie_contratos_servico
+  where situacao = '10' and valor_mensal > 0 group by 1 order by 2 desc`);
+const f1Sql = await ro(`
+  with m as (select unnest(array[${meses12.map((x) => `'${x}-01'`).join(",")}]::date[]) mes)
+  select to_char(m.mes,'YYYY-MM') mes,
+    count(*) filter (where c.vigencia_inicial < m.mes and (c.situacao <> '99' or c.vigencia_final >= m.mes))::int base,
+    count(*) filter (where c.situacao = '99' and date_trunc('month', c.vigencia_final) = m.mes)::int saidas
+  from m cross join ops.omie_contratos_servico c group by 1 order by 1`);
+const difOmie = omieSql.filter((u) => {
+  const t = omie.unidades.find((x) => x.unidade === u.unidade);
+  return !t || cent(t.mrr) !== cent(Number(u.mrr)) || t.contratos !== u.n;
+});
+const difF1 = f1Sql.filter((s) => {
+  const t = omie.porContrato.find((x) => x.mes === s.mes);
+  return !t || t.base !== s.base || t.saidas !== s.saidas;
+});
+const totalMrr = omie.unidades.reduce((a, u) => a + u.mrr, 0);
+r.visual.rede = {
+  total: +totalMrr.toFixed(2),
+  maior: omie.unidades[0] && {
+    unidade: omie.unidades[0].unidade,
+    pct: +((omie.unidades[0].mrr / totalMrr) * 100).toFixed(1),
+  },
+  bases: omie.unidades.length,
+};
+conf(
+  "rede: MRR ativo por base e encerramentos por mês TS × SQL",
+  difOmie.length === 0 && difF1.length === 0 && omieSql.length === omie.unidades.length,
+  { rede: r.visual.rede, difOmie, difF1 },
+);
+
+// Central de Tratativas (F3).
+const churnDatas = (
+  await ro(
+    `select data_churn::text d from ops.central_tratativas where status = 'lost' and data_churn is not null`,
+  )
+).map((x) => x.d);
+const ganhosIS = (
+  await ro(
+    `select ganho_em::text g from ops.contratos where origem_pipeline = 'inside_sales' and ganho_em is not null`,
+  )
+).map((x) => x.g.slice(0, 10));
+const f3 = agregarTratativas(churnDatas, ganhosIS, hoje);
+const f3Sql = await ro(`
+  with m as (select unnest(array[${meses12.map((x) => `'${x}-01'`).join(",")}]::date[]) mes)
+  select to_char(m.mes,'YYYY-MM') mes,
+    (select count(*) from ops.contratos k where k.origem_pipeline='inside_sales' and k.ganho_em < m.mes)
+      - (select count(*) from ops.central_tratativas t where t.status='lost' and t.data_churn is not null and date_trunc('month', t.data_churn) < m.mes) base,
+    (select count(*) from ops.central_tratativas t where t.status='lost' and date_trunc('month', t.data_churn) = m.mes) saidas
+  from m order by 1`);
+const difF3 = f3Sql.filter((s) => {
+  const t = f3.find((x) => x.mes === s.mes);
+  return !t || t.base !== Number(s.base) || t.saidas !== Number(s.saidas);
+});
+conf("churn da Central de Tratativas TS × SQL", difF3.length === 0, { difF3 });
+
+// Saída de faturamento (F4) pela ponte, contra a contagem SQL da mesma classificação.
+const f4 = taxasDaPonte(ponte.meses);
+const f4Sql = await fin(`
+  with j as (select public.fn_faturamento_mensal(p_comp_de => '${de}', p_comp_ate => '${ate}') j),
+  l as (select x->>'cliente' cli, to_char((m->>'competencia')::date,'YYYY-MM') mes, sum((m->>'receita')::numeric) v
+        from j, jsonb_array_elements(j->'linhas') x, jsonb_array_elements(x->'meses') m
+        where m->>'receita' is not null group by 1, 2),
+  meses as (select unnest(array[${ponte.meses.map((m) => `'${m.mes}'`).join(",")}]::text[]) mes)
+  select mm.mes,
+    count(distinct a.cli) filter (where a.v <> 0)::int base,
+    count(distinct a.cli) filter (where a.v <> 0 and coalesce(b.v, 0) = 0)::int saidas
+  from meses mm
+  join l a on a.mes = to_char((mm.mes || '-01')::date - interval '1 month','YYYY-MM')
+  left join l b on b.cli = a.cli and b.mes = mm.mes
+  group by 1 order by 1`);
+const difF4 = f4Sql.filter((s) => {
+  const t = f4.find((x) => x.mes === s.mes);
+  return !t || t.base !== s.base || t.saidas !== s.saidas;
+});
+conf("saída de faturamento (ponte) TS × SQL", difF4.length === 0, { difF4: difF4.slice(0, 4) });
+
+// Saída só em Honorários Contábeis (F5): mesmo caminho do servidor × SQL sobre a mesma chamada.
+const [{ j: honJ }] = await fin(
+  `select public.fn_faturamento_mensal(p_comp_de => '${de}', p_comp_ate => '${ate}', p_categorias => array['Honorários Contábeis']) j`,
+);
+const f5 = taxasDaPonte(
+  montarPonte(extrairPorCliente(honJ), mesesFechadosDaFonte(extrairFaturamento(honJ), mesHoje))
+    .meses,
+);
+const f5Sql = await fin(`
+  with j as (select public.fn_faturamento_mensal(p_comp_de => '${de}', p_comp_ate => '${ate}', p_categorias => array['Honorários Contábeis']) j),
+  l as (select x->>'cliente' cli, to_char((m->>'competencia')::date,'YYYY-MM') mes, sum((m->>'receita')::numeric) v
+        from j, jsonb_array_elements(j->'linhas') x, jsonb_array_elements(x->'meses') m
+        where m->>'receita' is not null group by 1, 2),
+  meses as (select unnest(array[${f5.map((m) => `'${m.mes}'`).join(",") || "''"}]::text[]) mes)
+  select mm.mes,
+    count(distinct a.cli) filter (where a.v <> 0)::int base,
+    count(distinct a.cli) filter (where a.v <> 0 and coalesce(b.v, 0) = 0)::int saidas
+  from meses mm
+  join l a on a.mes = to_char((mm.mes || '-01')::date - interval '1 month','YYYY-MM')
+  left join l b on b.cli = a.cli and b.mes = mm.mes
+  group by 1 order by 1`);
+const difF5 = f5Sql.filter((s) => {
+  const t = f5.find((x) => x.mes === s.mes);
+  return !t || t.base !== s.base || t.saidas !== s.saidas;
+});
+const media = (xs) => {
+  const v = xs.map((x) => x.taxa).filter((x) => x !== null);
+  return v.length ? +((v.reduce((a, b) => a + b, 0) / v.length) * 100).toFixed(2) : null;
+};
+r.visual.churn = {
+  omieContrato: media(omie.porContrato),
+  omieValor: media(omie.porValor),
+  tratativas: media(f3),
+  saidaFaturamento: media(f4),
+  saidaHonorarios: media(f5),
+};
+conf("saída de honorários TS × SQL", difF5.length === 0 && f5.length > 0, {
+  mediasPct: r.visual.churn,
+  difF5: difF5.slice(0, 4),
+});
+
+// Franqueadora: títulos da Partners por mês de vencimento.
+const inicio12 = `${meses12[0]}-01`;
+const fimMes = new Date(Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)), 0))
+  .toISOString()
+  .slice(0, 10);
+const titulosPartners = await ro(`
+  select data_vencimento::text v, status_pagamento s, valor from ops.contas_receber
+  where unidade = 'Partners' and data_vencimento >= '${inicio12}' and data_vencimento <= '${fimMes}'`);
+const franq = agregarFranqueadora(
+  titulosPartners.map((t) => ({
+    vencimento: t.v,
+    status: String(t.s ?? ""),
+    valor: Number(t.valor ?? 0),
+  })),
+);
+const franqSql = await ro(`
+  select to_char(data_vencimento,'YYYY-MM') mes,
+    round(sum(valor) filter (where upper(status_pagamento) <> 'CANCELADO'),2) faturado,
+    round(coalesce(sum(valor) filter (where upper(status_pagamento) = 'RECEBIDO'),0),2) recebido,
+    round(coalesce(sum(valor) filter (where upper(status_pagamento) in ('ATRASADO','A VENCER','VENCE HOJE')),0),2) aberto
+  from ops.contas_receber
+  where unidade = 'Partners' and data_vencimento >= '${inicio12}' and data_vencimento <= '${fimMes}'
+  group by 1 having count(*) filter (where upper(status_pagamento) <> 'CANCELADO') > 0 order by 1`);
+const difFranq = franqSql.filter((s) => {
+  const t = franq.find((x) => x.mes === s.mes);
+  return (
+    !t ||
+    cent(t.faturado) !== cent(Number(s.faturado)) ||
+    cent(t.recebido) !== cent(Number(s.recebido)) ||
+    cent(t.emAberto) !== cent(Number(s.aberto))
+  );
+});
+r.visual.franqueadora = franq.map((m) => ({
+  mes: m.mes,
+  faturado: m.faturado,
+  recebido: m.recebido,
+  aberto: m.emAberto,
+}));
+conf(
+  "franqueadora: faturado, recebido e em aberto por mês TS × SQL",
+  difFranq.length === 0 && franqSql.length === franq.length,
+  { meses: franq.length, difFranq },
+);
+
+// Entrega: gargalo pela fase com mais clientes há mais de 30 dias.
+const entrega = modeloEntrega({ empresa: { onboarding: onb }, indicadores: [] });
+const fasesSql = await ro(`
+  select fase_atual fase, count(*)::int cards,
+    count(*) filter (where floor(extract(epoch from (now() - entrou_fase_atual_em)) / 86400) > 30)::int p30
+  from ops.cs_onboarding_cards where fase_atual not in ('Concluído','Churn no Onboarding')
+  group by 1 order by p30 desc, cards desc`);
+r.visual.entrega = { gargalo: entrega.gargalo, fases: entrega.fases };
+conf(
+  "entrega: cards por fase e gargalo TS × SQL",
+  entrega.gargalo === fasesSql[0]?.fase &&
+    fasesSql.every((s) => {
+      const t = entrega.fases.find((x) => x.fase === s.fase);
+      return t && t.cards === s.cards && t.acima30 === s.p30;
+    }),
+  { ts: entrega.gargalo, sql: fasesSql.slice(0, 5) },
+);
 
 r.tempos = tempos;
 mkdirSync(SAIDA, { recursive: true });

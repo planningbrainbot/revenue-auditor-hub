@@ -216,6 +216,17 @@
   --chart-6: #849199;
   --chart-csat: #0b7285;
 
+  /* Paleta do Cockpit do CEO (revisão visual de 28/09/2026), validada pelo script da skill
+   * dataviz nos dois temas (card #ffffff e #0d1418): faixa de luminosidade, croma, contraste ≥3:1
+   * e piso de visão normal PASSAM; realizado × meta fica em ΔE 8,0 para protanopia, legal só com
+   * codificação secundária — por isso a meta é SEMPRE tracejada. Cor de status não pinta série. */
+  --viz-realizado: #2f7f4f;
+  --viz-meta: #c07f22;
+  --viz-terceira: #3569a6;
+  --viz-alerta: #a8412f;
+  /* Rótulo sobre a área preenchida (treemap): 5,0:1 sobre o realizado, 5,9:1 sobre a terceira. */
+  --viz-rotulo: #ffffff;
+
   --sidebar: #ffffff;
   --sidebar-foreground: #0b1216;
   --sidebar-primary: #007a4f;
@@ -277,6 +288,17 @@
   --chart-5: #c3e61e;
   --chart-6: #8a979f;
   --chart-csat: #14c8fa;
+
+  /* Paleta do Cockpit do CEO (revisão visual de 28/09/2026), validada pelo script da skill
+   * dataviz nos dois temas (card #ffffff e #0d1418): faixa de luminosidade, croma, contraste ≥3:1
+   * e piso de visão normal PASSAM; realizado × meta fica em ΔE 8,0 para protanopia, legal só com
+   * codificação secundária — por isso a meta é SEMPRE tracejada. Cor de status não pinta série. */
+  --viz-realizado: #2f7f4f;
+  --viz-meta: #c07f22;
+  --viz-terceira: #3569a6;
+  --viz-alerta: #a8412f;
+  /* Rótulo sobre a área preenchida (treemap): 5,0:1 sobre o realizado, 5,9:1 sobre a terceira. */
+  --viz-rotulo: #ffffff;
 
   --sidebar: #0d1418;
   --sidebar-foreground: #e8eef2;

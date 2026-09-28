@@ -6,7 +6,7 @@
 // Os dados desenhados são também a vista em tabela do gráfico e o contexto que a conversa recebe
 // em "Perguntar ao Brain sobre este gráfico".
 import type { Destino, Estado, Frente } from "./contrato.ts";
-import { FRENTES } from "./contrato.ts";
+import { FRENTES, formatarNumero } from "./contrato.ts";
 import type { Cockpit } from "./indicadores.ts";
 import { PERGUNTAS } from "./perguntas.ts";
 import { ANO_ALVO, mesBr } from "./receita.ts";
@@ -59,10 +59,9 @@ const compacto = new Intl.NumberFormat("pt-BR", {
 const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 export const reaisCurto = (v: number) =>
   Math.abs(v) >= 100_000
-    ? compacto.format(v).replace(/ /g, " ")
+    ? compacto.format(v).replace(/\u00a0/g, " ")
     : `R$ ${inteiro.format(Math.round(v))}`;
-export const pctTexto = (x: number, casas = 1) =>
-  `${(x * 100).toFixed(casas).replace(".", ",")}%`;
+export const pctTexto = (x: number, casas = 1) => `${(x * 100).toFixed(casas).replace(".", ",")}%`;
 export const vezesTexto = (x: number) => `${x.toFixed(1).replace(".", ",")}×`;
 const intTexto = (n: number) => inteiro.format(n);
 
@@ -83,7 +82,8 @@ const FINANCEIRO: Destino = {
   externo: true,
   rotulo: "Abrir Faturamento no Brain Financeiro",
   mesmoRecorte: false,
-  observacao: "O Financeiro abre por empresa, cliente e categoria; os recortes padrão são os mesmos.",
+  observacao:
+    "O Financeiro abre por empresa, cliente e categoria; os recortes padrão são os mesmos.",
 };
 const PAINEL_CS: Destino = {
   rota: "/painel-cs",
@@ -109,11 +109,14 @@ const CONTRATOS_CHURN: Destino = {
 
 // ── Visão executiva ──────────────────────────────────────────────────────────
 
-function semNumero(
-  base: Omit<Explicacao, "valor" | "estado" | "dados">,
-  s: SemDado,
-): Explicacao {
-  return { ...base, valor: null, estado: s.estado, dados: [], atencao: [s.motivo, ...base.atencao] };
+function semNumero(base: Omit<Explicacao, "valor" | "estado" | "dados">, s: SemDado): Explicacao {
+  return {
+    ...base,
+    valor: null,
+    estado: s.estado,
+    dados: [],
+    atencao: [s.motivo, ...base.atencao],
+  };
 }
 
 function trajetoria(c: Cockpit): Explicacao {
@@ -282,7 +285,8 @@ function redeMrr(c: Cockpit): Explicacao {
   const base = {
     id: "rede-mrr",
     titulo: "MRR ativo por unidade",
-    oQueDiz: "Quanto de receita mensal contratada cada base do Omie das unidades carrega hoje, e quanto a maior concentra.",
+    oQueDiz:
+      "Quanto de receita mensal contratada cada base do Omie das unidades carrega hoje, e quanto a maior concentra.",
     comoSeCalcula:
       "Soma do valor mensal dos contratos de serviço em situação ativa (código 10) e valor maior que zero, por base do Omie. Mesma régua da definição “Contrato de serviço ativo no Omie” da frente Clientes.",
     fonte: "Omie das unidades (contratos de serviço), lido pelo Brain",
@@ -507,9 +511,7 @@ function frente(c: Cockpit, f: Frente, agora: string): Explicacao {
       fonte: "Omie das unidades, contas a receber, cadastro e MRR do Ops",
       dataDado: null,
       periodo: "Fotografia de agora",
-      atencao: [
-        c.clientesAviso ?? "Nenhuma régua é a oficial: a decisão está com o CEO.",
-      ],
+      atencao: [c.clientesAviso ?? "Nenhuma régua é a oficial: a decisão está com o CEO."],
       dono: "CEO + Departamento de Receitas",
       destino: destinoFrente("clientes"),
       dados: defs.map((d) => ({ rotulo: d.titulo, valor: `${intTexto(d.cnpjs!)} CNPJs` })),
@@ -527,12 +529,17 @@ function frente(c: Cockpit, f: Frente, agora: string): Explicacao {
       fonte: i?.fonte ?? "Monetização",
       dataDado: i?.dataDado ?? null,
       periodo: i?.periodo ? `${i.periodo.de} a ${i.periodo.ate}` : "Período filtrado",
-      atencao: ["Ganho no CRM, não receita: receita por vertical ainda não é separável no Financeiro."],
+      atencao: [
+        "Ganho no CRM, não receita: receita por vertical ainda não é separável no Financeiro.",
+      ],
       dono: "Comercial + Departamento de Receitas",
       destino: i?.destino ?? null,
       dados: c.porProduto
         .filter((p) => p.produto !== "sem_produto")
-        .map((p) => ({ rotulo: p.rotulo, valor: p.ganhos === null ? "sem dado" : intTexto(p.ganhos) })),
+        .map((p) => ({
+          rotulo: p.rotulo,
+          valor: p.ganhos === null ? "sem dado" : intTexto(p.ganhos),
+        })),
     };
   }
   // caixa
@@ -573,7 +580,8 @@ interface TextoPainel {
 const PAINEIS: Record<string, TextoPainel> = {
   "ponte-mensal": {
     titulo: "Ponte mês a mês",
-    oQueDiz: "O que entrou (acima de zero) e o que saiu (abaixo) do faturamento do grupo em cada mês fechado.",
+    oQueDiz:
+      "O que entrou (acima de zero) e o que saiu (abaixo) do faturamento do grupo em cada mês fechado.",
     comoSeCalcula:
       "Ponte por cliente, régua de emissão: novos e retornos, expansão, contração e sem faturamento no mês. Cada mês fecha em centavos com o Faturamento.",
     fonte: "Brain Financeiro, faturamento por cliente",
@@ -596,7 +604,8 @@ const PAINEIS: Record<string, TextoPainel> = {
   },
   aquisicao: {
     titulo: "Aquisição × plano",
-    oQueDiz: "MRR novo vendido do Inside Sales contra o plano do Growth, e o funil do último mês fechado.",
+    oQueDiz:
+      "MRR novo vendido do Inside Sales contra o plano do Growth, e o funil do último mês fechado.",
     comoSeCalcula:
       "Série mensal do Growth; plano cadastrado pelo Growth desde jun/2026 (mês sem plano fica sem linha). Forecast do mês pelo modelo do próprio Growth, sem recálculo.",
     fonte: "Growth",
@@ -638,7 +647,9 @@ const PAINEIS: Record<string, TextoPainel> = {
     oQueDiz: "Se a entrega comporta crescer.",
     comoSeCalcula: "Sem fonte: horas, SLA, retrabalho e capacidade por equipe não são registrados.",
     fonte: "Nenhuma",
-    atencao: ["A tabela de headcount mensal está vazia; a fila de onboarding é o único sinal de capacidade."],
+    atencao: [
+      "A tabela de headcount mensal está vazia; a fila de onboarding é o único sinal de capacidade.",
+    ],
     dono: "Operações",
     destino: null,
   },
@@ -680,7 +691,8 @@ const PAINEIS: Record<string, TextoPainel> = {
   },
   caixa: {
     titulo: "Emitido × recebido",
-    oQueDiz: "Se o faturamento vira caixa: emitido por mês, recebido até a foto, vencido por faixa e caixa livre.",
+    oQueDiz:
+      "Se o faturamento vira caixa: emitido por mês, recebido até a foto, vencido por faixa e caixa livre.",
     comoSeCalcula:
       "Funções do Financeiro: recebido por mês de emissão, acumulado até a foto de títulos; vencido ao vivo por faixa de atraso; caixa livre pelo saldo bancário.",
     fonte: "Brain Financeiro",
@@ -711,16 +723,20 @@ const PAINEIS: Record<string, TextoPainel> = {
   },
   pilares: {
     titulo: "O que conseguimos demonstrar",
-    oQueDiz: "Os oito pilares e as 11 exigências do mapa de investidores, pela situação da pergunta que responde cada uma.",
+    oQueDiz:
+      "Os oito pilares e as 11 exigências do mapa de investidores, pela situação da pergunta que responde cada uma.",
     comoSeCalcula: "Situação de cada pergunta do catálogo: respondida, parcial ou lacuna.",
     fonte: "Catálogo de perguntas do cockpit",
-    atencao: ["A troca das frentes pelos 8 pilares ou pelos 15 componentes do livro ainda está em aberto."],
+    atencao: [
+      "A troca das frentes pelos 8 pilares ou pelos 15 componentes do livro ainda está em aberto.",
+    ],
     dono: "CEO",
     destino: null,
   },
   clientes: {
     titulo: "Clientes ativos por régua",
-    oQueDiz: "CNPJs por definição candidata de cliente ativo, a sobreposição entre elas e a penetração ganha no CRM.",
+    oQueDiz:
+      "CNPJs por definição candidata de cliente ativo, a sobreposição entre elas e a penetração ganha no CRM.",
     comoSeCalcula: "Cada definição é uma régua diferente; a sobreposição é par a par, por CNPJ.",
     fonte: "Omie das unidades, contas a receber, cadastro e MRR do Ops",
     atencao: ["Nenhuma régua é a oficial."],
@@ -760,7 +776,7 @@ function pergunta(id: string): Explicacao | null {
     comoSeCalcula: p.aceite,
     fonte: p.fonte,
     dataDado: null,
-    periodo: "—",
+    periodo: "O de cada número que responde a pergunta",
     atencao: [
       ...(p.pendencia ? [`Falta: ${p.pendencia}`] : []),
       ...(p.estados.decisao ? [`Decisão pendente: ${p.estados.decisao}`] : []),
@@ -787,7 +803,11 @@ export const IDS_VISAO = [
 ] as const;
 
 /** A explicação de um id de gráfico (`?grafico=`); null para id desconhecido. */
-export function explicar(c: Cockpit, id: string, agora = new Date().toISOString()): Explicacao | null {
+export function explicar(
+  c: Cockpit,
+  id: string,
+  agora = new Date().toISOString(),
+): Explicacao | null {
   switch (id) {
     case "trajetoria":
       return trajetoria(c);
@@ -816,6 +836,37 @@ export function explicar(c: Cockpit, id: string, agora = new Date().toISOString(
   }
   if (id.startsWith("painel-")) return painel(id.slice(7), c);
   if (id.startsWith("pergunta-")) return pergunta(id.slice(9));
+  if (id.startsWith("indicador-")) {
+    const i = c.indicadores.find((x) => x.id === id.slice(10));
+    if (!i) return null;
+    return {
+      id,
+      titulo: i.titulo,
+      valor: i.valor === null ? null : formatarNumero(i.valor, i.unidade),
+      estado: i.estado,
+      oQueDiz: i.pergunta,
+      comoSeCalcula: i.definicao,
+      fonte: i.fonte,
+      dataDado: i.dataDado,
+      periodo: i.periodo ? `${i.periodo.de} a ${i.periodo.ate}` : "Fotografia de agora",
+      atencao: [
+        ...(i.lacuna ? [`Falta: ${i.lacuna.oQueFalta}`] : []),
+        ...(i.notaComposicao ? [i.notaComposicao] : []),
+      ],
+      dono: i.lacuna?.responsavel ?? "Dono do contrato do indicador",
+      destino: i.destino,
+      dados: [
+        ...i.comparacoes.map((x) => ({
+          rotulo: x.rotulo,
+          valor: formatarNumero(x.referencia, i.unidade),
+        })),
+        ...i.composicao.map((l) => ({
+          rotulo: l.rotulo,
+          valor: formatarNumero(l.valor, l.unidade ?? i.unidade),
+        })),
+      ],
+    };
+  }
   return null;
 }
 
@@ -830,7 +881,9 @@ export function contextoParaConversa(e: Explicacao): string {
     `O que diz: ${e.oQueDiz}`,
     `Como se calcula: ${e.comoSeCalcula}`,
     `Fonte: ${e.fonte}. Período: ${e.periodo}.`,
-    e.dados.length ? `Dados desenhados:\n${e.dados.map((d) => `- ${d.rotulo}: ${d.valor}`).join("\n")}` : null,
+    e.dados.length
+      ? `Dados desenhados:\n${e.dados.map((d) => `- ${d.rotulo}: ${d.valor}`).join("\n")}`
+      : null,
     e.atencao.length ? `Atenção: ${e.atencao.join(" ")}` : null,
   ]
     .filter(Boolean)

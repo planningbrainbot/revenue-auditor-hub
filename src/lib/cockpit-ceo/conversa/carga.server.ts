@@ -17,6 +17,7 @@ import {
   clientesDaCarga,
   receitaDaCarga,
   retencaoDaCarga,
+  visualDaCarga,
   mensagemDeErro,
 } from "../adaptador-brain";
 import type { FonteCockpit } from "../indicadores";
@@ -28,6 +29,7 @@ import { lerAquisicaoCockpit } from "../aquisicao.functions";
 import { lerOperacaoCockpit } from "../operacao.functions";
 import { lerRetencaoCockpit } from "../retencao.functions";
 import { lerClientesAtivosCockpit } from "../clientes-ativos.functions";
+import { lerVisualCockpit } from "../visual.functions";
 
 export const VALIDADE_CACHE_MS = 10 * 60_000;
 export const CACHE_COM_ERRO_MS = 30_000;
@@ -42,6 +44,7 @@ export function temParteComErro(f: FonteCockpit): boolean {
     f.caixa,
     f.aquisicao,
     f.operacao,
+    f.visual,
   ].some((p) => p?.estado === "erro");
 }
 
@@ -102,7 +105,7 @@ export async function montarFonteServidor(
 ): Promise<FonteCockpit> {
   const hoje = hojeSaoPaulo();
   const comCarteira = acesso.acessoBase || acesso.acessoNegocios;
-  const [mon, receita, clientes, retencao, caixa, aquisicao, operacao] = await Promise.all([
+  const [mon, receita, clientes, retencao, caixa, aquisicao, operacao, visual] = await Promise.all([
     // A carteira vem em ~26 lotes; em paralelo com as outras fontes um lote pode passar do teto do
     // PostgREST (medido em 25/09). Uma nova tentativa, depois das outras leituras, resolve.
     comCarteira
@@ -116,6 +119,8 @@ export async function montarFonteServidor(
     ler(() => lerCaixaCockpit(ctx)),
     ler(() => lerAquisicaoCockpit(ctx)),
     ler(() => lerOperacaoCockpit(ctx)),
+    // Leituras dos gráficos da revisão visual (28/09): o contexto de "Perguntar sobre este gráfico".
+    ler(() => lerVisualCockpit(ctx)),
   ]);
   const monetizacao: FonteCockpit["monetizacao"] = !mon
     ? { estado: "sem_acesso", erro: null, dados: null }
@@ -135,6 +140,7 @@ export async function montarFonteServidor(
     caixa: cargaDaEmpresa(caixa, "A carga de caixa e margem falhou."),
     aquisicao: cargaDaEmpresa(aquisicao, "A carga do Growth falhou."),
     operacao: cargaDaEmpresa(operacao, "A carga da operação falhou."),
+    visual: visualDaCarga(visual),
   };
 }
 

@@ -9,12 +9,15 @@ import { usePermissions } from "@/hooks/use-permissions";
 // ficam na URL (N7): recarregar ou colar o link reabre a mesma conversa, com os números
 // consultados de novo com o acesso de quem abre.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type Busca = { conversa?: string; visao?: string };
+const GRAFICO = /^[a-z0-9-]{1,60}$/i;
+type Busca = { conversa?: string; visao?: string; grafico?: string };
 
 export const Route = createFileRoute("/_authenticated/cockpit-ceo_/perguntar")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput): Busca => ({
     ...(typeof s.conversa === "string" && UUID.test(s.conversa) ? { conversa: s.conversa } : {}),
     ...(typeof s.visao === "string" && UUID.test(s.visao) ? { visao: s.visao } : {}),
+    // Aberta pela gaveta de um gráfico do cockpit: o id do gráfico vai como contexto da 1ª pergunta.
+    ...(typeof s.grafico === "string" && GRAFICO.test(s.grafico) ? { grafico: s.grafico } : {}),
   }),
   head: () => ({ meta: [{ title: "Perguntar ao Brain · Planning Brain" }] }),
   component: Pagina,
@@ -44,6 +47,7 @@ function Pagina() {
         <PerguntarAoBrain
           conversaInicial={busca.conversa ?? null}
           visaoInicial={busca.visao ?? null}
+          graficoInicial={busca.grafico ?? null}
           aoMudarBusca={(b) =>
             navigate({
               search: (s: Busca) => {
@@ -51,6 +55,7 @@ function Pagina() {
                 return {
                   ...(n.conversa ? { conversa: n.conversa } : {}),
                   ...(n.visao ? { visao: n.visao } : {}),
+                  ...(n.grafico && !n.conversa ? { grafico: n.grafico } : {}),
                 };
               },
               replace: true,

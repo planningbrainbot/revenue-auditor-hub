@@ -166,6 +166,8 @@ export interface Cockpit {
   empresa: Empresa;
   /** Leituras dos gráficos da revisão visual; null enquanto não chegaram ou quando falharam. */
   visual: RespostaVisual | null;
+  /** "carregando" desenha esqueleto, não "fonte indisponível". */
+  visualEstado: "ok" | "carregando" | "erro" | null;
   visualAviso: string | null;
   avisos: string[];
 }
@@ -1101,6 +1103,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
         }))
       : null,
     visual: fonte.visual?.estado === "ok" ? fonte.visual.resposta : null,
+    visualEstado: fonte.visual?.estado ?? null,
     visualAviso: !fonte.visual
       ? null
       : fonte.visual.estado === "carregando"

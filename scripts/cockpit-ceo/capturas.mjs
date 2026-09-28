@@ -123,20 +123,22 @@ async function foto(nome, { inteira = false } = {}) {
 // sem depender das conferências abaixo, que descrevem uma versão específica da tela.
 const ROTULO_FOTOS = process.env.CAPTURAS_FOTOS;
 if (ROTULO_FOTOS) {
-  const FRENTES = [
-    "",
-    "receita",
-    "comercial",
-    "clientes",
-    "retencao",
-    "operacao",
-    "rede",
-    "portfolio",
-    "caixa",
-    "capital",
-  ];
+  const FRENTES = process.env.CAPTURAS_FRENTES
+    ? process.env.CAPTURAS_FRENTES.split(",").map((f) => (f === "visao" ? "" : f))
+    : [
+        "",
+        "receita",
+        "comercial",
+        "clientes",
+        "retencao",
+        "operacao",
+        "rede",
+        "portfolio",
+        "caixa",
+        "capital",
+      ];
   const ROTA = process.env.CAPTURAS_ROTA || "/piloto/cockpit-ceo";
-  for (const tema of ["claro", "escuro"]) {
+  for (const tema of (process.env.CAPTURAS_TEMAS || "claro,escuro").split(",")) {
     await cdp("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-color-scheme", value: tema === "escuro" ? "dark" : "light" }],
     });

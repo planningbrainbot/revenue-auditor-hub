@@ -31,12 +31,7 @@ import {
 import { montarAquisicao } from "./aquisicao.ts";
 import { lerCard, montarOnboarding } from "./operacao.ts";
 import { montarCadeia } from "./cadeia.ts";
-import {
-  agregarFranqueadora,
-  agregarOmie,
-  agregarTratativas,
-  mesesFechados,
-} from "./visual.ts";
+import { agregarFranqueadora, agregarOmie, agregarTratativas, mesesFechados } from "./visual.ts";
 import type { ContratoOmie, TituloFranqueadora } from "./visual.ts";
 
 const UNIDADES = [
@@ -937,7 +932,10 @@ export function visualSintetico(hoje: string, agora: string): NonNullable<FonteC
     });
   });
   const churns = fechados.filter((_, k) => k % 2 === 0).map((m) => `${m}-10`);
-  const ganhos = Array.from({ length: 140 }, (_, i) => `${Number(ano) - 1}-${String((i % 12) + 1).padStart(2, "0")}-05`);
+  const ganhos = Array.from(
+    { length: 140 },
+    (_, i) => `${Number(ano) - 1}-${String((i % 12) + 1).padStart(2, "0")}-05`,
+  );
   const titulos: TituloFranqueadora[] = [...fechados, hoje.slice(0, 7)].flatMap((mes, k) => {
     const ultimo = k === fechados.length;
     return Array.from({ length: 30 }, (_, i) => ({

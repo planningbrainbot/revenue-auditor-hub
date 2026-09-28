@@ -3,7 +3,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ContextoCockpit } from "./contexto";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
-import { extrairFaturamento, montarLeituraGrupo, montarLeituraRede } from "./receita-fontes";
+import {
+  extrairFaturamento,
+  mesesFechadosDaFonte,
+  montarLeituraGrupo,
+  montarLeituraRede,
+} from "./receita-fontes";
 import type { ApuracaoRede, UnidadeRede } from "./receita-fontes";
 import type { LeituraReceita } from "./receita";
 import { extrairFrescor, extrairPorCliente, montarPonte } from "./financeiro";
@@ -52,17 +57,7 @@ export interface LeituraGrupo {
   frescor: Frescor | null;
 }
 
-/** Meses que a ponte pode usar: fechados na fonte e anteriores ao mês corrente. */
-export function mesesFechadosDaFonte(
-  f: ReturnType<typeof extrairFaturamento>,
-  mesCorrente: string,
-): string[] {
-  const parciais = new Set([
-    ...f.serie.filter((s) => s.parcial).map((s) => s.mes),
-    ...f.meses.filter((m) => m.parcial || m.semCobertura).map((m) => m.mes),
-  ]);
-  return f.serie.map((s) => s.mes).filter((m) => m < mesCorrente && !parciais.has(m));
-}
+export { mesesFechadosDaFonte };
 
 async function lerGrupo(
   db: Db,

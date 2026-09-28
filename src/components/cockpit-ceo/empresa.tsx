@@ -30,9 +30,7 @@ import {
 import { mesBr } from "@/lib/cockpit-ceo/receita";
 import { trimestreDe } from "@/lib/cockpit-ceo/aquisicao";
 import {
-  CORES_SERIE,
-  COR_NEGATIVO,
-  COR_NEUTRA,
+  CORES_COCKPIT,
   eixoProps,
   gradeProps,
   legendaProps,
@@ -79,7 +77,8 @@ function Numero({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?:
 }
 
 function Quadro({ children, altura = "h-64" }: { children: ReactNode; altura?: string }) {
-  return <div className={`${altura} rounded-xl border bg-card p-4`}>{children}</div>;
+  // Dentro do cartão do painel (Bloco): sem segunda borda.
+  return <div className={altura}>{children}</div>;
 }
 
 // ── Motores ──────────────────────────────────────────────────────────────────
@@ -170,7 +169,10 @@ export function PonteDoMes({ mes }: { mes: PonteMes }) {
             />
             <Bar isAnimationActive={false} dataKey="valor" name="Movimento">
               {dados.map((d) => (
-                <Cell key={d.rotulo} fill={d.valor < 0 ? COR_NEGATIVO : CORES_SERIE[0]} />
+                <Cell
+                  key={d.rotulo}
+                  fill={d.valor < 0 ? CORES_COCKPIT.alerta : CORES_COCKPIT.realizado}
+                />
               ))}
             </Bar>
           </BarChart>
@@ -208,28 +210,28 @@ export function PonteMensal({ ponte }: { ponte: Ponte }) {
             stackId="p"
             dataKey="entradas"
             name="Novos e retornos"
-            fill={CORES_SERIE[0]}
+            fill={CORES_COCKPIT.realizado}
           />
           <Bar
             isAnimationActive={false}
             stackId="p"
             dataKey="expansao"
             name="Expansão"
-            fill={CORES_SERIE[1]}
+            fill={CORES_COCKPIT.terceira}
           />
           <Bar
             isAnimationActive={false}
             stackId="p"
             dataKey="contracao"
             name="Contração"
-            fill={CORES_SERIE[3]}
+            fill={CORES_COCKPIT.meta}
           />
           <Bar
             isAnimationActive={false}
             stackId="p"
             dataKey="saidas"
             name="Sem faturamento"
-            fill={COR_NEGATIVO}
+            fill={CORES_COCKPIT.alerta}
           />
         </BarChart>
       </ResponsiveContainer>
@@ -267,13 +269,13 @@ export function AquisicaoPainel({ empresa }: { empresa: Empresa }) {
               isAnimationActive={false}
               dataKey="mrr"
               name="MRR novo vendido"
-              fill={CORES_SERIE[0]}
+              fill={CORES_COCKPIT.realizado}
             />
             <Line
               isAnimationActive={false}
               dataKey="plano"
               name="Plano do Growth"
-              stroke={COR_NEUTRA}
+              stroke={CORES_COCKPIT.meta}
               strokeDasharray="4 4"
               dot={false}
               connectNulls={false}
@@ -281,10 +283,6 @@ export function AquisicaoPainel({ empresa }: { empresa: Empresa }) {
           </ComposedChart>
         </ResponsiveContainer>
       </Quadro>
-      <p className="text-xs text-muted-foreground">
-        * mês em andamento. Plano cadastrado pelo Growth desde jun/2026; mês sem plano fica sem
-        linha.
-      </p>
       {ultimo && (
         <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Numero
@@ -383,16 +381,14 @@ export function PipelinePainel({ empresa }: { empresa: Empresa }) {
               isAnimationActive={false}
               dataKey="mrr"
               name="MRR em aberto"
-              fill={CORES_SERIE[1]}
+              fill={CORES_COCKPIT.terceira}
             />
           </BarChart>
         </ResponsiveContainer>
       </Quadro>
-      <p className="text-sm text-muted-foreground">
-        {plural(p.negocios, "negócio aberto", "negócios abertos")} no Inside Sales, {reais(p.mrr)}{" "}
-        de MRR sem ponderação (nenhuma fonte tem probabilidade por etapa). Sem data de fechamento:{" "}
-        {plural(p.semData.negocios, "negócio", "negócios")} ({reais(p.semData.mrr)}). Com data já
-        vencida: {plural(p.vencidos.negocios, "negócio", "negócios")} ({reais(p.vencidos.mrr)}).
+      <p className="num truncate text-sm text-muted-foreground">
+        {plural(p.negocios, "negócio aberto", "negócios abertos")} · {reais(p.mrr)} · sem data:{" "}
+        {p.semData.negocios} · vencidos: {p.vencidos.negocios}
       </p>
     </div>
   );
@@ -430,13 +426,13 @@ export function MetasUnidade({ empresa, hoje }: { empresa: Empresa; hoje: string
             isAnimationActive={false}
             dataKey="vendido"
             name={`Vendido ${tri.replace("-T", " T")}`}
-            fill={CORES_SERIE[0]}
+            fill={CORES_COCKPIT.realizado}
           />
           <Bar
             isAnimationActive={false}
             dataKey="meta"
             name="Meta do trimestre"
-            fill={COR_NEUTRA}
+            fill={CORES_COCKPIT.meta}
           />
         </BarChart>
       </ResponsiveContainer>
@@ -509,24 +505,21 @@ export function CaixaPainel({ empresa }: { empresa: Empresa }) {
                   isAnimationActive={false}
                   dataKey="emitido"
                   name="Emitido"
-                  fill={CORES_SERIE[1]}
+                  fill={CORES_COCKPIT.terceira}
                 />
                 <Bar
                   isAnimationActive={false}
                   dataKey="recebido"
                   name="Recebido até a foto"
-                  fill={CORES_SERIE[0]}
+                  fill={CORES_COCKPIT.realizado}
                 />
               </BarChart>
             </ResponsiveContainer>
           </Quadro>
-          <p className="text-xs text-muted-foreground">
-            Recebido por mês de emissão, acumulado até a foto de títulos de{" "}
-            {er.foto ? mesBr(er.foto) : "data desconhecida"}.
-            {piso.length
-              ? ` ${piso.join(", ")}: a foto cobre só parte do mês, o não recebido é piso.`
-              : ""}
-            {semFoto.length ? ` ${semFoto.join(", ")}: sem foto, recebido não medido.` : ""}
+          <p className="truncate text-xs text-muted-foreground">
+            Recebido até a foto de {er.foto ? mesBr(er.foto) : "data desconhecida"}
+            {piso.length ? ` · piso em ${piso.join(", ")}` : ""}
+            {semFoto.length ? ` · sem foto em ${semFoto.join(", ")}` : ""}
           </p>
         </>
       )}
@@ -548,7 +541,12 @@ export function CaixaPainel({ empresa }: { empresa: Empresa }) {
                   "Vencido",
                 ]}
               />
-              <Bar isAnimationActive={false} dataKey="valor" name="Vencido" fill={COR_NEGATIVO} />
+              <Bar
+                isAnimationActive={false}
+                dataKey="valor"
+                name="Vencido"
+                fill={CORES_COCKPIT.alerta}
+              />
             </BarChart>
           </ResponsiveContainer>
         </Quadro>
@@ -606,21 +604,17 @@ export function MargemPainel({ empresa }: { empresa: Empresa }) {
               isAnimationActive={false}
               dataKey="receita"
               name="Receita bruta"
-              fill={CORES_SERIE[1]}
+              fill={CORES_COCKPIT.terceira}
             />
             <Bar
               isAnimationActive={false}
               dataKey="lucro"
               name="Lucro bruto"
-              fill={CORES_SERIE[0]}
+              fill={CORES_COCKPIT.realizado}
             />
           </BarChart>
         </ResponsiveContainer>
       </Quadro>
-      <p className="text-xs text-muted-foreground">
-        Por grupo de apuração do Financeiro (entidades faturadoras), meses fechados do ano. Não é
-        receita por produto nem por vertical: a receita não é classificada assim na fonte.
-      </p>
     </div>
   );
 }
@@ -693,29 +687,25 @@ export function OnboardingPainel({ empresa }: { empresa: Empresa }) {
               stackId="o"
               dataKey="recentes"
               name="Até 30 dias na fase"
-              fill={CORES_SERIE[0]}
+              fill={CORES_COCKPIT.realizado}
             />
             <Bar
               isAnimationActive={false}
               stackId="o"
               dataKey="acima30"
               name="31 a 60 dias"
-              fill={CORES_SERIE[3]}
+              fill={CORES_COCKPIT.meta}
             />
             <Bar
               isAnimationActive={false}
               stackId="o"
               dataKey="acima60"
               name="Mais de 60 dias"
-              fill={COR_NEGATIVO}
+              fill={CORES_COCKPIT.alerta}
             />
           </BarChart>
         </ResponsiveContainer>
       </Quadro>
-      <p className="text-xs text-muted-foreground">
-        Faixas de leitura, não SLA: nenhum prazo de onboarding foi decidido. {o.semEmpresa} cards
-        sem empresa vinculada ficam fora do tempo até a conclusão.
-      </p>
     </div>
   );
 }
@@ -748,7 +738,16 @@ export function CadeiaPainel({ empresa }: { empresa: Empresa }) {
             />
             <Bar isAnimationActive={false} dataKey="valor" name="Contratos da safra">
               {elos.map((e, i) => (
-                <Cell key={e.rotulo} fill={i === 4 ? COR_NEGATIVO : CORES_SERIE[i === 3 ? 1 : 0]} />
+                <Cell
+                  key={e.rotulo}
+                  fill={
+                    i === 4
+                      ? CORES_COCKPIT.alerta
+                      : i === 3
+                        ? CORES_COCKPIT.terceira
+                        : CORES_COCKPIT.realizado
+                  }
+                />
               ))}
             </Bar>
           </BarChart>

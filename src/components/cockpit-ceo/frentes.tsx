@@ -10,20 +10,19 @@ import {
   YAxis,
 } from "recharts";
 import { KpiCard, KpiGrade, Secao, StatusBadge } from "@/components/planning";
-import { formatarValor } from "@/lib/cockpit-ceo/contrato";
 import type { Destino, Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
-import { PILARES, perguntasDaFrente, situacaoDaPergunta } from "@/lib/cockpit-ceo/perguntas";
-import type { EstadosPergunta, PerguntaCatalogo } from "@/lib/cockpit-ceo/perguntas";
+import { perguntasDaFrente, situacaoDaPergunta } from "@/lib/cockpit-ceo/perguntas";
 import {
-  CORES_SERIE,
+  CORES_COCKPIT,
   eixoProps,
   gradeProps,
   legendaProps,
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { BotaoDestino } from "./composicao";
-import { EstadoBadge } from "./estado";
+import { CartaoFrente } from "./frente-cartao";
+import { Bloco } from "./graficos";
 import { ClientesAtivos } from "./clientes-ativos";
 import { CoortesRetencao } from "./coortes";
 import {
@@ -50,40 +49,35 @@ import { Trajetoria } from "./trajetoria";
 
 function GraficoDiario({ serie }: { serie: NonNullable<Cockpit["serieDiaria"]> }) {
   return (
-    <Secao
-      titulo="Quantos eventos comerciais da monetização aconteceram por dia?"
-      descricao="Negócios do pipe de Monetização, por dia do período. Eventos, não coorte."
-    >
-      <div className="h-64 rounded-xl border bg-card p-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-            <CartesianGrid {...gradeProps} />
-            <XAxis dataKey="label" {...eixoProps} interval="preserveStartEnd" />
-            <YAxis allowDecimals={false} {...eixoProps} />
-            <Tooltip {...tooltipProps} />
-            <Legend {...legendaProps} />
-            <Bar
-              isAnimationActive={false}
-              dataKey="started"
-              name="Leads trabalhados"
-              fill={CORES_SERIE[0]}
-            />
-            <Bar
-              isAnimationActive={false}
-              dataKey="scheduled"
-              name="Reuniões marcadas"
-              fill={CORES_SERIE[1]}
-            />
-            <Bar
-              isAnimationActive={false}
-              dataKey="meeting"
-              name="Reuniões realizadas"
-              fill={CORES_SERIE[2]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </Secao>
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+          <CartesianGrid {...gradeProps} />
+          <XAxis dataKey="label" {...eixoProps} interval="preserveStartEnd" />
+          <YAxis allowDecimals={false} {...eixoProps} />
+          <Tooltip {...tooltipProps} />
+          <Legend {...legendaProps} />
+          <Bar
+            isAnimationActive={false}
+            dataKey="started"
+            name="Leads trabalhados"
+            fill={CORES_COCKPIT.realizado}
+          />
+          <Bar
+            isAnimationActive={false}
+            dataKey="scheduled"
+            name="Reuniões marcadas"
+            fill={CORES_COCKPIT.terceira}
+          />
+          <Bar
+            isAnimationActive={false}
+            dataKey="meeting"
+            name="Reuniões realizadas"
+            fill={CORES_COCKPIT.meta}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -98,12 +92,11 @@ const DESTINO_PRODUTOS: Destino = {
 function DemandaPorProduto({ cockpit, preview }: { cockpit: Cockpit; preview: boolean }) {
   const produtos = cockpit.porProduto.filter((l) => l.produto !== "sem_produto");
   return (
-    <Secao
-      titulo="Em qual produto está a demanda da monetização?"
-      descricao="Negócios do pipe de Monetização no período. Demanda, não faturamento."
-      acoes={<BotaoDestino destino={DESTINO_PRODUTOS} preview={preview} compacto />}
-    >
-      <div className="h-56 rounded-xl border bg-card p-4">
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <BotaoDestino destino={DESTINO_PRODUTOS} preview={preview} compacto />
+      </div>
+      <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={produtos}
@@ -119,127 +112,53 @@ function DemandaPorProduto({ cockpit, preview }: { cockpit: Cockpit; preview: bo
               isAnimationActive={false}
               dataKey="validadas"
               name="Oportunidades validadas"
-              fill={CORES_SERIE[0]}
+              fill={CORES_COCKPIT.realizado}
             />
             <Bar
               isAnimationActive={false}
               dataKey="ganhos"
               name="Contratos ganhos"
-              fill={CORES_SERIE[1]}
+              fill={CORES_COCKPIT.terceira}
             />
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </Secao>
+    </div>
   );
 }
 
-const ROTULO_DADO: Record<EstadosPergunta["dado"], string> = {
-  integrado: "dado integrado",
-  parcial: "dado parcial",
-  sem_acesso: "dado existe, ninguém lê",
-  falha_sync: "sincronização parada",
-  sem_campo: "falta campo ou vínculo",
-  ausente: "dado não existe",
-};
-const ROTULO_IMPL: Record<EstadosPergunta["implementacao"], string> = {
-  no_ar: "no ar",
-  nesta_versao: "nesta versão (não publicada)",
-  nao_iniciada: "não implementada",
-};
-const ROTULO_HOMOL: Record<EstadosPergunta["homologacao"], string> = {
-  conferida: "conferida com SQL",
-  pendente: "homologação pendente",
-  nao_se_aplica: "sem cálculo para homologar",
-};
-const ROTULO_ORIGEM: Record<PerguntaCatalogo["origem"], string> = {
-  mapa: "Mapa de investidores",
-  prd: "PRD 22/09",
-  desdobramento: "Desdobramento 23/09",
-};
-
+/**
+ * As perguntas da frente, uma linha cada: situação, id e texto. Resposta, fonte, responsável, o que
+ * falta e os estados vão para a gaveta, que o clique na linha abre.
+ */
 function ListaPerguntas({
-  cockpit,
   frente,
-  onAbrirIndicador,
+  onAbrirGrafico,
 }: {
-  cockpit: Cockpit;
   frente: Frente;
-  onAbrirIndicador: (id: string) => void;
+  onAbrirGrafico: (id: string) => void;
 }) {
   const perguntas = perguntasDaFrente(frente);
-  const cont = (s: string) => perguntas.filter((p) => situacaoDaPergunta(p) === s).length;
   return (
-    <Secao
-      titulo="Quais perguntas esta frente responde?"
-      descricao={`${cont("respondida")} respondidas, ${cont("parcial")} parciais e ${cont("lacuna")} lacunas. Cada uma diz o que responde hoje, com qual fonte e o que falta.`}
-    >
+    <Secao titulo="Quais perguntas esta frente responde?">
       <ul className="divide-y rounded-xl border bg-card">
         {perguntas.map((p) => {
           const s = situacaoDaPergunta(p);
           return (
-            <li key={p.id} className="grid gap-2 p-4 md:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="min-w-0 space-y-1">
-                <p className="font-medium">
-                  <span className="num mr-2 text-muted-foreground">{p.id}</span>
-                  {p.texto}
-                </p>
-                <p className="text-sm">{p.resposta}</p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-foreground">Fonte:</span> {p.fonte}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-foreground">Responsável:</span> {p.responsavel}
-                  {p.pendencia && (
-                    <>
-                      {" · "}
-                      <span className="text-foreground">Falta:</span> {p.pendencia}
-                    </>
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-foreground">Growth:</span> {p.growth}{" "}
-                  <span className="text-foreground">Ops:</span> {p.ops}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {ROTULO_DADO[p.estados.dado]} · {ROTULO_IMPL[p.estados.implementacao]} ·{" "}
-                  {ROTULO_HOMOL[p.estados.homologacao]} · adoção não medida
-                  {p.estados.decisao ? ` · decisão pendente: ${p.estados.decisao}` : ""}
-                </p>
-                {p.indicadores.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {p.indicadores.map((id) => {
-                      const i = cockpit.indicadores.find((x) => x.id === id);
-                      if (!i) return null;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => onAbrirIndicador(id)}
-                          className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {i.titulo}: <strong className="num">{formatarValor(i)}</strong>
-                          {i.estado !== "disponivel" && <EstadoBadge estado={i.estado} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap items-start gap-1.5 md:max-w-56 md:justify-end">
+            <li key={p.id}>
+              <button
+                type="button"
+                onClick={() => onAbrirGrafico(`pergunta-${p.id}`)}
+                className="flex w-full min-w-0 items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              >
                 <StatusBadge
                   tom={s === "respondida" ? "sucesso" : s === "parcial" ? "atencao" : "neutro"}
                 >
                   {s === "respondida" ? "Respondida" : s === "parcial" ? "Parcial" : "Lacuna"}
                 </StatusBadge>
-                <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                  Pilar {PILARES[p.pilar].n} · {PILARES[p.pilar].titulo}
-                </span>
-                <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-                  {ROTULO_ORIGEM[p.origem]}
-                  {p.exigencia ? ` · exigência ${p.exigencia}` : ""}
-                </span>
-              </div>
+                <span className="num shrink-0 text-muted-foreground">{p.id}</span>
+                <span className="min-w-0 truncate">{p.texto}</span>
+              </button>
             </li>
           );
         })}
@@ -248,21 +167,22 @@ function ListaPerguntas({
   );
 }
 
+/** Painel de uma frente: título de uma linha; a descrição mora na gaveta (`painel-<id>`). */
 function Painel({
+  id,
   titulo,
-  descricao,
   children,
-  acoes,
+  abrir,
 }: {
+  id: string;
   titulo: string;
-  descricao?: string;
   children: ReactNode;
-  acoes?: ReactNode;
+  abrir: (id: string) => void;
 }) {
   return (
-    <Secao titulo={titulo} descricao={descricao} acoes={acoes}>
+    <Bloco titulo={titulo} abrir={() => abrir(`painel-${id}`)}>
       {children}
-    </Secao>
+    </Bloco>
   );
 }
 
@@ -270,20 +190,24 @@ export function VistaFrente({
   cockpit,
   frente,
   onAbrirIndicador,
+  onAbrirGrafico,
   preview,
   hoje,
 }: {
   cockpit: Cockpit;
   frente: Frente;
   onAbrirIndicador: (id: string) => void;
+  onAbrirGrafico: (id: string) => void;
   preview: boolean;
   hoje: string;
   irParaFrente: (f: Frente) => void;
 }) {
   const numeros = cockpit.indicadores.filter((i) => i.frente === frente);
   const e = cockpit.empresa;
+  const ab = onAbrirGrafico;
   return (
     <>
+      <CartaoFrente cockpit={cockpit} frente={frente} abrir={() => ab(`frente-${frente}`)} />
       {numeros.length > 0 && (
         <KpiGrade colunas={numeros.length >= 4 ? 6 : 3}>
           {numeros.map((i) => (
@@ -295,15 +219,18 @@ export function VistaFrente({
       {frente === "receita" && (
         <>
           {(cockpit.trajetoria || cockpit.trajetoriaAviso) && (
-            <Trajetoria
-              trajetoria={cockpit.trajetoria}
-              aviso={cockpit.trajetoriaAviso}
-              preview={preview}
-            />
+            <Painel id="leituras" titulo="Quanto falta em cada leitura da meta?" abrir={ab}>
+              <Trajetoria
+                trajetoria={cockpit.trajetoria}
+                aviso={cockpit.trajetoriaAviso}
+                preview={preview}
+              />
+            </Painel>
           )}
           <Painel
+            id="ponte-mensal"
             titulo="Como o faturamento do grupo se moveu mês a mês?"
-            descricao="Ponte por cliente, régua de emissão. Acima de zero entrou; abaixo saiu. Cada mês fecha em centavos com o Faturamento."
+            abrir={ab}
           >
             {e.ponte && e.ponte.dado.meses.length ? (
               <PonteMensal ponte={e.ponte.dado} />
@@ -311,10 +238,7 @@ export function VistaFrente({
               <SemPainel texto={e.ponteAviso ?? "Ponte não disponível."} />
             )}
           </Painel>
-          <Painel
-            titulo="Qual previsão sustenta os próximos meses?"
-            descricao="Camadas separadas, nunca somadas. Não existe previsão empresarial de faturamento: é lacuna com dono (CFO + RevOps)."
-          >
+          <Painel id="previsao" titulo="Qual previsão sustenta os próximos meses?" abrir={ab}>
             <PipelinePainel empresa={e} />
           </Painel>
         </>
@@ -322,34 +246,29 @@ export function VistaFrente({
 
       {frente === "comercial" && (
         <>
-          <Painel
-            titulo="A aquisição cumpre o plano?"
-            descricao="Inside Sales: MRR novo vendido contra o plano do Growth, funil do último mês fechado e forecast do mês pelo modelo do Growth."
-          >
+          <Painel id="aquisicao" titulo="A aquisição cumpre o plano?" abrir={ab}>
             <AquisicaoPainel empresa={e} />
           </Painel>
-          <Painel
-            titulo="O que está em aberto no pipeline?"
-            descricao="Negócios abertos do Inside Sales por mês de fechamento esperado, sem ponderação."
-          >
+          <Painel id="previsao" titulo="O que está em aberto no pipeline?" abrir={ab}>
             <PipelinePainel empresa={e} />
           </Painel>
         </>
       )}
 
       {frente === "clientes" && (cockpit.clientes || cockpit.clientesAviso) && (
-        <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
+        <Painel id="clientes" titulo="Quantos clientes ativos temos, em cada definição?" abrir={ab}>
+          <ClientesAtivos clientes={cockpit.clientes} aviso={cockpit.clientesAviso} />
+        </Painel>
       )}
 
       {frente === "retencao" && (
         <>
           {(cockpit.coortes || cockpit.coortesAviso) && (
-            <CoortesRetencao coortes={cockpit.coortes} aviso={cockpit.coortesAviso} />
+            <Painel id="coortes" titulo="Quem permanece depois do ganho, por coorte?" abrir={ab}>
+              <CoortesRetencao coortes={cockpit.coortes} aviso={cockpit.coortesAviso} />
+            </Painel>
           )}
-          <Painel
-            titulo="A base existente expande ou encolhe?"
-            descricao="Da ponte do faturamento: expansão, contração e clientes sem faturamento no mês. Régua de emissão, não churn contratual."
-          >
+          <Painel id="ponte-mensal" titulo="A base existente expande ou encolhe?" abrir={ab}>
             {e.ponte && e.ponte.dado.meses.length ? (
               <PonteMensal ponte={e.ponte.dado} />
             ) : (
@@ -361,23 +280,14 @@ export function VistaFrente({
 
       {frente === "operacao" && (
         <>
-          <Painel
-            titulo="Conseguimos ativar o que vendemos?"
-            descricao="Pipe de Onboarding por fase e idade na fase atual."
-          >
+          <Painel id="onboarding" titulo="Conseguimos ativar o que vendemos?" abrir={ab}>
             <OnboardingPainel empresa={e} />
           </Painel>
-          <Painel
-            titulo="A venda chega até o faturamento e fica?"
-            descricao="A mesma safra de contratos em cada elo, ligada só por chave: empresa, CNPJ e nome normalizado único."
-          >
+          <Painel id="cadeia" titulo="A venda chega até o faturamento e fica?" abrir={ab}>
             <CadeiaPainel empresa={e} />
           </Painel>
-          <Painel
-            titulo="A entrega comporta crescer?"
-            descricao="Capacidade da equipe, horas, SLA e retrabalho."
-          >
-            <SemPainel texto="Sem fonte: horas, SLA, retrabalho e capacidade por equipe não são registrados, e a tabela de headcount mensal está vazia. A fila de onboarding acima é o único sinal de capacidade. Dono: Operações." />
+          <Painel id="capacidade" titulo="A entrega comporta crescer?" abrir={ab}>
+            <SemPainel texto="Sem fonte registrada para horas, SLA e capacidade" />
           </Painel>
         </>
       )}
@@ -385,11 +295,14 @@ export function VistaFrente({
       {frente === "rede" && (
         <>
           {(cockpit.rede || cockpit.trajetoriaAviso) && (
-            <RedeUnidades rede={cockpit.rede} aviso={cockpit.trajetoriaAviso} />
+            <Painel id="rede-unidades" titulo="Quanto cada unidade fatura e repassa?" abrir={ab}>
+              <RedeUnidades rede={cockpit.rede} aviso={cockpit.trajetoriaAviso} />
+            </Painel>
           )}
           <Painel
+            id="metas"
             titulo="Quais unidades cumprem a meta de venda do trimestre?"
-            descricao="Meta e vendido por unidade, do Growth (growth.dist_metas)."
+            abrir={ab}
           >
             <MetasUnidade empresa={e} hoje={hoje} />
           </Painel>
@@ -398,29 +311,23 @@ export function VistaFrente({
 
       {frente === "portfolio" && (
         <>
-          <DemandaPorProduto cockpit={cockpit} preview={preview} />
-          {cockpit.serieDiaria && <GraficoDiario serie={cockpit.serieDiaria} />}
-          <p className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground">
-            Receita realizada por vertical não é separável hoje: o Financeiro não classifica receita
-            por produto, e a PARTNERS está sem carga do Omie desde jul/2026. O forecast v10 da
-            Monetização (valor assinado, recorte da Caixa de Oportunidade) fica em Monetização, aba
-            Forecast.
-          </p>
+          <Painel id="demanda" titulo="Em qual produto está a demanda da monetização?" abrir={ab}>
+            <DemandaPorProduto cockpit={cockpit} preview={preview} />
+          </Painel>
+          {cockpit.serieDiaria && (
+            <Painel id="diario" titulo="Quantos eventos comerciais por dia?" abrir={ab}>
+              <GraficoDiario serie={cockpit.serieDiaria} />
+            </Painel>
+          )}
         </>
       )}
 
       {frente === "caixa" && (
         <>
-          <Painel
-            titulo="O faturamento vira caixa?"
-            descricao="Emitido × recebido, vencido ao vivo e caixa livre, pelas funções do Financeiro."
-          >
+          <Painel id="caixa" titulo="O faturamento vira caixa?" abrir={ab}>
             <CaixaPainel empresa={e} />
           </Painel>
-          <Painel
-            titulo="Com que margem, e em qual grupo de empresas?"
-            descricao="Receita bruta e lucro bruto por grupo de apuração."
-          >
+          <Painel id="margem" titulo="Com que margem, e em qual grupo de empresas?" abrir={ab}>
             <MargemPainel empresa={e} />
           </Painel>
         </>
@@ -428,23 +335,17 @@ export function VistaFrente({
 
       {frente === "capital" && (
         <>
-          <Painel
-            titulo="As fontes estão em dia?"
-            descricao="Última carga declarada por cada fonte do cockpit."
-          >
+          <Painel id="frescor" titulo="As fontes estão em dia?" abrir={ab}>
             <FrescorPainel frescor={e.frescor} />
           </Painel>
-          <Painel
-            titulo="O que já conseguimos demonstrar?"
-            descricao="Os oito pilares e as 11 exigências da p. 25 do mapa de investidores, pela situação da pergunta que responde cada uma."
-          >
+          <Painel id="pilares" titulo="O que já conseguimos demonstrar?" abrir={ab}>
             <PilaresPainel />
           </Painel>
           <ExportarEvidencias cockpit={cockpit} />
         </>
       )}
 
-      <ListaPerguntas cockpit={cockpit} frente={frente} onAbrirIndicador={onAbrirIndicador} />
+      <ListaPerguntas frente={frente} onAbrirGrafico={ab} />
     </>
   );
 }

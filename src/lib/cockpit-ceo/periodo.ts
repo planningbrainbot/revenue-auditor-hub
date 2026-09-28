@@ -32,6 +32,8 @@ export interface BuscaCockpit {
   perimetro: string;
   frente: Frente | "";
   indicador: string;
+  /** Gráfico com a gaveta de explicação aberta (revisão visual de 28/09). */
+  grafico: string;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -138,5 +140,6 @@ export function validarBusca(s: Record<string, unknown>): BuscaCockpit {
     perimetro: perimetro === "rede" ? "" : perimetro,
     frente: (ORDEM_FRENTES as string[]).includes(frente) ? (frente as Frente) : "",
     indicador: texto(s.indicador, 60),
+    grafico: /^[a-z0-9-]{1,60}$/i.test(texto(s.grafico, 60)) ? texto(s.grafico, 60) : "",
   };
 }

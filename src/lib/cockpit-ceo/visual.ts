@@ -19,9 +19,7 @@ import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, mesBr } from "./receita.ts";
 // ── Leituras novas (visual.functions.ts) ─────────────────────────────────────
 
 export type ParteVisual<T> =
-  | ({ estado: "ok" } & T)
-  | Falha
-  | { estado: "nao_apurado"; motivo: string };
+  ({ estado: "ok" } & T) | Falha | { estado: "nao_apurado"; motivo: string };
 
 /** Uma taxa mensal de saída: `saidas / base`, com a base contada no começo do mês. */
 export interface MesTaxa {
@@ -244,9 +242,7 @@ const semDado = (
   p: Falha | { estado: "nao_apurado"; motivo: string } | undefined,
   padrao: string,
 ): SemDado =>
-  p
-    ? { estado: p.estado, motivo: p.motivo }
-    : { estado: "fonte_indisponivel", motivo: padrao };
+  p ? { estado: p.estado, motivo: p.motivo } : { estado: "fonte_indisponivel", motivo: padrao };
 
 export interface PontoTrajetoria {
   mes: string;
@@ -365,7 +361,12 @@ export function modeloPonte(c: Cockpit): CascataPonte | SemDado {
     },
   ];
   if (cent(u.semCliente) !== 0)
-    movimentos.push({ id: "sem-cliente", rotulo: "Sem cliente", valor: u.semCliente, clientes: null });
+    movimentos.push({
+      id: "sem-cliente",
+      rotulo: "Sem cliente",
+      valor: u.semCliente,
+      clientes: null,
+    });
   const degraus: DegrauPonte[] = [
     {
       id: "anterior",
@@ -571,7 +572,9 @@ export function modeloRedeMrr(v: RespostaVisual | null): Rede | SemDado {
   return {
     unidades,
     total: totalC / 100,
-    maior: unidades[0] ? { unidade: unidades[0].unidade, participacao: unidades[0].participacao } : null,
+    maior: unidades[0]
+      ? { unidade: unidades[0].unidade, participacao: unidades[0].participacao }
+      : null,
     sincronizadoEm: p.sincronizadoEm,
   };
 }

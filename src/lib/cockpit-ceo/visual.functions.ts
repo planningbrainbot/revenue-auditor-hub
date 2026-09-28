@@ -6,7 +6,7 @@ import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import { extrairFaturamento } from "./receita-fontes";
 import { extrairPorCliente, montarPonte } from "./financeiro";
 import { clienteFinancialBrain, conferirPortaFinanceiro } from "./financeiro-porta";
-import { mesesFechadosDaFonte } from "./receita.functions";
+import { mesesFechadosDaFonte } from "./receita-fontes";
 import type { Falha } from "./operacao";
 import { todasAsPaginas } from "./paginar";
 import { fontesSemAcesso, motivoSemAcesso } from "./portas";
@@ -99,15 +99,13 @@ async function lerFinanceiro(
       ate: ultimoFechado,
       itens: itens
         .filter((i) => typeof i?.categoria === "string")
-        .map(
-          (i): CategoriaReceita => ({
-            categoria: i.categoria,
-            // `receita_no_recorte` é o que soma o total da tela de Faturamento (recortes padrão).
-            receita: Number(i.receita_no_recorte ?? i.receita ?? 0),
-            recorrente: typeof i.recorrente === "boolean" ? i.recorrente : null,
-            clientes: Number(i.clientes_no_recorte ?? i.clientes ?? 0),
-          }),
-        ),
+        .map((i): CategoriaReceita => ({
+          categoria: i.categoria,
+          // `receita_no_recorte` é o que soma o total da tela de Faturamento (recortes padrão).
+          receita: Number(i.receita_no_recorte ?? i.receita ?? 0),
+          recorrente: typeof i.recorrente === "boolean" ? i.recorrente : null,
+          clientes: Number(i.clientes_no_recorte ?? i.clientes ?? 0),
+        })),
     };
   }
 
