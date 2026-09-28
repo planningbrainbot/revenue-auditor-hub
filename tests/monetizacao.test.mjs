@@ -13,6 +13,8 @@ import {
   metasOperacao,
   taxa,
   situacaoDoNegocio,
+  produtoDoTitulo,
+  cadastroACorrigir,
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
@@ -593,4 +595,86 @@ test("Carga v6: nascer adiantado é trabalho de quem criou; a perda é de quem m
   const velho = { ...perdidoPelaApi, lost_by: undefined };
   assert.equal(funil([velho], st, filter).perdidos.length, 1);
   assert.equal(card().lost_by, null);
+});
+
+test("Cadastro a corrigir: produto do título contra o campo, e a mesma oportunidade em dois cards", () => {
+  assert.equal(produtoDoTitulo("Hospitel · CELLA"), "cella");
+  assert.equal(produtoDoTitulo("Camianski· Cella"), "cella");
+  assert.equal(produtoDoTitulo("NORTH Engenharia e Consultoria · Finance"), "finance");
+  assert.equal(produtoDoTitulo("Baliza Construtora"), null);
+  // o campo manda na contagem: Hospitel · CELLA com o campo em Consultoria conta em Consultoria
+  const hospitel = card(raw({ id: 96070, title: "Hospitel · CELLA", [PRODUCT]: 1129 }));
+  assert.equal(hospitel.route, "consultoria");
+  const certo = card(raw({ id: 96073, title: "Nutrimilho · Consultoria", [PRODUCT]: 1129 }));
+  const semCampo = card(raw({ id: 130, title: "X · Finance", [PRODUCT]: null }));
+  const todos = cadastroACorrigir([hospitel, certo, semCampo]);
+  assert.deepEqual(
+    todos.produtoDivergente.map((c) => c.id),
+    [96070, 130],
+  );
+  // com filtro, entram o que infla o produto e o que falta nele
+  assert.deepEqual(
+    cadastroACorrigir([hospitel, certo, semCampo], "cella").produtoDivergente.map((c) => c.id),
+    [96070],
+  );
+  assert.deepEqual(
+    cadastroACorrigir([hospitel, certo, semCampo], "finance").produtoDivergente.map((c) => c.id),
+    [130],
+  );
+
+  // Relojoaria cassia: Finance criado em 11/09 e de novo em 15/09 na mesma organização
+  const org = { value: 68299, name: "Relojoaria" };
+  const a = card(
+    raw({
+      id: 95200,
+      org_id: org,
+      [PRODUCT]: 1130,
+      status: "lost",
+      add_time: "2026-09-11 14:00:00",
+    }),
+  );
+  const b = card(
+    raw({
+      id: 96081,
+      org_id: org,
+      [PRODUCT]: 1130,
+      status: "lost",
+      add_time: "2026-09-15 14:00:00",
+    }),
+  );
+  // outro produto na mesma organização não é duplicado
+  const c = card(raw({ id: 96082, org_id: org, [PRODUCT]: 1129, add_time: "2026-09-15 14:00:00" }));
+  // perdido em agosto e reofertado em setembro é oportunidade nova
+  const velho = card(
+    raw({
+      id: 90000,
+      org_id: org,
+      [PRODUCT]: 1128,
+      status: "lost",
+      add_time: "2026-08-10 14:00:00",
+    }),
+  );
+  const novo = card(
+    raw({ id: 96083, org_id: org, [PRODUCT]: 1128, add_time: "2026-09-15 14:00:00" }),
+  );
+  const dup = cadastroACorrigir([a, b, c, velho, novo]);
+  assert.deepEqual(dup.duplicados.map((x) => x.id).sort(), [95200, 96081]);
+  assert.equal(dup.oportunidadesDuplicadas, 1);
+  // mês da criação em São Paulo: 01/09 01:00 UTC ainda é agosto
+  const virada = card(
+    raw({
+      id: 96084,
+      org_id: org,
+      [PRODUCT]: 1128,
+      status: "lost",
+      add_time: "2026-09-01 01:00:00",
+    }),
+  );
+  assert.deepEqual(
+    cadastroACorrigir([velho, virada])
+      .duplicados.map((x) => x.id)
+      .sort(),
+    [90000, 96084],
+  );
+  assert.equal(cadastroACorrigir([a, b], "cella").duplicados.length, 0);
 });

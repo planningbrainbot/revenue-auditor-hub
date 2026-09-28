@@ -502,6 +502,63 @@ const dataBr = (iso: string | null | undefined) =>
   iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : null;
 
 /**
+ * Produto escrito no fim do título ("Hospitel · CELLA", "Camianski· Cella"), como o envio do
+ * Aquário e dos contratos nomeia o card. Só o sufixo depois do "·": "NORTH Engenharia e
+ * Consultoria · Finance" é Finance.
+ */
+export function produtoDoTitulo(titulo: string): Produto | null {
+  const m = /·\s*(cella|consultoria|finance)\s*$/i.exec(titulo.trim());
+  return m ? (m[1].toLowerCase() as Produto) : null;
+}
+
+const mesLocal = (at: string) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(at) ? at : at.replace(" ", "T") + "Z"));
+
+/**
+ * Cadastro a corrigir no Pipedrive. O campo Caixa · Produto manda na contagem (regra da tela);
+ * estes alertas mostram onde ele contradiz o próprio card, para a operação corrigir na fonte.
+ * - `produtoDivergente`: título diz um produto e o campo, outro (ou nenhum). Com filtro de
+ *   produto, entram os dois lados: o que infla o produto e o que falta nele.
+ * - `duplicados`: mesma organização e mesmo produto, com os dois abertos ou criados no mesmo mês
+ *   (a régua de duplicidade do envio). Cada card conta, como no Pipedrive; o alerta diz que são
+ *   a mesma oportunidade.
+ */
+export function cadastroACorrigir(cards: Negocio[], product: Produto | "sem_produto" | "" = "") {
+  const doFiltro = (c: Negocio, titulo: Produto | null) =>
+    !product || c.route === product || titulo === product;
+  const produtoDivergente = cards.filter((c) => {
+    const titulo = produtoDoTitulo(c.title);
+    return titulo !== null && titulo !== c.route && doFiltro(c, titulo);
+  });
+  const grupos = new Map<string, Negocio[]>();
+  for (const c of cards)
+    if (c.org_id !== null && c.route !== "sem_produto" && (!product || c.route === product))
+      grupos.set(`${c.org_id}:${c.route}`, [...(grupos.get(`${c.org_id}:${c.route}`) ?? []), c]);
+  const repetidos = [...grupos.values()]
+    .map((g) =>
+      g.filter((c) =>
+        g.some(
+          (o) =>
+            o.id !== c.id &&
+            ((o.status === "open" && c.status === "open") ||
+              mesLocal(o.created_at) === mesLocal(c.created_at)),
+        ),
+      ),
+    )
+    .filter((g) => g.length > 1);
+  return {
+    produtoDivergente,
+    duplicados: repetidos.flat(),
+    /** Quantas oportunidades (organização × produto) têm mais de um card. */
+    oportunidadesDuplicadas: repetidos.length,
+  };
+}
+
+/**
  * Situação do negócio no detalhe. O Pipedrive guarda a última etapa de um card perdido ou ganho;
  * mostrar só a etapa fazia o perdido parecer aberto (relato de 28/09/2026: Bigens · Consultoria,
  * perdido às 10:03, aparecia em "3 · Gatilho identificado"). Encerrado diz isso primeiro, com a

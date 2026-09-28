@@ -13,6 +13,7 @@ import {
   Info,
   MessagesSquare,
   Scale,
+  TriangleAlert,
   Trophy,
   Zap,
   type LucideIcon,
@@ -48,12 +49,24 @@ import {
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
 import { FARMER, METRICAS, taxa } from "@/lib/monetizacao/model";
-import type { EtapaFunil, QuadroMeta, StatusMeta, funil, operacao } from "@/lib/monetizacao/model";
+import type {
+  EtapaFunil,
+  QuadroMeta,
+  StatusMeta,
+  cadastroACorrigir,
+  funil,
+  operacao,
+} from "@/lib/monetizacao/model";
 import { NOMES } from "@/lib/monetizacao/types";
 import type { Metrica, Negocio, Produto } from "@/lib/monetizacao/types";
 import { downloadCsv } from "./common";
 
-type Abrir = (title: string, rows: Negocio[]) => void;
+type Abrir = (
+  title: string,
+  rows: Negocio[],
+  /** Lista que não é o recorte do período (estoque, cadastro): diz o recorte próprio. */
+  opcoes?: { estoque?: boolean; recorte?: string },
+) => void;
 
 const INT = new Intl.NumberFormat("pt-BR");
 const DEC = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -661,6 +674,73 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cadastro a corrigir
+// ---------------------------------------------------------------------------
+
+const LINK_DISCRETO =
+  "rounded-sm text-left underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * O que contradiz o próprio card no Pipedrive e distorce a contagem por produto. A tela conta pelo
+ * campo Caixa · Produto; esta faixa diz onde ele diverge do título e onde a mesma oportunidade
+ * está em dois cards, para a operação corrigir na fonte. Some quando não há nada a corrigir.
+ */
+export function CadastroACorrigir({
+  dados,
+  abrir,
+}: {
+  dados: ReturnType<typeof cadastroACorrigir>;
+  abrir: Abrir;
+}) {
+  const { produtoDivergente: div, duplicados: dup, oportunidadesDuplicadas: n } = dados;
+  if (!div.length && !dup.length) return null;
+  const recorte = "Pipe 39 inteiro, qualquer data · corrigir no Pipedrive";
+  return (
+    <section
+      aria-label="Cadastro a corrigir no Pipedrive"
+      className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xl border bg-card px-4 py-2.5 text-[13px] text-muted-foreground"
+    >
+      <span className="inline-flex items-center gap-1.5 self-center font-semibold text-foreground">
+        <TriangleAlert className="size-4 text-warning" strokeWidth={1.75} aria-hidden />
+        Cadastro a corrigir no Pipedrive
+      </span>
+      {div.length > 0 && (
+        <button
+          type="button"
+          className={LINK_DISCRETO}
+          onClick={() =>
+            abrir("Produto do título diferente do campo Caixa · Produto", div, {
+              estoque: true,
+              recorte,
+            })
+          }
+        >
+          <strong className="num font-semibold text-foreground">{INT.format(div.length)}</strong>{" "}
+          {div.length === 1 ? "negócio" : "negócios"} com o produto do título diferente do campo
+          Caixa · Produto (a tela conta pelo campo)
+        </button>
+      )}
+      {dup.length > 0 && (
+        <button
+          type="button"
+          className={LINK_DISCRETO}
+          onClick={() =>
+            abrir("Mesma empresa e produto em mais de um negócio", dup, {
+              estoque: true,
+              recorte,
+            })
+          }
+        >
+          <strong className="num font-semibold text-foreground">{INT.format(n)}</strong>{" "}
+          {n === 1 ? "oportunidade repetida" : "oportunidades repetidas"} em{" "}
+          {INT.format(dup.length)} negócios da mesma empresa e produto
+        </button>
+      )}
     </section>
   );
 }

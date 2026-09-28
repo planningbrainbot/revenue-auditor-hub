@@ -22,12 +22,14 @@ import {
 import { useAtualizarMonetizacao, useMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import {
+  cadastroACorrigir,
   FARMER,
   funil,
   hoje,
   METRICAS,
   metasOperacao,
   operacao,
+  produtoDoTitulo,
   situacaoDoNegocio,
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
@@ -56,7 +58,14 @@ import {
   podeEscrever,
   procedenciaMonetizacao,
 } from "./common";
-import { ComoContamos, FunilOperacao, MetasFarmer, PorProduto, SerieDiaria } from "./operacao";
+import {
+  CadastroACorrigir,
+  ComoContamos,
+  FunilOperacao,
+  MetasFarmer,
+  PorProduto,
+  SerieDiaria,
+} from "./operacao";
 import {
   BarraFiltros,
   Carregando,
@@ -395,7 +404,8 @@ export function DashboardMonetizacao({
 
   // O recorte que o detalhe declara no cabeçalho: abas que ignoram um filtro não o repetem.
   const ignoraResponsavel = aba === "forecast" || aba === "distribuicao" || aba === "roteiros";
-  const abrir = (title: string, rows: Negocio[]) => setDetail({ title, rows });
+  const abrir = (title: string, rows: Negocio[], opcoes?: OpcoesDetalhe) =>
+    setDetail({ title, rows, ...opcoes });
   const ignoraProduto = !BARRA[aba]?.produto;
   const recorte = {
     responsavel: ignoraResponsavel ? "Toda a frente" : responsavel,
@@ -467,6 +477,7 @@ export function DashboardMonetizacao({
             <FunilOperacao dados={funil(data.cards, data.stages, filter)} abrir={abrir} />
             <SerieDiaria view={view} metaDia={plan?.daily_target ?? null} abrir={abrir} />
           </div>
+          <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
           <PorProduto view={view} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">Critérios e campos a preencher</summary>
@@ -651,6 +662,7 @@ function DealDetails({
                       )
                       .sort((a, b) => b.e.date.localeCompare(a.e.date));
                     const situacao = situacaoDoNegocio(c);
+                    const titulo = produtoDoTitulo(c.title);
                     return (
                       <TableRow key={c.id} className="align-top">
                         <TableCell>
@@ -689,7 +701,14 @@ function DealDetails({
                             )}
                           </details>
                         </TableCell>
-                        <TableCell>{NOMES[c.route]}</TableCell>
+                        <TableCell>
+                          {NOMES[c.route]}
+                          {titulo && titulo !== c.route && (
+                            <span className="block text-xs text-warning">
+                              Título diz {NOMES[titulo]}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>{c.owner}</TableCell>
                         <TableCell>
                           {situacao.rotulo ? (
