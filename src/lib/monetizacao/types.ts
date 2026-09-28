@@ -177,6 +177,8 @@ export interface Negocio {
   // Perda e entradas por etapa chegam com a carga de metric_version 4 (24/09/2026). Antes disso
   // não existem, e o funil diz que a contagem por etapa ainda não foi apurada.
   lost_on?: string | null;
+  /** Quem marcou a perda (carga v6, 28/09/2026). Antes dela só se sabia o dono atual. */
+  lost_by?: number | null;
   moves?: (Movimento & { stage_id: number })[];
   expected_close: string | null;
   revenue: Receita;

@@ -659,7 +659,8 @@ export function funil(
           !!c.lost_on &&
           c.lost_on >= f.from &&
           c.lost_on <= f.to &&
-          (!f.owner || c.owner_id === f.owner),
+          // quem perdeu, como todo movimento; carga anterior à v6 só tem o dono atual
+          (!f.owner || (c.lost_by !== undefined ? c.lost_by : c.owner_id) === f.owner),
       )
     : null;
   return {

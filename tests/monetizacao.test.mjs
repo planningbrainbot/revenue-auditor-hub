@@ -14,7 +14,7 @@ import {
   taxa,
   situacaoDoNegocio,
 } from "../src/lib/monetizacao/model.ts";
-import { summarize, PRODUCT } from "../supabase/functions/monetizacao-crm/crm.mjs";
+import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
 import { dealPayload, hasCanonicalProduct } from "../supabase/functions/monetizacao-crm/send.mjs";
 import { forecastComparison } from "../src/lib/monetizacao/forecast.ts";
@@ -363,7 +363,7 @@ test("Assinatura preenchida não fabrica ganho; reaberto/perdido sai do realizad
 
 test("Carga v4 grava a entrada em cada etapa e a data da perda", () => {
   const c = card();
-  assert.equal(c.metric_version, 5);
+  assert.equal(c.metric_version, METRIC_VERSION);
   assert.deepEqual(
     c.moves.map((m) => [m.stage_id, m.date, m.actor_id]),
     [
@@ -549,4 +549,48 @@ test("Conversão do funil é passagem: card que pula etapa não leva a taxa acim
   assert.equal(linha("ganho").conversao, 0);
   for (const e of f.etapas)
     assert.ok(e.conversao === undefined || e.conversao === null || e.conversao <= 1);
+});
+
+test("Carga v6: nascer adiantado é trabalho de quem criou; a perda é de quem marcou", () => {
+  // 95211 e 95196: criados pela API do Ops direto em Gatilho, com o Matheus de dono.
+  const api = card(
+    raw({ id: 120, stage_id: 3, creator_user_id: { id: 99 }, user_id: { id: 20, name: "Hunter" } }),
+    [],
+  );
+  assert.equal(api.moves[0].actor_id, 99);
+  assert.equal(api.events.started[0].actor_id, 99);
+  const st = [
+    { id: 1, name: "1 · Base elegível", order: 1 },
+    { id: 3, name: "3 · Gatilho identificado", order: 3 },
+  ];
+  // funil e trabalhados agora concordam: nenhum dos dois credita o dono
+  assert.equal(funil([api], st, filter).etapas[1].entraram.length, 0);
+  assert.equal(operacao([api], filter).rows.started.length, 0);
+  // nascer na Base continua sendo a fila do dono
+  assert.equal(card().moves[0].actor_id, 20);
+
+  // Supermercado JF (94554): dona Samira, perdido pelo Matheus
+  const perdidoPeloHunter = card(
+    raw({
+      id: 121,
+      status: "lost",
+      lost_time: "2026-09-10 16:42:40",
+      user_id: { id: 99, name: "Outra" },
+    }),
+    [change("open", "lost", "2026-09-10 16:42:40", 20, "status")],
+  );
+  // cards sem produto perdidos pela API, com o hunter de dono
+  const perdidoPelaApi = card(raw({ id: 122, status: "lost", lost_time: "2026-09-10 12:00:00" }), [
+    change("open", "lost", "2026-09-10 12:00:00", 99, "status"),
+  ]);
+  assert.equal(perdidoPeloHunter.lost_by, 20);
+  assert.equal(perdidoPelaApi.lost_by, 99);
+  assert.deepEqual(
+    funil([perdidoPeloHunter, perdidoPelaApi], st, filter).perdidos.map((c) => c.id),
+    [121],
+  );
+  // snapshot anterior à v6 (sem lost_by) segue pelo dono atual
+  const velho = { ...perdidoPelaApi, lost_by: undefined };
+  assert.equal(funil([velho], st, filter).perdidos.length, 1);
+  assert.equal(card().lost_by, null);
 });

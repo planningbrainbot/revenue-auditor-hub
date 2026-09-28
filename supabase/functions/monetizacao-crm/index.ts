@@ -1,5 +1,5 @@
 // Única integração de escrita do Aquário com o pipe 39. Segredos só no runtime Supabase.
-import { summarize, PRODUCT } from "./crm.mjs";
+import { summarize, PRODUCT, METRIC_VERSION } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
 import { dealPayload, hasCanonicalProduct, PRODUCT_OPTIONS } from "./send.mjs";
 import { fillHandoff } from "./handoff.mjs";
@@ -121,7 +121,7 @@ async function collect() {
     const old = cache.get(d.id) as Row | undefined;
     return (
       !sameStages ||
-      old?.metric_version !== 5 ||
+      old?.metric_version !== METRIC_VERSION ||
       !old?.history_known ||
       !d.update_time ||
       old.updated_at !== d.update_time ||

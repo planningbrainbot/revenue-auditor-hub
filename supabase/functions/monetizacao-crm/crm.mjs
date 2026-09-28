@@ -1,6 +1,9 @@
 import { expectedRevenue } from "./revenue.mjs";
 import { PRODUCT_KEY, localDate, today, METRICS } from "./dates.mjs";
 export const PRODUCT = PRODUCT_KEY;
+// Versão da régua gravada em cada card. Subir aqui faz a carga reler o histórico de todos os
+// negócios na rodada seguinte; o index.ts compara com esta mesma constante.
+export const METRIC_VERSION = 6;
 const SIGN = "97cd6f5f0f051d7dfd29e709bfde5c048a17cf3e",
   REVENUE = "a62c0a23d29d00e7a314531b1a4f6706a51474bf";
 const id = (v) => Number(typeof v === "object" ? (v?.id ?? v?.value) : v) || null;
@@ -55,11 +58,15 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         : d.stage_id;
       if (initial) {
         const at = d.add_time;
+        // Nascer na Base é carga da fila (dono); nascer adiantado é trabalho de quem criou, como em
+        // "started" e "validated" abaixo. Antes a entrada ia para o dono: 95211 e 95196, criados
+        // pela API do Ops direto em Gatilho, contavam no funil do Matheus e não em trabalhados.
+        const adiantado = (order.get(initial) || 0) > order.get(first);
         moves.push({
           stage_id: initial,
           at,
           date: localDate(at),
-          actor_id: ownerAt(at),
+          actor_id: adiantado ? id(d.creator_user_id) || ownerAt(at) : ownerAt(at),
         });
       }
       for (const e of movements) {
@@ -110,13 +117,22 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
       .find((e) => e.field_key === "status" && e.new_value === "won");
     const wonAt = d.status === "won" ? d.won_time || wonChange?.log_time || null : null;
     if (wonAt) add("signed", wonAt, id(wonChange?.user_id) || ownerAt(wonAt), "won_status");
+    // Quem perdeu é quem marcou a perda, como todo movimento; o dono atual pode ser outro
+    // (Supermercado JF, 94554: dona Samira, perdido pelo Matheus em 10/09).
+    const lostChange = [...changes]
+      .reverse()
+      .find((e) => e.field_key === "status" && e.new_value === "lost");
+    const lostBy =
+      d.status === "lost"
+        ? id(lostChange?.user_id) || ownerAt(d.lost_time || lostChange?.log_time || d.update_time)
+        : null;
     const revenue = d[REVENUE],
       expected = expectedRevenue(d),
       flags = Object.fromEntries(
         METRICS.map((k) => [k, events[k].some((e) => e.date.startsWith(month))]),
       );
     return {
-      metric_version: 5,
+      metric_version: METRIC_VERSION,
       id: d.id,
       title: d.title.replace(/\s*\[(?:CO|HU|AQ):[a-f0-9-]+\]/g, ""),
       org: d.org_id?.name || null,
@@ -136,6 +152,7 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
       signed_on: d[SIGN] || null,
       won_on: localDate(wonAt),
       lost_on: d.status === "lost" ? localDate(d.lost_time) : null,
+      lost_by: lostBy,
       moves,
       expected_close: d.expected_close_date || null,
       revenue: expected,
