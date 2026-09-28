@@ -359,6 +359,14 @@ function LinhaSimples({ titulo, valor, nota }: { titulo: string; valor: string; 
 export function PipelinePainel({ empresa }: { empresa: Empresa }) {
   const p = empresa.aquisicao?.pipeline;
   if (!p) return <SemPainel texto={empresa.aquisicaoAviso ?? "Pipeline não carregado."} />;
+  // Negócio sem data de fechamento não tem mês: se nenhum tem, o gráfico por mês fica sem barra, e a
+  // tela diz isso em vez de desenhar um eixo vazio.
+  if (!p.porMes.length)
+    return (
+      <SemPainel
+        texto={`Nenhum dos ${p.negocios} negócios abertos tem data de fechamento esperada (${reais(p.mrr)} sem mês)`}
+      />
+    );
   const dados = p.porMes
     .slice(0, 6)
     .map((m) => ({ rotulo: mesBr(m.mes), mrr: m.mrr, negocios: m.negocios }));

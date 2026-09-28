@@ -1,0 +1,16 @@
+{
+  "hidratacaoDoTema": 12,
+  "erros": [
+    "rolagem horizontal em visao 400px claro",
+    "rolagem horizontal em receita 400px claro",
+    "rolagem horizontal em operacao 400px claro",
+    "rolagem horizontal em visao 400px escuro",
+    "rolagem horizontal em receita 400px escuro",
+    "rolagem horizontal em operacao 400px escuro"
+  ],
+  "hosts": {
+    "127.0.0.1:8090": 3857,
+    "fonts.googleapis.com": 12,
+    "fonts.gstatic.com": 48
+  }
+}

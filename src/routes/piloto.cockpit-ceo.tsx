@@ -46,7 +46,8 @@ function Pagina() {
     navigate({
       search: (s: BuscaUrl) => buscaDaUrl({ ...s, ...parcial }),
       // Trocar de frente também empilha: o "voltar" do navegador desfaz a troca.
-      replace: !parcial.indicador && parcial.frente === undefined,
+      // Abrir um gráfico (`grafico`) também empilha: fechar a gaveta volta, não sai da página.
+      replace: !parcial.indicador && !parcial.grafico && parcial.frente === undefined,
     });
   return (
     <div className="min-h-screen bg-background">

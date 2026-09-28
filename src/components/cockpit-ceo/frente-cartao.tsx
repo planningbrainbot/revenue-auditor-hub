@@ -35,7 +35,18 @@ interface Coluna {
 }
 
 /** Colunas pequenas de uma série só; valor ausente é coluna hachurada, não zero. */
-function MiniColunas({ colunas, rotulo }: { colunas: Coluna[]; rotulo: string }) {
+function MiniColunas({
+  colunas,
+  rotulo,
+  semDado = "a fonte não trouxe número nesta carga",
+}: {
+  colunas: Coluna[];
+  rotulo: string;
+  semDado?: string;
+}) {
+  // Nenhuma coluna com número: o bloco diz o estado, não desenha só textura.
+  if (!colunas.length || colunas.every((c) => c.valor === null))
+    return <SemDadoGrafico estado="fonte_indisponivel" motivo={semDado} altura="h-20" />;
   const topo = Math.max(1, ...colunas.map((c) => c.valor ?? 0));
   const dados = colunas.map((c) => ({
     ...c,
@@ -58,7 +69,7 @@ function MiniColunas({ colunas, rotulo }: { colunas: Coluna[]; rotulo: string })
                     ? `url(#${HACHURA_ID})`
                     : d.destaque
                       ? CORES_COCKPIT.realizado
-                      : `color-mix(in oklab, ${CORES_COCKPIT.realizado} 45%, var(--card))`
+                      : `color-mix(in oklab, ${CORES_COCKPIT.realizado} 55%, var(--muted-foreground))`
                 }
               />
             ))}

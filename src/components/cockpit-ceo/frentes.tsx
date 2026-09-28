@@ -91,6 +91,10 @@ const DESTINO_PRODUTOS: Destino = {
 
 function DemandaPorProduto({ cockpit, preview }: { cockpit: Cockpit; preview: boolean }) {
   const produtos = cockpit.porProduto.filter((l) => l.produto !== "sem_produto");
+  if (produtos.every((p) => p.validadas === null && p.ganhos === null))
+    return (
+      <SemPainel texto="Fonte indisponível · a carga da Monetização não trouxe números agora" />
+    );
   return (
     <div className="space-y-2">
       <div className="flex justify-end">

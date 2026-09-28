@@ -257,12 +257,13 @@ export function NumerosTrajetoria({ m, seloD0 }: { m: Trajetoria; seloD0: React.
 
 // ── 2. Ponte do último mês fechado ───────────────────────────────────────────
 
-const ROTULO_CURTO_PONTE: Record<string, string> = {
-  novos: "Novos",
-  expansao: "Expande",
-  contracao: "Contrai",
-  saida: "Saída",
-  "sem-cliente": "S/ cliente",
+// Rótulos de eixo curtos: o nome completo do movimento está na dica e na gaveta.
+const ROTULO_CURTO_PONTE: Record<string, [string, string]> = {
+  novos: ["Novos", "Novos"],
+  expansao: ["Expansão", "Exp."],
+  contracao: ["Contração", "Contr."],
+  saida: ["Saída", "Saída"],
+  "sem-cliente": ["Sem cliente", "S/ cli."],
 };
 
 export function GraficoPonte({ m }: { m: CascataPonte }) {
@@ -270,12 +271,8 @@ export function GraficoPonte({ m }: { m: CascataPonte }) {
   const dados = m.degraus.map((d) => ({
     rotulo:
       d.tipo === "nivel"
-        ? celular
-          ? `${d.rotulo.slice(0, 3)}${d.rotulo.slice(5)}`
-          : d.rotulo
-        : celular
-          ? (ROTULO_CURTO_PONTE[d.id] ?? d.rotulo)
-          : d.rotulo,
+        ? `${d.rotulo.slice(0, 3)}${d.rotulo.slice(5)}`
+        : (ROTULO_CURTO_PONTE[d.id]?.[celular ? 1 : 0] ?? d.rotulo),
     faixa: d.tipo === "nivel" ? null : [Math.min(d.de, d.ate), Math.max(d.de, d.ate)],
     nivel: d.tipo === "nivel" ? d.valor : null,
     tipo: d.tipo,
@@ -702,7 +699,7 @@ export function GraficoRedeMrr({ m, compacto = false }: { m: Rede; compacto?: bo
                 fill={
                   d.maior
                     ? CORES_COCKPIT.realizado
-                    : `color-mix(in oklab, ${CORES_COCKPIT.realizado} 45%, var(--card))`
+                    : `color-mix(in oklab, ${CORES_COCKPIT.realizado} 55%, var(--muted-foreground))`
                 }
               />
             ))}
@@ -892,7 +889,7 @@ export function GraficoEntrega({ m, compacto = false }: { m: Entrega; compacto?:
                 fill={
                   d.gargalo
                     ? CORES_COCKPIT.alerta
-                    : `color-mix(in oklab, ${CORES_COCKPIT.terceira} 55%, var(--card))`
+                    : `color-mix(in oklab, ${CORES_COCKPIT.terceira} 55%, var(--muted-foreground))`
                 }
               />
             ))}
@@ -934,7 +931,8 @@ export function GraficoFontes({
 }) {
   const maximo = Math.max(3, ...paradas.map((p) => p.dias ?? 0));
   const dados = paradas.map((p) => ({
-    rotulo: p.fonte.split(" · ")[0],
+    // "Fonte · número": o que parou é o número, e duas linhas do mesmo Financeiro não se confundem.
+    rotulo: p.fonte.split(" · ").at(-1)!,
     dias: p.dias ?? maximo,
     semData: p.dias === null,
     dica: {

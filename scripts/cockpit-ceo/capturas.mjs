@@ -97,8 +97,10 @@ async function abrir(caminho) {
   await cdp("Page.navigate", { url: BASE + caminho });
   for (let i = 0; i < 100; i++) {
     await espera(150);
+    // O HTML do servidor já tem o <h1>, mas os gráficos só ganham traço depois da hidratação:
+    // espera haver ao menos um gráfico desenhado (ou nenhum gráfico na página).
     const pronto = await avaliar(
-      "document.readyState === 'complete' && !!document.querySelector('h1')",
+      "document.readyState === 'complete' && !!document.querySelector('h1') && (!document.querySelector('.recharts-wrapper') || !!document.querySelector('.recharts-wrapper .recharts-layer path, .recharts-wrapper .recharts-rectangle'))",
     ).catch(() => false);
     if (pronto) break;
   }
@@ -175,7 +177,12 @@ if (ROTULO_FOTOS) {
   console.log(`fotos em ${SAIDA} · ${erros.length} erro(s) de console ou layout`);
   ws.close();
   chrome.kill();
-  rmSync(perfil, { recursive: true, force: true });
+  await espera(500);
+  try {
+    rmSync(perfil, { recursive: true, force: true });
+  } catch {
+    // O Chrome ainda solta arquivos do perfil temporário; o sistema limpa a pasta depois.
+  }
   process.exit(0);
 }
 

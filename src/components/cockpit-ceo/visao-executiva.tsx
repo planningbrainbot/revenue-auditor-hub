@@ -23,7 +23,10 @@ import {
   modeloTrajetoria,
 } from "@/lib/cockpit-ceo/visual";
 import { pctTexto, reaisCurto } from "@/lib/cockpit-ceo/explicacoes";
-import { Bloco, SemDadoGrafico, ehSemDado } from "./graficos";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CORES_COCKPIT } from "@/lib/planning/grafico";
+import { Bloco, Dica, SemDadoGrafico, ehSemDado } from "./graficos";
+import type { DicaDado } from "./graficos";
 import {
   GraficoChurn,
   GraficoComposicao,
@@ -49,7 +52,12 @@ export function SaudeDasFontes({ saude }: { saude: SaudeDados }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" aria-label="Saúde das fontes de dados">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Saúde das fontes de dados"
+          className="whitespace-nowrap"
+        >
           {ok ? (
             <CircleCheck className="size-4 text-success" aria-hidden />
           ) : (
@@ -57,7 +65,8 @@ export function SaudeDasFontes({ saude }: { saude: SaudeDados }) {
           )}
           {ok
             ? "Fontes em dia"
-            : `${saude.paradas.length} de ${saude.total} fonte${saude.total > 1 ? "s" : ""} atrasada${saude.paradas.length > 1 ? "s" : ""}`}
+            : // Curto de propósito: o selo divide a linha com a pergunta do <h1>, que não pode quebrar.
+              `${saude.paradas.length} fonte${saude.paradas.length > 1 ? "s" : ""} atrasada${saude.paradas.length > 1 ? "s" : ""}`}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 space-y-3">
@@ -109,6 +118,59 @@ export function BotaoPerguntar({
         <MessagesSquare className="size-4" aria-hidden /> {rotulo}
       </Link>
     </Button>
+  );
+}
+
+/**
+ * Uma faixa com um segmento por item (decisão, ameaça): a contagem vira forma, e cada segmento tem
+ * a sua dica. Gráfico de uma série só, sem eixo.
+ */
+function FaixaSegmentos({
+  segmentos,
+  rotulo,
+}: {
+  segmentos: { chave: string; cor: string; dica: DicaDado }[];
+  rotulo: string;
+}) {
+  const dados = [Object.fromEntries(segmentos.map((s) => [s.chave, 1])) as Record<string, number>];
+  return (
+    <div className="h-6" role="img" aria-label={rotulo}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={dados} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+          <XAxis type="number" hide domain={[0, Math.max(1, segmentos.length)]} />
+          <YAxis type="category" hide />
+          <Tooltip
+            cursor={false}
+            content={({ active, payload }) => {
+              const k = payload?.[0]?.dataKey as string | undefined;
+              const s = segmentos.find((x) => x.chave === k);
+              return s ? <Dica active={active} payload={[{ payload: { dica: s.dica } }]} /> : null;
+            }}
+            shared={false}
+          />
+          {segmentos.map((s, i) => (
+            <Bar
+              key={s.chave}
+              dataKey={s.chave}
+              stackId="f"
+              fill={s.cor}
+              stroke="var(--card)"
+              strokeWidth={2}
+              radius={
+                i === 0 && i === segmentos.length - 1
+                  ? 4
+                  : i === 0
+                    ? [4, 0, 0, 4]
+                    : i === segmentos.length - 1
+                      ? [0, 4, 4, 0]
+                      : 0
+              }
+              isAnimationActive={false}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -280,7 +342,20 @@ export function VisaoExecutivaLeitura({
           complemento="esperando o CEO"
           abrir={() => abrirGrafico("decisoes")}
         >
-          <ol className="space-y-2 text-sm" aria-label="Decisões">
+          <FaixaSegmentos
+            rotulo="Decisões esperando o CEO, na ordem"
+            segmentos={c.decisoes.map((d, i) => ({
+              chave: d.id,
+              cor: i === 0 ? CORES_COCKPIT.meta : CORES_COCKPIT.terceira,
+              dica: {
+                titulo: `D${i} · ${d.titulo}`,
+                linhas: [["Quem decide", d.responsavel]],
+                periodo: "agora",
+                universo: "regras fixas do cockpit",
+              },
+            }))}
+          />
+          <ol className="mt-3 space-y-2 text-sm" aria-label="Decisões">
             {c.decisoes.slice(0, 3).map((d, i) => (
               <li key={d.id} className="flex min-w-0 items-baseline gap-2">
                 <span className="num shrink-0 text-xs font-semibold text-muted-foreground">
@@ -302,7 +377,22 @@ export function VisaoExecutivaLeitura({
           complemento="por regra fixa"
           abrir={() => abrirGrafico("ameacas")}
         >
-          <ul className="space-y-2 text-sm" aria-label="Ameaças">
+          <FaixaSegmentos
+            rotulo="Ameaças por gravidade"
+            segmentos={[...c.ameacas]
+              .sort((a, b) => Number(a.gravidade !== "alta") - Number(b.gravidade !== "alta"))
+              .map((a) => ({
+                chave: a.id,
+                cor: a.gravidade === "alta" ? CORES_COCKPIT.alerta : CORES_COCKPIT.meta,
+                dica: {
+                  titulo: a.titulo,
+                  linhas: [["Gravidade", a.gravidade === "alta" ? "alta" : "média"]],
+                  periodo: "agora",
+                  universo: "regras fixas do cockpit",
+                },
+              }))}
+          />
+          <ul className="mt-3 space-y-2 text-sm" aria-label="Ameaças">
             {[...c.ameacas]
               .sort((a, b) => Number(a.gravidade !== "alta") - Number(b.gravidade !== "alta"))
               .slice(0, 4)

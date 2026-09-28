@@ -284,7 +284,8 @@ function Tela({ fonte, hoje }: { fonte: FonteCockpit; hoje: string }) {
       search: (s: BuscaUrl) => buscaDaUrl({ ...s, ...parcial }),
       // Abrir um número empilha no histórico: o "voltar" do navegador fecha a composição.
       // Trocar de frente também empilha: o "voltar" do navegador desfaz a troca.
-      replace: !parcial.indicador && parcial.frente === undefined,
+      // Abrir um gráfico (`grafico`) também empilha: fechar a gaveta volta, não sai da página.
+      replace: !parcial.indicador && !parcial.grafico && parcial.frente === undefined,
     });
   return <CockpitCeo cockpit={cockpit} busca={busca} periodo={periodo} aoMudar={aoMudar} />;
 }

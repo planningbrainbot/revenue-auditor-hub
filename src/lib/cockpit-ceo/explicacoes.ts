@@ -578,6 +578,20 @@ interface TextoPainel {
 }
 
 const PAINEIS: Record<string, TextoPainel> = {
+  leituras: {
+    titulo: "Leituras candidatas da meta",
+    oQueDiz:
+      "Quanto cada leitura candidata do perímetro da meta fatura hoje e quanto precisaria multiplicar até 2030.",
+    comoSeCalcula:
+      "Grupo: faturamento do Financeiro por emissão. Rede: apuração de royalties confirmada (receita das unidades). Média dos meses fechados contíguos; mês em andamento e mês que a fonte marca como parcial ficam fora.",
+    fonte: "Brain Financeiro e apuração de royalties",
+    atencao: [
+      "As leituras não se somam: royalties das unidades são receita do grupo e parte do faturamento da rede.",
+      "Vale para a empresa inteira: o filtro de unidade e o de período não se aplicam.",
+    ],
+    dono: "CEO + CFO (perímetro da meta)",
+    destino: FINANCEIRO,
+  },
   "ponte-mensal": {
     titulo: "Ponte mês a mês",
     oQueDiz:
@@ -759,6 +773,16 @@ function painel(id: string, c: Cockpit): Explicacao | null {
   };
 }
 
+// Estado do dado da pergunta. "Alerta sem dono atribuído" substitui "ninguém lê" (pedido de 28/09).
+const ROTULO_DADO: Record<string, string> = {
+  integrado: "dado integrado",
+  parcial: "dado parcial",
+  sem_acesso: "dado existe, alerta sem dono atribuído",
+  falha_sync: "sincronização parada",
+  sem_campo: "falta campo ou vínculo",
+  ausente: "dado não existe",
+};
+
 function pergunta(id: string): Explicacao | null {
   const p = PERGUNTAS.find((x) => x.id === id);
   if (!p) return null;
@@ -778,6 +802,7 @@ function pergunta(id: string): Explicacao | null {
     dataDado: null,
     periodo: "O de cada número que responde a pergunta",
     atencao: [
+      `Situação do dado: ${ROTULO_DADO[p.estados.dado] ?? p.estados.dado}.`,
       ...(p.pendencia ? [`Falta: ${p.pendencia}`] : []),
       ...(p.estados.decisao ? [`Decisão pendente: ${p.estados.decisao}`] : []),
       `Growth: ${p.growth}`,
@@ -870,6 +895,29 @@ export function explicar(
   return null;
 }
 
+/** Consultas do catálogo da conversa que redesenham cada gráfico na área visual. */
+const CONSULTAS_DO_GRAFICO: Record<string, string> = {
+  trajetoria: "serie_faturamento (leitura grupo)",
+  ponte: "ponte_faturamento",
+  composicao: "serie_faturamento (leitura grupo)",
+  churn: "ponte_faturamento e coortes",
+  "rede-mrr": "ranking_unidades",
+  franqueadora: "caixa",
+  entrega: "onboarding",
+  fontes: "frescor",
+  decisoes: "acoes",
+  ameacas: "acoes",
+  "frente-receita": "serie_faturamento",
+  "frente-comercial": "aquisicao_mensal",
+  "frente-clientes": "clientes_ativos",
+  "frente-retencao": "coortes",
+  "frente-operacao": "onboarding",
+  "frente-rede": "ranking_unidades",
+  "frente-portfolio": "portfolio",
+  "frente-caixa": "caixa",
+  "frente-capital": "frescor",
+};
+
 /**
  * O contexto que a conversa recebe quando a pessoa pergunta a partir de um gráfico: título, o que
  * ele diz, período e os dados desenhados, em texto. Os números deste texto contam como mostrados.
@@ -885,6 +933,9 @@ export function contextoParaConversa(e: Explicacao): string {
       ? `Dados desenhados:\n${e.dados.map((d) => `- ${d.rotulo}: ${d.valor}`).join("\n")}`
       : null,
     e.atencao.length ? `Atenção: ${e.atencao.join(" ")}` : null,
+    CONSULTAS_DO_GRAFICO[e.id]
+      ? `Para mostrar este gráfico na área visual, use a consulta ${CONSULTAS_DO_GRAFICO[e.id]}.`
+      : null,
   ]
     .filter(Boolean)
     .join("\n");

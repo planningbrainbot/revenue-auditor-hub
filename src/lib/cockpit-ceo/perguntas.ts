@@ -72,7 +72,7 @@ export type Origem = "mapa" | "prd" | "desdobramento";
 
 /**
  * Estados separados, porque são problemas diferentes (pedido de 23/09):
- * - dado: integrado (lido e conciliado) · parcial · sem_acesso (existe, ninguém lê) ·
+ * - dado: integrado (lido e conciliado) · parcial · sem_acesso (existe; alerta sem dono atribuído) ·
  *   falha_sync (existe, parou) · sem_campo (existe a tabela, falta o campo/vínculo) · ausente;
  * - implementacao: no_ar (publicado) · nesta_versao (branch, não publicado) · nao_iniciada;
  * - homologacao: conferida (SQL independente) · pendente · nao_se_aplica;
