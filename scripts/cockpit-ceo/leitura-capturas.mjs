@@ -24,6 +24,8 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const VISTAS = [
   { largura: 1280, altura: 800 },
   { largura: 1440, altura: 900 },
+  // Celular (pedido de 28/09): os gráficos empilham e continuam legíveis.
+  { largura: 400, altura: 860 },
 ];
 const TEMAS = ["claro", "escuro"];
 
@@ -153,10 +155,10 @@ for (const rota of ROTAS) {
       });
       const arq = `${ROTULO}-${nome}-${tema}-${v.largura}x${v.altura}.png`;
       writeFileSync(join(SAIDA, arq), Buffer.from(png.data, "base64"));
-      if (v.largura === 1440) {
+      if (v.largura === 1440 || v.largura === 400) {
         const alt = Math.min(6000, m.alturaPagina);
         await cdp("Emulation.setDeviceMetricsOverride", {
-          width: 1440,
+          width: v.largura,
           height: alt,
           deviceScaleFactor: 1,
           mobile: false,
@@ -164,10 +166,10 @@ for (const rota of ROTAS) {
         await espera(800);
         const p = await cdp("Page.captureScreenshot", {
           format: "png",
-          clip: { x: 0, y: 0, width: 1440, height: alt, scale: 1 },
+          clip: { x: 0, y: 0, width: v.largura, height: alt, scale: 1 },
         });
         writeFileSync(
-          join(SAIDA, `${ROTULO}-${nome}-${tema}-pagina.png`),
+          join(SAIDA, `${ROTULO}-${nome}-${tema}-${v.largura === 400 ? "400px-" : ""}pagina.png`),
           Buffer.from(p.data, "base64"),
         );
       }

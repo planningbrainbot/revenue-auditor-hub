@@ -31,6 +31,13 @@ import {
 import { montarAquisicao } from "./aquisicao.ts";
 import { lerCard, montarOnboarding } from "./operacao.ts";
 import { montarCadeia } from "./cadeia.ts";
+import {
+  agregarFranqueadora,
+  agregarOmie,
+  agregarTratativas,
+  mesesFechados,
+} from "./visual.ts";
+import type { ContratoOmie, TituloFranqueadora } from "./visual.ts";
 
 const UNIDADES = [
   ["ex-norte", "Unidade Exemplo Norte"],
@@ -594,6 +601,7 @@ export function fonteSintetica(hoje: string, agora: string): FonteCockpit {
     operacao: empresa.operacao,
     clientesAtivos: clientesSinteticos(dados.accounts),
     retencao: retencaoSintetica(hoje),
+    visual: visualSintetico(hoje, agora),
   };
 }
 
@@ -890,5 +898,100 @@ export function empresaSintetica(
     caixa,
     aquisicao,
     operacao,
+  };
+}
+
+// ── Revisão visual (28/09): categorias, churn, Omie e franqueadora, SINTÉTICOS ──────────────────
+
+export function visualSintetico(hoje: string, agora: string): NonNullable<FonteCockpit["visual"]> {
+  const fechados = mesesFechados(hoje);
+  const ano = hoje.slice(0, 4);
+  // Contratos do Omie: seis bases, uma concentrando perto de 45%, com encerramentos espalhados.
+  const bases: [string, number, number][] = [
+    ["SINTÉTICO Rio", 94, 9_400],
+    ["SINTÉTICO Belém", 80, 2_900],
+    ["SINTÉTICO Curitiba", 86, 1_950],
+    ["SINTÉTICO Campo", 52, 2_200],
+    ["SINTÉTICO Maceió", 37, 2_300],
+    ["SINTÉTICO São Luís", 14, 3_700],
+  ];
+  const contratos: ContratoOmie[] = [];
+  bases.forEach(([unidade, n, valor], b) => {
+    for (let i = 0; i < n; i++)
+      contratos.push({
+        unidade,
+        situacao: "10",
+        valorMensal: valor + (i % 5) * 100,
+        vigenciaInicial: `${Number(ano) - 1}-0${(i % 9) + 1}-01`,
+        vigenciaFinal: null,
+      });
+    fechados.forEach((mes, k) => {
+      if ((k + b) % 3 === 0)
+        contratos.push({
+          unidade,
+          situacao: "99",
+          valorMensal: valor,
+          vigenciaInicial: `${Number(ano) - 2}-06-01`,
+          vigenciaFinal: `${mes}-15`,
+        });
+    });
+  });
+  const churns = fechados.filter((_, k) => k % 2 === 0).map((m) => `${m}-10`);
+  const ganhos = Array.from({ length: 140 }, (_, i) => `${Number(ano) - 1}-${String((i % 12) + 1).padStart(2, "0")}-05`);
+  const titulos: TituloFranqueadora[] = [...fechados, hoje.slice(0, 7)].flatMap((mes, k) => {
+    const ultimo = k === fechados.length;
+    return Array.from({ length: 30 }, (_, i) => ({
+      vencimento: `${mes}-${String((i % 27) + 1).padStart(2, "0")}`,
+      status: ultimo && i % 3 === 0 ? "A VENCER" : k > 8 && i % 11 === 0 ? "ATRASADO" : "RECEBIDO",
+      valor: 9_000 + k * 700 + i * 90,
+    }));
+  });
+  const categorias: [string, number, boolean | null][] = [
+    ["SINTÉTICO Honorários", 33_500_000, true],
+    ["SINTÉTICO Créditos tributários", 5_600_000, false],
+    ["SINTÉTICO BPO pessoal", 3_100_000, true],
+    ["SINTÉTICO Projetos especiais", 1_900_000, false],
+    ["SINTÉTICO Serviços", 1_500_000, false],
+    ["SINTÉTICO Consultoria mensal", 1_300_000, true],
+    ["SINTÉTICO Societário", 1_200_000, false],
+    ["SINTÉTICO sem de/para", 400_000, null],
+  ];
+  return {
+    estado: "ok",
+    erro: null,
+    resposta: {
+      lidoEm: agora,
+      categorias: {
+        estado: "ok",
+        de: `${ano}-01`,
+        ate: fechados.at(-1)!,
+        itens: categorias.map(([categoria, receita, recorrente], i) => ({
+          categoria,
+          receita,
+          recorrente,
+          clientes: 800 - i * 90,
+        })),
+      },
+      honorarios: {
+        estado: "ok",
+        meses: fechados.slice(-7).map((mes, k) => {
+          const base = 820 + k * 6;
+          const saidas = 26 + ((k * 7) % 13);
+          return { mes, base, saidas, taxa: saidas / base };
+        }),
+      },
+      omie: { estado: "ok", sincronizadoEm: agora, ...agregarOmie(contratos, hoje) },
+      tratativas: {
+        estado: "ok",
+        meses: agregarTratativas(churns, ganhos, hoje),
+        comData: churns.length,
+        ultimaData: churns.at(-1) ?? null,
+      },
+      franqueadora: {
+        estado: "ok",
+        meses: agregarFranqueadora(titulos),
+        ultimaCarga: agora,
+      },
+    },
   };
 }

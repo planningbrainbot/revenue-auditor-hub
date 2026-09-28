@@ -118,6 +118,65 @@ async function foto(nome, { inteira = false } = {}) {
   writeFileSync(join(SAIDA, nome + ".png"), Buffer.from(data, "base64"));
 }
 
+// Modo só fotos (CAPTURAS_FOTOS=<rótulo>): Visão executiva e cada frente, em desktop (1440×900) e
+// celular (400×860), página inteira, tema claro e escuro. Serve ao antes/depois de uma mudança de tela
+// sem depender das conferências abaixo, que descrevem uma versão específica da tela.
+const ROTULO_FOTOS = process.env.CAPTURAS_FOTOS;
+if (ROTULO_FOTOS) {
+  const FRENTES = [
+    "",
+    "receita",
+    "comercial",
+    "clientes",
+    "retencao",
+    "operacao",
+    "rede",
+    "portfolio",
+    "caixa",
+    "capital",
+  ];
+  const ROTA = process.env.CAPTURAS_ROTA || "/piloto/cockpit-ceo";
+  for (const tema of ["claro", "escuro"]) {
+    await cdp("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value: tema === "escuro" ? "dark" : "light" }],
+    });
+    for (const [nomeVista, largura, altura] of [
+      ["desktop", 1440, 900],
+      ["400px", 400, 860],
+    ]) {
+      await janela(largura, altura);
+      for (const f of FRENTES) {
+        await abrir(ROTA + (f ? `?frente=${f}` : ""));
+        await avaliar(
+          `document.documentElement.classList.toggle("dark", ${tema === "escuro"}); document.documentElement.dataset.theme = ${JSON.stringify(tema)}`,
+        );
+        await espera(400);
+        const largo = await avaliar("document.documentElement.scrollWidth > innerWidth");
+        if (largo) erros.push(`rolagem horizontal em ${f || "visao"} ${nomeVista} ${tema}`);
+        await foto(`${ROTULO_FOTOS}-${f || "visao"}-${nomeVista}-${tema}`, { inteira: true });
+      }
+    }
+  }
+  writeFileSync(
+    join(SAIDA, `${ROTULO_FOTOS}-erros.json`),
+    JSON.stringify(
+      {
+        // A hidratação do tema (data-theme no <html>) já acusa diferença na main: fica contada à parte.
+        hidratacaoDoTema: erros.filter((e) => /hydrated/.test(e)).length,
+        erros: erros.filter((e) => !/hydrated/.test(e)).map((e) => e.slice(0, 300)),
+        hosts: Object.fromEntries(hosts),
+      },
+      null,
+      2,
+    ),
+  );
+  console.log(`fotos em ${SAIDA} · ${erros.length} erro(s) de console ou layout`);
+  ws.close();
+  chrome.kill();
+  rmSync(perfil, { recursive: true, force: true });
+  process.exit(0);
+}
+
 const relatorio = [];
 // Os seis KpiCard da Visão executiva (DS v2): botão cujo texto começa pelo rótulo do indicador.
 const ROTULOS = [
