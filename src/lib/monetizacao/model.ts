@@ -540,6 +540,12 @@ export interface EtapaFunil {
   parados: Negocio[] | null;
   /** Etapa somada a esta (Stand by dentro de Reunião realizada), com quantos estão nela hoje. */
   inclui?: { nome: string; parados: number };
+  /**
+   * Passagem da linha de cima para esta: dos cards que entraram na linha de cima no período,
+   * a fração que depois chegou a esta linha ou a uma posterior. `undefined` na primeira linha;
+   * `null` quando a linha de cima não tem entrada.
+   */
+  conversao?: number | null;
 }
 
 const standBy = (nome: string) => /stand ?by/i.test(nome);
@@ -602,7 +608,7 @@ export function funil(
         },
       };
     });
-  const etapas = [
+  const linhas: EtapaFunil[] = [
     ...sequencia,
     {
       key: "ganho",
@@ -612,6 +618,39 @@ export function funil(
       parados: null,
     },
   ];
+  // Conversão = passagem. "Entraram(esta) ÷ entraram(de cima)" passava de 100% quando o card pulava
+  // etapa (Consultoria em 01–28/09: 8 em Abordagem, 18 em Gatilho, porque a maioria foi da Base
+  // direto para Gatilho). Aqui cada card que entrou na linha de cima conta uma vez, e passa se depois
+  // entrou nesta linha ou numa posterior, no mesmo recorte de data e ator.
+  const linhaDa = new Map<number, number>();
+  linhas.forEach((l, i) => l.stage_id !== null && linhaDa.set(l.stage_id, i));
+  const realizada = linhas.findIndex((l) => /reuni.*realiz/i.test(l.nome));
+  if (realizada >= 0) espera.forEach((x) => linhaDa.set(x.stage_id!, realizada));
+  const ganho = linhas.length - 1;
+  const entradas = (c: Negocio) => [
+    ...(c.moves ?? [])
+      .filter((m) => linhaDa.has(m.stage_id) && vale(m))
+      .map((m) => ({ linha: linhaDa.get(m.stage_id)!, at: m.at })),
+    ...c.events.signed.filter(vale).map((m) => ({ linha: ganho, at: m.at })),
+  ];
+  const etapas = linhas.map((l, i) => {
+    if (i === 0) return l;
+    const deCima = linhas[i - 1].entraram;
+    if (!porEtapa)
+      return {
+        ...l,
+        conversao: l.entraram && deCima ? taxa(l.entraram.length, deCima.length) : null,
+      };
+    if (!deCima?.length) return { ...l, conversao: null };
+    const passaram = deCima.filter((c) => {
+      const todas = entradas(c);
+      const inicio = todas
+        .filter((e) => e.linha === i - 1)
+        .reduce((a, e) => (e.at < a ? e.at : a), "￿");
+      return todas.some((e) => e.linha >= i && e.at >= inicio);
+    });
+    return { ...l, conversao: taxa(passaram.length, deCima.length) };
+  });
   const medePerda = pool.some((c) => c.lost_on !== undefined);
   const perdidos = medePerda
     ? pool.filter(

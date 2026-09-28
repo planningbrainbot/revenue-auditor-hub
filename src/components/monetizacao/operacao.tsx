@@ -365,7 +365,8 @@ export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil
       </div>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
         Entraram: cards movidos para a etapa no período. Hoje: o pipe inteiro agora,{" "}
-        {INT.format(abertos)} abertos.
+        {INT.format(abertos)} abertos. Conversão: dos que entraram na etapa de cima, quantos
+        chegaram a esta ou além.
       </p>
       <div className="mt-3">
         <div
@@ -386,13 +387,7 @@ export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil
             passo={i}
             total={etapas.length}
             abrir={abrir}
-            conversao={
-              i === 0
-                ? undefined
-                : e.entraram && etapas[i - 1].entraram
-                  ? taxa(e.entraram.length, etapas[i - 1].entraram!.length)
-                  : null
-            }
+            conversao={e.conversao}
           />
         ))}
       </div>

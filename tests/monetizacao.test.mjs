@@ -505,3 +505,48 @@ test("Detalhe diz que o negócio perdido ou ganho está encerrado, e a etapa vir
     etapa: aberto.stage,
   });
 });
+
+test("Conversão do funil é passagem: card que pula etapa não leva a taxa acima de 100%", () => {
+  const st = [
+    { id: 1, name: "1 · Base elegível", order: 1 },
+    { id: 2, name: "2 · Abordagem em curso", order: 2 },
+    { id: 3, name: "3 · Gatilho identificado", order: 3 },
+    { id: 4, name: "5 · Reunião realizada", order: 5 },
+    { id: 8, name: "8 · Stand by", order: 8 },
+  ];
+  // Consultoria em 01–28/09: a maioria foi da Base direto para Gatilho, sem passar por Abordagem.
+  const direto = (id) => card(raw({ id, stage_id: 3 }), [change(1, 3, "2026-09-05 12:00:00")]);
+  const parado = card(raw({ id: 110, stage_id: 2 }), [change(1, 2, "2026-09-05 12:00:00")]);
+  const passou = card(raw({ id: 111, stage_id: 3 }), [
+    change(1, 2, "2026-09-05 12:00:00"),
+    change(2, 3, "2026-09-06 12:00:00"),
+  ]);
+  // entrou em Gatilho antes de Abordagem (ordem das etapas trocada): não passou de Abordagem
+  const voltou = card(raw({ id: 112, stage_id: 2 }), [
+    change(1, 3, "2026-09-05 12:00:00"),
+    change(3, 2, "2026-09-06 12:00:00"),
+  ]);
+  // Stand by fica na linha de Reunião realizada, e conta como passagem de Gatilho
+  const espera = card(raw({ id: 113, stage_id: 8 }), [
+    change(1, 3, "2026-09-05 12:00:00"),
+    change(3, 8, "2026-09-07 12:00:00"),
+  ]);
+  const f = funil(
+    [direto(101), direto(102), direto(103), parado, passou, voltou, espera],
+    st,
+    filter,
+  );
+  const linha = (k) => f.etapas.find((e) => e.key === k);
+  assert.equal(linha("2").entraram.length, 3);
+  assert.equal(linha("3").entraram.length, 6);
+  assert.equal(linha("1").conversao, undefined);
+  // da Base (7), todos chegaram a Abordagem ou além
+  assert.equal(linha("2").conversao, 1);
+  // de Abordagem (3), só o que depois foi para Gatilho; antes era 6 ÷ 3 = 200%
+  assert.equal(linha("3").conversao, 1 / 3);
+  // de Gatilho (6), só o que entrou em Stand by
+  assert.equal(linha("4").conversao, 1 / 6);
+  assert.equal(linha("ganho").conversao, 0);
+  for (const e of f.etapas)
+    assert.ok(e.conversao === undefined || e.conversao === null || e.conversao <= 1);
+});
