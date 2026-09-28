@@ -1,6 +1,36 @@
 import { operacao } from "./model.ts";
 import type { ForecastSource, Negocio } from "./types";
 
+const ORDEM_CENARIO: Record<string, number> = { Conservador: 0, Estimado: 1, Otimista: 2 };
+
+/**
+ * Versões e cenários na ordem do seletor: fonte mais recente primeiro; dentro da versão,
+ * Conservador · Estimado · Otimista.
+ */
+export function opcoesDoForecast(forecasts: ForecastSource[]): ForecastSource[] {
+  return [...forecasts].sort(
+    (a, b) =>
+      b.source_date.localeCompare(a.source_date) ||
+      (ORDEM_CENARIO[a.scenario ?? ""] ?? 9) - (ORDEM_CENARIO[b.scenario ?? ""] ?? 9) ||
+      a.id.localeCompare(b.id),
+  );
+}
+
+/**
+ * A fonte em uso: a pedida na URL (`cenario` = id da fonte); senão o cenário padrão da versão
+ * mais recente; senão a primeira dela. Id desconhecido cai no padrão, não em tela vazia.
+ */
+export function escolherForecast(
+  forecasts: ForecastSource[],
+  pedido?: string,
+): ForecastSource | undefined {
+  const opcoes = opcoesDoForecast(forecasts);
+  const pedida = pedido ? opcoes.find((f) => f.id === pedido) : undefined;
+  if (pedida) return pedida;
+  const recente = opcoes.filter((f) => f.source_date === opcoes[0]?.source_date);
+  return recente.find((f) => f.default) ?? recente[0];
+}
+
 export function forecastComparison(
   source: ForecastSource,
   cards: Negocio[],

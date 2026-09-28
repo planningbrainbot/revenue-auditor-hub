@@ -21,7 +21,11 @@ import {
 import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
 import { dealPayload, hasCanonicalProduct } from "../supabase/functions/monetizacao-crm/send.mjs";
-import { forecastComparison } from "../src/lib/monetizacao/forecast.ts";
+import {
+  escolherForecast,
+  forecastComparison,
+  opcoesDoForecast,
+} from "../src/lib/monetizacao/forecast.ts";
 
 test("Envio preenche o campo canônico de cada produto no pipe 39 e confere o retorno", () => {
   for (const [product, option] of [
@@ -245,6 +249,53 @@ test("Forecast compara mês global até a carga, sem fabricar realizado futuro o
   assert.equal(rows[1].actual, null);
   assert.equal(rows[1].planned.signed, 16);
   assert.equal(forecastComparison(source, [], null)[0].actual, null);
+});
+test("Forecast abre o cenário padrão da versão mais recente e respeita o pedido na URL", () => {
+  const fonte = (id, source_date, scenario, padrao) => ({
+    id,
+    source_date,
+    scenario,
+    default: padrao,
+    version: id,
+    months: [],
+    rows: [],
+  });
+  const fontes = [
+    fonte("v10-2026-09-09", "2026-09-09"),
+    fonte("v12-2026-09-28-otimista", "2026-09-28", "Otimista"),
+    fonte("v12-2026-09-28", "2026-09-28", "Estimado", true),
+    fonte("v12-2026-09-28-conservador", "2026-09-28", "Conservador"),
+  ];
+  assert.equal(escolherForecast(fontes).id, "v12-2026-09-28");
+  assert.equal(
+    escolherForecast(fontes, "v12-2026-09-28-conservador").id,
+    "v12-2026-09-28-conservador",
+  );
+  assert.equal(escolherForecast(fontes, "v10-2026-09-09").id, "v10-2026-09-09");
+  // Id desconhecido (link velho) cai no padrão, não em tela vazia.
+  assert.equal(escolherForecast(fontes, "v99-inexistente").id, "v12-2026-09-28");
+  assert.deepEqual(
+    opcoesDoForecast(fontes).map((f) => f.id),
+    ["v12-2026-09-28-conservador", "v12-2026-09-28", "v12-2026-09-28-otimista", "v10-2026-09-09"],
+  );
+  // Só a v10 importada: ela é a fonte, sem cenário.
+  assert.equal(escolherForecast([fonte("v10-2026-09-09", "2026-09-09")]).id, "v10-2026-09-09");
+  assert.equal(escolherForecast([]), undefined);
+});
+test("Forecast v12 usa o contrato esperado, fracionário, como meta do mês", () => {
+  const source = {
+    months: ["2026-09"],
+    rows: [
+      { row: 29, values: [120] },
+      { row: 41, values: [7.8] },
+      { row: 38, values: [0.89] },
+      { row: 39, values: [4.3] },
+      { row: 40, values: [2.61] },
+    ],
+  };
+  const [mes] = forecastComparison(source, [], "2026-09-15");
+  assert.equal(mes.planned.signed, 7.8);
+  assert.equal(mes.products.find((p) => p.product === "cella").plannedSigned, 0.89);
 });
 test("Histórico indisponível não vira validação inferida da etapa atual", () => {
   const c = summarize([raw()], stages, {}, "2026-09").cards[0];

@@ -1,16 +1,22 @@
-"""Importa a referência v10 sem alterar a planilha ou suas premissas.
+"""Importa uma versão do forecast sem alterar a planilha ou suas premissas.
 
-O XLSX original não possui cache de fórmulas. Avaliador restrito às operações
-observadas no modelo: sintaxe não suportada falha, nunca vira zero silencioso.
-Uso: python import_forecast.py arquivo.xlsx --output /caminho/privado.json
+v10 (09/09): uma aba "Forecast", um plano.
+v12 (28/09): uma aba "Forecast <cenário>" por cenário (Conservador, Estimado, Otimista), com o mesmo
+layout de linhas da v10 (12 a 67) e a parceria da Cella nas linhas 71 e 72. Vira uma fonte por cenário;
+o Estimado é o padrão e tem o id sem sufixo, para vir primeiro na ordenação por id.
+
+O XLSX não possui cache de fórmulas. Avaliador restrito às operações usadas nos modelos: sintaxe não
+suportada falha, nunca vira zero silencioso.
+Uso: python import_forecast.py arquivo.xlsx --output /caminho/privado.json [--sql /caminho/upsert.sql]
 """
-import argparse, ast, hashlib, json, operator, re, zipfile
+import argparse, ast, hashlib, json, operator, posixpath, re, zipfile
 import xml.etree.ElementTree as ET
 from decimal import Decimal, ROUND_HALF_UP
 from functools import lru_cache
 from pathlib import Path
 
 NS = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+RID = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
 REF = re.compile(r"(?:(?:'([^']+)'|([A-Za-zÀ-ÿ_]+))!)?(\$?[A-Z]{1,3}\$?\d+)(?::(\$?[A-Z]{1,3}\$?\d+))?")
 def col_num(col):
     n = 0
@@ -27,13 +33,18 @@ class Model:
         with zipfile.ZipFile(path) as z:
             shared = ET.fromstring(z.read('xl/sharedStrings.xml')) if 'xl/sharedStrings.xml' in z.namelist() else []
             strings = [''.join(si.itertext()) for si in shared]
+            # A aba se acha pela relação do workbook, não pelo sheetId (que não precisa bater com o arquivo).
+            rels = {r.attrib['Id']: r.attrib['Target'] for r in ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))}
             for s in ET.fromstring(z.read('xl/workbook.xml')).find('s:sheets', NS):
+                target = rels[s.attrib[RID]]
+                target = target.lstrip('/') if target.startswith('/') else posixpath.normpath(posixpath.join('xl', target))
                 cells = {}
-                for c in ET.fromstring(z.read('xl/worksheets/sheet'+s.attrib['sheetId']+'.xml')).findall('.//s:sheetData/s:row/s:c', NS):
+                for c in ET.fromstring(z.read(target)).findall('.//s:sheetData/s:row/s:c', NS):
                     v, f, inline = c.find('s:v', NS), c.find('s:f', NS), c.find('s:is', NS)
                     value = v.text if v is not None else None
                     if c.attrib.get('t') == 's': value = strings[int(value)]
                     elif c.attrib.get('t') == 'inlineStr': value = ''.join(inline.itertext()) if inline is not None else None
+                    elif c.attrib.get('t') == 'str': value = value
                     elif value is not None: value = float(value)
                     cells[c.attrib['r']] = {'value': value, 'formula': f.text if f is not None else None}
                 self.cells[s.attrib['name']] = cells
@@ -70,6 +81,8 @@ class Model:
             if args[1] < 1 or args[2] < 1: raise IndexError('Índice fora do intervalo')
             return args[0][int(args[1])-1][int(args[2])-1]
         if name == 'ROUND': return float(Decimal(str(args[0])).quantize(Decimal(10)**-int(args[1]), rounding=ROUND_HALF_UP))
+        # N(): número passa, vazio ou texto vira zero (é o uso da Selic opcional da v12).
+        if name == 'N': return args[0] if isinstance(args[0], (int, float)) and not isinstance(args[0], bool) else 0
         def flat(xs):
             for x in xs:
                 if isinstance(x,list): yield from flat(x)
@@ -78,28 +91,87 @@ class Model:
         if name in ('SUM','MIN','MAX','AVERAGE'): return {'SUM':sum,'MIN':min,'MAX':max,'AVERAGE':lambda x:sum(x)/len(x)}[name](nums)
         raise ValueError('Função não suportada: '+name)
 
-def build(path):
-    model = Model(path)
-    months = [f'{2026+(8+i)//12}-{(8+i)%12+1:02}' for i in range(12)]
+def months_from(start_year, start_month, n=12):
+    return [f'{start_year+(start_month-1+i)//12}-{(start_month-1+i)%12+1:02}' for i in range(n)]
+
+def read_rows(model, sheet, last, money, percent):
     rows = []
-    for r in range(12,68):
-        label = model.cells['Forecast'].get('B'+str(r),{}).get('value')
-        first = model.cells['Forecast'].get('C'+str(r),{})
-        if not label or not (first.get('formula') or isinstance(first.get('value'),(int,float))): continue
-        rows.append({'row':r,'label':label.strip(),'format':'percent' if r in (30,31,36,42) else 'money' if r==14 or 46<=r<=59 or 64<=r<=67 else 'number','values':[model.value('Forecast',col_name(c)+str(r)) for c in range(3,15)],'formulas':[model.cells['Forecast'].get(col_name(c)+str(r),{}).get('formula') for c in range(3,15)]})
-    by = {r['row']:r['values'] for r in rows}
-    # Conferências independentes: fonte/screenshot e identidades mensais.
-    assert by[41][0] == 8 and by[41][1] == 16 and by[28][0] == 818
-    assert abs(by[35][0]-48.6)<0.01
+    for r in range(12, last + 1):
+        label = model.cells[sheet].get('B'+str(r),{}).get('value')
+        first = model.cells[sheet].get('C'+str(r),{})
+        if not isinstance(label, str) or not (first.get('formula') or isinstance(first.get('value'),(int,float))): continue
+        rows.append({'row':r,'label':label.strip(),'format':'percent' if r in percent else 'money' if r in money else 'number','values':[model.value(sheet,col_name(c)+str(r)) for c in range(3,15)],'formulas':[model.cells[sheet].get(col_name(c)+str(r),{}).get('formula') for c in range(3,15)]})
+    return rows
+
+def identities(by, contract_rows_integer):
     for i in range(12):
-        assert by[41][i] == sum(by[r][i] for r in (38,39,40))
+        if contract_rows_integer: assert by[41][i] == sum(by[r][i] for r in (38,39,40))
+        else: assert abs(by[41][i]-sum(by[r][i] for r in (38,39,40)))<1e-8
         assert abs(by[29][i]-sum(by[r][i] for r in (25,26,27)))<1e-8
         assert abs(by[50][i]-sum(by[r][i] for r in (46,47,48,49)))<1e-8
         assert abs(by[58][i]-sum(by[r][i] for r in (54,55,56,57)))<1e-8
         assert abs(by[66][i]-by[58][i]-by[65][i])<1e-8
-    return {'id':'v10-2026-09-09','version':'v10 · dois aquários','source_name':path.name,'source_date':'2026-09-09','sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'scope':'front','months':months,'rows':rows,'note':'Plano de referência anterior à revisão dos gates. Preserva as premissas e o mix da planilha; não representa o estoque elegível atual nem uma nova promessa de fechamento.'}
+
+MONEY = {14} | set(range(46,60)) | set(range(64,68))
+PERCENT = {30,31,36,42}
+
+def build_v10(model, path):
+    rows = read_rows(model, 'Forecast', 67, MONEY, PERCENT)
+    by = {r['row']:r['values'] for r in rows}
+    # Conferências independentes: fonte/screenshot e identidades mensais.
+    assert by[41][0] == 8 and by[41][1] == 16 and by[28][0] == 818
+    assert abs(by[35][0]-48.6)<0.01
+    identities(by, True)
+    return [{'id':'v10-2026-09-09','version':'v10 · dois aquários','source_name':path.name,'source_date':'2026-09-09','sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'scope':'front','months':months_from(2026,9),'rows':rows,'note':'Plano de referência anterior à revisão dos gates. Preserva as premissas e o mix da planilha; não representa o estoque elegível atual nem uma nova promessa de fechamento.'}]
+
+CENARIOS = [('Estimado', ''), ('Conservador', '-conservador'), ('Otimista', '-otimista')]
+NOTA_V12 = {
+    'Estimado': 'Forecast v12, cenário Estimado: premissas da planilha da parceria Diehl & Cella para a Cella (por faixa de faturamento e regime, base declarada medida em 28/09); Consultoria e Finance como na v10.',
+    'Conservador': 'Forecast v12, cenário Conservador (em aberto até validação): êxito, honorários e conversão abaixo da planilha e o corte atual de R$ 25 mi para a Cella.',
+    'Otimista': 'Forecast v12, cenário Otimista (em aberto até validação): êxito, honorários e conversão acima da planilha e entrada da Cella a partir de R$ 10 mi.',
+}
+
+def build_v12(model, path, source_date):
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    # A planilha da parceria, reproduzida: 1 empresa por faixa soma R$ 7.329.293,40.
+    cf = model.cells['Cella por faixa']
+    total = next(r for r in range(1, 200) if cf.get(f'B{r}', {}).get('value') == 'Total')
+    assert abs(model.value('Cella por faixa', f'K{total}') - 7329293.4) < 0.01
+    docs, out = {}, []
+    for nome, sufixo in CENARIOS:
+        sheet = f'Forecast {nome}'
+        rows = read_rows(model, sheet, 72, MONEY | {71, 72}, PERCENT)
+        by = {r['row']:r['values'] for r in rows}
+        assert len(rows) >= 44 and 71 in by and 72 in by, (nome, len(rows))
+        identities(by, False)
+        # Honorários da parceria = contratos de Cella × honorário médio; receita da Planning = × fatia.
+        for i in range(12):
+            if by[38][i]: assert by[71][i] >= by[46][i] - 1e-6
+        docs[nome] = rows
+        out.append({'id':f'v12-{source_date}{sufixo}','version':f'v12 · {nome}','scenario':nome,'default':nome=='Estimado','sheet':sheet,
+                    'source_name':path.name,'source_date':source_date,'sha256':sha,'scope':'front','months':months_from(2026,9),'rows':rows,'note':NOTA_V12[nome]})
+    # Conservador ≤ Estimado ≤ Otimista em contratos e receita assinada, como os cenários foram montados.
+    tot = lambda nome, row: sum(next(r for r in docs[nome] if r['row']==row)['values'])
+    for row in (41, 50, 71):
+        assert tot('Conservador', row) <= tot('Estimado', row) <= tot('Otimista', row), row
+    return out
+
+def build(path, source_date='2026-09-28'):
+    model = Model(path)
+    if all(f'Forecast {nome}' in model.cells for nome, _ in CENARIOS): return build_v12(model, path, source_date)
+    return build_v10(model, path)
+
+def upsert_sql(docs):
+    parts = []
+    for d in docs:
+        payload = json.dumps(d, ensure_ascii=False, allow_nan=False)
+        assert '$forecast$' not in payload
+        parts.append(f"insert into ops.monetizacao_forecasts (id, payload, imported_at) values ({json.dumps(d['id'])[1:-1]!r}, $forecast${payload}$forecast$::jsonb, now()) on conflict (id) do update set payload = excluded.payload, imported_at = excluded.imported_at;")
+    return 'begin;\n' + '\n'.join(parts) + '\ncommit;\n'
 
 if __name__ == '__main__':
-    p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args()
-    doc=build(a.source);a.output.write_text(json.dumps(doc,ensure_ascii=False,allow_nan=False))
-    print(json.dumps({'version':doc['version'],'months':len(doc['months']),'rows':len(doc['rows']),'checks':'source Sep/Oct + monthly work/contracts/revenue/cash/margin reconciled'}))
+    p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--output',required=True,type=Path)
+    p.add_argument('--source-date',default='2026-09-28');p.add_argument('--sql',type=Path);a=p.parse_args()
+    docs=build(a.source,a.source_date);a.output.write_text(json.dumps(docs,ensure_ascii=False,allow_nan=False))
+    if a.sql: a.sql.write_text(upsert_sql(docs))
+    print(json.dumps([{'id':d['id'],'version':d['version'],'months':len(d['months']),'rows':len(d['rows'])} for d in docs],ensure_ascii=False))

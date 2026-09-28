@@ -266,6 +266,12 @@ export interface ForecastSource {
   drive_updated_at?: string;
   id: string;
   version: string;
+  /** Cenário da versão (v12+: Conservador, Estimado, Otimista). Sem cenário: plano único (v10). */
+  scenario?: string;
+  /** Cenário padrão da versão: é o que a tela abre sem `cenario` na URL. */
+  default?: boolean;
+  /** Aba de origem na planilha; sem ela, "Forecast" (v10). */
+  sheet?: string;
   source_name: string;
   source_date: string;
   sha256: string;

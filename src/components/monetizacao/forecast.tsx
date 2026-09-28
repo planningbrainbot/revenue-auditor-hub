@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { ForecastModel } from "./forecast-model";
 import { disponibilidade, oferta } from "@/lib/monetizacao/model";
-import { forecastComparison } from "@/lib/monetizacao/forecast";
+import { escolherForecast, forecastComparison, opcoesDoForecast } from "@/lib/monetizacao/forecast";
 import { NOMES } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, ForecastSource, Metrica, Negocio } from "@/lib/monetizacao/types";
 import {
@@ -59,9 +59,14 @@ export const rotuloMesForecast = (m: string) =>
 const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
 const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
-/** A versão do forecast em uso: a de fonte mais recente. */
-export const fonteDoForecast = (data: BaseMonetizacao): ForecastSource | undefined =>
-  [...data.forecasts].sort((a, b) => b.source_date.localeCompare(a.source_date))[0];
+/**
+ * A versão e o cenário em uso: `cenario` da URL (id da fonte), senão o cenário padrão da versão
+ * mais recente. O cabeçalho (`descricaoDaAba`) usa a mesma regra para não divergir da tela.
+ */
+export const fonteDoForecast = (
+  data: BaseMonetizacao,
+  cenario?: string,
+): ForecastSource | undefined => escolherForecast(data.forecasts, cenario);
 
 /**
  * Mês comparado: `mes` da URL, senão o mês de `ate` (padrão da moldura); fora dos meses da fonte,
@@ -102,7 +107,7 @@ export function Forecast({
   busca?: BuscaMonetizacao;
   mudarBusca?: (patch: Partial<BuscaMonetizacao>) => void;
 }) {
-  const source = fonteDoForecast(data);
+  const source = fonteDoForecast(data, busca?.cenario);
   if (!source)
     return data.permissions.all_units ? (
       <EstadoVazio titulo="Ainda não há uma versão do forecast importada." />
@@ -138,6 +143,11 @@ export function Forecast({
     });
   const mudarMes = (m: string) =>
     mudarBusca?.({ mes: m === mesDoForecast(source, month) ? undefined : m });
+  // Versão e cenário: o padrão não vai para a URL.
+  const opcoes = opcoesDoForecast(data.forecasts);
+  const padrao = fonteDoForecast(data);
+  const mudarCenario = (id: string) =>
+    mudarBusca?.({ cenario: id === padrao?.id ? undefined : id });
 
   // Z1/Z2 sobre a frente inteira (a comparação não filtra dono nem produto).
   const evento = estadoKpiEvento(
@@ -174,11 +184,36 @@ export function Forecast({
       <BarraFiltros
         className="items-end"
         aoLimpar={
-          busca?.mes !== undefined || busca?.blocos !== undefined || busca?.totais !== undefined
-            ? () => mudarBusca?.({ mes: undefined, blocos: undefined, totais: undefined })
+          busca?.mes !== undefined ||
+          busca?.blocos !== undefined ||
+          busca?.totais !== undefined ||
+          busca?.cenario !== undefined
+            ? () =>
+                mudarBusca?.({
+                  mes: undefined,
+                  blocos: undefined,
+                  totais: undefined,
+                  cenario: undefined,
+                })
             : undefined
         }
       >
+        {opcoes.length > 1 && (
+          <Field label="Cenário">
+            <select
+              className={`${inputClass} min-w-40`}
+              value={source.id}
+              onChange={(e) => mudarCenario(e.target.value)}
+            >
+              {opcoes.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.version}
+                  {f.id === padrao?.id ? " · padrão" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Mês de comparação">
           <select
             className={`${inputClass} min-w-32`}

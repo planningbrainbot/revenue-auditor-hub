@@ -3521,3 +3521,18 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 **Conferido sem defeito:** reabertos (96097, 96112, 94572 e 94757 foram marcados ganhos e desfeitos em menos de 1 minuto, e nenhum conta ganho; 95190, perdido e reaberto, não entra em perdidos). As "(cópia)" não duplicam no pipe 39: os originais estão em outros pipes, e as cópias entraram no 39 vindas de etapas de outros pipes. Nenhum negócio do Matheus saiu do pipe 39 em setembro. Fuso de São Paulo e dedupe por (dia, ator) conferidos. Metas: 140 trabalhados em 20 dias úteis = 7,0/dia (na meta); contratos 3 contra 7,3.
 
 **Status:** branch `fix/monetizacao-standby-reuniao-20260928`, sete commits de correção e um de documentação, rebaseados sobre `e1ad4da` (a `main` com o visual do Cockpit do CEO, publicado às 15:42, e os sinais da base, publicados às 16:39). Testes 282/282 no repo (30 na Monetização). Publicação pendente do ok do dono: a função `monetizacao-crm` v6 relê os 194 históricos na primeira rodada.
+
+## [2026-09-28] Projetado × realizado passa a usar o forecast v12, com seletor de cenário
+
+**Contexto:** o Pedro pediu uma versão nova e definitiva do forecast da Caixa de Oportunidade incorporando a planilha da parceria Diehl & Cella (receita da Cella por faixa de faturamento × regime) e que a aba `?aba=forecast` usasse a v12, "seletor de cenário se couber sem redesenhar a tela ... mudança de UI mínima" (outro chat escreve a spec de redesenho destas telas). Modelo e memória na frente `monetizacao/` (`forecast/build-v12.py`, `memoria/decisoes.md` de 28/09).
+
+**Decisão:**
+- A v12 tem uma aba `Forecast <cenário>` por cenário, com o mesmo layout de linhas da v10 (12 a 67): `forecastComparison` e a grade não mudam de cálculo. As linhas 71–72 (honorários da parceria e recuperação para os clientes) viram o bloco "Cella · parceria", que só aparece quando a fonte tem essas linhas.
+- `import_forecast.py` lê v10 e v12; a v12 vira três fontes (`v12-2026-09-28` Estimado, padrão e primeiro na ordenação por id; `-conservador`; `-otimista`), cada uma com `scenario`, `default` e `sheet`. Acha a aba pelos rels do workbook (não pelo `sheetId`), aceita `N()`, confere a reprodução da planilha da parceria (R$ 7.329.293,40), as identidades mensais e Conservador ≤ Estimado ≤ Otimista. A v10 reimportada sai idêntica ao payload no ar.
+- Seletor "Cenário" na barra de filtros (`cenario` na URL = id da fonte; padrão fora da URL; id desconhecido cai no padrão). A v10 fica na tabela e no seletor como histórico.
+- Contrato esperado da v12 não é arredondado (a v10 arredondava cada rota por mês); a meta do mês pode ser fracionária ("7,8").
+
+**Conferido:** as fórmulas da planilha avaliadas pelo importador, um motor independente em Python e o Numbers (recalculado e exportado) concordam em todas as células das três abas Forecast (diferença máxima 9e-8). Testes 278/278, `design:lint` ok, `tsc` só com o erro que já existe na main (`integracoes-status.functions.ts`). Captura escuro/claro com fonte local (rota temporária, fora do commit).
+
+**Publicação:** o import em `ops.monetizacao_forecasts` e o deploy do `ops-brain` dependem do "ok" do Pedro (projeto do Eliezek). Sem o deploy, a tela publicada já mostraria o Estimado (id sem sufixo vem primeiro com a mesma `source_date`), sem seletor.
+
