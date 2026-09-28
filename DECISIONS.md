@@ -3414,3 +3414,20 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 - Validação não muda: Stand by continua contando como validada, como antes.
 
 **Medido em 28/09 (01/09 a 28/09, carga local contra o Pipedrive):** reuniões realizadas 31 (a QUALIOBRAS entra pela regra nova); reunião → oportunidade 28 de 31; Reunião realizada no funil com 31 entradas e 7 hoje, todos em Stand by.
+
+## [2026-09-28] Reestudo das telas de Monetização: proposta em spec (nada implementado)
+
+**Contexto:** o dono pediu o funil e o ciclo de vendas por produto (Cella, Consultoria, Finance) dentro da Monetização e o fim das telas repetidas ou sem dado. Spec em `docs/dev_notes/monetizacao-reestudo-telas/spec.md`; medições em `medicoes.md`; contratos propostos em `docs/design/contratos/monetizacao-funil-ciclo.md` e `monetizacao-previsao.md`; mockup com dado real em https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F.
+
+**Proposta (aguarda "contrato ok" e as perguntas P1–P6 da spec):** o menu de Monetização cai de 9 para 4 itens: Operação diária (mantida), Funil e ciclo (`?aba=funil`), Previsão (`?aba=previsao`) e Abordagens (mantida). Temporal, Projetado × realizado e Capacidade fundem em Previsão. Follow Day, Pessoas e PDI e Distribuição saem. Todo `?aba=` antigo redireciona com aviso (N14).
+
+**Decisões técnicas já tomadas nesta spec:**
+1. **O produto é o campo "Caixa · Produto", não o título** (reafirma 15/09, item 5). Em 28/09, 3 negócios divergiam (96070, 96094, 96110). O registro de envio (`monetizacao_envios.product`) confirma o campo nos três.
+2. **Duas réguas com nome declarado.** Funil e ciclo conta **coorte** (criados no período, marcos até hoje, "chegou" = tem o marco ou um posterior). A Operação conta **movimentos no período**. As duas não aparecem juntas na mesma tela e o rótulo diz qual régua está em uso.
+3. **Carga v6.** Corrige a ordem de trocas de etapa no mesmo segundo: o `/flow` vem do mais novo para o mais antigo e a ordenação estável invertia os empates. Isso deu etapa inicial e `started` errados no 95211 e no 95196. A v6 também grava `won_at` e `lost_at` com hora. O tempo por etapa é calculado a partir de `moves` e bate com o `stay_in_pipeline_stages` do Pipedrive em 614 de 620 passagens.
+4. **Envelhecimento conta dias na etapa atual**, e não "dias sem movimento". Com 88% dos abertos sem próxima atividade no Pipedrive, a régua do Follow Day não separava nenhum negócio.
+5. **Perda por remanejamento** (duplicado, feito em outro card, troca de produto) fica em linha própria nos motivos e, na proposta, sai da taxa de perda. São 14 de 85; a confirmação é a P5.
+6. **O mockup com dado real fica fora do Git.** O repositório guarda só `mockup/modelo.html` e o gerador (`gerar_mockup.py`), que se recusa a gravar dentro do repo (regra de 16/09).
+7. **Previsão lê o forecast por nome de marco**, e não por número de linha da planilha. O formato está na spec §12; o modelo é do chat de Forecast (`feat/monetizacao-forecast-v12-20260928`).
+
+**Medido em 28/09:** carga viva (2.010 execuções em 7 dias, 0 falhas). Forecast com uma versão só, importada em 15/09. Um plano só (set/26, alocação 0/0/0) e nenhum de out/26. 0 PDI e 0 decisões de distribuição. Das 30 validadas abertas, nenhuma tem data prevista ou valor. `ops.acessos_log` não registra página vista, então os cortes se apoiam no dado que entra em cada tela, e não no uso.
