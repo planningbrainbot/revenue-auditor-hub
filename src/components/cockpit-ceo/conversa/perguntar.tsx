@@ -159,18 +159,28 @@ async function cabecalhoDeSessao(): Promise<Record<string, string>> {
 export function PerguntarAoBrain({
   conversaInicial,
   visaoInicial,
+  graficoInicial = null,
   aoMudarBusca,
 }: {
   conversaInicial: string | null;
   visaoInicial: string | null;
-  aoMudarBusca: (b: { conversa?: string; visao?: string }) => void;
+  /** Aberta pela gaveta de um gráfico: a primeira pergunta leva o gráfico como contexto. */
+  graficoInicial?: string | null;
+  aoMudarBusca: (b: { conversa?: string; visao?: string; grafico?: string }) => void;
 }) {
   const qc = useQueryClient();
   const conversaRef = useRef<string | null>(conversaInicial);
+  // O gráfico só vale para a primeira pergunta de uma conversa nova; depois o contexto já está nela.
+  const graficoRef = useRef<string | null>(conversaInicial ? null : graficoInicial);
+  const [graficoContexto, setGraficoContexto] = useState<string | null>(graficoRef.current);
   const [conversaId, setConversaId] = useState<string | null>(conversaInicial);
   const [etapa, setEtapa] = useState<{ etapa: string; detalhe?: string } | null>(null);
   const [painel, setPainel] = useState<PainelVisual>(PAINEL_VAZIO);
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(
+    graficoInicial && !conversaInicial
+      ? "O que este gráfico mostra de mais importante, e o que devo decidir a partir dele?"
+      : "",
+  );
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
 
   const lerConversaFn = useServerFn(lerConversa);
@@ -186,6 +196,7 @@ export function PerguntarAoBrain({
           body: {
             conversaId: conversaRef.current,
             pergunta: textoDe(messages[messages.length - 1]),
+            ...(graficoRef.current && !conversaRef.current ? { grafico: graficoRef.current } : {}),
           },
           headers: await cabecalhoDeSessao(),
         }),
@@ -200,8 +211,9 @@ export function PerguntarAoBrain({
       const d = parte.data as { etapa: string; detalhe?: string };
       if (d.etapa === "conversa" && d.detalhe && !conversaRef.current) {
         conversaRef.current = d.detalhe;
+        graficoRef.current = null;
         setConversaId(d.detalhe);
-        aoMudarBusca({ conversa: d.detalhe, visao: undefined });
+        aoMudarBusca({ conversa: d.detalhe, visao: undefined, grafico: undefined });
       } else setEtapa(d);
     },
     onFinish: () => {
@@ -337,7 +349,9 @@ export function PerguntarAoBrain({
     setMessages([]);
     setPainel(PAINEL_VAZIO);
     clearError();
-    aoMudarBusca({ conversa: undefined, visao: undefined });
+    graficoRef.current = null;
+    setGraficoContexto(null);
+    aoMudarBusca({ conversa: undefined, visao: undefined, grafico: undefined });
   };
 
   const enviar = (pergunta: string) => {
@@ -439,6 +453,14 @@ export function PerguntarAoBrain({
             </div>
           )}
         </div>
+        {graficoContexto && !messages.length && (
+          <p className="flex items-center gap-2 border-t px-3 pt-3 text-[13px] text-muted-foreground">
+            <StatusBadge tom="info">Contexto</StatusBadge>
+            <span className="truncate">
+              A primeira pergunta leva o gráfico do cockpit e os dados dele.
+            </span>
+          </p>
+        )}
         <form
           className="flex items-end gap-2 border-t p-3"
           onSubmit={(e: FormEvent) => {

@@ -17,20 +17,7 @@ export function ClientesAtivos({
 }) {
   const titulo = (id: string) => clientes?.definicoes.find((d) => d.id === id)?.titulo ?? id;
   return (
-    <section
-      className="space-y-4 rounded-xl border bg-card p-4"
-      aria-label="Clientes ativos por definição"
-    >
-      <header className="space-y-1">
-        <h2 className="text-base font-semibold">
-          Quantos clientes ativos temos, em cada definição?
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Cada linha conta CNPJs distintos por uma régua que já existe na casa. Elas não se somam, e
-          a escolha de qual vale para cada contexto ainda não foi feita. Vale para a rede inteira: o
-          filtro de unidade e o de período não se aplicam aqui.
-        </p>
-      </header>
+    <div className="space-y-4" aria-label="Clientes ativos por definição">
       {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
       {clientes && (
         <>
@@ -66,14 +53,6 @@ export function ClientesAtivos({
                         <span className="font-medium">{d.titulo}</span>
                         {d.estado !== "disponivel" && <EstadoBadge estado={d.estado} />}
                       </div>
-                      <p className="text-xs text-muted-foreground">{d.definicao}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Fonte: {d.fonte}
-                        {d.foraDoFormato
-                          ? ` · ${d.foraDoFormato} documento(s) que não são CNPJ fora`
-                          : ""}
-                        {d.nota ? ` · ${d.nota}` : ""}
-                      </p>
                     </td>
                     <td className="py-1.5 text-right tabular-nums">
                       {formatarNumero(d.cnpjs, "contas")}
@@ -136,6 +115,6 @@ export function ClientesAtivos({
           </ul>
         </>
       )}
-    </section>
+    </div>
   );
 }

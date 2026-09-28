@@ -6,6 +6,34 @@ Estado: **aprovado pelo Pedro em 23/09/2026** (frentes na lateral, pergunta do t
 
 Base: piloto `feat/cockpit-ceo-piloto` (rodadas 1 e 2, relatório `docs/dev_notes/cockpit-ceo-piloto/relatorio-rodada-2.md`), PRD do cockpit e as entradas de 22/09 do `DECISIONS.md`. Regras de cálculo, consultas, `portas.ts`, RLS e homologação **não mudam** nesta etapa: o contrato descreve o que já existe e como ele passa a ser mostrado.
 
+## Revisão de 28/09/2026 — número vira gráfico
+
+**Estado:** implementada sob pedido explícito do Pedro em 28/09 (brief "Contexto · Princípio · Visão executiva · Interação · Visual · IA · Textos · Aceite"), na branch `feat/cockpit-ceo-visual-20260928`. O brief é o contrato desta revisão; falta o "contrato ok" formal no PR. Regras de cálculo existentes, portas e RLS não mudam; as leituras novas têm porta própria.
+
+**Princípio:** cada bloco é um gráfico com o número principal em destaque e um título de uma linha. Parágrafo, descrição de seção e nota longa saem da tela e vão para a gaveta lateral, que abre no clique em qualquer gráfico ou cartão (N2) e fica na URL como `?grafico=<id>` (N7).
+
+**Visão executiva, nesta ordem:**
+1. **Trajetória rumo ao bilhão** (largura total, escala log): faturamento do grupo desde jan do ano (mês em curso tracejado, parcial); degraus anuais até 2030 = média do ano × ritmo^n, ritmo = (R$ 83,3 mi ÷ média)^(1/anos); linha da meta; ao lado, meta (selo "D0 pendente: faturamento ou valuation"), média do grupo, distância (×) e ritmo pedido (% a.a.).
+2. **Ponte do último mês fechado:** cascata; níveis em traço, eixo cortado com aviso escrito.
+3. **Composição da receita:** treemap por categoria do de/para, cor por recorrente × não recorrente; sem marcação hachurado.
+4. **Churn mensal por fórmula:** cinco fórmulas (Omie por contrato e por valor, Central de Tratativas, saída de faturamento, saída só honorários), ponto na média e faixa do menor ao maior mês; referência de 2,34% do mapa.
+5. **Rede: MRR ativo por unidade** (Omie das unidades, situação 10) com a concentração da maior; **Franqueadora: faturado × recebido** por mês de vencimento, em aberto escrito acima de R$ 100 mil.
+6. **Entrega:** onboarding por fase, gargalo (fase com mais clientes há mais de 30 dias) destacado.
+7. **Saúde das fontes:** dias desde a última carga das fontes paradas.
+8. **Decisões:** contador, faixa por decisão e os três primeiros títulos (D0 primeiro). **Ameaças:** contador, faixa por gravidade, títulos com selo.
+
+**Frentes:** cada uma ganha um cartão principal (número grande + mini gráfico). Os painéis viram blocos clicáveis de título de uma linha; as perguntas da frente viram uma linha cada, com o detalhe na gaveta.
+
+**Gaveta (`ComposicaoIndicador` estendida):** o que diz; como se calcula; fonte, data e período; atenção ou limite; quem decide ou é dono; botão para a tela que resolve; "Perguntar ao Brain sobre este gráfico"; e os dados desenhados em tabela (vista acessível).
+
+**IA:** "Perguntar ao Brain" no cabeçalho e na gaveta. A gaveta abre `/cockpit-ceo/perguntar?grafico=<id>`; o servidor monta o contexto do gráfico com a carga e o acesso da pessoa (o navegador manda só o id), e os números desse contexto contam como mostrados na conferência. Modelo e configuração não mudam.
+
+**Leituras novas** (`visual.functions.ts`): categorias e saída de honorários (Financeiro, porta do Financeiro); contratos do Omie das unidades (porta `omie_contratos_servico`); Central de Tratativas e contratos (portas das duas); títulos da franqueadora (porta `contas_receber`). Todas exigem todas as unidades ou todas as empresas; sem porta, o bloco mostra "Acesso insuficiente" hachurado.
+
+**Estados nos gráficos:** parcial, não apurado, fonte indisponível e sem acesso aparecem como hachura ou vazio com rótulo; nunca barra zerada. Em carga, esqueleto.
+
+**O que não muda:** as nove frentes (a troca pelos 8 pilares ou pelos 15 componentes do livro segue aberta); o cálculo dos indicadores existentes; modelo e Jev da conversa.
+
 ## Revisão de 24/09/2026 — leitura de dez segundos
 
 **Estado:** implementada sob pedido explícito do Pedro em 24/09, na branch `feat/cockpit-ceo-conversa-20260924`. Falta o "contrato ok" formal. Cálculos, contratos de indicador, portas e RLS não mudam.

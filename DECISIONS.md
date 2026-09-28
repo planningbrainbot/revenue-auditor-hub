@@ -3414,3 +3414,31 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 - Validação não muda: Stand by continua contando como validada, como antes.
 
 **Medido em 28/09 (01/09 a 28/09, carga local contra o Pipedrive):** reuniões realizadas 31 (a QUALIOBRAS entra pela regra nova); reunião → oportunidade 28 de 31; Reunião realizada no funil com 31 entradas e 7 hoje, todos em Stand by.
+
+## [2026-09-28] Cockpit do CEO: número vira gráfico, e toda explicação vai para a gaveta
+
+**Contexto:** o CEO achou o cockpit com texto demais. O Pedro pediu uma tela visual: gráfico com número real, nenhuma explicação à vista, a explicação no clique e a conversa com IA continuando na tela. Branch `feat/cockpit-ceo-visual-20260928`, a partir da `main` `ef2b1ef`. Relatório: `docs/dev_notes/cockpit-ceo-visual/relatorio.md`. Contrato: revisão de 28/09 em `docs/design/contratos/cockpit-ceo.md`.
+
+**Decisões de tela:**
+- Cada bloco da Visão executiva é um gráfico com número em destaque e título de uma linha: trajetória, ponte, composição, churn por fórmula, rede, franqueadora, entrega, fontes, decisões e ameaças. Os quatro cartões da leitura de 24/09 saem; os quatro números da trajetória ocupam o lugar.
+- Clique em gráfico, cartão, painel ou pergunta abre a gaveta (`?grafico=<id>`, empilha no histórico como `?indicador=`). A gaveta tem sempre: o que diz, como se calcula, fonte/data/período, atenção, dono, destino, "Perguntar ao Brain sobre este gráfico" e os dados desenhados em tabela.
+- As frentes continuam as nove de 23/09. A troca pelos 8 pilares ou pelos 15 componentes do livro segue aberta (weekly de 25/09).
+
+**Decisões de régua (todas escritas na gaveta):**
+- Trajetória: média = meses fechados do ano; ritmo = (R$ 83,3 mi ÷ média)^(1/anos até 2030); degrau = média × ritmo^n. Em 28/09: média R$ 6,58 mi/mês, degraus 12,4 · 23,4 · 44,2 · 83,3 mi/mês, distância 12,7×, ritmo pedido 88,7% a.a.
+- MRR ativo por unidade: contratos do Omie das unidades em situação 10 com valor > 0 (mesma régua da definição de cliente ativo). Código 90 e 99 ficam fora.
+- Franqueadora: títulos da Partners em `contas_receber`, por mês de **vencimento** (não competência, régua declarada não confiável em 26/08).
+- Churn: as cinco fórmulas da investigação de 24/09, cada uma na sua régua; ponto = média das taxas mensais, faixa = menor e maior mês. Nenhuma vira "o churn".
+- Gargalo da entrega: a fase com mais clientes há mais de 30 dias (faixa de leitura, não SLA).
+- D0 "O que é o bilhão: faturamento anual, valuation ou unicórnio" (quem decide: CEO) entra antes de todas as decisões. A lista do cockpit deixa de cortar em três; a Visão executiva mostra o total e três títulos.
+- "Alerta sem dono atribuído" substitui "ninguém lê/trata" nos rótulos.
+
+**Paleta de gráfico do cockpit (diverge de DESIGN §5, que fixa a ordem da marca):** realizado `#2F7F4F`, meta/pedido `#C07F22`, terceira série `#3569A6`, alerta `#A8412F`, como tokens `--viz-*` em `src/styles.css` e `CORES_COCKPIT` em `grafico.ts`. Validada pelo script da skill dataviz nos dois temas (PASS; realizado × meta com ΔE 8,0 para protanopia, legal com codificação secundária, por isso meta e pedido são sempre tracejados). Vale só para o Cockpit do CEO até o DS decidir se adota.
+
+**IA:** a gaveta abre a conversa com `?grafico=<id>`. O servidor monta o contexto com a carga e o acesso da pessoa; o navegador manda só o id, nunca número. Os números do contexto contam como mostrados na conferência. Modelo (`openai/gpt-5.5`) e Jev (desligado) não mudam.
+
+**Leituras novas** (`src/lib/cockpit-ceo/visual.functions.ts`), cada parte com porta própria e falhando sozinha: categorias e saída de honorários (Financeiro), Omie das unidades, Central de Tratativas, títulos da franqueadora.
+
+**Achado no caminho:** abrir `?indicador=` empilhava o histórico, mas qualquer outro parâmetro de gaveta seria gravado com `replace`, e fechar com Esc sairia da página. O `?grafico=` foi incluído na regra de empilhar.
+
+**Status:** PR aberto, **não publicado** (deploy do `ops-brain` é pela CLI e é do Eliezek).

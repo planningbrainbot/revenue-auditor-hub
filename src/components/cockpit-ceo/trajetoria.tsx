@@ -8,13 +8,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Secao } from "@/components/planning";
 import { formatarNumero } from "@/lib/cockpit-ceo/contrato";
 import { ANO_ALVO, MEDIA_MENSAL_NECESSARIA, mesBr } from "@/lib/cockpit-ceo/receita";
 import type { ResumoLeitura } from "@/lib/cockpit-ceo/receita";
 import {
-  CORES_SERIE,
-  COR_NEUTRA,
+  CORES_COCKPIT,
+  HACHURA_ID,
   eixoProps,
   gradeProps,
   tooltipProps,
@@ -63,7 +62,10 @@ function Serie({ serie }: { serie: ResumoLeitura["serie"] }) {
           />
           <Bar isAnimationActive={false} dataKey="valor">
             {dados.map((s) => (
-              <Cell key={s.mes} fill={s.parcial ? COR_NEUTRA : CORES_SERIE[0]} />
+              <Cell
+                key={s.mes}
+                fill={s.parcial ? `url(#${HACHURA_ID})` : CORES_COCKPIT.realizado}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -92,10 +94,6 @@ function CartaoLeitura({ t, preview }: { t: ResumoLeitura; preview: boolean }) {
           <h4 className="text-sm font-semibold">{t.titulo}</h4>
           <EstadoBadge estado={t.estado} />
         </div>
-        <p className="text-xs text-muted-foreground">{t.definicao}</p>
-        <p className="text-xs text-muted-foreground">
-          <span className="text-foreground">Fonte:</span> {t.fonte}
-        </p>
       </header>
 
       {f ? (
@@ -174,10 +172,7 @@ export function Trajetoria({
   preview: boolean;
 }) {
   return (
-    <Secao
-      titulo={`Quanto falta para R$ 1 bi de faturamento em ${ANO_ALVO}?`}
-      descricao="Leituras candidatas do perímetro da meta, lado a lado. Elas não se somam: royalties das unidades são receita do grupo e parte do faturamento da rede. Mês em andamento e mês que a fonte marca como parcial ficam fora da conta. Vale para a empresa inteira: o filtro de unidade e o de período não se aplicam aqui."
-    >
+    <>
       <div className="space-y-3" role="region" aria-label="Trajetória para a meta">
         {aviso && <p className="text-sm text-muted-foreground">{aviso}</p>}
         {trajetoria && (
@@ -188,6 +183,6 @@ export function Trajetoria({
           </div>
         )}
       </div>
-    </Secao>
+    </>
   );
 }

@@ -466,10 +466,11 @@ test("Growth sem acesso: MRR vendido diz acesso insuficiente e o motor não inve
   assert.equal(motor.realizado, "—");
 });
 
-test("Decisões: no máximo três, o perímetro sempre primeiro", () => {
+test("Decisões: D0 (o que é o bilhão) antes de tudo, o perímetro logo depois (28/09)", () => {
   const c = montarCockpit(fonteSintetica(HOJE, AGORA), recorte());
-  assert.ok(c.decisoes.length <= 3);
-  assert.equal(c.decisoes[0].id, "perimetro-meta");
+  assert.equal(c.decisoes[0].id, "d0-bilhao");
+  assert.equal(c.decisoes[0].responsavel, "CEO");
+  assert.equal(c.decisoes[1].id, "perimetro-meta");
   assert.ok(c.decisoes.some((d) => d.id === "sla-onboarding"));
 });
 

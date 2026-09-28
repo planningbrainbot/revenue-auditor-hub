@@ -113,3 +113,22 @@ export const linhaZeroProps = {
   stroke: "var(--muted-foreground)",
   strokeWidth: 1,
 } as const;
+
+/**
+ * Paleta do Cockpit do CEO (28/09/2026): realizado, meta ou pedido, terceira série e alerta.
+ * Validada nos dois temas (comentário em src/styles.css). A meta vai sempre tracejada: o par
+ * realizado × meta fica no piso de separação para protanopia e precisa da segunda codificação.
+ */
+export const CORES_COCKPIT = {
+  realizado: "var(--viz-realizado)",
+  meta: "var(--viz-meta)",
+  terceira: "var(--viz-terceira)",
+  alerta: "var(--viz-alerta)",
+} as const;
+
+/** Barra: canto de 4px só na ponta de dado (a base fica reta, ancorada no eixo). */
+export const RAIO_BARRA: [number, number, number, number] = [4, 4, 0, 0];
+export const RAIO_BARRA_HORIZONTAL: [number, number, number, number] = [0, 4, 4, 0];
+
+/** Id do padrão de hachura: ausência de dado desenhada como textura, nunca como barra zerada. */
+export const HACHURA_ID = "planning-hachura";

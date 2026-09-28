@@ -318,3 +318,48 @@ test("ambígua: o modelo pode pedir esclarecimento com opções", async () => {
   assert.deepEqual(r.opcoes, ["Grupo", "Rede"]);
   assert.match(JSON.stringify(m.doGenerateCalls[0].prompt), /parece ambígua/);
 });
+
+test("pergunta a partir de um gráfico: o modelo recebe o contexto e os números dele valem", async () => {
+  const vistos = [];
+  const m = new MockLanguageModelV4({
+    doGenerate: async (opcoes) => {
+      vistos.push(JSON.stringify(opcoes.prompt));
+      return vistos.length === 1
+        ? passo(chamada("serie_faturamento", SERIE_REDE))
+        : passo(
+            chamada("responder", {
+              titulo: "t",
+              conclusao:
+                "A média do grupo está em R$ 6,6 mi por mês, 12,7× abaixo da meta. A margem foi de 42%.",
+              blocos: [{ tipo: "serie", resultado: "r1" }],
+            }),
+          );
+    },
+  });
+  const contextoGrafico = {
+    titulo: "Trajetória rumo ao bilhão",
+    texto:
+      "Gráfico do cockpit: Trajetória rumo ao bilhão.\nDados desenhados:\n- Média do grupo em 2026: R$ 6,6 mi/mês\n- Distância: 12,7×",
+  };
+  const r = await responder("O que este gráfico mostra?", deps(m, { contextoGrafico }).d);
+  assert.match(vistos[0], /Trajetória rumo ao bilhão/);
+  assert.match(vistos[0], /Distância: 12,7×/);
+  // Os números do gráfico ficam; o número sem origem (42%) sai.
+  assert.equal(r.conclusao, "A média do grupo está em R$ 6,6 mi por mês, 12,7× abaixo da meta.");
+  assert.deepEqual(r.descartadas, ["A margem foi de 42%."]);
+});
+
+test("sem gráfico, o mesmo número não tem origem e sai", async () => {
+  const m = modeloCom(
+    passo(chamada("serie_faturamento", SERIE_REDE)),
+    passo(
+      chamada("responder", {
+        titulo: "t",
+        conclusao: "Estamos 12,7× abaixo da meta.",
+        blocos: [{ tipo: "serie", resultado: "r1" }],
+      }),
+    ),
+  );
+  const r = await responder("O que este gráfico mostra?", deps(m).d);
+  assert.deepEqual(r.descartadas, ["Estamos 12,7× abaixo da meta."]);
+});

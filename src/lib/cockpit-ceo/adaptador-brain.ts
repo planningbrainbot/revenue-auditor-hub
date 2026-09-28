@@ -12,6 +12,7 @@ import type { LeituraReceita } from "./receita.ts";
 import type { DefinicaoCliente } from "./clientes-ativos.ts";
 import type { RespostaRetencao } from "./coortes.ts";
 import type { Frescor, Ponte } from "./financeiro.ts";
+import type { RespostaVisual } from "./visual.ts";
 
 export function mensagemDeErro(
   erro: unknown,
@@ -123,6 +124,22 @@ export function retencaoDaCarga(q: {
     return {
       estado: "erro",
       erro: mensagemDeErro(q.error, "A carga das coortes de retenção falhou."),
+      resposta: null,
+    };
+  if (q.isLoading || !q.data) return { estado: "carregando", erro: null, resposta: null };
+  return { estado: "ok", erro: null, resposta: q.data };
+}
+
+/** Leituras dos gráficos da revisão visual (visual.functions.ts). */
+export function visualDaCarga(q: {
+  data?: RespostaVisual;
+  error?: unknown;
+  isLoading: boolean;
+}): NonNullable<FonteCockpit["visual"]> {
+  if (q.error)
+    return {
+      estado: "erro",
+      erro: mensagemDeErro(q.error, "A carga dos gráficos novos falhou."),
       resposta: null,
     };
   if (q.isLoading || !q.data) return { estado: "carregando", erro: null, resposta: null };

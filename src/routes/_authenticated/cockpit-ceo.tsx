@@ -19,7 +19,9 @@ import {
   fonteSemAcesso,
   receitaDaCarga,
   retencaoDaCarga,
+  visualDaCarga,
 } from "@/lib/cockpit-ceo/adaptador-brain";
+import { carregarVisualCockpit } from "@/lib/cockpit-ceo/visual.functions";
 import { carregarRetencaoCockpit } from "@/lib/cockpit-ceo/retencao.functions";
 import { carregarClientesAtivosCockpit } from "@/lib/cockpit-ceo/clientes-ativos.functions";
 import type { AcessoCockpit } from "@/lib/cockpit-ceo/adaptador-brain";
@@ -130,6 +132,20 @@ function useRetencao() {
   return useMemo(() => retencaoDaCarga(q), [q.data, q.error, q.isLoading]);
 }
 
+/** Leituras dos gráficos da revisão visual (28/09): categorias, churn, Omie, franqueadora. */
+function useVisual() {
+  const { user } = useAuth();
+  const fn = useServerFn(carregarVisualCockpit);
+  const q = useQuery({
+    queryKey: ["cockpit-ceo", "visual", user?.id],
+    enabled: !!user?.id,
+    queryFn: () => fn(),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  return useMemo(() => visualDaCarga(q), [q.data, q.error, q.isLoading]);
+}
+
 /**
  * Leituras da empresa inteira (Financeiro, Growth, Ops), uma vez por sessão de tela, sem retry
  * automático e com a chave por pessoa: o cache não passa de um usuário para o próximo.
@@ -191,6 +207,7 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
   const receita = useReceita();
   const clientesAtivos = useClientesAtivos();
   const retencao = useRetencao();
+  const visual = useVisual();
   const empresa = useEmpresa();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
@@ -200,6 +217,7 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
       receita,
       clientesAtivos,
       retencao,
+      visual,
       ...empresa,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +232,7 @@ function ComCarga({ acesso }: { acesso: AcessoCockpit }) {
       receita,
       clientesAtivos,
       retencao,
+      visual,
       empresa,
     ],
   );
@@ -231,12 +250,20 @@ function SemCarga() {
   // Sem as chaves da Base o servidor devolve cada definição como "acesso insuficiente", sem ler fonte.
   const clientesAtivos = useClientesAtivos();
   const retencao = useRetencao();
+  const visual = useVisual();
   const empresa = useEmpresa();
   const agora = useAgora();
   const hoje = hojeSaoPaulo();
   const fonte = useMemo(
-    () => ({ ...fonteSemAcesso(hoje, agora), receita, clientesAtivos, retencao, ...empresa }),
-    [hoje, agora, receita, clientesAtivos, retencao, empresa],
+    () => ({
+      ...fonteSemAcesso(hoje, agora),
+      receita,
+      clientesAtivos,
+      retencao,
+      visual,
+      ...empresa,
+    }),
+    [hoje, agora, receita, clientesAtivos, retencao, visual, empresa],
   );
   return <Tela fonte={fonte} hoje={hoje} />;
 }
@@ -257,7 +284,8 @@ function Tela({ fonte, hoje }: { fonte: FonteCockpit; hoje: string }) {
       search: (s: BuscaUrl) => buscaDaUrl({ ...s, ...parcial }),
       // Abrir um número empilha no histórico: o "voltar" do navegador fecha a composição.
       // Trocar de frente também empilha: o "voltar" do navegador desfaz a troca.
-      replace: !parcial.indicador && parcial.frente === undefined,
+      // Abrir um gráfico (`grafico`) também empilha: fechar a gaveta volta, não sai da página.
+      replace: !parcial.indicador && !parcial.grafico && parcial.frente === undefined,
     });
   return <CockpitCeo cockpit={cockpit} busca={busca} periodo={periodo} aoMudar={aoMudar} />;
 }

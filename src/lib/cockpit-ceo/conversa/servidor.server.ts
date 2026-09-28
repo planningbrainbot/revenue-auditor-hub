@@ -15,6 +15,9 @@ import type { RegistroChamada } from "../jev/contrato";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 import type { ContextoCockpit } from "../contexto";
 import { conferirAcesso, fonteDaPessoa } from "./carga.server";
+import { montarCockpit } from "../indicadores";
+import { resolverPeriodo } from "../periodo";
+import { contextoParaConversa, explicar } from "../explicacoes";
 import type { AcessoConversa } from "./carga.server";
 import { pedidoConversa } from "./jev";
 import { avaliarOrcamento, limitesDoAmbiente } from "./orcamento";
@@ -158,6 +161,8 @@ export interface PedidoConversa {
   pergunta: string;
   /** Troca de modelo por pedido: só na avaliação local, e só entre os permitidos. */
   modelo?: string;
+  /** Gráfico do cockpit de onde a pergunta saiu (`explicacoes.ts`); vale na 1ª pergunta. */
+  grafico?: string;
 }
 
 /**
@@ -239,7 +244,22 @@ export async function rodadaNoServidor(
       provedorModelo === "openai"
         ? createOpenAI({ apiKey: chave })(idNoProvedor(nomeModelo))
         : createOpenRouter({ apiKey: chave })(nomeModelo, { usage: { include: true } });
+    // Pergunta que nasce de um gráfico: o contexto é montado AQUI, com a carga e o acesso da pessoa
+    // e as mesmas regras da tela. O navegador manda só o id do gráfico, nunca número.
+    let contextoGrafico: { titulo: string; texto: string } | null = null;
+    if (pedido.grafico && !pedido.conversaId) {
+      try {
+        const fonte = await fonteDaPessoa(ctx, acesso);
+        const hoje = hojeSaoPaulo();
+        const c = montarCockpit(fonte, { periodo: resolverPeriodo({}, hoje), perimetro: "" });
+        const e = explicar(c, pedido.grafico);
+        if (e) contextoGrafico = { titulo: e.titulo, texto: contextoParaConversa(e) };
+      } catch (e) {
+        console.error("[cockpit-ceo conversa] contexto do gráfico:", (e as Error).message);
+      }
+    }
     resposta = await responder(pedido.pergunta, {
+      contextoGrafico,
       modelo,
       nomeModelo,
       // Raciocínio curto: a conversa precisa de resposta rápida, e o cálculo é das consultas.

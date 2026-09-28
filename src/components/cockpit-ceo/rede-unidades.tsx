@@ -17,20 +17,15 @@ export function RedeUnidades({ rede, aviso }: { rede: Rede | null; aviso: string
       ? (rede.notas[0] ?? "Sem leitura da apuração de royalties.")
       : "Sem janela de meses completos na apuração de royalties.";
   return (
-    <section className="space-y-4 rounded-xl border bg-card p-4" aria-label="Rede por unidade">
-      <header className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold">
-            Quanto cada unidade fatura e repassa, e quão concentrada é a rede?
-          </h2>
-          {rede && <EstadoBadge estado={rede.estado} />}
-        </div>
-        <p className="text-xs text-muted-foreground">
+    <div className="space-y-4" aria-label="Rede por unidade">
+      <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {rede && rede.estado !== "disponivel" && <EstadoBadge estado={rede.estado} />}
+        <span className="truncate">
           {j
-            ? `Apuração de royalties confirmada, ${mesBr(j.de)} a ${mesBr(j.ate)} (${j.meses} ${j.meses === 1 ? "mês completo" : "meses completos"}). Mês com unidade inaugurada sem apuração fica fora. Vale para a rede inteira.`
+            ? `${mesBr(j.de)} a ${mesBr(j.ate)} · ${j.meses} meses completos`
             : (semJanela ?? aviso)}
-        </p>
-      </header>
+        </span>
+      </p>
       {!rede ? null : (
         <>
           {rede.linhas.length > 0 && (
@@ -88,10 +83,6 @@ export function RedeUnidades({ rede, aviso }: { rede: Rede | null; aviso: string
           )}
         </>
       )}
-      <p className="text-xs text-muted-foreground">
-        Recebido por unidade fica de fora: a única série mensal disponível agrupa títulos por data
-        de competência, régua que a casa declarou não confiável em 26/08.
-      </p>
-    </section>
+    </div>
   );
 }

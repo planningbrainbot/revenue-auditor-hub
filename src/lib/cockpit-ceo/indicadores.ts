@@ -32,6 +32,8 @@ import type { Periodo } from "./periodo.ts";
 import { montarEmpresa } from "./empresa.ts";
 import type { Empresa, FonteEmpresa } from "./empresa.ts";
 import type { Frescor, Ponte } from "./financeiro.ts";
+import { DECISAO_BILHAO } from "./visual.ts";
+import type { RespostaVisual } from "./visual.ts";
 
 export const VERSAO_REGRA = "2026-09-22";
 
@@ -84,6 +86,12 @@ export interface FonteCockpit {
     estado: "ok" | "erro" | "carregando";
     erro: string | null;
     resposta: RespostaRetencao | null;
+  };
+  /** Leituras dos gráficos da revisão visual (28/09): categorias, churn, Omie, franqueadora. */
+  visual?: {
+    estado: "ok" | "erro" | "carregando";
+    erro: string | null;
+    resposta: RespostaVisual | null;
   };
 }
 
@@ -156,6 +164,11 @@ export interface Cockpit {
   primeiraDobra: string[];
   /** A visão da empresa inteira: ponte, caixa, aquisição, operação, cadeia, motores, frescor. */
   empresa: Empresa;
+  /** Leituras dos gráficos da revisão visual; null enquanto não chegaram ou quando falharam. */
+  visual: RespostaVisual | null;
+  /** "carregando" desenha esqueleto, não "fonte indisponível". */
+  visualEstado: "ok" | "carregando" | "erro" | null;
+  visualAviso: string | null;
   avisos: string[];
 }
 
@@ -1026,7 +1039,15 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     },
   );
   const [decisaoPerimetro, ...decisoesMonetizacao] = decisoes;
-  const decisoesFinais: Decisao[] = [decisaoPerimetro, ...empresa.decisoes, ...decisoesMonetizacao];
+  // D0 vem antes de tudo: o que "o bilhão" quer dizer decide até o perímetro (weekly de 25/09).
+  // A lista vai inteira; a Visão executiva mostra o total e os títulos, e a primeira dobra não a
+  // contém (N12 conta até três decisões À VISTA).
+  const decisoesFinais: Decisao[] = [
+    DECISAO_BILHAO,
+    decisaoPerimetro,
+    ...empresa.decisoes,
+    ...decisoesMonetizacao,
+  ];
   const ameacasFinais: Ameaca[] = [
     ...empresa.ameacas.map((a) => ({
       ...a,
@@ -1062,7 +1083,7 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       "onboarding-parado",
     ],
     empresa,
-    decisoes: decisoesFinais.slice(0, 3),
+    decisoes: decisoesFinais,
     ameacas: ameacasFinais,
     porProduto,
     trajetoria,
@@ -1081,6 +1102,15 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
           meeting: s.meeting,
         }))
       : null,
+    visual: fonte.visual?.estado === "ok" ? fonte.visual.resposta : null,
+    visualEstado: fonte.visual?.estado ?? null,
+    visualAviso: !fonte.visual
+      ? null
+      : fonte.visual.estado === "carregando"
+        ? "Gráficos novos em carga."
+        : fonte.visual.estado === "erro"
+          ? (fonte.visual.erro ?? "A carga dos gráficos novos falhou.")
+          : null,
     avisos,
   };
 }

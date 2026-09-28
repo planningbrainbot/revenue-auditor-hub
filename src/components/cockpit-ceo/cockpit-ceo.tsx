@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ArrowLeft, ArrowRight, TriangleAlert } from "lucide-react";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,46 +12,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { KpiCard, KpiGrade, PageHeader, Secao, StatusBadge } from "@/components/planning";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { FRENTES, ORDEM_FRENTES } from "@/lib/cockpit-ceo/contrato";
-import {
-  CORES_SERIE,
-  eixoProps,
-  gradeProps,
-  legendaProps,
-  tooltipProps,
-} from "@/lib/planning/grafico";
-import type { Destino, Frente } from "@/lib/cockpit-ceo/contrato";
+import { PageHeader } from "@/components/planning";
+import { FRENTES } from "@/lib/cockpit-ceo/contrato";
+import type { Frente } from "@/lib/cockpit-ceo/contrato";
 import type { Cockpit } from "@/lib/cockpit-ceo/indicadores";
-import { perguntasDaFrente, situacaoDaPergunta } from "@/lib/cockpit-ceo/perguntas";
-import { mesBr } from "@/lib/cockpit-ceo/receita";
 import { PRESETS } from "@/lib/cockpit-ceo/periodo";
 import type { BuscaCockpit, Periodo, PresetPeriodo } from "@/lib/cockpit-ceo/periodo";
-import { BotaoDestino, ComposicaoIndicador } from "./composicao";
-import { SinteticoBadge } from "./estado";
-import { Motores, PonteDoMes, SemPainel } from "./empresa";
-import { VistaFrente } from "./frentes";
-import { cartaoDoIndicador } from "./indicador";
-import { BotaoPerguntar, SaudeDasFontes, VisaoExecutivaLeitura } from "./visao-executiva";
+import { explicar } from "@/lib/cockpit-ceo/explicacoes";
 import { montarLeituraExecutiva } from "@/lib/cockpit-ceo/visao-executiva";
-import { useMemo } from "react";
+import { ComposicaoIndicador } from "./composicao";
+import { SinteticoBadge } from "./estado";
+import { VistaFrente } from "./frentes";
+import { DefsHachura } from "./graficos";
+import { BotaoPerguntar, SaudeDasFontes, VisaoExecutivaLeitura } from "./visao-executiva";
 
 // Cockpit do CEO no Design System v2 (contrato docs/design/contratos/cockpit-ceo.md, aprovado em
 // 23/09/2026). Arquétipo Visão geral: agrega, aponta a pendência e manda para a tela dona; não
 // executa nada (N10).
 //
-// Sem `?frente=` é a Visão executiva: seis números, até três decisões, o que ameaça, o que mudou e
-// de onde vem o crescimento. Com `?frente=` é a vista daquela frente, que a lateral lista como item
+// Sem `?frente=` é a Visão executiva: desde 28/09 só gráficos com número real, e toda explicação
+// na gaveta que o clique abre (`?grafico=` ou `?indicador=`). Com `?frente=` é a vista daquela frente, que a lateral lista como item
 // próprio: a página não desenha abas que trocam de assunto (N6).
 //
 // O componente não carrega dado: recebe o cockpit pronto. Quem decide a fonte (real ou sintética)
@@ -161,220 +141,6 @@ function Aviso({ children }: { children: ReactNode }) {
   );
 }
 
-/** Linha de uma lista da Visão geral: selo, o que é, detalhe em uma linha e a ação à direita. */
-function Linha({
-  selo,
-  titulo,
-  detalhe,
-  acao,
-}: {
-  selo: ReactNode;
-  titulo: string;
-  detalhe?: ReactNode;
-  acao?: ReactNode;
-}) {
-  return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-      <div className="w-24 shrink-0">{selo}</div>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">{titulo}</p>
-        {detalhe && <p className="text-sm text-muted-foreground">{detalhe}</p>}
-      </div>
-      {acao && <div className="shrink-0">{acao}</div>}
-    </li>
-  );
-}
-
-const ORDEM_GRAVIDADE = { alta: 0, media: 1 } as const;
-/** Quantas ameaças a Visão executiva lista; as demais ficam nas frentes. */
-const AMEACAS_NA_VISAO = 5;
-
-function VisaoExecutiva({
-  cockpit,
-  abrir,
-  preview,
-  jev,
-  irParaFrente,
-}: {
-  cockpit: Cockpit;
-  abrir: (id: string) => void;
-  preview: boolean;
-  jev?: ReactNode;
-  irParaFrente: (f: Frente) => void;
-}) {
-  const primeira = cockpit.primeiraDobra
-    .map((id) => cockpit.indicadores.find((i) => i.id === id))
-    .filter((i): i is Cockpit["indicadores"][number] => !!i);
-  // O cartão com cadeado não abre nem mostra nota (não vaza número): o motivo fica aqui embaixo.
-  const semAcesso = primeira.filter((i) => i.estado === "acesso_insuficiente");
-  const ameacas = [...cockpit.ameacas].sort(
-    (a, b) =>
-      ORDEM_GRAVIDADE[a.gravidade] - ORDEM_GRAVIDADE[b.gravidade] ||
-      Number(a.origem === "monetizacao") - Number(b.origem === "monetizacao"),
-  );
-  const visiveis = ameacas.slice(0, AMEACAS_NA_VISAO);
-  const e = cockpit.empresa;
-  const ultimo = e.ponte?.ultimo ?? null;
-  return (
-    <>
-      <KpiGrade colunas={6}>
-        {primeira.map((i) => (
-          <KpiCard key={i.id} {...cartaoDoIndicador(i, () => abrir(i.id))} />
-        ))}
-      </KpiGrade>
-      {semAcesso.length > 0 && (
-        <Aviso>
-          <ul aria-label="Números sem acesso" className="space-y-1">
-            {semAcesso.map((i) => (
-              <li key={i.id}>
-                <span className="font-medium">{i.titulo}:</span>{" "}
-                {i.lacuna
-                  ? `falta ${i.lacuna.oQueFalta.replace(/^./, (c) => c.toLowerCase())} Quem concede: ${i.lacuna.responsavel}.`
-                  : "seu acesso não lê a fonte deste número."}
-              </li>
-            ))}
-          </ul>
-        </Aviso>
-      )}
-
-      <Secao
-        titulo="O que é decisão sua?"
-        descricao="Até três, por regra fixa sobre os números acima. Cada uma diz quem decide e abre a tela que resolve."
-      >
-        <ol aria-label="Decisões" className="divide-y rounded-xl border bg-card">
-          {cockpit.decisoes.map((d) => (
-            <Linha
-              key={d.id}
-              selo={<StatusBadge tom="info">Decisão</StatusBadge>}
-              titulo={d.titulo}
-              detalhe={
-                <>
-                  {d.porque} <span className="text-foreground">Quem decide: {d.responsavel}.</span>
-                </>
-              }
-              acao={d.destino && <BotaoDestino destino={d.destino} preview={preview} compacto />}
-            />
-          ))}
-        </ol>
-      </Secao>
-
-      <Secao
-        titulo="O que ameaça o resultado?"
-        descricao={`Regras fixas, não IA, as mais graves primeiro.${ameacas.length > visiveis.length ? ` Mais ${ameacas.length - visiveis.length} nas frentes.` : ""}`}
-      >
-        {visiveis.length ? (
-          <ul className="divide-y rounded-xl border bg-card">
-            {visiveis.map((a) => (
-              <Linha
-                key={a.id}
-                selo={
-                  <StatusBadge tom={a.gravidade === "alta" ? "perigo" : "atencao"}>
-                    {a.gravidade === "alta" ? "Alta" : "Média"}
-                  </StatusBadge>
-                }
-                titulo={a.titulo}
-                detalhe={a.detalhe}
-                acao={
-                  a.indicador && (
-                    <Button variant="outline" size="sm" onClick={() => abrir(a.indicador!)}>
-                      Ver número
-                      <ArrowRight className="size-4" aria-hidden />
-                    </Button>
-                  )
-                }
-              />
-            ))}
-          </ul>
-        ) : (
-          <p className="rounded-xl border bg-card px-4 py-3 text-sm text-muted-foreground">
-            Nenhuma regra de ameaça disparou com os números disponíveis. Isso não cobre o que ainda
-            não é apurado.
-          </p>
-        )}
-      </Secao>
-
-      <Secao
-        titulo={
-          ultimo
-            ? `De onde veio a variação do faturamento em ${mesBr(ultimo.mes)}?`
-            : "De onde veio a variação do faturamento?"
-        }
-        descricao="Ponte por cliente sobre o Faturamento do grupo (emissão). Unidade nova, monetização e aquisições ainda não têm vínculo de receita."
-        acoes={
-          <Button variant="outline" size="sm" onClick={() => irParaFrente("receita")}>
-            Ver mês a mês
-            <ArrowRight className="size-4" aria-hidden />
-          </Button>
-        }
-      >
-        {ultimo?.fecha ? (
-          <PonteDoMes mes={ultimo} />
-        ) : (
-          <SemPainel
-            texto={
-              e.ponteAviso ?? "A ponte não fecha com a fonte neste mês; o número não é mostrado."
-            }
-          />
-        )}
-      </Secao>
-
-      <Secao
-        titulo="Quais motores sustentam o crescimento?"
-        descricao="Cada motor na régua dele: MRR vendido não é faturamento, e nada aqui é somado."
-      >
-        <Motores motores={e.motores} irParaFrente={irParaFrente} />
-      </Secao>
-      {preview && (
-        <p className="text-xs text-muted-foreground">
-          No preview, os destinos não abrem: exigem login e dados reais.
-        </p>
-      )}
-
-      {jev}
-
-      <Secao
-        titulo="Para onde ir em cada frente?"
-        descricao="Cada frente tem página própria, também na lateral. Respondida: dado integrado e sem decisão pendente."
-      >
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {ORDEM_FRENTES.map((f) => {
-            const perguntas = perguntasDaFrente(f);
-            const cont = (s: string) => perguntas.filter((p) => situacaoDaPergunta(p) === s).length;
-            return (
-              <li key={f}>
-                <Link
-                  to="."
-                  search={
-                    ((s: Record<string, unknown>) => ({
-                      ...s,
-                      frente: f,
-                      indicador: undefined,
-                    })) as never
-                  }
-                  className="group flex h-full flex-col gap-1 rounded-xl border bg-card p-4 transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span className="flex items-center justify-between gap-2 font-semibold">
-                    {FRENTES[f].titulo}
-                    <ArrowRight
-                      className="size-4 text-muted-foreground group-hover:text-primary-text"
-                      aria-hidden
-                    />
-                  </span>
-                  <span className="text-sm text-muted-foreground">{FRENTES[f].pergunta}</span>
-                  <span className="num mt-auto pt-1 text-xs text-muted-foreground">
-                    {cont("respondida")} respondidas · {cont("parcial")} parciais · {cont("lacuna")}{" "}
-                    lacunas
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </Secao>
-    </>
-  );
-}
-
 export function CockpitCeo({
   cockpit,
   busca,
@@ -396,18 +162,26 @@ export function CockpitCeo({
 }) {
   const router = useRouter();
   const aberto = cockpit.indicadores.find((i) => i.id === busca.indicador) ?? null;
+  const explicacao = useMemo(
+    () => (busca.grafico && !aberto ? explicar(cockpit, busca.grafico) : null),
+    [cockpit, busca.grafico, aberto],
+  );
   // Abrir um número empilha uma entrada no histórico. Fechar pelo X desempilha a mesma entrada,
   // em vez de trocar por outra: senão o "voltar" do navegador precisaria de dois cliques.
   const empilhado = useRef(false);
   const abrir = (id: string) => {
     empilhado.current = true;
-    aoMudar({ indicador: id });
+    aoMudar({ indicador: id, grafico: "" });
+  };
+  const abrirGrafico = (id: string) => {
+    empilhado.current = true;
+    aoMudar({ grafico: id, indicador: "" });
   };
   const fechar = () => {
     if (empilhado.current) {
       empilhado.current = false;
       router.history.back();
-    } else aoMudar({ indicador: "" });
+    } else aoMudar({ indicador: "", grafico: "" });
   };
   const frente: Frente | null = busca.frente || null;
   const irParaFrente = (f: Frente) => {
@@ -480,6 +254,7 @@ export function CockpitCeo({
           cockpit={cockpit}
           frente={frente}
           onAbrirIndicador={abrir}
+          onAbrirGrafico={abrirGrafico}
           preview={preview}
           hoje={cockpit.hoje}
           irParaFrente={irParaFrente}
@@ -488,8 +263,7 @@ export function CockpitCeo({
         <>
           <VisaoExecutivaLeitura
             cockpit={cockpit}
-            abrir={abrir}
-            preview={preview}
+            abrirGrafico={abrirGrafico}
             irParaFrente={irParaFrente}
           />
           {/* Só o preview do piloto passa o Jev; fica abaixo de tudo, fora da primeira leitura. */}
@@ -497,7 +271,13 @@ export function CockpitCeo({
         </>
       )}
 
-      <ComposicaoIndicador indicador={aberto} onFechar={fechar} preview={preview} />
+      <ComposicaoIndicador
+        indicador={aberto}
+        explicacao={explicacao}
+        onFechar={fechar}
+        preview={preview}
+      />
+      <DefsHachura />
     </main>
   );
 }
