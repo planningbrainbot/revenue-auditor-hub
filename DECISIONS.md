@@ -3538,3 +3538,13 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 
 **Publicado em 28/09/2026** ("tudo aprovado, pode publicar", Pedro). PR #30 mergeado (`86e6410`, sobre `621eedb`, que estava no ar). Import das três fontes em `ops.monetizacao_forecasts` às 19:57 UTC, com `drive_url` para a planilha em `Meu Drive/00. Monetização` (id `1O-2rZ7p9S71sAanG6uZGfDTv8ylXRKXQ`); a v10 segue na tabela. Deploy por CLI (planningbrainbot, worktree limpo): `dpl_2ESHnaFNYqn9PQhHjpSzc1i3TkJW` (`ops-brain-g5s6daqa3`), alias `planningbrain.com.br`; conferido no bundle ("Cella · parceria", "· padrão"). Rollback: `ops-brain-g09g0pgde` (`dpl_97dYoJCJRhCwL4b38ErgcHrq4SgS`, `621eedb`) e `delete from ops.monetizacao_forecasts where id like 'v12-2026-09-28%';`.
 
+## [2026-09-28] Operação da Monetização publicada (adendo à entrada anterior)
+
+Com o ok do dono. `main` `e1ad4da` → `621eedb` (fast-forward). A função `monetizacao-crm` foi para a versão 18 (carga v6) às 16:53, e a carga das 16:55 regravou os 194 cards na versão 6. O front saiu por CLI no `ops-brain` (`dpl_97dYoJCJRhCwL4b38ErgcHrq4SgS`, `621eedb`, alias `planningbrain.com.br`), a partir de um worktree limpo. Antes conferi que `3d3f05c` (sinais da base, publicado às 16:39) estava contido. As frases novas estão no bundle servido pelo domínio. Às 16:56 o forecast v12 (`86e6410`) foi publicado por cima, com `621eedb` como primeiro pai, e não mexeu em nada disto.
+
+**Conferido na produção (carga das 17:00):** 75 de 75 conjuntos iguais ao Pipedrive, card a card: funil (entraram e hoje), perdidos e KPIs por produto. Bigens (96074) está perdido em 28/09, com `lost_by` = Matheus. Nutrimilho (96073) segue aberto, como no Pipedrive. Setembro (01–28/09, ator = Matheus), tela = Pipedrive:
+- Consultoria: 28 criados, 20 trabalhados, 0 reuniões, 15 perdidos, 13 abertos.
+- Finance: 91 criados, 61 trabalhados, 18 agendadas, 10 realizadas (Stand by incluído), 12 validadas, 43 perdidos, 48 abertos.
+- Cella: 59 criados, 62 trabalhados, 24 agendadas, 22 realizadas, 25 validadas, 3 ganhos, 18 perdidos, 44 abertos.
+
+Os números mudaram desde a análise da tarde por movimento novo no Pipedrive. Um exemplo: a operação trocou o campo da BADAX (97782) de Consultoria para Cella. As divergências 96070, 96094 e 96110 e as 4 oportunidades repetidas continuam, à espera de correção no Pipedrive. Não gravei nada lá.
