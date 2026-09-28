@@ -3536,3 +3536,5 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 
 **Publicação:** o import em `ops.monetizacao_forecasts` e o deploy do `ops-brain` dependem do "ok" do Pedro (projeto do Eliezek). Sem o deploy, a tela publicada já mostraria o Estimado (id sem sufixo vem primeiro com a mesma `source_date`), sem seletor.
 
+**Publicado em 28/09/2026** ("tudo aprovado, pode publicar", Pedro). PR #30 mergeado (`86e6410`, sobre `621eedb`, que estava no ar). Import das três fontes em `ops.monetizacao_forecasts` às 19:57 UTC, com `drive_url` para a planilha em `Meu Drive/00. Monetização` (id `1O-2rZ7p9S71sAanG6uZGfDTv8ylXRKXQ`); a v10 segue na tabela. Deploy por CLI (planningbrainbot, worktree limpo): `dpl_2ESHnaFNYqn9PQhHjpSzc1i3TkJW` (`ops-brain-g5s6daqa3`), alias `planningbrain.com.br`; conferido no bundle ("Cella · parceria", "· padrão"). Rollback: `ops-brain-g09g0pgde` (`dpl_97dYoJCJRhCwL4b38ErgcHrq4SgS`, `621eedb`) e `delete from ops.monetizacao_forecasts where id like 'v12-2026-09-28%';`.
+
