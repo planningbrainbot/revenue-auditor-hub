@@ -2,7 +2,7 @@
 
 **Frente:** PLANNING (interno) · **Dono de produto:** Pedro Luca · **Código:** Pedro Luca (telas) · Victor Eliezek (casca, `areas.ts`, merge e deploy)
 **Data:** 28/09/2026 · **Branch:** `docs/monetizacao-reestudo-telas-20260928` (base `origin/main` `4302f48`)
-**Estado:** proposta, com as respostas do Pedro de 28/09 aplicadas (§14). Nada foi implementado. Faltam o "contrato ok" das duas telas novas (PROCESSO §4), a P3 (de onde vem a meta) e a P4 (alinhamento com o Matheus).
+**Estado:** **aprovada** em 28/09 ("contrato ok" das duas telas novas, PROCESSO §4, e respostas P1–P3, P5 e P6 aplicadas em §14). Nada foi implementado. Segue pendente só a P4 (alinhamento com o Matheus), que não bloqueia o início.
 **Mockup com dado real:** https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F (privado; o modelo sem dado e o gerador estão em `mockup/`)
 **Medições:** `medicoes.md`, nesta pasta. **Contratos novos:** `docs/design/contratos/monetizacao-funil-ciclo.md` e `docs/design/contratos/monetizacao-previsao.md`.
 
@@ -350,7 +350,7 @@ Hoje a Projetado × realizado usa **linhas fixas** da planilha v10 (29/35/37/41 
 |---|---|---|---|
 | P1 | O Follow Day sai? | "Deixa lá em stand by." | Fica no menu, sem mudança e sem investimento. Não há redirect nem remoção. A PRODUCT 5.2 (casa da fila de ligação) continua aberta |
 | P2 | Pessoas e PDI e Distribuição saem? | "Não. Vamos usar em algum momento." | Ficam, sem mudança. A migration S4 (restringir os tipos de registro) caiu |
-| P3 | De onde vem a meta do mês? | "Não consegui avaliar ainda." | **Pendente.** Explicação abaixo |
+| P3 | De onde vem a meta do mês? | **C**: o modelo sugere, alguém confirma | Sem plano salvo, a meta é a sugestão do cenário base, com o selo "sugerida" na Previsão e na Operação até alguém confirmar. Regra de conversão no contrato da Previsão. Nova issue 21 (Operação), a combinar com o chat da Operação |
 | P4 | O Matheus vai preencher data prevista e valor nas validadas? | "Vou alinhar isso com ele." | **Pendente.** A Previsão sobe sem a seção "quando fecha"; o card "Validadas em aberto" mostra "Sem data: N" até o dado existir |
 | P5 | O remanejamento sai da taxa de perda? Travar o motivo numa lista fechada no Pipedrive? | "Sim." | Decidido: o remanejamento fica em linha própria e fora da taxa. A lista fechada é configuração do Pipedrive, feita por quem administra o Pipedrive, fora deste repositório |
 | P6 | Os 3 títulos divergentes | "O Matheus tem que trocar o campo. De regra, nenhum de consultoria inicial foi trabalhado como consultoria, e sim Finance principalmente. Só um foi para Cella." | O campo está errado no lote de 15/09 (26 negócios), e não só nos 3. A regra de ler o campo não muda; a troca no Pipedrive corrige a tela sozinha (§4.2). Até lá, nenhuma leitura de Consultoria vale |
@@ -370,7 +370,7 @@ Em setembro os dois dão 8, porque o plano foi digitado a partir da planilha. **
 | **B. Meta = cenário base do modelo** | Ao importar o modelo, a meta de cada mês é o cenário base | Uma fonte só, que nunca fica vazia | A meta vira previsão (é o que a regra N13 do Brain proíbe): "abaixo da meta" passa a querer dizer "abaixo do que o modelo previu". Com a v10, a meta de outubro dobraria sozinha para 16 |
 | **C. O modelo sugere, alguém confirma** (recomendada) | A partir do dia 20, o plano do mês seguinte nasce preenchido com o cenário base: contratos, leads por dia útil (leads do mês ÷ dias úteis) e alocação por produto. A Previsão mostra "Plano de out/26 sugerido pelo modelo, não confirmado" até alguém salvar, igual ou mudado. Enquanto não houver confirmação, a Operação mostra a meta com o selo "sugerida" | Não fica mês sem meta. A meta continua sendo decisão de alguém, com registro de quem salvou e quando. Divergência entre meta e modelo fica visível na Previsão | Um passo a mais por mês (confirmar) |
 
-Para decidir, basta escolher A, B ou C. Com C, o Sheet do plano (issue 14) ganha o pré-preenchimento pelo cenário base e o selo "sugerida", e a Operação ganha o selo. É uma mudança pequena na tela do outro chat, a combinar com ele.
+**Decidido em 28/09: C.** O Sheet do plano (issue 14) ganha o pré-preenchimento pelo cenário base e o selo "sugerida". A Operação usa a meta sugerida com o mesmo selo até alguém confirmar (issue 21, a combinar com o chat da Operação). Nada novo é gravado: plano salvo é meta confirmada, e a sugestão é calculada na hora.
 
 ## 15. Riscos e lacunas
 

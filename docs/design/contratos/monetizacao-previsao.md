@@ -1,7 +1,7 @@
 # Contrato · Previsão (`/monetizacao?aba=previsao`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca (tela) · Victor Eliezek (casca, `areas.ts`, merge)   **Data:** 28/09/2026
-**Estado:** proposta; aguarda o "contrato ok" do Pedro. Quando aprovado, **substitui** `monetizacao-temporal.md`, `monetizacao-forecast.md` e `monetizacao-capacidade.md`, que vão para `aposentados/`. A moldura comum segue `monetizacao.md`.
+**Estado:** **aprovado** ("contrato ok" do Pedro em 28/09/2026). Na implementação, **substitui** `monetizacao-temporal.md`, `monetizacao-forecast.md` e `monetizacao-capacidade.md`, que vão para `aposentados/`. A moldura comum segue `monetizacao.md`.
 **Insumo:** o modelo de forecast com cenários vem do chat de Forecast (branch `feat/monetizacao-forecast-v12-20260928`). Este contrato só diz o que a tela lê (spec §12).
 Mockup com dado real de 28/09: https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F
 
@@ -27,7 +27,7 @@ Mockup com dado real de 28/09: https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F
 | Reuniões realizadas (projetado) | `meeting` no mês (inclui Stand by); `meta` = projetado | negócio | idem | idem | lista | sim |
 | Validadas em aberto | abertos com `validated_at`, todos os donos; estado "Sem data: N" enquanto houver validada sem `expected_close` | negócio | carga | idem | lista | sim |
 | O que pede atenção (a) | validadas abertas sem `expected_close` ou sem valor | negócio | carga | idem | lista | sim |
-| O que pede atenção (b) | plano do mês seguinte não salvo a partir do dia 20, ou alocação somando 0 no mês corrente | — | `monetizacao_planos` | — | abre o Sheet | — |
+| O que pede atenção (b) | a partir do dia 20, plano do mês seguinte ainda **sugerido, não confirmado**; ou alocação somando 0 no mês corrente | — | `monetizacao_planos` × forecast | — | abre o Sheet | — |
 | O que pede atenção (c) | forecast importado há mais de 30 dias, ou sem o mês corrente | — | `monetizacao_forecasts.imported_at`, `months` | — | abre "Ver o modelo" | — |
 | Contratos por mês · ganhos | `signed` por mês e produto (empilhado, ≤ 3 séries) | negócio | carga | idem | lista do mês | sim |
 | Contratos por mês · projetado | cenário base por mês | contrato | forecast | `imported_at` | tooltip com a premissa | — |
@@ -37,6 +37,15 @@ Mockup com dado real de 28/09: https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F
 | Plano · perfil aderente, disponível no mês, alocação (no Sheet) | os números de hoje em Capacidade, sem mudança de cálculo | conta, oferta | Base + plano | `catalog_at` | `/clientes?view=produtos&produto=` | não, e a tela avisa: a Base conta a disponibilidade no dia, o plano conta no mês (herdado do contrato de Capacidade) |
 
 - **N13:** meta, projetado e realizado nunca somam, nunca dividem a mesma barra e nunca usam o mesmo rótulo. O projetado sempre diz a versão e a data ("Projetado v12 de dd/mm"). O "esperado até hoje" é conta de proporção sobre a meta, não previsão.
+- **P3 · a meta vem do modelo sugerida e de uma pessoa confirmada** (Pedro, 28/09, opção C). Plano salvo em `monetizacao_planos` é meta confirmada. Sem plano salvo, a sugestão é calculada na hora a partir do cenário base do forecast, sem gravar nada:
+  - `target_contracts` = contratos do cenário base no mês;
+  - `capacity` = leads trabalhados do mês;
+  - `daily_target` = leads trabalhados do mês ÷ dias úteis do mês, arredondado;
+  - `allocation` = leads trabalhados por produto;
+  - `rates` = premissa de validada → contrato por produto, se o modelo trouxer;
+  - `meetings_capacity` fica a do último plano salvo.
+
+  A sugestão vale como meta na Operação e na Previsão, sempre com o selo "sugerida", até alguém confirmar. Com a v10, a sugestão de out/26 seria 16 contratos, 240 leads (11 por dia útil) e alocação de 15, 151 e 73 leads (Cella, Consultoria e Finance), porque a v10 supõe 2 closers. O selo existe para essa diferença ser vista antes de virar cobrança.
 - **N11:** "Leads trabalhados" é o evento `started` com qualquer ator no mês. É a mesma régua da antiga Projetado × realizado, e não a da Operação (só o Matheus). A `descricao` diz "toda a frente".
 
 ## Estados
@@ -45,7 +54,8 @@ Mockup com dado real de 28/09: https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F
 | Carregando | primeira leitura | `Carregando variante="kpis"` |
 | Sem forecast importado | `monetizacao_forecasts` vazio | cards de validadas e reuniões sem `meta`, com a nota "sem projetado importado"; gráfico só com ganhos e meta |
 | Forecast sem cenários (v10) | versão sem `cenarios[]` | linha do projetado sem faixa; legenda diz "cenários não importados" |
-| Sem plano do mês | `monetizacao_planos` sem o mês | "Contratos ganhos" sem `meta`, com a nota "plano de {mês} não salvo"; item (b) em "O que pede atenção" |
+| Plano sugerido, não confirmado | `monetizacao_planos` sem o mês, com forecast que cobre o mês | "Contratos ganhos" com a `meta` do cenário base e o selo "sugerida"; item (b) em "O que pede atenção" |
+| Sem plano e sem forecast do mês | nem plano salvo nem mês na planilha | "Contratos ganhos" sem `meta`, com a nota "plano de {mês} não salvo" |
 | Validadas sem data | alguma validada aberta sem `expected_close` | card "Validadas em aberto" com o estado "Sem data: N" (nunca 0 disfarçado) |
 | Mês futuro | `mes` > mês corrente | realizado "—" (futuro não é zero) |
 | Fonte indisponível / erro | `sync_error` sem cache | `EstadoErro` da moldura |
@@ -68,8 +78,8 @@ Sem filtro de produto nem de responsável: a comparação é da frente inteira, 
 ## Ações
 | Ação | Quem pode | Confirmação | Retorno |
 |---|---|---|---|
-| Abrir o plano do mês (`Sheet`) | quem vê | — | formulário pré-preenchido com o plano do mês ou, se não houver, com o do mês anterior |
-| **Salvar plano** (`default`) | `view.monetizacao` + escopo geral | confirmação de efeito quando muda meta ou alocação ("Meta de out/26 passa de 8 para 10 contratos") | toast; o item (b) some |
+| Abrir o plano do mês (`Sheet`) | quem vê | — | formulário com o plano salvo do mês; sem plano salvo, pré-preenchido com a **sugestão do cenário base** (regra P3 abaixo), com o selo "sugerido pelo modelo {versão}, não confirmado" |
+| **Confirmar plano** (`default`; "Salvar plano" quando já existe plano salvo) | `view.monetizacao` + escopo geral | confirmação de efeito quando muda meta ou alocação ("Meta de out/26 passa de 8 para 10 contratos"; na confirmação de uma sugestão: "A meta de out/26 fica 16 contratos, como sugerido pelo modelo v10") | toast; o selo "sugerida" some da Previsão e da Operação; o item (b) some |
 | Ver o modelo (`Dialog`) | quem vê | — | grade da planilha (a `forecast-model.tsx` de hoje) e exportar CSV |
 | Abrir a planilha no Drive | quem vê | — | link externo (`drive_url`) |
 

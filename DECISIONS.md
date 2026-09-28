@@ -3443,3 +3443,18 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 4. **Corrige o item 1 da entrada anterior.** Nos negócios divergentes, o que está errado é o **campo**, não o título. O lote de Consultoria enviado em 15/09 (26 dos 29 negócios de Consultoria) foi trabalhado quase todo como Finance, e um (Hospitel) como Cella. O Matheus vai trocar o campo no Pipedrive (P6). A regra de ler o campo não muda: a carga relê o negócio quando o campo muda (`update_time`), e ele passa de painel sozinho. Até a troca, nenhuma leitura de Consultoria (nem a de Finance) vale.
 
 **Pendentes:** P3, de onde vem a meta do mês (plano digitado, cenário base do modelo, ou o modelo sugere e alguém confirma; a spec recomenda a terceira). P4, data prevista e valor nas validadas (o Pedro vai alinhar com o Matheus).
+
+## [2026-09-28] Reestudo da Monetização: contratos aprovados e a meta do mês vem do modelo, sugerida
+
+**Contexto:** as duas pendências que restavam da spec `docs/dev_notes/monetizacao-reestudo-telas/spec.md`, que foram a P3 e o "contrato ok".
+
+**Decisões:**
+1. **"Contrato ok" das duas telas novas** (PROCESSO §4): `docs/design/contratos/monetizacao-funil-ciclo.md` e `monetizacao-previsao.md` estão aprovados. O código delas pode começar pela ordem da spec §11. Os contratos antigos (Temporal, Projetado × realizado, Capacidade e Funil comercial) só vão para `aposentados/` quando as telas novas entrarem (issue 19).
+2. **A meta do mês vem do modelo, sugerida, e é confirmada por uma pessoa** (P3, opção C).
+   - Plano salvo em `monetizacao_planos` é meta confirmada.
+   - Sem plano salvo, a meta é calculada na hora a partir do cenário base do forecast, sem gravar nada. Os contratos saem do cenário; a capacidade são os leads do mês; a meta diária são os leads do mês divididos pelos dias úteis; a alocação são os leads por produto.
+   - A Previsão e a Operação mostram a meta sugerida com o selo "sugerida" até alguém confirmar.
+   - Com a v10, a sugestão de out/26 seria 16 contratos e 11 leads por dia útil, contra 8 e 7 de set/26, porque a v10 supõe 2 closers. O selo existe para essa diferença ser vista antes de virar cobrança.
+   - Afeta a Operação (issue 21), que é tocada pelo chat dela.
+
+**Pendente:** P4 (data prevista e valor nas validadas), que o Pedro alinha com o Matheus. Não bloqueia o início.

@@ -1,7 +1,7 @@
 # Contrato · Funil e ciclo (`/monetizacao?aba=funil`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca (tela) · Victor Eliezek (casca, `areas.ts`, merge)   **Data:** 28/09/2026
-**Estado:** proposta; aguarda o "contrato ok" do Pedro. Quando aprovado, **substitui** `monetizacao-funil.md` (Funil comercial), que vai para `aposentados/`. A moldura comum (cabeçalho, estados, permissões, `DealDetails`) segue `monetizacao.md`.
+**Estado:** **aprovado** ("contrato ok" do Pedro em 28/09/2026). Na implementação, **substitui** `monetizacao-funil.md` (Funil comercial), que vai para `aposentados/`. A moldura comum (cabeçalho, estados, permissões, `DealDetails`) segue `monetizacao.md`.
 Spec: `docs/dev_notes/monetizacao-reestudo-telas/spec.md`. Mockup com dado real de 28/09: https://claude.ai/artifact/J56Uuu2cnKQyaKCTT8uw7F
 
 ## Propósito

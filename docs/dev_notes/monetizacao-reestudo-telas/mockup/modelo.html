@@ -668,8 +668,8 @@ function pranchaPrevisao(){
   const at = h('div',{class:'atencao'}, h('div',{class:'cab2',text:'O que pede atenção'}),
     h('div',{class:'at'}, h('div',{class:'tx'}, icone('cal','var(--warning)'), h('span',null, h('strong',{text:abertasVal.length+' oportunidades validadas sem data prevista nem valor. '}), 'Sem esses dois campos, a previsão por semana de fechamento e a receita prevista ficam em branco (hoje a aba Temporal inteira está assim).')),
       h('button',{type:'button',class:'btn',onclick:() => abrirLista('Validadas em aberto sem data prevista','Abertas hoje com oportunidade validada', abertasVal)}, 'Abrir as '+abertasVal.length)),
-    h('div',{class:'at'}, h('div',{class:'tx'}, icone('alerta','var(--warning)'), h('span',null, h('strong',{text:'Plano de out/26 não salvo; o de set/26 ficou com alocação 0/0/0. '}), 'Sem plano, a Operação diária perde as metas no dia 01/10.')),
-      h('button',{type:'button',class:'btn pri',onclick:abrirPlano}, 'Salvar plano de out/26')),
+    h('div',{class:'at'}, h('div',{class:'tx'}, icone('alerta','var(--warning)'), h('span',null, h('strong',{text:'Plano de out/26 sugerido pelo modelo, não confirmado. '}), 'A v10 sugere 16 contratos e 11 leads por dia útil, porque supõe 2 closers. Até alguém confirmar, a Operação usa a sugestão com o selo "sugerida".')),
+      h('button',{type:'button',class:'btn pri',onclick:abrirPlano}, 'Revisar e confirmar')),
     h('div',{class:'at'}, h('div',{class:'tx'}, icone('arquivo','var(--info)'), h('span',null, h('strong',{text:'O projetado ainda é a v10 de 09/09, importada à mão em 15/09. '}), 'O modelo novo da Cella, com cenários, vem do chat de Forecast e substitui a linha do gráfico abaixo.')),
       h('button',{type:'button',class:'btn',onclick:() => location.hash='menu'}, 'Ver o contrato de entrada')));
   out.push(at);
@@ -758,14 +758,14 @@ function abrirPlano(){
   const p = D.plan;
   const campo = (id, rot, val, ajuda) => h('div',{class:'campo'}, h('label',{for:id,text:rot}), h('input',{id, type:'number', value:val==null?'':String(val), inputmode:'numeric'}), ajuda ? h('small',{text:ajuda}) : null);
   sheet.replaceChildren(
-    h('header',null, h('div',null, h('h2',{id:'sheet-t',text:'Plano de out/26 · Matheus Carvalho'}), h('p',{text:'Pré-preenchido com o plano de set/26 (salvo em '+p.salvo_em+'). Metas alimentam a Operação diária; alocação e hipóteses, esta tela.'})), h('button',{type:'button',class:'btn',onclick:() => { sheet.hidden = true; }}, 'Fechar')),
+    h('header',null, h('div',null, h('h2',{id:'sheet-t',text:'Plano de out/26 · Matheus Carvalho'}), h('span',{class:'estado',style:'background:var(--info-soft);color:var(--info);margin-top:6px'}, icone('info'), 'Sugerido pelo modelo v10 de 09/09, não confirmado'), h('p',{text:'Sem plano salvo, o formulário vem com o cenário base do modelo. Confirmar grava o plano, e o selo "sugerida" some da Operação e da Previsão.'})), h('button',{type:'button',class:'btn',onclick:() => { sheet.hidden = true; }}, 'Fechar')),
     h('form',{onsubmit:ev => ev.preventDefault()},
-      campo('pl-dia','Leads trabalhados por dia útil', p.daily_target, 'Meta da Operação diária.'),
-      campo('pl-contr','Meta de contratos no mês', p.target_contracts, 'Meta, nunca previsão (N13).'),
-      campo('pl-cap','Capacidade de leads no mês', p.capacity, null),
-      h('div',{class:'campo'}, h('label',{text:'Alocação por produto (leads no mês)'}), h('div',{class:'linha3'}, PRODS.map(k => h('input',{id:'pl-al-'+k, type:'number', value:String(p.allocation[k]), 'aria-label':'Alocação '+PROD[k].nome}))), h('small',{text:'Em set/26 ficou 0 / 0 / 0. A soma não pode passar da capacidade.'})),
-      h('div',{class:'campo'}, h('label',{text:'Hipótese validada → contrato (%)'}), h('div',{class:'linha3'}, PRODS.map(k => h('input',{id:'pl-tx-'+k, type:'number', placeholder:PROD[k].nome, 'aria-label':'Hipótese '+PROD[k].nome}))), h('small',{text:'Observado na coorte: 3 ganhos de 36 validadas (8%), todos Cella. Decisão pendente: o cenário base do modelo novo preenche estes campos?'}))),
-    h('footer',null, h('button',{type:'button',class:'btn',onclick:() => { sheet.hidden = true; }}, 'Cancelar'), h('button',{type:'button',class:'btn pri',disabled:true,title:'Mockup: não grava'}, 'Salvar plano')));
+      campo('pl-dia','Leads trabalhados por dia útil', 11, '240 leads do mês ÷ 22 dias úteis de outubro. Em set/26 era 7.'),
+      campo('pl-contr','Meta de contratos no mês', 16, 'Cenário base da v10 (2 closers). Em set/26 era 8.'),
+      campo('pl-cap','Capacidade de leads no mês', 240, 'Em set/26 era 120.'),
+      h('div',{class:'campo'}, h('label',{text:'Alocação por produto (leads no mês)'}), h('div',{class:'linha3'}, PRODS.map(k => h('input',{id:'pl-al-'+k, type:'number', value:String({cella:15,consultoria:151,finance:73}[k]), 'aria-label':'Alocação '+PROD[k].nome}))), h('small',{text:'Cella · Consultoria · Finance, pelo modelo. Em set/26 ficou 0 / 0 / 0. A soma não pode passar da capacidade.'})),
+      h('div',{class:'campo'}, h('label',{text:'Hipótese validada → contrato (%)'}), h('div',{class:'linha3'}, PRODS.map(k => h('input',{id:'pl-tx-'+k, type:'number', placeholder:PROD[k].nome, 'aria-label':'Hipótese '+PROD[k].nome}))), h('small',{text:'Vem das premissas do modelo quando ele trouxer. Observado na coorte: 3 ganhos de 36 validadas (8%), todos Cella.'}))),
+    h('footer',null, h('button',{type:'button',class:'btn',onclick:() => { sheet.hidden = true; }}, 'Cancelar'), h('button',{type:'button',class:'btn pri',disabled:true,title:'Mockup: não grava'}, 'Confirmar plano')));
   sheet.hidden = false;
 }
 
