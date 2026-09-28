@@ -712,3 +712,29 @@ test("Carga parada é medição velha, com ou sem erro; falha isolada com dado f
   assert.equal(nunca.parada, false);
   assert.equal(cargaDoCrm("2026-09-28T15:20:00Z", null, agora).parada, false);
 });
+
+test("Clique no dia devolve os cards das barras daquele dia, com o mesmo filtro de ator", () => {
+  const st = [...stages.slice(0, 6), { id: 8, order_nr: 8, name: "Stand by" }];
+  // reunião no dia 3 por outro usuário e no dia 6 pelo farmer
+  const c = summarize(
+    [raw({ id: 140, stage_id: 4 })],
+    st,
+    {
+      140: [
+        change(1, 4, "2026-09-03 12:00:00", 99),
+        change(4, 3, "2026-09-04 12:00:00", 20),
+        change(3, 4, "2026-09-06 12:00:00", 20),
+      ],
+    },
+    "2026-09",
+  ).cards[0];
+  const v = operacao([c], filter);
+  const dia = (d) => v.series.find((s) => s.date === d);
+  assert.equal(dia("2026-09-03").meeting, 0);
+  assert.deepEqual(v.movimentosDoDia("2026-09-03"), []);
+  assert.equal(dia("2026-09-06").meeting, 1);
+  assert.deepEqual(
+    v.movimentosDoDia("2026-09-06").map((x) => x.id),
+    [140],
+  );
+});

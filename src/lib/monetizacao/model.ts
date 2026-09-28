@@ -417,9 +417,18 @@ export function operacao(cards: Negocio[], f: Filtro) {
         ),
     ),
   );
+  // Clique num dia do gráfico: os cards das três séries naquele dia, com a mesma régua de data e
+  // ator das barras (antes o detalhe olhava só a data e levava movimento de outro usuário).
+  const movimentosDoDia = (date: string) => {
+    const ids = new Set<number>();
+    return (["started", "scheduled", "meeting"] as const)
+      .flatMap((k) => pool.filter((c) => match(c, k, date)))
+      .filter((c) => !ids.has(c.id) && !!ids.add(c.id));
+  };
   return {
     rows,
     series,
+    movimentosDoDia,
     current,
     products,
     convertedMeetings,

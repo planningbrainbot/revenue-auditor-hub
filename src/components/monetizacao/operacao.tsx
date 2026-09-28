@@ -426,15 +426,8 @@ export function SerieDiaria({
   metaDia: number | null;
   abrir: Abrir;
 }) {
-  const abrirDia = (date: string) => {
-    const doDia = (k: Metrica) =>
-      view.rows[k].filter((c) => c.events[k].some((e) => e.date === date));
-    const ids = new Set<number>();
-    const rows = [...doDia("started"), ...doDia("scheduled"), ...doDia("meeting")].filter(
-      (c) => !ids.has(c.id) && ids.add(c.id),
-    );
-    abrir(`Movimentos de ${ddmm(date)}`, rows);
-  };
+  const abrirDia = (date: string) =>
+    abrir(`Movimentos de ${ddmm(date)}`, view.movimentosDoDia(date));
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="flex items-start justify-between gap-3">
