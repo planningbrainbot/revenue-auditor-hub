@@ -549,9 +549,6 @@ export function csv(rows: unknown[][]) {
 // mede o trabalho dele e não oferece mais o seletor de responsável.
 export const FARMER = { id: 28381245, nome: "Matheus Carvalho" } as const;
 
-const dataBr = (iso: string | null | undefined) =>
-  iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : null;
-
 /**
  * Produto escrito no fim do título ("Hospitel · CELLA", "Camianski· Cella"), como o envio do
  * Aquário e dos contratos nomeia o card. Só o sufixo depois do "·": "NORTH Engenharia e
