@@ -8,6 +8,7 @@ o Estimado é o padrão e tem o id sem sufixo, para vir primeiro na ordenação 
 O XLSX não possui cache de fórmulas. Avaliador restrito às operações usadas nos modelos: sintaxe não
 suportada falha, nunca vira zero silencioso.
 Uso: python import_forecast.py arquivo.xlsx --output /caminho/privado.json [--sql /caminho/upsert.sql]
+     [--drive-url https://docs.google.com/spreadsheets/d/... --drive-updated-at 2026-09-28T19:00:00Z]
 """
 import argparse, ast, hashlib, json, operator, posixpath, re, zipfile
 import xml.etree.ElementTree as ET
@@ -127,8 +128,8 @@ def build_v10(model, path):
 CENARIOS = [('Estimado', ''), ('Conservador', '-conservador'), ('Otimista', '-otimista')]
 NOTA_V12 = {
     'Estimado': 'Forecast v12, cenário Estimado: premissas da planilha da parceria Diehl & Cella para a Cella (por faixa de faturamento e regime, base declarada medida em 28/09); Consultoria e Finance como na v10.',
-    'Conservador': 'Forecast v12, cenário Conservador (em aberto até validação): êxito, honorários e conversão abaixo da planilha e o corte atual de R$ 25 mi para a Cella.',
-    'Otimista': 'Forecast v12, cenário Otimista (em aberto até validação): êxito, honorários e conversão acima da planilha e entrada da Cella a partir de R$ 10 mi.',
+    'Conservador': 'Forecast v12, cenário Conservador (aprovado em 28/09): êxito, honorários e conversão abaixo da planilha e o corte atual de R$ 25 mi para a Cella.',
+    'Otimista': 'Forecast v12, cenário Otimista (aprovado em 28/09): êxito, honorários e conversão acima da planilha e entrada da Cella a partir de R$ 10 mi.',
 }
 
 def build_v12(model, path, source_date):
@@ -156,10 +157,14 @@ def build_v12(model, path, source_date):
         assert tot('Conservador', row) <= tot('Estimado', row) <= tot('Otimista', row), row
     return out
 
-def build(path, source_date='2026-09-28'):
+def build(path, source_date='2026-09-28', drive_url=None, drive_updated_at=None):
     model = Model(path)
-    if all(f'Forecast {nome}' in model.cells for nome, _ in CENARIOS): return build_v12(model, path, source_date)
-    return build_v10(model, path)
+    docs = build_v12(model, path, source_date) if all(f'Forecast {nome}' in model.cells for nome, _ in CENARIOS) else build_v10(model, path)
+    if drive_url:
+        # A tela só mostra o botão para planilha Google (forecast-model.tsx).
+        assert drive_url.startswith('https://docs.google.com/spreadsheets/d/'), drive_url
+        for d in docs: d.update(drive_url=drive_url, drive_updated_at=drive_updated_at)
+    return docs
 
 def upsert_sql(docs):
     parts = []
@@ -171,7 +176,8 @@ def upsert_sql(docs):
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('--output',required=True,type=Path)
-    p.add_argument('--source-date',default='2026-09-28');p.add_argument('--sql',type=Path);a=p.parse_args()
-    docs=build(a.source,a.source_date);a.output.write_text(json.dumps(docs,ensure_ascii=False,allow_nan=False))
+    p.add_argument('--source-date',default='2026-09-28');p.add_argument('--sql',type=Path)
+    p.add_argument('--drive-url');p.add_argument('--drive-updated-at');a=p.parse_args()
+    docs=build(a.source,a.source_date,a.drive_url,a.drive_updated_at);a.output.write_text(json.dumps(docs,ensure_ascii=False,allow_nan=False))
     if a.sql: a.sql.write_text(upsert_sql(docs))
     print(json.dumps([{'id':d['id'],'version':d['version'],'months':len(d['months']),'rows':len(d['rows'])} for d in docs],ensure_ascii=False))
