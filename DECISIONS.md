@@ -3466,6 +3466,15 @@ Conferido com a identidade de cada um: `tem_area('cockpit_ceo')` é verdadeiro. 
 
 O Eliezek já tinha a área pelo papel `admin` (conta `victor.eliezek@planning.com.br`), e nada mudou para ele.
 
-**Achado:** em 28/09 às 09h27, o Eliezek tirou o CEO (`pedro.araujo`) da área `cockpit_ceo`. Na mesma ação, bloqueou broker, broker_matriz, monetização, people e clientes e gerou senha provisória (`ops.acessos_log`). A liberação de 27/09 deixou de valer, e o CEO hoje **não** abre o cockpit. Não foi desfeito: a decisão é do Pedro com o Eliezek.
+**Achado:** em 28/09 às 09h27, o Eliezek tirou o CEO (`pedro.araujo`) da área `cockpit_ceo`. Na mesma ação, bloqueou broker, broker_matriz, monetização, people e clientes e gerou senha provisória (`ops.acessos_log`). A liberação de 27/09 deixou de valer.
+
+**Revertido no mesmo dia, a pedido do Pedro** ("devolva pra tudo, exceto pra broker"):
+- O CEO voltou a ter o Cockpit do CEO.
+- Monetização, Planning People e Clientes foram desbloqueadas; ele volta a vê-las pelo papel `diretor`.
+- Broker e Broker · Matriz continuam bloqueadas.
+
+Foi feito pelas funções da tela de acessos (`acesso_adicionar_na_area` e `acesso_bloquear_area(..., false)`), com o Pedro como ator; está registrado em `ops.acessos_log`.
+
+Conferido com a identidade do CEO: ele abre clientes, cockpit_ceo, financeiro, monetizacao, people, receita e rede; não abre broker nem broker_matriz. A senha provisória gerada pelo Eliezek não foi mexida.
 
 **Pendente:** crédito da chave da OpenAI. A chamada local respondeu "no credits remaining". Se a de produção for a mesma, o "Perguntar ao Brain" está parado.
