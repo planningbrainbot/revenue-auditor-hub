@@ -10,6 +10,7 @@ Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas p
 - **Métrica de sucesso:** diferença por degrau lida em um minuto; o modelo inteiro consultável sem abrir o Drive.
 - **Arquétipo:** **Lista/Relatório** (comparação com plano + grade do modelo).
 - **Universo (`descricao`):** "Toda a frente · {mês} · projetado: planilha {versão} de {data da fonte} · realizado: CRM até {corte}".
+- **Fonte (28/09):** forecast v12 (`v12-2026-09-28-cella-por-faixa.xlsx`), três cenários importados como três fontes em `ops.monetizacao_forecasts` (`v12-2026-09-28` = Estimado, padrão; `-conservador`; `-otimista`). A v10 continua na tabela como histórico e aparece no seletor.
 
 ## Números
 | Número | Definição | Unidade | Fonte | Drill-down | Bate? |
@@ -37,9 +38,11 @@ Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas p
 
 ## Ações
 Planilha no Drive (link externo) · Exportar valores (CSV) · filtro de blocos e "Só totais" **[apresentação]** para a URL (`blocos`, `totais`).
+- **Cenário (28/09, Pedro: "seletor de cenário se couber sem redesenhar a tela ... mudança de UI mínima"):** um `select` a mais na barra de filtros, antes do mês. Lista versão e cenário (`opcoesDoForecast`); o padrão é o cenário marcado `default` da versão mais recente (`escolherForecast`) e não vai para a URL; a escolha vai para `cenario` (id da fonte). Id desconhecido cai no padrão. O cabeçalho usa a mesma fonte.
+- **Bloco "Cella · parceria"** (linhas 69–72 da v12): honorários da parceria assinados e recuperação estimada para os clientes. Só aparece quando a fonte tem essas linhas (a v10 não tem).
 
 ## O que NÃO entra
-Previsão operacional a partir do mix da planilha: o forecast v10 é referência histórica, não previsão (DECISIONS 15/09). Filtro de responsável e produto (a comparação é da frente inteira, de propósito).
+Previsão operacional a partir do mix da planilha: o forecast é referência de plano, não previsão do CRM (DECISIONS 15/09; vale para a v12). Caixa por ano além da janela de 12 meses (o êxito da Cella cai em 2028–2029): fica no Resumo da planilha, não na tela. Filtro de responsável e produto (a comparação é da frente inteira, de propósito).
 
 ## Para onde manda
 Ajustar alocação e hipóteses → Capacidade e alocação (link já existe).

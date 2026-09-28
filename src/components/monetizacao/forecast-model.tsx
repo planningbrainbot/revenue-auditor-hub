@@ -13,8 +13,10 @@ const BLOCKS: { id: Bloco; name: string; start: number; end: number }[] = [
   { id: "receita", name: "Receita prevista", start: 46, end: 50 },
   { id: "caixa", name: "Entrada em caixa", start: 54, end: 59 },
   { id: "margem", name: "Time e margem", start: 63, end: 67 },
+  // v12+: o que a planilha da parceria (Diehl & Cella) mede. A v10 não tem estas linhas.
+  { id: "parceria", name: "Cella · parceria", start: 69, end: 72 },
 ];
-const TOTALS = new Set([21, 28, 29, 35, 37, 41, 50, 58, 66, 67]);
+const TOTALS = new Set([21, 28, 29, 35, 37, 41, 50, 58, 66, 67, 71]);
 const LABELS: Record<number, string> = {
   13: "Unidades novas · modelo R$ 15 mil",
   20: "Closers ativos",
@@ -57,7 +59,13 @@ export function ForecastModel({
 }) {
   const block = bloco ?? "all";
   const summary = soTotais;
-  const groups = BLOCKS.filter((b) => block === "all" || b.id === block);
+  const groups = BLOCKS.filter(
+    (b) =>
+      (block === "all" || b.id === block) &&
+      source.rows.some((r) => r.row >= b.start && r.row <= b.end),
+  );
+  // Nome da aba de origem, no formato de referência da planilha ("'Forecast Estimado'!C29").
+  const aba = source.sheet ? `'${source.sheet}'` : "Forecast";
   return (
     <Secao
       titulo="O que a planilha projeta, mês a mês?"
@@ -93,7 +101,10 @@ export function ForecastModel({
       <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted px-5 py-3">
           <div className="flex flex-wrap gap-1" role="group" aria-label="Blocos do forecast">
-            {[{ id: "all" as const, name: "Tudo" }, ...BLOCKS].map((b) => (
+            {[
+              { id: "all" as const, name: "Tudo" },
+              ...BLOCKS.filter((b) => source.rows.some((r) => r.row >= b.start && r.row <= b.end)),
+            ].map((b) => (
               <Button
                 key={b.id}
                 type="button"
@@ -193,7 +204,7 @@ export function ForecastModel({
                             <td
                               key={source.months[i]}
                               className={`border-b px-4 py-3.5 tabular-nums whitespace-nowrap ${i === source.months.indexOf(selectedMonth) ? "bg-primary/5 border-x border-x-primary/15" : bg} ${r.format === "money" && v < 0 ? "text-danger" : ""}`}
-                              title={`Forecast!${String.fromCharCode(67 + i)}${r.row}${r.formulas[i] ? " = " + r.formulas[i] : " · entrada da planilha"}`}
+                              title={`${aba}!${String.fromCharCode(67 + i)}${r.row}${r.formulas[i] ? " = " + r.formulas[i] : " · entrada da planilha"}`}
                             >
                               {v == null
                                 ? "—"

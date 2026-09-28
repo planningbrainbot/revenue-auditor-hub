@@ -304,6 +304,7 @@ export function DashboardMonetizacao({
     periodo,
     mes: filter.to.slice(0, 7),
     mesForecast: busca.mes ?? filter.to.slice(0, 7),
+    cenarioForecast: busca.cenario,
     dias: busca.dias ?? DIAS_PADRAO,
     donoPlano: responsavel,
     ate: diaMes(filter.to),
@@ -527,6 +528,7 @@ function descricaoDaAba(
     periodo: string;
     mes: string;
     mesForecast: string;
+    cenarioForecast?: string;
     dias: number;
     donoPlano: string;
     ate: string;
@@ -540,7 +542,7 @@ function descricaoDaAba(
     case "temporal":
       return `Oportunidades validadas em aberto · dono atual: ${v.responsavel} · ${v.produto} · estoque de hoje; ciclo e cenário no período ${v.periodo} · receita declarada no CRM, não é MRR nem caixa`;
     case "forecast": {
-      const fonte = fonteDoForecast(data);
+      const fonte = fonteDoForecast(data, v.cenarioForecast);
       const corte = data.measured_at ? date(data.measured_at) : null;
       return [
         "Toda a frente",

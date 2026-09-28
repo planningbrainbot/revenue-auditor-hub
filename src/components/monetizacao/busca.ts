@@ -32,7 +32,15 @@ export type Sinal = (typeof SINAIS)[number];
 export const PRODUTOS_URL = [...PRODUTOS, "sem_produto"] as const;
 export type ProdutoUrl = (typeof PRODUTOS_URL)[number];
 /** Blocos do modelo da planilha (`forecast-model.tsx`, `BLOCKS`). */
-export const BLOCOS = ["base", "capacidade", "funil", "receita", "caixa", "margem"] as const;
+export const BLOCOS = [
+  "base",
+  "capacidade",
+  "funil",
+  "receita",
+  "caixa",
+  "margem",
+  "parceria",
+] as const;
 export type Bloco = (typeof BLOCOS)[number];
 /** Situação da abordagem (`records.body.status`; sem status = rascunho). */
 export const SITUACOES = ["rascunho", "aprovado", "arquivado"] as const;
@@ -49,6 +57,8 @@ export type BuscaMonetizacao = {
   dias?: number;
   /** aaaa-mm do Projetado × realizado; padrão mês de `ate`. */
   mes?: string;
+  /** Id da fonte do forecast (versão e cenário); padrão: o cenário padrão da versão mais recente. */
+  cenario?: string;
   sinal?: Sinal;
   blocos?: Bloco;
   totais?: boolean;
@@ -80,6 +90,8 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     produto: umDe(PRODUTOS_URL, s.produto),
     dias: dias !== undefined && dias >= 1 && dias <= 180 && dias !== DIAS_PADRAO ? dias : undefined,
     mes: typeof s.mes === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.mes) ? s.mes : undefined,
+    cenario:
+      typeof s.cenario === "string" && /^[a-z0-9-]{1,80}$/.test(s.cenario) ? s.cenario : undefined,
     sinal: umDe(SINAIS, s.sinal),
     blocos: umDe(BLOCOS, s.blocos),
     totais,
