@@ -20,7 +20,10 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
   const stageFor = (re) => stages.find((s) => re.test(s.name));
   const scheduled = stageFor(/reuni.*(agend|marc)/i),
     meeting = stageFor(/reuni.*realiz/i),
-    negotiation = stageFor(/negocia/i);
+    negotiation = stageFor(/negocia/i),
+    // Stand by é espera depois da reunião, antes do ganho (dono, 28/09/2026): entrar nele conta
+    // como reunião realizada quando o card ainda não tinha passado por Reunião realizada.
+    standby = stageFor(/stand ?by/i);
   if (!meeting || !negotiation) throw Error("Etapas de reunião e negociação não identificadas");
   const cards = deals.map((d) => {
     const flow = flows[d.id],
@@ -95,6 +98,8 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
           add("started", e.log_time, actor, "stage_change");
         if (dest === scheduled?.id) add("scheduled", e.log_time, actor, "stage_change");
         if (dest === meeting.id) add("meeting", e.log_time, actor, "stage_change");
+        else if (standby && dest === standby.id && !events.meeting.length)
+          add("meeting", e.log_time, actor, "stand_by");
         if ((order.get(dest) || 0) >= negotiation.order_nr && !events.validated.length)
           add("validated", e.log_time, actor, "stage_change");
       }
@@ -111,7 +116,7 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         METRICS.map((k) => [k, events[k].some((e) => e.date.startsWith(month))]),
       );
     return {
-      metric_version: 4,
+      metric_version: 5,
       id: d.id,
       title: d.title.replace(/\s*\[(?:CO|HU|AQ):[a-f0-9-]+\]/g, ""),
       org: d.org_id?.name || null,

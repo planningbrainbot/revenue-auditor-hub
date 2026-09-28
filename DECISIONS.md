@@ -3403,3 +3403,14 @@ Ele já tinha o resto que os números do cockpit exigem:
 Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financeiro')`, `tem_produto('growth')` e `growth.e_membro()` são todos verdadeiros. Ele vê a Visão executiva, as frentes e o "Perguntar ao Brain" (histórico e visões privados dele).
 
 **Reversão:** `update ops.usuario_areas set allowed = false where user_id = 'dd9d83f2-1538-46c2-918c-f0f7986a5a69' and area = 'cockpit_ceo';`.
+
+## [2026-09-28] Stand by conta como reunião realizada na Operação da Monetização
+
+**Contexto:** o dono: "as oportunidades em stand by não podem sair da contagem. É uma etapa parada antes de ganho. Precisa contar como reunião realizada pra não quebrar minha métrica". Na versão de 24/09 o funil punha Stand by numa linha à parte, fora da sequência. Na carga, entrar em Stand by não gerava reunião, mas gerava validação (a ordem 8 fica acima de Em negociação). Resultado: a QUALIOBRAS (agendada → Stand by → agendada → negociação) contava como oportunidade validada sem reunião.
+
+**Decisão:**
+- Carga (`metric_version` 5): entrar em Stand by gera o evento de reunião realizada (`source: "stand_by"`) quando o card ainda não tinha reunião. Quem já tinha reunião não ganha outra.
+- Funil: Stand by soma na linha de Reunião realizada, em "entraram" (união por card) e em "hoje", com a nota "inclui N em Stand by". A linha separada saiu.
+- Validação não muda: Stand by continua contando como validada, como antes.
+
+**Medido em 28/09 (01/09 a 28/09, carga local contra o Pipedrive):** reuniões realizadas 31 (a QUALIOBRAS entra pela regra nova); reunião → oportunidade 28 de 31; Reunião realizada no funil com 31 entradas e 7 hoje, todos em Stand by.
