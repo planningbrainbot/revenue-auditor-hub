@@ -25,7 +25,9 @@ responsável.
 | Contratos ganhos | status ganho no período, pelo farmer | card | idem | idem | idem | sim |
 | Funil · Entraram | entrada na etapa no período (`moves`) | card | carga v4 | idem | cards que entraram | sim |
 | Funil · Hoje | abertos na etapa agora, sem filtro de data e dono | card | idem | idem | cards parados | bate com o pipe |
-| Funil · Conversão | entraram(etapa) ÷ entraram(etapa anterior) | % | idem | idem | — | — |
+| Funil · Conversão | dos que entraram na etapa anterior no período, quantos depois chegaram a esta ou além (28/09: era entraram ÷ entraram, e passava de 100% com etapa pulada) | % | idem | idem | — | ≤ 100% |
+| Funil · Perdidos | perdidos no período por quem marcou a perda (`lost_by`, carga v6) | card | idem | idem | lista | sim |
+| Cadastro a corrigir | produto do título ≠ campo Caixa · Produto; mesma organização e produto em dois cards (abertos ou do mesmo mês); aberto sem produto. A contagem segue o campo | card | idem | idem | lista, pipe inteiro | — |
 
 ## Estados
 | Estado | Quando | O que mostra |
@@ -33,7 +35,8 @@ responsável.
 | Carregando | sem dado | `Carregando` (moldura) |
 | Não apurado | carga anterior à v4 | "—" na etapa, com nota |
 | Sem meta | plano sem meta para o número | quadro sem selo |
-| Erro de carga | `sync_error` | `EstadoErro` / `EstadoVazio` da moldura |
+| Carga parada | medição com mais de 30 min, com ou sem `sync_error` (28/09) | `EstadoErro` da moldura com o porquê |
+| Falha isolada | `sync_error` com medição fresca | "· última tentativa falhou" na barra de frescor, sem alarme |
 | Sem acesso | sem `view` | `EstadoSemAcesso` + link para Produtos e listas |
 
 ## Filtros na URL (N7)
@@ -47,4 +50,4 @@ responsável.
 - Segundo eixo no gráfico diário (V8).
 
 ## Para onde manda
-- Todo número abre a lista dos negócios, com link para o Pipedrive.
+- Todo número abre a lista dos negócios, com link para o Pipedrive. Negócio perdido ou ganho diz isso na lista, com a data; a etapa vira "estava em".

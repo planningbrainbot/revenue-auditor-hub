@@ -3492,3 +3492,32 @@ Conferido com a identidade dele: `tem_area('cockpit_ceo')`, `tem_produto('financ
 **Régua depois da publicação** (catálogo de 19:42 UTC, sinais lidos do catálogo em produção): idêntica à simulação da entrada anterior (Consultoria 2.284 aptas, Finance 160, Cella 604; 28 contas fora da tabela padrão).
 
 **Não conferido:** captura escuro/claro da tela logada (sem sessão nesta máquina). A sync do CRM seguiu normal depois da migration (194 negócios a cada 5 min).
+
+## [2026-09-28] Operação da Monetização: varredura contra o Pipedrive e sete correções (carga v6)
+
+**Contexto:** relato das 14:43: "tem alguns que estão contando como em aberto em Consultoria mas já está como perdido no pipe" (Nutrimilho · Consultoria 96073 e Bigens · Consultoria 96074). O dono pediu a correção do caso e a varredura da aba inteira contra o Pipedrive.
+
+**O caso relatado, medido:**
+- A carga não estava parada. O cron `monetizacao-crm-5min` rodou o dia inteiro, e a carga das 14:40 e a das 14:45 concluíram. Às 14:43 o snapshot já tinha o Bigens como perdido: ele foi perdido às 10:03 e a carga das 10:05 gravou isso.
+- O Nutrimilho (96073) está **aberto** no Pipedrive (última mudança em 16/09). Os Nutrimilho encerrados são outros cards (69241 e 70684, ganhos em outros pipes).
+- O defeito era o detalhe: a coluna "Etapa atual" mostrava a última etapa do card. O Pipedrive guarda essa etapa num card perdido, então o Bigens aparecia "3 · Gatilho identificado", igual a um aberto.
+- Linha do tempo: produção rodava o front `5cb45ea` e a função v4 às 14:43. `4302f48` (Stand by) e a função v5 entraram às 15:15.
+
+**Reconciliação (01–28/09, apuração independente em Python direto do Pipedrive, 194 negócios e históricos):** com a régua declarada (ator = Matheus; Stand by conta como reunião realizada), a tela bate em **71 de 71 conjuntos**, card a card: funil (entraram e hoje) em todos/Consultoria/Finance/Cella × 7 linhas, e KPIs por produto. As diferenças contra a referência "qualquer ator" são de régua, não de defeito:
+- Finance 61 × 63 trabalhados: 95211 e 95196 saíram da Base pela API "Ops Planning".
+- Finance 9 × 8 realizadas: a QUALIOBRAS entrou em Stand by sem reunião antes.
+- Cella 60 × 59: a CDA Comercial (97490) foi trabalhada às 13:53, depois da referência.
+
+**Correções (cada uma com teste em `tests/monetizacao.test.mjs`):**
+1. **Detalhe diz encerrado** (`situacaoDoNegocio`): perdido e ganho aparecem com a data ("Perdido em 28/09/2026"), e a etapa vira "estava em …". O caso relatado.
+2. **Conversão do funil é passagem**: dos cards que entraram na linha de cima no período, quantos depois chegaram a esta linha ou além (mesmo recorte de data e ator). Antes era entraram(esta) ÷ entraram(de cima), que dava 225% em Consultoria (8 em Abordagem, 18 em Gatilho: a maioria foi da Base direto para Gatilho). Stand by fica na linha de Reunião realizada.
+3. **Carga v6 (`METRIC_VERSION` exportada do `crm.mjs`, usada no `index.ts`):**
+   - Card que nasce adiantado credita a entrada no funil ao criador, como já faziam trabalhados e validadas. Nascer na Base continua sendo fila do dono.
+   - A perda registra quem a marcou (`lost_by`), e "Perdidos no período" filtra por esse ator. Antes filtrava pelo dono atual: contava 5 cards sem produto perdidos pela API como perdas do Matheus e deixava fora o Supermercado JF (94554, dona Samira, perdido pelo Matheus). Perdidos: 82 → 78; Cella 17 → 18, igual ao Pipedrive.
+4. **Cadastro a corrigir no Pipedrive** (`cadastroACorrigir`): faixa acima de "Por produto" que some quando não há nada. **Regra técnica: o campo Caixa · Produto manda na contagem**, e a divergência vira alerta para a operação corrigir na fonte. Três negócios dizem outro produto no título (96070 Hospitel · CELLA, 96094 SAM MEDIC · FINANCE, 96110 RV Industria · FINANCE, todos com o campo em Consultoria). O título só vale pelo sufixo depois do "·": "NORTH Engenharia e Consultoria · Finance" é Finance. Também entram as oportunidades repetidas (mesma organização e produto, os dois abertos ou criados no mesmo mês, a régua do envio): 4 em Finance, 8 cards, criados em 11/09 e de novo em 15/09. E os abertos sem produto (hoje nenhum). No detalhe, "Título diz …" marca o card divergente. **Nada foi gravado no Pipedrive.**
+5. **Carga parada é medição com mais de 30 minutos, com ou sem erro** (`cargaDoCrm`). Antes, qualquer `sync_error` virava "indicadores parados" em vermelho: aconteceu 7 vezes em 28/09 ("Signal timed out."), sempre com a carga de 5 minutos antes boa. O cron parado sem erro não avisava nada. Falha isolada vira "· última tentativa falhou" na barra de frescor.
+6. **Clique no dia do gráfico** usa a mesma régua de ator das barras (`movimentosDoDia`). Hoje não há caso real.
+
+**Conferido sem defeito:** reabertos (96097, 96112, 94572 e 94757 foram marcados ganhos e desfeitos em menos de 1 minuto, e nenhum conta ganho; 95190, perdido e reaberto, não entra em perdidos). As "(cópia)" não duplicam no pipe 39: os originais estão em outros pipes, e as cópias entraram no 39 vindas de etapas de outros pipes. Nenhum negócio do Matheus saiu do pipe 39 em setembro. Fuso de São Paulo e dedupe por (dia, ator) conferidos. Metas: 140 trabalhados em 20 dias úteis = 7,0/dia (na meta); contratos 3 contra 7,3.
+
+**Status:** branch `fix/monetizacao-standby-reuniao-20260928`, sete commits de correção e um de documentação, rebaseados sobre `e1ad4da` (a `main` com o visual do Cockpit do CEO, publicado às 15:42, e os sinais da base, publicados às 16:39). Testes 282/282 no repo (30 na Monetização). Publicação pendente do ok do dono: a função `monetizacao-crm` v6 relê os 194 históricos na primeira rodada.
