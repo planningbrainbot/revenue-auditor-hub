@@ -147,3 +147,18 @@ export function trimestre(iso: string): { ano: number; t: number; rotulo: string
   const t = Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1;
   return { ano, t, rotulo: `T${t}/${ano}` };
 }
+
+/** Janela [de, ate] (datas ISO, início e fim de mês) em blocos de até `tamanho` meses. */
+export function blocosDeMeses(de: string, ate: string, tamanho: number): [string, string][] {
+  const out: [string, string][] = [];
+  let a = Number(de.slice(0, 4)) * 12 + Number(de.slice(5, 7)) - 1;
+  const fim = Number(ate.slice(0, 4)) * 12 + Number(ate.slice(5, 7)) - 1;
+  const iso = (m: number) => `${Math.floor(m / 12)}-${String((m % 12) + 1).padStart(2, "0")}`;
+  const ultimoDia = (m: number) => new Date(Date.UTC(Math.floor(m / 12), (m % 12) + 1, 0)).toISOString().slice(0, 10);
+  while (a <= fim) {
+    const b = Math.min(a + tamanho - 1, fim);
+    out.push([`${iso(a)}-01`, b === fim ? ate : ultimoDia(b)]);
+    a = b + 1;
+  }
+  return out;
+}

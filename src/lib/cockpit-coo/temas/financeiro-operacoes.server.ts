@@ -34,7 +34,7 @@ import type {
   Parte,
   SaldoMes,
 } from "./financeiro-operacoes.ts";
-import { mesAnterior } from "../montar.ts";
+import { blocosDeMeses, mesAnterior } from "../montar.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const codigo = (e: any) => (e?.code ? ` (código ${e.code})` : "");
@@ -111,28 +111,43 @@ async function lerFinanceiro(
         ),
       ),
     ),
-    // Fluxo realizado: a função de cálculo (sem o cache de `fn_dfc_matriz`, que grava). É a chamada
-    // mais pesada do tema (8 a 16 s medidos em 29/09), por isso a janela para no mês anterior.
+    // Fluxo realizado pela função COM cache (`fn_dfc_matriz`), a mesma que a tela do Financeiro usa.
+    // A de cálculo levou 25 s para três meses em 29/09 e estourava o limite do PostgREST (57014);
+    // a com cache calcula em ~5 s na primeira vez (lê a MV de lançamentos) e guarda o resultado,
+    // chaveado pelo carimbo dos lançamentos e dos saldos. Mesmo formato de resposta.
     parteFinanceiro<MesValor[]>(
       "fluxo de caixa",
       () =>
-        fin.rpc("fn_dfc_matriz_calcular", {
+        fin.rpc("fn_dfc_matriz", {
           p_comp_de: j.fluxo.de,
           p_comp_ate: j.fluxo.ate,
           p_nivel_max: 1,
         }),
       extrairFluxo,
     ),
-    parteFinanceiro(
-      "DRE",
-      () =>
-        fin.rpc("fn_dre_comp_caixa", {
-          p_comp_de: j.dre.de,
-          p_comp_ate: j.dre.ate,
-          p_nivel_max: 1,
-        }),
-      extrairDre,
-    ),
+    // DRE do ano em blocos de até três meses, em paralelo: jan–ago numa chamada levava 7 s e
+    // estourava o limite do PostgREST (57014) quando corria junto das outras; um mês leva ~2,5 s.
+    // Cada bloco devolve os seus meses, e os meses não se repetem entre blocos.
+    Promise.all(
+      blocosDeMeses(j.dre.de, j.dre.ate, 3).map(([de, ate]) =>
+        parteFinanceiro(
+          `DRE de ${de.slice(0, 7)} a ${ate.slice(0, 7)}`,
+          () => fin.rpc("fn_dre_comp_caixa", { p_comp_de: de, p_comp_ate: ate, p_nivel_max: 1 }),
+          extrairDre,
+        ),
+      ),
+    ).then((partes) => {
+      const falhou = partes.find((x) => !x.ok);
+      if (falhou) return falhou;
+      const ok = partes as { ok: true; valor: { meses: MesValor[]; recortesFora: string[] } }[];
+      return {
+        ok: true as const,
+        valor: {
+          meses: ok.flatMap((x) => x.valor.meses).sort((a, b) => a.mes.localeCompare(b.mes)),
+          recortesFora: [...new Set(ok.flatMap((x) => x.valor.recortesFora))],
+        },
+      };
+    }),
     aprovacoes(j.exposicao.competencia),
   ]);
 

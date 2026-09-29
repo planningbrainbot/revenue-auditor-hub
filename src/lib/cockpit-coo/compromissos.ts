@@ -10,11 +10,14 @@ import type { Tema } from "./contrato.ts";
 
 export type { LinhaEspelho };
 
+/** Valor JSON (o que o banco guarda em jsonb): serializável de ponta a ponta. */
+export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+
 export interface LinhaEvento {
   tarefa_id: string;
   tipo: string;
-  de: unknown;
-  para: unknown;
+  de: Json;
+  para: Json;
   em: string;
 }
 

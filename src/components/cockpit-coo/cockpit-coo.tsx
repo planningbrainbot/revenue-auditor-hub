@@ -67,13 +67,34 @@ function FiltroUnidade({
   );
 }
 
-function Aviso({ children }: { children: ReactNode }) {
+/**
+ * Limites da leitura (unidade sem cadastro, régua incompleta, fonte parada): uma linha recolhida.
+ * Não é alarme fixo no topo (N9); o que pede ação está em "O que pede atenção".
+ */
+function Limites({ avisos }: { avisos: string[] }) {
+  if (!avisos.length) return null;
   return (
-    <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <span>{children}</span>
-    </p>
+    <details className="group rounded-lg border px-3 py-2 text-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-muted-foreground">
+        <TriangleAlert className="size-4 shrink-0 text-warning" aria-hidden />
+        <span>
+          {avisos.length === 1 ? "1 limite desta leitura" : `${avisos.length} limites desta leitura`}
+        </span>
+        <span className="text-xs group-open:hidden">· ver</span>
+      </summary>
+      <ul className="mt-2 list-disc space-y-1 pl-6 text-muted-foreground">
+        {avisos.map((a) => (
+          <li key={a}>{a}</li>
+        ))}
+      </ul>
+    </details>
   );
+}
+
+/** Nomes das fontes sem o detalhe depois do " · ", sem repetir: o cabeçalho cabe numa linha. */
+function fontesCurtas(fontes: { fonte: string }[]): string {
+  const nomes = [...new Set(fontes.map((f) => f.fonte.split(" · ")[0].split(" (")[0].trim()))];
+  return nomes.length > 3 ? `${nomes.slice(0, 3).join(", ")} e mais ${nomes.length - 3}` : nomes.join(", ");
 }
 
 export function CockpitCoo({
@@ -152,7 +173,7 @@ export function CockpitCoo({
         procedencia={
           fontes.length
             ? {
-                fonte: fontes.map((f) => f.fonte).join(", "),
+                fonte: fontesCurtas(fontes),
                 atualizadoEm: maisVelha ?? null,
                 regua: "todas as unidades do cadastro; fuso de São Paulo",
               }
@@ -176,9 +197,7 @@ export function CockpitCoo({
         filtros={<FiltroUnidade unidades={unidades} valor={filtro} aoMudar={aoMudar} />}
       />
 
-      {leitura?.avisos.map((a) => (
-        <Aviso key={a}>{a}</Aviso>
-      ))}
+      <Limites avisos={leitura?.avisos ?? []} />
 
       {carregando && !leitura ? (
         <Carregando variante="kpis" />
@@ -187,7 +206,7 @@ export function CockpitCoo({
       ) : leitura ? (
         <>
           <NumerosTema numeros={leitura.numeros} abrir={(n) => aoMudar({ detalhe: `n:${n.id}` })} />
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             <CaixaAtencao
               alertas={leitura.alertas}
               compromissos={compromissos}

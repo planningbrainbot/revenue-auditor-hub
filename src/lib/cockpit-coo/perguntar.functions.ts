@@ -43,7 +43,7 @@ export interface RespostaCoo {
   estado: "ok" | "erro" | "sem_orcamento" | "sem_chave";
   texto: string;
   descartadas: string[];
-  consultas: { ferramenta: string; args: Record<string, unknown> }[];
+  consultas: { ferramenta: string; args: Record<string, string | boolean> }[];
   modelo: string | null;
   custoUsd: number | null;
 }

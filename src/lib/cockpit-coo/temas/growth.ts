@@ -515,7 +515,8 @@ function numerosContratos(d: DadosGrowth, r: Recorte): [NumeroCoo, NumeroCoo] {
             nota: `${reaisCurto(v.mrr)} de MRR em ${plural(v.nComMrr, "contrato", "contratos")}`,
             delta:
               tAnt !== null
-                ? { valor: Math.round((t - tAnt) * 100) / 100, rotulo: `vs ${r.ant.rotulo}`, sentido: "maior-melhor" }
+                ? // Variação em % (o cartão mostra "%"): (atual − anterior) ÷ anterior.
+                  { valor: Math.round(((t - tAnt) / tAnt) * 1000) / 10, rotulo: `vs ${r.ant.rotulo}`, sentido: "maior-melhor" }
                 : undefined,
             dataDado,
             dados,
@@ -624,7 +625,7 @@ function numerosMidia(d: DadosGrowth, r: Recorte): [NumeroCoo, NumeroCoo] {
           delta:
             cacAnt !== null
               ? {
-                  valor: Math.round((s.investimento / s.vendas - cacAnt) * 100) / 100,
+                  valor: Math.round(((s.investimento / s.vendas - cacAnt) / cacAnt) * 1000) / 10,
                   rotulo: `vs ${r.ant.rotulo}`,
                   sentido: "menor-melhor",
                 }

@@ -3692,3 +3692,23 @@ A spec está em `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.m
 - **"Perguntar ao Brain" do COO:** tem três consultas fechadas (tema, OKRs, compromissos), sobre o mesmo dado da tela, e todo número da resposta é conferido.
   - O modelo roda pelo OpenRouter (`COCKPIT_COO_MODELO`, padrão `openai/gpt-5.5`), com teto próprio.
   - Nesta versão, a conversa não é gravada.
+
+## [2026-09-29] Cockpit do COO: o que a homologação com dado real mudou
+
+Os cinco temas foram conferidos por SQL independente na sessão do COO (`scripts/cockpit-coo/homologar-*.mjs`) e depois vistos no app local com a sessão do Pedro (`scripts/cockpit-coo/capturas.mjs`, saída fora do repositório em `PM Work/execution/cockpit-coo-capturas-20260929/`).
+
+**Decisões técnicas:**
+- **Fluxo de caixa do Financeiro:** passou a usar a função com cache, `fn_dfc_matriz`, a mesma da tela do Financeiro. A função de cálculo levou 25 s para três meses e estourava o limite do PostgREST (57014). A com cache calcula em cerca de 5 s na primeira vez e guarda o resultado.
+- **DRE do ano:** é pedida em blocos de até três meses, em paralelo (`blocosDeMeses`). A chamada única levava 7 s e estourava quando corria junto das outras.
+- **Falha de conexão não é falta de acesso.** `acessoDoUsuario` devolve lista vazia quando a consulta falha, e a tela dizia "acesso negado" a quem tem acesso. O contexto do COO passou a ler `ops.acesso_do_usuario` direto e a tratar falha como falha.
+- **Variação de número (`delta`) é sempre percentual:** o cartão escreve "%". A segunda mandava diferença em reais.
+- **Gráficos:** o Recharts 2 não enxerga eixo dentro de fragmento do React, e o gráfico de barras horizontais saía com uma barra só. Os gráficos do COO também ficaram sem animação.
+- **Apelidos por extenso:** "São Bernardo do Campo" e "Campo Novo do Parecis", como o onboarding grava, casam com a unidade.
+- **Pacto Trimestral:** conta como pactuado quando a unidade tem metas que cobrem ao menos 50 dos 100 pontos da régua do IDU. Hoje nenhuma chega a isso, e o número sai "não apurado", com alerta. Quem confirma o limiar é o COO ou o Eliezek.
+- **NPS:** ganhou a unidade de contagem "pontos". O Cockpit do CEO não usa.
+
+**Achados fora do cockpit, sem correção aqui:**
+- **Parser da sincronização das tratativas:** `pipefy-tratativas-sync` (`numeroOuNulo`) lê "12.000" como 12 e "760,00" como 76000. Por isso o IDU publicado mostra churn quase zero, e todas as unidades passam na meta de churn. Corrigir muda número que as unidades já veem: é decisão do dono.
+- **`indicadores_trimestre` com a sessão do COO passa de 110 s:** o limite é 8 s. Ela também conta como venda o lote do pipe Sócios de 10/09. A segunda não a usa.
+- **Carga da Monetização lenta sob RLS:** a leitura de `ops.monetizacao_itens` leva cerca de 3,5 s por página de 500 linhas. Quando corre junto de outra carga pesada, estoura e a tela da Monetização mostra "Não foi possível carregar itens". O cockpit do COO mostra "fonte indisponível", nunca zero.
+- **Unidades em implantação com apuração:** São Bernardo, Recife e Sorocaba já têm apuração confirmada e não têm data de inauguração. São Bernardo faturou R$ 20.537 em agosto.

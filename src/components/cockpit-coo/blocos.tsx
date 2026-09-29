@@ -55,17 +55,51 @@ const dataCurta = (iso: string | null) =>
 // Números da primeira dobra
 // ---------------------------------------------------------------------------------------------
 
+const reaisCurtos = new Intl.NumberFormat("pt-BR", {
+  notation: "compact",
+  style: "currency",
+  currency: "BRL",
+  maximumFractionDigits: 1,
+});
+
+/** No cartão, reais a partir de R$ 10 mil em forma curta (R$ 220,7 mil); a gaveta mostra o inteiro. */
+export function valorDoCartao(valor: number | null, unidade: NumeroCoo["unidade"]): string {
+  if (valor !== null && unidade === "reais" && Math.abs(valor) >= 10_000)
+    return reaisCurtos.format(valor).replace(/\u00a0/g, " ");
+  return valorCurto(valor, unidade);
+}
+
+/**
+ * Nota do cartão: uma informação só (feedback de 23/09). Sem número, o motivo inteiro vai para a
+ * gaveta, e o cartão mostra só a primeira oração dele.
+ */
+export function notaCurta(texto: string | undefined, max = 64): string | undefined {
+  if (!texto) return undefined;
+  const primeira = texto.split(/[:;(]|\s[—–-]\s/)[0].trim();
+  const t = primeira.length >= 12 ? primeira : texto;
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+function limitar(texto: string | undefined, max: number): string | undefined {
+  if (!texto) return undefined;
+  return texto.length > max ? `${texto.slice(0, max - 1).trimEnd()}…` : texto;
+}
+
 export function NumerosTema({ numeros, abrir }: { numeros: NumeroCoo[]; abrir: (n: NumeroCoo) => void }) {
   return (
-    <KpiGrade colunas={numeros.length > 4 ? 6 : numeros.length === 3 ? 3 : 4}>
+    <KpiGrade colunas={numeros.length >= 5 ? 3 : numeros.length === 3 ? 3 : 4}>
       {numeros.map((n) => (
         <KpiCard
           key={n.id}
           area="cockpit_coo"
           rotulo={n.rotulo}
-          valor={valorCurto(n.valor, n.unidade)}
+          valor={valorDoCartao(n.valor, n.unidade)}
           estado={ESTADO_KPI[n.estado]}
-          nota={n.estado === "disponivel" || n.estado === "parcial" ? n.nota : (n.motivo ?? n.nota)}
+          nota={
+            n.estado === "disponivel" || n.estado === "parcial"
+              ? limitar(n.nota, 90)
+              : (limitar(n.nota, 90) ?? notaCurta(n.motivo))
+          }
           meta={n.meta ? { valor: formatarNumero(n.meta.valor, n.unidade), rotulo: n.meta.rotulo } : undefined}
           delta={n.delta}
           tendencia={n.tendencia}
@@ -119,15 +153,15 @@ export function CaixaAtencao({
             const existente = compromissos.find((c) => c.origem === a.chave && !c.concluida);
             const Icone = a.gravidade === "critico" ? AlertOctagon : AlertTriangle;
             return (
-              <li key={a.chave} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-                <p className="flex min-w-0 items-center gap-2 text-sm" title={a.limiar}>
+              <li key={a.chave} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
+                <p className="flex min-w-0 items-center gap-2 text-sm" title={`${a.titulo} · ${a.limiar}`}>
                   <Icone
                     className={cn("size-4 shrink-0", a.gravidade === "critico" ? "text-danger" : "text-warning")}
                     aria-label={a.gravidade === "critico" ? "crítico" : "atenção"}
                   />
                   <span className="truncate">{a.titulo}</span>
                 </p>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {a.destino && (
                     <Button asChild size="sm" variant="outline">
                       <a href={hrefDoDestino(a.destino)}>
@@ -247,7 +281,7 @@ export function BlocoOkrs({ okrs, abrir }: { okrs: OkrsTema | null; abrir: () =>
       </Bloco>
     );
   const deptos = okrs.departamentos;
-  const titulo = `Como evoluem os OKRs de ${TEMAS[okrs.tema].departamentos.join(", ")}?`;
+  const titulo = "Como evoluem os OKRs deste tema?";
   if (!deptos.length)
     return (
       <Bloco titulo={titulo} abrir={abrir}>
@@ -286,9 +320,9 @@ export function BlocoOkrs({ okrs, abrir }: { okrs: OkrsTema | null; abrir: () =>
           <LineChart data={pontos} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
             <CartesianGrid {...gradeProps} />
             <XAxis dataKey="dia" {...eixoProps} minTickGap={24} />
-            <YAxis {...eixoProps} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={44} />
+            <YAxis {...eixoProps} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} width={52} />
             <Tooltip {...tooltipProps} formatter={(v: number | string) => (typeof v === "number" ? `${v}%` : v)} />
-            <Line dataKey="esperado" name="Esperado do ciclo" stroke={COR_NEUTRA} strokeDasharray="4 4" dot={false} strokeWidth={1.5} />
+            <Line dataKey="esperado" name="Esperado do ciclo" stroke={COR_NEUTRA} strokeDasharray="4 4" dot={false} strokeWidth={1.5} isAnimationActive={false} />
             {deptos.map((d, i) => (
               <Line
                 key={d.nome}
@@ -298,6 +332,7 @@ export function BlocoOkrs({ okrs, abrir }: { okrs: OkrsTema | null; abrir: () =>
                 dot={false}
                 strokeWidth={2}
                 connectNulls
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
@@ -353,7 +388,7 @@ export function GraficoTema({ g, abrir }: { g: GraficoCoo; abrir: () => void }) 
               <ReferenceLine y={0} stroke="var(--muted-foreground)" />
               <Tooltip {...tooltipProps} formatter={(v: number | string) => fmt(v)} />
               {g.series.map((s, i) => (
-                <Line key={s.chave} dataKey={s.chave} name={s.rotulo} stroke={CORES_SERIE[i % 5]} strokeWidth={2} dot={false} connectNulls />
+                <Line key={s.chave} dataKey={s.chave} name={s.rotulo} stroke={CORES_SERIE[i % 5]} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
               ))}
             </LineChart>
           ) : (
@@ -363,17 +398,11 @@ export function GraficoTema({ g, abrir }: { g: GraficoCoo; abrir: () => void }) 
               margin={{ top: 8, right: 16, bottom: 0, left: horizontal ? 8 : 0 }}
             >
               <CartesianGrid {...gradeProps} vertical={horizontal} horizontal={!horizontal} />
-              {horizontal ? (
-                <>
-                  <XAxis type="number" {...eixoProps} tickFormatter={(v) => fmt(v)} />
-                  <YAxis type="category" dataKey="rotulo" {...eixoProps} width={120} />
-                </>
-              ) : (
-                <>
-                  <XAxis dataKey="rotulo" {...eixoProps} />
-                  <YAxis {...eixoProps} tickFormatter={(v) => fmt(v)} width={72} />
-                </>
-              )}
+              {/* Recharts 2 só reconhece eixo filho direto: nada de fragmento aqui (29/09). */}
+              {horizontal && <XAxis type="number" {...eixoProps} tickFormatter={(v) => fmt(v)} />}
+              {horizontal && <YAxis type="category" dataKey="rotulo" {...eixoProps} width={120} />}
+              {!horizontal && <XAxis dataKey="rotulo" {...eixoProps} />}
+              {!horizontal && <YAxis {...eixoProps} tickFormatter={(v) => fmt(v)} width={72} />}
               <Tooltip {...tooltipProps} formatter={(v: number | string) => fmt(v)} />
               {g.series.map((s, i) => (
                 <Bar
@@ -383,6 +412,7 @@ export function GraficoTema({ g, abrir }: { g: GraficoCoo; abrir: () => void }) 
                   fill={CORES_SERIE[i % 5]}
                   radius={horizontal ? RAIO_BARRA_HORIZONTAL : RAIO_BARRA}
                   maxBarSize={22}
+                  isAnimationActive={false}
                 />
               ))}
             </BarChart>

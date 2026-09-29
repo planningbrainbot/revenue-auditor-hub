@@ -140,6 +140,7 @@ export interface NumeroCoo {
   /** Uma informação só (feedback de 23/09: nota de 3 a 4 linhas foi reprovada). */
   nota?: string;
   meta?: { valor: number; rotulo: string };
+  /** Variação PERCENTUAL contra a referência do rótulo (o cartão escreve "%"). */
   delta?: { valor: number; rotulo: string; sentido: "maior-melhor" | "menor-melhor" };
   tendencia?: { valores: (number | null)[]; rotulo: string };
   tom?: "sucesso" | "atencao" | "perigo";

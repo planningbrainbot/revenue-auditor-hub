@@ -263,7 +263,7 @@ export function montarCsRh(
   const iniTri = inicioDoTrimestre(hoje);
   const iniMes = inicioDoMes(hoje);
   const unidadeDe = (texto: string | null | undefined) => acharUnidade(unidades, texto);
-  const buscaUnidade = umaUnidade ? { unidade: umaUnidade.nome } : {};
+  const buscaUnidade: Record<string, string> = umaUnidade ? { unidade: umaUnidade.nome } : {};
 
   const numeros: NumeroCoo[] = [];
   const alertas: AlertaCoo[] = [];

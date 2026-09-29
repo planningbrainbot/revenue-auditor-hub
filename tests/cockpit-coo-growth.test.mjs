@@ -202,8 +202,8 @@ test("contratos e ticket: só Inside Sales até hoje, internas entram, implanta�
   const t = num(l, "ticket-medio");
   // (17.500 + 7.500 + 7.500 + 20.000 + 1.000 + 3.000 + 2.000) ÷ 7 = 58.500 ÷ 7 = 8.357,14.
   assert.equal(t.valor, 8357.14);
-  // T2 inteiro: (4.000 + 6.000) ÷ 2 = 5.000.
-  assert.equal(t.delta.valor, 3357.14);
+  // T2 inteiro: (4.000 + 6.000) ÷ 2 = 5.000. Variação em %: (8.357,14 − 5.000) ÷ 5.000 = 67,1%.
+  assert.equal(t.delta.valor, 67.1);
   assert.equal(t.delta.rotulo, "vs T2/2026");
   // Filtro "propria": Goiânia (20.000) + Consultoria (1.000).
   const p = montarGrowth(DADOS, UNIDADES, "propria", HOJE);
@@ -235,7 +235,8 @@ test("mídia e custo por contrato: régua do Growth, cobertura do grupo, ignoram
   const c = num(l, "cac-midia");
   // 785.922,10 ÷ 176 vendas = 4.465,47; T2: 685.245,83 ÷ 83 = 8.255,97.
   assert.equal(c.valor, 4465.47);
-  assert.equal(c.delta.valor, -3790.5);
+  // Variação em %: (4.465,47 − 8.255,97) ÷ 8.255,97 = −45,9%.
+  assert.equal(c.delta.valor, -45.9);
   assert.equal(c.delta.sentido, "menor-melhor");
   assert.equal(c.cobertura, "grupo");
   // Com filtro "propria" o número do grupo é o mesmo (e diz isso), não "não apurado".

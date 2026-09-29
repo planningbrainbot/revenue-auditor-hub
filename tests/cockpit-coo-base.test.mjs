@@ -147,3 +147,17 @@ test("alertas: crítico antes de atenção; dentro da gravidade, o maior peso", 
     ["z", "y", "x"],
   );
 });
+
+test("blocos de meses: janela da DRE em pedaços de até três meses, sem buraco nem repetição", async () => {
+  const { blocosDeMeses } = await import("../src/lib/cockpit-coo/montar.ts");
+  assert.deepEqual(blocosDeMeses("2026-01-01", "2026-08-31", 3), [
+    ["2026-01-01", "2026-03-31"],
+    ["2026-04-01", "2026-06-30"],
+    ["2026-07-01", "2026-08-31"],
+  ]);
+  assert.deepEqual(blocosDeMeses("2025-11-01", "2026-02-28", 3), [
+    ["2025-11-01", "2026-01-31"],
+    ["2026-02-01", "2026-02-28"],
+  ]);
+  assert.deepEqual(blocosDeMeses("2026-02-01", "2026-02-28", 3), [["2026-02-01", "2026-02-28"]]);
+});
