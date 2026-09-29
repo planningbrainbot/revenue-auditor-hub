@@ -152,6 +152,9 @@ def build_v12(model, path, source_date):
         by = {r['row']:r['values'] for r in rows}
         assert len(rows) >= 44 and 71 in by and 72 in by, (nome, len(rows))
         identities(by, False)
+        # Desde 29/09 as contagens são inteiras (arredondamento acumulado): contrato, lead, reunião, oportunidade, estoque.
+        for row in (15, 16, 17, 19, 22, 23, 24, 25, 26, 27, 28, 29, 35, 37, 38, 39, 40, 41):
+            if row in by: assert all(abs(v - round(v)) < 1e-9 for v in by[row]), (nome, row, by[row])
         # Honorários da parceria = contratos de Cella × honorário médio; receita da Planning = × fatia.
         for i in range(12):
             if by[38][i]: assert by[71][i] >= by[46][i] - 1e-6
