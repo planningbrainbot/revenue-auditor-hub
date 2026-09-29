@@ -16,6 +16,7 @@ import { ofertaRecon } from "@/lib/monetizacao/recon";
 import type { Conta, Negocio } from "@/lib/monetizacao/types";
 import { date, money, Notice, Panel } from "./common";
 import { SinaisDetalhe } from "./sinais";
+import { FONTE_OMIE, textoOmie } from "@/lib/monetizacao/sinais";
 
 export function AccountDetail({
   account,
@@ -148,6 +149,16 @@ export function AccountDetail({
                 sempre: "nenhum card" e "não é cliente" também são informação para quem vai ofertar. */}
             <Panel title="Distrato e Consultoria">
               <SinaisDetalhe account={account} />
+            </Panel>
+            {/* Tags do cadastro do Omie (29/09): diz se a empresa é cliente ou fornecedora, e de qual Omie. */}
+            <Panel title="Cadastro no Omie">
+              <p className="text-sm">{textoOmie(account)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Fonte: {FONTE_OMIE}
+                {account.base?.omie?.sincronizado_em
+                  ? ` · lido em ${date(account.base.omie.sincronizado_em)}`
+                  : ""}
+              </p>
             </Panel>
             <Panel title="Oportunidades desta empresa">
               <div className="space-y-3">

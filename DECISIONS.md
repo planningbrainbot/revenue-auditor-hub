@@ -3589,3 +3589,38 @@ Publicado com o "Pode publicar" do Pedro, na ordem migration → Edge Function �
 - Forecast: backup das três linhas anteriores (import de 28/09 19:57 UTC) fora do repositório; basta regravar esse backup ou reimportar a planilha de 28/09.
 - Edge Function: redeploy de `supabase/functions/monetizacao-crm` a partir de `a2def36`.
 - Migration: `20260929130000_monetizacao_envio_recon_rollback.sql`. Só depois de apagar ou migrar os itens e envios com produto `recon`, se houver.
+
+## [2026-09-29] Base de clientes: filtro "Cadastro no Omie · tag" (cliente × fornecedor)
+
+**Pedido do Pedro (29/09):** "um filtro geral nas tags do omie de todos os clientes pra saber o que é cliente e o que é fornecedor dos clientes."
+
+**Medido antes de desenhar (29/09, 11 credenciais do Omie):**
+- O cadastro "Clientes e Fornecedores" do Omie mistura quem a unidade atende com quem ela paga, e a Base puxa o cadastro inteiro. O `ops.omie_clientes` não guarda a tag.
+- Sorocaba não respondeu: a API exige um addon da Omie Store.
+- Das 10.316 contas da Base:
+
+  | Classe | Contas |
+  |---|---|
+  | Cliente | 1.841 |
+  | Cliente e fornecedor | 649 |
+  | Só fornecedor | 1.473 (1.235 só da Matriz, 195 só de uma unidade, 43 das duas) |
+  | Funcionário ou sócio | 6 |
+  | No Omie, sem tag | 2.897 (quase todo Curitiba, que não usa a tag Cliente) |
+  | Fora do Omie | 3.450 |
+
+- Nas prontas, são só fornecedor 86 contas de Consultoria e 28 de Cella; Finance não tem nenhuma. Três cards de Consultoria da carga de outubro foram para contas que são só fornecedor.
+
+**Decisão:**
+- **Onde as tags ficam:** `ops.base_omie_tags` guarda um registro por cadastro (unidade × código do Omie), com as tags como vieram. A Edge Function `omie-tags-sync` preenche a tabela de hora em hora (cron `omie-tags-sync-hora`, mesmo segredo dos sinais), com retomada pela unidade mais antiga.
+- **Regra das tags:** o trigger `base_omie_tags_flags` ignora acento e caixa ("FORNECEDOR" de Curitiba = "Fornecedor" do Rio).
+  - `cliente`: a tag Cliente.
+  - `fornecedor`: Fornecedor ou Transportadora.
+  - `interna`: Funcionário, Sócio, CLT, PJ ou Estágio.
+- **Classe da conta:** soma os cadastros de todos os CNPJs dela em todos os Omie, Matriz inclusive. A ficha (`base_unica_ficha`) ganha `omie` com a classe e com `cliente_em`/`fornecedor_em`, que dizem de qual Omie vem a tag. Fornecedor só da Matriz é quem a Planning Partners paga; isso não é o mesmo que fornecedor da unidade, e a ficha e o CSV dizem de qual Omie é.
+- **Filtro:** "Cadastro no Omie · tag" na tabela da Base e na de Produtos, com a contagem por opção e `?omie=` na URL. O CSV ganha a coluna, e a ficha ganha o painel "Cadastro no Omie".
+- **O filtro não muda nenhuma regra de oferta:** a conta só fornecedor continua pronta até alguém decidir o contrário. Decisão de negócio aberta com o Pedro.
+
+**Conferido:**
+- Migration ensaiada contra produção em transação desfeita, com as tags do dia. As contagens por classe batem com a medição por script (`monetizacao/base/medir_tags_omie.mjs`).
+- Página de 400 contas da ficha: 745–788 ms antes, 696–996 ms depois.
+- Testes 326/326.

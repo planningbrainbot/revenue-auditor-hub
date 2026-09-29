@@ -65,11 +65,13 @@ import { ReconAquario } from "./recon";
 import { ofertaEnvio, ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
 import { ProcedenciaSinais, SelosSinais } from "./sinais";
-import { textoConsultoria, textoDistrato } from "@/lib/monetizacao/sinais";
+import { textoConsultoria, textoDistrato, textoOmie } from "@/lib/monetizacao/sinais";
 import { DirectSend } from "./direct-send";
 import { ProcedenciaBase } from "./procedencia-base";
 import {
   ABORDAGENS,
+  CLASSES_OMIE,
+  classeOmie,
   CONSULTORIA_FILTRO,
   DISTRATO_PADRAO,
   DISTRATOS_FILTRO,
@@ -92,6 +94,7 @@ import type {
   Abordagem,
   EstadoProduto,
   FiltroConsultoria,
+  FiltroOmie,
   OrigemBase,
   PortfolioFilters,
   Situacao,
@@ -765,6 +768,12 @@ function PortfolioTable({
   // enviadas saem do filtro após a atualização.
   const [sending, setSending] = useState<Conta[] | null>(null);
   const product = filters.product;
+  // Contagem por classe de tag do Omie na base inteira: o número ao lado de cada opção do filtro.
+  const contagemOmie = useMemo(() => {
+    const c: Partial<Record<FiltroOmie, number>> = {};
+    for (const a of data.accounts) c[classeOmie(a)] = (c[classeOmie(a)] ?? 0) + 1;
+    return c;
+  }, [data.accounts]);
   const situacaoEfetiva = filters.status.length ? filters.status : situacoesIniciais(product);
   const distratoEfetivo: string[] = filters.distrato.length ? filters.distrato : DISTRATO_PADRAO;
   // Mudar filtro limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
@@ -894,6 +903,7 @@ function PortfolioTable({
                   "Contato",
                   "Distrato · Central de Tratativas",
                   "Vínculo com a Consultoria",
+                  "Cadastro no Omie",
                   "Consultoria",
                   "Finance",
                   "Cella",
@@ -926,6 +936,7 @@ function PortfolioTable({
                     a.contact ? "Sim" : "Obter com o sócio",
                     textoDistrato(a),
                     textoConsultoria(a),
+                    textoOmie(a),
                     oferta(a, "consultoria").reason,
                     oferta(a, "finance").reason,
                     oferta(a, "cella").reason,
@@ -1204,6 +1215,19 @@ function PortfolioTable({
             value={filters.consultoria}
             onChange={(v) => change("consultoria", v as FiltroConsultoria[])}
             options={Object.entries(CONSULTORIA_FILTRO).map(([value, label]) => ({ value, label }))}
+          />
+        </FieldMulti>
+        {/* Tags do cadastro do Omie (29/09): separa cliente de fornecedor da unidade ou da Matriz. */}
+        <FieldMulti label="Cadastro no Omie · tag">
+          <MultiSelect
+            label="Cadastro no Omie"
+            placeholder="Todas as tags"
+            value={filters.omie ?? []}
+            onChange={(v) => change("omie", v as FiltroOmie[])}
+            options={(Object.keys(CLASSES_OMIE) as FiltroOmie[]).map((value) => ({
+              value,
+              label: `${CLASSES_OMIE[value]} (${number(contagemOmie[value] ?? 0)})`,
+            }))}
           />
         </FieldMulti>
         <FieldMulti label="Contato · filtro opcional">

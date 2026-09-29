@@ -25,6 +25,29 @@ export function textoDistrato(a: Conta): string {
     .join(" · ");
 }
 
+export const FONTE_OMIE = "Omie · tags do cadastro de clientes e fornecedores";
+
+/** Texto das tags do Omie para CSV, ficha e título: classe e em qual Omie (Matriz é quem a Planning Partners paga). */
+export function textoOmie(a: Conta): string {
+  const o = a.base?.omie;
+  if (!o) return "Fora do Omie";
+  const rotulo = {
+    cliente: "Cliente",
+    cliente_e_fornecedor: "Cliente e fornecedor",
+    fornecedor: "Só fornecedor",
+    pessoa_interna: "Funcionário ou sócio",
+    sem_tag: "No Omie, sem tag",
+  }[o.classe];
+  const em = (l: string[]) => l.join(", ");
+  return [
+    rotulo,
+    o.cliente_em.length ? `cliente em ${em(o.cliente_em)}` : null,
+    o.fornecedor_em.length ? `fornecedor em ${em(o.fornecedor_em)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function textoConsultoria(a: Conta): string {
   const c = a.base?.consultoria;
   if (!c) return "Sem vínculo com a Consultoria";
