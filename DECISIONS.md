@@ -3624,3 +3624,35 @@ Publicado com o "Pode publicar" do Pedro, na ordem migration → Edge Function �
 - Migration ensaiada contra produção em transação desfeita, com as tags do dia. As contagens por classe batem com a medição por script (`monetizacao/base/medir_tags_omie.mjs`).
 - Página de 400 contas da ficha: 745–788 ms antes, 696–996 ms depois.
 - Testes 326/326.
+
+## [2026-09-29] Cockpit do COO · Expansão: usuário, perímetro e donos (spec em aprovação)
+
+**Contexto:** o dono pediu um "Cockpit do COO – Expansão", no mesmo espírito do Cockpit do CEO. Há três diferenças:
+- o COO olha a relação da matriz com as unidades, não a unidade de Goiânia;
+- a rotina dele é semanal: segunda Growth, terça Financeiro e Operações, quarta CS e RH, quinta Monetização, sexta Estratégico;
+- a parte tática precisa se ligar ao ClickUp.
+
+A spec está em `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.md`. Ela ainda não foi aprovada e nenhum código foi escrito.
+
+**Confirmado pelo dono nesta conversa:**
+- **O COO da Expansão é o Paulo Carvalho** (`paulo.carvalho@planning.com.br`, papel `diretor`). No Brain existem dois Paulos; o outro, Paulo Cesar Navarro, é de CS.
+- **A pasta "Rotina Semanal" do ClickUp é do Paulo Carvalho.** É lá que os compromissos do cockpit vão morar.
+- **O departamento "Operações · Victor" do ClickUp é do Victor Eliezek**, não do Victor Lacerda.
+
+**Decidido na spec (reversível, aguardando o "contrato ok"):**
+- **Perímetro:** o cockpit olha só as unidades com `ops.unidades.tipo = 'regional'`.
+  - As 8 que já inauguraram entram em todos os números.
+  - São Bernardo, Recife e Sorocaba, ainda sem inauguração, entram só na sexta e nos compromissos.
+  - Goiânia (id 9) e as internas ficam fora.
+  - A regra mora numa função só, com teste. O cockpit não usa a lista fixa `UNIDADES_REDE`.
+- **Navegação:** cada tema da rotina é um item da lateral (`/cockpit-coo?tema=`), e a chave da URL é o tema, não o dia da semana.
+- **Compromissos:** são tarefas do ClickUp com dono único, prazo, tema, unidade e link de volta para o alerta que as gerou. O Brain espelha essas tarefas no banco para guardar o histórico.
+- **Jev:** fica só na triagem de tema e unidade, na checagem de duplicidade e na detecção de bloqueio. Toda sugestão dele precisa de confirmação humana antes de valer.
+
+**Achados registrados na spec (§14), sem correção nesta etapa:**
+- **Estratégia & Execução não existe:** a área registrada em 21/09 não está no código nem no banco.
+- **Snapshot de OKR parado:** `growth.okr_snapshot` não recebe dado novo desde 02/09, embora o job diário apareça como sucesso.
+- **Leitor do Growth sem paginação:** o leitor de OKRs do Growth não pagina os resultados.
+- **Sócio sem unidade:** a linha "Maceio" de `ops.socios` está sem `unidade_id`.
+
+**Aprovação com o COO:** a proposta foi publicada para o Paulo como página privada, com resposta por bloco: https://claude.ai/artifact/7sXeQ6Jbn1XApEbJpYKzrJ
