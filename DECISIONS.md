@@ -3572,3 +3572,20 @@ Os números mudaram desde a análise da tarde por movimento novo no Pipedrive. U
 **Conferido:** migration ensaiada contra produção em transação desfeita (conta apta ao Recon sem impedimento, conta com BPO barrada com o motivo, lista de Recon salva com o Willian, nada gravado depois do rollback). Testes, typecheck e design:lint no PR.
 
 **Publicação:** depende do "ok" do Pedro: migration → Edge Function `monetizacao-crm` → app, nessa ordem (cada passo é compatível com o anterior).
+
+## [2026-09-29] Publicado: Produtos e Listas, envio com pipe e closer, e forecast v12 com contagens inteiras (adendo às entradas anteriores)
+
+Publicado com o "Pode publicar" do Pedro, na ordem migration → Edge Function → app → forecast. Cada passo é compatível com o que estava no ar antes dele.
+
+- **Migration:** `20260929130000_monetizacao_envio_recon` aplicada em `npknehhyyzelmrbbxvtu`. Conferido depois de aplicar: o check de produto aceita `recon`, e `monetizacao_offer_issue` devolve nulo para uma conta apta ao Recon. O arquivo de rollback está ao lado da migration.
+- **Edge Function:** `monetizacao-crm` foi para a versão 19 às 16:19 UTC, depois de conferir que o código no ar era igual ao da `main` anterior (`a2def36`). A carga das 16:20 terminou ok.
+- **App:** PR #34 mergeado em `31ebb70`. Deploy por CLI (planningbrainbot, worktree limpo em `31ebb70`): `dpl_BkiTwvaRxhUV6q7xSPXjYSqVMAkK` (`ops-brain-h00labbsc`), Ready, alias `planningbrain.com.br`. Conferido no bundle servido pelo domínio: "Enviar ao pipe do Recon", "Produto em foco", "Salvar e apresentar", a rota `apresentacao/lista` e "Willian Linhares".
+- **Forecast:** as três fontes `v12-2026-09-28%` foram reimportadas às 16:25 UTC a partir da planilha com contagens inteiras e coluna Realizado. `columns` = C, E, …, Y. O importador confere que as linhas 15–41 que não são percentual são inteiras; a única linha com fração é "Cobertura do pool", que é percentual. Estimado: 180 contratos e R$ 13,13 mi assinados. `drive_url` aponta para a mesma planilha do Drive (id `1O-2rZ7p9S71sAanG6uZGfDTv8ylXRKXQ`).
+
+**Regra das contagens inteiras (pedido do Pedro, 29/09: "não consigo fechar 0,7 contrato"):** as contagens mensais saem por arredondamento acumulado. O mês recebe ROUND(acumulado até o mês) − ROUND(acumulado até o mês anterior). Assim o total do ano bate com o total contínuo e nenhum mês mostra fração. Nas ofertas trabalhadas, Cella e Consultoria arredondam a própria fatia e a Finance fica com o resto, para a soma fechar na capacidade dos closers.
+
+**Rollback:**
+- App: `ops-brain-g5s6daqa3` (`dpl_2ESHnaFNYqn9PQhHjpSzc1i3TkJW`, `86e6410`).
+- Forecast: backup das três linhas anteriores (import de 28/09 19:57 UTC) fora do repositório; basta regravar esse backup ou reimportar a planilha de 28/09.
+- Edge Function: redeploy de `supabase/functions/monetizacao-crm` a partir de `a2def36`.
+- Migration: `20260929130000_monetizacao_envio_recon_rollback.sql`. Só depois de apagar ou migrar os itens e envios com produto `recon`, se houver.
