@@ -144,7 +144,15 @@ function ApresentacaoLista() {
                 {q.data.linhas.map((l, i) => (
                   <TableRow key={i} className="break-inside-avoid">
                     <TableCell className="align-top">
-                      <span className="font-medium">{l.empresa}</span>
+                      {/* Abre a ficha da conta na Base em outra aba; a apresentação continua aberta. */}
+                      <Link
+                        to="/clientes"
+                        search={{ view: "monetizacao", item: l.item }}
+                        target="_blank"
+                        className="font-medium text-primary-text underline decoration-dotted underline-offset-4 hover:decoration-solid print:text-foreground print:no-underline"
+                      >
+                        {l.empresa}
+                      </Link>
                       <span className="block text-xs text-muted-foreground">
                         {l.comContato ? "Com contato" : "Contato a obter com o sócio"}
                       </span>
