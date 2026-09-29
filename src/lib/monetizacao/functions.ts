@@ -395,6 +395,8 @@ export const salvarRegistroMonetizacao = createServerFn({ method: "POST" })
 
 /** Uma linha da apresentação ao sócio: só os campos da lista fechada (spec "apresentação para o sócio", 18/09, D3). */
 export interface LinhaApresentacao {
+  /** Id do item da lista: abre a ficha da conta na Base sem expor a chave (há chave com CNPJ). */
+  item: string;
   empresa: string;
   comContato: boolean;
   produto: "consultoria" | "cella" | "finance" | "recon";
@@ -420,6 +422,24 @@ export interface ApresentacaoLista {
  * de listas, itens e contas decide o que ela vê. Nunca devolve CNPJ, contato, id de CRM, motivo
  * interno ou fonte — a apresentação vai para a frente do sócio.
  */
+/**
+ * A conta de um item de lista (link da apresentação para a ficha na Base), com a sessão da pessoa:
+ * a RLS de itens decide. Devolve só a chave, que fica no navegador de quem já vê a Base.
+ */
+export const contaDoItemLista = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ context, data }): Promise<string | null> => {
+    const { data: item, error } = await (context.supabase as DB)
+      .schema("ops")
+      .from("monetizacao_itens")
+      .select("account_key")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error("Não foi possível ler o item da lista.");
+    return (item?.account_key as string | undefined) ?? null;
+  });
+
 export const lerApresentacaoLista = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ id: z.string().uuid() }))
@@ -443,6 +463,7 @@ export const lerApresentacaoLista = createServerFn({ method: "GET" })
     if (lista.error || itens.error) throw new Error("Não foi possível ler a lista.");
     if (!lista.data) throw new Error("Lista não encontrada ou fora do seu acesso.");
     const rows = itens.data as {
+      id: string;
       account_key: string;
       product: LinhaApresentacao["produto"];
       review: Record<string, string>;
@@ -472,6 +493,7 @@ export const lerApresentacaoLista = createServerFn({ method: "GET" })
       const a = porChave.get(i.account_key);
       const r = i.review || {};
       return {
+        item: i.id,
         empresa: a && temNome(a.name) ? a.name : "(sem nome no cadastro)",
         comContato: !!a?.contact,
         produto: i.product,

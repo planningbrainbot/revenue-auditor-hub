@@ -56,6 +56,8 @@ export type BuscaClientes = {
   painel?: "recon";
   /** Visão Listas: id da lista aberta no editor. Ausente = a lista em edição (ou nenhuma). */
   lista?: string;
+  /** Item de lista cuja conta abre na ficha (link da apresentação ao sócio). */
+  item?: string;
   /** Situação no produto. Ausente = a situação padrão do produto; `["todas"]` = todas. */
   situacao?: string[];
   abordagem?: Abordagem[];
@@ -130,6 +132,11 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
       typeof s.lista === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.lista)
         ? s.lista
+        : undefined,
+    item:
+      typeof s.item === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.item)
+        ? s.item
         : undefined,
     situacao: lista(s.situacao),
     abordagem: lista(s.abordagem) as Abordagem[] | undefined,

@@ -25,7 +25,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
-import { acionarMonetizacao } from "@/lib/monetizacao/functions";
+import { acionarMonetizacao, contaDoItemLista } from "@/lib/monetizacao/functions";
 import {
   contatosBase,
   estadoSincronizacaoBase,
@@ -178,6 +178,25 @@ export function ClientesBase() {
     setPage = (p: number) => change({ pagina: p > 1 ? p : undefined });
   const [detail, setDetail] = useState<Conta | null>(null),
     [validation, setValidation] = useState<Conta | null>(null);
+  // Link da apresentação ao sócio (`?item=`): abre a ficha da conta daquele item quando a base chega.
+  const contaDoItemFn = useServerFn(contaDoItemLista);
+  const itemUrl = search.item;
+  useEffect(() => {
+    const contas = query.data?.accounts;
+    if (!itemUrl || !contas) return;
+    let vivo = true;
+    contaDoItemFn({ data: { id: itemUrl } })
+      .then((chave) => {
+        if (!vivo) return;
+        const conta = chave ? contas.find((a) => a.key === chave) : undefined;
+        if (conta) setDetail(conta);
+        else toast.error("A conta deste item não está na sua Base.");
+      })
+      .catch(() => vivo && toast.error("Não foi possível abrir a conta deste item."));
+    return () => {
+      vivo = false;
+    };
+  }, [itemUrl, query.data?.accounts, contaDoItemFn]);
   const healthFn = useServerFn(estadoSincronizacaoBase),
     contactsFn = useServerFn(contatosBase);
   const health = useQuery({
@@ -908,7 +927,14 @@ export function ClientesBase() {
           </div>
         </details>
       </>
-      <AccountDetail account={detail} cards={data.cards} close={() => setDetail(null)} />
+      <AccountDetail
+        account={detail}
+        cards={data.cards}
+        close={() => {
+          setDetail(null);
+          if (search.item) change({ item: undefined });
+        }}
+      />
       <ValidarOrigem
         account={validation}
         close={() => setValidation(null)}
