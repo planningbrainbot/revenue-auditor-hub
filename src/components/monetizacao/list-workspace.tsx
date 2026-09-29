@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CheckCheck, Download, Plus, Presentation, Save, Send, Trash2 } from "lucide-react";
+import { CheckCheck, Download, Plus, Presentation, Save, Search, Send, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -22,13 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { acionarMonetizacao, salvarListaAquario } from "@/lib/monetizacao/functions";
 import { disponibilidade, FAIXAS, oferta, SITUACOES_RECEITA } from "@/lib/monetizacao/model";
-import { NOMES } from "@/lib/monetizacao/types";
+import { CLOSERS, NOMES_ENVIO, PIPES_ENVIO, pipeDoProduto } from "@/lib/monetizacao/types";
+import { ofertaEnvio } from "@/lib/monetizacao/recon";
 import type {
   BaseMonetizacao,
   Conta,
   ItemLista,
   Lista,
-  Produto,
+  ProdutoEnvio,
   Unidade,
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
@@ -46,7 +47,7 @@ import {
   SecaoCartao,
 } from "./common";
 
-type Initial = { unit: Unidade | null; accounts: string[]; product: Produto };
+type Initial = { unit: Unidade | null; accounts: string[]; product: ProdutoEnvio };
 type Draft = {
   id?: string;
   revision?: number;
@@ -85,16 +86,35 @@ const statusNames: Record<string, string> = {
   blocked: "Revisar envio",
 };
 
+// Filtros da coluna de listas: a situação gravada no banco (draft, validated, sent).
+const FILTROS_LISTA = [
+  ["todas", "Todas"],
+  ["draft", "Rascunhos"],
+  ["validated", "Validadas"],
+  ["sent", "No Pipedrive"],
+] as const;
+/** Endereço da apresentação de uma lista salva: tela isolada, sem menu, pronta para imprimir. */
+const urlApresentacao = (id: string) => `/apresentacao/lista/${id}`;
+
 export function ListWorkspace({
   data,
   initial,
   onConsume,
   showAccount,
+  listaAberta,
+  aoAbrirLista,
+  irParaProdutos,
 }: {
   data: BaseMonetizacao;
   initial: Initial | null;
   onConsume: () => void;
   showAccount: (a: Conta) => void;
+  /** Lista aberta na URL (`?lista=`): o link abre a mesma lista. */
+  listaAberta?: string;
+  /** Grava a lista aberta na URL; `null` = nenhuma lista salva aberta. */
+  aoAbrirLista?: (id: string | null) => void;
+  /** Leva à visão Produtos (estado vazio: é lá que a lista começa). */
+  irParaProdutos?: () => void;
 }) {
   const [draft, setDraft] = useState<Draft>(empty),
     [dirty, setDirty] = useState(false),
@@ -104,6 +124,10 @@ export function ListWorkspace({
   // Trocar de lista com alterações não salvas pede confirmação (antes, `confirm()` nativo).
   // `null` = nada pendente; `{ abrir: id }` abre a lista salva; `{ abrir: null }` começa outra.
   const [descartar, setDescartar] = useState<{ abrir: string | null } | null>(null);
+  const [filtroLista, setFiltroLista] = useState<(typeof FILTROS_LISTA)[number][0]>("todas"),
+    [buscaLista, setBuscaLista] = useState("");
+  // Confirmar o descarte também fecha o diálogo: sem esta marca, o fechamento desfaria a URL.
+  const confirmandoDescarte = useRef(false);
   const save = useServerFn(salvarListaAquario),
     action = useServerFn(acionarMonetizacao),
     invalidate = useAtualizarMonetizacao();
@@ -131,7 +155,7 @@ export function ListWorkspace({
     if (!aberta.id) {
       setDraft({
         ...empty(),
-        nome: `${NOMES[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
+        nome: `${NOMES_ENVIO[initial.product]} · ${inferred?.name || "Todas as unidades"}`,
         unidade_id: inferred?.id || null,
         items: novos,
       });
@@ -160,15 +184,11 @@ export function ListWorkspace({
     }
     onConsume();
   }, [initial, data.units, onConsume]); // Refetch não substitui rascunho: initial só existe após seleção explícita.
-  const owners = [
-    ...new Map([
-      [28381245, "Matheus Carvalho"],
-      [27369179, "Samira Vieira"],
-      ...data.cards
-        .filter((c) => c.owner_id)
-        .map((c) => [c.owner_id!, c.owner] as [number, string]),
-    ]).entries(),
-  ];
+  // Closers que recebem card: Willian Linhares e Matheus Carvalho (Pedro, 29/09). Lista antiga com
+  // outro dono continua mostrando o dono dela, para não trocar de responsável em silêncio.
+  const owners: [number, string][] = CLOSERS.some(([id]) => id === draft.owner_id)
+    ? CLOSERS
+    : [...CLOSERS, [draft.owner_id, `Responsável atual (${draft.owner_id})`]];
   const locked =
     draft.items.some((i) => ["sending", "sent", "uncertain"].includes(i.status)) ||
     !data.permissions.manage;
@@ -185,7 +205,7 @@ export function ListWorkspace({
   const issues = draft.items.flatMap((i) => {
     const a = by.get(i.account_key);
     if (!a) return ["Conta indisponível no seu escopo"];
-    const result = oferta(a, i.product, i.review);
+    const result = ofertaEnvio(a, i.product, i.review);
     return result.status !== "elegivel" ? [`${a.name}: ${result.reason}`] : [];
   });
   const reloadList = (id: string) => {
@@ -196,20 +216,30 @@ export function ListWorkspace({
       setSelected(new Set());
     }
   };
-  // `null` começa uma lista nova; um id abre a lista salva.
+  // `null` começa uma lista nova; um id abre a lista salva. A URL acompanha (`?lista=`).
   const trocarPara = (id: string | null) => {
+    aoAbrirLista?.(id);
     if (id) return reloadList(id);
     setDraft(empty());
     setDirty(false);
     setSelected(new Set());
   };
+  // Link com `?lista=` (ou voltar do navegador) abre a lista, depois que ela chega na carga. Com
+  // rascunho não salvo, pergunta antes, como o clique na coluna.
+  useEffect(() => {
+    if (!listaAberta || listaAberta === draftRef.current.id) return;
+    if (!data.lists.some((l) => l.id === listaAberta)) return;
+    if (dirty) setDescartar({ abrir: listaAberta });
+    else reloadList(listaAberta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listaAberta, data.lists]);
   // Por que não dá para editar: sem a chave, ou lista com item já no Pipedrive.
   const motivoTravada = !data.permissions.manage
     ? "Editar lista exige a permissão manage.aquario"
     : locked
       ? "A lista tem oportunidade enviada ao Pipedrive e não pode mais ser editada"
       : null;
-  const persist = async (mode: "draft" | "validate") => {
+  const persist = async (mode: "draft" | "validate"): Promise<string | null> => {
     setBusy(true);
     try {
       const res = await save({
@@ -237,14 +267,17 @@ export function ListWorkspace({
         status: mode === "validate" ? "validated" : "draft",
       });
       setDirty(false);
+      if (res.id !== draft.id) aoAbrirLista?.(res.id);
       await invalidate();
       toast.success(
         mode === "validate"
           ? "Validação opcional registrada. A lista está pronta para seleção."
           : "Lista salva e disponível à equipe.",
       );
+      return res.id;
     } catch (e) {
       toast.error((e as Error).message);
+      return null;
     } finally {
       setBusy(false);
     }
@@ -263,7 +296,7 @@ export function ListWorkspace({
           return (
             ["draft", "validated", "blocked"].includes(i.status) &&
             a &&
-            oferta(a, i.product, i.review).status === "elegivel"
+            ofertaEnvio(a, i.product, i.review).status === "elegivel"
           );
         })
       : [];
@@ -320,7 +353,7 @@ export function ListWorkspace({
         draft.nome,
         listUnit,
         a?.name,
-        NOMES[i.product],
+        NOMES_ENVIO[i.product],
         i.review.band || a?.band,
         i.review.segment || a?.segment,
         i.review.regime || a?.regime,
@@ -334,27 +367,28 @@ export function ListWorkspace({
       ];
     }),
   ];
-  const presentation = () => {
-    const esc = (s: unknown) =>
-      String(s ?? "").replace(
-        /[&<>"']/g,
-        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-      );
-    const content = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(draft.nome)}</title><style>body{font:15px system-ui;color:#19362a;max-width:1100px;margin:40px auto;padding:24px}header{border-bottom:3px solid #03784a;padding-bottom:24px}h1{margin:12px 0}small,p{color:#61776b}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{text-align:left;padding:14px 10px;border-bottom:1px solid #d9e5de;font-size:13px}th{background:#edf5ef}aside{padding:16px;border:1px solid #bcd8c6;margin-top:24px}button{padding:10px;margin:10px 0}@media print{button{display:none}body{margin:0}}</style><header><img alt="Caixa de Oportunidade" width="235" src="${location.origin}/brand/caixa/assinatura-horizontal.svg"><p>Planning · Clientes / Aquário</p><h1>${esc(draft.nome)}</h1><p>${esc(listUnit)} · ${draft.items.length} oportunidades · ${esc(statusNames[draft.status])}</p></header><button onclick="window.print()">Imprimir / salvar PDF</button><table><thead><tr><th>Empresa</th><th>Produto</th><th>Faturamento</th><th>Segmento / regime</th><th>Próximo passo</th></tr></thead><tbody>${draft.items
-      .map((i) => {
-        const a = by.get(i.account_key);
-        return `<tr><td>${esc(a?.name)}<br><small>${a?.contact ? "Com contato" : "Contato: obter com o sócio"}</small></td><td>${esc(NOMES[i.product])}${a && i.product !== "finance" && oferta(a, "finance").status === "elegivel" ? "<br><small>Também atende a Finance</small>" : ""}</td><td>${esc(i.review.band || a?.band || "A confirmar")}</td><td>${esc(i.review.segment || a?.segment || "A confirmar")}<br><small>${esc(i.review.regime || a?.regime)}</small></td><td>${esc(i.review.note || "Validar oportunidade com o sócio")}</td></tr>`;
-      })
-      .join(
-        "",
-      )}</tbody></table><aside>Contas únicas: ${new Set(draft.items.map((i) => i.account_key)).size}. Uma empresa pode ter mais de uma oferta. Sócio: ${esc(draft.partner || "A registrar")}. ${dirty ? "Rascunho com alterações ainda não salvas." : "Registro: " + esc(statusNames[draft.status])}</aside><p>Gerado em ${new Date().toLocaleString("pt-BR")} · Uso interno Planning.</p></html>`;
-    const url = URL.createObjectURL(new Blob([content], { type: "text/html;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (draft.nome || "lista-para-socio").replace(/[^\p{L}\p{N} -]/gu, "") + ".html";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // A apresentação abre numa aba própria, numa URL do Brain (/apresentacao/lista/<id>), no lugar do
+  // HTML baixado de antes. Ela lê a lista salva: com alteração não salva, salva o rascunho antes.
+  // A aba é aberta no clique (antes do `await`), senão o navegador bloqueia a janela.
+  const precisaSalvar = !draft.id || dirty;
+  const presentation = async () => {
+    if (!precisaSalvar && draft.id) {
+      window.open(urlApresentacao(draft.id), "_blank", "noopener");
+      return;
+    }
+    const aba = window.open("about:blank", "_blank");
+    const id = await persist("draft");
+    if (id && aba) aba.location.href = urlApresentacao(id);
+    else aba?.close();
   };
+  const listasVisiveis = [...data.lists]
+    .reverse()
+    .filter((l) => filtroLista === "todas" || l.status === filtroLista)
+    .filter(
+      (l) =>
+        !buscaLista.trim() ||
+        `${l.nome} ${l.unidade_nome ?? ""}`.toLowerCase().includes(buscaLista.trim().toLowerCase()),
+    );
   return (
     <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
       <SecaoCartao
@@ -375,9 +409,36 @@ export function ListWorkspace({
           </Button>
         }
       >
+        <div className="mb-3 space-y-2">
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Situação das listas">
+            {FILTROS_LISTA.map(([k, rotulo]) => (
+              <Button
+                key={k}
+                type="button"
+                size="sm"
+                variant={filtroLista === k ? "secondary" : "ghost"}
+                aria-pressed={filtroLista === k}
+                onClick={() => setFiltroLista(k)}
+                className={filtroLista === k ? "border border-input" : "text-muted-foreground"}
+              >
+                {rotulo}
+              </Button>
+            ))}
+          </div>
+          <label className="relative block">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              aria-label="Buscar lista por nome ou unidade"
+              className={`${inputClass} pl-8`}
+              value={buscaLista}
+              onChange={(e) => setBuscaLista(e.target.value)}
+              placeholder="Nome ou unidade"
+            />
+          </label>
+        </div>
         <div className="space-y-2">
-          {data.lists.length ? (
-            [...data.lists].reverse().map((l) => (
+          {listasVisiveis.length ? (
+            listasVisiveis.map((l) => (
               <button
                 key={l.id}
                 type="button"
@@ -402,11 +463,19 @@ export function ListWorkspace({
                 </span>
               </button>
             ))
+          ) : data.lists.length ? (
+            <p className="text-xs text-muted-foreground">Nenhuma lista neste filtro.</p>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Nenhuma lista salva. Abra uma unidade, selecione as empresas e prepare a primeira
-              lista.
-            </p>
+            <div className="space-y-2 text-xs text-muted-foreground">
+              <p>
+                Nenhuma lista salva. Em Produtos, selecione as contas e prepare a primeira lista.
+              </p>
+              {irParaProdutos && (
+                <Button size="sm" variant="outline" onClick={irParaProdutos}>
+                  Ir para Produtos
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </SecaoCartao>
@@ -418,12 +487,20 @@ export function ListWorkspace({
               <BotaoComMotivo
                 variant="outline"
                 size="sm"
-                disabled={!draft.items.length}
-                motivo={!draft.items.length ? "A lista ainda não tem empresas" : null}
-                onClick={presentation}
+                disabled={!draft.items.length || busy || (precisaSalvar && locked)}
+                motivo={
+                  !draft.items.length
+                    ? "A lista ainda não tem empresas"
+                    : precisaSalvar && locked
+                      ? "Salve a lista para abrir a apresentação; seu acesso não permite salvar."
+                      : precisaSalvar
+                        ? "Salva o rascunho e abre a apresentação numa aba nova."
+                        : "Abre a apresentação numa aba nova, pronta para imprimir ou salvar em PDF."
+                }
+                onClick={() => void presentation()}
               >
                 <Presentation className="mr-1 h-4 w-4" />
-                Apresentação
+                {precisaSalvar ? "Salvar e apresentar" : "Apresentação"}
               </BotaoComMotivo>
               <BotaoComMotivo
                 variant="outline"
@@ -464,7 +541,7 @@ export function ListWorkspace({
                   ))}
               </select>
             </Field>
-            <Field label="Hunter no Pipedrive">
+            <Field label="Closer no Pipedrive">
               <select
                 className={inputClass}
                 value={draft.owner_id}
@@ -493,7 +570,7 @@ export function ListWorkspace({
             <div className="space-y-3">
               {draft.items.map((i, idx) => {
                 const a = by.get(i.account_key),
-                  r = a ? oferta(a, i.product, i.review) : null,
+                  r = a ? ofertaEnvio(a, i.product, i.review) : null,
                   savedItem = persisted?.items.find(
                     (s) => s.account_key === i.account_key && s.product === i.product,
                   );
@@ -509,7 +586,7 @@ export function ListWorkspace({
                           {a?.name || "Conta fora do escopo"}
                         </button>
                         <span className="ml-2 text-xs font-medium text-primary-text">
-                          {NOMES[i.product]}
+                          {NOMES_ENVIO[i.product]}
                         </span>
                         {a && (
                           <div className="mt-1 flex gap-1">
@@ -799,7 +876,7 @@ export function ListWorkspace({
                           setSelected(next);
                         }}
                       />
-                      {a?.name} · {NOMES[i.product]}
+                      {a?.name} · {NOMES_ENVIO[i.product]}
                     </span>
                     <span className="text-xs text-muted-foreground">{available?.reason}</span>
                   </label>
@@ -825,15 +902,27 @@ export function ListWorkspace({
                 Enviar ao Pipedrive ({sendingItems.length})
               </BotaoComMotivo>
               <p className="text-xs text-muted-foreground">
-                O campo “Caixa · Produto” receberá o produto exibido em cada oportunidade. Somente
-                os itens selecionados serão enviados à etapa de entrada. Negócios existentes são
-                vinculados; respostas incertas ficam bloqueadas para conferência.
+                O pipe sai do produto de cada oportunidade: Consultoria, Finance e Cella vão para{" "}
+                {PIPES_ENVIO.caixa.nome} (pipe {PIPES_ENVIO.caixa.id}), com o campo “Caixa ·
+                Produto”; Recon vai para o pipe {PIPES_ENVIO.recon.id}. Somente os itens
+                selecionados são enviados à etapa de entrada. Negócios existentes são vinculados;
+                respostas incertas ficam bloqueadas para conferência.
               </p>
             </div>
           </SecaoCartao>
         )}
       </div>
-      <AlertDialog open={!!descartar} onOpenChange={(o) => !o && setDescartar(null)}>
+      <AlertDialog
+        open={!!descartar}
+        onOpenChange={(o) => {
+          if (o) return;
+          // Cancelar um link (?lista=) devolve a URL à lista que continua aberta.
+          if (!confirmandoDescarte.current && descartar?.abrir && descartar.abrir !== draft.id)
+            aoAbrirLista?.(draft.id ?? null);
+          confirmandoDescarte.current = false;
+          setDescartar(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -850,8 +939,10 @@ export function ListWorkspace({
             <AlertDialogAction
               className={buttonVariants({ variant: "destructive" })}
               onClick={() => {
-                if (descartar) trocarPara(descartar.abrir);
+                const alvo = descartar;
+                confirmandoDescarte.current = true;
                 setDescartar(null);
+                if (alvo) trocarPara(alvo.abrir);
               }}
             >
               Descartar alterações
@@ -864,15 +955,22 @@ export function ListWorkspace({
           <DialogHeader>
             <DialogTitle>Enviar {sendingItems.length} oportunidade(s)?</DialogTitle>
             <DialogDescription>
-              Lista {draft.nome} · {listUnit} · responsável{" "}
+              Lista {draft.nome} · {listUnit} · closer{" "}
               {owners.find(([id]) => id === draft.owner_id)?.[1]}. As oportunidades serão criadas na
-              etapa de entrada do pipe de Monetização.
+              etapa de entrada de{" "}
+              {[...new Set(sendingItems.map((i) => pipeDoProduto(i.product)))]
+                .map(
+                  (k) =>
+                    `${PIPES_ENVIO[k].nome} (pipe ${PIPES_ENVIO[k].id}, etapa ${PIPES_ENVIO[k].entrada})`,
+                )
+                .join(" e ")}
+              .
             </DialogDescription>
           </DialogHeader>
           <ul className="max-h-60 overflow-y-auto space-y-1 text-sm">
             {sendingItems.map((i) => (
               <li key={i.id}>
-                {by.get(i.account_key)?.name} · {NOMES[i.product]}
+                {by.get(i.account_key)?.name} · {NOMES_ENVIO[i.product]}
               </li>
             ))}
           </ul>

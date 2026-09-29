@@ -22,6 +22,29 @@ export const NOMES: Record<Produto | "sem_produto", string> = {
   cella: "Cella",
   sem_produto: "Sem produto",
 };
+/**
+ * Produto de envio ao Pipedrive (29/09): os três do Caixa vão para o pipe 39 (Monetização · Caixa de
+ * Oportunidade), com o campo Caixa · Produto; o Recon vai para o pipe 38. A análise da Monetização
+ * (funil, previsão, operação) segue só com os três do Caixa.
+ */
+export type ProdutoEnvio = Produto | "recon";
+export const NOMES_ENVIO: Record<ProdutoEnvio, string> = {
+  consultoria: "Consultoria",
+  finance: "Finance",
+  cella: "Cella",
+  recon: "Recon",
+};
+export type PipeEnvio = "caixa" | "recon";
+export const PIPES_ENVIO: Record<PipeEnvio, { id: number; nome: string; entrada: string }> = {
+  caixa: { id: 39, nome: "Monetização · Caixa de Oportunidade", entrada: "1 · Base elegível" },
+  recon: { id: 38, nome: "Recon", entrada: "Entrada" },
+};
+export const pipeDoProduto = (p: ProdutoEnvio): PipeEnvio => (p === "recon" ? "recon" : "caixa");
+/** Closers que recebem card (Pedro, 29/09): só estes dois; id do usuário no Pipedrive. */
+export const CLOSERS: [number, string][] = [
+  [28381245, "Matheus Carvalho"],
+  [24813890, "Willian Linhares"],
+];
 export type Oferta = { status: "elegivel" | "revisar" | "fora_regra"; reason: string };
 export interface DrivaRecord {
   cnpj: string;
@@ -50,6 +73,8 @@ export interface Conta {
   orgs: number[];
   contact: boolean;
   band: string | null;
+  /** De onde veio a faixa: vazio = declarada no cadastro; "DataStone · estimativa …" = estimada. */
+  band_source?: string | null;
   regime: string | null;
   regime_source?: string | null;
   regime_at?: string | null;
@@ -202,7 +227,7 @@ export interface Revisao {
 export interface ItemLista {
   id: string;
   account_key: string;
-  product: Produto;
+  product: ProdutoEnvio;
   review: Revisao;
   status: "draft" | "validated" | "sending" | "sent" | "uncertain" | "blocked";
   deal_id: number | null;
@@ -244,7 +269,12 @@ export interface BaseMonetizacao {
   catalog_pages?: { after: string | null; through: string; count: number }[];
   scope_signature?: string;
   forecasts: ForecastSource[];
-  reservations: { account_key: string; product: Produto; status: string; deal_id: number | null }[];
+  reservations: {
+    account_key: string;
+    product: ProdutoEnvio;
+    status: string;
+    deal_id: number | null;
+  }[];
   accounts: Conta[];
   units: Unidade[];
   cards: Negocio[];

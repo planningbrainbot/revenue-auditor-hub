@@ -2,6 +2,7 @@ import { aplicarBase, type BaseEmpresa } from "../clientes-base";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { oferta } from "./model";
 import type {
   BaseMonetizacao,
   Conta,
@@ -258,7 +259,7 @@ export const salvarListaAquario = createServerFn({ method: "POST" })
         .array(
           z.object({
             account_key: z.string().min(1).max(80),
-            product: z.enum(["consultoria", "cella", "finance"]),
+            product: z.enum(["consultoria", "cella", "finance", "recon"]),
             review,
           }),
         )
@@ -390,4 +391,116 @@ export const salvarRegistroMonetizacao = createServerFn({ method: "POST" })
       });
     if (error) throw new Error(error.message);
     return { id: id as string };
+  });
+
+/** Uma linha da apresentação ao sócio: só os campos da lista fechada (spec "apresentação para o sócio", 18/09, D3). */
+export interface LinhaApresentacao {
+  empresa: string;
+  comContato: boolean;
+  produto: "consultoria" | "cella" | "finance" | "recon";
+  tambemFinance: boolean;
+  faturamento: string | null;
+  segmento: string | null;
+  regime: string | null;
+  proximoPasso: string;
+}
+export interface ApresentacaoLista {
+  id: string;
+  nome: string;
+  unidade: string;
+  status: string;
+  socio: string | null;
+  atualizadaEm: string;
+  contasUnicas: number;
+  linhas: LinhaApresentacao[];
+}
+
+/**
+ * A apresentação de UMA lista salva (tela `/apresentacao/lista/$id`), com a sessão da pessoa: a RLS
+ * de listas, itens e contas decide o que ela vê. Nunca devolve CNPJ, contato, id de CRM, motivo
+ * interno ou fonte — a apresentação vai para a frente do sócio.
+ */
+export const lerApresentacaoLista = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ context, data }): Promise<ApresentacaoLista> => {
+    const sb = context.supabase as DB;
+    if (!(await check(sb, "view.aquario")) && !(await check(sb, "view.monetizacao")))
+      throw new Error("Seu acesso não inclui as listas da Base de clientes.");
+    const db = sb.schema("ops");
+    const [lista, itens] = await Promise.all([
+      db
+        .from("monetizacao_listas")
+        .select("id,nome,unidade_nome,status,partner,updated_at")
+        .eq("id", data.id)
+        .maybeSingle(),
+      db
+        .from("monetizacao_itens")
+        .select("id,account_key,product,review")
+        .eq("list_id", data.id)
+        .order("id"),
+    ]);
+    if (lista.error || itens.error) throw new Error("Não foi possível ler a lista.");
+    if (!lista.data) throw new Error("Lista não encontrada ou fora do seu acesso.");
+    const rows = itens.data as {
+      account_key: string;
+      product: LinhaApresentacao["produto"];
+      review: Record<string, string>;
+    }[];
+    const keys = [...new Set(rows.map((i) => i.account_key))];
+    const [contas, base] = keys.length
+      ? await Promise.all([
+          db.from("monetizacao_contas").select("key,perfil").in("key", keys),
+          db.rpc("base_unica_catalogo", { _keys: keys }),
+        ])
+      : [
+          { data: [], error: null },
+          { data: [], error: null },
+        ];
+    if (contas.error || base.error) throw new Error("Não foi possível ler as contas da lista.");
+    const catalogo: BaseEmpresa[] = Array.isArray(base.data) ? base.data : (base.data?.base ?? []);
+    const porBase = new Map(catalogo.map((b) => [b.key, b]));
+    const porChave = new Map<string, Conta>(
+      (contas.data as { key: string; perfil: Conta }[]).map((r) => [
+        r.key,
+        aplicarBase(r.perfil, porBase.get(r.key)),
+      ]),
+    );
+    const temNome = (s: string | null | undefined) =>
+      !!s && /[A-Za-zÀ-ú]{2,}/.test(s) && !["NA", "N/A"].includes(s.trim().toUpperCase());
+    const linhas = rows.map((i): LinhaApresentacao => {
+      const a = porChave.get(i.account_key);
+      const r = i.review || {};
+      return {
+        empresa: a && temNome(a.name) ? a.name : "(sem nome no cadastro)",
+        comContato: !!a?.contact,
+        produto: i.product,
+        tambemFinance:
+          !!a &&
+          i.product !== "finance" &&
+          i.product !== "recon" &&
+          oferta(a, "finance").status === "elegivel",
+        // Faixa estimada pela DataStone vai marcada: é a conversa com o sócio que confirma.
+        faturamento:
+          r.band ||
+          (a?.band
+            ? /^datastone/i.test(a.band_source || "")
+              ? `${a.band} · estimativa, confirmar com o sócio`
+              : a.band
+            : null),
+        segmento: r.segment || a?.segment || null,
+        regime: r.regime || a?.regime || null,
+        proximoPasso: r.note?.trim() || "Validar a oportunidade com o sócio",
+      };
+    });
+    return {
+      id: lista.data.id,
+      nome: lista.data.nome,
+      unidade: lista.data.unidade_nome || "Todas as unidades",
+      status: lista.data.status,
+      socio: lista.data.partner || null,
+      atualizadaEm: lista.data.updated_at,
+      contasUnicas: keys.length,
+      linhas,
+    };
   });

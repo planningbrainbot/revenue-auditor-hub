@@ -20,7 +20,11 @@ import {
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
 import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
-import { dealPayload, hasCanonicalProduct } from "../supabase/functions/monetizacao-crm/send.mjs";
+import {
+  dealPayload,
+  hasCanonicalProduct,
+  sameProductDeal,
+} from "../supabase/functions/monetizacao-crm/send.mjs";
 import {
   escolherForecast,
   forecastComparison,
@@ -220,6 +224,28 @@ test("Data local usa São Paulo, com mudança de dia em UTC", () => {
 test("Título não determina produto canônico", () => {
   const c = card(raw({ title: "Finance oportunidade Cella", [PRODUCT]: null }));
   assert.equal(c.route, "sem_produto");
+});
+test("Recon vai para o pipe 38, na etapa pedida, sem o campo Caixa · Produto", () => {
+  const d = dealPayload({
+    account: { name: "Empresa sintética" },
+    product: "recon",
+    org: 10,
+    owner: 24813890,
+    stage: 268,
+    nonce: "n",
+  });
+  assert.equal(d.pipeline_id, 38);
+  assert.equal(d.stage_id, 268);
+  assert.equal(d.user_id, 24813890);
+  assert.equal(d[PRODUCT], undefined);
+  assert.match(d.title, /· Recon \[AQ:n\]$/);
+  assert.equal(hasCanonicalProduct(d, "recon"), true);
+  assert.equal(hasCanonicalProduct({ ...d, pipeline_id: 39 }, "recon"), false);
+  // Duplicidade: Recon olha o pipe 38; o Caixa olha o pipe 39 com o mesmo Caixa · Produto.
+  assert.equal(sameProductDeal({ pipeline_id: 38 }, "recon"), true);
+  assert.equal(sameProductDeal({ pipeline_id: 39, [PRODUCT]: 1128 }, "recon"), false);
+  assert.equal(sameProductDeal({ pipeline_id: 39, [PRODUCT]: 1128 }, "cella"), true);
+  assert.equal(sameProductDeal({ pipeline_id: 38, [PRODUCT]: 1128 }, "cella"), false);
 });
 test("Forecast compara mês global até a carga, sem fabricar realizado futuro ou aplicar mix", () => {
   const source = {

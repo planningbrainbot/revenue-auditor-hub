@@ -49,7 +49,7 @@ import {
   podeEscrever,
 } from "@/components/monetizacao/common";
 import { AccountDetail } from "@/components/monetizacao/account-detail";
-import { Aquario, type SecaoAquario } from "@/components/monetizacao/aquario";
+import { Aquario, type ExtrasAquario, type SecaoAquario } from "@/components/monetizacao/aquario";
 import { ContratosClientes } from "./contratos-clientes";
 import {
   BarraFiltros,
@@ -78,9 +78,13 @@ import { buscaDosFiltros, filtrosDaBusca, type BuscaClientes } from "./busca";
 // colunas do CSV agora vivem na tabela da carteira. "Negócios" morreu — era um recorte pior do
 // que /monetizacao?aba=operacao já mostra. "Contatos" saiu da faixa e segue alcançável pelo link
 // no rodapé do funil: o dado é único no produto, o lugar é que estava errado.
+// Produtos e Listas são duas visões (29/09): escolher o produto mostra a tabela dele logo abaixo, e a
+// lista preparada abre na visão Listas, no topo. Antes as duas coisas dividiam uma página e os
+// cartões mandavam para a Base, com o resultado no fim da página.
 const views = [
   ["monetizacao", "Base de clientes"],
-  ["produtos", "Produtos e listas"],
+  ["produtos", "Produtos"],
+  ["listas", "Listas"],
   ["pendencias", "Validar origem"],
   ["contratos", "Contratos e churn"],
   ["gates", "Entenda os números"],
@@ -93,8 +97,12 @@ const VISOES: Record<string, { titulo: string; pergunta: string }> = {
       "Quais contas desta unidade atendem ao recorte, e quais estão prontas para trabalhar?",
   },
   produtos: {
-    titulo: "Produtos e listas",
-    pergunta: "Quantas contas cada produto pode trabalhar agora, e em que lista elas estão?",
+    titulo: "Produtos",
+    pergunta: "Quantas contas cada produto pode trabalhar agora, e quais vão para a lista?",
+  },
+  listas: {
+    titulo: "Listas",
+    pergunta: "Quais listas estão prontas para apresentar ao sócio e enviar ao Pipedrive?",
   },
   pendencias: {
     titulo: "Validar origem",
@@ -119,11 +127,13 @@ const FONTE_BASE = "Catálogo da Base (Pipefy + Omie, conciliados)";
 const SECOES_AQUARIO: Record<string, SecaoAquario> = {
   monetizacao: "base",
   produtos: "produtos",
+  listas: "listas",
   gates: "gates",
 };
 const VIEW_DA_SECAO: Record<SecaoAquario, string> = {
   base: "monetizacao",
   produtos: "produtos",
+  listas: "listas",
   gates: "gates",
 };
 // Fora da faixa, mas endereçável: o link no rodapé do funil leva aqui. Sem isso a view cairia
@@ -296,15 +306,26 @@ export function ClientesBase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [assinaturaFiltros],
   );
-  const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario) => {
+  // Filtro na mesma visão não mexe na rolagem (antes cada filtro devolvia a página ao topo);
+  // troca de visão começa do topo. `extras` grava o painel do Recon na mesma navegação.
+  const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario, extras?: ExtrasAquario) => {
     void navigate({
       search: {
         ...search,
         pagina: undefined,
         ...buscaDosFiltros(f),
+        ...(extras ? { painel: extras.painel } : {}),
         ...(destino ? { view: VIEW_DA_SECAO[destino] } : {}),
       },
       replace: true,
+      resetScroll: !!destino,
+    });
+  };
+  const abrirLista = (id: string | null) => {
+    void navigate({
+      search: { ...search, pagina: undefined, lista: id ?? undefined },
+      replace: true,
+      resetScroll: false,
     });
   };
   const meta = VISOES[view] ?? VISOES.monetizacao;
@@ -465,14 +486,16 @@ export function ClientesBase() {
   const temFiltroTopo = !!(search.q || unidadesUrl.length || origensUrl.length || search.gate);
   const descricao =
     view === "produtos"
-      ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · Consultoria, Cella, Finance e Recon, cada um pela própria régua · a mesma conta pode estar em mais de um produto`
-      : view === "pendencias"
-        ? `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`
-        : view === "gates"
-          ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · os recortes se sobrepõem e não somam`
-          : view === "contatos"
-            ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
-            : `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · catálogo Pipefy + Omie · uma conta pode reunir CNPJs vinculados`;
+      ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · Consultoria, Finance, Cella e Recon, cada um pela própria régua · a mesma conta pode estar em mais de um produto`
+      : view === "listas"
+        ? `${number(data.lists.length)} listas salvas · listas de todas as unidades do seu escopo · a lista não segue os filtros do topo`
+        : view === "pendencias"
+          ? `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`
+          : view === "gates"
+            ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · os recortes se sobrepõem e não somam`
+            : view === "contatos"
+              ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
+              : `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · catálogo Pipefy + Omie · uma conta pode reunir CNPJs vinculados`;
   return (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
       <PageHeader
@@ -603,6 +626,9 @@ export function ClientesBase() {
             filtros={filtros}
             mudarFiltros={mudarFiltros}
             recorte={JSON.stringify([unidadeKeys, origensUrl, search.gate])}
+            painel={search.painel}
+            lista={search.lista}
+            aoAbrirLista={abrirLista}
           />
         ) : view === "contatos" ? (
           // O número de pessoas só aparece com o dado: sem acesso ou carregando, "0 pessoas"

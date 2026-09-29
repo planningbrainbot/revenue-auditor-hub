@@ -1,5 +1,9 @@
-import { comTratativa, distratoForaDeOferta, situacaoForaDeOferta } from "./model.ts";
-import type { Conta, Oferta } from "./types";
+import { comTratativa, distratoForaDeOferta, oferta, situacaoForaDeOferta } from "./model.ts";
+import type { Conta, Oferta, ProdutoEnvio, Revisao } from "./types";
+
+/** A régua de envio de um item de lista: Recon pela régua do Recon, os três do Caixa por `oferta`. */
+export const ofertaEnvio = (a: Conta, p: ProdutoEnvio, review: Revisao = {}): Oferta =>
+  p === "recon" ? ofertaRecon(a) : oferta(a, p, review);
 
 export const GRUPOS_RECON = {
   identidade: "CNPJ divergente",
