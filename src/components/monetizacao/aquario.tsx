@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CheckCheck,
   CheckCircle2,
+  ChevronDown,
   Download,
   Fish,
   ListPlus,
@@ -23,6 +24,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -44,7 +52,7 @@ import {
   situacaoForaDeOferta,
   tetoContradizFaixa,
 } from "@/lib/monetizacao/model";
-import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
+import { NOMES, NOMES_ENVIO, PRODUTOS } from "@/lib/monetizacao/types";
 import type {
   BaseMonetizacao,
   Conta,
@@ -54,7 +62,7 @@ import type {
 } from "@/lib/monetizacao/types";
 import { AccountDetail } from "./account-detail";
 import { ReconAquario } from "./recon";
-import { ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
+import { ofertaEnvio, ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
 import { ListWorkspace } from "./list-workspace";
 import { ProcedenciaSinais, SelosSinais } from "./sinais";
 import { textoConsultoria, textoDistrato } from "@/lib/monetizacao/sinais";
@@ -744,7 +752,7 @@ function PortfolioTable({
   setPicked: (p: Set<string>) => void;
   showAccount: (a: Conta) => void;
   /** Prepara a lista com o produto do filtro: sem produto não há lista (antes caía em Consultoria). */
-  onList: (keys: string[], product: Produto) => void;
+  onList: (keys: string[], product: ProdutoEnvio) => void;
   inUnit: boolean;
   unitId: number | null;
   /** Busca, unidade e origem são do topo da página: a tabela não desenha controle próprio. */
@@ -959,28 +967,58 @@ function PortfolioTable({
                 : `Selecionar prontas (${number(prontas.length)})`}
             </BotaoComMotivo>
           )}
-          <BotaoComMotivo
-            size="sm"
-            disabled={!data.permissions.manage || !selected.length || acimaDoLimite || !product}
-            motivo={[
-              !data.permissions.manage && "Exige manage.aquario para montar lista.",
-              !product &&
-                "Escolha o produto da lista: no filtro “Produto da lista” ou na visão Produtos.",
-              !selected.length && "Selecione as contas para a lista.",
-              acimaDoLimite &&
-                `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`,
-            ]}
-            onClick={() =>
-              product &&
-              onList(
-                selected.map((a) => a.key),
-                product,
-              )
-            }
-          >
-            <ListPlus className="mr-1 h-4 w-4" />
-            Preparar lista ({selected.length})
-          </BotaoComMotivo>
+          {/* Sem produto no filtro (visão Base), o botão pergunta o produto da lista na hora
+              (29/09: o Matheus ficou travado com o botão apagado pedindo um filtro que não via). */}
+          {!product && data.permissions.manage && selected.length > 0 && !acimaDoLimite ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <ListPlus className="mr-1 h-4 w-4" />
+                  Preparar lista ({selected.length})
+                  <ChevronDown className="ml-1 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Lista de qual produto?</DropdownMenuLabel>
+                {([...PRODUTOS, "recon"] as ProdutoEnvio[]).map((p) => (
+                  <DropdownMenuItem
+                    key={p}
+                    onSelect={() =>
+                      onList(
+                        selected.map((a) => a.key),
+                        p,
+                      )
+                    }
+                  >
+                    {NOMES_ENVIO[p]} ·{" "}
+                    {number(selected.filter((a) => ofertaEnvio(a, p).status === "elegivel").length)}{" "}
+                    aptas
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <BotaoComMotivo
+              size="sm"
+              disabled={!data.permissions.manage || !selected.length || acimaDoLimite}
+              motivo={[
+                !data.permissions.manage && "Exige manage.aquario para montar lista.",
+                !selected.length && "Selecione as contas para a lista.",
+                acimaDoLimite &&
+                  `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`,
+              ]}
+              onClick={() =>
+                product &&
+                onList(
+                  selected.map((a) => a.key),
+                  product,
+                )
+              }
+            >
+              <ListPlus className="mr-1 h-4 w-4" />
+              Preparar lista ({selected.length})
+            </BotaoComMotivo>
+          )}
           <BotaoComMotivo
             size="sm"
             disabled={
