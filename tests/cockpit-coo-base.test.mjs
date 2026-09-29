@@ -88,6 +88,8 @@ test("chave de unidade: igual a ops.base_unidade(), com os apelidos de Goiânia 
   assert.equal(chaveUnidade("  São   Luís "), "sao luis");
   assert.equal(chaveUnidade("São Luis"), "sao luis");
   assert.equal(chaveUnidade(null), "");
+  assert.equal(chaveUnidade("São Bernardo do Campo"), "sao bernardo");
+  assert.equal(chaveUnidade("Campo Novo do Parecis"), "campo novo");
 });
 
 test("perímetro: todas as 15 unidades entram, em dois grupos", () => {

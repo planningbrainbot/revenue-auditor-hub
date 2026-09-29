@@ -58,6 +58,11 @@ export function chaveUnidade(texto: string | null | undefined): string {
     case "matriz":
     case "partners":
       return "goiania";
+    // Nomes por extenso que o pipe de onboarding grava (29/09/2026).
+    case "sao bernardo do campo":
+      return "sao bernardo";
+    case "campo novo do parecis":
+      return "campo novo";
     default:
       return s;
   }

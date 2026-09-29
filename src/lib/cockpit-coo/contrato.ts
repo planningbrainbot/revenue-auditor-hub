@@ -115,7 +115,7 @@ export type Cobertura = "todas" | "rede" | "grupo";
 export const COBERTURAS: Record<Cobertura, string> = {
   todas: "todas as unidades do filtro",
   rede: "só rede regional (a operação própria não paga royalties)",
-  grupo: "grupo Planning inteiro (o Financeiro não separa por unidade)",
+  grupo: "a empresa inteira: não se separa por unidade (Financeiro, OKRs da Expansão)",
 };
 
 export interface Explicacao {

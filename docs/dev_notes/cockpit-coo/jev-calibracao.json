@@ -1,0 +1,1486 @@
+{
+  "taxonomia": "cockpit-coo-triagem-v1",
+  "em": "2026-09-29T15:05:28.224Z",
+  "amostras": {
+    "tema": 108,
+    "unidade": 24
+  },
+  "falhas": 0,
+  "custoUsd": 0.003643,
+  "curvas": {
+    "tema": [
+      {
+        "limiar": 0,
+        "acima": 108,
+        "de": 108,
+        "acerto": 0.5092592592592593
+      },
+      {
+        "limiar": 0.5,
+        "acima": 86,
+        "de": 108,
+        "acerto": 0.5232558139534884
+      },
+      {
+        "limiar": 0.6,
+        "acima": 75,
+        "de": 108,
+        "acerto": 0.5733333333333334
+      },
+      {
+        "limiar": 0.7,
+        "acima": 68,
+        "de": 108,
+        "acerto": 0.6176470588235294
+      },
+      {
+        "limiar": 0.8,
+        "acima": 45,
+        "de": 108,
+        "acerto": 0.7555555555555555
+      },
+      {
+        "limiar": 0.85,
+        "acima": 38,
+        "de": 108,
+        "acerto": 0.7894736842105263
+      },
+      {
+        "limiar": 0.9,
+        "acima": 31,
+        "de": 108,
+        "acerto": 0.8064516129032258
+      }
+    ],
+    "unidade": [
+      {
+        "limiar": 0,
+        "acima": 24,
+        "de": 24,
+        "acerto": 0.9583333333333334
+      },
+      {
+        "limiar": 0.5,
+        "acima": 24,
+        "de": 24,
+        "acerto": 0.9583333333333334
+      },
+      {
+        "limiar": 0.6,
+        "acima": 22,
+        "de": 24,
+        "acerto": 1
+      },
+      {
+        "limiar": 0.7,
+        "acima": 22,
+        "de": 24,
+        "acerto": 1
+      },
+      {
+        "limiar": 0.8,
+        "acima": 22,
+        "de": 24,
+        "acerto": 1
+      },
+      {
+        "limiar": 0.85,
+        "acima": 20,
+        "de": 24,
+        "acerto": 1
+      },
+      {
+        "limiar": 0.9,
+        "acima": 16,
+        "de": 24,
+        "acerto": 1
+      }
+    ]
+  },
+  "confusoesTema": [
+    {
+      "kr": "86e2gn55m",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5
+    },
+    {
+      "kr": "86e2gn55q",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.76
+    },
+    {
+      "kr": "86e2gn560",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.33
+    },
+    {
+      "kr": "86e2gn578",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.9
+    },
+    {
+      "kr": "86e2gn57b",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.78
+    },
+    {
+      "kr": "86e2gn57c",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.49
+    },
+    {
+      "kr": "86e2gn57n",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.5
+    },
+    {
+      "kr": "86e2gnh71",
+      "esperado": "growth",
+      "escolha": "cs-rh",
+      "confianca": 0.55
+    },
+    {
+      "kr": "86e2gnq6r",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.92
+    },
+    {
+      "kr": "86e2gnq6v",
+      "esperado": "cs-rh",
+      "escolha": "monetizacao",
+      "confianca": 0.73
+    },
+    {
+      "kr": "86e2gnq74",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.79
+    },
+    {
+      "kr": "86e2rx69k",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.61
+    },
+    {
+      "kr": "86e2rx7yd",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.59
+    },
+    {
+      "kr": "86e2t6h1v",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5
+    },
+    {
+      "kr": "86e2t6m0t",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.66
+    },
+    {
+      "kr": "86e2t6mx2",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.75
+    },
+    {
+      "kr": "86e2t75cv",
+      "esperado": "growth",
+      "escolha": "cs-rh",
+      "confianca": 0.44
+    },
+    {
+      "kr": "86e2tbbnt",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.96
+    },
+    {
+      "kr": "86e2tbbqg",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.98
+    },
+    {
+      "kr": "86e2tbbtp",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.8
+    },
+    {
+      "kr": "86e2tbbwt",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.86
+    },
+    {
+      "kr": "86e2tbc0q",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.81
+    },
+    {
+      "kr": "86e2tbc2b",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.87
+    },
+    {
+      "kr": "86e2tbc5j",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.49
+    },
+    {
+      "kr": "86e2tbc7z",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.42
+    },
+    {
+      "kr": "86e2tbcaj",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.6
+    },
+    {
+      "kr": "86e2tbckx",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.67
+    },
+    {
+      "kr": "86e2wmj61",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.78
+    },
+    {
+      "kr": "86e2wmj6t",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.52
+    },
+    {
+      "kr": "86e2wmj80",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.78
+    },
+    {
+      "kr": "86e2wmj8x",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.68
+    },
+    {
+      "kr": "86e2wmjak",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.72
+    },
+    {
+      "kr": "86e2wmjdk",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.77
+    },
+    {
+      "kr": "86e2wmjfk",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.38
+    },
+    {
+      "kr": "86e2wmjyq",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.72
+    },
+    {
+      "kr": "86e2wmk0a",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.51
+    },
+    {
+      "kr": "86e2wmk6a",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.6
+    },
+    {
+      "kr": "86e2wmk9g",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.44
+    },
+    {
+      "kr": "86e2wmkbu",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.47
+    },
+    {
+      "kr": "86e2wmkdt",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.99
+    },
+    {
+      "kr": "86e2wmkkw",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.81
+    },
+    {
+      "kr": "86e2wmkr6",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.45
+    },
+    {
+      "kr": "86e2xw071",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.78
+    },
+    {
+      "kr": "86e2y0vb0",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.37
+    },
+    {
+      "kr": "86e2y111g",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.7
+    },
+    {
+      "kr": "86e2y111p",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.79
+    },
+    {
+      "kr": "86e2y111u",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.76
+    },
+    {
+      "kr": "86e2y1121",
+      "esperado": "monetizacao",
+      "escolha": "estrategico",
+      "confianca": 0.91
+    },
+    {
+      "kr": "86e2y113n",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5
+    },
+    {
+      "kr": "86e2ybctu",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.73
+    },
+    {
+      "kr": "86e2ybcub",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.27
+    },
+    {
+      "kr": "86e2ybcup",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.54
+    },
+    {
+      "kr": "86e300waf",
+      "esperado": "financeiro-operacoes",
+      "escolha": "estrategico",
+      "confianca": 0.47
+    }
+  ],
+  "errosUnidade": [
+    {
+      "id": "s12",
+      "esperado": "nenhuma",
+      "escolha": "u9",
+      "confianca": 0.55
+    }
+  ],
+  "linhas": [
+    {
+      "id": "86e2gn54w",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.99,
+      "custo": 0.000027552
+    },
+    {
+      "id": "86e2gn550",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.98,
+      "custo": 0.000028434
+    },
+    {
+      "id": "86e2gn55j",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.93,
+      "custo": 0.000027846
+    },
+    {
+      "id": "86e2gn55m",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5,
+      "custo": 0.000028308
+    },
+    {
+      "id": "86e2gn55q",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.76,
+      "custo": 0.000028686
+    },
+    {
+      "id": "86e2gn560",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.33,
+      "custo": 0.000028098
+    },
+    {
+      "id": "86e2gn569",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.38,
+      "custo": 0.000028686
+    },
+    {
+      "id": "86e2gn56j",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.84,
+      "custo": 0.000029022
+    },
+    {
+      "id": "86e2gn56t",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.76,
+      "custo": 0.000028098
+    },
+    {
+      "id": "86e2gn56v",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.97,
+      "custo": 0.000028434
+    },
+    {
+      "id": "86e2gn578",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.9,
+      "custo": 0.000028392
+    },
+    {
+      "id": "86e2gn57b",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.78,
+      "custo": 0.000027678
+    },
+    {
+      "id": "86e2gn57c",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.49,
+      "custo": 0.00002793
+    },
+    {
+      "id": "86e2gn57k",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.75,
+      "custo": 0.000027342
+    },
+    {
+      "id": "86e2gn57m",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.74,
+      "custo": 0.000027594
+    },
+    {
+      "id": "86e2gn57n",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.5,
+      "custo": 0.000027426
+    },
+    {
+      "id": "86e2gn5bq",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.89,
+      "custo": 0.000027594
+    },
+    {
+      "id": "86e2gn5cc",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.96,
+      "custo": 0.000027132
+    },
+    {
+      "id": "86e2gn5cf",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.85,
+      "custo": 0.000027552
+    },
+    {
+      "id": "86e2gn5ct",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.93,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2gn5dk",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.44,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e2gn5e4",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.74,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e2gn5f1",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.97,
+      "custo": 0.000027132
+    },
+    {
+      "id": "86e2gn5ft",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.98,
+      "custo": 0.000027174
+    },
+    {
+      "id": "86e2gn5gq",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.99,
+      "custo": 0.000027132
+    },
+    {
+      "id": "86e2gn5hc",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.99,
+      "custo": 0.000027006
+    },
+    {
+      "id": "86e2gn5hz",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.98,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e2gn5jq",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.99,
+      "custo": 0.000027342
+    },
+    {
+      "id": "86e2gn5kn",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.96,
+      "custo": 0.00002751
+    },
+    {
+      "id": "86e2gn5md",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.96,
+      "custo": 0.000027384
+    },
+    {
+      "id": "86e2gnh64",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.97,
+      "custo": 0.000027594
+    },
+    {
+      "id": "86e2gnh67",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.98,
+      "custo": 0.000027804
+    },
+    {
+      "id": "86e2gnh69",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.92,
+      "custo": 0.000027888
+    },
+    {
+      "id": "86e2gnh6p",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.84,
+      "custo": 0.00002751
+    },
+    {
+      "id": "86e2gnh6u",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.77,
+      "custo": 0.000027552
+    },
+    {
+      "id": "86e2gnh6y",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.91,
+      "custo": 0.000027636
+    },
+    {
+      "id": "86e2gnh6z",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.79,
+      "custo": 0.00002772
+    },
+    {
+      "id": "86e2gnh71",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "cs-rh",
+      "confianca": 0.55,
+      "custo": 0.000027888
+    },
+    {
+      "id": "86e2gnq6r",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.92,
+      "custo": 0.000027762
+    },
+    {
+      "id": "86e2gnq6v",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "monetizacao",
+      "confianca": 0.73,
+      "custo": 0.000027804
+    },
+    {
+      "id": "86e2gnq70",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.98,
+      "custo": 0.000027468
+    },
+    {
+      "id": "86e2gnq74",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.79,
+      "custo": 0.000027846
+    },
+    {
+      "id": "86e2rx69k",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.61,
+      "custo": 0.000028014
+    },
+    {
+      "id": "86e2rx7nq",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.49,
+      "custo": 0.000027762
+    },
+    {
+      "id": "86e2rx7rd",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.94,
+      "custo": 0.000027972
+    },
+    {
+      "id": "86e2rx7yd",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.59,
+      "custo": 0.00002793
+    },
+    {
+      "id": "86e2rx8km",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.97,
+      "custo": 0.000027384
+    },
+    {
+      "id": "86e2rx8mr",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.45999999999999996,
+      "custo": 0.000028098
+    },
+    {
+      "id": "86e2t6h1v",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5,
+      "custo": 0.00002709
+    },
+    {
+      "id": "86e2t6m0t",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "monetizacao",
+      "confianca": 0.66,
+      "custo": 0.000027972
+    },
+    {
+      "id": "86e2t6mx2",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "growth",
+      "confianca": 0.75,
+      "custo": 0.000028854
+    },
+    {
+      "id": "86e2t75cv",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "cs-rh",
+      "confianca": 0.44,
+      "custo": 0.000027426
+    },
+    {
+      "id": "86e2tbbnt",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.96,
+      "custo": 0.000027762
+    },
+    {
+      "id": "86e2tbbqg",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.98,
+      "custo": 0.00002793
+    },
+    {
+      "id": "86e2tbbtp",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.8,
+      "custo": 0.000028182
+    },
+    {
+      "id": "86e2tbbwt",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.86,
+      "custo": 0.000027762
+    },
+    {
+      "id": "86e2tbc0q",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.81,
+      "custo": 0.000028266
+    },
+    {
+      "id": "86e2tbc2b",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.87,
+      "custo": 0.000028434
+    },
+    {
+      "id": "86e2tbc48",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "estrategico",
+      "confianca": 0.64,
+      "custo": 0.000028602
+    },
+    {
+      "id": "86e2tbc5j",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.49,
+      "custo": 0.000027972
+    },
+    {
+      "id": "86e2tbc7z",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.42,
+      "custo": 0.00002751
+    },
+    {
+      "id": "86e2tbcaj",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.6,
+      "custo": 0.000027972
+    },
+    {
+      "id": "86e2tbcex",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "estrategico",
+      "confianca": 0.49,
+      "custo": 0.000028014
+    },
+    {
+      "id": "86e2tbcjf",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "estrategico",
+      "confianca": 0.77,
+      "custo": 0.000027846
+    },
+    {
+      "id": "86e2tbckx",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.67,
+      "custo": 0.000028392
+    },
+    {
+      "id": "86e2tbcnj",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "estrategico",
+      "confianca": 0.43,
+      "custo": 0.000028014
+    },
+    {
+      "id": "86e2tbcpv",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "estrategico",
+      "confianca": 0.89,
+      "custo": 0.000027426
+    },
+    {
+      "id": "86e2wmj61",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.78,
+      "custo": 0.000027552
+    },
+    {
+      "id": "86e2wmj6t",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.52,
+      "custo": 0.00002793
+    },
+    {
+      "id": "86e2wmj80",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.78,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2wmj8x",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.68,
+      "custo": 0.000027132
+    },
+    {
+      "id": "86e2wmjak",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.72,
+      "custo": 0.000027258
+    },
+    {
+      "id": "86e2wmjdk",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.77,
+      "custo": 0.000027636
+    },
+    {
+      "id": "86e2wmjfk",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.38,
+      "custo": 0.000027678
+    },
+    {
+      "id": "86e2wmjyq",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.72,
+      "custo": 0.000027174
+    },
+    {
+      "id": "86e2wmk0a",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.51,
+      "custo": 0.000027636
+    },
+    {
+      "id": "86e2wmk3q",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "monetizacao",
+      "confianca": 0.47,
+      "custo": 0.000027174
+    },
+    {
+      "id": "86e2wmk6a",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.6,
+      "custo": 0.000027804
+    },
+    {
+      "id": "86e2wmk9g",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.44,
+      "custo": 0.00002709
+    },
+    {
+      "id": "86e2wmkbu",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.47,
+      "custo": 0.000026964
+    },
+    {
+      "id": "86e2wmkdt",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.99,
+      "custo": 0.000027216
+    },
+    {
+      "id": "86e2wmkkw",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.81,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2wmkr6",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.45,
+      "custo": 0.000027384
+    },
+    {
+      "id": "86e2wmkxf",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "monetizacao",
+      "confianca": 0.83,
+      "custo": 0.000027678
+    },
+    {
+      "id": "86e2xvpaj",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.74,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2xw071",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.78,
+      "custo": 0.000027342
+    },
+    {
+      "id": "86e2xwn9y",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.99,
+      "custo": 0.000027468
+    },
+    {
+      "id": "86e2y0vb0",
+      "pergunta": "tema",
+      "esperado": "estrategico",
+      "escolha": "growth",
+      "confianca": 0.37,
+      "custo": 0.000027426
+    },
+    {
+      "id": "86e2y111g",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.7,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2y111p",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.79,
+      "custo": 0.000027216
+    },
+    {
+      "id": "86e2y111u",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.76,
+      "custo": 0.000027468
+    },
+    {
+      "id": "86e2y1121",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "estrategico",
+      "confianca": 0.91,
+      "custo": 0.00002709
+    },
+    {
+      "id": "86e2y113n",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "estrategico",
+      "confianca": 0.5,
+      "custo": 0.000027552
+    },
+    {
+      "id": "86e2y120u",
+      "pergunta": "tema",
+      "esperado": "cs-rh",
+      "escolha": "cs-rh",
+      "confianca": 0.5,
+      "custo": 0.000028014
+    },
+    {
+      "id": "86e2y1ctm",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.87,
+      "custo": 0.00002709
+    },
+    {
+      "id": "86e2y1e3a",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.94,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e2y1e4n",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.92,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e2ybctu",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.73,
+      "custo": 0.0000273
+    },
+    {
+      "id": "86e2ybcub",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "fora_da_rotina",
+      "confianca": 0.27,
+      "custo": 0.000027216
+    },
+    {
+      "id": "86e2ybcup",
+      "pergunta": "tema",
+      "esperado": "monetizacao",
+      "escolha": "growth",
+      "confianca": 0.54,
+      "custo": 0.000027258
+    },
+    {
+      "id": "86e2zuupe",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.39,
+      "custo": 0.000027132
+    },
+    {
+      "id": "86e2zuv4m",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.3,
+      "custo": 0.00002667
+    },
+    {
+      "id": "86e2zwd5k",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.83,
+      "custo": 0.00002709
+    },
+    {
+      "id": "86e2zwdq8",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.39,
+      "custo": 0.000026628
+    },
+    {
+      "id": "86e300waf",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "estrategico",
+      "confianca": 0.47,
+      "custo": 0.000026544
+    },
+    {
+      "id": "86e300weq",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.53,
+      "custo": 0.000026754
+    },
+    {
+      "id": "86e30dc7h",
+      "pergunta": "tema",
+      "esperado": "growth",
+      "escolha": "growth",
+      "confianca": 0.86,
+      "custo": 0.000027048
+    },
+    {
+      "id": "86e31ex91",
+      "pergunta": "tema",
+      "esperado": "financeiro-operacoes",
+      "escolha": "financeiro-operacoes",
+      "confianca": 0.97,
+      "custo": 0.000026628
+    },
+    {
+      "id": "s0",
+      "pergunta": "unidade",
+      "esperado": "u3",
+      "escolha": "u3",
+      "confianca": 0.99,
+      "custo": 0.000027678
+    },
+    {
+      "id": "s1",
+      "pergunta": "unidade",
+      "esperado": "u1",
+      "escolha": "u1",
+      "confianca": 0.96,
+      "custo": 0.000027804
+    },
+    {
+      "id": "s2",
+      "pergunta": "unidade",
+      "esperado": "u4",
+      "escolha": "u4",
+      "confianca": 0.99,
+      "custo": 0.000027636
+    },
+    {
+      "id": "s3",
+      "pergunta": "unidade",
+      "esperado": "u13",
+      "escolha": "u13",
+      "confianca": 1,
+      "custo": 0.000027762
+    },
+    {
+      "id": "s4",
+      "pergunta": "unidade",
+      "esperado": "u2",
+      "escolha": "u2",
+      "confianca": 1,
+      "custo": 0.000027678
+    },
+    {
+      "id": "s5",
+      "pergunta": "unidade",
+      "esperado": "u6",
+      "escolha": "u6",
+      "confianca": 1,
+      "custo": 0.00002751
+    },
+    {
+      "id": "s6",
+      "pergunta": "unidade",
+      "esperado": "u7",
+      "escolha": "u7",
+      "confianca": 0.99,
+      "custo": 0.000027468
+    },
+    {
+      "id": "s7",
+      "pergunta": "unidade",
+      "esperado": "u8",
+      "escolha": "u8",
+      "confianca": 0.91,
+      "custo": 0.000027762
+    },
+    {
+      "id": "s8",
+      "pergunta": "unidade",
+      "esperado": "u5",
+      "escolha": "u5",
+      "confianca": 0.92,
+      "custo": 0.000027552
+    },
+    {
+      "id": "s9",
+      "pergunta": "unidade",
+      "esperado": "rede",
+      "escolha": "rede",
+      "confianca": 0.95,
+      "custo": 0.000027762
+    },
+    {
+      "id": "s10",
+      "pergunta": "unidade",
+      "esperado": "rede",
+      "escolha": "rede",
+      "confianca": 0.85,
+      "custo": 0.000027804
+    },
+    {
+      "id": "s11",
+      "pergunta": "unidade",
+      "esperado": "rede",
+      "escolha": "rede",
+      "confianca": 0.89,
+      "custo": 0.000027594
+    },
+    {
+      "id": "s12",
+      "pergunta": "unidade",
+      "esperado": "nenhuma",
+      "escolha": "u9",
+      "confianca": 0.55,
+      "custo": 0.000027636
+    },
+    {
+      "id": "s13",
+      "pergunta": "unidade",
+      "esperado": "nenhuma",
+      "escolha": "nenhuma",
+      "confianca": 0.99,
+      "custo": 0.00002751
+    },
+    {
+      "id": "s14",
+      "pergunta": "unidade",
+      "esperado": "nenhuma",
+      "escolha": "nenhuma",
+      "confianca": 0.84,
+      "custo": 0.000027846
+    },
+    {
+      "id": "s15",
+      "pergunta": "unidade",
+      "esperado": "u9",
+      "escolha": "u9",
+      "confianca": 0.8,
+      "custo": 0.00002751
+    },
+    {
+      "id": "s16",
+      "pergunta": "unidade",
+      "esperado": "u9",
+      "escolha": "u9",
+      "confianca": 0.85,
+      "custo": 0.000027636
+    },
+    {
+      "id": "s17",
+      "pergunta": "unidade",
+      "esperado": "u10",
+      "escolha": "u10",
+      "confianca": 0.59,
+      "custo": 0.000027972
+    },
+    {
+      "id": "s18",
+      "pergunta": "unidade",
+      "esperado": "u11",
+      "escolha": "u11",
+      "confianca": 0.88,
+      "custo": 0.000027636
+    },
+    {
+      "id": "s19",
+      "pergunta": "unidade",
+      "esperado": "u14",
+      "escolha": "u14",
+      "confianca": 0.99,
+      "custo": 0.000027552
+    },
+    {
+      "id": "s20",
+      "pergunta": "unidade",
+      "esperado": "u12",
+      "escolha": "u12",
+      "confianca": 0.98,
+      "custo": 0.000027552
+    },
+    {
+      "id": "s21",
+      "pergunta": "unidade",
+      "esperado": "u15",
+      "escolha": "u15",
+      "confianca": 0.99,
+      "custo": 0.000027636
+    },
+    {
+      "id": "s22",
+      "pergunta": "unidade",
+      "esperado": "rede",
+      "escolha": "rede",
+      "confianca": 0.96,
+      "custo": 0.000027804
+    },
+    {
+      "id": "s23",
+      "pergunta": "unidade",
+      "esperado": "u4",
+      "escolha": "u4",
+      "confianca": 1,
+      "custo": 0.000027594
+    }
+  ]
+}

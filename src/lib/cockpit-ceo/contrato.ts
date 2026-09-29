@@ -72,8 +72,10 @@ export const ESTADOS: Record<Estado, string> = {
   acesso_insuficiente: "Acesso insuficiente",
 };
 
+// "pontos" (29/09/2026, Cockpit do COO): escala que não é percentual nem contagem, como o NPS
+// (−100 a 100). Sai como número simples; o Cockpit do CEO não usa.
 export type UnidadeContagem =
-  "contas" | "negócios" | "eventos" | "reais" | "percentual" | "clientes" | "dias";
+  "contas" | "negócios" | "eventos" | "reais" | "percentual" | "clientes" | "dias" | "pontos";
 
 /**
  * Ids estáveis: a URL e o catálogo de perguntas apontam para eles. Os seis primeiros são os da

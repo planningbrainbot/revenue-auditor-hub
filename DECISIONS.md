@@ -3656,3 +3656,39 @@ A spec está em `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.m
 - **Sócio sem unidade:** a linha "Maceio" de `ops.socios` está sem `unidade_id`.
 
 **Aprovação com o COO:** a proposta foi publicada para o Paulo como página privada, com resposta por bloco: https://claude.ai/artifact/7sXeQ6Jbn1XApEbJpYKzrJ
+
+## [2026-09-29] Cockpit do COO: as respostas do COO mudam o perímetro, e a execução começa
+
+**Contexto:** o COO (Paulo Carvalho) respondeu à proposta bloco a bloco (página de aprovação de 29/09). O Pedro mandou "pode rodar tudo" no mesmo dia. A spec ganhou a seção "Revisão de 29/09/2026", que vence o resto onde divergir.
+
+**Decisões (do COO e do dono):**
+- **Perímetro com todas as unidades.** O COO pediu, com as palavras dele, "todas as unidades, inclusive matriz, consultoria e construção civil". Isso inverte a entrada anterior de 29/09, que deixava Goiânia e as internas fora.
+  - As 15 unidades do cadastro entram, em dois grupos: rede regional (11) e operação própria (4).
+  - O número que só existe na rede (royalties, repasse, IDU) diz que só cobre a rede.
+  - O Financeiro não separa por unidade: os números dele valem para o grupo e ignoram o filtro.
+- **Terça:** entram os quatro números do Financial Brain que existem hoje: saldo, geração de caixa e fôlego, exposição em 30 dias, e resultado da DRE no ano com projeção pelo ritmo.
+  - **Não existe orçado no Financeiro** (a tabela `orcamento` está vazia). A comparação com o orçado fica como lacuna da Controladoria.
+  - A porta é a do Cockpit do CEO: produto Financeiro e todas as empresas. **O COO hoje só enxerga a PARTNERS**; abrir o consolidado para ele é decisão do dono do Financeiro.
+- **Quarta:** vagas saem como "não apurado". O recrutamento roda no PandaPé, sem integração com o Brain, e a dona é a Heloísa. As admissões do mês, tiradas do cadastro de pessoas, entram como número real.
+- **Quinta:** a régua de engajamento da unidade tem nota de 0 a 100 e três faixas. Os componentes são base pronta, aceite de reunião e oportunidades validadas.
+  - **A ação da própria unidade não tem registro**, porque todo negócio do pipe é criado pela matriz. Ela precisa de um campo novo no Pipedrive.
+  - Os alertas se dividem em "cobrar a unidade" e "cobrar a matriz".
+- **Todos os temas mostram a evolução dos OKRs** dos departamentos do tema. A fonte é a foto diária `growth.okr_snapshot`.
+
+**Decisões técnicas (reversíveis):**
+- **Migration `20260929120000_cockpit_coo.sql` aplicada em produção.** Ela cria:
+  - a área `cockpit_coo`, só para admin;
+  - o espelho do ClickUp (`ops.clickup_tarefas`, `ops.clickup_eventos`), o registro de escritas e as sugestões do Jev;
+  - a coluna `cockpit` em `ops.cockpit_ia_consumo`, com teto de IA separado por cockpit. A função do CEO, sem argumento, soma só as linhas do CEO; o número dela não mudou, porque até aqui só o CEO gravava.
+- **Sincronização do ClickUp:** a função de borda `clickup-sync` foi publicada, e o pg_cron `clickup-sync-10min` (job 36) está ligado.
+  - Sem token, ela responde "sem token" e não grava nada. O token fica em Administração › Chaves de Integração (`CLICKUP_API_KEY`), que ganhou a entrada do ClickUp.
+  - A primeira rodada com token liga o monitor e **volta a gravar `growth.okr_snapshot`**, parado desde 02/09. A régua é a do Growth, portada para `supabase/functions/_shared/clickup/`, e a leitura agora pagina (o leitor do Growth não paginava).
+- **Jev na triagem, calibrado em 29/09** (`docs/dev_notes/cockpit-coo/jev-calibracao.md`, US$ 0,004):
+  - **o tema fica desligado**: 51% de acerto em 108 KRs reais, e 81% só entre os 31 casos mais confiantes, sem chegar aos 90% exigidos. O tema sai da pasta do ClickUp;
+  - **a unidade liga com limiar 0,8**: acertou 22 de 22 acima do limiar, mas em frases sintéticas, e precisa ser revista com tarefas reais;
+  - o bloqueio fica desligado;
+  - a duplicidade vira só aviso.
+  - Tudo depende de `COCKPIT_COO_JEV=1`.
+- **"Perguntar ao Brain" do COO:** tem três consultas fechadas (tema, OKRs, compromissos), sobre o mesmo dado da tela, e todo número da resposta é conferido.
+  - O modelo roda pelo OpenRouter (`COCKPIT_COO_MODELO`, padrão `openai/gpt-5.5`), com teto próprio.
+  - Nesta versão, a conversa não é gravada.

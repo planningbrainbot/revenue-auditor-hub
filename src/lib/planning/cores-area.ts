@@ -23,6 +23,7 @@ export const SLUGS_AREA = [
   "minha_unidade",
   "estrategia",
   "cockpit_ceo",
+  "cockpit_coo",
   "admin",
 ] as const;
 
