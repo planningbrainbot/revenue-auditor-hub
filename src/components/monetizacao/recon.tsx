@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, ListPlus, Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { normal, oferta } from "@/lib/monetizacao/model";
+import { disponibilidade, normal, oferta } from "@/lib/monetizacao/model";
 import {
   faturamentoRecon,
   GRUPOS_RECON,
@@ -11,7 +11,8 @@ import {
 } from "@/lib/monetizacao/recon";
 import type { GrupoRecon } from "@/lib/monetizacao/recon";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { Conta } from "@/lib/monetizacao/types";
+import type { BaseMonetizacao, Conta } from "@/lib/monetizacao/types";
+import { DirectSend } from "./direct-send";
 import { EstadoVazio, KpiCard, KpiGrade } from "@/components/planning";
 import {
   BotaoComMotivo,
@@ -29,10 +30,16 @@ import { FieldMulti, MultiSelect } from "./multi-select";
 export function ReconAquario({
   accounts,
   showAccount,
+  data,
+  onList,
 }: {
   accounts: Conta[];
   showAccount: (a: Conta) => void;
+  /** Com a carga, o painel envia ao pipe do Recon (38) e prepara lista (29/09). */
+  data?: BaseMonetizacao;
+  onList?: (keys: string[]) => void;
 }) {
+  const [sending, setSending] = useState<Conta[] | null>(null);
   // Classificação, unidade e contato aceitam várias opções; nada marcado = todas as contas.
   const [status, setStatus] = useState<string[]>(["potencial"]),
     [query, setQuery] = useState(""),
@@ -104,6 +111,14 @@ export function ReconAquario({
     setLimit(50);
     document.getElementById("recon-tabela")?.scrollIntoView({ behavior: "smooth" });
   };
+  // O que o envio aceita: apta ao Recon e sem reserva/envio de Recon registrado.
+  const aptasSelecionadas = data
+    ? selected.filter(
+        (a) =>
+          ofertaRecon(a).status === "elegivel" &&
+          disponibilidade(a, "recon", data.cards, undefined, data.reservations).free,
+      )
+    : [];
   const exportRows = (items: Conta[]) =>
     downloadCsv("aquario-recon.csv", [
       [
@@ -170,8 +185,8 @@ export function ReconAquario({
         {number(potential.length)} contas no radar = {number(eligible.length)} aptas +{" "}
         {number(counts.confirmar_bpo)} para conferir BPO + {number(counts.faixa_limite)} com faixa
         atravessando o corte. Pendência não equivale a aprovação. Contato e regime não são vetos.
-        Conferido em {date(updated)}; veja a data da fonte em cada conta. Seleção e exportação
-        somente aqui: o Recon ainda não envia ao Pipedrive.
+        Conferido em {date(updated)}; veja a data da fonte em cada conta. As aptas selecionadas vão
+        para o pipe do Recon (38) no Pipedrive, direto ou por lista.
       </NotaApoio>
       <details className="rounded-lg border bg-card p-4 text-sm">
         <summary className={`cursor-pointer font-medium ${FOCO_VISIVEL}`}>
@@ -215,9 +230,62 @@ export function ReconAquario({
             >
               Exportar seleção ({number(selected.length)})
             </BotaoComMotivo>
+            {data && onList && (
+              <BotaoComMotivo
+                size="sm"
+                variant="outline"
+                disabled={
+                  !data.permissions.manage ||
+                  !aptasSelecionadas.length ||
+                  aptasSelecionadas.length > 300
+                }
+                motivo={[
+                  !data.permissions.manage && "Exige manage.aquario para montar lista.",
+                  !aptasSelecionadas.length && "Marque ao menos uma conta apta ao Recon.",
+                  aptasSelecionadas.length > 300 && "Uma lista aceita até 300 contas.",
+                ]}
+                onClick={() => onList(aptasSelecionadas.map((a) => a.key))}
+              >
+                <ListPlus className="mr-1 h-4 w-4" />
+                Preparar lista ({number(aptasSelecionadas.length)})
+              </BotaoComMotivo>
+            )}
+            {data && (
+              <BotaoComMotivo
+                size="sm"
+                disabled={
+                  !data.permissions.send ||
+                  !aptasSelecionadas.length ||
+                  aptasSelecionadas.length > 300
+                }
+                motivo={[
+                  !data.permissions.send && "Exige send.monetizacao para enviar ao Pipedrive.",
+                  !aptasSelecionadas.length &&
+                    "Marque ao menos uma conta apta ao Recon e sem envio registrado.",
+                  aptasSelecionadas.length > 300 && "O envio aceita até 300 contas por vez.",
+                ]}
+                onClick={() => setSending(aptasSelecionadas)}
+              >
+                <Send className="mr-1 h-4 w-4" />
+                Enviar ao pipe do Recon ({number(aptasSelecionadas.length)})
+              </BotaoComMotivo>
+            )}
           </div>
         }
       >
+        {sending && data && (
+          <DirectSend
+            data={data}
+            accounts={sending}
+            initialProduct="recon"
+            unitId={null}
+            close={() => setSending(null)}
+            done={() => {
+              setSending(null);
+              setPicked(new Set());
+            }}
+          />
+        )}
         <span id="recon-tabela" className="block scroll-mt-4" />
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Buscar empresa">

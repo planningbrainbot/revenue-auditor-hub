@@ -1,14 +1,15 @@
-// Única integração de escrita do Aquário com o pipe 39. Segredos só no runtime Supabase.
-import { summarize, PRODUCT, METRIC_VERSION } from "./crm.mjs";
+// Única integração de escrita da Base de clientes com o Pipedrive: pipe 39 (Monetização · Caixa) e,
+// desde 29/09, pipe 38 (Recon). Segredos só no runtime Supabase.
+import { summarize, METRIC_VERSION } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
-import { dealPayload, hasCanonicalProduct, PRODUCT_OPTIONS } from "./send.mjs";
+import { dealPayload, hasCanonicalProduct, PIPE_DO_PRODUTO, sameProductDeal } from "./send.mjs";
 import { fillHandoff } from "./handoff.mjs";
 import { pipedriveApi } from "./pipedrive.mjs";
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const ADMIN = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const PD = Deno.env.get("PIPEDRIVE_TOKEN")!;
-const OPTIONS: Record<string, number> = PRODUCT_OPTIONS;
+const PIPES: Record<string, number> = PIPE_DO_PRODUTO;
 const PIPE = 39;
 type Row = Record<string, any>;
 const id = (v: any) => Number(typeof v === "object" ? (v?.id ?? v?.value) : v) || null;
@@ -194,8 +195,17 @@ async function sync() {
   }
 }
 
+// Etapa de entrada de um pipe que não é o da Monetização (hoje, o Recon): a primeira etapa ativa.
+async function entryStage(pipe: number) {
+  const rows = (await pages("stages"))
+    .filter((s) => s.pipeline_id === pipe && s.active_flag !== false)
+    .sort((a, b) => a.order_nr - b.order_nr);
+  if (!rows.length) throw new Error(`Etapas do pipe ${pipe} não identificadas`);
+  return rows[0].id;
+}
 async function send(itemIds: string[], token: string) {
   const stageRows = await stages(),
+    entradas: Record<number, number> = { [PIPE]: stageRows[0].id },
     users = await pages("users"),
     month = localDate(new Date().toISOString()).slice(0, 7);
   const results: Row[] = [];
@@ -250,7 +260,9 @@ async function send(itemIds: string[], token: string) {
       const account = claim.account,
         product = claim.item.product,
         orgs: number[] = claim.org_ids || [];
-      if (!OPTIONS[product]) throw new Error("Produto canônico inválido");
+      if (!PIPES[product]) throw new Error("Produto canônico inválido");
+      const pipe = PIPES[product];
+      entradas[pipe] ??= await entryStage(pipe);
       // O contrato confirmado é um ID de negócio, nunca um ID de organização.
       // Reconsulta antes do envio para não criar organização duplicada nem usar contrato desfeito.
       if (account.pipedrive_contract_id) {
@@ -268,8 +280,7 @@ async function send(itemIds: string[], token: string) {
         );
       const duplicate = existing.find(
         (d) =>
-          d.pipeline_id === PIPE &&
-          String(d[PRODUCT]) === String(OPTIONS[product]) &&
+          sameProductDeal(d, product) &&
           (d.status === "open" || localDate(d.add_time)?.startsWith(month)),
       );
       if (duplicate) {
@@ -309,7 +320,7 @@ async function send(itemIds: string[], token: string) {
         product,
         org,
         owner: claim.owner_id,
-        stage: stageRows[0].id,
+        stage: entradas[pipe],
         nonce: claim.nonce,
       });
       remoteStarted = true;

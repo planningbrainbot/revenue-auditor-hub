@@ -1,5 +1,15 @@
-import { NOMES, PRODUTOS } from "./types.ts";
-import type { Conta, Metrica, Movimento, Negocio, Oferta, Plano, Produto, Revisao } from "./types";
+import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
+import type {
+  Conta,
+  Metrica,
+  Movimento,
+  Negocio,
+  Oferta,
+  Plano,
+  Produto,
+  ProdutoEnvio,
+  Revisao,
+} from "./types";
 
 export const METRICAS: { key: Metrica; label: string }[] = [
   { key: "loaded", label: "Fila carregada" },
@@ -338,19 +348,20 @@ export function negociosDaConta(a: Conta, cards: Negocio[]) {
 }
 export function disponibilidade(
   a: Conta,
-  produto: Produto,
+  produto: ProdutoEnvio,
   cards: Negocio[],
   month = hoje().slice(0, 7),
   reservations: {
     account_key: string;
-    product: Produto;
+    product: ProdutoEnvio;
     status: string;
     deal_id: number | null;
   }[] = [],
 ) {
   const own = negociosDaConta(a, cards).filter((c) => c.route === produto);
   const open = own.find((c) => c.status === "open");
-  if (open) return { free: false, reason: "Oportunidade aberta de " + NOMES[produto], deal: open };
+  if (open)
+    return { free: false, reason: "Oportunidade aberta de " + NOMES_ENVIO[produto], deal: open };
   const reserved = reservations.find(
     (r) =>
       r.account_key === a.key &&
@@ -368,8 +379,16 @@ export function disponibilidade(
     };
   const loaded = own.find((c) => c.events.loaded.some((e) => e.date.startsWith(month)));
   if (loaded)
-    return { free: false, reason: "Já carregada neste mês para " + NOMES[produto], deal: loaded };
-  return { free: true, reason: "Sem card aberto ou carga no mês · " + NOMES[produto], deal: null };
+    return {
+      free: false,
+      reason: "Já carregada neste mês para " + NOMES_ENVIO[produto],
+      deal: loaded,
+    };
+  return {
+    free: true,
+    reason: "Sem card aberto ou carga no mês · " + NOMES_ENVIO[produto],
+    deal: null,
+  };
 }
 export interface Filtro {
   from: string;

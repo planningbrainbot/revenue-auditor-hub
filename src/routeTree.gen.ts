@@ -59,6 +59,7 @@ import { Route as AuthenticatedAquarioRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
 import { Route as AuthenticatedRoyaltiesIndexRouteImport } from './routes/_authenticated/royalties.index'
 import { Route as AuthenticatedBrokerIndexRouteImport } from './routes/_authenticated/broker.index'
+import { Route as ApresentacaoListaIdRouteImport } from './routes/apresentacao.lista.$id'
 import { Route as ApiCockpitCeoConversaRouteImport } from './routes/api/cockpit-ceo/conversa'
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
@@ -353,6 +354,11 @@ const AuthenticatedBrokerIndexRoute =
     path: '/broker/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApresentacaoListaIdRoute = ApresentacaoListaIdRouteImport.update({
+  id: '/apresentacao/lista/$id',
+  path: '/apresentacao/lista/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCockpitCeoConversaRoute = ApiCockpitCeoConversaRouteImport.update({
   id: '/api/cockpit-ceo/conversa',
   path: '/api/cockpit-ceo/conversa',
@@ -537,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
+  '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker/': typeof AuthenticatedBrokerIndexRoute
   '/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades/': typeof AuthenticatedUnidadesIndexRoute
@@ -606,6 +613,7 @@ export interface FileRoutesByTo {
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
+  '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/broker': typeof AuthenticatedBrokerIndexRoute
   '/royalties': typeof AuthenticatedRoyaltiesIndexRoute
   '/unidades': typeof AuthenticatedUnidadesIndexRoute
@@ -679,6 +687,7 @@ export interface FileRoutesById {
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
+  '/apresentacao/lista/$id': typeof ApresentacaoListaIdRoute
   '/_authenticated/broker/': typeof AuthenticatedBrokerIndexRoute
   '/_authenticated/royalties/': typeof AuthenticatedRoyaltiesIndexRoute
   '/_authenticated/unidades/': typeof AuthenticatedUnidadesIndexRoute
@@ -752,6 +761,7 @@ export interface FileRouteTypes {
     | '/unidades/royalties'
     | '/unidades/split'
     | '/api/cockpit-ceo/conversa'
+    | '/apresentacao/lista/$id'
     | '/broker/'
     | '/royalties/'
     | '/unidades/'
@@ -821,6 +831,7 @@ export interface FileRouteTypes {
     | '/unidades/royalties'
     | '/unidades/split'
     | '/api/cockpit-ceo/conversa'
+    | '/apresentacao/lista/$id'
     | '/broker'
     | '/royalties'
     | '/unidades'
@@ -893,6 +904,7 @@ export interface FileRouteTypes {
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
     | '/api/cockpit-ceo/conversa'
+    | '/apresentacao/lista/$id'
     | '/_authenticated/broker/'
     | '/_authenticated/royalties/'
     | '/_authenticated/unidades/'
@@ -909,6 +921,7 @@ export interface RootRouteChildren {
   VitrineRoute: typeof VitrineRoute
   PilotoCockpitCeoRoute: typeof PilotoCockpitCeoRoute
   ApiCockpitCeoConversaRoute: typeof ApiCockpitCeoConversaRoute
+  ApresentacaoListaIdRoute: typeof ApresentacaoListaIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1263,6 +1276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBrokerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/apresentacao/lista/$id': {
+      id: '/apresentacao/lista/$id'
+      path: '/apresentacao/lista/$id'
+      fullPath: '/apresentacao/lista/$id'
+      preLoaderRoute: typeof ApresentacaoListaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cockpit-ceo/conversa': {
       id: '/api/cockpit-ceo/conversa'
       path: '/api/cockpit-ceo/conversa'
@@ -1575,6 +1595,7 @@ const rootRouteChildren: RootRouteChildren = {
   VitrineRoute: VitrineRoute,
   PilotoCockpitCeoRoute: PilotoCockpitCeoRoute,
   ApiCockpitCeoConversaRoute: ApiCockpitCeoConversaRoute,
+  ApresentacaoListaIdRoute: ApresentacaoListaIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

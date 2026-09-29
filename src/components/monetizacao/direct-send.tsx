@@ -12,8 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { acionarMonetizacao, salvarListaAquario } from "@/lib/monetizacao/functions";
 import { disponibilidade, oferta } from "@/lib/monetizacao/model";
-import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { BaseMonetizacao, Conta, Produto } from "@/lib/monetizacao/types";
+import { ofertaEnvio } from "@/lib/monetizacao/recon";
+import { CLOSERS, NOMES, NOMES_ENVIO, PIPES_ENVIO, PRODUTOS } from "@/lib/monetizacao/types";
+import type {
+  BaseMonetizacao,
+  Conta,
+  PipeEnvio,
+  Produto,
+  ProdutoEnvio,
+} from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import { soNoOmie } from "@/lib/monetizacao/portfolio";
 import { BotaoComMotivo, Field, FOCO_VISIVEL, inputClass, Notice } from "./common";
@@ -28,13 +35,23 @@ export function DirectSend({
 }: {
   data: BaseMonetizacao;
   accounts: Conta[];
-  initialProduct: Produto | "";
+  /** Produto de partida: um do Caixa (pipe 39) ou "recon" (pipe 38). */
+  initialProduct: ProdutoEnvio | "";
   unitId: number | null;
   close: () => void;
   done: () => void;
 }) {
-  const [product, setProduct] = useState<Produto | "">(initialProduct);
-  const [owner, setOwner] = useState(28381245);
+  // Pipe primeiro, produto depois (29/09): o Recon vai para o pipe 38 e não tem produto do Caixa.
+  const [pipe, setPipe] = useState<PipeEnvio>(initialProduct === "recon" ? "recon" : "caixa");
+  const [produtoCaixa, setProdutoCaixa] = useState<Produto | "">(
+    initialProduct && initialProduct !== "recon" ? initialProduct : "",
+  );
+  const product: ProdutoEnvio | "" = pipe === "recon" ? "recon" : produtoCaixa;
+  const setProduct = (p: Produto) => {
+    setPipe("caixa");
+    setProdutoCaixa(p);
+  };
+  const [owner, setOwner] = useState(CLOSERS[0][0]);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Awaited<ReturnType<typeof save>> | null>(null);
   const [results, setResults] = useState<
@@ -45,18 +62,10 @@ export function DirectSend({
   const save = useServerFn(salvarListaAquario),
     action = useServerFn(acionarMonetizacao),
     invalidate = useAtualizarMonetizacao();
-  const owners = [
-    ...new Map([
-      [28381245, "Matheus Carvalho"] as [number, string],
-      [27369179, "Samira Vieira"] as [number, string],
-      ...data.cards
-        .filter((c) => c.owner_id)
-        .map((c) => [c.owner_id!, c.owner] as [number, string]),
-    ]).entries(),
-  ];
+  const owners = CLOSERS;
   const checks = accounts.map((a) => ({
     account: a,
-    result: product ? oferta(a, product) : null,
+    result: product ? ofertaEnvio(a, product) : null,
     available: product
       ? disponibilidade(a, product, data.cards, undefined, data.reservations)
       : null,
@@ -75,7 +84,7 @@ export function DirectSend({
         (await save({
           data: {
             id: listId.current,
-            nome: `${NOMES[product]} · envio direto · ${new Date().toLocaleDateString("pt-BR")}`,
+            nome: `${NOMES_ENVIO[product]} · envio direto · ${new Date().toLocaleDateString("pt-BR")}`,
             unidade_id:
               unitId ??
               data.units.find(
@@ -142,27 +151,47 @@ export function DirectSend({
         <DialogHeader>
           <DialogTitle>Enviar seleção ao Pipedrive</DialogTitle>
           <DialogDescription>
-            {accounts.length} conta(s) selecionada(s). O card recebe empresa, contatos disponíveis,
-            qualificação, histórico e arquivos vinculados. Validação com a unidade é opcional.
+            {accounts.length} conta(s) selecionada(s). Escolha o pipe, o produto e o closer. O card
+            recebe empresa, contatos disponíveis, qualificação, histórico e arquivos vinculados.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Produto específico no Pipedrive">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Pipe no Pipedrive">
             <select
               className={inputClass}
-              value={product}
+              value={pipe}
               disabled={busy || !!saved}
-              onChange={(e) => setProduct(e.target.value as Produto)}
+              onChange={(e) => setPipe(e.target.value as PipeEnvio)}
             >
-              <option value="">Selecione o produto</option>
-              {PRODUTOS.map((p) => (
-                <option key={p} value={p}>
-                  {NOMES[p]}
+              {(Object.keys(PIPES_ENVIO) as PipeEnvio[]).map((k) => (
+                <option key={k} value={k}>
+                  {PIPES_ENVIO[k].nome} · pipe {PIPES_ENVIO[k].id}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="Responsável">
+          {pipe === "caixa" ? (
+            <Field label="Produto · Caixa · Produto">
+              <select
+                className={inputClass}
+                value={produtoCaixa}
+                disabled={busy || !!saved}
+                onChange={(e) => setProdutoCaixa(e.target.value as Produto)}
+              >
+                <option value="">Selecione o produto</option>
+                {PRODUTOS.map((p) => (
+                  <option key={p} value={p}>
+                    {NOMES[p]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Produto">
+              <input className={inputClass} value="Recon" disabled readOnly />
+            </Field>
+          )}
+          <Field label="Closer">
             <select
               className={inputClass}
               value={owner}
@@ -192,7 +221,7 @@ export function DirectSend({
                     ? result?.reason
                     : !available?.free
                       ? available?.reason
-                      : `Pronta para enviar · ${NOMES[product]}`}
+                      : `Pronta para enviar · ${NOMES_ENVIO[product]}`}
               </p>
               {available?.deal && (
                 <a
@@ -205,6 +234,7 @@ export function DirectSend({
                 </a>
               )}
               {product &&
+                pipe === "caixa" &&
                 result?.status !== "elegivel" &&
                 PRODUTOS.filter(
                   (p) => p !== product && oferta(account, p).status === "elegivel",
@@ -294,8 +324,13 @@ export function DirectSend({
           motivo={[
             busy && "Envio em andamento",
             !data.permissions.send && "Enviar exige a permissão send.monetizacao",
-            !saved && !product && "Escolha o produto",
-            !saved && !!product && !ready.length && "Nenhuma conta apta e disponível neste produto",
+            !saved && !product && "Escolha o produto do Caixa",
+            !saved &&
+              !!product &&
+              !ready.length &&
+              (pipe === "recon"
+                ? "Nenhuma conta apta ao Recon e disponível nesta seleção"
+                : "Nenhuma conta apta e disponível neste produto"),
             !!results.length &&
               results.length === saved?.items.length &&
               results.every((r) => r.status === "sent" && r.handoff?.status === "complete") &&
@@ -315,9 +350,11 @@ export function DirectSend({
           </Button>
         )}
         <p className="text-xs text-muted-foreground">
-          O campo Caixa · Produto recebe o produto escolhido. O resultado ficará nas listas
-          compartilhadas e na operação. Dados ausentes serão indicados; uma falha complementar pode
-          ser retomada no mesmo card, sem criar outro negócio.
+          {pipe === "caixa"
+            ? `O card nasce em ${PIPES_ENVIO.caixa.nome}, etapa ${PIPES_ENVIO.caixa.entrada}, com o campo Caixa · Produto preenchido.`
+            : `O card nasce no pipe do Recon (${PIPES_ENVIO.recon.id}), etapa ${PIPES_ENVIO.recon.entrada}.`}{" "}
+          O resultado fica nas listas compartilhadas. Dados ausentes são indicados; uma falha
+          complementar pode ser retomada no mesmo card, sem criar outro negócio.
         </p>
       </DialogContent>
     </Dialog>

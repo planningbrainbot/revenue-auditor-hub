@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -44,7 +45,13 @@ import {
   tetoContradizFaixa,
 } from "@/lib/monetizacao/model";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
-import type { BaseMonetizacao, Conta, Produto, Unidade } from "@/lib/monetizacao/types";
+import type {
+  BaseMonetizacao,
+  Conta,
+  Produto,
+  ProdutoEnvio,
+  Unidade,
+} from "@/lib/monetizacao/types";
 import { AccountDetail } from "./account-detail";
 import { ReconAquario } from "./recon";
 import { ofertaRecon, potencialRecon } from "@/lib/monetizacao/recon";
@@ -116,7 +123,11 @@ const TODAS = "todas";
 const emptyFilters = EMPTY_PORTFOLIO_FILTERS;
 // As seções que antes eram a faixa de abas de dentro do Aquário. Elas subiram para o menu único
 // da Base de clientes: a tela deixa de ter navegação própria e passa a obedecer a de cima.
-export type SecaoAquario = "base" | "produtos" | "gates";
+export type SecaoAquario = "base" | "produtos" | "listas" | "gates";
+/** O que a visão Produtos mostra: a tabela de um produto ou o painel do Recon. */
+export type ProdutoAtivo = Produto | "recon";
+/** Chaves de URL que a visão Produtos e a visão Listas gravam junto com os filtros. */
+export type ExtrasAquario = { painel?: "recon" };
 
 export function Aquario({
   embedded = false,
@@ -127,6 +138,9 @@ export function Aquario({
   mudarFiltros,
   recorte,
   accountKeysSemOrigem,
+  painel,
+  lista,
+  aoAbrirLista,
 }: {
   embedded?: boolean;
   accountKeys?: Set<string>;
@@ -138,7 +152,13 @@ export function Aquario({
    */
   filtros?: Filters;
   /** Grava os filtros e, com `destino`, troca de seção na mesma navegação. */
-  mudarFiltros?: (f: Filters, destino?: SecaoAquario) => void;
+  mudarFiltros?: (f: Filters, destino?: SecaoAquario, extras?: ExtrasAquario) => void;
+  /** Visão Produtos: `recon` mostra o painel do Recon (URL `painel`). */
+  painel?: "recon";
+  /** Visão Listas: id da lista aberta (URL `lista`). */
+  lista?: string;
+  /** Abre (id) ou fecha (null) uma lista na URL, sem trocar de visão. */
+  aoAbrirLista?: (id: string | null) => void;
   /** Assinatura do recorte do topo (unidade, origem, refinamento): mudou, a seleção é limpa. */
   recorte?: string;
   /**
@@ -160,10 +180,13 @@ export function Aquario({
   const controlado = !!mudarFiltros;
   // Um caminho só para gravar filtro: na URL (controlado) ou no estado local. Com `destino`, o
   // filtro e a troca de seção vão na mesma navegação (duas seguidas, a segunda apagava a primeira).
-  const aplicar = (f: Filters, destino?: SecaoAquario) => {
-    if (mudarFiltros) mudarFiltros(f, destino);
+  const [painelLocal, setPainelLocal] = useState<"recon" | undefined>(undefined);
+  const painelAtivo = mudarFiltros ? painel : painelLocal;
+  const aplicar = (f: Filters, destino?: SecaoAquario, extras: ExtrasAquario = {}) => {
+    if (mudarFiltros) mudarFiltros(f, destino, extras);
     else {
       setFiltrosLocais(f);
+      setPainelLocal(extras.painel);
       if (destino) ir(destino);
     }
   };
@@ -173,9 +196,21 @@ export function Aquario({
   const [draft, setDraft] = useState<{
     unit: Unidade | null;
     accounts: string[];
-    product: Produto;
+    product: ProdutoEnvio;
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // "Mais de um produto" e os números sem produto de "Entenda os números" abrem a Base: a tabela
+  // fica abaixo das unidades, então a página rola até ela depois da troca de visão.
+  const rolarParaTabela = useRef(false);
+  useEffect(() => {
+    if (secao !== "base" || !rolarParaTabela.current) return;
+    rolarParaTabela.current = false;
+    requestAnimationFrame(() =>
+      document
+        .getElementById("tabela-base")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+  }, [secao, filtros]);
   const data = useMemo(
     () =>
       q.data &&
@@ -204,10 +239,12 @@ export function Aquario({
       setRefreshing(false);
     }
   };
-  const startList = (keys: string[], forUnit: Unidade | null, product: Produto) => {
+  // A lista preparada abre na visão Listas, no topo: antes ela aparecia no fim da página de
+  // Produtos, abaixo dos cartões e do Recon, e era preciso rolar para achar o rascunho.
+  const startList = (keys: string[], forUnit: Unidade | null, product: ProdutoEnvio) => {
     setDraft({ unit: forUnit, accounts: keys, product });
     setUnit(null);
-    ir("produtos");
+    ir("listas");
     setPicked(new Set());
   };
   const cella = data.accounts.filter((a) => oferta(a, "cella").status === "elegivel"),
@@ -241,23 +278,48 @@ export function Aquario({
     origin: filters.origin,
     ...f,
   });
+  // Um número com produto abre a tabela daquele produto na visão Produtos, logo abaixo do seletor;
+  // sem produto (ex.: "Mais de um produto"), abre a tabela da Base e rola até ela. Antes tudo ia
+  // para a Base, com a tabela no fim da página e sem rolagem.
   const abrirNaBase = (f: Partial<Filters>) => {
-    aplicar(destino(f), "base");
+    if (f.product) aplicar(destino(f), "produtos", { painel: undefined });
+    else {
+      aplicar(destino(f), "base");
+      rolarParaTabela.current = true;
+    }
     setPicked(new Set());
   };
-  const content = (rows: Conta[], drawer = false) => (
+  // Visão Produtos: sempre há um produto em foco. Sem `produto` na URL, a Consultoria (a rota de
+  // caixa mais curto), sem gravar nada até a pessoa escolher.
+  const produtoAtivo: ProdutoAtivo =
+    painelAtivo === "recon" ? "recon" : filters.product || "consultoria";
+  // Sem produto na URL, a tabela abre nas prontas, o mesmo recorte do número do seletor (N2).
+  const filtrosProdutos: Filters =
+    produtoAtivo === "recon"
+      ? filters
+      : filters.product
+        ? filters
+        : { ...filters, product: produtoAtivo, status: ["free"] };
+  // Escolher um produto abre as prontas dele: o número do botão é o total da tabela (N2).
+  const escolherProduto = (p: ProdutoAtivo) => {
+    if (p === "recon") aplicar(destino({}), undefined, { painel: "recon" });
+    else aplicar(destino({ product: p, status: ["free"] }), undefined, { painel: undefined });
+    setPicked(new Set());
+  };
+  const content = (rows: Conta[], drawer = false, filtrosTabela: Filters = filters) => (
     <PortfolioTable
       data={data}
       accounts={rows}
-      filters={filters}
+      filters={filtrosTabela}
       setFilters={setFilters}
       picked={picked}
       setPicked={setPicked}
       showAccount={setAccount}
-      onList={(keys) => startList(keys, unit, filters.product || "consultoria")}
+      onList={(keys, product) => startList(keys, unit, product)}
       inUnit={drawer}
       unitId={unit?.id ?? null}
       controlesNoTopo={controlado}
+      produtoFixo={secao === "produtos" && !drawer}
     />
   );
   return (
@@ -296,64 +358,123 @@ export function Aquario({
         ))}
       {secao === "produtos" && (
         <>
-          <Secao
-            titulo="Quantas contas cada régua de produto aceita?"
-            descricao="Perfil aderente, esteja a conta disponível ou já em trabalho. Os cartões que filtram abrem a Base de clientes com o mesmo recorte, e o total de lá bate com o daqui."
-          >
-            <KpiGrade colunas={6} className="xl:grid-cols-5">
-              <KpiCard
-                rotulo="Contas na base conciliada"
-                valor={number(data.accounts.length)}
-                nota={
-                  distratosConcluidos.length
-                    ? `Uma conta, mesmo com mais de um produto · inclui ${number(distratosConcluidos.length)} com distrato concluído, fora das ofertas`
-                    : "Uma conta, mesmo com mais de um produto"
-                }
+          {/* O produto em foco e a tabela dele ficam no topo, um embaixo do outro: escolher o
+              produto filtra a tabela logo abaixo, sem trocar de visão nem rolar a página. */}
+          <SeletorProduto
+            ativo={produtoAtivo}
+            escolher={escolherProduto}
+            opcoes={[
+              ...(["consultoria", "finance", "cella"] as Produto[]).map((p) => {
+                const prontas = filtrarCarteira(
+                  data.accounts,
+                  destino({ product: p, status: ["free"] }),
+                  data,
+                );
+                const emTrabalho = filtrarCarteira(
+                  data.accounts,
+                  destino({ product: p, status: ["occupied"] }),
+                  data,
+                );
+                return {
+                  id: p as ProdutoAtivo,
+                  rotulo: NOMES[p],
+                  valor: prontas.length,
+                  unidade: "prontas para enviar",
+                  nota: `${number(emTrabalho.length)} já em trabalho · ${
+                    p === "consultoria"
+                      ? "Base Antiga, fora do Simples"
+                      : p === "cella"
+                        ? "a partir de R$ 25 mi, fora do Simples"
+                        : "contrato ganho, abaixo de R$ 25 mi"
+                  }`,
+                };
+              }),
+              {
+                id: "recon" as ProdutoAtivo,
+                rotulo: "Recon",
+                valor: data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length,
+                unidade: "aptas",
+                nota: `${number(data.accounts.filter(potencialRecon).length)} no radar · envio ao pipe do Recon (38)`,
+              },
+            ]}
+          />
+          {produtoAtivo === "recon" ? (
+            <div
+              id="painel-recon"
+              tabIndex={-1}
+              className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <ReconAquario
+                accounts={data.accounts}
+                showAccount={setAccount}
+                data={data}
+                onList={(keys) => startList(keys, unit, "recon")}
               />
-              <KpiCard
-                // N11: este número tira os "só no Omie"; o cartão do Cella, abaixo, os inclui.
-                rotulo="Cella · perfil aderente (sem os só no Omie)"
-                valor={number(cella.length - cellaSoOmie.length)}
-                nota={
-                  cellaSoOmie.length
-                    ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
-                    : "A partir de R$ 25 mi · fora do Simples"
-                }
-                // Aptas sem "só no Omie" = prontas + já em trabalho (estadoProduto).
-                abrir={{
-                  rotulo: "Abrir na base",
-                  onClick: () => abrirNaBase({ product: "cella", status: ["free", "occupied"] }),
-                }}
-              />
-              <KpiCard
-                // Não abre: nenhuma situação da tabela é exatamente a carteira retroativa inteira
-                // (a "base retroativa" da tabela já tira os fora da regra), e o total não bateria.
-                rotulo="Consultoria · carteira retroativa (base inteira)"
-                valor={number(consultBase.length)}
-                nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultClientes.length)} já clientes da Consultoria · ${number(consultPending.length)} a confirmar`}
-              />
-              <KpiCard
-                rotulo="Finance · perfil aderente"
-                valor={number(finance.length)}
-                nota="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
-                abrir={{
-                  rotulo: "Abrir na base",
-                  onClick: () => abrirNaBase({ product: "finance", status: ["eligible"] }),
-                }}
-              />
-              <KpiCard
-                rotulo="Mais de um produto"
-                valor={number(overlap.length)}
-                nota="Contas já incluídas nos produtos ao lado"
-                // Mesma fórmula do filtro de sobreposição da tabela (filtrarCarteira).
-                abrir={{ rotulo: "Abrir na base", onClick: () => abrirNaBase({ overlap: true }) }}
-              />
-            </KpiGrade>
-          </Secao>
-          <Secao
-            titulo="Quantas contas cada produto pode trabalhar agora?"
-            descricao="O número grande são as prontas para enviar: aptas, disponíveis e fora do grupo “só no Omie”. O cartão abre a Base de clientes nessa situação. A mesma conta pode aparecer em mais de uma lista; a seleção define o produto preenchido no Pipedrive, e contato é opcional."
-            acoes={
+            </div>
+          ) : (
+            content(data.accounts, false, filtrosProdutos)
+          )}
+          <details className="rounded-xl border bg-card">
+            <summary
+              className={`cursor-pointer rounded-xl px-5 py-4 text-sm font-semibold ${FOCO_VISIVEL}`}
+            >
+              Como cada produto conta as contas · perfil aderente, prontas e carteira retroativa
+            </summary>
+            <div className="space-y-4 px-5 pb-5">
+              <p className="text-sm text-muted-foreground">
+                Perfil aderente conta a conta que passa na régua, esteja disponível ou já em
+                trabalho. Prontas para enviar são as aderentes, disponíveis e fora do grupo “só no
+                Omie”. Cada cartão abre as contas dele.
+              </p>
+              <KpiGrade colunas={6} className="xl:grid-cols-5">
+                <KpiCard
+                  rotulo="Contas na base conciliada"
+                  valor={number(data.accounts.length)}
+                  nota={
+                    distratosConcluidos.length
+                      ? `Uma conta, mesmo com mais de um produto · inclui ${number(distratosConcluidos.length)} com distrato concluído, fora das ofertas`
+                      : "Uma conta, mesmo com mais de um produto"
+                  }
+                />
+                <KpiCard
+                  // N11: este número tira os "só no Omie"; o cartão do Cella, abaixo, os inclui.
+                  rotulo="Cella · perfil aderente (sem os só no Omie)"
+                  valor={number(cella.length - cellaSoOmie.length)}
+                  nota={
+                    cellaSoOmie.length
+                      ? `A partir de R$ 25 mi · fora do Simples. Fora destas, ${number(cellaSoOmie.length)} passam na régua mas só existem no Omie da unidade.`
+                      : "A partir de R$ 25 mi · fora do Simples"
+                  }
+                  // Aptas sem "só no Omie" = prontas + já em trabalho (estadoProduto).
+                  abrir={{
+                    rotulo: "Abrir em Produtos",
+                    onClick: () => abrirNaBase({ product: "cella", status: ["free", "occupied"] }),
+                  }}
+                />
+                <KpiCard
+                  // Não abre: nenhuma situação da tabela é exatamente a carteira retroativa inteira
+                  // (a "base retroativa" da tabela já tira os fora da regra), e o total não bateria.
+                  rotulo="Consultoria · carteira retroativa (base inteira)"
+                  valor={number(consultBase.length)}
+                  nota={`${number(consult.length)} aptas · ${number(consultExcluded.length)} por Simples/MEI · ${number(consultInativas.length)} inativas na Receita · ${number(consultClientes.length)} já clientes da Consultoria · ${number(consultPending.length)} a confirmar`}
+                />
+                <KpiCard
+                  rotulo="Finance · perfil aderente"
+                  valor={number(finance.length)}
+                  nota="Contrato Pipedrive · abaixo de R$ 25 mi · fora do Simples"
+                  abrir={{
+                    rotulo: "Abrir em Produtos",
+                    onClick: () => abrirNaBase({ product: "finance", status: ["eligible"] }),
+                  }}
+                />
+                <KpiCard
+                  rotulo="Mais de um produto"
+                  valor={number(overlap.length)}
+                  nota="Contas já incluídas nos produtos ao lado"
+                  // Mesma fórmula do filtro de sobreposição da tabela (filtrarCarteira).
+                  abrir={{ rotulo: "Abrir na base", onClick: () => abrirNaBase({ overlap: true }) }}
+                />
+              </KpiGrade>
               <Button
                 variant="outline"
                 size="sm"
@@ -367,83 +488,8 @@ export function Aquario({
               >
                 Conferir regime da base retroativa
               </Button>
-            }
-          >
-            <KpiGrade colunas={4}>
-              <KpiCard
-                rotulo="Recon"
-                valor={number(data.accounts.filter(potencialRecon).length)}
-                unidade="contas no radar"
-                nota={`${number(data.accounts.filter((a) => ofertaRecon(a).status === "elegivel").length)} aptas · acima de R$ 5 mi · fora de qualquer BPO · seleção e exportação no painel abaixo`}
-                abrir={{
-                  rotulo: "Ver no painel",
-                  onClick: () => {
-                    const painel = document.getElementById("painel-recon");
-                    painel?.scrollIntoView({ behavior: "smooth" });
-                    painel?.focus({ preventScroll: true });
-                  },
-                }}
-              />
-              {(["consultoria", "cella", "finance"] as Produto[]).map((p) => {
-                const eligible = data.accounts.filter((a) => oferta(a, p).status === "elegivel");
-                // O número é o total do destino: a situação "prontas" da tabela, pela mesma
-                // função que a tabela usa. As aptas e disponíveis que só existem no Omie da
-                // unidade ficam fora dela (grupo próprio) e são ditas na nota.
-                const prontas = filtrarCarteira(
-                  data.accounts,
-                  destino({ product: p, status: ["free"] }),
-                  data,
-                );
-                const livresSoOmie = eligible.filter(
-                  (a) =>
-                    soNoOmie(a) &&
-                    disponibilidade(a, p, data.cards, undefined, data.reservations).free,
-                ).length;
-                return (
-                  <KpiCard
-                    key={p}
-                    rotulo={NOMES[p]}
-                    valor={number(prontas.length)}
-                    unidade="prontas para enviar"
-                    nota={
-                      <>
-                        <span className="block">
-                          {p === "consultoria"
-                            ? `${number(eligible.length)} aptas · ${number(consultPool.length)} retroativas aptas à análise, de ${number(consultBase.length)} na carteira retroativa (base inteira)`
-                            : p === "cella"
-                              ? `${number(eligible.length)} com perfil aderente (inclui só no Omie)`
-                              : `${number(eligible.length)} com perfil aderente`}
-                          {p === "consultoria" &&
-                            consultPending.length > 0 &&
-                            ` · ${number(consultPending.length)} a confirmar`}
-                          {livresSoOmie > 0 &&
-                            ` · ${number(livresSoOmie)} aptas e disponíveis só no Omie ficam fora das prontas`}
-                        </span>
-                        <span className="mt-1 block">
-                          {p === "consultoria"
-                            ? "Base Antiga · sem fechamento comercial · contato opcional"
-                            : p === "cella"
-                              ? "A partir de R$ 25 mi · fora do Simples"
-                              : "Contrato ganho no Pipedrive · abaixo de R$ 25 mi"}
-                        </span>
-                      </>
-                    }
-                    abrir={{
-                      rotulo: "Abrir prontas",
-                      onClick: () => abrirNaBase({ product: p, status: ["free"] }),
-                    }}
-                  />
-                );
-              })}
-            </KpiGrade>
-          </Secao>
-          <div
-            id="painel-recon"
-            tabIndex={-1}
-            className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <ReconAquario accounts={data.accounts} showAccount={setAccount} />
-          </div>
+            </div>
+          </details>
         </>
       )}
       {secao === "base" && (
@@ -530,17 +576,22 @@ export function Aquario({
             </KpiGrade>
           </Secao>
           <ProcedenciaBase accounts={data.accounts} />
-          {content(data.accounts)}
+          <div id="tabela-base" className="scroll-mt-4">
+            {content(data.accounts)}
+          </div>
         </div>
       )}
       {/* A montagem de lista fica SEMPRE montada e só é escondida por classe: desmontá-la ao
           trocar de seção jogaria fora o rascunho em andamento, que é trabalho do operador. */}
-      <div className={secao === "produtos" ? "" : "hidden"}>
+      <div className={secao === "listas" ? "" : "hidden"}>
         <ListWorkspace
           data={data}
           initial={draft}
           onConsume={() => setDraft(null)}
           showAccount={setAccount}
+          listaAberta={lista}
+          aoAbrirLista={aoAbrirLista}
+          irParaProdutos={() => ir("produtos")}
         />
       </div>
       {secao === "gates" && (
@@ -620,6 +671,57 @@ export function Aquario({
   );
 }
 
+/**
+ * Seletor do produto em foco na visão Produtos. É filtro da tabela logo abaixo (N6: não é aba):
+ * botões de alternância com o número de prontas de cada produto, o selecionado marcado.
+ */
+function SeletorProduto({
+  ativo,
+  escolher,
+  opcoes,
+}: {
+  ativo: ProdutoAtivo;
+  escolher: (p: ProdutoAtivo) => void;
+  opcoes: { id: ProdutoAtivo; rotulo: string; valor: number; unidade: string; nota: string }[];
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Produto em foco"
+      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+    >
+      {opcoes.map((o) => {
+        const on = o.id === ativo;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => escolher(o.id)}
+            className={cn(
+              "rounded-xl border bg-card p-4 text-left transition-colors",
+              FOCO_VISIVEL,
+              on ? "border-primary bg-primary/5" : "hover:border-input",
+            )}
+          >
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {o.rotulo}
+              </span>
+              {on && <span className="text-xs font-medium text-primary-text">Em foco</span>}
+            </span>
+            <span className="mt-2 flex items-baseline gap-1.5">
+              <span className="num text-2xl font-semibold">{number(o.valor)}</span>
+              <span className="text-sm text-muted-foreground">{o.unidade}</span>
+            </span>
+            <span className="mt-1 block text-xs text-muted-foreground">{o.nota}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function PortfolioTable({
   data,
   accounts,
@@ -632,6 +734,7 @@ function PortfolioTable({
   inUnit,
   unitId,
   controlesNoTopo = false,
+  produtoFixo = false,
 }: {
   data: BaseMonetizacao;
   accounts: Conta[];
@@ -640,11 +743,14 @@ function PortfolioTable({
   picked: Set<string>;
   setPicked: (p: Set<string>) => void;
   showAccount: (a: Conta) => void;
-  onList: (keys: string[]) => void;
+  /** Prepara a lista com o produto do filtro: sem produto não há lista (antes caía em Consultoria). */
+  onList: (keys: string[], product: Produto) => void;
   inUnit: boolean;
   unitId: number | null;
   /** Busca, unidade e origem são do topo da página: a tabela não desenha controle próprio. */
   controlesNoTopo?: boolean;
+  /** O produto vem do seletor da visão Produtos: a tabela não desenha o próprio. */
+  produtoFixo?: boolean;
 }) {
   const [limit, setLimit] = useState(50);
   // Cópia da seleção no momento do envio: o resultado continua legível mesmo quando as contas
@@ -855,14 +961,22 @@ function PortfolioTable({
           )}
           <BotaoComMotivo
             size="sm"
-            disabled={!data.permissions.manage || !selected.length || acimaDoLimite}
+            disabled={!data.permissions.manage || !selected.length || acimaDoLimite || !product}
             motivo={[
               !data.permissions.manage && "Exige manage.aquario para montar lista.",
+              !product &&
+                "Escolha o produto da lista: no filtro “Produto da lista” ou na visão Produtos.",
               !selected.length && "Selecione as contas para a lista.",
               acimaDoLimite &&
                 `Uma lista aceita até ${LIMITE_LOTE} contas; desmarque ${selected.length - LIMITE_LOTE}.`,
             ]}
-            onClick={() => onList(selected.map((a) => a.key))}
+            onClick={() =>
+              product &&
+              onList(
+                selected.map((a) => a.key),
+                product,
+              )
+            }
           >
             <ListPlus className="mr-1 h-4 w-4" />
             Preparar lista ({selected.length})
@@ -1066,20 +1180,22 @@ function PortfolioTable({
             ]}
           />
         </FieldMulti>
-        <Field label="Produto da lista">
-          <select
-            className={inputClass}
-            value={product}
-            onChange={(e) => change("product", e.target.value as Produto | "")}
-          >
-            <option value="">Todos os produtos</option>
-            {PRODUTOS.map((p) => (
-              <option key={p} value={p}>
-                {NOMES[p]}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {!produtoFixo && (
+          <Field label="Produto da lista">
+            <select
+              className={inputClass}
+              value={product}
+              onChange={(e) => change("product", e.target.value as Produto | "")}
+            >
+              <option value="">Todos os produtos</option>
+              {PRODUTOS.map((p) => (
+                <option key={p} value={p}>
+                  {NOMES[p]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <FieldMulti label="Situação no produto">
           <MultiSelect
             label="Situação no produto"

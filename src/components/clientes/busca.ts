@@ -29,6 +29,7 @@ import type {
 export const VIEWS_CLIENTES = [
   "monetizacao",
   "produtos",
+  "listas",
   "pendencias",
   "contratos",
   "gates",
@@ -48,6 +49,13 @@ export type BuscaClientes = {
   origem?: OrigemBase[];
   gate: string;
   produto?: Produto;
+  /**
+   * Visão Produtos: `recon` abre o painel do Recon no lugar da tabela de um produto. O Recon não
+   * monta lista nem envia ao Pipedrive (exporta), por isso não é um `produto`.
+   */
+  painel?: "recon";
+  /** Visão Listas: id da lista aberta no editor. Ausente = a lista em edição (ou nenhuma). */
+  lista?: string;
   /** Situação no produto. Ausente = a situação padrão do produto; `["todas"]` = todas. */
   situacao?: string[];
   abordagem?: Abordagem[];
@@ -117,6 +125,12 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
     origem: origem?.length ? origem : undefined,
     gate: umDe(["cnpj", "contato", "ecd"], s.gate) ?? "",
     produto: umDe(PRODUTOS, s.produto),
+    painel: umDe(["recon"], s.painel),
+    lista:
+      typeof s.lista === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.lista)
+        ? s.lista
+        : undefined,
     situacao: lista(s.situacao),
     abordagem: lista(s.abordagem) as Abordagem[] | undefined,
     faixa: lista(s.faixa),

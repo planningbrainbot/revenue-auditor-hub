@@ -3548,3 +3548,27 @@ Com o ok do dono. `main` `e1ad4da` → `621eedb` (fast-forward). A função `mon
 - Cella: 59 criados, 62 trabalhados, 24 agendadas, 22 realizadas, 25 validadas, 3 ganhos, 18 perdidos, 44 abertos.
 
 Os números mudaram desde a análise da tarde por movimento novo no Pipedrive. Um exemplo: a operação trocou o campo da BADAX (97782) de Consultoria para Cella. As divergências 96070, 96094 e 96110 e as 4 oportunidades repetidas continuam, à espera de correção no Pipedrive. Não gravei nada lá.
+
+## [2026-09-28] Forecast v12 ganha a coluna Realizado por mês na planilha
+
+**Pedido do Pedro:** "Preciso de uma coluna aglutinada para cada mês. É a coluna de realizado. [...] considere a base real que está no Brain base de clientes para colocar a base ali."
+
+**Decisão:**
+- Nas abas `Forecast <cenário>` da v12, cada mês virou o par Projetado | Realizado (C/D, E/F, …, Y/Z) e o total virou "No ano" (AA) e "Realizado no ano" (AB). Os números de linha não mudaram.
+- O realizado da planilha é um retrato datado (valores fixos), medido com a régua desta tela: `operacao` sobre a carga do CRM (pipe 39, frente inteira) para leads, reuniões, oportunidades e contratos por produto; `receitaSomada` dos ganhos para receita; Base de clientes (`oferta` elegível + `disponibilidade` livre) para as linhas de base. Mês futuro fica em branco; receita de contrato ganho sem valor no CRM fica em branco (zero seria falso).
+- `import_forecast.py` lê só as colunas de projetado e grava `columns` na fonte; a grade usa `columns` na dica de célula. A tela continua medindo o próprio realizado do CRM: o realizado da planilha não entra na fonte.
+
+
+## [2026-09-29] Base de clientes: Produtos e Listas separados, apresentação em URL, envio com pipe (Caixa ou Recon) e closer
+
+**Pedidos do Pedro (29/09):** navegação de listas/produtos/base sem voltar à Base e rolar ("pense como um usuário"); apresentação numa tela isolada em vez de download; na hora de enviar, escolher o pipe (Recon ou Monetização Caixa) e o closer (Willian Linhares ou Matheus Carvalho). Contrato: adendo de 29/09 em `docs/design/contratos/clientes.md`.
+
+**Decisão:**
+- Visões `produtos` e `listas` no menu da Base. Produtos: seletor do produto em foco (filtro, não aba) com a tabela logo abaixo, abrindo nas prontas (N2); Recon no mesmo seletor (`painel=recon`). Listas: filtros por situação, busca, lista aberta em `?lista=`. Filtro na mesma visão preserva a rolagem (`resetScroll: false`); número sem produto abre a Base e rola até a tabela.
+- Apresentação: rota `/apresentacao/lista/$id` fora do `_authenticated` (sem menu), com o mesmo guarda de sessão, e `lerApresentacaoLista` lendo uma lista só com a sessão de quem abre (RLS de listas, itens e contas) e devolvendo só a lista fechada de campos.
+- Envio: produto `recon` passa a valer em `monetizacao_itens`/`monetizacao_envios`; `monetizacao_save_list` aceita e `monetizacao_offer_issue` ganha a regra do Recon (mesma ordem de `ofertaRecon`: cadastro ausente no Pipefy não veta Recon). A Edge Function escolhe pipe e etapa de entrada pelo produto (`PIPE_DO_PRODUTO`: Caixa 39, Recon 38) e a duplicidade é por pipe (`sameProductDeal`). Closers fechados em `CLOSERS` (Matheus 28381245, Willian 24813890); lista antiga com outro dono mostra o dono dela.
+- O Recon não entra nas análises da Monetização (a carga lê só o pipe 39); o envio de Recon fica registrado em `monetizacao_envios` e marca a conta como enviada.
+
+**Conferido:** migration ensaiada contra produção em transação desfeita (conta apta ao Recon sem impedimento, conta com BPO barrada com o motivo, lista de Recon salva com o Willian, nada gravado depois do rollback). Testes, typecheck e design:lint no PR.
+
+**Publicação:** depende do "ok" do Pedro: migration → Edge Function `monetizacao-crm` → app, nessa ordem (cada passo é compatível com o anterior).
