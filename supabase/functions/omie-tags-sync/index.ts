@@ -8,8 +8,10 @@
 // paga, e a Base puxa o cadastro inteiro; a tag (Cliente, Fornecedor, Funcionário...) é o que separa. A regra
 // das tags mora no banco (trigger `base_omie_tags_flags`); aqui só se grava o que o Omie devolve.
 //
-// Retomada: cada execução atende primeiro a unidade sincronizada há mais tempo e para quando acaba o orçamento
-// de tempo; a seguinte continua. Unidade concluída apaga os cadastros que sumiram do Omie dela.
+// Uma unidade por execução (a nunca lida primeiro, depois a de leitura mais antiga): a Matriz sozinha tem 12
+// páginas de 500 e, na primeira carga de 29/09, várias unidades numa execução passaram do limite de 150 s no
+// meio da Matriz. O cron roda a cada 10 minutos; a volta nas 11 credenciais fecha em menos de duas horas.
+// Unidade concluída apaga os cadastros que sumiram do Omie dela; a interrompida não apaga nada.
 
 type Row = Record<string, any>;
 
@@ -17,7 +19,6 @@ const URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON = Deno.env.get("SINAIS_CRON_SECRET");
 
-const ORCAMENTO_MS = 110_000;
 const POR_PAGINA = 500;
 
 const resposta = (body: Row, status = 200) =>
@@ -116,7 +117,6 @@ Deno.serve(async (req: Request) => {
     (!!CRON && req.headers.get("x-planning-sinais-cron") === CRON);
   if (!autorizado) return resposta({ error: "Não autorizado" }, 401);
 
-  const inicio = Date.now();
   let corpo: Row = {};
   try {
     corpo = await req.json();
@@ -126,24 +126,23 @@ Deno.serve(async (req: Request) => {
     const credenciais = (await db(
       "omie_credentials?ativo=eq.true&select=unidade,app_key,app_secret",
     )) as Row[];
-    let ultima = new Map<string, string>();
+    // A marca da unidade é a leitura mais ANTIGA dela (min): unidade interrompida no meio fica com registros
+    // velhos e volta à frente da fila; a que nunca foi lida vem antes de todas.
+    let marca = new Map<string, string>();
     try {
-      const marcas = (await db("base_omie_tags?select=unidade,sincronizado_em.max()")) as Row[];
-      ultima = new Map(marcas.map((m) => [m.unidade, m.max]));
+      const marcas = (await db("base_omie_tags?select=unidade,sincronizado_em.min()")) as Row[];
+      marca = new Map(marcas.map((m) => [m.unidade, m.min]));
     } catch { /* ordem da credencial */ }
     const alvo = corpo.unidade
       ? credenciais.filter((c) => c.unidade === corpo.unidade)
-      : [...credenciais].sort((a, b) =>
-        String(ultima.get(a.unidade) ?? "").localeCompare(String(ultima.get(b.unidade) ?? ""))
-      );
+      : [...credenciais]
+        .sort((a, b) =>
+          String(marca.get(a.unidade) ?? "").localeCompare(String(marca.get(b.unidade) ?? ""))
+        )
+        .slice(0, 1);
 
     const feitas: Row[] = [];
-    let restantes = 0;
     for (const cred of alvo) {
-      if (Date.now() - inicio > ORCAMENTO_MS) {
-        restantes += 1;
-        continue;
-      }
       try {
         const cadastros = await sincronizarUnidade(cred.unidade, {
           app_key: cred.app_key,
@@ -155,7 +154,7 @@ Deno.serve(async (req: Request) => {
         feitas.push({ unidade: cred.unidade, erro: (e as Error).message });
       }
     }
-    return resposta({ status: restantes ? "parcial" : "completo", feitas, restantes });
+    return resposta({ status: "completo", feitas });
   } catch (e) {
     return resposta({ error: (e as Error).message }, 500);
   }
