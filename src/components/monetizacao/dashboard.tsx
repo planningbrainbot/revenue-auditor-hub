@@ -61,6 +61,7 @@ import {
 import {
   CadastroACorrigir,
   ComoContamos,
+  FunilLadoALado,
   FunilOperacao,
   MetasFarmer,
   PorProduto,
@@ -479,6 +480,7 @@ export function DashboardMonetizacao({
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
           <PorProduto view={view} abrir={abrir} />
+          <FunilLadoALado cards={data.cards} stages={data.stages} filtro={filter} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">Critérios e campos a preencher</summary>
             <p className="mt-2">

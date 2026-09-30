@@ -51,3 +51,29 @@ responsável.
 
 ## Para onde manda
 - Todo número abre a lista dos negócios, com link para o Pipedrive. Negócio perdido ou ganho diz isso na lista, com a data; a etapa vira "estava em".
+
+## Adendo · 30/09/2026 · Funil por produto, lado a lado
+
+**Pedido do dono (30/09):** "transforma isso em um complemento da tabela de avanço por produto. A ideia é ter o mesmo funil que a tabela na dobra de cima, só que comparando produtos lado a lado". E também: "quero saber o que é stand by e o que é perdido mesmo aqui também".
+
+- **Pergunta do bloco:** Em que etapa cada produto trava?
+- **Onde:** logo abaixo de "Qual produto avança na base?", que ele complementa: aquela tabela conta movimentos (esforço, reuniões, resultado); este bloco conta etapas do pipe.
+- **Arquétipo:** o mesmo Visão geral do funil de cima, em colunas.
+
+**Números:**
+| Número | Definição | Régua | Drill-down |
+|---|---|---|---|
+| Entraram, por etapa e produto | as mesmas etapas, a mesma entrada e a mesma passagem de `funil` (Stand by soma em Reunião realizada), uma coluna por produto (Cella, Finance, Consultoria) e o total | `funil` com `product` de cada coluna, mesmo período e ator | cards que entraram |
+| Barra | entrada na etapa ÷ entrada na Base do mesmo produto | — | — |
+| Passagem | dos que entraram na etapa de cima, quantos chegaram a esta ou além, com o mesmo cálculo do funil de cima; abaixo de 20% sai marcada | — | — |
+| Em Stand by hoje | abertos nas etapas Stand by agora, pipe inteiro (como "Hoje" do funil) | card | cards parados |
+| Perdidos no período | perdidos no período por quem marcou a perda, como o funil de cima | card | lista, com o motivo |
+
+**Estados:**
+- Com filtro de produto, o bloco não compara nada e diz isso numa linha: o funil de cima já mostra o produto.
+- Carga sem `moves`: "—" na etapa, como no funil de cima.
+
+**Cor:** série fixa do DS: Cella `--chart-1`, Finance `--chart-2`, Consultoria `--chart-3`, total `--chart-6`.
+
+**Não entra:**
+- Classificar o motivo de perda por categoria. O motivo é texto livre no Pipedrive e a categoria seria inferência; a lista mostra o motivo.

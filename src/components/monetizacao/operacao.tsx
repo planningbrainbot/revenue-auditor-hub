@@ -2,7 +2,7 @@
 // venda + leads por dia), com a identidade da Planning: tokens de src/styles.css, KpiCard do
 // design system, status sempre com ícone e palavra. Nada é calculado aqui; os números vêm de
 // `operacao`, `funil` e `metasOperacao` em src/lib/monetizacao/model.ts.
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   Building2,
   CalendarCheck,
@@ -48,13 +48,13 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
-import { FARMER, METRICAS, taxa } from "@/lib/monetizacao/model";
+import { FARMER, METRICAS, funil, taxa } from "@/lib/monetizacao/model";
 import type {
   EtapaFunil,
+  Filtro,
   QuadroMeta,
   StatusMeta,
   cadastroACorrigir,
-  funil,
   operacao,
 } from "@/lib/monetizacao/model";
 import { NOMES } from "@/lib/monetizacao/types";
@@ -667,6 +667,206 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Funil por produto, lado a lado
+// ---------------------------------------------------------------------------
+
+const LADO_A_LADO = ["cella", "finance", "consultoria"] as const;
+const standByNome = (nome: string) => /stand ?by/i.test(nome);
+
+/**
+ * O funil da dobra de cima com os produtos lado a lado (dono, 30/09/2026): as mesmas etapas, a mesma
+ * entrada e a mesma passagem de `funil`, uma coluna por produto e o total. Complementa "Qual produto
+ * avança na base?", que conta movimentos; aqui são etapas do pipe. Fecha com o que parou (Stand by
+ * hoje, que conta como reunião realizada) e o que saiu (perdidos no período). Com filtro de produto
+ * não há o que comparar: o funil de cima já é o do produto.
+ */
+export function FunilLadoALado({
+  cards,
+  stages,
+  filtro,
+  abrir,
+}: {
+  cards: Negocio[];
+  stages: { id: number; name: string; order: number }[];
+  filtro: Filtro;
+  abrir: Abrir;
+}) {
+  const colunas = useMemo(() => {
+    const espera = new Set(stages.filter((s) => standByNome(s.name)).map((s) => s.id));
+    const coluna = (k: Produto | "", nome: string, cor: string) => {
+      const dados = funil(cards, stages, { ...filtro, product: k });
+      const pool = cards.filter((c) => !k || c.route === k);
+      return {
+        k: k || "total",
+        nome,
+        cor,
+        dados,
+        standBy: pool.filter((c) => c.status === "open" && espera.has(c.stage_id)),
+      };
+    };
+    return [
+      ...LADO_A_LADO.map((p, i) => coluna(p, NOMES[p], CORES_SERIE[i])),
+      coluna("", "Total", CORES_SERIE[5]),
+    ];
+  }, [cards, stages, filtro]);
+  const etapas = colunas[0].dados.etapas;
+  const numero = (n: number, titulo: string, rows: Negocio[], estoque = false) =>
+    n > 0 ? (
+      <button
+        type="button"
+        onClick={() => abrir(titulo, rows, estoque ? { estoque: true } : undefined)}
+        className="num rounded-sm text-base font-semibold text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {INT.format(n)}
+      </button>
+    ) : (
+      <span className="num text-base text-muted-foreground">0</span>
+    );
+
+  return (
+    <section className="rounded-xl border bg-card">
+      <div className="space-y-0.5 px-4 pt-4">
+        <h2 className="text-base font-semibold text-foreground">
+          Em que etapa cada produto trava?
+        </h2>
+        <p className="text-[13px] text-muted-foreground">
+          O funil de cima, um produto por coluna. Entraram no período; a barra compara com a entrada
+          na Base do mesmo produto; a porcentagem é a passagem da etapa de cima. Stand by soma em
+          Reunião realizada.
+        </p>
+      </div>
+      {filtro.product ? (
+        <p className="px-4 pb-4 pt-2 text-sm text-muted-foreground">
+          Com o filtro de {NOMES[filtro.product]}, o funil de cima já é o do produto. Limpe o filtro
+          de produto para comparar os três.
+        </p>
+      ) : (
+        <div className="overflow-x-auto p-2">
+          <table className="w-full min-w-[760px] table-fixed text-left">
+            <colgroup>
+              <col className="w-44" />
+              {colunas.map((c) => (
+                <col key={c.k} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 pb-2">Etapa</th>
+                {colunas.map((c) => (
+                  <th key={c.k} className="px-3 pb-2 text-right">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        aria-hidden
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: c.cor }}
+                      />
+                      {c.nome}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {etapas.map((e, i) => {
+                const nome = e.nome.replace(/^\d+\s*·\s*/, "");
+                return (
+                  <tr key={e.key} className="border-t">
+                    <th className="px-3 py-2 align-top text-sm font-normal text-foreground">
+                      {nome}
+                    </th>
+                    {colunas.map((c) => {
+                      const et = c.dados.etapas[i];
+                      const entraram = et.entraram;
+                      const topo = c.dados.etapas[0].entraram?.length ?? 0;
+                      const conv = i === 0 ? undefined : et.conversao;
+                      return (
+                        <td key={c.k} className="px-3 py-2 align-top">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span
+                              className={cn(
+                                "num text-xs",
+                                conv != null && conv < 0.2
+                                  ? "font-semibold text-danger"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {conv === undefined
+                                ? "entrada"
+                                : conv === null
+                                  ? "—"
+                                  : PCT.format(conv)}
+                            </span>
+                            {entraram ? (
+                              numero(
+                                entraram.length,
+                                `${c.nome} · ${nome} · entraram no período`,
+                                entraram,
+                              )
+                            ) : (
+                              <span className="num text-base text-muted-foreground">—</span>
+                            )}
+                          </div>
+                          <span
+                            className="mt-1 block h-1 overflow-hidden rounded-full bg-muted"
+                            aria-hidden
+                          >
+                            <span
+                              className="block h-full rounded-full"
+                              style={{
+                                width: `${topo && entraram ? (entraram.length / topo) * 100 : 0}%`,
+                                backgroundColor: c.cor,
+                              }}
+                            />
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              <tr className="border-t-2 bg-muted/40">
+                <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
+                  Em Stand by hoje
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    pediu tempo depois da reunião; não é perda
+                  </span>
+                </th>
+                {colunas.map((c) => (
+                  <td key={c.k} className="px-3 py-2 text-right align-top">
+                    {numero(c.standBy.length, `${c.nome} · em Stand by hoje`, c.standBy, true)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-t bg-muted/40">
+                <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
+                  Perdidos no período
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    fechados como perdidos; o motivo está na lista
+                  </span>
+                </th>
+                {colunas.map((c) => (
+                  <td key={c.k} className="px-3 py-2 text-right align-top">
+                    {c.dados.perdidos ? (
+                      numero(
+                        c.dados.perdidos.length,
+                        `${c.nome} · perdidos no período`,
+                        c.dados.perdidos,
+                      )
+                    ) : (
+                      <span className="num text-base text-muted-foreground">—</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
