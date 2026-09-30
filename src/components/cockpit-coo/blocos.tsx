@@ -201,7 +201,7 @@ export function CaixaAtencao({
 }
 
 // ---------------------------------------------------------------------------------------------
-// Execução no ClickUp: compromissos do tema desde a última reunião
+// Execução no ClickUp: tarefas das áreas do tema e compromissos da rotina, o mais urgente primeiro
 // ---------------------------------------------------------------------------------------------
 
 export function CaixaExecucao({
@@ -215,18 +215,24 @@ export function CaixaExecucao({
   conectado: boolean;
   motivo: string | null;
 }) {
+  const areas = TEMAS[tema].departamentos.join(" · ");
   return (
     <section className="rounded-xl border bg-card" aria-labelledby="coo-execucao">
       <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <h2 id="coo-execucao" className="text-[15px] font-semibold">
-          Compromissos de {TEMAS[tema].diaRotulo.toLowerCase()}
-        </h2>
+        <div className="min-w-0">
+          <h2 id="coo-execucao" className="text-[15px] font-semibold">
+            Execução no ClickUp
+          </h2>
+          <p className="truncate text-xs text-muted-foreground">
+            {areas} · compromissos de {TEMAS[tema].diaRotulo.toLowerCase()}
+          </p>
+        </div>
         <Link
           to="/cockpit-coo/compromissos"
           search={{ tema }}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
         >
-          Ver todos →
+          Ver todas →
         </Link>
       </header>
       {!conectado || !execucao ? (
@@ -237,26 +243,48 @@ export function CaixaExecucao({
       ) : (
         <>
           <p className="num px-4 pt-3 text-sm">
-            <b>{execucao.abertos}</b> abertos ·{" "}
-            <b className={execucao.vencidos ? "text-danger" : undefined}>{execucao.vencidos}</b> vencidos ·{" "}
-            <b>{execucao.feitosDesdeUltima}</b> feitos desde {dataCurta(execucao.desde)}
+            <b>{execucao.abertos}</b> abertas ·{" "}
+            <b className={execucao.vencidos ? "text-danger" : undefined}>{execucao.vencidos}</b> vencidas ·{" "}
+            <b>{execucao.vencemEm7}</b> vencem em 7 dias · <b>{execucao.semDono}</b> sem dono ·{" "}
+            <b>{execucao.feitosDesdeUltima}</b> feitas desde {dataCurta(execucao.desde)}
           </p>
           {execucao.destaques.length === 0 ? (
-            <p className="px-4 pb-3 pt-1 text-sm text-muted-foreground">Nenhum compromisso aberto neste tema.</p>
+            <p className="px-4 pb-3 pt-1 text-sm text-muted-foreground">Nenhuma tarefa aberta nas áreas deste tema.</p>
           ) : (
             <ul className="divide-y pt-2">
               {execucao.destaques.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-2 px-4 py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    {c.vencido && <AlertOctagon className="size-4 shrink-0 text-danger" aria-label="vencido" />}
-                    <span className="truncate">{c.nome}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                    {c.dono?.nome ?? "sem dono"} · {c.vencido ? `venceu ${dataCurta(c.prazo)}` : dataCurta(c.prazo)}
-                    <a href={c.url} target="_blank" rel="noreferrer" aria-label={`Abrir ${c.nome} no ClickUp`}>
-                      <ExternalLink className="size-3.5" aria-hidden />
-                    </a>
-                  </span>
+                <li key={c.id}>
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {c.vencido ? (
+                        <AlertOctagon className="size-4 shrink-0 text-danger" aria-label="vencida" />
+                      ) : (
+                        <span className="size-4 shrink-0" aria-hidden />
+                      )}
+                      <span className="min-w-0 truncate">
+                        {c.nome}
+                        <span className="text-xs text-muted-foreground">
+                          {" "}
+                          · {c.origemTarefa === "rotina" ? "compromisso" : (c.departamento ?? "área")} ·{" "}
+                          {c.dono?.nome ?? "sem dono"}
+                        </span>
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "num flex shrink-0 items-center gap-1.5 text-xs",
+                        c.vencido ? "font-semibold text-danger" : "text-muted-foreground",
+                      )}
+                    >
+                      {!c.prazo ? "sem prazo" : c.vencido ? `venceu ${dataCurta(c.prazo)}` : `vence ${dataCurta(c.prazo)}`}
+                      <ExternalLink className="size-3.5" aria-label={`Abrir ${c.nome} no ClickUp`} />
+                    </span>
+                  </a>
                 </li>
               ))}
             </ul>

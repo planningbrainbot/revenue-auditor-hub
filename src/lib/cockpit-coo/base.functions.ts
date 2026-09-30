@@ -1,7 +1,8 @@
 // Carga comum do Cockpit do COO: o que todo tema mostra além dos próprios números.
 // - unidades (o perímetro);
 // - a foto diária de OKR (growth.okr_snapshot), para a evolução por departamento;
-// - os compromissos da Rotina Semanal (espelho do ClickUp) e o histórico de mudanças;
+// - o espelho do ClickUp da Expansão Nacional (tarefas das áreas e compromissos da rotina; quem
+//   escolhe o que entra é `lerTarefas`) e o histórico de mudanças;
 // - a saúde da integração com o ClickUp (monitor e última rodada).
 //
 // Leitura com a sessão da pessoa (RLS). O espelho só é legível por quem tem a área cockpit_coo.
@@ -10,7 +11,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { todasAsPaginas } from "../cockpit-ceo/paginar.ts";
 import { abrirContextoCoo, motivoDoErro } from "./contexto.server.ts";
 import type { ContextoCoo } from "./contexto.server.ts";
-import { LISTA_COMPROMISSOS, PASTA_ROTINA } from "./compromissos.ts";
 import type { LinhaEspelho, LinhaEvento } from "./compromissos.ts";
 import type { LinhaSnapshot } from "./okrs.ts";
 import type { UnidadeCoo } from "./unidades.ts";
@@ -29,6 +29,7 @@ export interface BaseCoo {
   lidoEm: string;
   unidades: UnidadeCoo[];
   okrs: Parte<LinhaSnapshot[]>;
+  /** O espelho inteiro do space (tarefas das áreas e compromissos da rotina): `lerTarefas` filtra. */
   compromissos: Parte<{ linhas: LinhaEspelho[]; eventos: LinhaEvento[] }>;
   clickup: SaudeClickUp;
 }
@@ -59,8 +60,6 @@ export async function lerBaseCoo(ctx: ContextoCoo): Promise<BaseCoo> {
           .from("clickup_tarefas")
           .select("*")
           .is("ausente_desde", null)
-          .ilike("pasta_nome", `%${PASTA_ROTINA}%`)
-          .ilike("lista_nome", `%${LISTA_COMPROMISSOS}%`)
           .order("id")
           .range(de, ate),
       ).then(
@@ -94,7 +93,7 @@ export async function lerBaseCoo(ctx: ContextoCoo): Promise<BaseCoo> {
         : {
             ok: false,
             estado: "fonte_indisponivel",
-            motivo: motivoDoErro("compromissos", (linhas.ok ? null : linhas.erro) ?? (eventos.ok ? null : eventos.erro)),
+            motivo: motivoDoErro("tarefas do ClickUp", (linhas.ok ? null : linhas.erro) ?? (eventos.ok ? null : eventos.erro)),
           };
 
     const r = rodada?.data as

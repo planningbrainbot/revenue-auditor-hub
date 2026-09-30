@@ -120,6 +120,19 @@ const idsDonos = (l: Pick<LinhaEspelho, "donos">) =>
     .join(",");
 
 /**
+ * Mesmo instante? O banco devolve "2026-07-30T07:00:00+00:00" e a leitura nova vem como
+ * "2026-07-30T07:00:00.000Z": comparar o texto gravava um "prazo mudou" a cada rodada para toda
+ * tarefa com prazo (5.100 eventos falsos em 12 horas, 30/09/2026).
+ */
+export function mesmoInstante(a: string | null, b: string | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  const x = Date.parse(a);
+  const y = Date.parse(b);
+  return Number.isFinite(x) && x === y;
+}
+
+/**
  * O que mudou entre a leitura anterior e a atual. Tarefa nova vira "criada" (sem registrar os
  * campos iniciais como mudança); tarefa que sumiu da leitura vira "sumiu" (arquivada ou apagada).
  */
@@ -136,7 +149,7 @@ export function diferencas(anteriores: LinhaEspelho[], atuais: LinhaEspelho[]): 
     if (a.concluida !== n.concluida)
       eventos.push({ tarefa_id: id, tipo: n.concluida ? "concluida" : "reaberta", de: a.status, para: n.status });
     else if (a.status !== n.status) eventos.push({ tarefa_id: id, tipo: "status", de: a.status, para: n.status });
-    if (a.prazo !== n.prazo) eventos.push({ tarefa_id: id, tipo: "prazo", de: a.prazo, para: n.prazo });
+    if (!mesmoInstante(a.prazo, n.prazo)) eventos.push({ tarefa_id: id, tipo: "prazo", de: a.prazo, para: n.prazo });
     if (idsDonos(a) !== idsDonos(n))
       eventos.push({ tarefa_id: id, tipo: "dono", de: a.donos.map((d) => d.id), para: n.donos.map((d) => d.id) });
   }

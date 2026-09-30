@@ -8,6 +8,7 @@
 import { lerNumeros } from "../cockpit-ceo/conversa/conferir.ts";
 import type { LeituraTema, NumeroCoo } from "./contrato.ts";
 import type { OkrsTema } from "./okrs.ts";
+import { ordenarFila, ROTULO_TIPO } from "./compromissos.ts";
 import type { Compromisso } from "./compromissos.ts";
 import { TEMAS } from "./contrato.ts";
 
@@ -59,9 +60,13 @@ export function resumoDosOkrs(o: OkrsTema) {
   };
 }
 
+/** Até 40 linhas, na ordem de trabalho (vencidas primeiro): o modelo recebe o que importa. */
 export function resumoDosCompromissos(cs: Compromisso[]) {
-  return cs.slice(0, 40).map((c) => ({
+  return ordenarFila(cs).slice(0, 40).map((c) => ({
     nome: c.nome,
+    origem: c.origemTarefa === "rotina" ? "compromisso da rotina" : `tarefa da área ${c.departamento ?? "sem pasta"}`,
+    tipo: ROTULO_TIPO[c.tipo],
+    kr: c.pai,
     dono: c.dono?.nome ?? null,
     prazo: c.prazo?.slice(0, 10) ?? null,
     tema: c.tema ? TEMAS[c.tema].titulo : null,

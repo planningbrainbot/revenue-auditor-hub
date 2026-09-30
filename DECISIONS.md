@@ -3775,3 +3775,43 @@ Publicado com o "Pode" do Pedro (30/09).
   - Correção: fila pela tentativa, em `ops.base_omie_tags_leituras`.
   - Testado em seguida: Maceió (58 cadastros) e São Luís (23) entraram. Sorocaba ficou registrada com o erro do addon, sem prender a fila.
 - **`scripts/cockpit-ceo/carga-real.mjs`:** a cópia do catálogo usada nas medições por script passa a trazer `omie`. Sem ela, a medição dizia que os 86 fornecedores ainda estavam prontos.
+
+## [2026-09-30] Cockpit do COO: a execução reflete o ClickUp inteiro, e a quinta abre com o projetado × realizado
+
+**Pedido do Pedro (30/09):** "A parte de operação tá sem nenhuma task. Ele tem que ter um reflexo do ClickUp ali." e "Não entendi a parte de monetização, a informação mais relevante é o que está no módulo de monetização, sobretudo no projetado vs realizado." A ordem pedida foi o guia do Paulo primeiro (https://claude.ai/artifact/XxbsHNypspDLro5fQdMHBV, agora em tema claro) e o painel depois. O painel segue o que o guia descreve.
+
+**Execução no ClickUp (todo tema):**
+- O espelho já tinha o space inteiro, 290 tarefas, mas a tela lia só a lista de compromissos, vazia. Agora `lerTarefas` entrega duas origens na mesma forma:
+  - tarefas das áreas: KR, entrega ou direcionamento, pela régua de `normalizarOkrs`, em que tarefa-raiz fora de 🗣️/📖 é KR. O tema vem da pasta do departamento, pelo mapa aprovado pelo COO em 29/09;
+  - compromissos da rotina.
+- Ficam de fora a "📅 Minha Semana" do COO e as listas "📖 Comece aqui".
+- A caixa do tema virou "Execução no ClickUp", com abertas, vencidas, que vencem em 7 dias, sem dono, feitas desde a última reunião e até 5 destaques com link.
+- A tela "Compromissos" virou "Tarefas e compromissos", com filtros de origem e área. Os números e os atalhos seguem o recorte.
+- **Tarefa de área é só leitura.** A ficha avisa e manda para o ClickUp. As ações (concluir, prazo, dono, comentar) continuam só nos compromissos da rotina, porque o token é do Pedro e o cockpit não mexe no trabalho das áreas.
+- **Sexta:** o número virou "Tarefas da semana no prazo". Tarefa de área vencida há 14 dias ou mais vira um alerta por área, de atenção, uma vez por semana, e não um crítico por tarefa. Os EBITDA de jan–mar da Operação, abertos desde fevereiro, lotariam a caixa.
+- A unidade da tarefa de área sai do nome quando ele é uma unidade (as subtarefas do Broker e do Split por unidade).
+- O Perguntar lê as duas origens, com filtro por departamento.
+
+**Qui · Monetização:**
+- Os quatro primeiros números são a aba "Projetado × realizado" do módulo, com a mesma função (`forecastComparison`) e a mesma planilha (`escolherForecast`: cenário padrão da versão mais recente, hoje a v12 · Estimado). São contratos ganhos, oportunidades validadas, reuniões realizadas e leads trabalhados, realizado contra projetado do mês.
+- A cobertura é "grupo": a planilha não projeta por unidade, e com filtro de unidade o cartão diz "frente inteira".
+- Engajadas e paradas ficam, porque são o pedido do COO. Saíram dos cartões os ganhos e as validadas por unidade, a cobertura da base e os leads sem unidade. Os alertas de cobrar a matriz continuam.
+- Alertas novos, antes dos de unidade na mesma gravidade:
+  - degrau abaixo de 70% (crítico) ou 90% (atenção) do projetado proporcional aos dias corridos, com ao menos 2 esperados;
+  - produto com 2 ou mais contratos projetados e nenhum ganho, com metade do mês corrida.
+- Medido em 30/09 na sessão do Paulo (corte 30/09): contratos 4 de 8, validadas 38 de 31, reuniões 33 de 49, leads 151 de 120. Por produto: Cella 4/1, Consultoria 0/4, Finance 0/3.
+- O Perguntar ganhou a quinta no servidor (`monetizacao.server.ts`). Ele lê só negócios e planilhas, 318 negócios e cerca de 0,5 MB, com a porta `monetizacao_can` antes. A régua das unidades fica "não apurado" lá, com o motivo.
+
+**Dois defeitos achados na homologação, corrigidos:**
+- **Evento falso de prazo a cada rodada.** A sincronização comparava o prazo como texto. O banco devolve `…T07:00:00+00:00` e a leitura nova vem `…T07:00:00.000Z`, então toda tarefa com prazo ganhava um "prazo mudou" a cada 10 minutos: 5.100 eventos em 12 horas, em 68 tarefas. Como `"."` > `"+"` na comparação de texto, cada um ainda contava como adiamento ("Prazos empurrados" dava 45).
+  - A comparação agora é por instante (`mesmoInstante`), e o adiamento é por dia.
+  - O `clickup-sync` corrigido foi publicado em 30/09 às 10h35. Os 5.100 eventos foram apagados logo depois: todos com o mesmo instante de antes e de depois, nenhum real.
+- **Tarefa que vence hoje aparecia vencida.** O ClickUp grava prazo sem hora às 04h de São Paulo. Agora vencida é "o dia do prazo em São Paulo já passou", e todas as contas de dia (semana, 7 dias, feitas desde) usam o dia de São Paulo.
+
+**Conferência:** as contagens batem com SQL independente sobre `ops.clickup_tarefas`:
+- caixa da terça (Operações + Auditoria & Qualidade): 70 abertas, 5 vencidas, 3 que vencem em 7 dias, 56 sem dono;
+- caixa da quinta (Receitas): 17 abertas, 13 vencidas, 3 que vencem em 7 dias.
+
+Antes da correção do dia, eram 8 e 16 vencidas: 6 tarefas vencem hoje.
+
+O projetado × realizado bate com o script que roda o `forecastComparison` do módulo sobre a mesma carga: 4/8, 38/31, 33/49 e 151/120.

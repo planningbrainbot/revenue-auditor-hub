@@ -732,7 +732,7 @@ test("compromissos no recorte de unidade: zero quando lido e contado, não apura
   const n = numero(propria, "compromissos-no-prazo");
   assert.equal(n.estado, "nao_apurado");
   assert.equal(n.valor, null);
-  assert.equal(n.motivo, "nenhum compromisso da semana venceu ou foi concluído ainda (1 no prazo)");
+  assert.equal(n.motivo, "nenhuma tarefa da semana venceu ou foi concluída ainda (1 no prazo)");
   // Compromisso sem unidade (F) só entra em todas; Goiânia (D) fica fora da rede.
   assert.deepEqual(
     compromissosDoFiltro(COMPROMISSOS, UNIDADES, "rede").map((c) => c.id),
@@ -752,4 +752,36 @@ test("alertas: chaves únicas e estáveis entre duas montagens", () => {
     assert.ok(x.limiar, x.chave);
     assert.ok(!x.titulo.includes("\n"), x.chave);
   }
+});
+
+test("sexta: tarefa de área vencida vira um alerta por área, não um por tarefa", () => {
+  const area = (id, prazo) => ({
+    ...esp(id, null, null, prazo),
+    pasta_nome: "Operações · Victor",
+    lista_nome: "Garantir um modelo financeiro sustentável",
+    nome: `EBITDA ${id}`,
+  });
+  const cs = [
+    ...COMPROMISSOS,
+    ...[area("jan", "2026-02-10T12:00:00.000Z"), area("fev", "2026-03-10T12:00:00.000Z"), area("mar", "2026-04-10T12:00:00.000Z")].map(
+      (l) => lerCompromisso(l, [], AGORA),
+    ),
+    // Vencida há 5 dias: ainda não passou por duas sextas.
+    lerCompromisso(area("recente", "2026-09-27T12:00:00.000Z"), [], AGORA),
+  ];
+  const l = montarEstrategico(
+    { idu: IDU_HOJE, rede: REDE_VAZIA },
+    { okrs: [], compromissos: cs, clickupConectado: true },
+    UNIDADES,
+    "",
+    SEXTA,
+  );
+  const daArea = l.alertas.filter((a) => a.regra === "area-tarefas-vencidas");
+  assert.deepEqual(daArea.map((a) => [a.gravidade, a.titulo]), [
+    ["atencao", "Operações · 3 tarefas vencidas há 14 dias ou mais no ClickUp"],
+  ]);
+  assert.equal(daArea[0].chave, "coo:estrategico:area-tarefas-vencidas:rede:operacoes-2026-09-28");
+  // O compromisso da rotina vencido há 22 dias continua com o alerta crítico dele.
+  assert.equal(l.alertas.filter((a) => a.regra === "compromisso-vencido").length, 1);
+  assert.equal(l.alertas.some((a) => a.titulo.includes("EBITDA")), false);
 });

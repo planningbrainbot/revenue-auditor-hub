@@ -2,6 +2,8 @@
 
 **Dono de produto:** Pedro Luca   **Usuário:** COO da Expansão (Paulo Carvalho)   **Dono do código:** Pedro Luca (tela) · Eliezek (casca, área, publicação)   **Data:** 29/09/2026
 
+**Revisão de 30/09/2026 (pedido do Pedro):** a execução passa a refletir o ClickUp inteiro da Expansão (tarefas das áreas, não só os compromissos da rotina), a quinta abre com o projetado × realizado do módulo de Monetização, e o guia do Paulo (https://claude.ai/artifact/XxbsHNypspDLro5fQdMHBV) descreve a tela nova. As seções abaixo já estão na versão de 30/09.
+
 **Estado:** a proposta foi aprovada pelo COO em 29/09/2026, com ajustes. A página de aprovação é https://claude.ai/artifact/7sXeQ6Jbn1XApEbJpYKzrJ, e as respostas estão registradas na spec, na seção "Revisão de 29/09/2026". O Pedro deu o "pode rodar tudo" no mesmo dia. Falta o "contrato ok" formal no PR.
 
 Spec: `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.md`.
@@ -14,14 +16,14 @@ Spec: `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.md`.
   | Seg · Growth | A matriz está gerando e convertendo demanda para as unidades no ritmo do trimestre? |
   | Ter · Financeiro e Operações | O negócio se sustenta, para onde aponta o caixa e a entrega está andando? |
   | Qua · CS e RH | Os clientes e as equipes das unidades estão saudáveis, e as vagas andam? |
-  | Qui · Monetização | Quais unidades estão engajadas no projeto, e quem eu preciso cobrar? |
+  | Qui · Monetização | A Monetização está entregando o projetado, e quais unidades eu preciso cobrar? |
   | Sex · Estratégico | A rede está no pacto e o que eu levo para a próxima semana? |
-  | Compromissos | O que foi combinado nas reuniões, quem está devendo e o que vence esta semana? |
+  | Tarefas e compromissos | O que está combinado no ClickUp, quem está devendo e o que vence esta semana? |
   | Perguntar ao Brain | O que você quer saber da rede nesta semana? |
 - **Público:** o COO da Expansão. A área `cockpit_coo` é liberada só para `admin`, e o COO entra pela tela de acessos.
 - **Decisão ou ação que provoca:** em cada reunião da semana, olhar o tema do dia e transformar cada alerta num compromisso no ClickUp, com dono e prazo. Na mesma reunião da semana seguinte, conferir o que foi cumprido.
 - **Métrica de sucesso:** o COO conduz a reunião do dia só com a tela. Os compromissos da semana têm dono e prazo, e a revisão de sexta mostra quantos foram cumpridos no prazo.
-- **Arquétipo:** os temas são Visão geral; Compromissos é Fila de trabalho; Perguntar ao Brain está fora dos cinco arquétipos, como a do CEO.
+- **Arquétipo:** os temas são Visão geral; Tarefas e compromissos é Fila de trabalho; Perguntar ao Brain está fora dos cinco arquétipos, como a do CEO.
 - **Universo (`descricao`):** "15 unidades · 11 da rede regional (8 em operação) · 4 de operação própria". Com filtro, a linha muda para a unidade ou o grupo escolhido.
 
 ## Anatomia de um tema (ordem fixa)
@@ -36,10 +38,12 @@ Spec: `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.md`.
 3. Até 6 `KpiCard`, em 3 colunas. Cada nota tem uma informação só; o motivo inteiro fica na gaveta.
 4. Duas caixas lado a lado:
    - "O que pede atenção": até 3 itens, com [Abrir] e [Virar compromisso] ou o compromisso que já existe;
-   - "Compromissos do dia": abertos, vencidos, feitos desde a última reunião e até 3 destaques.
+   - "Execução no ClickUp": as tarefas das pastas dos departamentos do tema (KRs, entregas, direcionamentos) e os compromissos da rotina do tema. Mostra abertas, vencidas, que vencem em 7 dias, sem dono e feitas desde a última reunião, e até 5 destaques, vencidas primeiro, cada um com link para o ClickUp.
 5. Dois gráficos lado a lado:
-   - o gráfico do tema;
+   - o primeiro gráfico do tema;
    - "Como evoluem os OKRs deste tema?", a série diária por departamento contra o esperado do ciclo.
+
+   Os outros gráficos do tema vêm embaixo, dois por linha quando há mais de um.
 6. A gaveta (`?detalhe=`), com:
    - o que diz;
    - como se calcula;
@@ -90,16 +94,20 @@ A porta dos quatro números do grupo é a do CEO: produto Financeiro e todas as 
 
 **Qui · Monetização**
 
-Montado no navegador, com a carga da tela da Monetização.
+Montado no navegador, com a carga da tela da Monetização. O Perguntar ao Brain lê no servidor só a parte do projetado × realizado (negócios e planilhas, na sessão da pessoa); a régua das unidades fica "não apurado" lá, com o motivo.
 
 | Número | Unidade de contagem | Fonte e régua | Cobre | Destino | O destino bate? |
 |---|---|---|---|---|---|
+| Contratos ganhos × projetado | negócios | `forecastComparison` do módulo: `signed` no mês até o corte do CRM × linha 41 da planilha em uso (cenário padrão da versão mais recente) | grupo (frente inteira) | Monetização · Projetado × realizado | sim |
+| Oportunidades validadas × projetado | negócios | idem, `validated` × linha 37 | grupo | idem | sim |
+| Reuniões realizadas × projetado | negócios | idem, `meeting` × linha 35 | grupo | idem | sim |
+| Leads trabalhados × projetado | negócios | idem, `started` × linha 29 | grupo | idem | sim |
 | Unidades engajadas | unidades | régua de engajamento (A 25 + B 35 + C 20) ÷ 80; nota 70 ou mais | todas | Monetização · funil | não, e a tela avisa |
 | Unidades paradas | unidades | nota abaixo de 40 | todas | idem | não, e a tela avisa |
-| Contratos ganhos no mês | negócios | eventos `signed` no mês, em clientes da unidade | todas | idem | não, e a tela avisa |
-| Oportunidades validadas no mês | negócios | eventos `validated` | todas | idem | não, e a tela avisa |
-| Cobertura da base elegível | percentual | elegíveis com negócio ÷ elegíveis (régua de oferta) | todas | Base de clientes | não, e a tela avisa |
-| Leads maduros sem unidade | negócios | coorte madura sem unidade (lacuna) | — | Monetização | não, e a tela avisa |
+
+Gráficos: "Em que degrau o mês descolou do plano?" (ao lado das OKRs), "Qual produto está abaixo do projetado?" e "Quais unidades estão mais engajadas no projeto?".
+
+Alertas do projetado, antes dos de unidade na mesma gravidade: degrau com realizado abaixo de 70% (crítico) ou 90% (atenção) do projetado proporcional aos dias corridos, com ao menos 2 esperados até hoje; produto com 2 ou mais contratos projetados e nenhum ganho, com metade do mês corrida. Saíram dos cartões, em 30/09, os ganhos e as validadas por unidade, a cobertura da base e os leads sem unidade; os alertas de cobrar a matriz continuam.
 
 **Sex · Estratégico**
 
@@ -109,7 +117,7 @@ Montado no navegador, com a carga da tela da Monetização.
 | Faturamento da rede · 12 meses | reais | apuração confirmada (a leitura "rede" do CEO) | rede | Apuração de Royalties | sim |
 | Peso da maior unidade na rede | percentual | mesma janela | rede | idem | sim |
 | OKRs da Expansão · ritmo | percentual | foto diária `growth.okr_snapshot` contra o esperado do ciclo | grupo | — | — |
-| Compromissos da semana no prazo | percentual | espelho do ClickUp | — | Compromissos | sim |
+| Tarefas da semana no prazo | percentual | espelho do ClickUp: tarefas das áreas e compromissos da rotina com prazo na semana | — | Tarefas e compromissos | sim |
 | Unidades em implantação | unidades | cadastro sem data de inauguração | rede | Regras da Rede | sim |
 
 ## Estados
@@ -128,12 +136,12 @@ Montado no navegador, com a carga da tela da Monetização.
 | `tema` | `growth`, `financeiro-operacoes`, `cs-rh`, `monetizacao`, `estrategico` | o tema do dia (sábado e domingo abrem a sexta) | qual item da lateral está aberto |
 | `unidade` | vazio (todas), `rede`, `propria` ou o id da unidade | todas | os números de cobertura "todas" ou "rede"; os de cobertura "grupo" ignoram o filtro e dizem isso |
 | `detalhe` | `n:<id>`, `g:<id>`, `okrs` | nenhum | a gaveta aberta; o "voltar" do navegador fecha |
-| Compromissos: `tema`, `dono`, `unidade`, `status`, `higiene`, `tarefa` | — | abertos | a fila e a ficha aberta |
+| Tarefas e compromissos: `origem` (`area`, `rotina`), `area` (departamento), `tema`, `dono`, `unidade`, `status`, `higiene`, `tarefa` | — | abertas, todas as origens | a fila e a ficha aberta; origem, área, tema, dono e unidade também mudam os números e os atalhos |
 
 ## Permissões (N8)
 - **Área:** `cockpit_coo`, criada pela migration `20260929120000`, só para `admin`.
 - **Leitura:** a sessão da pessoa (RLS). Cada fonte confere a sua porta antes, e o Financeiro usa a porta do CEO.
-- **Escrita no ClickUp:** quem tem a área. O servidor confere a área e só aceita tarefas da pasta Rotina Semanal.
+- **Escrita no ClickUp:** quem tem a área. O servidor confere a área e só aceita tarefas da lista Compromissos da rotina. As tarefas das áreas são só leitura: a ficha mostra o aviso e o link para o ClickUp.
 - **Espelho do ClickUp:** legível só com a área.
 
 ## Ações
@@ -154,11 +162,12 @@ Montado no navegador, com a carga da tela da Monetização.
 
 ## Para onde manda (tela dona)
 - **Números da rede e financeiros:** `/unidades/royalties`, `/receita-overview`, `/painel-cs`, `/nps`, `/auditoria-interna`, `/gente`, `/idu`, `/broker/admin`, `/monetizacao`, e o Growth e o Brain Financeiro (externos).
-- **Compromissos:** o próprio ClickUp.
+- **Tarefas e compromissos:** o próprio ClickUp.
+- **Projetado × realizado:** `/monetizacao?aba=forecast`.
 
 ## Checagem
 - [x] Portão de design (`design:lint:changed`): 0 violação no escopo.
 - [x] Números conferidos na fonte, com recontagem independente dos cinco temas na sessão do COO.
 - [x] Checagem de tipos: só sobra o erro que já existia em `integracoes-status.functions.ts`.
-- [x] Testes: 463 no total, 141 do COO.
+- [x] Testes: 474 no total (30/09).
 - [ ] "Contrato ok" formal do Pedro no PR.

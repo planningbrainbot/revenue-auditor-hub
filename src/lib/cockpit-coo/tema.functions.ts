@@ -8,7 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { abrirContextoCoo } from "./contexto.server.ts";
 import { lerBaseCoo } from "./base.functions.ts";
-import { lerCompromisso } from "./compromissos.ts";
+import { lerTarefas } from "./compromissos.ts";
 import { ehTema } from "./contrato.ts";
 import type { LeituraTema, Tema } from "./contrato.ts";
 import { filtroValido } from "./unidades.ts";
@@ -47,9 +47,7 @@ export const carregarTemaCoo = createServerFn({ method: "GET" })
       case "estrategico": {
         const [dados, base] = await Promise.all([lerEstrategico(ctx), lerBaseCoo(ctx)]);
         const agora = new Date().toISOString();
-        const compromissos = base.compromissos.ok
-          ? base.compromissos.dado.linhas.map((l) => lerCompromisso(l, base.compromissos.ok ? base.compromissos.dado.eventos : [], agora))
-          : [];
+        const compromissos = base.compromissos.ok ? lerTarefas(base.compromissos.dado, agora, ctx.unidades) : [];
         leitura = montarEstrategico(
           dados,
           {

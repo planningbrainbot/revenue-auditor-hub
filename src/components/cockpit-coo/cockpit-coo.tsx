@@ -18,6 +18,7 @@ import { BlocoOkrs, CaixaAtencao, CaixaExecucao, GraficoTema, NumerosTema } from
 import { GavetaCoo } from "./gaveta";
 import type { Detalhe } from "./gaveta";
 import { VirarCompromisso } from "./virar-compromisso";
+import { cn } from "@/lib/utils";
 
 // Um tema do Cockpit do COO (arquétipo Visão geral, contrato docs/design/contratos/cockpit-coo.md):
 // até 6 números; o que pede atenção (até 3, cada um vira compromisso no ClickUp); os compromissos
@@ -225,9 +226,13 @@ export function CockpitCoo({
             )}
             <BlocoOkrs okrs={okrs} abrir={() => aoMudar({ detalhe: "okrs" })} />
           </div>
-          {leitura.graficos.slice(1).map((g) => (
-            <GraficoTema key={g.id} g={g} abrir={() => aoMudar({ detalhe: `g:${g.id}` })} />
-          ))}
+          {leitura.graficos.length > 1 && (
+            <div className={cn("grid gap-4", leitura.graficos.length > 2 && "xl:grid-cols-2")}>
+              {leitura.graficos.slice(1).map((g) => (
+                <GraficoTema key={g.id} g={g} abrir={() => aoMudar({ detalhe: `g:${g.id}` })} />
+              ))}
+            </div>
+          )}
         </>
       ) : null}
 

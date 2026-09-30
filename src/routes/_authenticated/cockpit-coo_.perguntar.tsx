@@ -35,7 +35,7 @@ const SUGESTOES: Record<Tema, string[]> = {
   growth: ["Quais unidades estão mais atrasadas na meta do trimestre?", "Onde a mídia não virou contrato este mês?"],
   "financeiro-operacoes": ["Quanto tempo de caixa o grupo tem no ritmo atual?", "Quais unidades têm apuração fechada sem fatura?"],
   "cs-rh": ["Onde está o churn da rede neste mês?", "Quantas admissões tivemos no mês e em quais unidades?"],
-  monetizacao: ["Quais unidades estão paradas no projeto de Monetização?"],
+  monetizacao: ["Em que produto a Monetização está abaixo do projetado no mês?"],
   estrategico: ["Quantas unidades estão no Pacto Trimestral?", "Quais departamentos estão atrás nos OKRs?"],
 };
 
