@@ -10,6 +10,8 @@ import {
   corpoTrocaDono,
   corpoComentario,
 } from "../src/lib/cockpit-coo/escrita.ts";
+import { linhaDoEspelho, marcasDoTexto } from "../supabase/functions/_shared/clickup/compromissos.ts";
+import { ehCompromissoDaRotina, temaDoTexto } from "../src/lib/cockpit-coo/compromissos.ts";
 
 const dd = (id, nome, opcoes) => ({
   id,
@@ -91,4 +93,41 @@ test("troca de dono tira todos os outros; comentário leva o autor", () => {
   assert.deepEqual(corpoTrocaDono(["1", "2", 3], 2), { assignees: { add: [2], rem: [1, 3] } });
   assert.deepEqual(corpoComentario(" feito ", AUTOR), { comment_text: "feito\n\n— Paulo Carvalho, pelo Cockpit do COO", notify_all: false });
   assert.throws(() => corpoComentario("  ", AUTOR), /Escreva/);
+});
+
+test("sem os campos na lista, tema, unidade e alerta voltam pelo texto da tarefa", () => {
+  const { corpo } = corpoTarefaNova(NOVO, [], AUTOR, "2026-09-29T14:05:00.000Z");
+  // O ClickUp devolve a descrição sem a marcação (conferido na API em 29/09/2026).
+  const texto = corpo.markdown_description.replace(/\*\*|`/g, "");
+  const m = marcasDoTexto(texto);
+  assert.equal(temaDoTexto(m.tema), "financeiro-operacoes");
+  assert.equal(m.unidade, "Belém");
+  assert.equal(m.origem, NOVO.chaveAlerta);
+  assert.deepEqual(marcasDoTexto(corpo.markdown_description), m);
+  const l = linhaDoEspelho({
+    id: "x1", name: NOVO.titulo, url: "u", parent: null,
+    status: { status: "pendente", type: "open" },
+    list: { id: "L", name: "✅ Compromissos da rotina" },
+    folder: { id: "F", name: "🗓️ Rotina Semanal · Paulo" },
+    custom_fields: [],
+    text_content: texto,
+  });
+  assert.equal(l.origem, NOVO.chaveAlerta);
+  assert.equal(l.unidade, "Belém");
+  // Campo preenchido no ClickUp vence o texto.
+  const comCampo = linhaDoEspelho({
+    id: "x2", name: "t", url: "u", parent: null, status: { status: "pendente", type: "open" },
+    custom_fields: [{ id: "fU", name: "Unidade", type: "drop_down", value: 1, type_config: { options: [{ id: "a", name: "Belém", orderindex: 0 }, { id: "b", name: "Rede", orderindex: 1 }] } }],
+    text_content: texto,
+  });
+  assert.equal(comCampo.unidade, "Rede");
+  assert.deepEqual(marcasDoTexto("Tarefa comum, sem marca."), { tema: null, unidade: null, origem: null });
+});
+
+test("compromisso é a lista de compromissos da pasta da rotina, com ou sem enfeite no nome", () => {
+  assert.equal(ehCompromissoDaRotina("🗓️ Rotina Semanal · Paulo", "✅ Compromissos da rotina"), true);
+  assert.equal(ehCompromissoDaRotina("Rotina Semanal", "Compromissos"), true);
+  assert.equal(ehCompromissoDaRotina("🗓️ Rotina Semanal · Paulo", "📅 Minha Semana"), false);
+  assert.equal(ehCompromissoDaRotina("Operações · Victor", "Compromissos"), false);
+  assert.equal(ehCompromissoDaRotina(null, "Compromissos"), false);
 });

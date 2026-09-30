@@ -12,6 +12,22 @@ export const CAMPO_TEMA = "Tema";
 export const CAMPO_UNIDADE = "Unidade";
 export const CAMPO_ORIGEM = "Origem no Brain";
 
+/**
+ * Enquanto os campos não existem na lista, o cockpit escreve tema, unidade e alerta de origem no
+ * texto da tarefa ("Tema: … · Unidade: …" e "Alerta de origem: …"), e é dali que o espelho lê. O
+ * ClickUp devolve o texto sem a marcação (sem ** e sem crase); as duas formas são aceitas.
+ */
+export function marcasDoTexto(texto: string | null | undefined): { tema: string | null; unidade: string | null; origem: string | null } {
+  const t = (texto ?? "").replace(/\*\*|`/g, "");
+  const pega = (re: RegExp) => t.match(re)?.[1]?.trim() || null;
+  return {
+    // O tema vem como "Ter · Financeiro e Operações": vai até o "· Unidade:", não até o primeiro "·".
+    tema: pega(/^\s*Tema:\s*(.+?)\s*(?:·\s*Unidade:|$)/m),
+    unidade: pega(/Unidade:\s*(.+?)\s*$/m),
+    origem: pega(/^\s*Alerta de origem:\s*(\S+)\s*$/m),
+  };
+}
+
 export interface Dono {
   id: string;
   nome: string | null;
@@ -58,6 +74,7 @@ export function linhaDoEspelho(t: TarefaBruta, pastasPorLista: Record<string, { 
       ? { id: pastasPorLista[listaId].id, nome: pastasPorLista[listaId].nome }
       : null;
   const concluida = concluidaStatus(t.status?.type);
+  const marcas = marcasDoTexto(t.text_content ?? t.description);
   return {
     id: t.id,
     parent_id: t.parent ?? null,
@@ -80,9 +97,9 @@ export function linhaDoEspelho(t: TarefaBruta, pastasPorLista: Record<string, { 
     atualizada_em: dataDoClickUp(t.date_updated),
     concluida_em: concluida ? dataDoClickUp(t.date_done ?? t.date_closed) : null,
     tags: (t.tags ?? []).map((x) => x.name),
-    tema: opcaoDoCampo(t.custom_fields, CAMPO_TEMA),
-    unidade: opcaoDoCampo(t.custom_fields, CAMPO_UNIDADE),
-    origem: opcaoDoCampo(t.custom_fields, CAMPO_ORIGEM),
+    tema: opcaoDoCampo(t.custom_fields, CAMPO_TEMA) ?? marcas.tema,
+    unidade: opcaoDoCampo(t.custom_fields, CAMPO_UNIDADE) ?? marcas.unidade,
+    origem: opcaoDoCampo(t.custom_fields, CAMPO_ORIGEM) ?? marcas.origem,
     prioridade: t.priority?.priority ?? null,
   };
 }

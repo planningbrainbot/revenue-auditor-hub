@@ -20,7 +20,7 @@ import { linhaDoEspelho } from "../../../supabase/functions/_shared/clickup/comp
 import type { TarefaBruta } from "../../../supabase/functions/_shared/clickup/normalizar.ts";
 import { abrirContextoCoo } from "./contexto.server.ts";
 import type { ContextoCoo, Db } from "./contexto.server.ts";
-import { PASTA_ROTINA } from "./compromissos.ts";
+import { ehCompromissoDaRotina, ehListaDeCompromissos, ehPastaDaRotina, PASTA_ROTINA } from "./compromissos.ts";
 import { TEMAS, ehTema } from "./contrato.ts";
 import type { Tema } from "./contrato.ts";
 import {
@@ -54,12 +54,16 @@ export interface ListaRotina {
 // A lista dos compromissos muda pouco: guarda 10 minutos por processo, para não gastar a cota.
 let listaEmCache: { lista: ListaRotina | null; em: number } | null = null;
 
-/** A lista de compromissos dentro da pasta Rotina Semanal (a que tem "compromisso" no nome, senão a primeira). */
+/**
+ * A lista de compromissos dentro da pasta Rotina Semanal (a que tem "compromisso" no nome). Sem
+ * reserva para a primeira lista: a "Minha Semana" é do Paulo, e o que o cockpit gravasse lá não
+ * apareceria na leitura, que só olha a lista de compromissos.
+ */
 async function listaDaRotina(c: ClienteClickUp): Promise<ListaRotina | null> {
   if (listaEmCache && Date.now() - listaEmCache.em < 10 * 60_000) return listaEmCache.lista;
   const { pastas } = await lerEstruturaDoSpace(c, SPACE_EXPANSAO);
-  const pasta = pastas.find((p) => p.name.toLowerCase().startsWith(PASTA_ROTINA.toLowerCase()));
-  const l = pasta ? pasta.lists.find((x) => /compromisso/i.test(x.name)) ?? pasta.lists[0] : undefined;
+  const pasta = pastas.find((p) => ehPastaDaRotina(p.name));
+  const l = pasta?.lists.find((x) => ehListaDeCompromissos(x.name));
   const lista = pasta && l
     ? {
         id: l.id,
@@ -147,7 +151,7 @@ export const carregarOpcoesCompromisso = createServerFn({ method: "GET" })
       if (!lista)
         return {
           conectado: false,
-          motivo: `Não achei a pasta "${PASTA_ROTINA}" com uma lista no space da Expansão Nacional.`,
+          motivo: `Não achei a lista de compromissos na pasta "${PASTA_ROTINA}" do space da Expansão Nacional.`,
           lista: null,
           membros: [],
           unidades,
@@ -248,10 +252,10 @@ export const atualizarCompromisso = createServerFn({ method: "POST" })
     // resto do ClickUp.
     const { data: linha } = await db
       .from("clickup_tarefas")
-      .select("id, lista_id, pasta_nome, donos, prazo, status")
+      .select("id, lista_id, lista_nome, pasta_nome, donos, prazo, status")
       .eq("id", data.tarefaId)
       .maybeSingle();
-    if (!linha || !String(linha.pasta_nome ?? "").toLowerCase().startsWith(PASTA_ROTINA.toLowerCase()))
+    if (!linha || !ehCompromissoDaRotina(linha.pasta_nome, linha.lista_nome))
       return { ok: false, mensagem: "Esta tarefa não é um compromisso da Rotina Semanal." };
     const token = await tokenClickUp();
     if (!token) return { ok: false, mensagem: "O ClickUp ainda não está conectado (token em Administração › Chaves de Integração)." };

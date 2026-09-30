@@ -49,6 +49,8 @@ export interface Compromisso {
 }
 
 export const PASTA_ROTINA = "Rotina Semanal";
+/** A lista dos compromissos dentro da pasta (no ClickUp: "✅ Compromissos da rotina"). */
+export const LISTA_COMPROMISSOS = "Compromissos";
 export const DIAS_PARADO = 7;
 
 const chave = (s: string) =>
@@ -58,6 +60,19 @@ const chave = (s: string) =>
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+
+/**
+ * Compromisso é tarefa da lista de compromissos na pasta da Rotina Semanal. No ClickUp a pasta tem
+ * enfeite ("🗓️ Rotina Semanal · Paulo"), então casa por conteúdo, não pelo começo do nome. A
+ * "Minha Semana" da mesma pasta (os blocos D1–D5 e a caixa de entrada) não é compromisso.
+ */
+export function ehCompromissoDaRotina(pasta: string | null | undefined, lista: string | null | undefined): boolean {
+  return chave(pasta ?? "").includes(chave(PASTA_ROTINA)) && chave(lista ?? "").includes(chave(LISTA_COMPROMISSOS));
+}
+
+export const ehPastaDaRotina = (nome: string | null | undefined) => chave(nome ?? "").includes(chave(PASTA_ROTINA));
+export const ehListaDeCompromissos = (nome: string | null | undefined) =>
+  chave(nome ?? "").includes(chave(LISTA_COMPROMISSOS));
 
 /** O valor do campo Tema do ClickUp → tema do cockpit. Aceita título, rótulo do menu ou dia. */
 export function temaDoTexto(texto: string | null | undefined): Tema | null {

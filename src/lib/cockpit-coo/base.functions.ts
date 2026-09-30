@@ -10,6 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { todasAsPaginas } from "../cockpit-ceo/paginar.ts";
 import { abrirContextoCoo, motivoDoErro } from "./contexto.server.ts";
 import type { ContextoCoo } from "./contexto.server.ts";
+import { LISTA_COMPROMISSOS, PASTA_ROTINA } from "./compromissos.ts";
 import type { LinhaEspelho, LinhaEvento } from "./compromissos.ts";
 import type { LinhaSnapshot } from "./okrs.ts";
 import type { UnidadeCoo } from "./unidades.ts";
@@ -58,7 +59,8 @@ export async function lerBaseCoo(ctx: ContextoCoo): Promise<BaseCoo> {
           .from("clickup_tarefas")
           .select("*")
           .is("ausente_desde", null)
-          .ilike("pasta_nome", "Rotina Semanal%")
+          .ilike("pasta_nome", `%${PASTA_ROTINA}%`)
+          .ilike("lista_nome", `%${LISTA_COMPROMISSOS}%`)
           .order("id")
           .range(de, ate),
       ).then(

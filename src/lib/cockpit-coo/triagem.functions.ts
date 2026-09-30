@@ -20,7 +20,7 @@ import { opcaoPorNome } from "../../../supabase/functions/_shared/clickup/campos
 import { CAMPO_UNIDADE } from "../../../supabase/functions/_shared/clickup/compromissos.ts";
 import { abrirContextoCoo } from "./contexto.server.ts";
 import type { ContextoCoo, Db } from "./contexto.server.ts";
-import { PASTA_ROTINA } from "./compromissos.ts";
+import { LISTA_COMPROMISSOS, PASTA_ROTINA } from "./compromissos.ts";
 import { ehTema } from "./contrato.ts";
 import {
   LIMIARES_TRIAGEM,
@@ -147,7 +147,8 @@ export const triarCompromissos = createServerFn({ method: "POST" })
       .is("ausente_desde", null)
       .eq("concluida", false)
       .is("unidade", null)
-      .ilike("pasta_nome", `${PASTA_ROTINA}%`)
+      .ilike("pasta_nome", `%${PASTA_ROTINA}%`)
+      .ilike("lista_nome", `%${LISTA_COMPROMISSOS}%`)
       .limit(200);
     const { data: ja } = await db.from("cockpit_coo_sugestoes").select("tarefa_id, assinatura").eq("versao", VERSAO).eq("pergunta", "unidade");
     const feitas = new Set(((ja ?? []) as { tarefa_id: string; assinatura: string }[]).map((x) => `${x.tarefa_id}|${x.assinatura}`));
@@ -227,7 +228,8 @@ export const verificarDuplicidade = createServerFn({ method: "POST" })
       .select("id, nome, url, tema")
       .is("ausente_desde", null)
       .eq("concluida", false)
-      .ilike("pasta_nome", `${PASTA_ROTINA}%`)
+      .ilike("pasta_nome", `%${PASTA_ROTINA}%`)
+      .ilike("lista_nome", `%${LISTA_COMPROMISSOS}%`)
       .limit(200);
     const candidatas = ((abertas ?? []) as { id: string; nome: string; url: string }[]).slice(0, 20);
     if (!candidatas.length) return { parecida: null };
