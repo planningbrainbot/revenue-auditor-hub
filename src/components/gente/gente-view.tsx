@@ -40,13 +40,44 @@ import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
 // `docs/design/contratos/gente.md`). Filtros na URL (N7): `busca`, `unidade`,
-// `departamento` e `status` (padrão "ativo"; "todos" tira o recorte).
+// `departamento`, `status` (padrão "ativo"; "todos" tira o recorte), `casa`
+// (faixa de tempo de casa) e `admissao_de`/`admissao_ate`.
 
 const NA = "—";
 // Valor do Select para "sem recorte". Na URL o recorte vazio simplesmente não
 // aparece; este sentinela só existe porque o Select não aceita valor "".
 const TODOS = "__todos__";
-const CHAVES_FILTRO = ["busca", "unidade", "departamento", "status"];
+const CHAVES_FILTRO = [
+  "busca",
+  "unidade",
+  "departamento",
+  "status",
+  "casa",
+  "admissao_de",
+  "admissao_ate",
+];
+
+// Faixas pensadas para a avaliação de experiência (45 e 90 dias): o RH filtra
+// quem está na janela antes de mandar a pesquisa. Pedido do RH de Maceió,
+// 30/09/2026, no lugar de um ciclo automático por admissão.
+const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (dias: number | null) => boolean }> = {
+  ate45: { rotulo: "Até 45 dias", cabe: (d) => d != null && d <= 45 },
+  "46a90": { rotulo: "De 46 a 90 dias", cabe: (d) => d != null && d > 45 && d <= 90 },
+  mais90: { rotulo: "Mais de 90 dias", cabe: (d) => d != null && d > 90 },
+  sem: { rotulo: "Sem data de admissão", cabe: (d) => d == null },
+};
+
+/** Dias desde a admissão, contados em data local (a coluna é `date`). */
+function diasDeCasa(admissao: string | null): number | null {
+  if (!admissao) return null;
+  const hoje = new Date();
+  const inicio = new Date(`${admissao.slice(0, 10)}T12:00:00`);
+  const hojeMeioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12);
+  return Math.round((hojeMeioDia.getTime() - inicio.getTime()) / 86_400_000);
+}
+
+const fmtCasa = (d: number | null) =>
+  d == null ? NA : d < 0 ? `entra em ${-d} d` : d === 1 ? "1 dia" : `${NUM.format(d)} dias`;
 const NUM = new Intl.NumberFormat("pt-BR");
 
 const VINCULO_LABEL: Record<string, string> = {
@@ -76,6 +107,9 @@ export function GenteView() {
   const [unidade, setUnidade] = useFiltroNaUrl("unidade", "");
   const [departamento, setDepartamento] = useFiltroNaUrl("departamento", "");
   const [status, setStatus] = useFiltroNaUrl("status", "ativo");
+  const [casa, setCasa] = useFiltroNaUrl("casa", "");
+  const [admissaoDe, setAdmissaoDe] = useFiltroNaUrl("admissao_de", "");
+  const [admissaoAte, setAdmissaoAte] = useFiltroNaUrl("admissao_ate", "");
   const limpar = useLimparFiltrosNaUrl(CHAVES_FILTRO);
 
   const pessoas = useMemo(() => q.data?.pessoas ?? [], [q.data]);
@@ -104,12 +138,18 @@ export function GenteView() {
     return doStatus.filter((p: GentePessoaRow) => {
       if (unidade && p.unidade !== unidade) return false;
       if (departamento && p.departamento !== departamento) return false;
+      if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(diasDeCasa(p.dataAdmissao))) {
+        return false;
+      }
+      const adm = p.dataAdmissao?.slice(0, 10) ?? null;
+      if (admissaoDe && (!adm || adm < admissaoDe)) return false;
+      if (admissaoAte && (!adm || adm > admissaoAte)) return false;
       if (!termo) return true;
       return [p.nomeCompleto, p.email, p.cargo, p.gestorNome]
         .filter(Boolean)
         .some((c) => (c as string).toLowerCase().includes(termo));
     });
-  }, [doStatus, busca, unidade, departamento]);
+  }, [doStatus, busca, unidade, departamento, casa, admissaoDe, admissaoAte]);
 
   const totais = useMemo(() => {
     const pessoasTotal = unidades.reduce((s, u) => s + u.pessoas, 0);
@@ -150,7 +190,14 @@ export function GenteView() {
   }
 
   const qualStatus = status === "todos" ? "todos os status" : (STATUS[status]?.plural ?? status);
-  const filtroAtivo = !!busca || !!unidade || !!departamento || status !== "ativo";
+  const filtroAtivo =
+    !!busca ||
+    !!unidade ||
+    !!departamento ||
+    status !== "ativo" ||
+    !!casa ||
+    !!admissaoDe ||
+    !!admissaoAte;
 
   return (
     <div className="space-y-6">
@@ -299,6 +346,39 @@ export function GenteView() {
                 <SelectItem value="todos">Todos os status</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={casa || TODOS} onValueChange={(v) => setCasa(v === TODOS ? "" : v)}>
+              <SelectTrigger className="h-8 w-48" id="gente-casa" aria-label="Tempo de casa">
+                <SelectValue placeholder="Tempo de casa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Qualquer tempo de casa</SelectItem>
+                {Object.entries(FAIXAS_CASA).map(([v, f]) => (
+                  <SelectItem key={v} value={v}>
+                    {f.rotulo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <label htmlFor="gente-admissao-de">Admissão de</label>
+              <Input
+                id="gente-admissao-de"
+                type="date"
+                value={admissaoDe}
+                max={admissaoAte || undefined}
+                onChange={(e) => setAdmissaoDe(e.target.value)}
+                className="h-8 w-36"
+              />
+              <label htmlFor="gente-admissao-ate">até</label>
+              <Input
+                id="gente-admissao-ate"
+                type="date"
+                value={admissaoAte}
+                min={admissaoDe || undefined}
+                onChange={(e) => setAdmissaoAte(e.target.value)}
+                className="h-8 w-36"
+              />
+            </div>
           </BarraFiltros>
 
           {filtroAtivo ? (
@@ -323,6 +403,23 @@ export function GenteView() {
                   aoRemover={() => setStatus("ativo")}
                 />
               ) : null}
+              {casa && FAIXAS_CASA[casa] ? (
+                <ChipFiltro
+                  rotulo="Tempo de casa"
+                  valor={FAIXAS_CASA[casa].rotulo}
+                  aoRemover={() => setCasa("")}
+                />
+              ) : null}
+              {admissaoDe || admissaoAte ? (
+                <ChipFiltro
+                  rotulo="Admissão"
+                  valor={`${admissaoDe ? fmtData(admissaoDe) : "início"} a ${admissaoAte ? fmtData(admissaoAte) : "hoje"}`}
+                  aoRemover={() => {
+                    setAdmissaoDe("");
+                    setAdmissaoAte("");
+                  }}
+                />
+              ) : null}
             </div>
           ) : null}
 
@@ -337,6 +434,7 @@ export function GenteView() {
                     <TableHead>Gestor</TableHead>
                     <TableHead>Vínculo</TableHead>
                     <TableHead>Admissão</TableHead>
+                    <TableHead>Tempo de casa</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Acesso ao Brain</TableHead>
                     {podeCadastrar ? <TableHead className="w-0" /> : null}
@@ -362,6 +460,7 @@ export function GenteView() {
                           {p.tipoVinculo ? (VINCULO_LABEL[p.tipoVinculo] ?? p.tipoVinculo) : NA}
                         </TableCell>
                         <TableCell className="num">{fmtData(p.dataAdmissao)}</TableCell>
+                        <TableCell className="num">{fmtCasa(diasDeCasa(p.dataAdmissao))}</TableCell>
                         <TableCell>
                           {st ? (
                             <StatusBadge tom={st.tom}>{st.rotulo}</StatusBadge>
