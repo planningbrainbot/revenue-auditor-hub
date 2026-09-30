@@ -3742,7 +3742,7 @@ Publicado com o ok do Pedro ("pode sim... publica, corrige, depois publica de no
   2. `omie-tags-sync` no ar.
   3. App `4b30837` publicado (`dpl_32PcfqZ4HCJ27qrYSb9ubkRfow3t`). Conferido no bundle servido.
 - **Primeira carga das tags:** várias unidades numa execução passaram do limite de 150 s no meio da Matriz. O PR #40 corrigiu: uma unidade por execução, cron `omie-tags-sync-10min` (migration `20260929200000`). A Matriz foi relida inteira (5.662 cadastros). Maceió, São Luís e Sorocaba entram pelo cron; Sorocaba vai dar erro enquanto a unidade não ativar o addon da API na Omie Store.
-- **Deploy de outra sessão:** às 22:1x UTC ela publicou a main com o Cockpit do COO (PR #39, `dpl_36Wmpm6JnRnNXhMVQ92sxgh9RZx3`). O deploy saiu por cima deste e manteve tudo o que está aqui.
+- **Deploy de outra sessão:** minutos depois, ela publicou a main com o Cockpit do COO (PR #39, `dpl_36Wmpm6JnRnNXhMVQ92sxgh9RZx3`). O deploy saiu por cima deste e manteve tudo o que está aqui.
 
 ## [2026-09-29] Só fornecedor no Omie sai das ofertas e das cargas (adendo ao filtro de tags)
 
