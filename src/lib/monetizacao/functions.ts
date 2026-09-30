@@ -232,6 +232,23 @@ export const detalheAquario = createServerFn({ method: "GET" })
     };
   });
 
+export type ContatosExportados = {
+  restricted: boolean;
+  byKey: Record<string, { nomes: string | null; emails: string | null; telefones: string | null }>;
+};
+
+/** Contatos do "Exportar filtro": mesmos canais da gaveta, em lotes de 500 contas por chamada. */
+export const contatosParaExportar = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ keys: z.array(z.string().min(1).max(80)).max(500) }))
+  .handler(async ({ context, data }): Promise<ContatosExportados> => {
+    if (!(await check(context.supabase, "view.contatos"))) return { restricted: true, byKey: {} };
+    const db = (context.supabase as DB).schema("ops");
+    const { data: byKey, error } = await db.rpc("base_contatos_exportar", { _keys: data.keys });
+    if (error) throw new Error("Não foi possível ler os contatos para a exportação.");
+    return { restricted: false, byKey: byKey || {} };
+  });
+
 const review = z.object({
   band: z.string().max(160).optional(),
   segment: z.string().max(160).optional(),

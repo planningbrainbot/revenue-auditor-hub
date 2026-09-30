@@ -40,7 +40,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
-import { acionarMonetizacao } from "@/lib/monetizacao/functions";
+import { acionarMonetizacao, contatosParaExportar } from "@/lib/monetizacao/functions";
+import type { ContatosExportados } from "@/lib/monetizacao/functions";
 import {
   baseRetroativaConsultoria,
   disponibilidade,
@@ -764,6 +765,7 @@ function PortfolioTable({
   produtoFixo?: boolean;
 }) {
   const [limit, setLimit] = useState(50);
+  const lerContatos = useServerFn(contatosParaExportar);
   // Cópia da seleção no momento do envio: o resultado continua legível mesmo quando as contas
   // enviadas saem do filtro após a atualização.
   const [sending, setSending] = useState<Conta[] | null>(null);
@@ -859,6 +861,113 @@ function PortfolioTable({
   const situacoes = (Object.keys(SITUACOES) as Situacao[]).filter(
     (s) => s !== "potential" || product === "consultoria",
   );
+  const [exportando, setExportando] = useState(false);
+  // Os contatos não vêm na carteira (só o "tem ou não"): lê em lotes de 500 na hora de exportar.
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      const contatos: ContatosExportados = { restricted: false, byKey: {} };
+      const keys = rows.map((a) => a.key);
+      for (let i = 0; i < keys.length; i += 500) {
+        const lote = await lerContatos({ data: { keys: keys.slice(i, i + 500) } });
+        if (lote.restricted) {
+          contatos.restricted = true;
+          break;
+        }
+        Object.assign(contatos.byKey, lote.byKey);
+      }
+      downloadCsv("aquario.csv", [
+        [
+          "Empresa",
+          // As cinco colunas abaixo marcadas existiam só no CSV da aba "Empresas".
+          // Sem elas, exportar daqui perdia a identidade fiscal e a procedência.
+          "CNPJ",
+          "Unidade",
+          "Origem da base",
+          "Fonte da origem",
+          "Origem no Pipefy",
+          "Omie",
+          "ECD",
+          "Próximo passo",
+          "Situação na Receita",
+          "Fonte da situação",
+          "Faturamento anual",
+          "Conflito de faturamento",
+          "Faixa de faturamento estimado do grupo · Driva",
+          "Driva · consultado em",
+          "Segmento",
+          "Regime",
+          "Contato",
+          "Nome do contato",
+          "E-mails",
+          "Telefones",
+          "Distrato · Central de Tratativas",
+          "Vínculo com a Consultoria",
+          "Cadastro no Omie",
+          "Consultoria",
+          "Finance",
+          "Cella",
+          ...(product ? [`Situação · ${NOMES[product]}`, "Abordagem"] : []),
+        ],
+        ...rows.map((a) => {
+          const e = estado(a);
+          return [
+            a.name,
+            a.base?.cnpjs.join(" / ") || "",
+            a.unit_label,
+            ORIGENS_BASE[origemBase(a)],
+            a.base_origin?.reason,
+            a.base?.declared_origin.join(" / ") || "",
+            a.base?.omie_units.join(" / ") || "",
+            [...new Set(a.base?.ecd.map((x) => x.year) || [])].join(" / "),
+            a.base?.needs_source_correction
+              ? "Corrigir origem no Pipefy"
+              : a.base?.needs_validation
+                ? "Validar origem com a unidade"
+                : "Cadastro conferido",
+            rotuloSituacaoReceita(a) ?? "Sem consulta na Receita",
+            a.situacao_receita_fonte,
+            faturamentoDeclarado(a),
+            tetoContradizFaixa(a),
+            a.driva?.group_revenue_band,
+            a.driva?.queried_at,
+            a.segment,
+            a.regime,
+            a.contact ? "Sim" : "Obter com o sócio",
+            ...(contatos.restricted
+              ? ["Sem permissão para ver contatos", "", ""]
+              : [
+                  contatos.byKey[a.key]?.nomes ?? "",
+                  contatos.byKey[a.key]?.emails ?? "",
+                  contatos.byKey[a.key]?.telefones ?? "",
+                ]),
+            textoDistrato(a),
+            textoConsultoria(a),
+            textoOmie(a),
+            oferta(a, "consultoria").reason,
+            oferta(a, "finance").reason,
+            oferta(a, "cella").reason,
+            ...(e
+              ? [
+                  ROTULO_SITUACAO[e.situacao],
+                  e.abordagem
+                    .map((x) =>
+                      x === "enviada" && e.envio === "incerto"
+                        ? "Envio incerto, conferir no Pipedrive"
+                        : ABORDAGENS[x],
+                    )
+                    .join("; "),
+                ]
+              : []),
+          ];
+        }),
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível exportar.");
+    } finally {
+      setExportando(false);
+    }
+  };
   return (
     <SecaoCartao
       titulo={`${
@@ -875,90 +984,9 @@ function PortfolioTable({
       }
       acoes={
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              downloadCsv("aquario.csv", [
-                [
-                  "Empresa",
-                  // As cinco colunas abaixo marcadas existiam só no CSV da aba "Empresas".
-                  // Sem elas, exportar daqui perdia a identidade fiscal e a procedência.
-                  "CNPJ",
-                  "Unidade",
-                  "Origem da base",
-                  "Fonte da origem",
-                  "Origem no Pipefy",
-                  "Omie",
-                  "ECD",
-                  "Próximo passo",
-                  "Situação na Receita",
-                  "Fonte da situação",
-                  "Faturamento anual",
-                  "Conflito de faturamento",
-                  "Faixa de faturamento estimado do grupo · Driva",
-                  "Driva · consultado em",
-                  "Segmento",
-                  "Regime",
-                  "Contato",
-                  "Distrato · Central de Tratativas",
-                  "Vínculo com a Consultoria",
-                  "Cadastro no Omie",
-                  "Consultoria",
-                  "Finance",
-                  "Cella",
-                  ...(product ? [`Situação · ${NOMES[product]}`, "Abordagem"] : []),
-                ],
-                ...rows.map((a) => {
-                  const e = estado(a);
-                  return [
-                    a.name,
-                    a.base?.cnpjs.join(" / ") || "",
-                    a.unit_label,
-                    ORIGENS_BASE[origemBase(a)],
-                    a.base_origin?.reason,
-                    a.base?.declared_origin.join(" / ") || "",
-                    a.base?.omie_units.join(" / ") || "",
-                    [...new Set(a.base?.ecd.map((x) => x.year) || [])].join(" / "),
-                    a.base?.needs_source_correction
-                      ? "Corrigir origem no Pipefy"
-                      : a.base?.needs_validation
-                        ? "Validar origem com a unidade"
-                        : "Cadastro conferido",
-                    rotuloSituacaoReceita(a) ?? "Sem consulta na Receita",
-                    a.situacao_receita_fonte,
-                    faturamentoDeclarado(a),
-                    tetoContradizFaixa(a),
-                    a.driva?.group_revenue_band,
-                    a.driva?.queried_at,
-                    a.segment,
-                    a.regime,
-                    a.contact ? "Sim" : "Obter com o sócio",
-                    textoDistrato(a),
-                    textoConsultoria(a),
-                    textoOmie(a),
-                    oferta(a, "consultoria").reason,
-                    oferta(a, "finance").reason,
-                    oferta(a, "cella").reason,
-                    ...(e
-                      ? [
-                          ROTULO_SITUACAO[e.situacao],
-                          e.abordagem
-                            .map((x) =>
-                              x === "enviada" && e.envio === "incerto"
-                                ? "Envio incerto, conferir no Pipedrive"
-                                : ABORDAGENS[x],
-                            )
-                            .join("; "),
-                        ]
-                      : []),
-                  ];
-                }),
-              ])
-            }
-          >
+          <Button size="sm" variant="outline" disabled={exportando} onClick={exportar}>
             <Download className="mr-1 h-3 w-3" />
-            Exportar filtro
+            {exportando ? "Exportando…" : "Exportar filtro"}
           </Button>
           {product && (
             <BotaoComMotivo
