@@ -8,7 +8,7 @@
 // paga, e a Base puxa o cadastro inteiro; a tag (Cliente, Fornecedor, Funcionário...) é o que separa. A regra
 // das tags mora no banco (trigger `base_omie_tags_flags`); aqui só se grava o que o Omie devolve.
 //
-// Uma unidade por execução (a nunca lida primeiro, depois a de leitura mais antiga): a Matriz sozinha tem 12
+// Uma unidade por execução (a nunca tentada primeiro, depois a tentada há mais tempo): a Matriz sozinha tem 12
 // páginas de 500 e, na primeira carga de 29/09, várias unidades numa execução passaram do limite de 150 s no
 // meio da Matriz. O cron roda a cada 10 minutos; a volta nas 11 credenciais fecha em menos de duas horas.
 // Unidade concluída apaga os cadastros que sumiram do Omie dela; a interrompida não apaga nada.
@@ -126,32 +126,35 @@ Deno.serve(async (req: Request) => {
     const credenciais = (await db(
       "omie_credentials?ativo=eq.true&select=unidade,app_key,app_secret",
     )) as Row[];
-    // A marca da unidade é a leitura mais ANTIGA dela (min): unidade interrompida no meio fica com registros
-    // velhos e volta à frente da fila; a que nunca foi lida vem antes de todas.
-    let marca = new Map<string, string>();
-    try {
-      const marcas = (await db("base_omie_tags?select=unidade,sincronizado_em.min()")) as Row[];
-      marca = new Map(marcas.map((m) => [m.unidade, m.min]));
-    } catch { /* ordem da credencial */ }
+    // Fila pela TENTATIVA (ops.base_omie_tags_leituras, sem agregado do PostgREST, que não está ligado aqui):
+    // a unidade nunca tentada vai primeiro, depois a tentada há mais tempo. A tentativa é gravada antes de ler,
+    // para uma unidade que sempre falha (Sorocaba, sem o addon da API) não prender a fila.
+    const leituras = (await db("base_omie_tags_leituras?select=unidade,tentativa_em")) as Row[];
+    const tentativa = new Map(leituras.map((l) => [l.unidade, l.tentativa_em ?? ""]));
     const alvo = corpo.unidade
       ? credenciais.filter((c) => c.unidade === corpo.unidade)
       : [...credenciais]
         .sort((a, b) =>
-          String(marca.get(a.unidade) ?? "").localeCompare(String(marca.get(b.unidade) ?? ""))
+          String(tentativa.get(a.unidade) ?? "").localeCompare(String(tentativa.get(b.unidade) ?? ""))
         )
         .slice(0, 1);
 
     const feitas: Row[] = [];
     for (const cred of alvo) {
+      const registro = "base_omie_tags_leituras?on_conflict=unidade";
+      await db(registro, [{ unidade: cred.unidade, tentativa_em: new Date().toISOString() }], "POST", true);
       try {
         const cadastros = await sincronizarUnidade(cred.unidade, {
           app_key: cred.app_key,
           app_secret: cred.app_secret,
         });
+        await db(registro, [{ unidade: cred.unidade, concluida_em: new Date().toISOString(), cadastros, erro: null }], "POST", true);
         feitas.push({ unidade: cred.unidade, cadastros });
       } catch (e) {
         // Credencial vencida ou addon desligado numa unidade não impede as outras.
-        feitas.push({ unidade: cred.unidade, erro: (e as Error).message });
+        const erro = (e as Error).message;
+        await db(registro, [{ unidade: cred.unidade, erro }], "POST", true).catch(() => {});
+        feitas.push({ unidade: cred.unidade, erro });
       }
     }
     return resposta({ status: "completo", feitas });
