@@ -151,6 +151,18 @@ export function vinculosConsultoria(a: Conta): FiltroConsultoria[] {
   return v.length ? v : ["sem"];
 }
 
+/** Filtro "Cadastro no Omie" (29/09): a classe das tags do Omie, mais "fora do Omie". */
+export const CLASSES_OMIE = {
+  cliente: "Cliente",
+  cliente_e_fornecedor: "Cliente e fornecedor",
+  fornecedor: "Só fornecedor",
+  pessoa_interna: "Funcionário ou sócio",
+  sem_tag: "No Omie, sem tag",
+  fora_do_omie: "Fora do Omie",
+} as const;
+export type FiltroOmie = keyof typeof CLASSES_OMIE;
+export const classeOmie = (a: Conta): FiltroOmie => a.base?.omie?.classe ?? "fora_do_omie";
+
 export type PortfolioFilters = {
   query: string;
   receita: string[];
@@ -168,6 +180,8 @@ export type PortfolioFilters = {
   /** Vazio = DISTRATO_PADRAO (sem o concluído); ["todas"] = sem filtro. */
   distrato: string[];
   consultoria: FiltroConsultoria[];
+  /** Classe das tags do cadastro do Omie; vazio = todas. */
+  omie: FiltroOmie[];
 };
 export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   query: "",
@@ -185,6 +199,7 @@ export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   unit: [],
   distrato: [],
   consultoria: [],
+  omie: [],
 };
 
 type Dados = Pick<BaseMonetizacao, "cards" | "reservations" | "units"> & {
@@ -413,6 +428,7 @@ export function filtrarCarteira(
       return false;
     if (f.consultoria.length && !vinculosConsultoria(a).some((v) => f.consultoria.includes(v)))
       return false;
+    if (f.omie?.length && !f.omie.includes(classeOmie(a))) return false;
     if (
       f.overlap &&
       PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length +

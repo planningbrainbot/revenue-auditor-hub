@@ -16,6 +16,20 @@ export type SinalDistrato = {
   atualizado_em: string | null;
   sincronizado_em: string | null;
 };
+/**
+ * Tags do cadastro do Omie (migration 20260929180000, `omie-tags-sync`), somando todos os cadastros dos CNPJs da
+ * conta em todos os Omie, Matriz inclusive. `fornecedor` = Fornecedor ou Transportadora sem Cliente;
+ * `pessoa_interna` = Funcionário, Sócio, CLT, PJ ou Estágio sem Cliente nem Fornecedor; `sem_tag` = está no
+ * Omie sem nenhuma dessas. Ausente = nenhum CNPJ da conta está no Omie.
+ */
+export type ClasseOmie =
+  "cliente" | "cliente_e_fornecedor" | "fornecedor" | "pessoa_interna" | "sem_tag";
+export type SinalOmie = {
+  classe: ClasseOmie;
+  cliente_em: string[];
+  fornecedor_em: string[];
+  sincronizado_em: string | null;
+};
 /** Casamento com a plataforma da Consultoria: CNPJ completo, raiz (mesma pessoa jurídica) ou nome. */
 export type CasamentoConsultoria = "cnpj" | "raiz" | "nome";
 export type SinalConsultoria = {
@@ -84,6 +98,8 @@ export type BaseEmpresa = {
   /** Sinais externos (migration 20260928200000). Ausente = sem card nem casamento. */
   distrato?: SinalDistrato | null;
   consultoria?: SinalConsultoria | null;
+  /** Tags do cadastro do Omie (migration 20260929180000). */
+  omie?: SinalOmie | null;
 };
 export type Refinamento = "" | "cnpj" | "contato" | "ecd";
 export function passaRefinamento(a: Conta, gate: Refinamento) {
