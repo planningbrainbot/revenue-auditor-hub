@@ -35,7 +35,7 @@ import {
   type TomStatus,
 } from "@/components/planning";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
-import { DarAcessoDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
+import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
@@ -339,6 +339,7 @@ export function GenteView() {
                     <TableHead>Admissão</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Acesso ao Brain</TableHead>
+                    {podeCadastrar ? <TableHead className="w-0" /> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -381,6 +382,11 @@ export function GenteView() {
                             <StatusBadge tom="neutro">sem login</StatusBadge>
                           )}
                         </TableCell>
+                        {podeCadastrar ? (
+                          <TableCell>
+                            <EditarPessoaDialog pessoa={p} gestores={q.data.gestores} />
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     );
                   })}

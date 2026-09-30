@@ -33,6 +33,9 @@ export interface GentePessoaRow {
   dataAdmissao: string | null;
   unidade: string | null;
   gestorNome: string | null;
+  /** Para o formulário de edição abrir com o gestor e a unidade atuais. */
+  gestorId: number | null;
+  unidadeId: number | null;
   temLogin: boolean;
 }
 
@@ -144,6 +147,8 @@ export const listGente = createServerFn({ method: "GET" })
       dataAdmissao: p.data_admissao,
       unidade: p.unidade_id != null ? (praças.get(p.unidade_id) ?? null) : null,
       gestorNome: p.gestor_id != null ? (nomePorId.get(p.gestor_id) ?? null) : null,
+      gestorId: p.gestor_id,
+      unidadeId: p.unidade_id,
       temLogin: !!p.user_id,
     }));
 
@@ -261,7 +266,12 @@ type Cliente = any;
  * alguém da Matriz virava gestor dessa pessoa no People e lia os 1:1 e PDIs
  * dela (auditoria de 24/09/2026).
  */
-async function podeLigarConta(db: Cliente, adm: Cliente, ator: string, alvo: string): Promise<boolean> {
+async function podeLigarConta(
+  db: Cliente,
+  adm: Cliente,
+  ator: string,
+  alvo: string,
+): Promise<boolean> {
   if (alvo === ator) return true;
   const [papeis, areas, admins, escopo, unidades] = await Promise.all([
     adm.from("user_roles").select("role").eq("user_id", alvo),
@@ -557,7 +567,11 @@ export const criarPessoa = createServerFn({ method: "POST" })
   });
 
 /** Liga a pessoa a uma conta que já existe com o mesmo e-mail. Não cria nada. */
-async function darAcessoSoVinculo(db: Cliente, ator: string, pessoaId: number): Promise<AcessoResult> {
+async function darAcessoSoVinculo(
+  db: Cliente,
+  ator: string,
+  pessoaId: number,
+): Promise<AcessoResult> {
   const { data: pessoa } = await db
     .from("gente_pessoas")
     .select("email")
@@ -581,6 +595,104 @@ async function darAcessoSoVinculo(db: Cliente, ator: string, pessoaId: number): 
     .is("user_id", null);
   return { situacao: error ? "sem_acesso" : "vinculado", emailEnviado: false, link: null };
 }
+
+export interface EditarPessoaInput {
+  pessoaId: number;
+  nomeCompleto: string;
+  cargo?: string;
+  departamento?: string;
+  tipoVinculo?: string;
+  dataAdmissao?: string;
+  gestorId?: number | null;
+}
+
+// Edição do cadastro pelo RH da unidade (pedido de 28/09/2026: a unidade
+// cadastra sem setor enquanto o organograma está em construção e completa
+// depois). O update roda como o usuário: `gente_pessoas_write` pede
+// `manage.gente` e a RESTRICTIVE prende na unidade.
+//
+// Fora de propósito: e-mail (é a chave que liga o login), unidade
+// (transferência é com a Matriz) e status (desligar precisa revogar o acesso,
+// o que esta tela ainda não faz).
+export const editarPessoa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: EditarPessoaInput) => {
+    if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+    const nomeCompleto = (input?.nomeCompleto ?? "").trim().replace(/\s+/g, " ");
+    if (nomeCompleto.split(" ").length < 2) throw new Error("Informe nome e sobrenome.");
+    const tipoVinculo = input.tipoVinculo || null;
+    if (tipoVinculo && !VINCULOS.includes(tipoVinculo)) throw new Error("Vínculo inválido.");
+    const dataAdmissao = input.dataAdmissao || null;
+    if (dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataAdmissao)) {
+      throw new Error("Data de admissão inválida.");
+    }
+    const gestorId = input.gestorId ?? null;
+    if (gestorId != null && !Number.isInteger(gestorId)) throw new Error("Gestor inválido.");
+    if (gestorId === input.pessoaId) throw new Error("A pessoa não pode ser gestora de si mesma.");
+    return {
+      pessoaId: input.pessoaId,
+      nomeCompleto,
+      cargo: input.cargo?.trim() || null,
+      departamento: input.departamento?.trim() || null,
+      tipoVinculo,
+      dataAdmissao,
+      gestorId,
+    };
+  })
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Cliente;
+
+    // Ciclo na hierarquia: sobe a partir do novo gestor; se chegar na própria
+    // pessoa, ela viraria gestora de quem a gere.
+    if (data.gestorId != null) {
+      const { data: todos, error: eH } = await supabase
+        .from("gente_pessoas")
+        .select("id,gestor_id,status")
+        .order("id")
+        .range(0, 4999);
+      if (eH) throw new Error(eH.message);
+      const chefe = new Map<number, number | null>(
+        ((todos ?? []) as { id: number; gestor_id: number | null }[]).map((p) => [
+          p.id,
+          p.gestor_id,
+        ]),
+      );
+      const g = ((todos ?? []) as { id: number; status: string }[]).find(
+        (p) => p.id === data.gestorId,
+      );
+      if (!g || g.status !== "ativo")
+        throw new Error("O gestor escolhido não está no cadastro ativo.");
+      let atual: number | null | undefined = data.gestorId;
+      for (let i = 0; atual != null && i < 100; i++) {
+        if (atual === data.pessoaId) {
+          throw new Error(
+            "Esse gestor é liderado por esta pessoa. A hierarquia ficaria em círculo.",
+          );
+        }
+        atual = chefe.get(atual);
+      }
+    }
+
+    const { data: ok, error } = await supabase
+      .from("gente_pessoas")
+      .update({
+        nome_completo: data.nomeCompleto,
+        cargo: data.cargo,
+        departamento: data.departamento,
+        tipo_vinculo: data.tipoVinculo,
+        data_admissao: data.dataAdmissao,
+        gestor_id: data.gestorId,
+      })
+      .eq("id", data.pessoaId)
+      .select("id");
+    if (error) {
+      if (error.code === "42501") throw new Error("Sem permissão para alterar esta pessoa.");
+      throw new Error(error.message);
+    }
+    // RLS que recusa update não dá erro, só volta vazio.
+    if (!ok?.length) throw new Error("Sem permissão para alterar esta pessoa.");
+    return { id: data.pessoaId };
+  });
 
 export interface LinhaImportacao {
   /** Número da linha na planilha, só para o relatório voltar apontando. */
@@ -633,8 +745,12 @@ export const importarPessoas = createServerFn({ method: "POST" })
         acesso,
         linhas: linhas.map((l) => ({
           linha: Number(l.linha),
-          nomeCompleto: String(l.nomeCompleto ?? "").trim().replace(/\s+/g, " "),
-          email: String(l.email ?? "").trim().toLowerCase(),
+          nomeCompleto: String(l.nomeCompleto ?? "")
+            .trim()
+            .replace(/\s+/g, " "),
+          email: String(l.email ?? "")
+            .trim()
+            .toLowerCase(),
           cargo: l.cargo?.trim() || null,
           departamento: l.departamento?.trim() || null,
           tipoVinculo: l.tipoVinculo || null,
@@ -767,7 +883,10 @@ export const importarPessoas = createServerFn({ method: "POST" })
           c.r.avisoGestor = "A pessoa não pode ser gestora de si mesma; entrou sem gestor.";
           continue;
         }
-        const { error } = await supabase.from("gente_pessoas").update({ gestor_id: g.id }).eq("id", c.id);
+        const { error } = await supabase
+          .from("gente_pessoas")
+          .update({ gestor_id: g.id })
+          .eq("id", c.id);
         if (error) c.r.avisoGestor = `Gestor não ligado: ${error.message}`;
       }
     }

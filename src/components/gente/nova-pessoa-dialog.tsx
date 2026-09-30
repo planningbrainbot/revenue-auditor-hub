@@ -2,8 +2,14 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { KeyRound, UserPlus } from "lucide-react";
-import { criarPessoa, darAcessoPessoa, type AcessoResult } from "@/lib/gente.functions";
+import { KeyRound, Pencil, UserPlus } from "lucide-react";
+import {
+  criarPessoa,
+  darAcessoPessoa,
+  editarPessoa,
+  type AcessoResult,
+  type GentePessoaRow,
+} from "@/lib/gente.functions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +33,7 @@ import {
 
 const SEM_GESTOR = "__sem__";
 const SEM_LOGIN = "__sem_login__";
+const SEM_VINCULO = "__sem_vinculo__";
 
 export const PERFIS_ACESSO = [
   {
@@ -71,6 +78,11 @@ export function avisarAcesso(r: AcessoResult & { erroAcesso?: string | null }) {
   } else {
     toast.success("Pessoa cadastrada, sem login no Brain.");
   }
+}
+
+/** Rótulo de campo que pode ficar em branco. Pedido do RH de Maceió, 28/09/2026. */
+function Opcional() {
+  return <span className="ml-1 text-xs font-normal text-muted-foreground">(opcional)</span>;
 }
 
 const VINCULOS = [
@@ -164,7 +176,8 @@ export function NovaPessoaDialog({
           <DialogTitle>Cadastrar pessoa</DialogTitle>
           <DialogDescription>
             Entra no cadastro da unidade e, se tiver acesso, ganha login no Brain com convite por
-            e-mail para criar a senha. Se o e-mail já tiver login, o vínculo é feito na hora.
+            e-mail para criar a senha. Se o e-mail já tiver login, o vínculo é feito na hora. Só
+            nome completo e e-mail são obrigatórios; o resto dá para completar depois em Editar.
           </DialogDescription>
         </DialogHeader>
 
@@ -222,7 +235,10 @@ export function NovaPessoaDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="np-cargo">Cargo</Label>
+              <Label htmlFor="np-cargo">
+                Cargo
+                <Opcional />
+              </Label>
               <Input
                 id="np-cargo"
                 value={f.cargo}
@@ -231,7 +247,10 @@ export function NovaPessoaDialog({
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="np-depto">Departamento</Label>
+              <Label htmlFor="np-depto">
+                Departamento
+                <Opcional />
+              </Label>
               <Input
                 id="np-depto"
                 value={f.departamento}
@@ -255,7 +274,10 @@ export function NovaPessoaDialog({
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="np-admissao">Admissão</Label>
+              <Label htmlFor="np-admissao">
+                Admissão
+                <Opcional />
+              </Label>
               <Input
                 id="np-admissao"
                 type="date"
@@ -266,7 +288,10 @@ export function NovaPessoaDialog({
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="np-gestor">Gestor</Label>
+            <Label htmlFor="np-gestor">
+              Gestor
+              <Opcional />
+            </Label>
             <Select value={f.gestorId} onValueChange={set("gestorId")} disabled={!unidadeId}>
               <SelectTrigger id="np-gestor">
                 <SelectValue />
@@ -385,6 +410,199 @@ export function DarAcessoDialog({
             {dar.isPending ? "Criando…" : "Criar login e enviar convite"}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Completar ou corrigir o cadastro de quem já está na unidade. E-mail, unidade
+ * e status ficam fora: ver o comentário de `editarPessoa`.
+ */
+export function EditarPessoaDialog({
+  pessoa,
+  gestores,
+}: {
+  pessoa: GentePessoaRow;
+  gestores: { id: number; nome: string; unidadeId: number | null }[];
+}) {
+  const fn = useServerFn(editarPessoa);
+  const qc = useQueryClient();
+  const [aberto, setAberto] = useState(false);
+  const inicial = () => ({
+    nomeCompleto: pessoa.nomeCompleto,
+    cargo: pessoa.cargo ?? "",
+    departamento: pessoa.departamento ?? "",
+    tipoVinculo: pessoa.tipoVinculo ?? SEM_VINCULO,
+    dataAdmissao: pessoa.dataAdmissao?.slice(0, 10) ?? "",
+    gestorId: pessoa.gestorId != null ? String(pessoa.gestorId) : SEM_GESTOR,
+  });
+  const [f, setF] = useState(inicial);
+  const set = (k: keyof ReturnType<typeof inicial>) => (v: string) =>
+    setF((s) => ({ ...s, [k]: v }));
+
+  const candidatos = gestores.filter(
+    (g) => g.id !== pessoa.id && (pessoa.unidadeId == null || g.unidadeId === pessoa.unidadeId),
+  );
+  // Gestor atual de outra unidade ou já inativo continua aparecendo, para o
+  // formulário não trocar o gestor sem ninguém pedir.
+  const gestorAtualFora =
+    pessoa.gestorId != null && !candidatos.some((g) => g.id === pessoa.gestorId);
+
+  const salvar = useMutation({
+    mutationFn: async () =>
+      fn({
+        data: {
+          pessoaId: pessoa.id,
+          nomeCompleto: f.nomeCompleto,
+          cargo: f.cargo,
+          departamento: f.departamento,
+          tipoVinculo: f.tipoVinculo === SEM_VINCULO ? "" : f.tipoVinculo,
+          dataAdmissao: f.dataAdmissao,
+          gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Cadastro atualizado.");
+      setAberto(false);
+      qc.invalidateQueries({ queryKey: ["gente"] });
+      qc.invalidateQueries({ queryKey: ["gente-menu"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog
+      open={aberto}
+      onOpenChange={(o) => {
+        setAberto(o);
+        if (o) setF(inicial());
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          aria-label={`Editar ${pessoa.nomeCompleto}`}
+        >
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+          Editar
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar cadastro</DialogTitle>
+          <DialogDescription>
+            {pessoa.email ?? "Sem e-mail"}
+            {pessoa.unidade ? `, ${pessoa.unidade}` : ""}. E-mail e unidade só a Matriz altera.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            salvar.mutate();
+          }}
+        >
+          <div className="grid gap-1.5">
+            <Label htmlFor="ep-nome">Nome completo</Label>
+            <Input
+              id="ep-nome"
+              value={f.nomeCompleto}
+              onChange={(e) => set("nomeCompleto")(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="ep-cargo">
+                Cargo
+                <Opcional />
+              </Label>
+              <Input id="ep-cargo" value={f.cargo} onChange={(e) => set("cargo")(e.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ep-depto">
+                Departamento
+                <Opcional />
+              </Label>
+              <Input
+                id="ep-depto"
+                value={f.departamento}
+                onChange={(e) => set("departamento")(e.target.value)}
+                placeholder="Ex.: RH"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ep-vinculo">
+                Vínculo
+                <Opcional />
+              </Label>
+              <Select value={f.tipoVinculo} onValueChange={set("tipoVinculo")}>
+                <SelectTrigger id="ep-vinculo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_VINCULO}>Não informado</SelectItem>
+                  {VINCULOS.map((v) => (
+                    <SelectItem key={v.v} value={v.v}>
+                      {v.t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ep-admissao">
+                Admissão
+                <Opcional />
+              </Label>
+              <Input
+                id="ep-admissao"
+                type="date"
+                value={f.dataAdmissao}
+                onChange={(e) => set("dataAdmissao")(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="ep-gestor">
+              Gestor
+              <Opcional />
+            </Label>
+            <Select value={f.gestorId} onValueChange={set("gestorId")}>
+              <SelectTrigger id="ep-gestor">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_GESTOR}>Sem gestor</SelectItem>
+                {gestorAtualFora ? (
+                  <SelectItem value={String(pessoa.gestorId)}>
+                    {pessoa.gestorNome ?? "Gestor atual"}
+                  </SelectItem>
+                ) : null}
+                {candidatos.map((g) => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {g.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter className="mt-2">
+            <Button type="button" variant="outline" onClick={() => setAberto(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvar.isPending}>
+              {salvar.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
