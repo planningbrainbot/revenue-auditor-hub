@@ -3731,3 +3731,33 @@ Os cinco temas foram conferidos por SQL independente na sessão do COO (`scripts
 - **Terça do Paulo:** ele tem só a PARTNERS no Brain Financeiro (`usuario_escopo.todas_empresas = false`). Os números de caixa e DRE do grupo aparecem "sem acesso" para ele até alguém liberar todas as empresas. A decisão é do Pedro e do dono do Financeiro.
 - **Vagas da quarta:** seguem sem fonte (PandaPé, com a Heloísa).
 - **Campos no ClickUp (opcional):** criar Tema, Unidade e Origem no Brain na lista, para filtrar dentro do próprio ClickUp.
+
+## [2026-09-29] Publicado: conta clicável na apresentação, "Preparar lista" sem produto e filtro de tags do Omie (adendo)
+
+Publicado com o ok do Pedro ("pode sim... publica, corrige, depois publica de novo"; "pode").
+
+- **PR #36 (conta clicável) e PR #37 (Preparar lista pergunta o produto):** saíram por CLI, primeiro `e56a959`, depois `ffb9cf8` (`ops-brain-m8n8l6dzi`). Conferido no bundle servido.
+- **PR #38 (filtro de tags do Omie):**
+  1. Migration `20260929180000` aplicada, depois de conferir que `base_unica_ficha` em produção era a mesma do ensaio.
+  2. `omie-tags-sync` no ar.
+  3. App `4b30837` publicado (`dpl_32PcfqZ4HCJ27qrYSb9ubkRfow3t`). Conferido no bundle servido.
+- **Primeira carga das tags:** várias unidades numa execução passaram do limite de 150 s no meio da Matriz. O PR #40 corrigiu: uma unidade por execução, cron `omie-tags-sync-10min` (migration `20260929200000`). A Matriz foi relida inteira (5.662 cadastros). Maceió, São Luís e Sorocaba entram pelo cron; Sorocaba vai dar erro enquanto a unidade não ativar o addon da API na Omie Store.
+- **Deploy de outra sessão:** minutos depois, ela publicou a main com o Cockpit do COO (PR #39, `dpl_36Wmpm6JnRnNXhMVQ92sxgh9RZx3`). O deploy saiu por cima deste e manteve tudo o que está aqui.
+
+## [2026-09-29] Só fornecedor no Omie sai das ofertas e das cargas (adendo ao filtro de tags)
+
+**Decisão do Pedro (29/09):** a pergunta foi "conta que é só fornecedor deve sair das prontas e das próximas cargas?". As respostas foram "sim deve sair" e "deve só ser mencionado".
+
+**Leitura aplicada:**
+- A conta sai de todas as ofertas: Consultoria, Finance, Cella e Recon.
+- A Base continua mostrando a conta, com o motivo "Só fornecedor no Omie (<onde>), sem tag de cliente. Fora das ofertas.", como já acontece com o distrato concluído.
+- Cliente e fornecedor continua apta.
+
+**Onde:**
+- `fornecedorForaDeOferta()` em `model.ts`, logo depois do distrato concluído, em `oferta()` e em `ofertaRecon()`.
+- `motivoConsultoria` ganha o motivo `fornecedor`, para o cartão não contar a conta como Simples.
+- `grupoRecon` ganha o grupo "Só fornecedor no Omie", para a conta não cair em "Até R$ 5 mi".
+- No servidor, `monetizacao_offer_issue` repete a regra na mesma posição (migration `20260929210000`), e o envio recusa com o mesmo motivo.
+- Cards já criados no Pipedrive não mudam. Na carga de outubro são três: 97983, 97933 e 97963.
+
+**Conferido:** ensaio da migration contra produção em transação desfeita, com as tags reais. O só fornecedor volta barrado em Consultoria e em Recon. Testes 328/328.

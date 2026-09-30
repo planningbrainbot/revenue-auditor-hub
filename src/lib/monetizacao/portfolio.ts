@@ -3,6 +3,7 @@ import {
   consultoriaForaDeOferta,
   disponibilidade,
   distratoForaDeOferta,
+  fornecedorForaDeOferta,
   hoje,
   limiteFaturamento,
   ESTADOS_DISTRATO,
@@ -59,12 +60,14 @@ export const soNoOmie = (a: Conta): boolean => procedencia(a) === "omie";
 // números" contam cada motivo à parte: um motivo não pode ser contado como outro (DECISIONS 19/09),
 // e quem já é cliente da Consultoria não é "excluída por Simples/MEI".
 export type MotivoConsultoria =
-  "apta" | "situacao" | "distrato" | "cliente" | "simples" | "confirmar";
+  "apta" | "situacao" | "distrato" | "fornecedor" | "cliente" | "simples" | "confirmar";
 export function motivoConsultoria(a: Conta): MotivoConsultoria {
   const o = oferta(a, "consultoria");
   if (o.status === "elegivel") return "apta";
   if (situacaoForaDeOferta(a)) return "situacao";
   if (distratoForaDeOferta(a)) return "distrato";
+  // Só fornecedor no Omie não é Simples: motivo próprio, para o cartão não contar um como o outro.
+  if (fornecedorForaDeOferta(a)) return "fornecedor";
   if (o.status === "fora_regra" && o.reason === consultoriaForaDeOferta(a)) return "cliente";
   return o.status === "fora_regra" ? "simples" : "confirmar";
 }
