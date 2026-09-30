@@ -42,6 +42,8 @@ import {
   Database,
   UserX,
   MessagesSquare,
+  CalendarDays,
+  ClipboardList,
 } from "lucide-react";
 
 /**
@@ -552,6 +554,40 @@ export const AREAS: Area[] = [
           },
           { title: "Caixa e margem", url: "/cockpit-ceo?frente=caixa", icon: Wallet },
           { title: "Evidências e capital", url: "/cockpit-ceo?frente=capital", icon: Database },
+        ],
+      },
+    ],
+  },
+  {
+    // Cockpit do COO · Expansão (29/09/2026, spec docs/superpowers/specs/2026-09-29-cockpit-coo-
+    // expansao-design.md, aprovada pelo COO com ajustes). A pauta das cinco reuniões da semana do COO:
+    // cada tema é um item da lateral (`?tema=`), a chave da URL é o tema e não o dia (N6, N7). O
+    // perímetro são TODAS as unidades do cadastro, a pedido do COO. Área liberada só para `admin`
+    // na migration 20260929120000; o COO entra pela tela de acessos.
+    slug: "cockpit_coo",
+    nome: "Cockpit do COO",
+    descricao: "A pauta da semana da Expansão: números de todas as unidades, OKRs e compromissos.",
+    icone: CalendarDays,
+    grupos: [
+      {
+        label: "Rotina da semana",
+        items: [
+          { title: "Seg · Growth", url: "/cockpit-coo?tema=growth", icon: TrendingUp },
+          {
+            title: "Ter · Financeiro e Operações",
+            url: "/cockpit-coo?tema=financeiro-operacoes",
+            icon: Wallet,
+          },
+          { title: "Qua · CS e RH", url: "/cockpit-coo?tema=cs-rh", icon: HeartPulse },
+          { title: "Qui · Monetização", url: "/cockpit-coo?tema=monetizacao", icon: Coins },
+          { title: "Sex · Estratégico", url: "/cockpit-coo?tema=estrategico", icon: Target },
+        ],
+      },
+      {
+        label: "Execução",
+        items: [
+          { title: "Compromissos", url: "/cockpit-coo/compromissos", icon: ClipboardList },
+          { title: "Perguntar ao Brain", url: "/cockpit-coo/perguntar", icon: MessagesSquare },
         ],
       },
     ],

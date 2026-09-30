@@ -63,6 +63,17 @@ export const CHAVES_CONHECIDAS: {
     opcoes: ["UNDEFINED", "PIX", "BOLETO", "CREDIT_CARD"],
     segredo: false,
   },
+  {
+    // Cockpit do COO (29/09/2026): a sincronização clickup-sync lê esta linha a cada 10 minutos;
+    // colar o token liga o espelho do space da Expansão Nacional sem deploy. As tarefas que o
+    // cockpit cria aparecem no ClickUp em nome do dono do token.
+    chave: "CLICKUP_API_KEY",
+    rotulo: "Token pessoal do ClickUp",
+    ajuda:
+      "No ClickUp: avatar › Settings › Apps › API Token (começa com pk_). Use o token de quem pode ver o space \"Operação | Expansão Nacional\". As tarefas criadas pelo Cockpit do COO aparecem em nome dessa pessoa.",
+    grupo: "ClickUp",
+    segredo: true,
+  },
 ];
 
 async function assertAdminIntegracoes(supabase: any) {

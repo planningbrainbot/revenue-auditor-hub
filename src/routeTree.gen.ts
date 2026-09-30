@@ -48,6 +48,7 @@ import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
+import { Route as AuthenticatedCockpitCooRouteImport } from './routes/_authenticated/cockpit-coo'
 import { Route as AuthenticatedCockpitCeoRouteImport } from './routes/_authenticated/cockpit-ceo'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBaseContatosRouteImport } from './routes/_authenticated/base-contatos'
@@ -65,6 +66,8 @@ import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authen
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
+import { Route as AuthenticatedCockpitCooPerguntarRouteImport } from './routes/_authenticated/cockpit-coo_.perguntar'
+import { Route as AuthenticatedCockpitCooCompromissosRouteImport } from './routes/_authenticated/cockpit-coo_.compromissos'
 import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
 import { Route as AuthenticatedBrokerReservasRouteImport } from './routes/_authenticated/broker.reservas'
 import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_authenticated/broker.movimentacoes'
@@ -293,6 +296,11 @@ const AuthenticatedComissoesRoute = AuthenticatedComissoesRouteImport.update({
   path: '/comissoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCockpitCooRoute = AuthenticatedCockpitCooRouteImport.update({
+  id: '/cockpit-coo',
+  path: '/cockpit-coo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCockpitCeoRoute = AuthenticatedCockpitCeoRouteImport.update({
   id: '/cockpit-ceo',
   path: '/cockpit-ceo',
@@ -387,6 +395,18 @@ const AuthenticatedRoyaltiesSplitRoute =
     id: '/split',
     path: '/split',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
+  } as any)
+const AuthenticatedCockpitCooPerguntarRoute =
+  AuthenticatedCockpitCooPerguntarRouteImport.update({
+    id: '/cockpit-coo_/perguntar',
+    path: '/cockpit-coo/perguntar',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCockpitCooCompromissosRoute =
+  AuthenticatedCockpitCooCompromissosRouteImport.update({
+    id: '/cockpit-coo_/compromissos',
+    path: '/cockpit-coo/compromissos',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCockpitCeoPerguntarRoute =
   AuthenticatedCockpitCeoPerguntarRouteImport.update({
@@ -493,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
+  '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -538,6 +559,8 @@ export interface FileRoutesByFullPath {
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
+  '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -564,6 +587,7 @@ export interface FileRoutesByTo {
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
+  '/cockpit-coo': typeof AuthenticatedCockpitCooRoute
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -608,6 +632,8 @@ export interface FileRoutesByTo {
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
+  '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -636,6 +662,7 @@ export interface FileRoutesById {
   '/_authenticated/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/cockpit-ceo': typeof AuthenticatedCockpitCeoRoute
+  '/_authenticated/cockpit-coo': typeof AuthenticatedCockpitCooRoute
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
@@ -682,6 +709,8 @@ export interface FileRoutesById {
   '/_authenticated/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/_authenticated/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/_authenticated/cockpit-coo_/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
+  '/_authenticated/cockpit-coo_/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
@@ -711,6 +740,7 @@ export interface FileRouteTypes {
     | '/base-contatos'
     | '/clientes'
     | '/cockpit-ceo'
+    | '/cockpit-coo'
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
@@ -756,6 +786,8 @@ export interface FileRouteTypes {
     | '/broker/movimentacoes'
     | '/broker/reservas'
     | '/cockpit-ceo/perguntar'
+    | '/cockpit-coo/compromissos'
+    | '/cockpit-coo/perguntar'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
@@ -782,6 +814,7 @@ export interface FileRouteTypes {
     | '/base-contatos'
     | '/clientes'
     | '/cockpit-ceo'
+    | '/cockpit-coo'
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
@@ -826,6 +859,8 @@ export interface FileRouteTypes {
     | '/broker/movimentacoes'
     | '/broker/reservas'
     | '/cockpit-ceo/perguntar'
+    | '/cockpit-coo/compromissos'
+    | '/cockpit-coo/perguntar'
     | '/royalties/split'
     | '/unidades/funil-cac'
     | '/unidades/royalties'
@@ -853,6 +888,7 @@ export interface FileRouteTypes {
     | '/_authenticated/base-contatos'
     | '/_authenticated/clientes'
     | '/_authenticated/cockpit-ceo'
+    | '/_authenticated/cockpit-coo'
     | '/_authenticated/comissoes'
     | '/_authenticated/contas-receber'
     | '/_authenticated/disparos-whatsapp'
@@ -899,6 +935,8 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/movimentacoes'
     | '/_authenticated/broker/reservas'
     | '/_authenticated/cockpit-ceo_/perguntar'
+    | '/_authenticated/cockpit-coo_/compromissos'
+    | '/_authenticated/cockpit-coo_/perguntar'
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/funil-cac'
     | '/_authenticated/unidades/royalties'
@@ -1199,6 +1237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComissoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cockpit-coo': {
+      id: '/_authenticated/cockpit-coo'
+      path: '/cockpit-coo'
+      fullPath: '/cockpit-coo'
+      preLoaderRoute: typeof AuthenticatedCockpitCooRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/cockpit-ceo': {
       id: '/_authenticated/cockpit-ceo'
       path: '/cockpit-ceo'
@@ -1317,6 +1362,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/royalties/split'
       preLoaderRoute: typeof AuthenticatedRoyaltiesSplitRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
+    }
+    '/_authenticated/cockpit-coo_/perguntar': {
+      id: '/_authenticated/cockpit-coo_/perguntar'
+      path: '/cockpit-coo/perguntar'
+      fullPath: '/cockpit-coo/perguntar'
+      preLoaderRoute: typeof AuthenticatedCockpitCooPerguntarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cockpit-coo_/compromissos': {
+      id: '/_authenticated/cockpit-coo_/compromissos'
+      path: '/cockpit-coo/compromissos'
+      fullPath: '/cockpit-coo/compromissos'
+      preLoaderRoute: typeof AuthenticatedCockpitCooCompromissosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cockpit-ceo_/perguntar': {
       id: '/_authenticated/cockpit-ceo_/perguntar'
@@ -1473,6 +1532,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBaseContatosRoute: typeof AuthenticatedBaseContatosRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedCockpitCeoRoute: typeof AuthenticatedCockpitCeoRoute
+  AuthenticatedCockpitCooRoute: typeof AuthenticatedCockpitCooRoute
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
@@ -1518,6 +1578,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
   AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
   AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
+  AuthenticatedCockpitCooCompromissosRoute: typeof AuthenticatedCockpitCooCompromissosRoute
+  AuthenticatedCockpitCooPerguntarRoute: typeof AuthenticatedCockpitCooPerguntarRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
   AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
 }
@@ -1532,6 +1594,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBaseContatosRoute: AuthenticatedBaseContatosRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedCockpitCeoRoute: AuthenticatedCockpitCeoRoute,
+  AuthenticatedCockpitCooRoute: AuthenticatedCockpitCooRoute,
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
@@ -1579,6 +1642,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
   AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
   AuthenticatedCockpitCeoPerguntarRoute: AuthenticatedCockpitCeoPerguntarRoute,
+  AuthenticatedCockpitCooCompromissosRoute:
+    AuthenticatedCockpitCooCompromissosRoute,
+  AuthenticatedCockpitCooPerguntarRoute: AuthenticatedCockpitCooPerguntarRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
   AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,
 }

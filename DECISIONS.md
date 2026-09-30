@@ -3624,3 +3624,91 @@ Publicado com o "Pode publicar" do Pedro, na ordem migration → Edge Function �
 - Migration ensaiada contra produção em transação desfeita, com as tags do dia. As contagens por classe batem com a medição por script (`monetizacao/base/medir_tags_omie.mjs`).
 - Página de 400 contas da ficha: 745–788 ms antes, 696–996 ms depois.
 - Testes 326/326.
+
+## [2026-09-29] Cockpit do COO · Expansão: usuário, perímetro e donos (spec em aprovação)
+
+**Contexto:** o dono pediu um "Cockpit do COO – Expansão", no mesmo espírito do Cockpit do CEO. Há três diferenças:
+- o COO olha a relação da matriz com as unidades, não a unidade de Goiânia;
+- a rotina dele é semanal: segunda Growth, terça Financeiro e Operações, quarta CS e RH, quinta Monetização, sexta Estratégico;
+- a parte tática precisa se ligar ao ClickUp.
+
+A spec está em `docs/superpowers/specs/2026-09-29-cockpit-coo-expansao-design.md`. Ela ainda não foi aprovada e nenhum código foi escrito.
+
+**Confirmado pelo dono nesta conversa:**
+- **O COO da Expansão é o Paulo Carvalho** (`paulo.carvalho@planning.com.br`, papel `diretor`). No Brain existem dois Paulos; o outro, Paulo Cesar Navarro, é de CS.
+- **A pasta "Rotina Semanal" do ClickUp é do Paulo Carvalho.** É lá que os compromissos do cockpit vão morar.
+- **O departamento "Operações · Victor" do ClickUp é do Victor Eliezek**, não do Victor Lacerda.
+
+**Decidido na spec (reversível, aguardando o "contrato ok"):**
+- **Perímetro:** o cockpit olha só as unidades com `ops.unidades.tipo = 'regional'`.
+  - As 8 que já inauguraram entram em todos os números.
+  - São Bernardo, Recife e Sorocaba, ainda sem inauguração, entram só na sexta e nos compromissos.
+  - Goiânia (id 9) e as internas ficam fora.
+  - A regra mora numa função só, com teste. O cockpit não usa a lista fixa `UNIDADES_REDE`.
+- **Navegação:** cada tema da rotina é um item da lateral (`/cockpit-coo?tema=`), e a chave da URL é o tema, não o dia da semana.
+- **Compromissos:** são tarefas do ClickUp com dono único, prazo, tema, unidade e link de volta para o alerta que as gerou. O Brain espelha essas tarefas no banco para guardar o histórico.
+- **Jev:** fica só na triagem de tema e unidade, na checagem de duplicidade e na detecção de bloqueio. Toda sugestão dele precisa de confirmação humana antes de valer.
+
+**Achados registrados na spec (§14), sem correção nesta etapa:**
+- **Estratégia & Execução não existe:** a área registrada em 21/09 não está no código nem no banco.
+- **Snapshot de OKR parado:** `growth.okr_snapshot` não recebe dado novo desde 02/09, embora o job diário apareça como sucesso.
+- **Leitor do Growth sem paginação:** o leitor de OKRs do Growth não pagina os resultados.
+- **Sócio sem unidade:** a linha "Maceio" de `ops.socios` está sem `unidade_id`.
+
+**Aprovação com o COO:** a proposta foi publicada para o Paulo como página privada, com resposta por bloco: https://claude.ai/artifact/7sXeQ6Jbn1XApEbJpYKzrJ
+
+## [2026-09-29] Cockpit do COO: as respostas do COO mudam o perímetro, e a execução começa
+
+**Contexto:** o COO (Paulo Carvalho) respondeu à proposta bloco a bloco (página de aprovação de 29/09). O Pedro mandou "pode rodar tudo" no mesmo dia. A spec ganhou a seção "Revisão de 29/09/2026", que vence o resto onde divergir.
+
+**Decisões (do COO e do dono):**
+- **Perímetro com todas as unidades.** O COO pediu, com as palavras dele, "todas as unidades, inclusive matriz, consultoria e construção civil". Isso inverte a entrada anterior de 29/09, que deixava Goiânia e as internas fora.
+  - As 15 unidades do cadastro entram, em dois grupos: rede regional (11) e operação própria (4).
+  - O número que só existe na rede (royalties, repasse, IDU) diz que só cobre a rede.
+  - O Financeiro não separa por unidade: os números dele valem para o grupo e ignoram o filtro.
+- **Terça:** entram os quatro números do Financial Brain que existem hoje: saldo, geração de caixa e fôlego, exposição em 30 dias, e resultado da DRE no ano com projeção pelo ritmo.
+  - **Não existe orçado no Financeiro** (a tabela `orcamento` está vazia). A comparação com o orçado fica como lacuna da Controladoria.
+  - A porta é a do Cockpit do CEO: produto Financeiro e todas as empresas. **O COO hoje só enxerga a PARTNERS**; abrir o consolidado para ele é decisão do dono do Financeiro.
+- **Quarta:** vagas saem como "não apurado". O recrutamento roda no PandaPé, sem integração com o Brain, e a dona é a Heloísa. As admissões do mês, tiradas do cadastro de pessoas, entram como número real.
+- **Quinta:** a régua de engajamento da unidade tem nota de 0 a 100 e três faixas. Os componentes são base pronta, aceite de reunião e oportunidades validadas.
+  - **A ação da própria unidade não tem registro**, porque todo negócio do pipe é criado pela matriz. Ela precisa de um campo novo no Pipedrive.
+  - Os alertas se dividem em "cobrar a unidade" e "cobrar a matriz".
+- **Todos os temas mostram a evolução dos OKRs** dos departamentos do tema. A fonte é a foto diária `growth.okr_snapshot`.
+
+**Decisões técnicas (reversíveis):**
+- **Migration `20260929120000_cockpit_coo.sql` aplicada em produção.** Ela cria:
+  - a área `cockpit_coo`, só para admin;
+  - o espelho do ClickUp (`ops.clickup_tarefas`, `ops.clickup_eventos`), o registro de escritas e as sugestões do Jev;
+  - a coluna `cockpit` em `ops.cockpit_ia_consumo`, com teto de IA separado por cockpit. A função do CEO, sem argumento, soma só as linhas do CEO; o número dela não mudou, porque até aqui só o CEO gravava.
+- **Sincronização do ClickUp:** a função de borda `clickup-sync` foi publicada, e o pg_cron `clickup-sync-10min` (job 36) está ligado.
+  - Sem token, ela responde "sem token" e não grava nada. O token fica em Administração › Chaves de Integração (`CLICKUP_API_KEY`), que ganhou a entrada do ClickUp.
+  - A primeira rodada com token liga o monitor e **volta a gravar `growth.okr_snapshot`**, parado desde 02/09. A régua é a do Growth, portada para `supabase/functions/_shared/clickup/`, e a leitura agora pagina (o leitor do Growth não paginava).
+- **Jev na triagem, calibrado em 29/09** (`docs/dev_notes/cockpit-coo/jev-calibracao.md`, US$ 0,004):
+  - **o tema fica desligado**: 51% de acerto em 108 KRs reais, e 81% só entre os 31 casos mais confiantes, sem chegar aos 90% exigidos. O tema sai da pasta do ClickUp;
+  - **a unidade liga com limiar 0,8**: acertou 22 de 22 acima do limiar, mas em frases sintéticas, e precisa ser revista com tarefas reais;
+  - o bloqueio fica desligado;
+  - a duplicidade vira só aviso.
+  - Tudo depende de `COCKPIT_COO_JEV=1`.
+- **"Perguntar ao Brain" do COO:** tem três consultas fechadas (tema, OKRs, compromissos), sobre o mesmo dado da tela, e todo número da resposta é conferido.
+  - O modelo roda pelo OpenRouter (`COCKPIT_COO_MODELO`, padrão `openai/gpt-5.5`), com teto próprio.
+  - Nesta versão, a conversa não é gravada.
+
+## [2026-09-29] Cockpit do COO: o que a homologação com dado real mudou
+
+Os cinco temas foram conferidos por SQL independente na sessão do COO (`scripts/cockpit-coo/homologar-*.mjs`) e depois vistos no app local com a sessão do Pedro (`scripts/cockpit-coo/capturas.mjs`, saída fora do repositório em `PM Work/execution/cockpit-coo-capturas-20260929/`).
+
+**Decisões técnicas:**
+- **Fluxo de caixa do Financeiro:** passou a usar a função com cache, `fn_dfc_matriz`, a mesma da tela do Financeiro. A função de cálculo levou 25 s para três meses e estourava o limite do PostgREST (57014). A com cache calcula em cerca de 5 s na primeira vez e guarda o resultado.
+- **DRE do ano:** é pedida em blocos de até três meses, em paralelo (`blocosDeMeses`). A chamada única levava 7 s e estourava quando corria junto das outras.
+- **Falha de conexão não é falta de acesso.** `acessoDoUsuario` devolve lista vazia quando a consulta falha, e a tela dizia "acesso negado" a quem tem acesso. O contexto do COO passou a ler `ops.acesso_do_usuario` direto e a tratar falha como falha.
+- **Variação de número (`delta`) é sempre percentual:** o cartão escreve "%". A segunda mandava diferença em reais.
+- **Gráficos:** o Recharts 2 não enxerga eixo dentro de fragmento do React, e o gráfico de barras horizontais saía com uma barra só. Os gráficos do COO também ficaram sem animação.
+- **Apelidos por extenso:** "São Bernardo do Campo" e "Campo Novo do Parecis", como o onboarding grava, casam com a unidade.
+- **Pacto Trimestral:** conta como pactuado quando a unidade tem metas que cobrem ao menos 50 dos 100 pontos da régua do IDU. Hoje nenhuma chega a isso, e o número sai "não apurado", com alerta. Quem confirma o limiar é o COO ou o Eliezek.
+- **NPS:** ganhou a unidade de contagem "pontos". O Cockpit do CEO não usa.
+
+**Achados fora do cockpit, sem correção aqui:**
+- **Parser da sincronização das tratativas:** `pipefy-tratativas-sync` (`numeroOuNulo`) lê "12.000" como 12 e "760,00" como 76000. Por isso o IDU publicado mostra churn quase zero, e todas as unidades passam na meta de churn. Corrigir muda número que as unidades já veem: é decisão do dono.
+- **`indicadores_trimestre` com a sessão do COO passa de 110 s:** o limite é 8 s. Ela também conta como venda o lote do pipe Sócios de 10/09. A segunda não a usa.
+- **Carga da Monetização lenta sob RLS:** a leitura de `ops.monetizacao_itens` leva cerca de 3,5 s por página de 500 linhas. Quando corre junto de outra carga pesada, estoura e a tela da Monetização mostra "Não foi possível carregar itens". O cockpit do COO mostra "fonte indisponível", nunca zero.
+- **Unidades em implantação com apuração:** São Bernardo, Recife e Sorocaba já têm apuração confirmada e não têm data de inauguração. São Bernardo faturou R$ 20.537 em agosto.
