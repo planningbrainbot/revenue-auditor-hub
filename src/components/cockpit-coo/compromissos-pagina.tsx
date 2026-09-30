@@ -114,7 +114,7 @@ export function CompromissosPagina({
         area="cockpit_coo"
         titulo="Compromissos"
         pergunta="O que foi combinado nas reuniões, quem está devendo e o que vence esta semana?"
-        descricao="Tarefas da pasta Rotina Semanal do ClickUp · um dono e um prazo por compromisso"
+        descricao="Lista Compromissos da rotina, na pasta Rotina Semanal do ClickUp · um dono e um prazo por compromisso"
       />
 
       {!conectado && (
@@ -125,7 +125,7 @@ export function CompromissosPagina({
       )}
 
       <KpiGrade colunas={4}>
-        <KpiCard area="cockpit_coo" rotulo="Abertos" valor={conectado ? String(compromissos.filter((c) => !c.concluida).length) : "—"} estado={conectado ? "ok" : "nao-apurado"} nota={conectado ? "na Rotina Semanal" : "ClickUp desconectado"} />
+        <KpiCard area="cockpit_coo" rotulo="Abertos" valor={conectado ? String(compromissos.filter((c) => !c.concluida).length) : "—"} estado={conectado ? "ok" : "nao-apurado"} nota={conectado ? "na lista Compromissos da rotina" : "ClickUp desconectado"} />
         <KpiCard area="cockpit_coo" rotulo="Vencidos" valor={conectado ? String(h.vencidos) : "—"} estado={conectado ? "ok" : "nao-apurado"} tom={h.vencidos ? "perigo" : undefined} nota="prazo passado e ainda aberto" />
         <KpiCard
           area="cockpit_coo"
@@ -198,7 +198,7 @@ export function CompromissosPagina({
       {fila.length === 0 ? (
         <EstadoVazio
           titulo={conectado ? "Nenhum compromisso neste recorte" : "Sem compromissos para mostrar"}
-          descricao={conectado ? "Os compromissos nascem no botão \"Virar compromisso\" de cada alerta, ou direto na Rotina Semanal do ClickUp." : motivo ?? undefined}
+          descricao={conectado ? "Os compromissos nascem no botão \"Virar compromisso\" de cada alerta, ou direto na lista Compromissos da rotina do ClickUp (a Minha Semana fica de fora)." : motivo ?? undefined}
           total={compromissos.length}
         />
       ) : (

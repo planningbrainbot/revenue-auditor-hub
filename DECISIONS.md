@@ -3712,3 +3712,22 @@ Os cinco temas foram conferidos por SQL independente na sessão do COO (`scripts
 - **`indicadores_trimestre` com a sessão do COO passa de 110 s:** o limite é 8 s. Ela também conta como venda o lote do pipe Sócios de 10/09. A segunda não a usa.
 - **Carga da Monetização lenta sob RLS:** a leitura de `ops.monetizacao_itens` leva cerca de 3,5 s por página de 500 linhas. Quando corre junto de outra carga pesada, estoura e a tela da Monetização mostra "Não foi possível carregar itens". O cockpit do COO mostra "fonte indisponível", nunca zero.
 - **Unidades em implantação com apuração:** São Bernardo, Recife e Sorocaba já têm apuração confirmada e não têm data de inauguração. São Bernardo faturou R$ 20.537 em agosto.
+
+## [2026-09-29] Publicado: Cockpit do COO · Expansão (PR #39)
+
+**O que está no ar (29/09, noite, com o "faz o restante" do Pedro):**
+- **App:** `8b4a36a` (merge do #39 sobre `4b30837`, que era o #38), publicado pela CLI como `dpl_36Wmpm6JnRnNXhMVQ92sxgh9RZx3`. Rollback: `ops-brain-20lsup9e1` (`dpl_32PcfqZ4HCJ27qrYSb9ubkRfow3t`, `4b30837`).
+- **Vercel (production):** `OPENROUTER_API_KEY`, sensível, é a chave nova do Pedro, que também está no Keychain `planning-openrouter-cockpit-3`, e `COCKPIT_COO_JEV=1`. A conversa do CEO continua na chave da OpenAI (`COCKPIT_CONVERSA_MODELO`), e o Jev do CEO segue desligado: a chave nova só muda o COO.
+- **ClickUp:** o token pessoal do Pedro (usuário 101288046) está em `ops.integracoes_segredos` (`CLICKUP_API_KEY`). A primeira rodada do `clickup-sync` espelhou 290 tarefas, gravou a foto de OKR do dia (93 KRs, 36 medidas pelo Brain) e ligou o monitor `clickup`. **A foto de OKR do Growth voltou a andar**, parada desde 02/09.
+- **Acesso:** o Paulo Carvalho entrou na área `cockpit_coo` como usuário (nível 1), concedido com o Pedro como ator.
+
+**Decisões desta etapa:**
+- **Compromisso = a lista "✅ Compromissos da rotina"** da pasta "🗓️ Rotina Semanal · Paulo", e não a pasta inteira. A "📅 Minha Semana" é do Paulo (blocos D1–D5 e a caixa de entrada) e fica de fora. O space chegou ao limite de listas do plano, e a API recusou uma lista nova. Por isso a lista é a antiga "⛔ vazia · pode apagar (1)" (901717094856), renomeada e sem nenhuma tarefa dentro, conferido antes.
+- **A pasta tem enfeite no nome.** O casamento passou a ser por conteúdo (`ehCompromissoDaRotina`), e não mais pelo começo do nome.
+- **Tema, Unidade e Origem no Brain não existem como campos na lista**, e a API do ClickUp não cria campo. Até alguém criá-los à mão, o espelho lê esses três dados do texto que o próprio cockpit escreve na tarefa ("Tema: … · Unidade: …", "Alerta de origem: …"). O ClickUp devolve esse texto sem marcação, conferido na API. Quando o campo existir e estiver preenchido, ele vence o texto. A idempotência de "Virar compromisso" (um alerta, uma tarefa) funciona pelo texto.
+- **Custo de quem escreve:** as tarefas que o cockpit cria e altera saem no nome do Pedro no ClickUp, porque o token é dele. O autor real vai no texto da tarefa e em `ops.cockpit_coo_escritas`. Para sair no nome do Paulo, é só trocar o token em Administração › Chaves de Integração.
+
+**Pendente, com dono:**
+- **Terça do Paulo:** ele tem só a PARTNERS no Brain Financeiro (`usuario_escopo.todas_empresas = false`). Os números de caixa e DRE do grupo aparecem "sem acesso" para ele até alguém liberar todas as empresas. A decisão é do Pedro e do dono do Financeiro.
+- **Vagas da quarta:** seguem sem fonte (PandaPé, com a Heloísa).
+- **Campos no ClickUp (opcional):** criar Tema, Unidade e Origem no Brain na lista, para filtrar dentro do próprio ClickUp.

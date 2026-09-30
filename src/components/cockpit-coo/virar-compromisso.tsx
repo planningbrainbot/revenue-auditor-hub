@@ -106,7 +106,7 @@ export function VirarCompromisso({
         <DialogHeader>
           <DialogTitle>Virar compromisso</DialogTitle>
           <DialogDescription>
-            Cria uma tarefa na Rotina Semanal do ClickUp, com um dono e um prazo. Ela volta para a
+            Cria uma tarefa na lista Compromissos da rotina do ClickUp, com um dono e um prazo. Ela volta para a
             pauta de {TEMAS[temaEscolhido].diaRotulo.toLowerCase()}.
           </DialogDescription>
         </DialogHeader>
