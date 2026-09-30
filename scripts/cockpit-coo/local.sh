@@ -18,7 +18,7 @@ export SUPABASE_SERVICE_ROLE_KEY=$(curl -s "https://api.supabase.com/v1/projects
   | python3 -c "import json,sys;print([k['api_key'] for k in json.load(sys.stdin) if k['name']=='service_role'][0])")
 unset SBTOK
 export COCKPIT_IA_KEYCHAIN=1
-export COCKPIT_IA_KEYCHAIN_SERVICO="${COCKPIT_IA_KEYCHAIN_SERVICO:-planning-openrouter-cockpit-2}"
+export COCKPIT_IA_KEYCHAIN_SERVICO="${COCKPIT_IA_KEYCHAIN_SERVICO:-planning-openrouter-cockpit-3}"
 export COCKPIT_COO_JEV="${COCKPIT_COO_JEV:-1}"
 export COCKPIT_COO_MODELO="${COCKPIT_COO_MODELO:-openai/gpt-5.5}"
 export NODE_OPTIONS="--max-old-space-size=6144"
