@@ -3835,3 +3835,12 @@ O projetado × realizado bate com o script que roda o `forecastComparison` do m�
 - O motivo de perda não vira categoria na tela. É texto livre no Pipedrive, e a categoria seria inferência. A análise de 30/09 (artifact "Funil do Caixa por produto") agrupou os motivos à mão: em setembro, 42 dos 95 perdidos foram perda comercial, 42 foram triagem de perfil e 11 foram empresa já trabalhada em outro produto ou card duplicado.
 
 **Conferido:** 478/478 testes; `tsc` só com o erro que já existia; `design:lint:changed` ok. Captura: o `design:capturar` só fotografa a vitrine, e este bloco depende da carga do CRM; conferir na tela depois da publicação.
+
+## [2026-09-30] Publicado: funil por produto, lado a lado (adendo)
+
+- **Publicação:** "Pode publicar" do Pedro. PR #46 mergeado em `89ccd14` e publicado por CLI (`ops-brain-ml29k7e4g`).
+  - Antes do deploy, conferi que o que a main tinha de outras sessões já estava no ar: a tela do PR #45 e o commit de edição de cadastro de Gente estavam no bundle; o `82fc2db` é só migration.
+  - Conferido no bundle servido: "Em que etapa cada produto trava?", junto das telas das outras sessões.
+- **Correção de leitura, também do Pedro:** zero reunião de Consultoria em setembro foi escolha de foco (Cella e Finance); da Consultoria só entrou a base inicial planejada. Não é taxa medida.
+  - O texto do bloco não afirma conversão da Consultoria; ele só mostra as entradas.
+  - A análise (artifact "Funil do Caixa por produto", versão 2) usa a premissa do v12 para a Consultoria.
