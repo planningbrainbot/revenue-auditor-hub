@@ -3761,3 +3761,17 @@ Publicado com o ok do Pedro ("pode sim... publica, corrige, depois publica de no
 - Cards já criados no Pipedrive não mudam. Na carga de outubro são três: 97983, 97933 e 97963.
 
 **Conferido:** ensaio da migration contra produção em transação desfeita, com as tags reais. O só fornecedor volta barrado em Consultoria e em Recon. Testes 328/328.
+
+## [2026-09-30] Publicado: só fornecedor fora das ofertas, e a fila da omie-tags-sync corrigida (adendo)
+
+Publicado com o "Pode" do Pedro (30/09).
+
+- **PR #41 (regra do fornecedor):**
+  - Migration `20260929210000` aplicada, depois de conferir que `monetizacao_offer_issue` em produção era a mesma do ensaio.
+  - App `41bf7ca` por CLI (`ops-brain-c7ilojij9`), por cima do deploy da outra sessão com o PR #42 (`ops-brain-41pc9jog3`). Conferido no bundle servido.
+  - Medido depois, com a régua da tela: prontas de Consultoria 2.204 → 2.118, Cella 297 → 269, Finance 85 → 85. Nenhuma conta só fornecedor ficou pronta.
+- **PR #43 (fila da sincronização):**
+  - Defeito: a escolha da unidade usava agregado do PostgREST, que não está ligado. Toda execução lia a Planning CWB 01, das 01:13 às 13:13 de 30/09.
+  - Correção: fila pela tentativa, em `ops.base_omie_tags_leituras`.
+  - Testado em seguida: Maceió (58 cadastros) e São Luís (23) entraram. Sorocaba ficou registrada com o erro do addon, sem prender a fila.
+- **`scripts/cockpit-ceo/carga-real.mjs`:** a cópia do catálogo usada nas medições por script passa a trazer `omie`. Sem ela, a medição dizia que os 86 fornecedores ainda estavam prontos.
