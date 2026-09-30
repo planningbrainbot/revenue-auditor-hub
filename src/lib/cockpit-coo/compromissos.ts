@@ -1,12 +1,18 @@
-// Compromissos do COO: a leitura do espelho do ClickUp (`ops.clickup_tarefas` + `ops.clickup_eventos`)
+// Execução do COO: a leitura do espelho do ClickUp (`ops.clickup_tarefas` + `ops.clickup_eventos`)
 // na forma que a tela pede. Puro.
 //
-// Um compromisso é uma tarefa do ClickUp com dono único, prazo, tema da rotina, unidade (ou "Rede")
-// e, quando nasceu no cockpit, a chave do alerta de origem. Moram na pasta "Rotina Semanal" do
-// space da Expansão Nacional, que é do COO (confirmado em 29/09/2026).
+// Duas origens, a mesma forma (`Compromisso`):
+// - compromisso da rotina: tarefa da lista "✅ Compromissos da rotina" (pasta Rotina Semanal do
+//   COO), com dono único, prazo, tema, unidade (ou "Rede") e, quando nasceu no cockpit, a chave do
+//   alerta de origem. O cockpit lê e escreve;
+// - tarefa de área (pedido do Pedro em 30/09: "a parte de operação tá sem nenhuma task; tem que ter
+//   um reflexo do ClickUp"): tudo o que os departamentos mantêm no space da Expansão Nacional (KRs,
+//   entregas das KRs, direcionamentos de 1:1). O tema vem da pasta do departamento. O cockpit só lê.
 import type { LinhaEspelho } from "../../../supabase/functions/_shared/clickup/compromissos.ts";
-import { ORDEM_TEMAS, TEMAS } from "./contrato.ts";
+import { ORDEM_TEMAS, TEMAS, departamentoBase, temasDoDepartamento } from "./contrato.ts";
 import type { Tema } from "./contrato.ts";
+import { acharUnidade } from "./unidades.ts";
+import type { UnidadeCoo } from "./unidades.ts";
 
 export type { LinhaEspelho };
 
@@ -21,8 +27,26 @@ export interface LinhaEvento {
   em: string;
 }
 
+/** De onde a tarefa vem: a lista de compromissos da rotina ou a pasta de um departamento. */
+export type OrigemTarefa = "rotina" | "area";
+/** O papel da tarefa no quadro (a mesma régua de `normalizarOkrs`: raiz fora de 🗣️/📖 é KR). */
+export type TipoTarefa = "compromisso" | "kr" | "entrega" | "direcionamento";
+
+export const ROTULO_TIPO: Record<TipoTarefa, string> = {
+  compromisso: "Compromisso",
+  kr: "KR",
+  entrega: "Entrega",
+  direcionamento: "Direcionamento",
+};
+
 export interface Compromisso {
   id: string;
+  origemTarefa: OrigemTarefa;
+  tipo: TipoTarefa;
+  /** Departamento da pasta ("Operações"); null nos compromissos da rotina. */
+  departamento: string | null;
+  /** A KR mãe de uma entrega. */
+  pai: string | null;
   nome: string;
   url: string;
   status: string;
@@ -86,23 +110,78 @@ export function temaDoTexto(texto: string | null | undefined): Tema | null {
   return null;
 }
 
-function diaDe(iso: string): string {
-  return iso.slice(0, 10);
+const DIA_SAO_PAULO = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * O dia (AAAA-MM-DD) em São Paulo. O ClickUp grava prazo sem hora às 04h locais (07h UTC): a
+ * tarefa que vence hoje só está vencida amanhã, e o dia do prazo é o de São Paulo, não o do UTC.
+ */
+export function diaDe(iso: string): string {
+  return iso.length === 10 ? iso : DIA_SAO_PAULO.format(new Date(iso));
 }
 
 function diasEntre(deIso: string, ateIso: string): number {
   return Math.floor((Date.parse(ateIso) - Date.parse(deIso)) / 86_400_000);
 }
 
-export function lerCompromisso(l: LinhaEspelho, eventos: LinhaEvento[], agoraIso: string): Compromisso {
+/** Lista de guia ("📖 COMECE AQUI"): não é trabalho. */
+const LISTA_GUIA = /^📖/u;
+const LISTA_DIRECIONAMENTO = /^🗣️|direcionamento/iu;
+
+/**
+ * Entra na execução: compromisso da rotina ou tarefa de área. Fica de fora o resto da pasta da
+ * rotina (a "📅 Minha Semana" é do COO) e as listas de guia.
+ */
+export function entraNaExecucao(l: Pick<LinhaEspelho, "pasta_nome" | "lista_nome">): boolean {
+  if (ehCompromissoDaRotina(l.pasta_nome, l.lista_nome)) return true;
+  if (ehPastaDaRotina(l.pasta_nome)) return false;
+  return !!l.pasta_nome && !LISTA_GUIA.test(l.lista_nome ?? "");
+}
+
+export interface ExtrasLeitura {
+  /** Nome da KR mãe, para a entrega. */
+  pai?: string | null;
+  /** Cadastro de unidades: acha a unidade no nome da tarefa de área ("Maceió"). */
+  unidades?: UnidadeCoo[];
+}
+
+export function lerCompromisso(
+  l: LinhaEspelho,
+  eventos: LinhaEvento[],
+  agoraIso: string,
+  extras: ExtrasLeitura = {},
+): Compromisso {
   const doTarefa = eventos.filter((e) => e.tarefa_id === l.id);
+  const rotina = ehCompromissoDaRotina(l.pasta_nome, l.lista_nome);
+  const tipo: TipoTarefa = rotina
+    ? "compromisso"
+    : l.parent_id
+      ? "entrega"
+      : LISTA_DIRECIONAMENTO.test(l.lista_nome ?? "")
+        ? "direcionamento"
+        : "kr";
+  // Tarefa de área: o tema é o da pasta do departamento (mapa aprovado pelo COO em 29/09).
+  const tema = temaDoTexto(l.tema) ?? (rotina ? null : (temasDoDepartamento(l.pasta_nome ?? "")[0] ?? null));
+  const unidade =
+    l.unidade ?? (!rotina && extras.unidades ? (acharUnidade(extras.unidades, l.nome)?.nome ?? null) : null);
+  // Adiamento é o prazo indo para um DIA depois; o mesmo instante escrito de outro jeito não conta.
   const adiamentos = doTarefa.filter(
-    (e) => e.tipo === "prazo" && typeof e.de === "string" && typeof e.para === "string" && e.para > e.de,
+    (e) => e.tipo === "prazo" && typeof e.de === "string" && typeof e.para === "string" && diaDe(e.para) > diaDe(e.de),
   ).length;
-  const vencido = !l.concluida && l.prazo != null && l.prazo < agoraIso;
+  const hoje = diaDe(agoraIso);
+  const vencido = !l.concluida && l.prazo != null && diaDe(l.prazo) < hoje;
   const [primeiro, ...resto] = l.donos ?? [];
   return {
     id: l.id,
+    origemTarefa: rotina ? "rotina" : "area",
+    tipo,
+    departamento: rotina || !l.pasta_nome ? null : departamentoBase(l.pasta_nome),
+    pai: extras.pai ?? null,
     nome: l.nome,
     url: l.url,
     status: l.status,
@@ -110,9 +189,9 @@ export function lerCompromisso(l: LinhaEspelho, eventos: LinhaEvento[], agoraIso
     dono: primeiro ? { id: primeiro.id, nome: primeiro.nome } : null,
     outrosDonos: resto.length,
     prazo: l.prazo,
-    tema: temaDoTexto(l.tema),
+    tema,
     temaTexto: l.tema,
-    unidade: l.unidade,
+    unidade,
     origem: l.origem,
     criadaEm: l.criada_em,
     atualizadaEm: l.atualizada_em,
@@ -120,13 +199,39 @@ export function lerCompromisso(l: LinhaEspelho, eventos: LinhaEvento[], agoraIso
     lista: l.lista_nome,
     pasta: l.pasta_nome,
     vencido,
-    diasVencido: vencido && l.prazo ? diasEntre(l.prazo, agoraIso) : null,
+    diasVencido: vencido && l.prazo ? diasEntre(`${diaDe(l.prazo)}T12:00:00Z`, `${hoje}T12:00:00Z`) : null,
     parado:
       !l.concluida && l.atualizada_em != null && diasEntre(l.atualizada_em, agoraIso) >= DIAS_PARADO,
     adiamentos,
     cumpridoNoPrazo:
       l.concluida && l.prazo && l.concluida_em ? diaDe(l.concluida_em) <= diaDe(l.prazo) : null,
   };
+}
+
+/**
+ * O espelho inteiro → a execução: filtra o que entra, dá à entrega o nome da KR mãe e agrupa os
+ * eventos por tarefa uma vez (o espelho tem o space todo).
+ */
+export function lerTarefas(
+  dado: { linhas: LinhaEspelho[]; eventos: LinhaEvento[] },
+  agoraIso: string,
+  unidades?: UnidadeCoo[],
+): Compromisso[] {
+  const nomes = new Map(dado.linhas.map((l) => [l.id, l.nome]));
+  const porTarefa = new Map<string, LinhaEvento[]>();
+  for (const e of dado.eventos) {
+    const lista = porTarefa.get(e.tarefa_id);
+    if (lista) lista.push(e);
+    else porTarefa.set(e.tarefa_id, [e]);
+  }
+  return dado.linhas
+    .filter(entraNaExecucao)
+    .map((l) =>
+      lerCompromisso(l, porTarefa.get(l.id) ?? [], agoraIso, {
+        pai: l.parent_id ? (nomes.get(l.parent_id) ?? null) : null,
+        unidades,
+      }),
+    );
 }
 
 /**
@@ -185,22 +290,34 @@ export interface ExecucaoTema {
   tema: Tema;
   abertos: number;
   vencidos: number;
+  /** Abertos com prazo de hoje até 7 dias à frente (não vencidos). */
+  vencemEm7: number;
+  semDono: number;
   feitosDesdeUltima: number;
   desde: string;
-  /** Até 3, vencidos primeiro. */
+  /** Até 5, vencidos primeiro. */
   destaques: Compromisso[];
 }
 
+export const DESTAQUES_EXECUCAO = 5;
+
+/** Tarefas de área e compromissos da rotina do tema: o que o dia cobra. */
 export function execucaoDoTema(tema: Tema, cs: Compromisso[], hojeIso: string): ExecucaoTema {
   const doTema = cs.filter((c) => c.tema === tema);
+  const abertos = doTema.filter((c) => !c.concluida);
   const desde = reuniaoAnterior(tema, hojeIso);
+  const limite = new Date(`${hojeIso}T12:00:00Z`);
+  limite.setUTCDate(limite.getUTCDate() + 7);
+  const ate = limite.toISOString().slice(0, 10);
   return {
     tema,
-    abertos: doTema.filter((c) => !c.concluida).length,
-    vencidos: doTema.filter((c) => c.vencido).length,
+    abertos: abertos.length,
+    vencidos: abertos.filter((c) => c.vencido).length,
+    vencemEm7: abertos.filter((c) => !c.vencido && c.prazo && diaDe(c.prazo) <= ate).length,
+    semDono: abertos.filter((c) => !c.dono).length,
     feitosDesdeUltima: doTema.filter((c) => c.concluida && c.concluidaEm && diaDe(c.concluidaEm) >= desde).length,
     desde,
-    destaques: ordenarFila(doTema.filter((c) => !c.concluida)).slice(0, 3),
+    destaques: ordenarFila(abertos).slice(0, DESTAQUES_EXECUCAO),
   };
 }
 

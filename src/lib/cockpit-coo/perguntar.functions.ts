@@ -15,7 +15,7 @@ import { avaliarOrcamento, limitesDoAmbiente } from "../cockpit-ceo/conversa/orc
 import type { Orcamento } from "../cockpit-ceo/conversa/orcamento";
 import { abrirContextoCoo } from "./contexto.server.ts";
 import { lerBaseCoo } from "./base.functions.ts";
-import { lerCompromisso } from "./compromissos.ts";
+import { lerTarefas } from "./compromissos.ts";
 import { ORDEM_TEMAS, ehTema } from "./contrato.ts";
 import type { LeituraTema, Tema } from "./contrato.ts";
 import { montarOkrsTema } from "./okrs.ts";
@@ -28,6 +28,8 @@ import { lerCsRh } from "./temas/cs-rh.server.ts";
 import { montarCsRh } from "./temas/cs-rh.ts";
 import { lerEstrategico } from "./temas/estrategico.server.ts";
 import { montarEstrategico } from "./temas/estrategico.ts";
+import { lerMonetizacaoNoServidor } from "./temas/monetizacao.server.ts";
+import { montarMonetizacao } from "./temas/monetizacao.ts";
 import {
   INSTRUCOES_COO,
   conferirResposta,
@@ -87,11 +89,12 @@ export const perguntarCoo = createServerFn({ method: "POST" })
         case "estrategico": {
           const b = await obterBase();
           const agora = new Date().toISOString();
-          const cs = b.compromissos.ok ? b.compromissos.dado.linhas.map((l) => lerCompromisso(l, b.compromissos.ok ? b.compromissos.dado.eventos : [], agora)) : [];
+          const cs = b.compromissos.ok ? lerTarefas(b.compromissos.dado, agora, ctx.unidades) : [];
           return montarEstrategico(await lerEstrategico(ctx), { okrs: b.okrs.ok ? b.okrs.dado : [], compromissos: cs, clickupConectado: b.clickup.conectado, okrsMotivo: b.okrs.ok ? undefined : b.okrs.motivo, compromissosMotivo: b.compromissos.ok ? undefined : b.compromissos.motivo }, ctx.unidades, unidade, ctx.hoje);
         }
         case "monetizacao":
-          return { estado: "nao_apurado", motivo: "o engajamento das unidades na Monetização é calculado na tela de quinta, a partir da carga da Monetização; abra Qui · Monetização" };
+          // No servidor, só o projetado × realizado; a régua das unidades volta "não apurado" com o motivo.
+          return montarMonetizacao(await lerMonetizacaoNoServidor(ctx), ctx.unidades, unidade, ctx.hoje);
       }
     };
 
@@ -125,10 +128,18 @@ export const perguntarCoo = createServerFn({ method: "POST" })
         },
       }),
       ler_compromissos: tool({
-        description: "Compromissos da Rotina Semanal do ClickUp (dono, prazo, tema, unidade, situação). Opcionalmente só de um tema ou só os vencidos.",
-        inputSchema: z.object({ tema: temaSchema.optional(), soVencidos: z.boolean().optional() }).strict(),
-        execute: async ({ tema, soVencidos }: { tema?: Tema; soVencidos?: boolean }) => {
-          consultas.push({ ferramenta: "ler_compromissos", args: { tema: tema ?? "", soVencidos: !!soVencidos } });
+        description:
+          "Execução no ClickUp da Expansão Nacional: tarefas das áreas (KRs, entregas, direcionamentos; o tema vem da pasta do departamento) e compromissos da rotina do COO, com dono, prazo, tema, unidade e situação. Filtros opcionais: tema, só abertas, só vencidas, departamento (ex.: \"Operações\"). Devolve até 40, vencidas primeiro, e o total.",
+        inputSchema: z
+          .object({
+            tema: temaSchema.optional(),
+            soVencidos: z.boolean().optional(),
+            soAbertas: z.boolean().optional(),
+            departamento: z.string().max(60).optional(),
+          })
+          .strict(),
+        execute: async ({ tema, soVencidos, soAbertas, departamento }: { tema?: Tema; soVencidos?: boolean; soAbertas?: boolean; departamento?: string }) => {
+          consultas.push({ ferramenta: "ler_compromissos", args: { tema: tema ?? "", soVencidos: !!soVencidos, soAbertas: !!soAbertas, departamento: departamento ?? "" } });
           const b = await obterBase();
           if (!b.clickup.conectado) {
             const r = { estado: "nao_apurado", motivo: "o ClickUp ainda não está conectado (token em Administração › Chaves de Integração)" };
@@ -136,9 +147,14 @@ export const perguntarCoo = createServerFn({ method: "POST" })
             return r;
           }
           const agora = new Date().toISOString();
-          let cs = b.compromissos.ok ? b.compromissos.dado.linhas.map((l) => lerCompromisso(l, b.compromissos.ok ? b.compromissos.dado.eventos : [], agora)) : [];
+          let cs = b.compromissos.ok ? lerTarefas(b.compromissos.dado, agora, ctx.unidades) : [];
           if (tema) cs = cs.filter((c) => c.tema === tema);
           if (soVencidos) cs = cs.filter((c) => c.vencido);
+          if (soAbertas) cs = cs.filter((c) => !c.concluida);
+          if (departamento) {
+            const d = departamento.toLocaleLowerCase("pt-BR");
+            cs = cs.filter((c) => (c.departamento ?? "").toLocaleLowerCase("pt-BR").includes(d));
+          }
           const r = { total: cs.length, compromissos: resumoDosCompromissos(cs) };
           resultados.push(r);
           return r;

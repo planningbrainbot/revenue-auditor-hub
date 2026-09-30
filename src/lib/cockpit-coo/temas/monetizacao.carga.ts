@@ -16,9 +16,10 @@
 //   (`ops.monetizacao_replace_snapshot`), refeita aqui porque a carga não traz essa coluna.
 //
 // Imports relativos com extensão: o script de homologação roda este arquivo no Node.
+import { escolherForecast, forecastComparison } from "../../monetizacao/forecast.ts";
 import { cargaDoCrm, LIMITE_CARGA_PARADA_MS, oferta } from "../../monetizacao/model.ts";
-import { PRODUTOS } from "../../monetizacao/types.ts";
-import type { BaseMonetizacao, Conta, Metrica, Negocio } from "../../monetizacao/types";
+import { NOMES, PRODUTOS } from "../../monetizacao/types.ts";
+import type { BaseMonetizacao, Conta, ForecastSource, Metrica, Negocio } from "../../monetizacao/types";
 import { inicioDaLeitura } from "./monetizacao.ts";
 import type { DadosMonetizacao, GrupoBase, NegocioRegua } from "./monetizacao.ts";
 
@@ -50,6 +51,80 @@ function unidadesDaConta(base: BaseMonetizacao) {
     [...new Set(Array.isArray(a.unit_ids) ? a.unit_ids : (porChave.get(a.key) ?? []))].sort(
       (x, y) => x - y,
     );
+}
+
+/** Data (AAAA-MM-DD) no fuso de São Paulo: o corte do CRM que a aba do módulo usa. */
+const diaSaoPaulo = (iso: string) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+
+/**
+ * Projetado × realizado, com a mesma conta da aba do módulo (`forecastComparison`) e a mesma
+ * escolha de planilha (`escolherForecast`: o cenário padrão da versão mais recente). Serve ao
+ * navegador (carga da Monetização) e ao servidor (Perguntar ao Brain), que lê só negócios e
+ * planilhas.
+ */
+export function forecastDaCarga(
+  forecasts: ForecastSource[],
+  cards: Negocio[],
+  measuredAt: string | null,
+  syncError: string | null,
+  opcoes: { agora?: number; todasUnidades?: boolean } = {},
+): DadosMonetizacao["forecast"] {
+  const fonte = escolherForecast(forecasts);
+  if (!fonte)
+    return opcoes.todasUnidades === false
+      ? {
+          ok: false,
+          estado: "acesso_insuficiente",
+          motivo: "A planilha de forecast só é lida com escopo de todas as unidades na Monetização.",
+        }
+      : { ok: false, estado: "nao_apurado", motivo: "ainda não há uma versão do forecast importada na Monetização" };
+  if (!measuredAt)
+    return {
+      ok: false,
+      estado: "fonte_indisponivel",
+      motivo: "O CRM ainda não teve uma carga de indicadores concluída.",
+    };
+  const corte = diaSaoPaulo(measuredAt);
+  const crm = cargaDoCrm(measuredAt, syncError, opcoes.agora ?? Date.now());
+  return {
+    ok: true,
+    versao: fonte.version,
+    nota: fonte.note,
+    fonteData: fonte.source_date,
+    atualizadoEm: measuredAt,
+    parada:
+      crm.parada || syncError
+        ? `Indicadores do CRM parados desde ${dataHora(measuredAt)}${syncError ? `: ${crm.porque}` : "."} O realizado vale até essa data.`
+        : null,
+    meses: forecastComparison(fonte, cards, corte).map((c) => ({
+      mes: c.month,
+      ate: c.through,
+      parcial: c.partial,
+      projetado: c.planned,
+      realizado: c.actual
+        ? {
+            started: c.actual.rows.started.length,
+            meeting: c.actual.rows.meeting.length,
+            validated: c.actual.rows.validated.length,
+            signed: c.actual.rows.signed.length,
+          }
+        : null,
+      produtos: c.products.map((p) => ({
+        produto: p.product,
+        nome: NOMES[p.product],
+        projetadoLeads: p.plannedStarted,
+        projetadoContratos: p.plannedSigned,
+        leads: p.actual?.started ?? null,
+        contratos: p.actual?.signed ?? null,
+      })),
+    })),
+  };
 }
 
 export interface OpcoesCarga {
@@ -166,7 +241,18 @@ export function dadosDaCarga(
     };
   }
 
-  return { base: baseParte, negocios };
+  const forecast: DadosMonetizacao["forecast"] = acessoNegocios
+    ? forecastDaCarga(base.forecasts ?? [], base.cards, base.measured_at, base.sync_error, {
+        agora,
+        todasUnidades: base.permissions.all_units,
+      })
+    : {
+        ok: false,
+        estado: "acesso_insuficiente",
+        motivo: "Seu acesso não lê os negócios da Monetização: sem o realizado não há projetado × realizado.",
+      };
+
+  return { forecast, base: baseParte, negocios };
 }
 
 /**

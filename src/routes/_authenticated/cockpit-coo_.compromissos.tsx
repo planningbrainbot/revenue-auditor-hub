@@ -13,16 +13,18 @@ import { carregarOpcoesCompromisso } from "@/lib/cockpit-coo/compromissos.functi
 import { carregarSugestoesCoo, decidirSugestaoCoo, triarCompromissos } from "@/lib/cockpit-coo/triagem.functions";
 import type { SugestaoCoo } from "@/lib/cockpit-coo/triagem";
 import { ehTema } from "@/lib/cockpit-coo/contrato";
-import { lerCompromisso } from "@/lib/cockpit-coo/compromissos";
+import { lerTarefas } from "@/lib/cockpit-coo/compromissos";
 import { hoje as hojeSaoPaulo } from "@/lib/monetizacao/model";
 
-// Compromissos do COO (arquétipo Fila de trabalho). Filtros e a ficha aberta ficam na URL (N7).
+// Tarefas e compromissos do COO (arquétipo Fila de trabalho). Filtros e a ficha aberta ficam na URL (N7).
 
 const HIGIENES: Higiene[] = ["sem-dono", "sem-prazo", "vencidos", "parados", "sem-tema", "bloqueados"];
 
 function buscaDaUrl(s: Record<string, unknown>): BuscaCompromissos {
   const texto = (v: unknown) => (typeof v === "string" && v.length <= 120 ? v : undefined);
   return {
+    origem: s.origem === "rotina" || s.origem === "area" ? s.origem : undefined,
+    area: texto(s.area),
     tema: ehTema(s.tema) ? s.tema : undefined,
     dono: texto(s.dono),
     unidade: texto(s.unidade),
@@ -34,7 +36,7 @@ function buscaDaUrl(s: Record<string, unknown>): BuscaCompromissos {
 
 export const Route = createFileRoute("/_authenticated/cockpit-coo_/compromissos")({
   validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => buscaDaUrl(s),
-  head: () => ({ meta: [{ title: "Compromissos · Planning Brain" }] }),
+  head: () => ({ meta: [{ title: "Tarefas e compromissos · Planning Brain" }] }),
   component: Pagina,
 });
 
@@ -43,14 +45,14 @@ function Pagina() {
   if (perms.loading)
     return (
       <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
-        <PageHeader area="cockpit_coo" titulo="Compromissos" />
+        <PageHeader area="cockpit_coo" titulo="Tarefas e compromissos" />
         <Carregando variante="tabela" />
       </main>
     );
   if (!perms.temArea("cockpit_coo"))
     return (
       <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
-        <PageHeader area="cockpit_coo" titulo="Compromissos" />
+        <PageHeader area="cockpit_coo" titulo="Tarefas e compromissos" />
         <EstadoSemAcesso oQueFalta="a área Cockpit do COO (a administração da plataforma concede)" />
       </main>
     );
@@ -117,14 +119,13 @@ function ComAcesso() {
   const compromissos = useMemo(() => {
     if (!base.data?.compromissos.ok) return [];
     const agora = new Date().toISOString();
-    const { linhas, eventos } = base.data.compromissos.dado;
-    return linhas.map((l) => lerCompromisso(l, eventos, agora));
+    return lerTarefas(base.data.compromissos.dado, agora, base.data.unidades);
   }, [base.data]);
 
   if (base.isLoading)
     return (
       <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6 md:py-6">
-        <PageHeader area="cockpit_coo" titulo="Compromissos" />
+        <PageHeader area="cockpit_coo" titulo="Tarefas e compromissos" />
         <Carregando variante="tabela" />
       </main>
     );

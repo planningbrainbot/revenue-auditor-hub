@@ -13,20 +13,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { EstadoVazio, KpiCard, KpiGrade, PageHeader, Procedencia, StatusBadge } from "@/components/planning";
 import { ORDEM_TEMAS, TEMAS } from "@/lib/cockpit-coo/contrato";
 import type { Tema } from "@/lib/cockpit-coo/contrato";
-import { higiene, ordenarFila, revisaoDaSemana, taxaNoPrazo } from "@/lib/cockpit-coo/compromissos";
+import { higiene, ordenarFila, revisaoDaSemana, ROTULO_TIPO, taxaNoPrazo } from "@/lib/cockpit-coo/compromissos";
 import type { Compromisso } from "@/lib/cockpit-coo/compromissos";
 import { atualizarCompromisso } from "@/lib/cockpit-coo/compromissos.functions";
 import type { AcaoCompromisso, OpcoesCompromisso } from "@/lib/cockpit-coo/compromissos.functions";
 import type { SugestaoCoo } from "@/lib/cockpit-coo/triagem";
 import { cn } from "@/lib/utils";
 
-// Compromissos do COO (arquétipo Fila de trabalho, contrato docs/design/contratos/cockpit-coo.md).
-// A ordem é a de trabalho (N5): vencidos primeiro, depois pelo prazo, sem prazo por último. Clicar
-// na linha abre a ficha em `Sheet`, sem trocar de rota, com as ações que gravam no ClickUp.
+// Tarefas e compromissos do COO (arquétipo Fila de trabalho, contrato docs/design/contratos/cockpit-coo.md).
+// Duas origens na mesma fila: as tarefas das áreas do space da Expansão Nacional (o cockpit só lê) e
+// os compromissos da rotina (o cockpit lê e escreve). A ordem é a de trabalho (N5): vencidas
+// primeiro, depois pelo prazo, sem prazo por último. Clicar na linha abre a ficha em `Sheet`.
 
 export type Higiene = "sem-dono" | "sem-prazo" | "vencidos" | "parados" | "sem-tema" | "bloqueados";
 
 export interface BuscaCompromissos {
+  origem?: "rotina" | "area";
+  /** Departamento da pasta ("Operações"). */
+  area?: string;
   tema?: Tema;
   dono?: string;
   unidade?: string;
@@ -70,22 +74,40 @@ export function CompromissosPagina({
     () => new Set(sugestoes.filter((s) => s.pergunta === "bloqueio" && s.resposta === "true" && s.estado === "pendente").map((s) => s.tarefa_id)),
     [sugestoes],
   );
-  const h = useMemo(() => higiene(compromissos), [compromissos]);
-  const revisao = useMemo(() => revisaoDaSemana(compromissos, hoje), [compromissos, hoje]);
-  const taxa = taxaNoPrazo(revisao);
   const donos = useMemo(
-    () => [...new Map(compromissos.filter((c) => c.dono).map((c) => [c.dono!.id, c.dono!.nome ?? c.dono!.id])).entries()],
+    () =>
+      [...new Map(compromissos.filter((c) => c.dono).map((c) => [c.dono!.id, c.dono!.nome ?? c.dono!.id])).entries()].sort(
+        (a, b) => a[1].localeCompare(b[1], "pt-BR"),
+      ),
     [compromissos],
   );
   const unidades = useMemo(() => [...new Set(compromissos.map((c) => c.unidade).filter((u): u is string => !!u))].sort(), [compromissos]);
+  const areas = useMemo(
+    () => [...new Set(compromissos.map((c) => c.departamento).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [compromissos],
+  );
 
-  const fila = useMemo(() => {
+  // O recorte (origem, área, tema, dono, unidade) vale para os números e os atalhos; a situação e
+  // o atalho escolhido só filtram a lista.
+  const recorte = useMemo(() => {
     let l = compromissos;
-    if (status === "abertos") l = l.filter((c) => !c.concluida);
-    if (status === "concluidos") l = l.filter((c) => c.concluida);
+    if (busca.origem) l = l.filter((c) => c.origemTarefa === busca.origem);
+    if (busca.area) l = l.filter((c) => c.departamento === busca.area);
     if (busca.tema) l = l.filter((c) => c.tema === busca.tema);
     if (busca.dono) l = l.filter((c) => c.dono?.id === busca.dono);
     if (busca.unidade) l = l.filter((c) => c.unidade === busca.unidade);
+    return l;
+  }, [compromissos, busca.origem, busca.area, busca.tema, busca.dono, busca.unidade]);
+  const h = useMemo(() => higiene(recorte), [recorte]);
+  const revisao = useMemo(() => revisaoDaSemana(recorte, hoje), [recorte, hoje]);
+  const taxa = taxaNoPrazo(revisao);
+  const semanaTotal = revisao.reduce((s, r) => s + r.noPrazo + r.comAtraso + r.vencidos, 0);
+  const semanaNoPrazo = revisao.reduce((s, r) => s + r.noPrazo, 0);
+
+  const fila = useMemo(() => {
+    let l = recorte;
+    if (status === "abertos") l = l.filter((c) => !c.concluida);
+    if (status === "concluidos") l = l.filter((c) => c.concluida);
     switch (busca.higiene) {
       case "sem-dono": l = l.filter((c) => !c.concluida && !c.dono); break;
       case "sem-prazo": l = l.filter((c) => !c.concluida && !c.prazo); break;
@@ -95,26 +117,26 @@ export function CompromissosPagina({
       case "bloqueados": l = l.filter((c) => !c.concluida && bloqueadas.has(c.id)); break;
     }
     return ordenarFila(l);
-  }, [compromissos, status, busca.tema, busca.dono, busca.unidade, busca.higiene, bloqueadas]);
+  }, [recorte, status, busca.higiene, bloqueadas]);
 
   const aberta = compromissos.find((c) => c.id === busca.tarefa) ?? null;
 
   const faixa: { chave: Higiene; rotulo: string; n: number }[] = [
-    { chave: "vencidos", rotulo: "Vencidos", n: h.vencidos },
+    { chave: "vencidos", rotulo: "Vencidas", n: h.vencidos },
     { chave: "sem-dono", rotulo: "Sem dono", n: h.semDono },
     { chave: "sem-prazo", rotulo: "Sem prazo", n: h.semPrazo },
-    { chave: "parados", rotulo: "Parados há 7 dias", n: h.parados },
+    { chave: "parados", rotulo: "Paradas há 7 dias", n: h.parados },
     { chave: "sem-tema", rotulo: "Sem tema", n: h.semTema },
-    { chave: "bloqueados", rotulo: "Possivelmente travados", n: bloqueadas.size },
+    { chave: "bloqueados", rotulo: "Possivelmente travadas", n: recorte.filter((c) => !c.concluida && bloqueadas.has(c.id)).length },
   ];
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-5 p-4 md:px-6 md:py-6">
       <PageHeader
         area="cockpit_coo"
-        titulo="Compromissos"
-        pergunta="O que foi combinado nas reuniões, quem está devendo e o que vence esta semana?"
-        descricao="Lista Compromissos da rotina, na pasta Rotina Semanal do ClickUp · um dono e um prazo por compromisso"
+        titulo="Tarefas e compromissos"
+        pergunta="O que está combinado no ClickUp, quem está devendo e o que vence esta semana?"
+        descricao="Tarefas das áreas no space da Expansão Nacional (só leitura) e a lista Compromissos da rotina · um dono e um prazo por tarefa"
       />
 
       {!conectado && (
@@ -125,21 +147,21 @@ export function CompromissosPagina({
       )}
 
       <KpiGrade colunas={4}>
-        <KpiCard area="cockpit_coo" rotulo="Abertos" valor={conectado ? String(compromissos.filter((c) => !c.concluida).length) : "—"} estado={conectado ? "ok" : "nao-apurado"} nota={conectado ? "na lista Compromissos da rotina" : "ClickUp desconectado"} />
-        <KpiCard area="cockpit_coo" rotulo="Vencidos" valor={conectado ? String(h.vencidos) : "—"} estado={conectado ? "ok" : "nao-apurado"} tom={h.vencidos ? "perigo" : undefined} nota="prazo passado e ainda aberto" />
+        <KpiCard area="cockpit_coo" rotulo="Abertas" valor={conectado ? String(recorte.filter((c) => !c.concluida).length) : "—"} estado={conectado ? "ok" : "nao-apurado"} nota={conectado ? "tarefas e compromissos do recorte" : "ClickUp desconectado"} />
+        <KpiCard area="cockpit_coo" rotulo="Vencidas" valor={conectado ? String(h.vencidos) : "—"} estado={conectado ? "ok" : "nao-apurado"} tom={h.vencidos ? "perigo" : undefined} nota="prazo passado e ainda aberta" />
         <KpiCard
           area="cockpit_coo"
-          rotulo="Cumpridos no prazo (semana)"
+          rotulo="Cumpridas no prazo (semana)"
           valor={taxa == null ? "—" : `${Math.round(taxa)}%`}
           estado={taxa == null ? "nao-apurado" : "ok"}
-          nota={taxa == null ? "nenhum prazo nesta semana" : "dos que vencem de segunda a domingo"}
+          nota={taxa == null ? "nenhum prazo nesta semana" : `${semanaNoPrazo} de ${semanaTotal} com prazo de segunda a domingo`}
         />
         <KpiCard
           area="cockpit_coo"
           rotulo="Prazos empurrados"
-          valor={conectado ? String(compromissos.filter((c) => !c.concluida && c.adiamentos > 0).length) : "—"}
+          valor={conectado ? String(recorte.filter((c) => !c.concluida && c.adiamentos > 0).length) : "—"}
           estado={conectado ? "ok" : "nao-apurado"}
-          nota="abertos com o prazo adiado ao menos uma vez"
+          nota="abertas com o prazo adiado ao menos uma vez"
         />
       </KpiGrade>
 
@@ -159,12 +181,27 @@ export function CompromissosPagina({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <Select value={busca.origem ?? "__tudo"} onValueChange={(v) => aoMudar({ origem: v === "__tudo" ? undefined : (v as BuscaCompromissos["origem"]) })}>
+          <SelectTrigger className="h-8 w-56" aria-label="Origem"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__tudo">Origem: tudo</SelectItem>
+            <SelectItem value="area">Tarefas das áreas</SelectItem>
+            <SelectItem value="rotina">Compromissos da rotina</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={busca.area ?? "__todas"} onValueChange={(v) => aoMudar({ area: v === "__todas" ? undefined : v })}>
+          <SelectTrigger className="h-8 w-52" aria-label="Área"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__todas">Área: todas</SelectItem>
+            {areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={status} onValueChange={(v) => aoMudar({ status: v as BuscaCompromissos["status"] })}>
           <SelectTrigger className="h-8 w-40" aria-label="Situação"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="abertos">Abertos</SelectItem>
-            <SelectItem value="concluidos">Concluídos</SelectItem>
-            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="abertos">Abertas</SelectItem>
+            <SelectItem value="concluidos">Concluídas</SelectItem>
+            <SelectItem value="todos">Todas</SelectItem>
           </SelectContent>
         </Select>
         <Select value={busca.tema ?? "__todos"} onValueChange={(v) => aoMudar({ tema: v === "__todos" ? undefined : (v as Tema) })}>
@@ -188,8 +225,8 @@ export function CompromissosPagina({
             {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(busca.tema || busca.dono || busca.unidade || busca.higiene || status !== "abertos") && (
-          <Button size="sm" variant="ghost" onClick={() => aoMudar({ tema: undefined, dono: undefined, unidade: undefined, higiene: undefined, status: undefined })}>
+        {(busca.origem || busca.area || busca.tema || busca.dono || busca.unidade || busca.higiene || status !== "abertos") && (
+          <Button size="sm" variant="ghost" onClick={() => aoMudar({ origem: undefined, area: undefined, tema: undefined, dono: undefined, unidade: undefined, higiene: undefined, status: undefined })}>
             Limpar
           </Button>
         )}
@@ -197,8 +234,8 @@ export function CompromissosPagina({
 
       {fila.length === 0 ? (
         <EstadoVazio
-          titulo={conectado ? "Nenhum compromisso neste recorte" : "Sem compromissos para mostrar"}
-          descricao={conectado ? "Os compromissos nascem no botão \"Virar compromisso\" de cada alerta, ou direto na lista Compromissos da rotina do ClickUp (a Minha Semana fica de fora)." : motivo ?? undefined}
+          titulo={conectado ? "Nenhuma tarefa neste recorte" : "Sem tarefas para mostrar"}
+          descricao={conectado ? "As tarefas vêm das pastas das áreas no ClickUp da Expansão Nacional. Os compromissos nascem no botão \"Virar compromisso\" de cada alerta, ou direto na lista Compromissos da rotina (a Minha Semana fica de fora)." : motivo ?? undefined}
           total={compromissos.length}
         />
       ) : (
@@ -206,7 +243,8 @@ export function CompromissosPagina({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Compromisso</TableHead>
+                <TableHead>Tarefa</TableHead>
+                <TableHead>Origem</TableHead>
                 <TableHead>Dono</TableHead>
                 <TableHead>Prazo</TableHead>
                 <TableHead>Tema</TableHead>
@@ -219,10 +257,17 @@ export function CompromissosPagina({
                 <TableRow key={c.id} className="cursor-pointer" onClick={() => { pedirOpcoes(); aoMudar({ tarefa: c.id }); }}>
                   <TableCell className="max-w-[420px]">
                     <span className="flex items-center gap-2">
-                      {c.vencido && <AlertOctagon className="size-4 shrink-0 text-danger" aria-label="vencido" />}
-                      {c.concluida && <CheckCircle2 className="size-4 shrink-0 text-success" aria-label="concluído" />}
-                      <span className="truncate">{c.nome}</span>
+                      {c.vencido && <AlertOctagon className="size-4 shrink-0 text-danger" aria-label="vencida" />}
+                      {c.concluida && <CheckCircle2 className="size-4 shrink-0 text-success" aria-label="concluída" />}
+                      <span className="min-w-0">
+                        <span className="block truncate">{c.nome}</span>
+                        {c.pai && <span className="block truncate text-xs text-muted-foreground">KR: {c.pai}</span>}
+                      </span>
                     </span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs">
+                    {c.origemTarefa === "rotina" ? "Rotina" : c.departamento ?? "Área"}
+                    <span className="text-muted-foreground"> · {ROTULO_TIPO[c.tipo]}</span>
                   </TableCell>
                   <TableCell className={cn(!c.dono && "text-danger")}>{c.dono?.nome ?? "sem dono"}{c.outrosDonos ? ` +${c.outrosDonos}` : ""}</TableCell>
                   <TableCell className={cn("num", c.vencido && "text-danger")}>
@@ -307,6 +352,8 @@ function Ficha({
             </SheetHeader>
             <div className="mt-4 space-y-5 text-sm">
               <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-xs">
+                <dt className="text-muted-foreground">Origem</dt><dd>{c.origemTarefa === "rotina" ? "Compromisso da rotina" : `Tarefa da área ${c.departamento ?? ""}`.trim()} · {ROTULO_TIPO[c.tipo]}</dd>
+                {c.pai && (<><dt className="text-muted-foreground">KR</dt><dd>{c.pai}</dd></>)}
                 <dt className="text-muted-foreground">Tema</dt><dd>{c.tema ? TEMAS[c.tema].menu : c.temaTexto ?? "sem tema"}</dd>
                 <dt className="text-muted-foreground">Unidade</dt><dd>{c.unidade ?? "—"}</dd>
                 <dt className="text-muted-foreground">Criado em</dt><dd>{dataBr(c.criadaEm)}</dd>
@@ -335,7 +382,13 @@ function Ficha({
                 </section>
               )}
 
-              {!c.concluida && (
+              {c.origemTarefa === "area" && (
+                <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  Tarefa da área: o cockpit só lê. Quem mexe nela é o dono, no ClickUp. Para cobrar, abra a tarefa no ClickUp ou
+                  transforme a cobrança em compromisso da rotina.
+                </p>
+              )}
+              {c.origemTarefa === "rotina" && !c.concluida && (
                 <section className="space-y-3">
                   <Button disabled={!!semEscrita || m.isPending} onClick={() => m.mutate({ tarefaId: c.id, acao: "concluir" })} title={semEscrita ?? undefined}>
                     <CheckCircle2 className="mr-1 size-4" aria-hidden /> Concluir
@@ -357,15 +410,17 @@ function Ficha({
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button size="sm" variant="outline" disabled={!!semEscrita || !dono || m.isPending} onClick={() => m.mutate({ tarefaId: c.id, acao: "dono", donoId: Number(dono) })}>Trocar</Button>
+                    <Button size="sm" variant="outline" disabled={!!semEscrita || !dono || m.isPending} onClick={() => m.mutate({ tarefaId: c.id, acao: "dono", donoId: Number(dono) })}>Trocar dono</Button>
                   </div>
                 </section>
               )}
+              {c.origemTarefa === "rotina" && (
               <section className="space-y-1">
                 <Label htmlFor="coo-comentario">Comentário</Label>
                 <Textarea id="coo-comentario" value={comentario} maxLength={2000} onChange={(e) => setComentario(e.target.value)} rows={3} />
                 <Button size="sm" variant="outline" disabled={!!semEscrita || !comentario.trim() || m.isPending} onClick={() => m.mutate({ tarefaId: c.id, acao: "comentar", texto: comentario })}>Comentar no ClickUp</Button>
               </section>
+              )}
             </div>
           </>
         )}

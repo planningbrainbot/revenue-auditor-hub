@@ -16,6 +16,7 @@ import { fracaoEsperada, listarKrs } from "../supabase/functions/_shared/clickup
 import {
   linhaDoEspelho,
   diferencas,
+  mesmoInstante,
   podeMarcarSumidas,
 } from "../supabase/functions/_shared/clickup/compromissos.ts";
 import { calcularMedicoesBrain } from "../supabase/functions/_shared/clickup/medicoes-brain.ts";
@@ -29,7 +30,9 @@ import {
   reuniaoAnterior,
   revisaoDaSemana,
   taxaNoPrazo,
+  lerTarefas,
 } from "../src/lib/cockpit-coo/compromissos.ts";
+import { lerUnidades } from "../src/lib/cockpit-coo/unidades.ts";
 
 // --- API: paginação e cota --------------------------------------------------------------------
 
@@ -345,4 +348,100 @@ test("revisão da semana por tema e taxa no prazo", () => {
   assert.deepEqual(r, { tema: "financeiro-operacoes", noPrazo: 1, comAtraso: 1, vencidos: 1, abertos: 1 });
   assert.equal(Number(taxaNoPrazo(revisaoDaSemana(cs, "2026-09-29")).toFixed(2)), 33.33);
   assert.equal(taxaNoPrazo(revisaoDaSemana([], "2026-09-29")), null);
+});
+
+// --- Reflexo do ClickUp: tarefas das áreas junto dos compromissos (pedido do Pedro, 30/09) --------
+
+const noEspaco = (id, pasta, lista, extra = {}) =>
+  linha(id, { pasta_nome: pasta, lista_nome: lista, tema: null, ...extra });
+
+test("lerTarefas: tarefas das áreas e compromissos; Minha Semana e guias ficam de fora", () => {
+  const unidades = lerUnidades([
+    { id: 8, nome_da_praca: "Maceió", tipo: "regional", data_inauguracao: "2026-05-01" },
+    { id: 3, nome_da_praca: "Belém", tipo: "regional", data_inauguracao: "2025-06-01" },
+  ]);
+  const linhas = [
+    noEspaco("c1", "🗓️ Rotina Semanal · Paulo", "✅ Compromissos da rotina", { tema: "Growth", nome: "Cobrar Belém" }),
+    noEspaco("d1", "🗓️ Rotina Semanal · Paulo", "📅 Minha Semana", { nome: "D2 · TERÇA · Finance e Ops" }),
+    noEspaco("g1", "Comercial · Renan", "📖 COMECE AQUI · Guia de uso"),
+    noEspaco("kr1", "Operações · Victor", "Garantir um modelo financeiro sustentável", { nome: "Implantação do Broker 100% das unidades" }),
+    noEspaco("e1", "Operações · Victor", "Garantir um modelo financeiro sustentável", { nome: "Maceió", parent_id: "kr1", donos: [] }),
+    noEspaco("dir1", "Marketing · Simão e Tiago", "🗣️ Direcionamentos (1:1)", { nome: "Rever criativos" }),
+    noEspaco("s1", "Novos Sócios . Paulo", "Construir a base", { nome: "Onboarding" }),
+  ];
+  const ts = lerTarefas({ linhas, eventos: [] }, AGORA, unidades);
+  assert.deepEqual(ts.map((t) => t.id), ["c1", "kr1", "e1", "dir1", "s1"]);
+  const por = Object.fromEntries(ts.map((t) => [t.id, t]));
+  assert.deepEqual(
+    [por.c1.origemTarefa, por.c1.tipo, por.c1.departamento, por.c1.tema],
+    ["rotina", "compromisso", null, "growth"],
+  );
+  // O tema da tarefa de área vem da pasta do departamento (mapa aprovado pelo COO).
+  assert.deepEqual(
+    [por.kr1.origemTarefa, por.kr1.tipo, por.kr1.departamento, por.kr1.tema],
+    ["area", "kr", "Operações", "financeiro-operacoes"],
+  );
+  // Entrega: o nome da KR mãe e a unidade achada no nome da tarefa.
+  assert.deepEqual([por.e1.tipo, por.e1.pai, por.e1.unidade, por.e1.dono], ["entrega", "Implantação do Broker 100% das unidades", "Maceió", null]);
+  assert.deepEqual([por.dir1.tipo, por.dir1.tema], ["direcionamento", "growth"]);
+  // "Novos Sócios . Paulo" (ponto em vez de ·) também casa com o departamento.
+  assert.deepEqual([por.s1.departamento, por.s1.tema], ["Novos Sócios", "estrategico"]);
+});
+
+test("execução do tema: tarefas da área e compromissos, com vence em 7 dias, sem dono e até 5 destaques", () => {
+  const op = (id, extra) => noEspaco(id, "Operações · Victor", "Objetivo", extra);
+  const ts = lerTarefas(
+    {
+      linhas: [
+        op("v1", { prazo: "2026-09-10T12:00:00.000Z" }),
+        op("v2", { prazo: "2026-09-20T12:00:00.000Z", donos: [] }),
+        op("s1", { prazo: "2026-10-02T12:00:00.000Z" }),
+        op("s2", { prazo: "2026-10-06T12:00:00.000Z" }),
+        op("longe", { prazo: "2026-10-20T12:00:00.000Z" }),
+        op("semprazo", { donos: [] }),
+        op("feita", { concluida: true, concluida_em: "2026-09-24T12:00:00.000Z" }),
+        noEspaco("aud", "Auditoria & Qualidade · Amanda/Sumaya", "01 · Autofinanciamento", { prazo: "2026-09-30T12:00:00.000Z" }),
+        noEspaco("mkt", "Marketing · Simão e Tiago", "O1", { prazo: "2026-09-25T12:00:00.000Z" }),
+      ],
+      eventos: [],
+    },
+    AGORA,
+  );
+  const e = execucaoDoTema("financeiro-operacoes", ts, "2026-09-29");
+  // Operações + Auditoria & Qualidade: 7 abertas (a de Marketing é de segunda).
+  assert.equal(e.abertos, 7);
+  assert.equal(e.vencidos, 2);
+  // Até 06/10: aud (30/09), s1 (02/10) e s2 (06/10).
+  assert.equal(e.vencemEm7, 3);
+  assert.equal(e.semDono, 2);
+  assert.equal(e.feitosDesdeUltima, 1);
+  assert.deepEqual(e.destaques.map((c) => c.id), ["v1", "v2", "aud", "s1", "s2"]);
+});
+
+test("prazo igual escrito de outro jeito não é mudança nem adiamento (bug de 30/09)", () => {
+  // O banco devolve "+00:00"; a leitura nova, ".000Z". Antes: um evento por tarefa a cada 10 minutos.
+  assert.equal(mesmoInstante("2026-07-30T07:00:00+00:00", "2026-07-30T07:00:00.000Z"), true);
+  assert.equal(mesmoInstante("2026-07-30T07:00:00+00:00", "2026-08-06T07:00:00.000Z"), false);
+  assert.equal(mesmoInstante(null, "2026-07-30T07:00:00.000Z"), false);
+  const antes = { ...linhaDoEspelho(tarefa("x")), prazo: "2026-07-30T07:00:00+00:00" };
+  const agora = { ...antes, prazo: "2026-07-30T07:00:00.000Z" };
+  assert.deepEqual(diferencas([antes], [agora]), []);
+  // Os eventos falsos que já estão gravados não contam como adiamento.
+  const ev = [
+    { tarefa_id: "x", tipo: "prazo", de: "2026-07-30T07:00:00+00:00", para: "2026-07-30T07:00:00.000Z", em: "a" },
+    { tarefa_id: "x", tipo: "prazo", de: "2026-07-30T07:00:00+00:00", para: "2026-08-06T07:00:00.000Z", em: "b" },
+  ];
+  assert.equal(lerCompromisso(linha("x"), ev, AGORA).adiamentos, 1);
+});
+
+test("prazo sem hora do ClickUp (04h de São Paulo) só vence no dia seguinte", () => {
+  // 30/09 às 13h UTC (10h em São Paulo): a tarefa de hoje não está vencida; a de ontem está, há 1 dia.
+  const agora = "2026-09-30T13:00:00.000Z";
+  const hoje = lerCompromisso(linha("h", { prazo: "2026-09-30T07:00:00.000Z" }), [], agora);
+  assert.equal(hoje.vencido, false);
+  const ontem = lerCompromisso(linha("o", { prazo: "2026-09-29T07:00:00.000Z" }), [], agora);
+  assert.equal(ontem.vencido, true);
+  assert.equal(ontem.diasVencido, 1);
+  // 00h30 UTC do dia 1º ainda é 30/09 em São Paulo: a tarefa de 30/09 continua no prazo.
+  assert.equal(lerCompromisso(linha("h2", { prazo: "2026-09-30T07:00:00.000Z" }), [], "2026-10-01T00:30:00.000Z").vencido, false);
 });

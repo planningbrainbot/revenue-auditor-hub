@@ -1,7 +1,12 @@
-// Qui · Monetização: "Quais unidades estão engajadas no projeto, e quem eu preciso cobrar?"
+// Qui · Monetização: "A Monetização está entregando o projetado, e quais unidades eu preciso cobrar?"
 //
-// Pedido do COO em 29/09/2026: "Preciso saber quais são as unidades mais engajadas no projeto,
-// assim como preciso ser alertado quando isso não acontecer para poder cobrá-los."
+// Pedido do Pedro em 30/09/2026: "a informação mais relevante é o que está no módulo de
+// monetização, sobretudo no projetado vs realizado". Os quatro primeiros números são a aba
+// "Projetado × realizado" do módulo, com a mesma conta (`forecastComparison`): o projetado é a
+// planilha de forecast em uso e o realizado é o pipe de Monetização no CRM, no mês corrente.
+//
+// Pedido do COO em 29/09/2026, que continua: "Preciso saber quais são as unidades mais engajadas
+// no projeto, assim como preciso ser alertado quando isso não acontecer para poder cobrá-los."
 //
 // Arquivo PURO: sem I/O e só imports relativos com extensão (os testes rodam no Node removendo
 // tipos). Os dados chegam já agregados pelo adaptador `monetizacao.carga.ts`, que lê a mesma carga
@@ -68,7 +73,48 @@ export interface NegocioRegua {
   signed: string[];
 }
 
+/** Os degraus do funil que a planilha projeta, na ordem do cartão (o resultado primeiro). */
+export type Degrau = "signed" | "validated" | "meeting" | "started";
+export const DEGRAUS: { chave: Degrau; rotulo: string; linha: number }[] = [
+  { chave: "signed", rotulo: "Contratos ganhos", linha: 41 },
+  { chave: "validated", rotulo: "Oportunidades validadas", linha: 37 },
+  { chave: "meeting", rotulo: "Reuniões realizadas", linha: 35 },
+  { chave: "started", rotulo: "Leads trabalhados", linha: 29 },
+];
+
+/** Um mês da planilha contra o CRM (o que `forecastComparison` devolve, só com contagens). */
+export interface MesForecast {
+  mes: string;
+  /** Último dia contado: o corte do CRM no mês corrente, senão o fim do mês. */
+  ate: string;
+  parcial: boolean;
+  projetado: Record<Degrau, number | null>;
+  /** null = mês sem realizado (futuro, ou antes da primeira carga). */
+  realizado: Record<Degrau, number> | null;
+  produtos: {
+    produto: string;
+    nome: string;
+    projetadoLeads: number | null;
+    projetadoContratos: number | null;
+    leads: number | null;
+    contratos: number | null;
+  }[];
+}
+
 export interface DadosMonetizacao {
+  forecast:
+    | {
+        ok: true;
+        /** "v12 · Estimado". */
+        versao: string;
+        nota: string;
+        /** Data da planilha. */
+        fonteData: string;
+        atualizadoEm: string | null;
+        parada: string | null;
+        meses: MesForecast[];
+      }
+    | FalhaParte;
   base:
     | {
         ok: true;
@@ -91,7 +137,7 @@ export interface DadosMonetizacao {
 /** A carga inteira falhou, carrega ou foi negada: as duas partes com o mesmo estado. */
 export function dadosSemCarga(estado: FalhaParte["estado"], motivo: string): DadosMonetizacao {
   const falha: FalhaParte = { ok: false, estado, motivo };
-  return { base: falha, negocios: falha };
+  return { forecast: falha, base: falha, negocios: falha };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -367,12 +413,38 @@ const DESTINO_CAPACIDADE: Destino = destino(
   { aba: "capacidade" },
 );
 
+const DESTINO_FORECAST: Destino = destino(
+  "/monetizacao",
+  "Abrir Projetado × realizado (Monetização)",
+  true,
+  "A aba do módulo compara a frente inteira no mesmo mês, como aqui; lá dá para trocar o mês e o cenário da planilha.",
+  { aba: "forecast" },
+);
+
+/** Realizado ÷ projetado proporcional aos dias corridos: abaixo disto, crítico; abaixo do segundo, atenção. */
+export const RITMO_FORECAST = { critico: 0.7, atencao: 0.9 } as const;
+/** Sem ao menos isto de esperado até hoje, o ritmo é ruído (começo do mês, degrau pequeno). */
+const ESPERADO_MINIMO = 2;
+/** Produto sem nenhum contrato só vira alerta a partir desta fração do mês. */
+const FRACAO_PRODUTO_ZERADO = 0.5;
+// Desvio do projetado vem antes de cobrar a unidade na mesma gravidade (pedido do Pedro, 30/09).
+const PESO_FORECAST = 10_000_000;
+
+/** Fração do mês já contada (dia do corte ÷ dias do mês); 1 em mês fechado. */
+export function fracaoDoMes(m: Pick<MesForecast, "mes" | "ate" | "parcial">): number {
+  if (!m.parcial) return 1;
+  const dias = new Date(Date.UTC(Number(m.mes.slice(0, 4)), Number(m.mes.slice(5, 7)), 0)).getUTCDate();
+  return Math.min(1, Number(m.ate.slice(8, 10)) / dias);
+}
+
 const LIMIAR = {
   semReuniao: `Cobrar a unidade: ${REGUA.amostraMinima} ou mais leads maduros (primeiro trabalho entre ${REGUA.janela.de} e ${REGUA.janela.ate} dias atrás) e nenhuma reunião marcada ou realizada.`,
   parada: `Cobrar a unidade: nota de engajamento abaixo de ${REGUA.morna} (faixa parada), com ${REGUA.amostraMinima} ou mais leads maduros.`,
   caiu: `Cobrar a unidade: a faixa de hoje é menor que a de ${REGUA.comparacaoDias} dias atrás (engajada ${REGUA.engajada}+, morna ${REGUA.morna}–${REGUA.engajada - 1}, parada abaixo de ${REGUA.morna}).`,
   matrizSemTrabalho: `Cobrar a matriz: ${REGUA.matrizElegiveis} ou mais contas elegíveis e menos de ${REGUA.matrizLeads} leads maduros.`,
   matrizCobertura: `Cobrar a matriz: menos de ${REGUA.coberturaMinima}% das contas elegíveis com negócio no pipe da Monetização.`,
+  degrau: `Realizado abaixo de ${RITMO_FORECAST.critico * 100}% (crítico) ou ${RITMO_FORECAST.atencao * 100}% (atenção) do projetado proporcional aos dias corridos do mês, com ao menos ${ESPERADO_MINIMO} esperados até hoje.`,
+  produto: `Produto com 2 ou mais contratos projetados no mês e nenhum ganho, com metade do mês corrida.`,
 };
 
 // Cobrar a unidade vem antes de cobrar a matriz na mesma gravidade (o pedido do COO é sobre a
@@ -450,11 +522,15 @@ export function montarMonetizacao(
   const deMes = inicioDoMes(hoje);
   const nomeMes = MESES[Number(hoje.slice(5, 7)) - 1] ?? mes;
 
+  const { forecast } = dados;
+  const fonteForecast = forecast.ok ? `Forecast ${forecast.versao} (planilha) × pipe de Monetização (CRM)` : "Forecast da Monetização (planilha) × pipe de Monetização (CRM)";
   const fontes: Procedencia[] = [
+    { fonte: fonteForecast, atualizadoEm: forecast.ok ? forecast.atualizadoEm : null },
     { fonte: FONTE_BASE, atualizadoEm: base.ok ? base.atualizadoEm : null },
     { fonte: FONTE_PIPE, atualizadoEm: negocios.ok ? negocios.atualizadoEm : null },
   ];
   const avisos = [
+    "Projetado × realizado é da frente inteira de Monetização: a planilha de forecast não projeta por unidade.",
     "Parte D da régua (ação da unidade, peso 20) sem registro: a nota é (25A + 35B + 20C) ÷ 80 até existir.",
     "A nota de 7 dias atrás usa a base pronta de hoje: o contato da Base não tem histórico.",
   ];
@@ -474,7 +550,79 @@ export function montarMonetizacao(
 
   const numeros: NumeroCoo[] = [];
 
-  // 1 · Unidades engajadas
+  // 1 a 4 · Projetado × realizado do mês corrente (frente inteira: a planilha não projeta por unidade)
+  const doMes = forecast.ok ? forecast.meses.find((m) => m.mes === mes) ?? null : null;
+  const fracao = doMes ? fracaoDoMes(doMes) : 1;
+  const pctCorrido = Math.round(fracao * 100);
+  const comFiltro = !!filtro;
+  const motivoForecast = !forecast.ok
+    ? forecast.motivo
+    : !doMes
+      ? `a planilha em uso (${forecast.versao}) não tem ${nomeMes}: ela cobre ${forecast.meses[0]?.mes ?? "?"} a ${forecast.meses.at(-1)?.mes ?? "?"}`
+      : "o CRM ainda não tem realizado para este mês";
+  const estadoForecast = forecast.ok ? estadoDasPartes(forecast) : null;
+  for (const d of DEGRAUS) {
+    const b: BaseNumero = {
+      id: `projetado-${d.chave}`,
+      rotulo: `${d.rotulo} × projetado`,
+      unidade: "negócios",
+      cobertura: "grupo",
+      fonte: fonteForecast,
+      destino: DESTINO_FORECAST,
+      explicacao: {
+        oQueDiz: `${d.rotulo} no mês corrente no pipe de Monetização, contra o que a planilha de forecast projetou para o mês. É a aba "Projetado × realizado" do módulo de Monetização.`,
+        comoCalcula: `Realizado: negócios do pipe de Monetização com o evento (${d.chave}) entre ${deMes} e o corte do CRM, a mesma conta da aba do módulo (forecastComparison). Projetado: linha ${d.linha} da planilha em uso${forecast.ok ? ` (${forecast.versao}, de ${forecast.fonteData.split("-").reverse().join("/")})` : ""}.`,
+        atencao: `Mês em andamento compara com a meta do mês inteiro, como no módulo; o ritmo (alerta) usa o projetado proporcional aos dias corridos. A planilha não projeta por unidade: com filtro de unidade, o número continua sendo da frente inteira.${forecast.ok && forecast.nota ? ` ${forecast.nota}` : ""}`,
+        dono: DONO,
+      },
+    };
+    const plan = doMes?.projetado[d.chave] ?? null;
+    const real = doMes?.realizado?.[d.chave] ?? null;
+    if (!forecast.ok || !doMes || real === null || !estadoForecast) {
+      numeros.push(
+        numeroSem(b, forecast.ok ? "nao_apurado" : forecast.estado, motivoForecast, {
+          nota: plan !== null ? `projetado ${n0(plan)} em ${nomeMes}` : undefined,
+        }),
+      );
+      continue;
+    }
+    const pct = plan ? Math.round((100 * real) / plan) : null;
+    const esperado = plan !== null ? plan * fracao : null;
+    const ritmo = esperado ? real / esperado : null;
+    const tom: NumeroCoo["tom"] =
+      ritmo === null ? undefined : ritmo < RITMO_FORECAST.critico ? "perigo" : ritmo < RITMO_FORECAST.atencao ? "atencao" : ritmo >= 1 ? "sucesso" : undefined;
+    const porProduto = d.chave === "signed" || d.chave === "started";
+    numeros.push(
+      numeroOk(b, real, {
+        nota:
+          pct === null
+            ? "sem projetado na planilha para este mês"
+            : `${pct}% do projetado${doMes.parcial ? ` com ${pctCorrido}% do mês corrido` : ` em ${nomeMes}`}${comFiltro ? " · frente inteira" : ""}`,
+        meta: plan !== null ? { valor: plan, rotulo: `projetado em ${nomeMes}` } : undefined,
+        tom,
+        estado: estadoForecast.estado,
+        motivo: estadoForecast.motivo,
+        dataDado: estadoForecast.dataDado,
+        dados: porProduto
+          ? tabela(
+              ["Produto", "Projetado", "Realizado", "Diferença"],
+              doMes.produtos.map((p) => {
+                const pl = d.chave === "signed" ? p.projetadoContratos : p.projetadoLeads;
+                const r = d.chave === "signed" ? p.contratos : p.leads;
+                return [p.nome, pl, r, pl !== null && r !== null ? r - pl : null];
+              }),
+            )
+          : tabela(
+              ["Mês", "Projetado", "Realizado"],
+              forecast.meses
+                .filter((m) => m.realizado || m.mes <= mes)
+                .map((m) => [m.mes.split("-").reverse().join("/"), m.projetado[d.chave], m.realizado?.[d.chave] ?? null]),
+            ),
+      }),
+    );
+  }
+
+  // 5 · Unidades engajadas
   {
     const b: BaseNumero = {
       id: "unidades-engajadas",
@@ -508,7 +656,7 @@ export function montarMonetizacao(
     }
   }
 
-  // 2 · Unidades paradas
+  // 6 · Unidades paradas
   {
     const b: BaseNumero = {
       id: "unidades-paradas",
@@ -545,148 +693,6 @@ export function montarMonetizacao(
     }
   }
 
-  // 3 e 4 · Eventos do mês (ganhos e validadas) nas empresas das unidades do filtro
-  const eventoDoMes = (
-    id: string,
-    rotulo: string,
-    evento: "signed" | "validated",
-    oQueDiz: string,
-    atencao: string,
-  ) => {
-    const b: BaseNumero = {
-      id,
-      rotulo,
-      unidade: "negócios",
-      cobertura: "todas",
-      fonte: FONTE_PIPE,
-      destino: DESTINO_OPERACAO,
-      explicacao: {
-        oQueDiz,
-        comoCalcula: `Negócios do pipe de Monetização com o evento (${evento}) entre ${deMes} e ${hoje}, no fuso de São Paulo, cuja empresa é de uma unidade do filtro. A unidade vem da Base: organização do Pipedrive → conta → unidades. Negócio de empresa com duas unidades conta uma vez no total.`,
-        atencao,
-        dono: DONO,
-      },
-    };
-    if (!negocios.ok) return numeroSem(b, negocios.estado, negocios.motivo);
-    const noMes = negocios.lista.filter((n) => n[evento].some((d) => d >= deMes && d <= hoje));
-    const doFiltro = noMes.filter((n) => n.unidade_ids.some((u) => ids.has(u)));
-    const semUnidade = noMes.filter((n) => n.unidade_ids.length === 0).length;
-    const e = estadoDasPartes(negocios);
-    return numeroOk(b, doFiltro.length, {
-      nota: semUnidade
-        ? `${plural(semUnidade, "negócio sem unidade ficou", "negócios sem unidade ficaram")} de fora`
-        : `em ${nomeMes}`,
-      estado: e.estado,
-      motivo: e.motivo,
-      dataDado: e.dataDado,
-      dados: tabela(
-        ["Unidade", rotulo],
-        sel.map((u) => [u.nome, doFiltro.filter((n) => n.unidade_ids.includes(u.id)).length]),
-      ),
-    });
-  };
-  numeros.push(
-    eventoDoMes(
-      "contratos-ganhos-mes",
-      "Contratos ganhos no mês",
-      "signed",
-      "Contratos de produto (Consultoria, Finance, Cella) ganhos no pipe da Monetização no mês corrente, em empresas das unidades do filtro.",
-      "Ganho no CRM não é contrato assinado nem receita. Inclui unidades em implantação: é resultado da Monetização na carteira, não desempenho da unidade.",
-    ),
-    eventoDoMes(
-      "oportunidades-validadas-mes",
-      "Oportunidades validadas no mês",
-      "validated",
-      "Negócios que entraram pela primeira vez em Negociação ou etapa superior no mês corrente, em empresas das unidades do filtro.",
-      "Reciclado não valida. Inclui unidades em implantação: é resultado da Monetização na carteira, não desempenho da unidade.",
-    ),
-  );
-
-  // 5 · Cobertura da base
-  {
-    const b: BaseNumero = {
-      id: "cobertura-base",
-      rotulo: "Cobertura da base elegível",
-      unidade: "percentual",
-      cobertura: "todas",
-      fonte: FONTE_REGUA,
-      destino: DESTINO_CAPACIDADE,
-      explicacao: {
-        oQueDiz:
-          "Parte das contas elegíveis das unidades do filtro que já tem negócio no pipe de Monetização: quanto da base a matriz já está trabalhando.",
-        comoCalcula:
-          "Contas elegíveis (régua de oferta da Base de clientes: Consultoria, Finance ou Cella) cuja organização do Pipedrive está em algum negócio do pipe, dividido pelas contas elegíveis. Conta de duas unidades entra uma vez.",
-        atencao: `Unidade com cobertura abaixo de ${REGUA.coberturaMinima}% vira alerta para cobrar a matriz.`,
-        dono: DONO,
-      },
-    };
-    const falha = primeiraFalha(base, negocios);
-    if (falha || !base.ok || !negocios.ok) numeros.push(numeroSem(b, falha!.estado, falha!.motivo));
-    else {
-      const t = baseDoFiltro(base.grupos, ids);
-      const pct = cobertura(t);
-      if (pct === null)
-        numeros.push(
-          numeroSem(b, "nao_apurado", "nenhuma conta elegível nas unidades do filtro"),
-        );
-      else {
-        const e = estadoDasPartes(base, negocios);
-        numeros.push(
-          numeroOk(b, pct, {
-            nota: `${n0(t.trabalhadas ?? 0)} de ${n0(t.elegiveis)} elegíveis com negócio`,
-            tom: pct < REGUA.coberturaMinima ? "atencao" : undefined,
-            estado: e.estado,
-            motivo: e.motivo,
-            dataDado: e.dataDado,
-            dados: tabela(
-              ["Unidade", "Elegíveis", "Com negócio", "Cobertura (%)"],
-              sel.map((u) => {
-                const x = baseDaUnidade(base.grupos, u.id);
-                return [u.nome, x.elegiveis, x.trabalhadas, cobertura(x)];
-              }),
-            ),
-          }),
-        );
-      }
-    }
-  }
-
-  // 6 · Lacuna: leads maduros sem unidade
-  {
-    const b: BaseNumero = {
-      id: "leads-sem-unidade",
-      rotulo: "Leads maduros sem unidade",
-      unidade: "negócios",
-      cobertura: "todas",
-      fonte: FONTE_PIPE,
-      destino: DESTINO_OPERACAO,
-      explicacao: {
-        oQueDiz:
-          "Leads maduros do pipe cuja empresa não tem unidade na Base: a régua não os atribui a nenhuma unidade.",
-        comoCalcula:
-          "Negócios com o primeiro trabalho entre 30 e 7 dias atrás cuja organização do Pipedrive não casa com nenhuma conta com unidade na Base de clientes.",
-        atencao:
-          "Não segue o filtro de unidade: são justamente os negócios sem unidade. Corrigir é vincular a empresa a uma unidade na Base de clientes.",
-        dono: DONO,
-      },
-    };
-    if (!negocios.ok) numeros.push(numeroSem(b, negocios.estado, negocios.motivo));
-    else {
-      const maduros = negocios.lista.filter((n) => naCoorte(n, hoje));
-      const sem = maduros.filter((n) => n.unidade_ids.length === 0).length;
-      const e = estadoDasPartes(negocios);
-      numeros.push(
-        numeroOk(b, sem, {
-          nota: `de ${plural(maduros.length, "lead maduro", "leads maduros")} no pipe`,
-          tom: sem ? "atencao" : undefined,
-          estado: e.estado,
-          motivo: e.motivo,
-          dataDado: e.dataDado,
-        }),
-      );
-    }
-  }
-
   // Gráfico: nota por unidade, com a faixa
   const baseGrafico = {
     id: "engajamento-por-unidade",
@@ -704,7 +710,59 @@ export function montarMonetizacao(
       dono: DONO,
     },
   };
+  const explicacaoForecast = {
+    oQueDiz:
+      "O realizado do mês no pipe de Monetização contra o projetado da planilha de forecast, como na aba Projetado × realizado do módulo.",
+    comoCalcula: `Mesma conta dos cartões (forecastComparison): realizado até o corte do CRM, projetado do mês inteiro${forecast.ok ? ` (planilha ${forecast.versao})` : ""}.`,
+    atencao: "Mês em andamento compara com a meta do mês inteiro. A planilha não projeta por unidade: o gráfico é da frente inteira.",
+    dono: DONO,
+  };
+  const semForecast = { estado: (forecast.ok ? "nao_apurado" : forecast.estado) as Estado, motivo: motivoForecast };
+  const graficoDegraus = grafico(
+    {
+      id: "projetado-degraus",
+      titulo: "Em que degrau o mês descolou do plano?",
+      tipo: "barras-h",
+      series: [
+        { chave: "realizado", rotulo: "Realizado · CRM" },
+        { chave: "projetado", rotulo: forecast.ok ? `Projetado · planilha ${forecast.versao}` : "Projetado · planilha" },
+      ],
+      unidade: "negócios",
+      fonte: fonteForecast,
+      destino: DESTINO_FORECAST,
+      explicacao: explicacaoForecast,
+    },
+    doMes?.realizado && estadoForecast
+      ? DEGRAUS.map((d) => ({ rotulo: d.rotulo, realizado: doMes.realizado![d.chave], projetado: doMes.projetado[d.chave] }))
+      : [],
+    doMes?.realizado && estadoForecast
+      ? { estado: estadoForecast.estado, motivo: estadoForecast.motivo, dataDado: estadoForecast.dataDado }
+      : semForecast,
+  );
+  const graficoProdutos = grafico(
+    {
+      id: "projetado-produtos",
+      titulo: "Qual produto está abaixo do projetado?",
+      tipo: "barras-h",
+      series: [
+        { chave: "contratos", rotulo: "Contratos ganhos" },
+        { chave: "projetados", rotulo: "Contratos projetados" },
+      ],
+      unidade: "negócios",
+      fonte: fonteForecast,
+      destino: DESTINO_FORECAST,
+      explicacao: { ...explicacaoForecast, oQueDiz: "Contratos ganhos no mês por produto (Cella, Consultoria, Finance) contra os contratos que a planilha projetou para cada um." },
+    },
+    doMes?.realizado && estadoForecast
+      ? doMes.produtos.map((p) => ({ rotulo: p.nome, contratos: p.contratos, projetados: p.projetadoContratos }))
+      : [],
+    doMes?.realizado && estadoForecast
+      ? { estado: estadoForecast.estado, motivo: estadoForecast.motivo, dataDado: estadoForecast.dataDado }
+      : semForecast,
+  );
   const graficos: GraficoCoo[] = [
+    graficoDegraus,
+    graficoProdutos,
     regua && estadoRegua
       ? grafico(
           baseGrafico,
@@ -725,6 +783,48 @@ export function montarMonetizacao(
   // Alertas: no máximo um "cobrar a unidade" e um "cobrar a matriz" por unidade, a regra mais
   // específica primeiro, para o mesmo problema não virar duas tarefas no ClickUp.
   const alertas: AlertaCoo[] = [];
+  if (doMes?.realizado && estadoForecast) {
+    for (const d of DEGRAUS) {
+      const plan = doMes.projetado[d.chave];
+      const real = doMes.realizado[d.chave];
+      if (plan === null || !plan) continue;
+      const esperado = plan * fracao;
+      if (esperado < ESPERADO_MINIMO) continue;
+      const ritmo = real / esperado;
+      if (ritmo >= RITMO_FORECAST.atencao) continue;
+      alertas.push(
+        alerta(
+          "monetizacao",
+          `projetado-${d.chave}`,
+          ritmo < RITMO_FORECAST.critico ? "critico" : "atencao",
+          `Monetização · ${d.rotulo.toLowerCase()} em ${Math.round((100 * real) / plan)}% do projetado de ${nomeMes} (${n0(real)} de ${n0(plan)})`,
+          {
+            peso: PESO_FORECAST + Math.round((1 - ritmo) * 1000),
+            destino: DESTINO_FORECAST,
+            limiar: LIMIAR.degrau,
+            periodo: mes,
+          },
+        ),
+      );
+    }
+    if (fracao >= FRACAO_PRODUTO_ZERADO)
+      for (const p of doMes.produtos)
+        if ((p.projetadoContratos ?? 0) >= 2 && p.contratos === 0)
+          alertas.push(
+            alerta(
+              "monetizacao",
+              `produto-sem-contrato-${p.produto}`,
+              "atencao",
+              `${p.nome} · nenhum contrato ganho de ${n0(p.projetadoContratos!)} projetados em ${nomeMes}`,
+              {
+                peso: PESO_FORECAST + p.projetadoContratos!,
+                destino: DESTINO_FORECAST,
+                limiar: LIMIAR.produto,
+                periodo: mes,
+              },
+            ),
+          );
+  }
   for (const l of regua ?? []) {
     const u = l.unidade;
     if (u.emOperacao) {

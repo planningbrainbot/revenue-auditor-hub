@@ -59,7 +59,7 @@ export const TEMAS: Record<Tema, DefinicaoTema> = {
     diaRotulo: "Quinta",
     titulo: "Monetização",
     menu: "Qui · Monetização",
-    pergunta: "Quais unidades estão engajadas no projeto, e quem eu preciso cobrar?",
+    pergunta: "A Monetização está entregando o projetado, e quais unidades eu preciso cobrar?",
     departamentos: ["Receitas"],
   },
   estrategico: {
@@ -115,7 +115,7 @@ export type Cobertura = "todas" | "rede" | "grupo";
 export const COBERTURAS: Record<Cobertura, string> = {
   todas: "todas as unidades do filtro",
   rede: "só rede regional (a operação própria não paga royalties)",
-  grupo: "a empresa inteira: não se separa por unidade (Financeiro, OKRs da Expansão)",
+  grupo: "a empresa inteira: não se separa por unidade (Financeiro, OKRs da Expansão, forecast da Monetização)",
 };
 
 export interface Explicacao {

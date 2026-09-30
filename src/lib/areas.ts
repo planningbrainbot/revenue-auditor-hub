@@ -566,7 +566,7 @@ export const AREAS: Area[] = [
     // na migration 20260929120000; o COO entra pela tela de acessos.
     slug: "cockpit_coo",
     nome: "Cockpit do COO",
-    descricao: "A pauta da semana da Expansão: números de todas as unidades, OKRs e compromissos.",
+    descricao: "A pauta da semana da Expansão: números de todas as unidades, OKRs, tarefas do ClickUp e compromissos.",
     icone: CalendarDays,
     grupos: [
       {
@@ -586,7 +586,7 @@ export const AREAS: Area[] = [
       {
         label: "Execução",
         items: [
-          { title: "Compromissos", url: "/cockpit-coo/compromissos", icon: ClipboardList },
+          { title: "Tarefas e compromissos", url: "/cockpit-coo/compromissos", icon: ClipboardList },
           { title: "Perguntar ao Brain", url: "/cockpit-coo/perguntar", icon: MessagesSquare },
         ],
       },

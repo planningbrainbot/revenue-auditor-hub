@@ -15,7 +15,7 @@ import { carregarTemaCoo } from "@/lib/cockpit-coo/tema.functions";
 import { carregarOpcoesCompromisso } from "@/lib/cockpit-coo/compromissos.functions";
 import { TEMAS, ehTema, temaDoDia } from "@/lib/cockpit-coo/contrato";
 import type { LeituraTema, Tema } from "@/lib/cockpit-coo/contrato";
-import { lerCompromisso } from "@/lib/cockpit-coo/compromissos";
+import { lerTarefas } from "@/lib/cockpit-coo/compromissos";
 import { montarOkrsTema } from "@/lib/cockpit-coo/okrs";
 import { filtroValido } from "@/lib/cockpit-coo/unidades";
 import { dadosSemCarga, montarMonetizacao } from "@/lib/cockpit-coo/temas/monetizacao";
@@ -203,6 +203,5 @@ function Monetizacao(
 function compromissosDaBase(b: BaseCoo | undefined) {
   if (!b?.compromissos.ok) return [];
   const agora = new Date().toISOString();
-  const { linhas, eventos } = b.compromissos.dado;
-  return linhas.map((l) => lerCompromisso(l, eventos, agora));
+  return lerTarefas(b.compromissos.dado, agora, b.unidades);
 }

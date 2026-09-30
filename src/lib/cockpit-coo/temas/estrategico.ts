@@ -9,7 +9,8 @@
 // 3. Peso da maior unidade na rede: resumirRedeUnidades, a mesma janela do número 2.
 // 4. OKRs da Expansão: média das KRs medidas na última foto, de TODOS os departamentos, contra o
 //    esperado linear do ciclo (fracaoEsperada), como okrs.ts.
-// 5. Compromissos da semana cumpridos no prazo: taxaNoPrazo(revisaoDaSemana(...)).
+// 5. Tarefas da semana cumpridas no prazo (tarefas das áreas e compromissos da rotina):
+//    taxaNoPrazo(revisaoDaSemana(...)).
 // 6. Unidades em implantação: regionais sem inauguração no cadastro.
 //
 // A foto de OKR e os compromissos chegam prontos da carga comum (base.functions.ts); este tema só
@@ -32,7 +33,7 @@ import { acharUnidade, chaveUnidade, unidadesDoFiltro, universo } from "../unida
 import type { FiltroUnidade, UnidadeCoo } from "../unidades.ts";
 import { DIAS_FOTO_PARADA } from "../okrs.ts";
 import type { LinhaSnapshot } from "../okrs.ts";
-import { revisaoDaSemana, taxaNoPrazo } from "../compromissos.ts";
+import { revisaoDaSemana, segundaDaSemana, taxaNoPrazo } from "../compromissos.ts";
 import type { Compromisso } from "../compromissos.ts";
 import {
   CICLO,
@@ -238,9 +239,9 @@ const destinoOverview = (unidade: string | null): Destino =>
 
 const DESTINO_COMPROMISSOS: Destino = destino(
   "/cockpit-coo/compromissos",
-  "Abrir Compromissos",
+  "Abrir Tarefas e compromissos",
   false,
-  "A fila mostra todos os compromissos da Rotina Semanal; aqui entram só os com prazo nesta semana.",
+  "A fila mostra todas as tarefas das áreas e os compromissos da rotina; aqui entram só os com prazo nesta semana.",
 );
 
 const DESTINO_UNIDADES: Destino = destino(
@@ -773,21 +774,21 @@ export function compromissosDoFiltro(
 
 const EXPLICACAO_COMPROMISSOS: Explicacao = {
   oQueDiz:
-    "De tudo o que tinha prazo nesta semana e já venceu ou foi entregue, quanto foi entregue no prazo.",
+    "De tudo o que tinha prazo nesta semana no ClickUp da Expansão e já venceu ou foi entregue, quanto foi entregue no prazo.",
   comoCalcula:
-    "Compromissos da pasta Rotina Semanal (espelho do ClickUp) com prazo de segunda a domingo desta semana. No prazo = concluído até o dia do prazo; com atraso = concluído depois; vencido = aberto com o prazo passado. Taxa = no prazo ÷ (no prazo + com atraso + vencidos); o que ainda está no prazo fica fora.",
+    "Tarefas das pastas das áreas (KRs, entregas e direcionamentos; o tema vem da pasta) e compromissos da lista Compromissos da rotina, pelo espelho do ClickUp, com prazo de segunda a domingo desta semana. No prazo = concluída até o dia do prazo; com atraso = concluída depois; vencida = aberta com o prazo passado. Taxa = no prazo ÷ (no prazo + com atraso + vencidas); o que ainda está no prazo fica fora.",
   atencao:
-    "Com filtro de unidade, conta só o compromisso com aquela unidade no campo Unidade; o compromisso sem unidade entra só em todas as unidades.",
-  dono: "COO (Paulo Carvalho), dono da Rotina Semanal",
+    "Com filtro de unidade, conta só a tarefa com aquela unidade (no campo Unidade ou no nome, como as tarefas por unidade do Broker); o resto entra só em todas as unidades.",
+  dono: "Cada área é dona das suas tarefas; a Rotina Semanal é do COO (Paulo Carvalho).",
 };
 
 function numeroCompromissos(extra: ExtraEstrategico, cs: Compromisso[], hoje: string): NumeroCoo {
   const base: BaseNumero = {
     id: "compromissos-no-prazo",
-    rotulo: "Compromissos da semana no prazo",
+    rotulo: "Tarefas da semana no prazo",
     unidade: "percentual",
     cobertura: "todas",
-    fonte: "Rotina Semanal (ClickUp)",
+    fonte: "ClickUp da Expansão Nacional (áreas e Rotina Semanal)",
     explicacao: EXPLICACAO_COMPROMISSOS,
     destino: DESTINO_COMPROMISSOS,
   };
@@ -809,8 +810,8 @@ function numeroCompromissos(extra: ExtraEstrategico, cs: Compromisso[], hoje: st
         base,
         "nao_apurado",
         abertos
-          ? `nenhum compromisso da semana venceu ou foi concluído ainda (${abertos} no prazo)`
-          : "nenhum compromisso com prazo nesta semana",
+          ? `nenhuma tarefa da semana venceu ou foi concluída ainda (${abertos} no prazo)`
+          : "nenhuma tarefa com prazo nesta semana",
         { dataDado: hoje },
       ),
       dados: dados_,
@@ -940,10 +941,33 @@ function alertasCompromissos(
   extra: ExtraEstrategico,
   cs: Compromisso[],
   unidades: UnidadeCoo[],
+  hoje: string,
 ): AlertaCoo[] {
   if (!extra.clickupConectado) return [];
-  return cs
-    .filter((c) => c.vencido && c.diasVencido !== null && c.diasVencido >= DIAS_VENCIDO_ALERTA)
+  const velhas = cs.filter((c) => c.vencido && c.diasVencido !== null && c.diasVencido >= DIAS_VENCIDO_ALERTA);
+  // Tarefa de área vencida não vira um alerta por tarefa: uma área com dez tarefas antigas abertas
+  // encheria a caixa. Vira um alerta por área, com a contagem, uma vez por semana.
+  const porArea = new Map<string, Compromisso[]>();
+  for (const c of velhas)
+    if (c.origemTarefa === "area" && c.departamento)
+      porArea.set(c.departamento, [...(porArea.get(c.departamento) ?? []), c]);
+  const semana = segundaDaSemana(hoje);
+  const deArea = [...porArea.entries()].map(([dep, l]) =>
+    alerta(
+      TEMA,
+      "area-tarefas-vencidas",
+      "atencao",
+      `${dep} · ${plural(l.length, "tarefa vencida", "tarefas vencidas")} há ${DIAS_VENCIDO_ALERTA} dias ou mais no ClickUp`,
+      {
+        peso: l.length,
+        destino: DESTINO_COMPROMISSOS,
+        limiar: `tarefas abertas da área com o prazo vencido há ${DIAS_VENCIDO_ALERTA} dias ou mais (a área não fechou nem reprogramou)`,
+        periodo: `${dep} ${semana}`,
+      },
+    ),
+  );
+  return velhas
+    .filter((c) => c.origemTarefa === "rotina")
     .map((c) => {
       const u = acharUnidade(unidades, c.unidade);
       const onde =
@@ -962,7 +986,8 @@ function alertasCompromissos(
           periodo: c.id,
         },
       );
-    });
+    })
+    .concat(deArea);
 }
 
 function alertasOkrs(foto: FotoOkr | null): AlertaCoo[] {
@@ -1018,10 +1043,10 @@ function graficoSemana(extra: ExtraEstrategico, cs: Compromisso[], hoje: string)
       { chave: "abertos", rotulo: "Abertos no prazo" },
     ],
     unidade: UN_COMPROMISSOS,
-    fonte: "Rotina Semanal (ClickUp)",
+    fonte: "ClickUp da Expansão Nacional (áreas e Rotina Semanal)",
     explicacao: {
       oQueDiz:
-        "Os compromissos com prazo nesta semana, por tema da rotina: o que foi entregue no prazo, com atraso, o que venceu e o que ainda está no prazo.",
+        "As tarefas das áreas e os compromissos com prazo nesta semana, por tema da rotina: o que foi entregue no prazo, com atraso, o que venceu e o que ainda está no prazo.",
       comoCalcula: EXPLICACAO_COMPROMISSOS.comoCalcula,
       dono: EXPLICACAO_COMPROMISSOS.dono,
     },
@@ -1036,7 +1061,7 @@ function graficoSemana(extra: ExtraEstrategico, cs: Compromisso[], hoje: string)
   if (!total)
     return grafico(base, [], {
       estado: "nao_apurado",
-      motivo: "nenhum compromisso com prazo nesta semana",
+      motivo: "nenhuma tarefa com prazo nesta semana",
       dataDado: hoje,
     });
   return grafico(
@@ -1150,7 +1175,7 @@ export function montarEstrategico(
 
   const alertas = [
     ...alertasPacto(dados, pacto, unica, hoje),
-    ...alertasCompromissos(extra, cs, unidades),
+    ...alertasCompromissos(extra, cs, unidades, hoje),
     ...alertasOkrs(foto),
   ];
 
