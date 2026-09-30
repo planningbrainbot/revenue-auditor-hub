@@ -3731,3 +3731,21 @@ Os cinco temas foram conferidos por SQL independente na sessão do COO (`scripts
 - **Terça do Paulo:** ele tem só a PARTNERS no Brain Financeiro (`usuario_escopo.todas_empresas = false`). Os números de caixa e DRE do grupo aparecem "sem acesso" para ele até alguém liberar todas as empresas. A decisão é do Pedro e do dono do Financeiro.
 - **Vagas da quarta:** seguem sem fonte (PandaPé, com a Heloísa).
 - **Campos no ClickUp (opcional):** criar Tema, Unidade e Origem no Brain na lista, para filtrar dentro do próprio ClickUp.
+
+## [2026-09-29] Só fornecedor no Omie sai das ofertas e das cargas (adendo ao filtro de tags)
+
+**Decisão do Pedro (29/09):** a pergunta foi "conta que é só fornecedor deve sair das prontas e das próximas cargas?". As respostas foram "sim deve sair" e "deve só ser mencionado".
+
+**Leitura aplicada:**
+- A conta sai de todas as ofertas: Consultoria, Finance, Cella e Recon.
+- A Base continua mostrando a conta, com o motivo "Só fornecedor no Omie (<onde>), sem tag de cliente. Fora das ofertas.", como já acontece com o distrato concluído.
+- Cliente e fornecedor continua apta.
+
+**Onde:**
+- `fornecedorForaDeOferta()` em `model.ts`, logo depois do distrato concluído, em `oferta()` e em `ofertaRecon()`.
+- `motivoConsultoria` ganha o motivo `fornecedor`, para o cartão não contar a conta como Simples.
+- `grupoRecon` ganha o grupo "Só fornecedor no Omie", para a conta não cair em "Até R$ 5 mi".
+- No servidor, `monetizacao_offer_issue` repete a regra na mesma posição (migration `20260929210000`), e o envio recusa com o mesmo motivo.
+- Cards já criados no Pipedrive não mudam. Na carga de outubro são três: 97983, 97933 e 97963.
+
+**Conferido:** ensaio da migration contra produção em transação desfeita, com as tags reais. O só fornecedor volta barrado em Consultoria e em Recon. Testes 328/328.

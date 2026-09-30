@@ -168,6 +168,21 @@ export function distratoForaDeOferta(a: Conta): Oferta | null {
   return null;
 }
 /**
+ * Só fornecedor no Omie (tags do cadastro, migration 20260929180000): a empresa é quem a unidade ou a Matriz
+ * paga, sem tag de cliente em Omie nenhum. Fora das ofertas e das cargas (dono, 29/09/2026: "sim deve sair",
+ * "deve só ser mencionado"): a Base continua mostrando a conta, com este motivo. Mesma posição no servidor
+ * (ops.monetizacao_offer_issue), logo depois do distrato concluído.
+ */
+export function fornecedorForaDeOferta(a: Conta): Oferta | null {
+  const o = a.base?.omie;
+  if (o?.classe !== "fornecedor") return null;
+  const onde = o.fornecedor_em.length ? ` (${o.fornecedor_em.join(", ")})` : "";
+  return {
+    status: "fora_regra",
+    reason: `Só fornecedor no Omie${onde}, sem tag de cliente. Fora das ofertas.`,
+  };
+}
+/**
  * Concluído vale antes de tudo (é definitivo, como a baixa na Receita). A tratativa só rebaixa o que
  * o produto aceitaria ou deixaria pendente: conta que já está fora da regra continua fora pelo
  * motivo dela, em vez de virar "a confirmar" por causa da tratativa.
@@ -266,6 +281,8 @@ function ofertaDoProduto(a: Conta, produto: Produto, review: Revisao): Oferta {
   // Mesma posição do servidor (ops.monetizacao_offer_issue): depois da situação cadastral, antes do
   // que pede ação humana no cadastro. A tratativa entra por fora, em comTratativa.
   if (a.base?.distrato?.estado === "concluido") return distratoForaDeOferta(a)!;
+  const fornecedor = fornecedorForaDeOferta(a);
+  if (fornecedor) return fornecedor;
   if (a.base?.source_status === "absent")
     return result("revisar", "Cadastro ausente no Pipefy; revisar a origem antes de enviar.");
   if (produto === "consultoria") {

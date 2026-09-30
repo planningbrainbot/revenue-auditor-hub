@@ -1,4 +1,10 @@
-import { comTratativa, distratoForaDeOferta, oferta, situacaoForaDeOferta } from "./model.ts";
+import {
+  comTratativa,
+  distratoForaDeOferta,
+  fornecedorForaDeOferta,
+  oferta,
+  situacaoForaDeOferta,
+} from "./model.ts";
 import type { Conta, Oferta, ProdutoEnvio, Revisao } from "./types";
 
 /** A régua de envio de um item de lista: Recon pela régua do Recon, os três do Caixa por `oferta`. */
@@ -9,6 +15,7 @@ export const GRUPOS_RECON = {
   identidade: "CNPJ divergente",
   inativa: "Inativa na Receita · baixada, inapta ou suspensa",
   distrato: "Distrato na Central de Tratativas · concluído ou em tratativa",
+  fornecedor: "Só fornecedor no Omie",
   elegivel: "Aptas",
   confirmar_bpo: "Acima de R$ 5 mi · confirmar BPO",
   faixa_limite: "Faixa atravessa R$ 5 mi",
@@ -28,6 +35,8 @@ export function grupoRecon(a: Conta): GrupoRecon {
   // grupo quando é ela que segura a conta (ofertaRecon a deixa com o motivo dela).
   const distrato = distratoForaDeOferta(a);
   if (distrato && ofertaRecon(a).reason === distrato.reason) return "distrato";
+  // Fornecedor não é prova de faturamento baixo: grupo próprio, como o distrato.
+  if (fornecedorForaDeOferta(a)) return "fornecedor";
   const r = a.recon;
   if (r?.bpo_status === "bpo") return "bpo";
   if (r?.revenue_conflict || a.band_conflict) return "divergencia";
@@ -60,6 +69,8 @@ function ofertaReconDoPerfil(a: Conta): Oferta {
   const parada = situacaoForaDeOferta(a);
   if (parada) return { status: "fora_regra", reason: parada };
   if (a.base?.distrato?.estado === "concluido") return distratoForaDeOferta(a)!;
+  const fornecedor = fornecedorForaDeOferta(a);
+  if (fornecedor) return fornecedor;
   const r = a.recon;
   if (!r) return { status: "revisar", reason: "Contrato e carteira BPO ainda não conferidos." };
   if (r.bpo_status === "bpo") return { status: "fora_regra", reason: r.reason };

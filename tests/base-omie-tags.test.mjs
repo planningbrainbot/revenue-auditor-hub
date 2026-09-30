@@ -7,8 +7,11 @@ import {
   classeOmie,
   EMPTY_PORTFOLIO_FILTERS as empty,
   filtrarCarteira,
+  motivoConsultoria,
 } from "../src/lib/monetizacao/portfolio.ts";
 import { textoOmie } from "../src/lib/monetizacao/sinais.ts";
+import { oferta, fornecedorForaDeOferta } from "../src/lib/monetizacao/model.ts";
+import { grupoRecon, ofertaRecon } from "../src/lib/monetizacao/recon.ts";
 
 const conta = (key, omie) => ({
   key,
@@ -70,4 +73,79 @@ test("Texto do sinal diz a classe e em qual Omie", () => {
     ),
     "Cliente e fornecedor · cliente em Belém · fornecedor em Belém, Planning Partners (Matriz)",
   );
+});
+
+// Regra de oferta (dono, 29/09: "sim deve sair", "deve só ser mencionado"): só fornecedor no Omie sai das ofertas,
+// Recon inclusive, e a Base mostra o motivo. Espelho no servidor: 20260929210000_fornecedor_fora_da_oferta.sql.
+
+const baseApta = (omie) => ({
+  key: "k",
+  cnpjs: ["12345678000190"],
+  empresa_ids: [1],
+  pipefy_ids: ["p1"],
+  pipedrive_ids: [],
+  omie_units: [],
+  omie_records: 0,
+  contact_count: 0,
+  contact: true,
+  ecd: [],
+  declared_origin: [],
+  origin: "antiga",
+  origin_reason: "Base Antiga",
+  tax_evidence: {
+    non_simples: true,
+    conflict: false,
+    covered: true,
+    checked_at: null,
+    sources: [],
+  },
+  responsible: null,
+  validated_at: null,
+  synced_at: null,
+  source_status: "ok",
+  needs_validation: false,
+  needs_source_correction: false,
+  omie,
+});
+// Apta em Consultoria: base antiga, sem fechamento comercial, fora do Simples.
+const retroativa = (omie) => ({
+  key: "r",
+  name: "r",
+  orgs: [],
+  regime: "Lucro Real",
+  band: null,
+  segment: null,
+  contact: false,
+  pipedrive_contract: false,
+  new_commercial: false,
+  old_base: true,
+  base_origin: { status: "antiga" },
+  consultoria_origin: { status: "retroativa", non_simples_confirmed: true },
+  recon: { bpo_status: "fora_bpo", revenue_exact: 12_000_000, reason: "Fora do BPO" },
+  base: baseApta(omie),
+});
+
+test("Só fornecedor sai de todas as ofertas com o motivo; cliente e fornecedor continua", () => {
+  const forn = retroativa(sinal("fornecedor", [], ["Rio de Janeiro"]));
+  const ambos = retroativa(sinal("cliente_e_fornecedor", ["Rio de Janeiro"], ["Rio de Janeiro"]));
+  const fora = retroativa(undefined);
+  assert.equal(oferta(fora, "consultoria").status, "elegivel");
+  assert.equal(oferta(ambos, "consultoria").status, "elegivel");
+  const o = oferta(forn, "consultoria");
+  assert.equal(o.status, "fora_regra");
+  assert.equal(
+    o.reason,
+    "Só fornecedor no Omie (Rio de Janeiro), sem tag de cliente. Fora das ofertas.",
+  );
+  assert.deepEqual(fornecedorForaDeOferta(forn), o);
+  for (const p of ["finance", "cella"]) assert.equal(oferta(forn, p).status, "fora_regra");
+  assert.equal(ofertaRecon(forn).reason, o.reason);
+  assert.equal(ofertaRecon(fora).status, "elegivel");
+});
+
+test("Fornecedor tem motivo e grupo próprios: não vira Simples nem 'Até R$ 5 mi'", () => {
+  const forn = retroativa(sinal("fornecedor", [], ["Planning Partners (Matriz)"]));
+  assert.equal(motivoConsultoria(forn), "fornecedor");
+  assert.equal(grupoRecon(forn), "fornecedor");
+  assert.equal(motivoConsultoria(retroativa(undefined)), "apta");
 });
