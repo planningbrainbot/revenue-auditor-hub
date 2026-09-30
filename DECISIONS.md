@@ -3815,3 +3815,23 @@ Publicado com o "Pode" do Pedro (30/09).
 Antes da correção do dia, eram 8 e 16 vencidas: 6 tarefas vencem hoje.
 
 O projetado × realizado bate com o script que roda o `forecastComparison` do módulo sobre a mesma carga: 4/8, 38/31, 33/49 e 151/120.
+
+## [2026-09-30] Operação da Monetização: funil por produto, lado a lado
+
+**Pedido do Pedro (30/09):** "transforma isso em um complemento da tabela de avanço por produto. A ideia é ter o mesmo funil que a tabela na dobra de cima, só que comparando produtos lado a lado", e "quero saber o que é stand by e o que é perdido mesmo aqui também". Contrato: adendo de 30/09 em `docs/design/contratos/monetizacao-operacao.md`.
+
+**Decisão:**
+- Novo bloco "Em que etapa cada produto trava?", logo abaixo de "Qual produto avança na base?".
+- As etapas do pipe em linhas; em colunas, Cella, Finance, Consultoria e o total.
+- Cada célula traz:
+  - a entrada no período, que abre os cards;
+  - a barra contra a entrada na Base do mesmo produto;
+  - a passagem da etapa de cima, marcada quando fica abaixo de 20%.
+- A conta é a mesma de `funil`: o bloco chama a função com o `product` de cada coluna, e por isso a coluna Total bate com o funil de cima.
+- O bloco fecha com duas linhas:
+  - "Em Stand by hoje": pediu tempo depois da reunião, não é perda. É o pipe inteiro, como o "Hoje" do funil.
+  - "Perdidos no período": o motivo aparece na lista.
+- Com filtro de produto, o bloco não compara nada e diz isso.
+- O motivo de perda não vira categoria na tela. É texto livre no Pipedrive, e a categoria seria inferência. A análise de 30/09 (artifact "Funil do Caixa por produto") agrupou os motivos à mão: em setembro, 42 dos 95 perdidos foram perda comercial, 42 foram triagem de perfil e 11 foram empresa já trabalhada em outro produto ou card duplicado.
+
+**Conferido:** 478/478 testes; `tsc` só com o erro que já existia; `design:lint:changed` ok. Captura: o `design:capturar` só fotografa a vitrine, e este bloco depende da carga do CRM; conferir na tela depois da publicação.
