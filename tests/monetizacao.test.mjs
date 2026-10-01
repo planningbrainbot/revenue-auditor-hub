@@ -19,7 +19,11 @@ import {
   motivoLegivel,
 } from "../src/lib/monetizacao/model.ts";
 import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
-import { expectedRevenue, REVENUE_FIELDS } from "../supabase/functions/monetizacao-crm/revenue.mjs";
+import {
+  expectedRevenue,
+  registrarUnidades,
+  REVENUE_FIELDS,
+} from "../supabase/functions/monetizacao-crm/revenue.mjs";
 import {
   dealPayload,
   hasCanonicalProduct,
@@ -364,6 +368,27 @@ test("Receita nula não vira zero e parcelas divergentes não entram no total co
   r[REVENUE_FIELDS.partners] = 0;
   r[REVENUE_FIELDS.unit] = 0;
   assert.equal(receitaSomada([card(raw(r))]).known, 1);
+});
+test("Unidade do cadastro preenche só a opção que o mapa fixo não conhece", () => {
+  const r = {};
+  for (const [k, v] of [
+    [REVENUE_FIELDS.total, 100],
+    [REVENUE_FIELDS.partners, 60],
+    [REVENUE_FIELDS.unit, 40],
+  ]) {
+    r[k] = v;
+    r[k + "_currency"] = "BRL";
+  }
+  r[REVENUE_FIELDS.unit_name] = 99001;
+  assert.equal(expectedRevenue(r).status, "unit_missing");
+  registrarUnidades([
+    { pipedrive_opcao_id: 99001, nome_da_praca: "Natal" },
+    { pipedrive_opcao_id: 694, nome_da_praca: "Goiânia" },
+  ]);
+  assert.equal(expectedRevenue(r).status, "ok");
+  assert.equal(expectedRevenue(r).unit_name, "Natal");
+  r[REVENUE_FIELDS.unit_name] = 694;
+  assert.equal(expectedRevenue(r).unit_name, "Matriz");
 });
 test("Sem data fica em bucket explícito, não é alocada ao mês arbitrariamente", () => {
   const c = card();

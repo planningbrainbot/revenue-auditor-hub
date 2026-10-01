@@ -5,6 +5,7 @@ import { localDate } from "./dates.mjs";
 import { dealPayload, hasCanonicalProduct, PIPE_DO_PRODUTO, sameProductDeal } from "./send.mjs";
 import { fillHandoff } from "./handoff.mjs";
 import { pipedriveApi } from "./pipedrive.mjs";
+import { registrarUnidades } from "./revenue.mjs";
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const ADMIN = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -104,10 +105,15 @@ async function collect() {
   const expected = summary.reduce((n, b) => n + Number(b.data?.total_count || 0), 0);
   if (deals.length !== expected)
     throw new Error("A contagem do CRM não fechou com a paginação. Carga anterior preservada.");
-  const [cachedRows, previous] = await Promise.all([
+  const [cachedRows, previous, unidades] = await Promise.all([
     db("monetizacao_deals?select=id,payload&limit=1000", ADMIN),
     db("monetizacao_sync?select=stages&id=eq.true", ADMIN),
+    // Sem o cadastro a carga segue com o mapa fixo de revenue.mjs, como antes.
+    db("unidades?select=pipedrive_opcao_id,nome_da_praca&pipedrive_opcao_id=not.is.null", ADMIN).catch(
+      () => [],
+    ),
   ]);
+  registrarUnidades(unidades);
   const cache = new Map(cachedRows.map((r: Row) => [r.id, r.payload]));
   const signature = (rows: Row[], live = false) =>
     JSON.stringify(

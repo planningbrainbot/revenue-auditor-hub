@@ -1,6 +1,9 @@
 // Valores previstos totais por contrato. Nunca presume participação nem receita realizada.
 export const REVENUE_FIELDS={total:'a62c0a23d29d00e7a314531b1a4f6706a51474bf',partners:'f5a420c20bf1a3ae5692bca580c8f9a8a10e672c',unit:'3d5d07b1d0d2235c2928983229bf28d8deffe7f4',unit_name:'5684f15458abf85ed384837a8eb515294350f5cc'};
 const UNITS={694:'Matriz',695:'Rio de Janeiro',696:'Patos de Minas',697:'Belém',698:'Curitiba',699:'Consultoria',700:'Construção Civil',701:'Agronegócio',719:'São Paulo',720:'ROIT',857:'Itaúna',929:'Fortaleza',930:'Campo Novo',931:'São Luis',984:'Maceió',1054:'Recife',1055:'São Bernardo',1056:'Sorocaba',1124:'BPO Financeiro - GYN'};
+// Unidade cadastrada em /unidades com a opção do Pipedrive (ops.unidades.pipedrive_opcao_id). Só preenche id que o mapa
+// fixo não conhece: unidade nova deixa de pedir mudança aqui, e o rótulo das antigas não muda.
+export function registrarUnidades(rows){for(const r of rows||[])if(r?.pipedrive_opcao_id&&r.nome_da_praca&&!UNITS[r.pipedrive_opcao_id])UNITS[r.pipedrive_opcao_id]=r.nome_da_praca;}
 export function expectedRevenue(deal){
  const read=key=>{const value=deal[key],number=typeof value==='object'&&value!==null?value.value:value;
   if(number===null||number===undefined||number==='')return {amount:null,currency:null,invalid:false};

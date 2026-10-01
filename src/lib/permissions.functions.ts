@@ -498,6 +498,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Administração",
   },
   {
+    key: "manage.unidades_rede",
+    label: "Cadastrar e editar unidades",
+    description:
+      "Criar unidade e editar o cadastro em Regras da Rede: CNPJ, royalties, CSC, CAC, mídia e os vínculos com Pipefy, Pipedrive e Omie. Fica na área Administração.",
+    group: "Administração",
+  },
+  {
     key: "view.qualidade_base",
     label: "Ver Qualidade da Base",
     description: "Histórico dos 8 checks semanais Pipedrive x Pipefy x Omie.",

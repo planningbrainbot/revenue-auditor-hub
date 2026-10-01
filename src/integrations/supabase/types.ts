@@ -4377,6 +4377,7 @@ export type Database = {
       unidades: {
         Row: {
           absorve_midia: boolean
+          cac_desde: string | null
           cnpj: string | null
           created_at: string | null
           csc_percentual_base_antiga: number | null
@@ -4391,6 +4392,7 @@ export type Database = {
           nome_da_praca: string
           observacoes_financeiras: string | null
           paga_cac: boolean
+          pipedrive_opcao_id: number | null
           pipefy_id: string | null
           razao_social: string | null
           royalties_percentual: number | null
@@ -4399,6 +4401,7 @@ export type Database = {
         }
         Insert: {
           absorve_midia?: boolean
+          cac_desde?: string | null
           cnpj?: string | null
           created_at?: string | null
           csc_percentual_base_antiga?: number | null
@@ -4413,6 +4416,7 @@ export type Database = {
           nome_da_praca: string
           observacoes_financeiras?: string | null
           paga_cac?: boolean
+          pipedrive_opcao_id?: number | null
           pipefy_id?: string | null
           razao_social?: string | null
           royalties_percentual?: number | null
@@ -4421,6 +4425,7 @@ export type Database = {
         }
         Update: {
           absorve_midia?: boolean
+          cac_desde?: string | null
           cnpj?: string | null
           created_at?: string | null
           csc_percentual_base_antiga?: number | null
@@ -4435,6 +4440,7 @@ export type Database = {
           nome_da_praca?: string
           observacoes_financeiras?: string | null
           paga_cac?: boolean
+          pipedrive_opcao_id?: number | null
           pipefy_id?: string | null
           razao_social?: string | null
           royalties_percentual?: number | null

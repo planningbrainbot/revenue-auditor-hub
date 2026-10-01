@@ -3,6 +3,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { GuardaUnidades } from "@/components/unidades/guarda-unidades";
 import { RedeContent } from "@/components/page-content/rede-content";
 import { MolduraReceita } from "@/components/receita/moldura";
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // Enquanto foram abas, as outras quatro telas viviam em /unidades?tab=X. Esses
 // links já circularam em e-mail, favorito e notificação, então a URL antiga
@@ -49,15 +54,44 @@ export const Route = createFileRoute("/_authenticated/unidades/")({
 
 function RegrasDaRedePage() {
   useAuth();
+  const { can, loading } = usePermissions();
+  const [novaAberta, setNovaAberta] = useState(false);
+  const podeCadastrar = !loading && can("manage.unidades_rede");
   return (
     <MolduraReceita
       titulo="Regras da Rede"
       pergunta="Qual é a regra de repasse de cada unidade?"
-      descricao="Unidades da rede e a regra vigente hoje: percentual de royalties, CSC (fixo ou % da base antiga), mídia e CAC. Só leitura."
+      descricao="Unidades da rede e a regra vigente hoje: percentual de royalties, CSC (fixo ou % da base antiga), mídia e CAC. Quem tem a chave de cadastro cria e edita unidades aqui."
       procedencia={{ fonte: "Cadastro de unidades e sócios (Supabase)", regua: "regra vigente hoje" }}
+      acoes={
+        loading ? undefined : podeCadastrar ? (
+          <Button onClick={() => setNovaAberta(true)}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Nova unidade
+          </Button>
+        ) : (
+          // N8: sem a chave o botão aparece desabilitado e diz o que falta.
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  tabIndex={0}
+                  className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Button disabled>
+                    <Plus className="h-4 w-4" aria-hidden />
+                    Nova unidade
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Precisa da chave manage.unidades_rede (área Administração).</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      }
     >
       <GuardaUnidades permissao="view.unidades_rede" nome="as Regras da Rede">
-        <RedeContent />
+        <RedeContent novaAberta={novaAberta} aoMudarNovaAberta={setNovaAberta} />
       </GuardaUnidades>
     </MolduraReceita>
   );

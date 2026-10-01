@@ -3996,3 +3996,23 @@ Publicado a pedido do Pedro ("edite isso no planning brain e garanta..."), na or
 - corte por natureza jurídica da Receita;
 - Curitiba marcar as tags (ou validar os 1.530 sem prova);
 - ligar o contas a receber das unidades sem integração (Recife, São Bernardo, Fortaleza, São Luís, Sorocaba, Patos e Matriz). Sem isso, as 2.875 "cadastradas no Pipefy" continuam sem prova.
+
+## [2026-10-01] Unidade nova se cadastra em Regras da Rede, e os syncs leem o de-para do Pipedrive do cadastro
+
+**Contexto:** o dono notou que "não tem um lugar para cadastrar uma nova unidade no sistema do ops". Era verdade: nenhum ponto do front gravava em `ops.unidades`, a tabela nem tinha policy de escrita, e São Bernardo, Recife e Sorocaba (16/09) e São Paulo (21/09) entraram por SQL. Cada uma deixou uma lacuna que só apareceu semanas depois: Sorocaba sem `pipefy_id` (311 clientes invisíveis, entrada de 22/09) e São Bernardo fora do mapa fixo do Pipedrive (13 contratos com unidade = "1055", 16/09).
+
+**Decisão — o cadastro mora na tela que já lista as unidades.** `/unidades` (Regras da Rede, arquétipo Configuração) ganha "Nova unidade" no cabeçalho e "Editar" por linha, em `Dialog`. Unidade nova pode partir de um registro da base "[PTRS-DB-02] Unidades" do Pipefy (table 307173431) ainda não ligado a unidade nenhuma; o formulário traz nome, razão social, CNPJ, Omie, inauguração, CSC e royalties de lá. A importação não existe na edição, de propósito: o Pipefy diverge do Ops (Patos de Minas tem 6% no Pipefy e 8% no Ops), e a tela não vai escolher entre as duas fontes por quem edita.
+
+**A chave fica na área admin, não na receita.** `manage.unidades_rede` mora em `ops.area_chaves` com a área `admin`, que hoje só o papel `admin` tem. A tela é da receita, mas a receita é dada a head, auditor, socio e cs, e no modelo por área quem tem a área tem todas as ações dela: pôr a chave lá entregaria a eles a edição do percentual de royalties. A RLS nova de `ops.unidades` (INSERT, UPDATE e um SELECT para o RETURNING) pede a mesma chave. **DELETE não tem policy**: unidade é referenciada por texto em contratos, empresas e apurações, e apagar a linha deixa tudo órfão sem erro.
+
+**O de-para do Pipedrive vira coluna.** `ops.unidades.pipedrive_opcao_id` guarda o id da opção do campo "Unidade de Negócio" (backfill das 15 unidades pelo mapa fixo). `pipedrive-contratos-sync` (repo AI Projects) e `monetizacao-crm` passam a cair nela **só quando o id não está no mapa fixo deles**. O mapa fixo continua vencendo: 694 segue gravando "Matriz", que é o apelido que a normalização traduz para Goiânia (entrada de 18/09). Trocar a precedência mudaria o texto gravado em 145 contratos sem ganho nenhum. Com isso, unidade nova deixa de pedir mudança de código nos syncs.
+
+**CSC pelo mesmo formulário, com emissão manual.** Quando a unidade já tem cliente no Omie da Partners (`id_omie`, que é o `cliente_omie` de `csc_unidades` nas três unidades de setembro) e CSC fixo, o formulário oferece "Incluir em Emitir faturas": cria a linha em `ops.csc_unidades` com `csc_automatico = false` e o serviço SRV00004 (2216132558), igual ao tratamento de São Bernardo, Recife e Sorocaba em 25/09. Ligar a rotina automática segue sendo decisão à parte. Sem o cliente no Omie a opção fica desabilitada com o motivo: criar o cliente lá continua fora do Ops.
+
+**Pendências de cadastro, uma regra só.** `pendenciasDaUnidade()` (`src/lib/unidades-cadastro.ts`) lista o que falta: opção do Pipedrive e vínculo com o Pipefy para toda unidade; para regional, também CNPJ, razão social, inauguração, royalties, cliente no Omie e faturamento do CSC. A coluna "Cadastro" da lista e o diálogo usam a mesma função. Sem leitura de `csc_unidades` a pendência de CSC não é afirmada (null, nunca "falta").
+
+**Rastro:** cada gravação vai para `ops.acessos_log` (`unidade_criar`, `unidade_editar` com antes e depois só dos campos que mudaram, `csc_unidade_criar`).
+
+**Achado no caminho, não resolvido:** existem dois valores de CSC por unidade, `unidades.csc_valor_fixo` (o que a tela mostra) e `csc_unidades.valor_csc` (o que se fatura). Hoje batem nas três unidades de setembro, mas nada garante que continuem batendo. E a base de Unidades do Pipefy tem registros que não são unidade nem empresa do grupo ("Rascunho", "Fck Concreto Inteligente", "H. C. Barbosa Refrigeração"), que aparecem na lista de importação.
+
+Migration `20261001220000_unidades_cadastro.sql`, aplicada no banco único em 01/10/2026 (aditiva). Contrato em `docs/design/contratos/unidades.md`. As duas Edge Functions alteradas **não foram publicadas**; até lá, unidade nova continua precisando de linha no mapa fixo para os contratos do Pipedrive caírem nela.

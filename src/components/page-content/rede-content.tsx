@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Info, Mail, Phone, Search, User } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Mail, Pencil, Phone, Search, User } from "lucide-react";
 import { parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -38,23 +38,11 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { ErroDaConsulta } from "@/components/receita/moldura";
 import { usePermissions } from "@/hooks/use-permissions";
+import { Button } from "@/components/ui/button";
+import { UnidadeDialog, type UnidadeCadastro } from "@/components/unidades/unidade-dialog";
+import { pendenciasDaUnidade } from "@/lib/unidades-cadastro";
 
-type Unidade = {
-  id: number;
-  nome_da_praca: string | null;
-  tipo: string | null;
-  data_inauguracao: string | null;
-  royalties_percentual: number | null;
-  csc_valor_fixo: number | null;
-  csc_percentual_base_antiga: number | null;
-  midia_mensal: number | null;
-  midia_cac: boolean | null;
-  paga_cac: boolean | null;
-  absorve_midia: boolean | null;
-  observacoes_financeiras: string | null;
-  cnpj: string | null;
-  razao_social: string | null;
-};
+type Unidade = UnidadeCadastro;
 
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -126,14 +114,26 @@ const ROTULO_STATUS: Record<FiltroStatus, string> = {
 const FOCO =
   "rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-export function RedeContent() {
+export function RedeContent({
+  novaAberta = false,
+  aoMudarNovaAberta,
+}: {
+  /** "Nova unidade" mora no cabeçalho da página; o diálogo, aqui. */
+  novaAberta?: boolean;
+  aoMudarNovaAberta?: (v: boolean) => void;
+}) {
   const { can, loading: loadingPerm } = usePermissions();
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [socios, setSocios] = useState<Socio[]>([]);
+  // unidade_id das que estão em ops.csc_unidades; null quando quem olha não lê a tabela.
+  const [noCsc, setNoCsc] = useState<Set<number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<unknown>(null);
   const [tentativa, setTentativa] = useState(0);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editando, setEditando] = useState<Unidade | null>(null);
+  const podeCadastrar = !loadingPerm && can("manage.unidades_rede");
+  const podeVerCsc = !loadingPerm && can("view.csc_faturamento");
 
   // Busca e status na URL (N7). A busca digitada grava com uma pausa curta;
   // a URL só sobrescreve o campo quando muda por fora ("Limpar", link colado).
@@ -166,17 +166,20 @@ export function RedeContent() {
     setLoading(true);
     setErro(null);
     (async () => {
-      const [uRes, sRes] = await Promise.all([
+      const [uRes, sRes, cRes] = await Promise.all([
         supabase
           .from("unidades")
           .select(
-            "id,nome_da_praca,tipo,data_inauguracao,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,midia_mensal,midia_cac,paga_cac,absorve_midia,observacoes_financeiras,cnpj,razao_social",
+            "id,nome_da_praca,tipo,data_inauguracao,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,midia_mensal,midia_cac,paga_cac,cac_desde,absorve_midia,observacoes_financeiras,cnpj,razao_social,id_omie,id_asaas,pipefy_id,pipedrive_opcao_id",
           )
           .order("data_inauguracao", { ascending: true, nullsFirst: false }),
         supabase
           .from("socios")
           .select("id,nome_completo,cargo,area,unidade,email,telefone")
           .order("nome_completo"),
+        // csc_unidades não está nos tipos gerados.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        podeVerCsc ? (supabase as any).from("csc_unidades").select("unidade_id") : Promise.resolve(null),
       ]);
       if (!mounted) return;
       // Antes o erro era ignorado e a tela mostrava "Nenhuma unidade" e R$ 0.
@@ -184,12 +187,25 @@ export function RedeContent() {
       if (uRes.error) setErro(uRes.error);
       if (uRes.data) setUnidades(uRes.data as Unidade[]);
       if (sRes.data) setSocios(sRes.data as Socio[]);
+      // Leitura do CSC que falhou não afirma "fora do faturamento": vira null, como sem permissão.
+      setNoCsc(
+        cRes && !cRes.error && cRes.data
+          ? new Set(
+              (cRes.data as { unidade_id: number | null }[])
+                .map((c) => c.unidade_id)
+                .filter((x): x is number => x != null),
+            )
+          : null,
+      );
       setLoading(false);
     })();
     return () => {
       mounted = false;
     };
-  }, [tentativa]);
+  }, [tentativa, podeVerCsc]);
+
+  const pendenciasDe = (u: Unidade) =>
+    pendenciasDaUnidade(u, noCsc ? noCsc.has(u.id) : null);
 
   const enriched = useMemo(() => {
     const now = new Date();
@@ -371,6 +387,7 @@ export function RedeContent() {
                       <TableHead>CAC</TableHead>
                       <TableHead>Absorve mídia</TableHead>
                       <TableHead>Obs</TableHead>
+                      {podeCadastrar && <TableHead>Cadastro</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -461,11 +478,20 @@ export function RedeContent() {
                                 "—"
                               )}
                             </TableCell>
+                            {podeCadastrar && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <CelulaCadastro
+                                  unidade={u}
+                                  pendencias={pendenciasDe(u).length}
+                                  aoEditar={() => setEditando(u)}
+                                />
+                              </TableCell>
+                            )}
                           </TableRow>
                           {isOpen && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
                               <TableCell />
-                              <TableCell colSpan={12} className="py-3">
+                              <TableCell colSpan={podeCadastrar ? 13 : 12} className="py-3">
                                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                   Sócios &amp; contatos
                                 </div>
@@ -531,11 +557,20 @@ export function RedeContent() {
             ) : (
               <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                 {filteredInternas.map((u) => (
-                  <div key={u.id} className="rounded-xl border bg-card p-3">
-                    <div className="font-medium">{u.nome_da_praca ?? "—"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Mídia mensal: <span className="num">{fmtBRL(u.midia_mensal)}</span>
+                  <div key={u.id} className="flex items-start justify-between gap-2 rounded-xl border bg-card p-3">
+                    <div>
+                      <div className="font-medium">{u.nome_da_praca ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Mídia mensal: <span className="num">{fmtBRL(u.midia_mensal)}</span>
+                      </div>
                     </div>
+                    {podeCadastrar && (
+                      <CelulaCadastro
+                        unidade={u}
+                        pendencias={pendenciasDe(u).length}
+                        aoEditar={() => setEditando(u)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -543,6 +578,55 @@ export function RedeContent() {
           </Secao>
         )}
       </div>
+
+      {podeCadastrar && (
+        <UnidadeDialog
+          aberto={novaAberta || editando != null}
+          aoMudarAberto={(v) => {
+            if (v) return;
+            setEditando(null);
+            aoMudarNovaAberta?.(false);
+          }}
+          unidade={novaAberta ? null : editando}
+          noFaturamentoDoCsc={
+            noCsc == null ? null : editando ? noCsc.has(editando.id) : false
+          }
+          podeEditarCsc={can("edit.csc_faturamento")}
+          aoSalvar={() => setTentativa((n) => n + 1)}
+        />
+      )}
     </TooltipProvider>
+  );
+}
+
+function CelulaCadastro({
+  unidade,
+  pendencias,
+  aoEditar,
+}: {
+  unidade: Unidade;
+  pendencias: number;
+  aoEditar: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      {pendencias > 0 ? (
+        <StatusBadge tom="atencao">
+          {pendencias} {pendencias === 1 ? "pendência" : "pendências"}
+        </StatusBadge>
+      ) : (
+        <StatusBadge tom="sucesso">Completo</StatusBadge>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={aoEditar}
+        aria-label={`Editar ${unidade.nome_da_praca ?? "unidade"}`}
+      >
+        <Pencil className="h-4 w-4" aria-hidden />
+        Editar
+      </Button>
+    </div>
   );
 }
