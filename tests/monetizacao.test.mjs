@@ -18,13 +18,19 @@ import {
   cargaDoCrm,
   motivoLegivel,
 } from "../src/lib/monetizacao/model.ts";
-import { summarize, PRODUCT, METRIC_VERSION } from "../supabase/functions/monetizacao-crm/crm.mjs";
+import {
+  summarize,
+  PRODUCT,
+  OFFERED,
+  METRIC_VERSION,
+} from "../supabase/functions/monetizacao-crm/crm.mjs";
 import {
   expectedRevenue,
   registrarUnidades,
   REVENUE_FIELDS,
 } from "../supabase/functions/monetizacao-crm/revenue.mjs";
 import {
+  cardDaEmpresa,
   dealPayload,
   hasCanonicalProduct,
   sameProductDeal,
@@ -186,10 +192,13 @@ test("Consultoria é base antiga sem comercial e fora do Simples, sem contato, p
     "fora_regra",
   );
 });
-test("Disponibilidade é por conta e produto; abertura de Consultoria não ocupa Finance", () => {
+test("Disponibilidade: um card por empresa no Caixa; card aberto de Consultoria ocupa Finance e Cella (01/10)", () => {
   const c = card();
   assert.equal(disponibilidade(account(), "consultoria", [c], "2026-09").free, false);
-  assert.equal(disponibilidade(account(), "finance", [c], "2026-09").free, true);
+  const f = disponibilidade(account(), "finance", [c], "2026-09");
+  assert.equal(f.free, false);
+  assert.match(f.reason, /um card por empresa/);
+  assert.equal(disponibilidade(account(), "finance", [{ ...c, status: "lost" }], "2026-10").free, true);
   assert.equal(
     disponibilidade(account(), "consultoria", [{ ...c, status: "lost" }], "2026-09").free,
     false,
@@ -848,4 +857,84 @@ test("Clique no dia devolve os cards das barras daquele dia, com o mesmo filtro 
     v.movimentosDoDia("2026-09-06").map((x) => x.id),
     [140],
   );
+});
+
+// Pipe 39 de 01/10/2026: Reunião de proposta (com o especialista) antes de Em negociação; Stand by não valida.
+const stagesOut = [
+  { id: 274, order_nr: 1, name: "1 · Base elegível" },
+  { id: 276, order_nr: 2, name: "2 · Abordagem iniciada" },
+  { id: 290, order_nr: 3, name: "3 · Conexão" },
+  { id: 275, order_nr: 4, name: "Gatilho (encerrada em 01/10 · não usar)" },
+  { id: 277, order_nr: 5, name: "4 · Reunião de levantamento agendada" },
+  { id: 287, order_nr: 6, name: "5 · Reunião de levantamento realizada" },
+  { id: 291, order_nr: 7, name: "6 · Reunião de proposta" },
+  { id: 279, order_nr: 8, name: "7 · Em negociação" },
+  { id: 278, order_nr: 9, name: "8 · Proposta enviada" },
+  { id: 288, order_nr: 10, name: "9 · Stand by" },
+];
+const out = (flow, over = {}) => {
+  const r = raw({ id: 900, stage_id: 279, add_time: "2026-10-01 12:00:00", ...over });
+  return summarize([r], stagesOut, { 900: flow }, "2026-10").cards[0];
+};
+test("Reunião de proposta não valida; Em negociação depois dela valida", () => {
+  const ate = out([
+    change(274, 276, "2026-10-05 12:00:00"),
+    change(276, 287, "2026-10-06 12:00:00"),
+    change(287, 291, "2026-10-07 12:00:00"),
+  ]);
+  assert.equal(ate.events.validated.length, 0);
+  assert.equal(ate.events.meeting.length, 1);
+  const depois = out([
+    change(274, 276, "2026-10-05 12:00:00"),
+    change(276, 287, "2026-10-06 12:00:00"),
+    change(287, 291, "2026-10-07 12:00:00"),
+    change(291, 279, "2026-10-09 12:00:00"),
+  ]);
+  assert.deepEqual(depois.events.validated.map((e) => e.date), ["2026-10-09"]);
+});
+test("Reunião de proposta não valida nem na ordem antiga (depois de Em negociação)", () => {
+  const antiga = stagesOut.map((s) =>
+    s.id === 291 ? { ...s, order_nr: 8 } : s.id === 279 ? { ...s, order_nr: 7 } : s,
+  );
+  const r = raw({ id: 901, stage_id: 291, add_time: "2026-10-01 12:00:00" });
+  const c = summarize(
+    [r],
+    antiga,
+    { 901: [change(274, 287, "2026-10-05 12:00:00"), change(287, 291, "2026-10-06 12:00:00")] },
+    "2026-10",
+  ).cards[0];
+  assert.equal(c.events.validated.length, 0);
+});
+test("Stand by conta reunião, mas não valida a oportunidade (01/10)", () => {
+  const c = out([change(277, 288, "2026-10-05 12:00:00")], { stage_id: 288 });
+  assert.equal(c.events.meeting.length, 1);
+  assert.equal(c.events.validated.length, 0);
+});
+test("Validação da ordem antiga desfeita na troca de 01–02/10 não conta; fora da janela conta", () => {
+  const tag = out([
+    change(287, 291, "2026-10-01 17:38:39"),
+    change(291, 279, "2026-10-01 17:38:42"),
+    change(279, 291, "2026-10-02 00:30:00"),
+  ]);
+  assert.equal(tag.events.validated.length, 0);
+  const setembro = out(
+    [change(287, 279, "2026-09-25 12:00:00"), change(279, 291, "2026-10-02 00:30:00")],
+    { add_time: "2026-09-01 12:00:00" },
+  );
+  assert.deepEqual(setembro.events.validated.map((e) => e.date), ["2026-09-25"]);
+});
+test("Produtos ofertados: campo de várias opções vira lista de rotas", () => {
+  assert.deepEqual(out([], { [OFFERED]: "1150,1152" }).offered, ["cella", "finance"]);
+  assert.deepEqual(out([]).offered, []);
+});
+test("Envio: um card por empresa no Caixa; Recon segue no próprio pipe", () => {
+  const cella = { id: 1, pipeline_id: 39, status: "open", [PRODUCT]: 1128, add_time: "2026-09-02 12:00:00" };
+  const fin = { id: 2, pipeline_id: 39, status: "lost", [PRODUCT]: 1130, add_time: "2026-10-01 12:00:00" };
+  assert.equal(cardDaEmpresa([fin, cella], "finance", "2026-10").deal.id, 2);
+  assert.equal(cardDaEmpresa([fin, cella], "finance", "2026-10").sameProduct, true);
+  const v = cardDaEmpresa([cella], "consultoria", "2026-10");
+  assert.equal(v.deal.id, 1);
+  assert.equal(v.sameProduct, false);
+  assert.equal(cardDaEmpresa([{ ...cella, status: "lost" }], "consultoria", "2026-10"), null);
+  assert.equal(cardDaEmpresa([cella], "recon", "2026-10"), null);
 });

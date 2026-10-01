@@ -2,7 +2,7 @@
 // desde 29/09, pipe 38 (Recon). Segredos só no runtime Supabase.
 import { summarize, METRIC_VERSION } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
-import { dealPayload, hasCanonicalProduct, PIPE_DO_PRODUTO, sameProductDeal } from "./send.mjs";
+import { cardDaEmpresa, dealPayload, hasCanonicalProduct, PIPE_DO_PRODUTO } from "./send.mjs";
 import { fillHandoff } from "./handoff.mjs";
 import { pipedriveApi } from "./pipedrive.mjs";
 import { registrarUnidades } from "./revenue.mjs";
@@ -284,17 +284,16 @@ async function send(itemIds: string[], token: string) {
         existing.push(
           ...(await pages(`organizations/${orgId}/deals`, { status: "all_not_deleted" })),
         );
-      const duplicate = existing.find(
-        (d) =>
-          sameProductDeal(d, product) &&
-          (d.status === "open" || localDate(d.add_time)?.startsWith(month)),
-      );
-      if (duplicate) {
+      const vinculo = cardDaEmpresa(existing, product, month);
+      if (vinculo) {
+        const duplicate = vinculo.deal;
         org = id(duplicate.org_id);
         await finish(
           "sent",
           duplicate.id,
-          `Vinculada à oportunidade existente do mesmo produto. Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`,
+          vinculo.sameProduct
+            ? `Vinculada à oportunidade existente do mesmo produto. Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`
+            : `Vinculada ao card aberto da empresa no Caixa (um card por empresa). Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`,
         );
         continue;
       }

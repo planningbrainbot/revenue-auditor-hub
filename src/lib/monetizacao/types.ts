@@ -189,6 +189,8 @@ export interface Negocio {
   owner: string;
   owner_id: number | null;
   route: Produto | "sem_produto";
+  /** "Caixa · Produtos ofertados" (01/10/2026): o que foi apresentado na call. Ausente em cargas antigas. */
+  offered?: Produto[];
   status: string;
   stage_id: number;
   stage: string;

@@ -402,6 +402,19 @@ export function disponibilidade(
           : "Oferta reservada / enviada ao CRM",
       deal: cards.find((c) => c.id === reserved.deal_id) || null,
     };
+  // Um card por empresa no Caixa (dono, 01/10/2026): o card aberto de outro produto do pipe 39 recebe esta
+  // oferta também, então a conta não está livre para abrir outro. Recon tem pipe próprio e não entra aqui.
+  if (produto !== "recon") {
+    const caixa = negociosDaConta(a, cards).find(
+      (c) => c.status === "open" && c.route !== produto && PRODUTOS.includes(c.route as Produto),
+    );
+    if (caixa)
+      return {
+        free: false,
+        reason: "Card aberto do Caixa em " + NOMES_ENVIO[caixa.route as ProdutoEnvio] + " · um card por empresa",
+        deal: caixa,
+      };
+  }
   const loaded = own.find((c) => c.events.loaded.some((e) => e.date.startsWith(month)));
   if (loaded)
     return {

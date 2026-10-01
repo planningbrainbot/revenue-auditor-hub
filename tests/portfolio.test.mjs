@@ -186,7 +186,7 @@ test("Abordagem por produto: nunca, negócio aberto, envio sem card, encerrado e
     cards: [
       deal(1, 10, "finance", "open"),
       deal(2, 20, "finance", "lost", { updated_at: "2026-07-10", lost_reason: "Sem interesse" }),
-      deal(3, 20, "cella", "open"),
+      deal(3, 60, "cella", "open"),
     ],
     reservations: [{ account_key: "enviada", product: "finance", status: "sent", deal_id: 99 }],
     lists: [
@@ -220,6 +220,10 @@ test("Abordagem por produto: nunca, negócio aberto, envio sem card, encerrado e
     "free",
     "negócio perdido é histórico, não bloqueia nova oferta",
   );
+  // Um card por empresa no Caixa (01/10/2026): o Cella aberto da empresa ocupa o Finance.
+  const outroProduto = { ...fin, key: "outro", name: "outro", orgs: [60] };
+  assert.equal(e(outroProduto).situacao, "occupied");
+  assert.match(e(outroProduto).motivoDisponibilidade, /um card por empresa/);
   assert.deepEqual(e(enviada).abordagem, ["enviada"]);
   assert.equal(e(enviada).situacao, "occupied");
   assert.deepEqual(e(listada).abordagem, ["lista"]);
