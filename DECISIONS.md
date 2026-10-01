@@ -4027,3 +4027,17 @@ Publicado a pedido do Eliezek ("pode publicar"), na ordem migration → Edge Fun
 4. **Deploy `dpl_2xYi9AKCmrBR1V6UxjYTJFDPLvTW`** (`9cac5d9`) por CLI, a partir de worktree limpo; inclui o `c16668f` de outra sessão (APP_SECRET do Omie sob demanda), que já estava na `main`. `planningbrain.com.br` aponta para ele, e o chunk `unidades.index` servido traz "Nova unidade". Rollback do código: promover `dpl_6JGDa77AXoe2F87rn4Vj1wjwu1cU` (`a5ce95c`), **sabendo que ele volta com o TanStack vulnerável**.
 
 **Fica em aberto:** os PATs do GitHub guardados expiraram em 01/10 (todos respondem 401); por isso não houve PR. Os commits entraram por push direto na `main`, como os demais do Eliezek.
+
+## [2026-10-01] Card do Brain Meet na home (/inicio), e ele conta como produto
+
+**Contexto:** o Mikael Ribeiro (Marketing) decidiu que o Brain Meet (gravações e transcrições das reuniões, servido pelo Growth em `/growth/meet`) é uma ferramenta de várias equipes e não uma tela do Growth. Pediu um card na home. Spec do lado dele: `marketing-planning/docs/superpowers/specs/2026-10-01-brain-meet-departamentos-modulo-design.md`, Seção 4.
+
+**Decisão:**
+1. `meusProdutos` devolve `meet: true` para quem tem **qualquer** linha em `public.produto_acesso`. Não existe linha `meet`: o Brain Meet é aberto a todo login com algum produto (quem vê não muda, só o rótulo de departamento organiza).
+2. `/inicio` ganha o card "Brain Meet" (`Video`), que abre `/growth/meet` como o card do Growth abre `/growth`.
+3. O Brain Meet conta como produto. Efeito: quem só tinha o Ops (ou uma área só) deixa de ser mandado direto para a primeira tela e passa a ver a home. O "sempre começar por aqui" (`pb_produto_inicial=meet`) devolve a entrada direta, e `_authenticated/index.tsx` passou a tratá-lo.
+4. Falha de leitura de `produto_acesso` devolve `meet: false`, como já faz com Growth e Financeiro.
+
+**Ficou de fora:** item do Brain Meet no menu lateral do Ops; contrato de tela do `/inicio` (não existe em `docs/design/contratos`).
+
+**Publicação:** com o Victor e o Pedro (PR de pedido do Mikael; nada foi mergeado nem publicado por quem abriu).
