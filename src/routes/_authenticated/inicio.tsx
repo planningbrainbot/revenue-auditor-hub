@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Landmark, Rocket } from "lucide-react";
+import { Landmark, Rocket, Video } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { confirmarMeuPedido, meuPedidoDeAcesso, recusarMeuPedido } from "@/lib/pedidos-acesso.functions";
@@ -234,6 +234,20 @@ function InicioPage() {
       descricao: "Cockpit, fluxo de caixa, DRE e inadimplência.",
       href: "/financeiro",
       Icone: Landmark,
+    });
+  }
+
+  // Brain Meet: gravações e transcrições das reuniões. Aplicação irmã (o
+  // Growth serve `/growth/meet`), aberta pelo mesmo caminho do card do Growth.
+  // Conta como produto: quem só tinha o Ops passa a ver esta tela, e o "sempre
+  // começar por aqui" devolve a entrada direta.
+  if (acessoProdutos.data?.meet) {
+    produtos.push({
+      slug: "meet",
+      nome: "Brain Meet",
+      descricao: "Gravações e transcrições das reuniões.",
+      href: "/growth/meet",
+      Icone: Video,
     });
   }
 

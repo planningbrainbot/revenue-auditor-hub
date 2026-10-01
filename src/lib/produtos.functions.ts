@@ -63,7 +63,7 @@ export const meusProdutos = createServerFn({ method: "GET" })
       console.error("[meusProdutos] consulta falhou:", error);
       // Falha de leitura não pode virar "perdeu acesso": devolve o Ops, que é
       // onde a pessoa já está, e deixa os outros dois fora até a próxima carga.
-      return { ops: true, growth: false, financeiro: false };
+      return { ops: true, growth: false, financeiro: false, meet: false };
     }
 
     const produtos = new Set(((data ?? []) as { produto: string }[]).map((r) => r.produto));
@@ -71,5 +71,9 @@ export const meusProdutos = createServerFn({ method: "GET" })
       ops: produtos.has("ops"),
       growth: produtos.has("growth"),
       financeiro: produtos.has("financeiro"),
+      // Brain Meet (01/10/2026): ferramenta de várias equipes, aberta para todo
+      // login que entra em ALGUM produto. Não tem linha própria em
+      // `produto_acesso`: quem decide é ter qualquer uma.
+      meet: produtos.size > 0,
     };
   });

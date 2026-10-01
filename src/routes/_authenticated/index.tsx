@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { usePermissions } from "@/hooks/use-permissions";
 import { partesDoLink, primeiraTelaAcessivel } from "@/lib/areas";
-import { meuAcessoGrowth } from "@/lib/produtos.functions";
+import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { lerProdutoPadrao } from "./inicio";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -18,7 +18,8 @@ export const Route = createFileRoute("/_authenticated/")({
  * 1. Sócio regional vai direto para o painel da unidade dele, como sempre foi.
  * 2. Quem fixou um produto ("sempre começar por aqui", no /inicio) vai para ele.
  * 3. Quem tem mais de um produto escolhe em /inicio.
- * 4. Quem só tem o Ops vai direto para a PRIMEIRA TELA QUE ELE ABRE — seletor
+ * 4. (Desde 01/10/2026 o Brain Meet conta como produto: quem entra em algum
+ *    produto tem pelo menos dois e cai no passo 3.) Quem só tem o Ops vai direto para a PRIMEIRA TELA QUE ELE ABRE — seletor
  *    de uma opção é pedágio, não porta. Era `/rede-overview` fixo, e quem não
  *    tem a área Rede (o caso de quem só tem Planning People) começava o produto
  *    numa tela de erro.
@@ -34,7 +35,16 @@ function RootRedirect() {
     retry: false,
   });
 
-  if (loading || growth.isLoading) return null;
+  // Brain Meet conta como produto: quem só tem o Ops também escolhe em /inicio.
+  const produtosFn = useServerFn(meusProdutos);
+  const acessoProdutos = useQuery({
+    queryKey: ["meus-produtos"],
+    queryFn: () => produtosFn(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  if (loading || growth.isLoading || acessoProdutos.isLoading) return null;
 
   if (primaryRole === "socio_regional") {
     return <Navigate to="/painel-unidade" replace />;
@@ -50,6 +60,10 @@ function RootRedirect() {
     if (typeof window !== "undefined") window.location.href = "/financeiro";
     return null;
   }
+  if (padrao === "meet" && acessoProdutos.data?.meet) {
+    if (typeof window !== "undefined") window.location.href = "/growth/meet";
+    return null;
+  }
   const primeira = primeiraTelaAcessivel(temArea, can);
   const destino = primeira ? partesDoLink(primeira) : null;
 
@@ -61,7 +75,10 @@ function RootRedirect() {
     );
   }
 
-  const temOutroProduto = Boolean(growth.data?.temAcesso) || can("view.brain_financeiro");
+  const temOutroProduto =
+    Boolean(growth.data?.temAcesso) ||
+    can("view.brain_financeiro") ||
+    Boolean(acessoProdutos.data?.meet);
   if (temOutroProduto) {
     return <Navigate to="/inicio" replace />;
   }
