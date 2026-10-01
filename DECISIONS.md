@@ -4060,3 +4060,27 @@ ao ar.
 **Efeito:** quem só tem o Ops passa a cair em `/inicio`, com os cards Ops e Brain Meet.
 "Sempre começar por aqui" devolve a entrada direta. Os pontos em aberto do PR #52
 continuam com o Victor e o Pedro (ver a descrição do PR).
+
+## [2026-10-01] Pipe 39: Reunião de proposta antes de Em negociação, Stand by não valida, um card por empresa
+
+**Contexto:** anotação do Pedro depois da call de 01/10 sobre a operação do Caixa: "colocar a etapa de em negociação à
+frente da proposta — o que valida a oportunidade é a call com o especialista (Igor, Dárcio, Jordana) e ela só
+acontece em apresentação de proposta"; "preciso conseguir marcar mais de um produto no campo do pipe". Proposta com as
+perguntas em https://claude.ai/artifact/3dpFgNR1Ue9wvD9WXqxLTR; aprovada com "pode seguir".
+
+**Decisão:**
+1. Ordem do pipe 39: … Levantamento realizado → 6 · Reunião de proposta → 7 · Em negociação → Proposta enviada →
+   Stand by. A carga (`monetizacao-crm/crm.mjs`, régua v7) reconhece a Reunião de proposta pelo nome
+   (`reuni.*propost`) e ela nunca valida, em qualquer ordem. Oportunidade validada = Em negociação ou etapa posterior.
+2. Stand by continua contando reunião realizada, mas deixa de validar a oportunidade. Setembro no Brain: 40 → 36.
+3. Validação feita entre 01/10 00h e 02/10 08h (BRT) e desfeita depois (card voltou para antes de Em negociação) não
+   conta: era da ordem antiga. Só a Tag Serviços (98025) cai nisso.
+4. "Caixa · Produto" passa a se chamar "Caixa · Produto do cluster" (mesma chave, continua sendo a rota). Campo novo
+   de várias opções "Caixa · Produtos ofertados" (`3298fa5361fa4a37c1b614518d6dc43b38645f8b`; 1150 Cella, 1151
+   Consultoria, 1152 Finance), lido pela carga como `offered`. A frente de gravações preenche.
+5. Um card por empresa no Caixa: o envio vincula a oferta ao card aberto da organização no pipe 39, de qualquer
+   produto (`cardDaEmpresa` em `send.mjs`), e a Base trata a conta como ocupada para os outros produtos
+   (`disponibilidade`). Recon segue no pipe 38.
+
+**Ficou para depois:** produtos candidatos na nota de preparação do card (precisa do `monetizacao_offer_issue` no
+contexto do preenchimento).

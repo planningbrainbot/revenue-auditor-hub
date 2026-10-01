@@ -3,9 +3,18 @@ import { PRODUCT_KEY, localDate, today, METRICS } from "./dates.mjs";
 export const PRODUCT = PRODUCT_KEY;
 // Versão da régua gravada em cada card. Subir aqui faz a carga reler o histórico de todos os
 // negócios na rodada seguinte; o index.ts compara com esta mesma constante.
-export const METRIC_VERSION = 6;
+export const METRIC_VERSION = 7;
 const SIGN = "97cd6f5f0f051d7dfd29e709bfde5c048a17cf3e",
   REVENUE = "a62c0a23d29d00e7a314531b1a4f6706a51474bf";
+// "Caixa · Produtos ofertados" (01/10/2026): o que foi apresentado na call, várias opções. O "Caixa · Produto"
+// continua sendo o produto do cluster, por onde a empresa entrou, e é ele que define a rota do card.
+export const OFFERED = "3298fa5361fa4a37c1b614518d6dc43b38645f8b";
+const OFFERED_OPTIONS = { 1150: "cella", 1151: "consultoria", 1152: "finance" };
+const offered = (v) =>
+  [...new Set(String(v ?? "").split(",").map((x) => OFFERED_OPTIONS[x.trim()]).filter(Boolean))];
+// Troca de ordem do pipe 39 (01–02/10/2026): Reunião de proposta passou para antes de Em negociação. Uma validação
+// feita nesta janela e desfeita depois (o card voltou para antes de Em negociação) era da ordem antiga e não conta.
+const REORDEM = { de: "2026-10-01 03:00:00", ate: "2026-10-02 11:00:00" };
 const id = (v) => Number(typeof v === "object" ? (v?.id ?? v?.value) : v) || null;
 const route = (v) =>
   ({ 1128: "cella", 1129: "consultoria", 1130: "finance" })[String(v)] || "sem_produto";
@@ -24,10 +33,19 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
   const scheduled = stageFor(/reuni.*(agend|marc)/i),
     meeting = stageFor(/reuni.*realiz/i),
     negotiation = stageFor(/negocia/i),
+    // Reunião de proposta é a call com o especialista (Igor, Dárcio, Jordana). Ela vem antes de Em negociação e
+    // nunca valida a oportunidade, em qualquer ordem do pipe (dono, 01/10/2026).
+    proposal = stageFor(/reuni.*propost/i),
     // Stand by é espera depois da reunião, antes do ganho (dono, 28/09/2026): entrar nele conta
     // como reunião realizada quando o card ainda não tinha passado por Reunião realizada.
     standby = stageFor(/stand ?by/i);
   if (!meeting || !negotiation) throw Error("Etapas de reunião e negociação não identificadas");
+  // Oportunidade validada = entrar em Em negociação ou numa etapa posterior. Stand by não valida (dono, 01/10/2026):
+  // é espera depois da reunião, e o card que vai direto para ele não passou pelo especialista.
+  const validates = (stage) =>
+    (order.get(stage) || 0) >= negotiation.order_nr &&
+    stage !== standby?.id &&
+    stage !== proposal?.id;
   const cards = deals.map((d) => {
     const flow = flows[d.id],
       known = Array.isArray(flow);
@@ -86,13 +104,9 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
           id(d.creator_user_id) || ownerAt(d.add_time),
           "created_in_stage",
         );
-      if ((order.get(initial) || 0) >= negotiation.order_nr)
-        add(
-          "validated",
-          d.add_time,
-          id(d.creator_user_id) || ownerAt(d.add_time),
-          "created_in_stage",
-        );
+      let validation = validates(initial)
+        ? { at: d.add_time, actor: id(d.creator_user_id) || ownerAt(d.add_time), source: "created_in_stage" }
+        : null;
       for (const e of movements) {
         const dest = id(e.new_value),
           previous = id(e.old_value),
@@ -107,9 +121,17 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         if (dest === meeting.id) add("meeting", e.log_time, actor, "stage_change");
         else if (standby && dest === standby.id && !events.meeting.length)
           add("meeting", e.log_time, actor, "stand_by");
-        if ((order.get(dest) || 0) >= negotiation.order_nr && !events.validated.length)
-          add("validated", e.log_time, actor, "stage_change");
+        if (!validation && validates(dest))
+          validation = { at: e.log_time, actor, source: "stage_change" };
+        else if (
+          validation &&
+          validation.at >= REORDEM.de &&
+          validation.at < REORDEM.ate &&
+          (order.get(dest) || 0) < negotiation.order_nr
+        )
+          validation = null;
       }
+      if (validation) add("validated", validation.at, validation.actor, validation.source);
     }
     // O indicador comercial é ganho no CRM. Assinatura e receita são completudes separadas.
     const wonChange = [...changes]
@@ -141,6 +163,7 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
       owner_id: id(d.user_id),
       creator_id: id(d.creator_user_id),
       route: route(d[PRODUCT]),
+      offered: offered(d[OFFERED]),
       status: d.status,
       stage_id: d.stage_id,
       stage: stages.find((s) => s.id === d.stage_id)?.name || "Etapa não encontrada",
@@ -227,12 +250,17 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
     forecast: { target: month === "2026-09" ? 8 : null, estimate: null },
     product_field: {
       key: PRODUCT,
-      name: "Caixa · Produto",
+      name: "Caixa · Produto do cluster",
       options: [
         { id: 1128, label: "Cella" },
         { id: 1129, label: "Consultoria" },
         { id: 1130, label: "Finance" },
       ],
+    },
+    offered_field: {
+      key: OFFERED,
+      name: "Caixa · Produtos ofertados",
+      options: Object.entries(OFFERED_OPTIONS).map(([k, v]) => ({ id: Number(k), route: v })),
     },
     stages: stages.map((s) => ({
       id: s.id,
