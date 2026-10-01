@@ -3904,3 +3904,57 @@ sem dado para responder sobre caixa.
 **Para publicar:** merge, deploy pela CLI do `ops-brain` e trocar `COCKPIT_CONVERSA_MODELO` em
 Production para `openai/gpt-6-luna` (ou apagar a variável). Sem isso o CEO continua no GPT-5.5 da
 OpenAI sem crédito.
+
+## [2026-10-01] Base de clientes: prova de cliente, e fornecedor só para admin
+
+**Pedido do Pedro (01/10):** "edite isso no planning brain e garanta que quem não é admin não tenha acesso a fornecedor", depois do estudo "Quem é cliente na Base?" (artifact `WVAox6ix8mnkUbiDyuthwf`).
+
+**Medido antes de desenhar (01/10):**
+- Das 10.322 contas da Base, 2.546 têm prova de que pagam a Planning: contrato de serviço no Omie, conta a receber, ECD ou ganho no Pipedrive.
+- O filtro de 30/09 (só fornecedor sai das ofertas) deixava três buracos:
+  1. **Curitiba não usa tag.** A regra de 18/09 ("cadastrado no Omie de Curitiba antes de abril/2025 = Base antiga") foi gravada em `ops.base_origem_validacoes` para 1.554 contas, sem separar fornecedor. A evidência gravada diz "Cliente cadastrado no Omie de Curitiba". Com isso, 580 contas sem prova (cartórios, Juntas Comerciais, Estado do Paraná, TIM) estavam prontas para Consultoria. `procedencia()` ainda as chamava de "Cadastro no Pipefy", porque contava `old_base` como Pipefy.
+  2. **A Matriz marca Cliente em quem ela paga.** É o caso de Facebook, Telefônica e TAM, e a tag não pega.
+  3. **Empresas do grupo e franquias contadas como clientes.**
+- O contas a receber do Omie das unidades não acrescentou prova nenhuma: tudo já estava em `contas_receber` e nos contratos. O contas a pagar acrescentou fornecedores que a tag não pegava. O Financial Brain (`titulos_pagar_live` das 15 empresas do grupo) pegou o resto: Telefônica, ContaAzul e a equipe PJ.
+
+**Decisão: prova de cliente por conta (`ops.base_conta_prova`, gravada na ficha como `prova`).** A ordem é grupo > comprovado > fornecedor > cadastrado > só tag > sem prova.
+- **Comprovado:** contrato, recebimento, ECD ou ganho.
+- **Fornecedor:** a empresa recebe pagamento (Omie da unidade em `ops.base_omie_pagamentos`, ou empresas do grupo em `ops.base_pagamentos_grupo`) ou só tem tag de fornecedor ou funcionário, sem prova de cliente. Também é fornecedor, sem prova e sem card no Pipefy, a filial cuja empresa (raiz do CNPJ) é fornecedora: TIM, Claro e Google têm uma filial marcada Fornecedor na Matriz e outra sem tag em Curitiba.
+- **Grupo:** 32 raízes em `ops.base_grupo_cnpjs`. São as 18 empresas do Financial Brain e as franquias e veículos com "Planning" no nome. As ROIT sem "Planning" ficam de fora, porque várias são clientes com prova.
+- A prova de cliente vence a tag e o pagamento: o cliente que também vende à Planning continua cliente.
+
+**Decisão: fornecedor e grupo só para admin.**
+- **Quem é admin:** super admin, ou admin (nível 3) da área Clientes ou Monetização. Em 01/10 são seis pessoas: Victor Eliezek, Pedro Luca, Julia Santos, Mateus Nunes, Matheus Carvalho e Raul Dantas. As outras 27 pessoas que abrem a Base deixam de ver essas contas.
+- **"Ver como"** responde como quem não é admin.
+- **Onde vale a regra:**
+  - nas RPCs `base_carteira_manifesto`/`pagina`, `base_unica_catalogo`, `monetizacao_detail`, `base_contatos(_exportar)`, `monetizacao_base_origins` e `base_validar_origem`;
+  - em RLS **restritiva** de `monetizacao_contas`, `monetizacao_detalhes`, `monetizacao_itens` e `monetizacao_envios`. A chave `omie-cnpj-<CNPJ>` revela o CNPJ;
+  - em RLS restritiva do cadastro bruto do Omie (`omie_clientes`, `omie_clientes_cadastro`), só para fornecedor. A empresa do grupo continua visível ali, porque royalties e o contas a receber das franquias leem essas tabelas.
+- **Revisa a decisão de 29/09** ("a Base continua mostrando a conta, com o motivo"). Agora isso vale só para admin.
+
+**Decisão: grupo, fornecedor e sem prova saem de todas as ofertas.** Isso vale para Consultoria, Finance, Cella e Recon, com o motivo do banco. Fica na mesma posição no servidor (`monetizacao_offer_issue`) e no cliente (`fornecedorForaDeOferta`), logo depois do distrato concluído. A regra de 29/09 (só tag de fornecedor) continua para quem tem prova de cliente e só a tag de fornecedor.
+
+**Sincronização nova: Edge Function `omie-pagamentos-sync`** (cron `omie-pagamentos-sync-10min`, `7-59/10`).
+- **Omie das unidades:** contas a pagar de três anos para trás e dois para a frente, uma unidade por execução, com retomada por página (orçamento de 110 s). Em 01/10, o Rio levou 84 s em 46 páginas.
+- **Financial Brain:** no máximo uma vez por hora, acumulando os CNPJs. Exige os segredos `FINANCEIRO_SUPABASE_URL` e `FINANCEIRO_SERVICE_ROLE_KEY` no banco único.
+- **Fora da leitura:** Sorocaba segue sem o addon da API. Maceió, Patos de Minas e São Luís não lançam contas a pagar no Omie.
+
+**Tela (adendo de 01/10 em `docs/design/contratos/clientes.md`):**
+- filtro "Prova de cliente" (`?prova=`);
+- painel "Prova de cliente" na ficha;
+- coluna no CSV;
+- `procedencia()` deixa de contar "Base antiga" só do Omie como Pipefy.
+
+`scripts/cockpit-ceo/carga-real.mjs` passa a trazer `prova`, para a medição por script não contar fornecedor como pronto.
+
+**Ensaio contra produção (DO terminado em exceção, 01/10), com os títulos reais do Omie e do Financial Brain:**
+- **Distribuição:** grupo 33, comprovado 2.528, fornecedor 1.617, cadastrado 2.875, só tag 1.745, sem prova 1.524.
+- **Pessoas:**
+  - super admin vê 10.322 contas;
+  - não admin com todas as unidades vê 8.672 contas e 8.564 cadastros do Omie, sem Google nem TIM;
+  - leitura por chave da tabela de contas: cerca de 0,4 s.
+- **Velocidade de leitura:** a leitura completa de `monetizacao_contas` pela RLS já levava de 25 a 30 s antes desta migration (policies existentes). Com ela, de 16 a 20 s.
+- **Recálculo:** a carteira inteira leva de 19 a 28 s.
+- **Testes:** 468/469. A falha é anterior e sem relação (`cockpit-ceo-conversa-responder`). O `tsc` não tem erro nos arquivos tocados.
+
+Rollback: `supabase/rollback/20261001200000_base_prova_fornecedor_admin_rollback.sql` (definições de produção de 01/10).

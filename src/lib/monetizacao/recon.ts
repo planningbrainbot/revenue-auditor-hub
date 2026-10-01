@@ -15,7 +15,7 @@ export const GRUPOS_RECON = {
   identidade: "CNPJ divergente",
   inativa: "Inativa na Receita · baixada, inapta ou suspensa",
   distrato: "Distrato na Central de Tratativas · concluído ou em tratativa",
-  fornecedor: "Só fornecedor no Omie",
+  fornecedor: "Fornecedor, empresa do grupo ou sem prova de cliente",
   elegivel: "Aptas",
   confirmar_bpo: "Acima de R$ 5 mi · confirmar BPO",
   faixa_limite: "Faixa atravessa R$ 5 mi",
@@ -35,7 +35,7 @@ export function grupoRecon(a: Conta): GrupoRecon {
   // grupo quando é ela que segura a conta (ofertaRecon a deixa com o motivo dela).
   const distrato = distratoForaDeOferta(a);
   if (distrato && ofertaRecon(a).reason === distrato.reason) return "distrato";
-  // Fornecedor não é prova de faturamento baixo: grupo próprio, como o distrato.
+  // Fornecedor, grupo ou sem prova não é prova de faturamento baixo: grupo próprio, como o distrato.
   if (fornecedorForaDeOferta(a)) return "fornecedor";
   const r = a.recon;
   if (r?.bpo_status === "bpo") return "bpo";

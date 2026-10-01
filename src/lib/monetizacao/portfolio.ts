@@ -50,7 +50,10 @@ export const PROCEDENCIA_EXPLICACAO: Record<Procedencia, string> = {
 export function procedencia(a: Conta): Procedencia {
   if (a.ecd) return "ecd";
   if (a.pipedrive_contract) return "contrato";
-  if (a.base?.pipefy_ids.length || a.old_base || a.new_commercial) return "pipefy";
+  if (a.base?.pipefy_ids.length || a.new_commercial) return "pipefy";
+  // "Base antiga" sem card no Pipefy só conta como Pipefy quando a conta não veio só do Omie: a regra de 18/09 carimbou
+  // o cadastro inteiro do Omie de Curitiba, e a tela dizia "Cadastro no Pipefy" para a TIM (estudo de 01/10/2026).
+  if (a.old_base && !a.base?.omie_records) return "pipefy";
   return "omie";
 }
 // O grupo que precisa ficar separado na lista de um produto: entrou só pelo ERP da unidade,
@@ -60,13 +63,20 @@ export const soNoOmie = (a: Conta): boolean => procedencia(a) === "omie";
 // números" contam cada motivo à parte: um motivo não pode ser contado como outro (DECISIONS 19/09),
 // e quem já é cliente da Consultoria não é "excluída por Simples/MEI".
 export type MotivoConsultoria =
-  "apta" | "situacao" | "distrato" | "fornecedor" | "cliente" | "simples" | "confirmar";
+  | "apta"
+  | "situacao"
+  | "distrato"
+  | "fornecedor"
+  | "cliente"
+  | "simples"
+  | "confirmar";
 export function motivoConsultoria(a: Conta): MotivoConsultoria {
   const o = oferta(a, "consultoria");
   if (o.status === "elegivel") return "apta";
   if (situacaoForaDeOferta(a)) return "situacao";
   if (distratoForaDeOferta(a)) return "distrato";
-  // Só fornecedor no Omie não é Simples: motivo próprio, para o cartão não contar um como o outro.
+  // Fornecedor, empresa do grupo ou sem prova de cliente não é Simples: motivo próprio, para o cartão não contar um
+  // como o outro.
   if (fornecedorForaDeOferta(a)) return "fornecedor";
   if (o.status === "fora_regra" && o.reason === consultoriaForaDeOferta(a)) return "cliente";
   return o.status === "fora_regra" ? "simples" : "confirmar";
@@ -166,6 +176,22 @@ export const CLASSES_OMIE = {
 export type FiltroOmie = keyof typeof CLASSES_OMIE;
 export const classeOmie = (a: Conta): FiltroOmie => a.base?.omie?.classe ?? "fora_do_omie";
 
+/**
+ * Filtro "Prova de cliente" (01/10): o nível de `ops.base_conta_prova`, do mais forte ao mais fraco. Quem não é admin
+ * não recebe conta de grupo nem de fornecedor (o banco não manda), então essas opções aparecem com zero para essa pessoa.
+ */
+export const CLASSES_PROVA = {
+  comprovado: "Cliente comprovado",
+  cadastrado: "Cadastrada no Pipefy, sem prova",
+  so_tag: "Só a tag Cliente do Omie",
+  sem_prova: "Sem prova de cliente",
+  fornecedor: "Fornecedor",
+  grupo: "Empresa do grupo",
+  a_calcular: "Prova a calcular",
+} as const;
+export type FiltroProva = keyof typeof CLASSES_PROVA;
+export const nivelProva = (a: Conta): FiltroProva => a.base?.prova?.nivel ?? "a_calcular";
+
 export type PortfolioFilters = {
   query: string;
   receita: string[];
@@ -185,6 +211,8 @@ export type PortfolioFilters = {
   consultoria: FiltroConsultoria[];
   /** Classe das tags do cadastro do Omie; vazio = todas. */
   omie: FiltroOmie[];
+  /** Nível de prova de cliente; vazio = todos. */
+  prova: FiltroProva[];
 };
 export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   query: "",
@@ -203,6 +231,7 @@ export const EMPTY_PORTFOLIO_FILTERS: PortfolioFilters = {
   distrato: [],
   consultoria: [],
   omie: [],
+  prova: [],
 };
 
 type Dados = Pick<BaseMonetizacao, "cards" | "reservations" | "units"> & {
@@ -432,6 +461,7 @@ export function filtrarCarteira(
     if (f.consultoria.length && !vinculosConsultoria(a).some((v) => f.consultoria.includes(v)))
       return false;
     if (f.omie?.length && !f.omie.includes(classeOmie(a))) return false;
+    if (f.prova?.length && !f.prova.includes(nivelProva(a))) return false;
     if (
       f.overlap &&
       PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").length +

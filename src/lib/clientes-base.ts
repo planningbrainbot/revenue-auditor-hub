@@ -23,12 +23,38 @@ export type SinalDistrato = {
  * Omie sem nenhuma dessas. Ausente = nenhum CNPJ da conta está no Omie.
  */
 export type ClasseOmie =
-  "cliente" | "cliente_e_fornecedor" | "fornecedor" | "pessoa_interna" | "sem_tag";
+  | "cliente"
+  | "cliente_e_fornecedor"
+  | "fornecedor"
+  | "pessoa_interna"
+  | "sem_tag";
 export type SinalOmie = {
   classe: ClasseOmie;
   cliente_em: string[];
   fornecedor_em: string[];
   sincronizado_em: string | null;
+};
+/**
+ * Prova de cliente (migration 20261001200000, `ops.base_conta_prova`), da mais forte para a mais fraca:
+ * `grupo` = empresa do grupo Planning ou franquia; `comprovado` = contrato de serviço, conta a receber, ECD ou ganho no
+ * Pipedrive; `fornecedor` = recebe pagamento (Omie da unidade ou empresas do grupo) ou só tem tag de fornecedor, sem prova
+ * de cliente; `cadastrado` = card no Pipefy sem prova; `so_tag` = só a tag Cliente do Omie; `sem_prova` = só no cadastro
+ * do Omie. Grupo e fornecedor só chegam a admin; grupo, fornecedor e sem prova ficam fora das ofertas.
+ */
+export type NivelProva =
+  | "grupo"
+  | "comprovado"
+  | "fornecedor"
+  | "cadastrado"
+  | "so_tag"
+  | "sem_prova";
+export type SinalProva = {
+  nivel: NivelProva;
+  motivo: string;
+  provas: ("contrato" | "receber" | "ecd" | "ganho_pipedrive")[];
+  pago_em: string[];
+  pago_pelo_grupo?: string[];
+  filial_fornecedora_em?: string[];
 };
 /** Casamento com a plataforma da Consultoria: CNPJ completo, raiz (mesma pessoa jurídica) ou nome. */
 export type CasamentoConsultoria = "cnpj" | "raiz" | "nome";
@@ -100,6 +126,8 @@ export type BaseEmpresa = {
   consultoria?: SinalConsultoria | null;
   /** Tags do cadastro do Omie (migration 20260929180000). */
   omie?: SinalOmie | null;
+  /** Prova de cliente (migration 20261001200000). Ausente até a carteira se atualizar. */
+  prova?: SinalProva | null;
 };
 export type Refinamento = "" | "cnpj" | "contato" | "ecd";
 export function passaRefinamento(a: Conta, gate: Refinamento) {

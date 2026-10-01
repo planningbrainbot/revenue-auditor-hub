@@ -72,6 +72,7 @@ import { ProcedenciaBase } from "./procedencia-base";
 import {
   ABORDAGENS,
   CLASSES_OMIE,
+  CLASSES_PROVA,
   classeOmie,
   CONSULTORIA_FILTRO,
   DISTRATO_PADRAO,
@@ -81,6 +82,7 @@ import {
   estadoProduto,
   filtrarCarteira,
   motivoConsultoria,
+  nivelProva,
   ORIGENS_BASE,
   origemBase,
   potencialConsultoria,
@@ -96,6 +98,7 @@ import type {
   EstadoProduto,
   FiltroConsultoria,
   FiltroOmie,
+  FiltroProva,
   OrigemBase,
   PortfolioFilters,
   Situacao,
@@ -776,6 +779,12 @@ function PortfolioTable({
     for (const a of data.accounts) c[classeOmie(a)] = (c[classeOmie(a)] ?? 0) + 1;
     return c;
   }, [data.accounts]);
+  // Contagem por nível de prova de cliente (01/10). Quem não é admin não recebe grupo nem fornecedor.
+  const contagemProva = useMemo(() => {
+    const c: Partial<Record<FiltroProva, number>> = {};
+    for (const a of data.accounts) c[nivelProva(a)] = (c[nivelProva(a)] ?? 0) + 1;
+    return c;
+  }, [data.accounts]);
   const situacaoEfetiva = filters.status.length ? filters.status : situacoesIniciais(product);
   const distratoEfetivo: string[] = filters.distrato.length ? filters.distrato : DISTRATO_PADRAO;
   // Mudar filtro limpa a seleção: nunca enviar conta que saiu da tela (decisão de 16/09).
@@ -904,6 +913,7 @@ function PortfolioTable({
           "Distrato · Central de Tratativas",
           "Vínculo com a Consultoria",
           "Cadastro no Omie",
+          "Prova de cliente",
           "Consultoria",
           "Finance",
           "Cella",
@@ -944,6 +954,7 @@ function PortfolioTable({
             textoDistrato(a),
             textoConsultoria(a),
             textoOmie(a),
+            a.base?.prova ? `${CLASSES_PROVA[a.base.prova.nivel]} · ${a.base.prova.motivo}` : "",
             oferta(a, "consultoria").reason,
             oferta(a, "finance").reason,
             oferta(a, "cella").reason,
@@ -1256,6 +1267,21 @@ function PortfolioTable({
               value,
               label: `${CLASSES_OMIE[value]} (${number(contagemOmie[value] ?? 0)})`,
             }))}
+          />
+        </FieldMulti>
+        {/* Prova de cliente (01/10): contrato, recebimento, ECD ou ganho; fornecedor e grupo só chegam a admin. */}
+        <FieldMulti label="Prova de cliente">
+          <MultiSelect
+            label="Prova de cliente"
+            placeholder="Todos os níveis"
+            value={filters.prova ?? []}
+            onChange={(v) => change("prova", v as FiltroProva[])}
+            options={(Object.keys(CLASSES_PROVA) as FiltroProva[])
+              .filter((value) => value !== "a_calcular" || (contagemProva[value] ?? 0) > 0)
+              .map((value) => ({
+                value,
+                label: `${CLASSES_PROVA[value]} (${number(contagemProva[value] ?? 0)})`,
+              }))}
           />
         </FieldMulti>
         <FieldMulti label="Contato · filtro opcional">

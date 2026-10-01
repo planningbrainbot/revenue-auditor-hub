@@ -2,6 +2,7 @@ import { PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import {
   CLASSES_OMIE,
+  CLASSES_PROVA,
   CONSULTORIA_FILTRO,
   DISTRATOS_FILTRO,
   EMPTY_PORTFOLIO_FILTERS,
@@ -13,6 +14,7 @@ import type {
   Abordagem,
   FiltroConsultoria,
   FiltroOmie,
+  FiltroProva,
   OrigemBase,
   PortfolioFilters,
 } from "@/lib/monetizacao/portfolio";
@@ -84,6 +86,8 @@ export type BuscaClientes = {
   consultoria?: FiltroConsultoria[];
   /** Classe das tags do cadastro do Omie (`CLASSES_OMIE`). */
   omie?: FiltroOmie[];
+  /** Nível de prova de cliente (`CLASSES_PROVA`). */
+  prova?: FiltroProva[];
   /**
    * Página da tabela da visão (Validar origem, Contratos e churn), a partir de 1. Ausente = 1;
    * trocar de visão ou de filtro volta à primeira.
@@ -158,6 +162,7 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
       lista(s.consultoria)?.filter((c): c is FiltroConsultoria => c in CONSULTORIA_FILTRO),
     ),
     omie: vazioOuLista(lista(s.omie)?.filter((c): c is FiltroOmie => c in CLASSES_OMIE)),
+    prova: vazioOuLista(lista(s.prova)?.filter((c): c is FiltroProva => c in CLASSES_PROVA)),
     pagina: paginaDe(s.pagina),
     churn: umDe(["sim", "nao"], s.churn),
     erp: texto(s.erp) || undefined,
@@ -189,6 +194,7 @@ export function filtrosDaBusca(b: BuscaClientes, unidadeKeys: string[]): Portfol
     distrato: b.distrato ?? [],
     consultoria: b.consultoria ?? [],
     omie: b.omie ?? [],
+    prova: b.prova ?? [],
   };
 }
 
@@ -219,5 +225,6 @@ export function buscaDosFiltros(f: PortfolioFilters): Partial<BuscaClientes> {
     distrato: vazio(f.distrato),
     consultoria: vazio(f.consultoria) as FiltroConsultoria[] | undefined,
     omie: vazio(f.omie) as FiltroOmie[] | undefined,
+    prova: vazio(f.prova) as FiltroProva[] | undefined,
   };
 }
