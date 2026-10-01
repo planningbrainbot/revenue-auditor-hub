@@ -113,6 +113,8 @@ import { custoEstimadoOpenAI, provedorDo } from "../src/lib/cockpit-ceo/conversa
 test("custo estimado da OpenAI pelos tokens; sem preço ou sem token é desconhecido, nunca zero", () => {
   assert.equal(provedorDo("openai/gpt-5.5"), "openai");
   assert.equal(provedorDo("anthropic/claude-sonnet-5"), "openrouter");
+  // `openai/…` fora da lista direta passa pelo OpenRouter (GPT-6 Luna, 01/10/2026).
+  assert.equal(provedorDo("openai/gpt-6-luna"), "openrouter");
   // 10.000 de entrada (2.000 em cache) e 1.000 de saída no gpt-5.5:
   // 8.000 × 5 + 2.000 × 0,5 + 1.000 × 30 = 71.000 / 1e6 = 0,071.
   const c = custoEstimadoOpenAI("openai/gpt-5.5", {

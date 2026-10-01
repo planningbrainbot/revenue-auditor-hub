@@ -30,6 +30,9 @@ export function lerNumeros(texto: string): NumeroLido[] {
   const out: NumeroLido[] = [];
   // Datas ISO (2025-06, 2026-08-01) não são número: sem isso "2025-06" virava −6.
   texto = texto.replace(/\b\d{4}-\d{2}(?:-\d{2})?\b/g, " ");
+  // Hora (21:01, 9h30) também não: "atualizada em 30/09 às 21:01" derrubava a frase do vencido
+  // inteira, com o valor junto (avaliação do GPT-6 Luna, 01/10/2026).
+  texto = texto.replace(/\b(?:[01]?\d|2[0-3])(?::[0-5]\d|h[0-5]\d)\b/g, " ");
   for (const m of texto.matchAll(NUMERO)) {
     const [bruto, rs, num, sufixo] = m;
     // Datas (24/09, 08/2026) ficam fora pelo lookbehind/lookahead de "/".

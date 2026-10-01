@@ -174,6 +174,14 @@ test("leitura de números em português: escala, decimal e percentual", () => {
   );
 });
 
+test("hora não é número: a frase do vencido não cai pelo horário da atualização", () => {
+  const n = lerNumeros("Há R$ 6.541.513,95 vencidos, atualizado em 30/09/2026 às 21:01 (antes, 9h30).");
+  assert.deepEqual(
+    n.map((x) => x.valor),
+    [6_541_513.95],
+  );
+});
+
 test("texto com números de origem passa inteiro", () => {
   const t = "Faturamos R$ 7,46 mi em agosto, 12,9% acima de julho. Curitiba lidera com R$ 560.";
   const c = conferirTexto(t, [r1, r2], "compare curitiba e belém");

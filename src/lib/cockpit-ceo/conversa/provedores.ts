@@ -10,8 +10,15 @@ export const PRECOS_OPENAI: Record<string, { entrada: number; cache: number; sai
   "gpt-5.4-mini": { entrada: 0.75, cache: 0.075, saida: 4.5 },
 };
 
+/**
+ * Só estes vão direto na OpenAI (OPENAI_API_KEY). Todo o resto passa pelo OpenRouter, inclusive os
+ * `openai/…` novos: o GPT-6 Luna (01/10/2026) roda pelo OpenRouter, que devolve o custo de cada
+ * chamada, porque a chave direta da OpenAI ficou sem crédito em 28/09.
+ */
+const DIRETO_NA_OPENAI: ReadonlySet<string> = new Set(["openai/gpt-5.5", "openai/gpt-5.4-mini"]);
+
 export const provedorDo = (modelo: string): Provedor =>
-  modelo.startsWith("openai/") ? "openai" : "openrouter";
+  DIRETO_NA_OPENAI.has(modelo) ? "openai" : "openrouter";
 
 export const idNoProvedor = (modelo: string) => modelo.replace(/^openai\//, "");
 

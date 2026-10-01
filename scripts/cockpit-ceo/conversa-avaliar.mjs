@@ -34,6 +34,7 @@ const ESTIMATIVA = {
   "anthropic/claude-opus-5.5": 0.16,
   "openai/gpt-5.5": 0.2,
   "openai/gpt-5.4-mini": 0.04,
+  "openai/gpt-6-luna": 0.01,
 };
 const PASTA = new URL("../../docs/dev_notes/cockpit-ceo-conversa/avaliacao/", import.meta.url);
 mkdirSync(PASTA, { recursive: true });

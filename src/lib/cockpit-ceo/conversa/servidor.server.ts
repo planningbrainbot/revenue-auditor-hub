@@ -30,10 +30,15 @@ import type { VisaoDefinicao } from "./spec";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-/** Escolhido pela avaliação de 25/09 (docs/dev_notes/cockpit-ceo-conversa/avaliacao/relatorio.md). */
-export const MODELO_PADRAO = "openai/gpt-5.5";
+/**
+ * GPT-6 Luna pelo OpenRouter desde 01/10/2026, a pedido do Pedro, medido na avaliação de 25/09
+ * (relatório em docs/dev_notes/cockpit-ceo-conversa/avaliacao/; DECISIONS.md, 2026-10-01). O
+ * GPT-5.5 segue na lista como volta.
+ */
+export const MODELO_PADRAO = "openai/gpt-6-luna";
 /** Modelos que o servidor aceita; a escolha vem da avaliação (relatório), não do nome. */
 export const MODELOS_PERMITIDOS = [
+  "openai/gpt-6-luna",
   "anthropic/claude-sonnet-5",
   "anthropic/claude-opus-5.5",
   "openai/gpt-5.5",
