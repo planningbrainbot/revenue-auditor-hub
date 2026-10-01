@@ -61,6 +61,7 @@ import {
   useMesNaUrl,
 } from "./moldura";
 import { FunilRepasse } from "./funil-repasse";
+import { RepassePendenteBloco } from "./repasse-pendente";
 
 /**
  * A abertura da área Receita e Repasses (Visão geral; contrato
@@ -366,6 +367,10 @@ export function ReceitaOverviewContent() {
             tentarNovamente={() => void refetch()}
           />
         )}
+
+        {/* ================= O QUE FICOU DE MESES ANTERIORES ================= */}
+        {/* Antes do bloco do mês: é o único que não recomeça quando o mês vira. */}
+        {data?.podeRepasse && <RepassePendenteBloco destinoApuracao={destinoApuracao} />}
 
         {/* ================= REPASSE ================= */}
         {data && !data.podeRepasse && (
