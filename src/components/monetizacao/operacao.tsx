@@ -1,8 +1,9 @@
 // Aba Operação da Monetização, no molde do painel do Recon (Metas do SDR + funil do anúncio à
 // venda + leads por dia), com a identidade da Planning: tokens de src/styles.css, KpiCard do
-// design system, status sempre com ícone e palavra. Nada é calculado aqui; os números vêm de
-// `operacao`, `funil` e `metasOperacao` em src/lib/monetizacao/model.ts.
-import { useMemo, type ReactNode } from "react";
+// design system, status sempre com ícone e palavra. Nada é calculado aqui: o funil, os quadros de
+// meta e as tabelas por produto vêm da régua cumulativa (`funilCumulativo`, 01/10/2026) e a série
+// diária de `operacao`, em src/lib/monetizacao.
+import type { ReactNode } from "react";
 import {
   Building2,
   CalendarCheck,
@@ -11,7 +12,9 @@ import {
   Download,
   FileSignature,
   Info,
+  MessageCircleReply,
   MessagesSquare,
+  Presentation,
   Scale,
   TriangleAlert,
   Trophy,
@@ -48,17 +51,16 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
-import { FARMER, METRICAS, funil, taxa } from "@/lib/monetizacao/model";
+import { FARMER, METRICAS, taxa } from "@/lib/monetizacao/model";
+import type { QuadroMeta, StatusMeta, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
+import { linhaDa } from "@/lib/monetizacao/funil-cumulativo";
 import type {
-  EtapaFunil,
-  Filtro,
-  QuadroMeta,
-  StatusMeta,
-  cadastroACorrigir,
-  operacao,
-} from "@/lib/monetizacao/model";
+  ChaveNivel,
+  FunilCumulativo,
+  LinhaCumulativa,
+} from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES } from "@/lib/monetizacao/types";
-import type { Metrica, Negocio, Produto } from "@/lib/monetizacao/types";
+import type { Negocio, Produto } from "@/lib/monetizacao/types";
 import { downloadCsv } from "./common";
 
 type Abrir = (
@@ -89,7 +91,6 @@ export function MetasFarmer({
   uteis,
   from,
   to,
-  rows,
   abrir,
   onComoContamos,
 }: {
@@ -97,7 +98,6 @@ export function MetasFarmer({
   uteis: number;
   from: string;
   to: string;
-  rows: Record<Metrica, Negocio[]>;
   abrir: Abrir;
   onComoContamos: () => void;
 }) {
@@ -110,7 +110,8 @@ export function MetasFarmer({
             O {FARMER.nome.split(" ")[0]} está no ritmo das metas?
           </h2>
           <p className="text-[13px] text-muted-foreground">
-            {uteis} {uteis === 1 ? "dia útil" : "dias úteis"}, de {ddmm(from)} a {ddmm(to)} ·{" "}
+            Abordados de {ddmm(from)} a {ddmm(to)}, {uteis}{" "}
+            {uteis === 1 ? "dia útil" : "dias úteis"} ·{" "}
             {fora === 0
               ? "nenhuma meta fora"
               : `${fora} ${fora === 1 ? "meta fora" : "metas fora"}`}
@@ -123,7 +124,8 @@ export function MetasFarmer({
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {quadros.map((q) => {
-          const ritmo = q.chave === "started" || q.chave === "scheduled" || q.chave === "meeting";
+          // Só os trabalhados são ritmo (abordados ÷ dias úteis); o resto é contagem da coorte.
+          const ritmo = q.chave === "started";
           const { tom, palavra } = TOM[q.status];
           return (
             <KpiCard
@@ -135,7 +137,7 @@ export function MetasFarmer({
                 q.meta === null
                   ? undefined
                   : {
-                      valor: ritmo ? `${DEC.format(q.meta)} por dia` : DEC.format(q.meta),
+                      valor: ritmo ? `${DEC.format(q.meta)} por dia` : INT.format(q.meta),
                       rotulo: ritmo ? "meta" : "meta no período",
                       progresso: q.meta ? q.valor / q.meta : undefined,
                     }
@@ -143,7 +145,7 @@ export function MetasFarmer({
               tom={tom}
               tomRotulo={palavra}
               abrir={{
-                onClick: () => abrir(METRICAS.find((m) => m.key === q.chave)!.label, rows[q.chave]),
+                onClick: () => abrir(ritmo ? "Leads trabalhados no período" : q.rotulo, q.cards),
               }}
             />
           );
@@ -164,6 +166,39 @@ function Verbete({ titulo, children }: { titulo: string; children: ReactNode }) 
   );
 }
 
+/** A régua cumulativa, uma frase por regra (spec de 01/10/2026). */
+const REGRAS: [string, string][] = [
+  [
+    "Coorte",
+    "Todo número do funil e dos quadros conta os cards que o farmer tirou da Base elegível no período.",
+  ],
+  [
+    "Etapa alcançada",
+    "Cada card conta até a etapa mais adiantada a que chegou no período, e a etapa só vale se ele ficou nela 30 minutos ou mais, avançou a partir dela ou terminou nela.",
+  ],
+  [
+    "Contagem e taxa",
+    "Cada etapa conta os cards que chegaram a ela ou além, então as contagens só descem e a taxa é a etapa dividida pela etapa de cima.",
+  ],
+  [
+    "Etapas somadas",
+    "O Gatilho, encerrado em 01/10, conta como Conexão, e o Stand by conta como Levantamento realizado.",
+  ],
+  ["Fila", "A fila são os cards que estiveram na Base elegível em algum momento do período."],
+  [
+    "Hoje",
+    "A coluna Hoje mostra quantos estão na etapa agora, no pipe inteiro, e não entra na taxa.",
+  ],
+  [
+    "Dias úteis",
+    "O ritmo divide os abordados pelos dias úteis, de segunda a sexta, sem os feriados nacionais.",
+  ],
+  [
+    "Quem recebe o crédito",
+    "A abordagem é de quem tirou o card da Base, e a saída feita pela integração do Ops não é do farmer.",
+  ],
+];
+
 export function ComoContamos({
   open,
   onOpenChange,
@@ -179,20 +214,19 @@ export function ComoContamos({
         <DialogHeader>
           <DialogTitle>Como contamos</DialogTitle>
           <DialogDescription>
-            Metas do plano do mês, salvas em Capacidade e alocação. São decisão humana: não saem de
-            fonte nenhuma.
+            Régua cumulativa, a mesma do forecast. As metas vêm do plano do mês, em Capacidade e
+            alocação, e são decisão humana.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <Verbete titulo="Ritmo por dia útil">
-            <p>
-              Leads e reuniões mostram o total do período dividido pelos dias úteis (segunda a
-              sexta, sem calendário de feriados). O ritmo não depende do tamanho do período.
-            </p>
-            <p>
-              Contratos contam o total, contra a meta do mês proporcional aos dias úteis do período.
-              Abaixo da meta num período que é só hoje aparece como dia em curso, não como fora.
-            </p>
+          <Verbete titulo="A régua">
+            <ul className="list-disc space-y-1 pl-4">
+              {REGRAS.map(([titulo, frase]) => (
+                <li key={titulo}>
+                  <span className="font-medium text-foreground">{titulo}.</span> {frase}
+                </li>
+              ))}
+            </ul>
           </Verbete>
           {quadros.map((q) => (
             <Verbete key={q.chave} titulo={q.rotulo}>
@@ -202,13 +236,6 @@ export function ComoContamos({
               )}
             </Verbete>
           ))}
-          <Verbete titulo="Quem recebe o crédito">
-            <p>
-              O movimento conta para quem moveu o card no Pipedrive. A Operação mede o {FARMER.nome}
-              , único farmer da frente; movimentos feitos por outro usuário (a API do Ops, por
-              exemplo) ficam fora dos quadros e do funil.
-            </p>
-          </Verbete>
         </div>
       </DialogContent>
     </Dialog>
@@ -223,10 +250,12 @@ export function ComoContamos({
 const ICONES: [RegExp, LucideIcon][] = [
   [/base/i, Building2],
   [/abordag/i, MessagesSquare],
+  [/conex/i, MessageCircleReply],
   [/gatilho/i, Zap],
   [/reuni.*(agend|marc)/i, CalendarClock],
   [/reuni.*realiz/i, CalendarCheck],
   [/negocia/i, Scale],
+  [/reuni.*proposta/i, Presentation],
   [/proposta/i, FileSignature],
   [/stand ?by/i, CirclePause],
   [/^ganho$/i, Trophy],
@@ -260,11 +289,11 @@ function Rampa({
   );
 }
 
-// ícone | entraram | etapa | hoje | conversão
+// ícone | cards | etapa | hoje | taxa
 const GRADE =
   "grid grid-cols-[1.5rem_3rem_minmax(0,1fr)_3rem_5rem] items-center gap-x-3 sm:grid-cols-[1.5rem_3.5rem_minmax(0,1fr)_3.5rem_5.5rem]";
 
-/** Seta curva da etapa de cima para a de baixo: a conversão é a passagem, não a linha. */
+/** Seta curva da etapa de cima para a de baixo: a taxa é a etapa ÷ a de cima. */
 function Conector() {
   return (
     <svg
@@ -291,65 +320,62 @@ function Conector() {
   );
 }
 
+/** "inclui Gatilho" · "inclui Stand by (6 hoje)": as etapas somadas ao nível. */
+const incluiTexto = (l: LinhaCumulativa) =>
+  l.somadasHoje.length
+    ? `inclui ${l.somadasHoje.map((x) => (x.hoje ? `${x.nome} (${INT.format(x.hoje)} hoje)` : x.nome)).join(", ")}`
+    : null;
+
+/** Título do detalhe de uma linha: a fila é estoque do período; as demais, a coorte. */
+const tituloDaLinha = (l: LinhaCumulativa, prefixo = "") =>
+  `${prefixo}${l.nome} · ${l.nivel === 0 ? "na fila no período" : "abordados que chegaram aqui ou além"}`;
+
 function Linha({
-  etapa,
+  linha,
   passo,
   total,
-  conversao,
   abrir,
 }: {
-  etapa: EtapaFunil;
+  linha: LinhaCumulativa;
   passo: number;
   total: number;
-  conversao?: number | null;
   abrir: Abrir;
 }) {
-  const entraram = etapa.entraram;
+  const inclui = incluiTexto(linha);
   return (
     <div className={cn(GRADE, "h-10")}>
       <button
         type="button"
-        disabled={!entraram}
-        onClick={() => entraram && abrir(`${etapa.nome} · entraram no período`, entraram)}
-        className="col-span-3 grid grid-cols-subgrid items-center rounded-md text-left outline-none transition-colors duration-[120ms] ease-out enabled:hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
-        title={entraram ? undefined : "A carga do CRM ainda não mede a entrada nesta etapa"}
+        onClick={() => abrir(tituloDaLinha(linha), linha.cards)}
+        className="col-span-3 grid grid-cols-subgrid items-center rounded-md text-left outline-none transition-colors duration-[120ms] ease-out hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Rampa passo={passo} total={total} icone={iconeDa(etapa.nome)} />
-        <span
-          className={cn(
-            "num text-right text-base font-semibold",
-            entraram ? "text-foreground" : "text-muted-foreground",
-          )}
-        >
-          {entraram ? INT.format(entraram.length) : "—"}
+        <Rampa passo={passo} total={total} icone={iconeDa(linha.nome)} />
+        <span className="num text-right text-base font-semibold text-foreground">
+          {INT.format(linha.contagem)}
         </span>
         <span className="truncate text-sm text-foreground">
-          {etapa.nome.replace(/^\d+\s*·\s*/, "")}
-          {etapa.inclui && (
-            <span className="ml-1.5 text-xs text-muted-foreground">
-              inclui {INT.format(etapa.inclui.parados)} em {etapa.inclui.nome}
-            </span>
-          )}
+          {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
+          {inclui && <span className="ml-1.5 text-xs text-muted-foreground">{inclui}</span>}
         </span>
       </button>
-      {etapa.parados ? (
+      {linha.hoje ? (
         <button
           type="button"
-          onClick={() => abrir(`${etapa.nome} · no pipe hoje`, etapa.parados!)}
+          onClick={() => abrir(`${linha.nome} · no pipe hoje`, linha.hoje!, { estoque: true })}
           className="num rounded-md text-right text-sm text-muted-foreground outline-none transition-colors duration-[120ms] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {INT.format(etapa.parados.length)}
+          {INT.format(linha.hoje.length)}
         </button>
       ) : (
         <span />
       )}
-      {/* a conversão pertence à passagem entre esta linha e a de cima: sobe meia linha */}
+      {/* a taxa pertence à passagem entre esta linha e a de cima: sobe meia linha */}
       <span className="relative self-stretch">
-        {conversao !== undefined && (
+        {linha.taxa !== undefined && (
           <span className="absolute inset-y-0 right-0 flex -translate-y-1/2 items-center gap-1.5">
             <Conector />
             <span className="num w-12 text-right text-[13px] font-semibold text-foreground">
-              {conversao === null ? "—" : PCT.format(conversao)}
+              {linha.taxa === null ? "—" : PCT.format(linha.taxa)}
             </span>
           </span>
         )}
@@ -358,8 +384,8 @@ function Linha({
   );
 }
 
-export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil>; abrir: Abrir }) {
-  const { etapas, perdidos, porEtapa, abertos } = dados;
+export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir: Abrir }) {
+  const { linhas, perdidos, abertos, regua } = dados;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -377,9 +403,8 @@ export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil
         )}
       </div>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
-        Entraram: cards movidos para a etapa no período. Hoje: o pipe inteiro agora,{" "}
-        {INT.format(abertos)} abertos. Conversão: dos que entraram na etapa de cima, quantos
-        chegaram a esta ou além.
+        Cards abordados no período, cada um contado até a etapa mais adiantada a que chegou. Taxa: a
+        etapa ÷ a de cima. Hoje: o pipe inteiro agora, {INT.format(abertos)} abertos, fora da taxa.
       </p>
       <div className="mt-3">
         <div
@@ -388,25 +413,18 @@ export function FunilOperacao({ dados, abrir }: { dados: ReturnType<typeof funil
             "h-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
           )}
         >
-          <span className="col-span-2 text-right">Entraram</span>
+          <span className="col-span-2 text-right">Cards</span>
           <span>Etapa</span>
           <span className="text-right">Hoje</span>
-          <span className="text-right">Conversão</span>
+          <span className="text-right">Taxa</span>
         </div>
-        {etapas.map((e, i) => (
-          <Linha
-            key={e.key}
-            etapa={e}
-            passo={i}
-            total={etapas.length}
-            abrir={abrir}
-            conversao={e.conversao}
-          />
+        {linhas.map((l, i) => (
+          <Linha key={l.key} linha={l} passo={i} total={linhas.length} abrir={abrir} />
         ))}
       </div>
-      {!porEtapa && (
+      {regua.semNivel.length > 0 && (
         <p className="mt-auto pt-3 text-xs text-muted-foreground">
-          Etapas com "—" passam a ser contadas quando a carga do CRM gravar a entrada por etapa.
+          Fora da conta, porque a régua não soube onde pôr: {regua.semNivel.join(", ")}.
         </p>
       )}
     </section>
@@ -523,57 +541,84 @@ export function SerieDiaria({
 // Por produto
 // ---------------------------------------------------------------------------
 
-const GRUPOS: { titulo: string; chaves: Metrica[] }[] = [
-  { titulo: "Esforço", chaves: ["loaded", "started"] },
-  { titulo: "Reuniões", chaves: ["scheduled", "meeting"] },
-  { titulo: "Resultado", chaves: ["validated", "signed"] },
+/** Funil cumulativo de cada recorte de produto, mais o total (todos os produtos, inclusive sem produto). */
+export type FunisPorProduto = Record<Produto | "sem_produto" | "total", FunilCumulativo>;
+
+type ColunaProduto = ChaveNivel | "fila" | "ganho";
+const GRUPOS: { titulo: string; chaves: ColunaProduto[] }[] = [
+  { titulo: "Esforço", chaves: ["fila", "abordagem"] },
+  { titulo: "Resposta", chaves: ["conexao"] },
+  { titulo: "Levantamentos", chaves: ["agendada", "realizada"] },
+  { titulo: "Resultado", chaves: ["negociacao", "ganho"] },
 ];
-const CURTO: Record<Metrica, string> = {
-  loaded: "Fila carregada",
-  started: "Trabalhados",
-  scheduled: "Marcadas",
-  meeting: "Realizadas",
-  validated: "Validadas",
-  signed: "Ganhos",
+const CURTO: Record<ColunaProduto, string> = {
+  fila: "Fila",
+  abordagem: "Abordados",
+  conexao: "Conexão",
+  agendada: "Agendados",
+  realizada: "Realizados",
+  negociacao: "Validadas",
+  reuniaoProposta: "Reunião de proposta",
+  propostaEnviada: "Proposta enviada",
+  ganho: "Ganhos",
 };
+const PRODUTOS_LINHA = ["cella", "finance", "consultoria"] as const;
 
 /**
- * Uma linha por produto, colunas agrupadas pelo que medem (esforço, reuniões, resultado). Cada
- * célula traz o número, a barra contra o maior valor da coluna e a passagem da coluna anterior,
- * para o olho ler a linha como um funil curto. Zero sai apagado, sem passagem, e não abre nada.
+ * Uma linha por produto, na régua cumulativa: a fila do período e, dos abordados, quantos chegaram a cada etapa ou
+ * além. Cada célula traz o número, a barra contra o maior valor da coluna e a taxa sobre a coluna da esquerda, para
+ * o olho ler a linha como um funil curto. Zero sai apagado e não abre nada; etapa que o pipe não tem sai "—".
  */
-export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>; abrir: Abrir }) {
+export function PorProduto({
+  funis,
+  produto,
+  abrir,
+}: {
+  funis: FunisPorProduto;
+  produto: Produto | "sem_produto" | "";
+  abrir: Abrir;
+}) {
   const chaves = GRUPOS.flatMap((g) => g.chaves);
-  const linhas = view.products
-    .filter((p) => p.product !== "sem_produto" || chaves.some((k) => p[k] > 0))
+  const valor = (fc: FunilCumulativo, k: ColunaProduto) => linhaDa(fc, k);
+  const candidatas = [...PRODUTOS_LINHA, "sem_produto" as const].filter((p) =>
+    produto ? p === produto : p !== "sem_produto" || funis.sem_produto.coorte.length > 0,
+  );
+  const linhas = candidatas
+    .map((p) => ({ p, fc: funis[p] }))
     .sort((a, b) =>
-      a.product === "sem_produto" ? 1 : b.product === "sem_produto" ? -1 : b.started - a.started,
+      a.p === "sem_produto"
+        ? 1
+        : b.p === "sem_produto"
+          ? -1
+          : b.fc.coorte.length - a.fc.coorte.length,
     );
   const maximo = Object.fromEntries(
-    chaves.map((k) => [k, Math.max(1, ...linhas.map((p) => p[k]))]),
+    chaves.map((k) => [k, Math.max(1, ...linhas.map((l) => valor(l.fc, k)?.contagem ?? 0))]),
   );
-  const total = Object.fromEntries(chaves.map((k) => [k, view.rows[k].length])) as Record<
-    Metrica,
-    number
-  >;
   const celula = (
-    k: Metrica,
+    k: ColunaProduto,
     i: number,
-    valores: Record<Metrica, number>,
-    rows: Negocio[],
+    fc: FunilCumulativo,
     titulo: string,
     destaque = false,
   ) => {
-    const v = valores[k];
-    const anterior = i > 0 ? valores[chaves[i - 1]] : null;
-    // Passagem só quando as duas pontas têm movimento: "0% da anterior" e "—" em série viravam ruído.
-    const passagem = anterior && v ? taxa(v, anterior) : null;
+    const l = valor(fc, k);
+    if (!l)
+      return (
+        <td key={k} className="px-3 py-2.5 text-right align-top">
+          <span className="num text-base text-muted-foreground">—</span>
+        </td>
+      );
+    const v = l.contagem;
+    const anterior = i > 0 ? valor(fc, chaves[i - 1])?.contagem : undefined;
+    // Taxa só quando as duas pontas têm card: "0% da anterior" e "—" em série viravam ruído.
+    const t = anterior && v ? taxa(v, anterior) : null;
     return (
       <td key={k} className="px-3 py-2.5 align-top">
         {v > 0 ? (
           <button
             type="button"
-            onClick={() => abrir(titulo, rows)}
+            onClick={() => abrir(titulo, l.cards)}
             className={cn(
               "num block w-full rounded-sm text-right text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
               destaque ? "text-base font-bold" : "text-base font-semibold",
@@ -593,10 +638,14 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
           </span>
         )}
         <span className="num mt-1 block text-right text-xs text-muted-foreground">
-          {passagem === null ? "\u00a0" : `${PCT.format(passagem)} da anterior`}
+          {t === null ? "\u00a0" : `${PCT.format(t)} da anterior`}
         </span>
       </td>
     );
+  };
+  const tituloDe = (nome: string, k: ColunaProduto, fc: FunilCumulativo) => {
+    const l = valor(fc, k);
+    return l ? tituloDaLinha(l, `${nome} · `) : nome;
   };
   return (
     <section className="rounded-xl border bg-card">
@@ -604,13 +653,14 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
         <div className="space-y-0.5">
           <h2 className="text-base font-semibold text-foreground">Qual produto avança na base?</h2>
           <p className="text-[13px] text-muted-foreground">
-            Movimentos do período por produto. A barra compara os produtos na mesma coluna; a
-            porcentagem é a passagem da coluna anterior. Clique no número para abrir os negócios.
+            Abordados no período por produto, cada um até a etapa mais adiantada. A barra compara os
+            produtos na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. Clique no número
+            para abrir os negócios.
           </p>
         </div>
       </div>
       <div className="overflow-x-auto p-2">
-        <table className="w-full min-w-[760px] table-fixed text-left">
+        <table className="w-full min-w-[860px] table-fixed text-left">
           <colgroup>
             <col className="w-40" />
             {chaves.map((k) => (
@@ -637,33 +687,27 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
             </tr>
           </thead>
           <tbody>
-            {linhas.map((p) => (
-              <tr key={p.product} className="border-t">
+            {linhas.map(({ p, fc }) => (
+              <tr key={p} className="border-t">
                 <th
                   className={cn(
                     "px-3 py-2.5 align-top text-sm font-semibold",
-                    p.product === "sem_produto" ? "text-muted-foreground" : "text-foreground",
+                    p === "sem_produto" ? "text-muted-foreground" : "text-foreground",
                   )}
                 >
-                  {NOMES[p.product as Produto | "sem_produto"]}
+                  {NOMES[p]}
                 </th>
-                {chaves.map((k, i) =>
-                  celula(
-                    k,
-                    i,
-                    p,
-                    view.rows[k].filter((c) => c.route === p.product),
-                    `${NOMES[p.product]} · ${METRICAS.find((m) => m.key === k)!.label}`,
-                  ),
-                )}
+                {chaves.map((k, i) => celula(k, i, fc, tituloDe(NOMES[p], k, fc)))}
               </tr>
             ))}
-            <tr className="border-t-2 bg-muted/40">
-              <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
-              {chaves.map((k, i) =>
-                celula(k, i, total, view.rows[k], METRICAS.find((m) => m.key === k)!.label, true),
-              )}
-            </tr>
+            {!produto && (
+              <tr className="border-t-2 bg-muted/40">
+                <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
+                {chaves.map((k, i) =>
+                  celula(k, i, funis.total, tituloDe("Total", k, funis.total), true),
+                )}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -675,46 +719,33 @@ export function PorProduto({ view, abrir }: { view: ReturnType<typeof operacao>;
 // Funil por produto, lado a lado
 // ---------------------------------------------------------------------------
 
-const LADO_A_LADO = ["cella", "finance", "consultoria"] as const;
-const standByNome = (nome: string) => /stand ?by/i.test(nome);
-
 /**
- * O funil da dobra de cima com os produtos lado a lado (dono, 30/09/2026): as mesmas etapas, a mesma
- * entrada e a mesma passagem de `funil`, uma coluna por produto e o total. Complementa "Qual produto
- * avança na base?", que conta movimentos; aqui são etapas do pipe. Fecha com o que parou (Stand by
- * hoje, que conta como reunião realizada) e o que saiu (perdidos no período). Com filtro de produto
- * não há o que comparar: o funil de cima já é o do produto.
+ * O funil da dobra de cima com os produtos lado a lado (dono, 30/09/2026), na régua cumulativa (01/10/2026): as
+ * mesmas etapas, a mesma coorte e a mesma taxa de `funilCumulativo`, uma coluna por produto e o total. Complementa
+ * "Qual produto avança na base?", que resume em sete colunas; aqui estão todas as etapas do pipe. Fecha com o que
+ * parou (Stand by hoje, que conta como levantamento realizado) e o que saiu (perdidos no período), fora da taxa. Com
+ * filtro de produto não há o que comparar: o funil de cima já é o do produto.
  */
 export function FunilLadoALado({
-  cards,
-  stages,
-  filtro,
+  funis,
+  produto,
   abrir,
 }: {
-  cards: Negocio[];
-  stages: { id: number; name: string; order: number }[];
-  filtro: Filtro;
+  funis: FunisPorProduto;
+  produto: Produto | "sem_produto" | "";
   abrir: Abrir;
 }) {
-  const colunas = useMemo(() => {
-    const espera = new Set(stages.filter((s) => standByNome(s.name)).map((s) => s.id));
-    const coluna = (k: Produto | "", nome: string, cor: string) => {
-      const dados = funil(cards, stages, { ...filtro, product: k });
-      const pool = cards.filter((c) => !k || c.route === k);
-      return {
-        k: k || "total",
-        nome,
-        cor,
-        dados,
-        standBy: pool.filter((c) => c.status === "open" && espera.has(c.stage_id)),
-      };
-    };
-    return [
-      ...LADO_A_LADO.map((p, i) => coluna(p, NOMES[p], CORES_SERIE[i])),
-      coluna("", "Total", CORES_SERIE[5]),
-    ];
-  }, [cards, stages, filtro]);
-  const etapas = colunas[0].dados.etapas;
+  const colunas = [
+    ...PRODUTOS_LINHA.map((p, i) => ({ k: p, nome: NOMES[p], cor: CORES_SERIE[i], fc: funis[p] })),
+    { k: "total", nome: "Total", cor: CORES_SERIE[5], fc: funis.total },
+  ];
+  const etapas = funis.total.linhas;
+  const realizada = funis.total.regua.nivelDe.realizada;
+  const espera = new Set(
+    realizada === undefined ? [] : funis.total.regua.niveis[realizada].somadas.map((x) => x.id),
+  );
+  const standBy = (fc: FunilCumulativo) =>
+    (linhaDa(fc, "realizada")?.hoje ?? []).filter((c) => espera.has(c.stage_id));
   const numero = (n: number, titulo: string, rows: Negocio[], estoque = false) =>
     n > 0 ? (
       <button
@@ -735,15 +766,14 @@ export function FunilLadoALado({
           Em que etapa cada produto trava?
         </h2>
         <p className="text-[13px] text-muted-foreground">
-          O funil de cima, um produto por coluna. Entraram no período; a barra compara com a entrada
-          na Base do mesmo produto; a porcentagem é a passagem da etapa de cima. Stand by soma em
-          Reunião realizada.
+          O funil de cima, um produto por coluna: abordados no período, cada um até a etapa mais
+          adiantada. A porcentagem é a etapa ÷ a de cima; a barra compara com a fila do produto.
         </p>
       </div>
-      {filtro.product ? (
+      {produto ? (
         <p className="px-4 pb-4 pt-2 text-sm text-muted-foreground">
-          Com o filtro de {NOMES[filtro.product]}, o funil de cima já é o do produto. Limpe o filtro
-          de produto para comparar os três.
+          Com o filtro de {NOMES[produto]}, o funil de cima já é o do produto. Limpe o filtro de
+          produto para comparar os três.
         </p>
       ) : (
         <div className="overflow-x-auto p-2">
@@ -772,63 +802,53 @@ export function FunilLadoALado({
               </tr>
             </thead>
             <tbody>
-              {etapas.map((e, i) => {
-                const nome = e.nome.replace(/^\d+\s*·\s*/, "");
-                return (
-                  <tr key={e.key} className="border-t">
-                    <th className="px-3 py-2 align-top text-sm font-normal text-foreground">
-                      {nome}
-                    </th>
-                    {colunas.map((c) => {
-                      const et = c.dados.etapas[i];
-                      const entraram = et.entraram;
-                      const topo = c.dados.etapas[0].entraram?.length ?? 0;
-                      const conv = i === 0 ? undefined : et.conversao;
-                      return (
-                        <td key={c.k} className="px-3 py-2 align-top">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span
-                              className={cn(
-                                "num text-xs",
-                                conv != null && conv < 0.2
-                                  ? "font-semibold text-danger"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {conv === undefined
-                                ? "entrada"
-                                : conv === null
-                                  ? "—"
-                                  : PCT.format(conv)}
-                            </span>
-                            {entraram ? (
-                              numero(
-                                entraram.length,
-                                `${c.nome} · ${nome} · entraram no período`,
-                                entraram,
-                              )
-                            ) : (
-                              <span className="num text-base text-muted-foreground">—</span>
-                            )}
-                          </div>
+              {etapas.map((e, i) => (
+                <tr key={e.key} className="border-t">
+                  <th className="px-3 py-2 align-top text-sm font-normal text-foreground">
+                    {e.nivel === 0 ? `Fila · ${e.nome}` : e.nome}
+                    {incluiTexto(e) && (
+                      <span className="block text-xs text-muted-foreground">{incluiTexto(e)}</span>
+                    )}
+                  </th>
+                  {colunas.map((c) => {
+                    const l = c.fc.linhas[i];
+                    const topo = c.fc.linhas[0].contagem;
+                    return (
+                      <td key={c.k} className="px-3 py-2 align-top">
+                        <div className="flex items-baseline justify-between gap-2">
                           <span
-                            className="mt-1 block h-1 overflow-hidden rounded-full bg-muted"
-                            aria-hidden
+                            className={cn(
+                              "num text-xs",
+                              l.taxa != null && l.taxa < 0.2
+                                ? "font-semibold text-danger"
+                                : "text-muted-foreground",
+                            )}
                           >
-                            <span
-                              className="block h-full rounded-full"
-                              style={{
-                                width: `${topo && entraram ? (entraram.length / topo) * 100 : 0}%`,
-                                backgroundColor: c.cor,
-                              }}
-                            />
+                            {l.taxa === undefined
+                              ? "fila"
+                              : l.taxa === null
+                                ? "—"
+                                : PCT.format(l.taxa)}
                           </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
+                          {numero(l.contagem, `${c.nome} · ${tituloDaLinha(l)}`, l.cards)}
+                        </div>
+                        <span
+                          className="mt-1 block h-1 overflow-hidden rounded-full bg-muted"
+                          aria-hidden
+                        >
+                          <span
+                            className="block h-full rounded-full"
+                            style={{
+                              width: `${topo ? Math.min(1, l.contagem / topo) * 100 : 0}%`,
+                              backgroundColor: c.cor,
+                            }}
+                          />
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
               <tr className="border-t-2 bg-muted/40">
                 <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
                   Em Stand by hoje
@@ -836,11 +856,14 @@ export function FunilLadoALado({
                     pediu tempo depois da reunião; não é perda
                   </span>
                 </th>
-                {colunas.map((c) => (
-                  <td key={c.k} className="px-3 py-2 text-right align-top">
-                    {numero(c.standBy.length, `${c.nome} · em Stand by hoje`, c.standBy, true)}
-                  </td>
-                ))}
+                {colunas.map((c) => {
+                  const parados = standBy(c.fc);
+                  return (
+                    <td key={c.k} className="px-3 py-2 text-right align-top">
+                      {numero(parados.length, `${c.nome} · em Stand by hoje`, parados, true)}
+                    </td>
+                  );
+                })}
               </tr>
               <tr className="border-t bg-muted/40">
                 <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
@@ -851,12 +874,8 @@ export function FunilLadoALado({
                 </th>
                 {colunas.map((c) => (
                   <td key={c.k} className="px-3 py-2 text-right align-top">
-                    {c.dados.perdidos ? (
-                      numero(
-                        c.dados.perdidos.length,
-                        `${c.nome} · perdidos no período`,
-                        c.dados.perdidos,
-                      )
+                    {c.fc.perdidos ? (
+                      numero(c.fc.perdidos.length, `${c.nome} · perdidos no período`, c.fc.perdidos)
                     ) : (
                       <span className="num text-base text-muted-foreground">—</span>
                     )}

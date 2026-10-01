@@ -9,15 +9,13 @@ import {
   dias,
   csv,
   capacidade,
-  funil,
-  metasOperacao,
-  taxa,
   situacaoDoNegocio,
   produtoDoTitulo,
   cadastroACorrigir,
   cargaDoCrm,
   motivoLegivel,
 } from "../src/lib/monetizacao/model.ts";
+import { funilCumulativo } from "../src/lib/monetizacao/funil-cumulativo.ts";
 import {
   summarize,
   PRODUCT,
@@ -493,72 +491,6 @@ test("Carga v4 grava a entrada em cada etapa e a data da perda", () => {
   assert.equal(lost.lost_on, "2026-09-10");
 });
 
-test("Funil: entraram pelo período e pelo farmer; parados é o pipe de hoje", () => {
-  const st = [
-    { id: 1, name: "1 · Base elegível", order: 1 },
-    { id: 2, name: "2 · Abordagem em curso", order: 2 },
-    { id: 4, name: "4 · Reunião realizada", order: 4 },
-    { id: 5, name: "6 · Em negociação", order: 5 },
-    { id: 8, name: "8 · Stand by", order: 8 },
-  ];
-  const a = card();
-  const b = card(raw({ id: 101, stage_id: 2 }), [change(1, 2, "2026-08-20 12:00:00")]);
-  const outro = card(raw({ id: 102, stage_id: 2, user_id: { id: 99, name: "Outro" } }), [
-    change(1, 2, "2026-09-05 12:00:00", 99),
-  ]);
-  const f = funil([a, b, outro], st, filter);
-  const linha = (k) => f.etapas.find((e) => e.key === k);
-  assert.equal(f.porEtapa, true);
-  assert.deepEqual(
-    f.etapas.map((e) => e.nome),
-    [
-      "1 · Base elegível",
-      "2 · Abordagem em curso",
-      "4 · Reunião realizada",
-      "6 · Em negociação",
-      "Ganho",
-    ],
-  );
-  // b entrou em agosto; outro foi movido por outra pessoa
-  assert.equal(linha("2").entraram.length, 1);
-  // parados não filtra data nem dono: bate com o pipe
-  assert.equal(linha("2").parados.length, 2);
-  assert.equal(linha("5").parados.length, 1);
-  assert.equal(linha("ganho").parados, null);
-  assert.equal(taxa(1, 0), null);
-  assert.equal(taxa(1, 4), 0.25);
-});
-
-test("Funil sem a carga v4 mede só as etapas com evento próprio", () => {
-  const velho = { ...card(), moves: undefined, lost_on: undefined };
-  const st = [
-    { id: 1, name: "1 · Base elegível", order: 1 },
-    { id: 3, name: "3 · Gatilho identificado", order: 3 },
-    { id: 4, name: "5 · Reunião realizada", order: 5 },
-  ];
-  const f = funil([velho], st, filter);
-  assert.equal(f.porEtapa, false);
-  assert.equal(f.perdidos, null);
-  assert.equal(f.etapas[1].entraram, null);
-  assert.equal(f.etapas[2].entraram.length, 1);
-});
-
-test("Metas: ritmo por dia útil, contrato proporcional ao mês, dia em curso não é fora", () => {
-  const plan = { daily_target: 7, target_contracts: 8 };
-  const f = { ...filter, from: "2026-09-01", to: "2026-09-12" }; // 8 dias úteis (01/09 é terça; 07/09 é feriado)
-  const { quadros, uteis: n } = metasOperacao(operacao([card()], f), plan, f, "2026-09-24");
-  assert.equal(n, 8);
-  const q = Object.fromEntries(quadros.map((x) => [x.chave, x]));
-  assert.equal(q.started.valor, 0.1);
-  assert.equal(q.started.status, "fora");
-  assert.equal(q.scheduled.status, "sem-meta");
-  // setembro/2026 tem 21 dias úteis (07/09 é feriado): 8 × 8/21 = 3
-  assert.equal(q.signed.meta, 3);
-  const hojeF = { ...filter, from: "2026-09-24", to: "2026-09-24" };
-  const h = metasOperacao(operacao([card()], hojeF), plan, hojeF, "2026-09-24");
-  assert.equal(h.quadros[0].status, "dia-em-curso");
-});
-
 test("Stand by conta como reunião realizada, sem contar em dobro", () => {
   const st = [...stages.slice(0, 6), { id: 8, order_nr: 8, name: "Stand by" }];
   const sum = (flow, id) =>
@@ -581,23 +513,6 @@ test("Stand by conta como reunião realizada, sem contar em dobro", () => {
     depois.events.meeting.map((e) => e.date),
     ["2026-09-03"],
   );
-
-  const etapas = [
-    { id: 1, name: "1 · Base elegível", order: 1 },
-    { id: 3, name: "4 · Reunião agendada", order: 4 },
-    { id: 4, name: "5 · Reunião realizada", order: 5 },
-    { id: 5, name: "6 · Em negociação", order: 6 },
-    { id: 8, name: "8 · Stand by", order: 8 },
-  ];
-  const f = funil([direto, depois], etapas, filter);
-  const realizada = f.etapas.find((e) => e.key === "4");
-  assert.equal(
-    f.etapas.some((e) => e.key === "8"),
-    false,
-  );
-  assert.equal(realizada.entraram.length, 2);
-  assert.equal(realizada.parados.length, 2);
-  assert.deepEqual(realizada.inclui, { nome: "Stand by", parados: 2 });
 });
 
 test("Detalhe diz que o negócio perdido ou ganho está encerrado, e a etapa vira 'estava em'", () => {
@@ -621,51 +536,6 @@ test("Detalhe diz que o negócio perdido ou ganho está encerrado, e a etapa vir
   });
 });
 
-test("Conversão do funil é passagem: card que pula etapa não leva a taxa acima de 100%", () => {
-  const st = [
-    { id: 1, name: "1 · Base elegível", order: 1 },
-    { id: 2, name: "2 · Abordagem em curso", order: 2 },
-    { id: 3, name: "3 · Gatilho identificado", order: 3 },
-    { id: 4, name: "5 · Reunião realizada", order: 5 },
-    { id: 8, name: "8 · Stand by", order: 8 },
-  ];
-  // Consultoria em 01–28/09: a maioria foi da Base direto para Gatilho, sem passar por Abordagem.
-  const direto = (id) => card(raw({ id, stage_id: 3 }), [change(1, 3, "2026-09-05 12:00:00")]);
-  const parado = card(raw({ id: 110, stage_id: 2 }), [change(1, 2, "2026-09-05 12:00:00")]);
-  const passou = card(raw({ id: 111, stage_id: 3 }), [
-    change(1, 2, "2026-09-05 12:00:00"),
-    change(2, 3, "2026-09-06 12:00:00"),
-  ]);
-  // entrou em Gatilho antes de Abordagem (ordem das etapas trocada): não passou de Abordagem
-  const voltou = card(raw({ id: 112, stage_id: 2 }), [
-    change(1, 3, "2026-09-05 12:00:00"),
-    change(3, 2, "2026-09-06 12:00:00"),
-  ]);
-  // Stand by fica na linha de Reunião realizada, e conta como passagem de Gatilho
-  const espera = card(raw({ id: 113, stage_id: 8 }), [
-    change(1, 3, "2026-09-05 12:00:00"),
-    change(3, 8, "2026-09-07 12:00:00"),
-  ]);
-  const f = funil(
-    [direto(101), direto(102), direto(103), parado, passou, voltou, espera],
-    st,
-    filter,
-  );
-  const linha = (k) => f.etapas.find((e) => e.key === k);
-  assert.equal(linha("2").entraram.length, 3);
-  assert.equal(linha("3").entraram.length, 6);
-  assert.equal(linha("1").conversao, undefined);
-  // da Base (7), todos chegaram a Abordagem ou além
-  assert.equal(linha("2").conversao, 1);
-  // de Abordagem (3), só o que depois foi para Gatilho; antes era 6 ÷ 3 = 200%
-  assert.equal(linha("3").conversao, 1 / 3);
-  // de Gatilho (6), só o que entrou em Stand by
-  assert.equal(linha("4").conversao, 1 / 6);
-  assert.equal(linha("ganho").conversao, 0);
-  for (const e of f.etapas)
-    assert.ok(e.conversao === undefined || e.conversao === null || e.conversao <= 1);
-});
-
 test("Carga v6: nascer adiantado é trabalho de quem criou; a perda é de quem marcou", () => {
   // 95211 e 95196: criados pela API do Ops direto em Gatilho, com o Matheus de dono.
   const api = card(
@@ -678,8 +548,8 @@ test("Carga v6: nascer adiantado é trabalho de quem criou; a perda é de quem m
     { id: 1, name: "1 · Base elegível", order: 1 },
     { id: 3, name: "3 · Gatilho identificado", order: 3 },
   ];
-  // funil e trabalhados agora concordam: nenhum dos dois credita o dono
-  assert.equal(funil([api], st, filter).etapas[1].entraram.length, 0);
+  // funil (coorte) e trabalhados concordam: nenhum dos dois credita o dono
+  assert.equal(funilCumulativo([api], st, filter).coorte.length, 0);
   assert.equal(operacao([api], filter).rows.started.length, 0);
   // nascer na Base continua sendo a fila do dono
   assert.equal(card().moves[0].actor_id, 20);
@@ -701,12 +571,12 @@ test("Carga v6: nascer adiantado é trabalho de quem criou; a perda é de quem m
   assert.equal(perdidoPeloHunter.lost_by, 20);
   assert.equal(perdidoPelaApi.lost_by, 99);
   assert.deepEqual(
-    funil([perdidoPeloHunter, perdidoPelaApi], st, filter).perdidos.map((c) => c.id),
+    funilCumulativo([perdidoPeloHunter, perdidoPelaApi], st, filter).perdidos.map((c) => c.id),
     [121],
   );
   // snapshot anterior à v6 (sem lost_by) segue pelo dono atual
   const velho = { ...perdidoPelaApi, lost_by: undefined };
-  assert.equal(funil([velho], st, filter).perdidos.length, 1);
+  assert.equal(funilCumulativo([velho], st, filter).perdidos.length, 1);
   assert.equal(card().lost_by, null);
 });
 

@@ -215,6 +215,11 @@ export interface Negocio {
   updated_at?: string;
   last_activity_date?: string | null;
   lost_reason?: string | null;
+  /**
+   * Unidades da conta do card (`ops.monetizacao_deals.unidade_ids`, preenchida pela carga a partir da conta da
+   * Base). Fica fora do payload; `lerMonetizacao` junta. Ausente = a leitura não trouxe a coluna.
+   */
+  unidade_ids?: number[];
 }
 export interface Revisao {
   band?: string;

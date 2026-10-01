@@ -24,7 +24,6 @@ import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import {
   cadastroACorrigir,
   FARMER,
-  funil,
   hoje,
   METRICAS,
   metasOperacao,
@@ -33,6 +32,7 @@ import {
   situacaoDoNegocio,
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
+import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
@@ -66,6 +66,7 @@ import {
   MetasFarmer,
   PorProduto,
   SerieDiaria,
+  type FunisPorProduto,
 } from "./operacao";
 import {
   BarraFiltros,
@@ -285,7 +286,25 @@ export function DashboardMonetizacao({
 
   const view = operacao(data.cards, filter),
     plan = data.plans.find((p) => p.month === filter.to.slice(0, 7) && p.owner_id === filter.owner);
-  const metas = metasOperacao(view, plan, filter, today);
+  // Régua cumulativa (01/10/2026): o funil, os quadros e as tabelas por produto contam a mesma coorte.
+  // `funis.total` é o recorte da barra; os produtos ignoram o filtro de produto para poder comparar.
+  const funis: FunisPorProduto | null =
+    aba === "operacao"
+      ? {
+          total: funilCumulativo(data.cards, data.stages, filter),
+          cella: funilCumulativo(data.cards, data.stages, { ...filter, product: "cella" }),
+          finance: funilCumulativo(data.cards, data.stages, { ...filter, product: "finance" }),
+          consultoria: funilCumulativo(data.cards, data.stages, {
+            ...filter,
+            product: "consultoria",
+          }),
+          sem_produto: funilCumulativo(data.cards, data.stages, {
+            ...filter,
+            product: "sem_produto" as Filtro["product"],
+          }),
+        }
+      : null;
+  const metas = funis ? metasOperacao(funis.total, plan, filter, today) : null;
   const responsavel = FARMER.nome;
   const produto = rotuloProduto(busca.produto);
   const periodo = rotuloPeriodo(filter.from, filter.to);
@@ -458,14 +477,13 @@ export function DashboardMonetizacao({
           }
         />
       )}
-      {data.measured_at && aba === "operacao" && (
+      {data.measured_at && aba === "operacao" && funis && metas && (
         <>
           <MetasFarmer
             quadros={metas.quadros}
             uteis={metas.uteis}
             from={filter.from}
             to={filter.to}
-            rows={view.rows}
             abrir={abrir}
             onComoContamos={() => setComoContamos(true)}
           />
@@ -475,12 +493,12 @@ export function DashboardMonetizacao({
             quadros={metas.quadros}
           />
           <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.3fr)]">
-            <FunilOperacao dados={funil(data.cards, data.stages, filter)} abrir={abrir} />
+            <FunilOperacao dados={funis.total} abrir={abrir} />
             <SerieDiaria view={view} metaDia={plan?.daily_target ?? null} abrir={abrir} />
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
-          <PorProduto view={view} abrir={abrir} />
-          <FunilLadoALado cards={data.cards} stages={data.stages} filtro={filter} abrir={abrir} />
+          <PorProduto funis={funis} produto={filter.product} abrir={abrir} />
+          <FunilLadoALado funis={funis} produto={filter.product} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">Critérios e campos a preencher</summary>
             <p className="mt-2">
@@ -538,7 +556,7 @@ function descricaoDaAba(
 ): string {
   switch (aba) {
     case "operacao":
-      return `Pipe Monetização (39) no Pipedrive · farmer: ${v.responsavel} · ${v.produto} · ${v.periodo} · movimento contado no dia em que o card foi movido`;
+      return `Pipe Monetização (39) no Pipedrive · farmer: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
     case "follow-day":
       return `Negócios abertos do pipeline 39 · dono atual: ${v.responsavel} · ${v.produto} · sem movimento há ${v.dias}+ dias · estoque de hoje, não usa período`;
     case "temporal":
