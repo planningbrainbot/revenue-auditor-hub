@@ -28,9 +28,19 @@ export interface CicloRow {
   concluidas: number;
 }
 
+export interface OpcaoRow {
+  nota: number;
+  rotulo: string;
+  descricao: string | null;
+}
+
 export interface CompetenciaRow {
   id: number;
   nome: string;
+  /** Texto da pergunta, quando o ciclo traz um (AVE). */
+  pergunta: string | null;
+  /** Alternativas escritas; sem elas o formulário usa a régua numérica. */
+  opcoes: OpcaoRow[] | null;
   categoria: string | null;
   eixo: string | null;
   topico: string | null;
@@ -53,6 +63,7 @@ export interface FilaRow {
   status: string;
   escalaMin: number;
   escalaMax: number;
+  instrucoes: string | null;
   competencias: CompetenciaRow[];
   campos: CampoRow[];
   respostas: {
@@ -129,7 +140,9 @@ export const listAvaliacao = createServerFn({ method: "GET" })
       await Promise.all([
         supabase
           .from("gente_ciclos")
-          .select("id,nome,status,origem,periodo_inicio,escala_min,escala_max")
+          .select("id,nome,status,origem,periodo_inicio,escala_min,escala_max,instrucoes")
+          // O molde da AVE não coleta: só serve para copiar (migration 20261001150000).
+          .eq("e_modelo", false)
           .order("periodo_inicio", { ascending: false, nullsFirst: false }),
         supabase
           .from("gente_avaliacoes")
@@ -138,8 +151,8 @@ export const listAvaliacao = createServerFn({ method: "GET" })
         supabase.from("gente_competencias").select("id,nome,categoria,eixo"),
         supabase
           .from("gente_ciclo_competencias")
-          .select("ciclo_id,competencia_id,ordem,peso,topico_id"),
-        supabase.from("gente_ciclo_topicos").select("id,ciclo_id,nome,ordem"),
+          .select("ciclo_id,competencia_id,ordem,peso,topico_id,opcoes,titulo,pergunta"),
+        supabase.from("gente_ciclo_topicos").select("id,ciclo_id,nome,ordem,tipos"),
         supabase.from("gente_ciclo_campos").select("id,ciclo_id,titulo,ordem,obrigatorio"),
         supabase.from("gente_diretorio").select("id,nome_completo"),
       ]);
@@ -169,8 +182,16 @@ export const listAvaliacao = createServerFn({ method: "GET" })
       competencia_id: number;
       ordem: number;
       topico_id: number | null;
+      opcoes: OpcaoRow[] | null;
+      titulo: string | null;
+      pergunta: string | null;
     }[];
-    const topicos = (topicosRes?.data ?? []) as { id: number; ciclo_id: number; nome: string }[];
+    const topicos = (topicosRes?.data ?? []) as {
+      id: number;
+      ciclo_id: number;
+      nome: string;
+      tipos: string[] | null;
+    }[];
     const campos = (camposRes?.data ?? []) as {
       id: number;
       ciclo_id: number;
@@ -194,6 +215,7 @@ export const listAvaliacao = createServerFn({ method: "GET" })
         periodo_inicio: string | null;
         escala_min: number;
         escala_max: number;
+        instrucoes: string | null;
       }[]
     ).map((c) => ({
       id: c.id,
@@ -208,15 +230,30 @@ export const listAvaliacao = createServerFn({ method: "GET" })
       concluidas: avaliacoes.filter((a) => a.ciclo_id === c.id && a.status === "concluida").length,
     }));
 
-    const competenciasDoCiclo = (cicloId: number): CompetenciaRow[] =>
+    const instrucoesDo = new Map(
+      ((ciclosRes?.data ?? []) as { id: number; instrucoes: string | null }[]).map((c) => [
+        c.id,
+        c.instrucoes,
+      ]),
+    );
+
+    // `tipo` recorta pelo tópico: na AVE a autoavaliação e o líder respondem
+    // perguntas diferentes. Tópico sem `tipos` vale para todos, como antes.
+    const competenciasDoCiclo = (cicloId: number, tipo?: string): CompetenciaRow[] =>
       vinculos
         .filter((v) => v.ciclo_id === cicloId)
+        .filter((v) => {
+          const t = topicos.find((x) => x.id === v.topico_id);
+          return !tipo || !t?.tipos || t.tipos.includes(tipo);
+        })
         .sort((a, b) => a.ordem - b.ordem)
         .map((v) => {
           const comp = competencias.find((c) => c.id === v.competencia_id);
           return {
             id: v.competencia_id,
-            nome: comp?.nome ?? `Competência ${v.competencia_id}`,
+            nome: v.titulo ?? comp?.nome ?? `Competência ${v.competencia_id}`,
+            pergunta: v.pergunta ?? null,
+            opcoes: v.opcoes?.length ? v.opcoes : null,
             categoria: comp?.categoria ?? null,
             eixo: comp?.eixo ?? null,
             topico: topicos.find((t) => t.id === v.topico_id)?.nome ?? null,
@@ -267,7 +304,8 @@ export const listAvaliacao = createServerFn({ method: "GET" })
         status: a.status,
         escalaMin: ciclo?.escalaMin ?? 1,
         escalaMax: ciclo?.escalaMax ?? 5,
-        competencias: competenciasDoCiclo(a.ciclo_id),
+        instrucoes: instrucoesDo.get(a.ciclo_id) ?? null,
+        competencias: competenciasDoCiclo(a.ciclo_id, a.tipo),
         campos: campos
           .filter((c) => c.ciclo_id === a.ciclo_id)
           .sort((x, y) => x.ordem - y.ordem)
@@ -310,7 +348,7 @@ export const listAvaliacao = createServerFn({ method: "GET" })
             return {
               cicloId: m.ciclo_id,
               cicloNome: ciclos.find((c) => c.id === m.ciclo_id)?.nome ?? "",
-              competencia: comp?.nome ?? "",
+              competencia: vinculo?.titulo ?? comp?.nome ?? "",
               topico: topicos.find((t) => t.id === vinculo?.topico_id)?.nome ?? null,
               media: m.media,
               respostas: m.respostas,

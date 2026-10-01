@@ -217,6 +217,9 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
 
   return (
     <Card className="space-y-4 p-4">
+      {item.instrucoes ? (
+        <p className="whitespace-pre-line text-[13px] text-muted-foreground">{item.instrucoes}</p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{item.avaliadoNome ?? NA}</span>
         <span className="text-sm text-muted-foreground">{TIPO_LABEL[item.tipo] ?? item.tipo}</span>
@@ -231,27 +234,63 @@ function Formulario({ item, aoSalvar }: { item: FilaRow; aoSalvar: () => void })
           {competencias.map((comp) => (
             <div key={comp.id} className="space-y-2 rounded-md border p-3">
               <div className="text-sm font-medium">{comp.nome}</div>
-              <div className="flex flex-wrap gap-2">
-                {escala.map((n) => (
+              {comp.pergunta ? (
+                <p className="whitespace-pre-line text-[13px] text-muted-foreground">
+                  {comp.pergunta}
+                </p>
+              ) : null}
+              {comp.opcoes ? (
+                // Alternativas escritas (AVE): cada uma grava a nota dela.
+                <div className="grid gap-2" role="radiogroup" aria-label={comp.nome}>
+                  {comp.opcoes.map((o) => {
+                    const marcada = notas[comp.id] === String(o.nota);
+                    return (
+                      <button
+                        key={o.nota}
+                        type="button"
+                        role="radio"
+                        aria-checked={marcada}
+                        onClick={() => setNotas({ ...notas, [comp.id]: String(o.nota) })}
+                        className={
+                          "rounded-md border px-3 py-2 text-left text-sm transition-colors " +
+                          (marcada
+                            ? "border-primary bg-primary/10"
+                            : "border-border hover:bg-accent")
+                        }
+                      >
+                        <span className="font-medium">{o.rotulo}</span>
+                        {o.descricao ? (
+                          <span className="block text-[13px] text-muted-foreground">
+                            {o.descricao}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {escala.map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      size="sm"
+                      variant={notas[comp.id] === String(n) ? "default" : "outline"}
+                      onClick={() => setNotas({ ...notas, [comp.id]: String(n) })}
+                    >
+                      {n}
+                    </Button>
+                  ))}
                   <Button
-                    key={n}
                     type="button"
                     size="sm"
-                    variant={notas[comp.id] === String(n) ? "default" : "outline"}
-                    onClick={() => setNotas({ ...notas, [comp.id]: String(n) })}
+                    variant={notas[comp.id] === "na" ? "secondary" : "ghost"}
+                    onClick={() => setNotas({ ...notas, [comp.id]: "na" })}
                   >
-                    {n}
+                    Não se aplica
                   </Button>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={notas[comp.id] === "na" ? "secondary" : "ghost"}
-                  onClick={() => setNotas({ ...notas, [comp.id]: "na" })}
-                >
-                  Não se aplica
-                </Button>
-              </div>
+                </div>
+              )}
               <Textarea
                 rows={2}
                 placeholder="Comentário (opcional)"

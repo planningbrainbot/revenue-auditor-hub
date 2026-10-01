@@ -244,7 +244,9 @@ export function emailPedidoRecebido(params: {
       `Seu pedido de acesso ao Planning Brain foi para o sócio da unidade ${params.unidade}.`,
       `Você recebe outro e-mail quando ele liberar.`,
       `Usuário: ${params.email}`,
-      ...(params.link ? [``, `Defina sua senha neste link (vale por 1 hora, uso único):`, params.link] : []),
+      ...(params.link
+        ? [``, `Defina sua senha neste link (vale por 1 hora, uso único):`, params.link]
+        : []),
       ``,
       `Se você não pediu acesso, ignore este e-mail.`,
       `Planning Brain · planningbrain.com.br`,
@@ -298,14 +300,21 @@ export function emailPedidoDecidido(params: {
   const corpo = params.aprovado
     ? `<p style="margin:0;">Seu acesso ao <strong>Planning Brain</strong>${params.area ? ` em <strong>${escapeHtml(params.area)}</strong>` : ""} foi liberado. Entre com seu e-mail e a senha que você definiu.</p>`
     : `<p style="margin:0;">Seu pedido de acesso ao <strong>Planning Brain</strong> não foi aprovado.</p>${
-        params.motivo ? `<p style="margin:12px 0 0 0;">Motivo: <em>${escapeHtml(params.motivo)}</em></p>` : ""
+        params.motivo
+          ? `<p style="margin:12px 0 0 0;">Motivo: <em>${escapeHtml(params.motivo)}</em></p>`
+          : ""
       }`;
   return {
-    subject: params.aprovado ? "Seu acesso foi liberado · Planning Brain" : "Seu pedido de acesso · Planning Brain",
+    subject: params.aprovado
+      ? "Seu acesso foi liberado · Planning Brain"
+      : "Seu pedido de acesso · Planning Brain",
     html: layout({
       titulo: `Olá, ${primeiroNome}`,
       corpo,
-      botao: { texto: params.aprovado ? "Entrar no Planning Brain" : "Abrir o Planning Brain", url: params.link },
+      botao: {
+        texto: params.aprovado ? "Entrar no Planning Brain" : "Abrir o Planning Brain",
+        url: params.link,
+      },
       rodape: params.aprovado
         ? 'Se ainda não definiu a senha, use "Esqueci minha senha" na tela de login.'
         : "Dúvidas, fale com o sócio da sua unidade.",
@@ -317,6 +326,40 @@ export function emailPedidoDecidido(params: {
         ? `Seu acesso ao Planning Brain${params.area ? ` em ${params.area}` : ""} foi liberado.`
         : `Seu pedido de acesso ao Planning Brain não foi aprovado.${params.motivo ? ` Motivo: ${params.motivo}` : ""}`,
       params.link,
+      `Planning Brain · planningbrain.com.br`,
+    ].join("\n"),
+  };
+}
+
+/** Para quem tem uma avaliação de experiência para responder. */
+export function emailAvaliacaoPendente(params: {
+  nomeAvaliador: string;
+  nomeAvaliado: string;
+  ciclo: string;
+  autoavaliacao: boolean;
+  link: string;
+}) {
+  const primeiroNome = (params.nomeAvaliador || "").trim().split(/\s+/)[0];
+  const sobre = params.autoavaliacao
+    ? "a sua autoavaliação"
+    : `a avaliação de <strong>${escapeHtml(params.nomeAvaliado)}</strong>`;
+  const sobreTexto = params.autoavaliacao
+    ? "a sua autoavaliação"
+    : `a avaliação de ${params.nomeAvaliado}`;
+  return {
+    subject: params.autoavaliacao
+      ? `Sua ${params.ciclo.toLowerCase()} está aberta`
+      : `${params.ciclo}: ${params.nomeAvaliado}`,
+    html: layout({
+      titulo: primeiroNome ? `Olá, ${primeiroNome}` : "Avaliação para responder",
+      corpo: `<p style="margin:0;">O time de Gente e Gestão abriu ${sobre} na <strong>${escapeHtml(params.ciclo)}</strong>. Ela está esperando por você em Minha vez, no Planning People.</p>`,
+      botao: { texto: "Responder a avaliação", url: params.link },
+      rodape: "Dúvidas sobre a avaliação? Fale com o time de Gente e Gestão da sua unidade.",
+    }),
+    text: [
+      `O time de Gente e Gestão abriu ${sobreTexto} na ${params.ciclo}.`,
+      ``,
+      `Responda em: ${params.link}`,
       `Planning Brain · planningbrain.com.br`,
     ].join("\n"),
   };
