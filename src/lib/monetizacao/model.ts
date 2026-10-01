@@ -167,13 +167,21 @@ export function distratoForaDeOferta(a: Conta): Oferta | null {
     };
   return null;
 }
+/** Níveis de prova que tiram a conta de todas as ofertas (migration 20261001200000). */
+export const PROVA_FORA_DE_OFERTA = ["grupo", "fornecedor", "sem_prova"] as const;
 /**
- * Só fornecedor no Omie (tags do cadastro, migration 20260929180000): a empresa é quem a unidade ou a Matriz
- * paga, sem tag de cliente em Omie nenhum. Fora das ofertas e das cargas (dono, 29/09/2026: "sim deve sair",
- * "deve só ser mencionado"): a Base continua mostrando a conta, com este motivo. Mesma posição no servidor
- * (ops.monetizacao_offer_issue), logo depois do distrato concluído.
+ * Fora das ofertas pela prova de cliente, na mesma posição do servidor (ops.monetizacao_offer_issue), logo depois do
+ * distrato concluído:
+ * - prova (01/10/2026): empresa do grupo, fornecedor (recebe pagamento da Planning ou só tem tag de fornecedor, sem
+ *   prova de cliente) e conta só do Omie sem prova. O motivo vem do banco (`base.prova.motivo`).
+ * - tag (29/09/2026): só fornecedor no Omie. Continua valendo para a conta com prova de cliente e só a tag de
+ *   fornecedor ("sim deve sair", "deve só ser mencionado").
+ * Fornecedor e grupo nem chegam a quem não é admin; o admin vê a conta com o motivo.
  */
 export function fornecedorForaDeOferta(a: Conta): Oferta | null {
+  const p = a.base?.prova;
+  if (p && (PROVA_FORA_DE_OFERTA as readonly string[]).includes(p.nivel))
+    return { status: "fora_regra", reason: p.motivo };
   const o = a.base?.omie;
   if (o?.classe !== "fornecedor") return null;
   const onde = o.fornecedor_em.length ? ` (${o.fornecedor_em.join(", ")})` : "";

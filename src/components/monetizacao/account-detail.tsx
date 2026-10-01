@@ -17,6 +17,7 @@ import type { Conta, Negocio } from "@/lib/monetizacao/types";
 import { date, money, Notice, Panel } from "./common";
 import { SinaisDetalhe } from "./sinais";
 import { FONTE_OMIE, textoOmie } from "@/lib/monetizacao/sinais";
+import { CLASSES_PROVA } from "@/lib/monetizacao/portfolio";
 
 export function AccountDetail({
   account,
@@ -158,6 +159,21 @@ export function AccountDetail({
                 {account.base?.omie?.sincronizado_em
                   ? ` · lido em ${date(account.base.omie.sincronizado_em)}`
                   : ""}
+              </p>
+            </Panel>
+            {/* Prova de cliente (01/10): o que comprova que a empresa paga a Planning, ou por que não. */}
+            <Panel title="Prova de cliente">
+              <p className="text-sm">
+                {account.base?.prova
+                  ? CLASSES_PROVA[account.base.prova.nivel]
+                  : "A calcular na próxima atualização da carteira"}
+              </p>
+              {account.base?.prova && (
+                <p className="mt-1 text-xs text-muted-foreground">{account.base.prova.motivo}</p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Fonte: contratos e contas a receber do Omie, ECD, Pipedrive e contas a pagar do Omie
+                e do Financeiro
               </p>
             </Panel>
             <Panel title="Oportunidades desta empresa">
