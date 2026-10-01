@@ -4084,3 +4084,19 @@ perguntas em https://claude.ai/artifact/3dpFgNR1Ue9wvD9WXqxLTR; aprovada com "po
 
 **Ficou para depois:** produtos candidatos na nota de preparação do card (precisa do `monetizacao_offer_issue` no
 contexto do preenchimento).
+## [2026-10-01] Origem da conta ignora a organização criada pelo próprio envio do Caixa
+
+**Contexto:** a revisão da carga de outubro (frente 02 da call de 01/10 do Caixa) achou 15 cards de Consultoria de
+Belém e Maceió que a Base passou a ler como "base nova". O envio de 29/09 criou a organização no Pipedrive e a gravou
+em `ops.monetizacao_contas.org_ids`. Na rodada seguinte, `base_classificar_origem` recebeu `_pipe = true`
+("registro identificado no Pipedrive fora de Curitiba") e devolveu "nova", que vence a validação de origem. Eram 24
+contas no total, todas com origem validada pelo Pedro em 18/09.
+
+**Decisão (Pedro, 01/10, "pode seguir"):** migration `20261001230000_base_origem_ignora_org_do_envio`. Na
+`ops.base_conta_estado`, organização gravada por um envio ativo da própria conta (`monetizacao_envios`, status
+sending/sent/uncertain) deixa de contar como registro comercial. Qualquer outra organização continua contando.
+
+**Efeito medido (ensaio em produção):** "Registro identificado no Pipedrive" cai de 306 para 282 contas; as 24 passam
+de "nova" para "confirmar". Não voltam para "antiga": o Pipefy delas declara "Base Nova", e a validação de 18/09 só
+vale com a correção no Pipefy ("Validação registrada; aguardando confirmação da correção no Pipefy"). O Pipefy de 16
+delas foi atualizado minutos depois do envio de 29/09; vale conferir se alguma automação do Pipefy reescreve a origem.
