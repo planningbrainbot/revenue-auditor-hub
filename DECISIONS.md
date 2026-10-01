@@ -3975,3 +3975,24 @@ Rollback: `supabase/rollback/20261001200000_base_prova_fornecedor_admin_rollback
 - Distribuição da carteira: comprovado 2.528, cadastrado 2.875, só tag 1.745, fornecedor 1.611, sem prova 1.530, grupo 33.
 - Admin vê 10.322 contas; Renan Rios (não admin, todas as unidades) vê 8.678; Italo Amaral (uma unidade) vê 332.
 - Os dois não admins têm a ficha da TIM recusada e não veem Google nem TIM na tabela, no catálogo nem no cadastro bruto do Omie.
+
+## [2026-10-01] Publicado: prova de cliente, e fornecedor só para admin (adendo)
+
+Publicado a pedido do Pedro ("edite isso no planning brain e garanta..."), na ordem migration → Edge Function → segredos → carga → app.
+
+1. **Migration `20261001200000`** aplicada no `npknehhyyzelmrbbxvtu` numa transação. Antes, conferi que as dez funções substituídas estavam iguais às do ensaio. Rollback: `supabase/rollback/20261001200000_base_prova_fornecedor_admin_rollback.sql`.
+2. **Edge Function `omie-pagamentos-sync`** publicada (`--no-verify-jwt`). A chamada manual usa o cabeçalho `x-planning-sinais-cron` com o segredo `base_sinais_cron_secret` do Vault. A chave de serviço revelada pela Management API recebeu 401.
+3. **Segredos novos do banco único:** `FINANCEIRO_SUPABASE_URL` e `FINANCEIRO_SERVICE_ROLE_KEY`, a chave legada `service_role` do Financial Brain, copiada de um cofre ao outro sem passar por arquivo.
+4. **Carga inicial:**
+   - Financial Brain: 371 CNPJs;
+   - Omie: 12.628 títulos em 11 credenciais (Sorocaba: erro do addon);
+   - carteira recalculada inteira.
+   - O cron `omie-pagamentos-sync-10min` rodou sozinho às 14:27.
+5. **App `8ee609e`** (PR #50) por CLI, a partir de um worktree limpo. O que estava no ar (`0283acc`) é ancestral dele. Saíram dois deploys do mesmo commit; `planningbrain.com.br` aponta para `dpl_Ehq774X6GGjQXdgEf9sx1QM82Jzr`. Conferido no bundle servido ("Prova de cliente" no chunk de clientes). Rollback do código: promover `dpl_HSmABNK7j2sYwgybR11XQZWRLa63` (`0283acc`).
+
+**Fica de fora, em aberto (plano do estudo):**
+- enriquecimento pago só para conta com prova (a DataStone continua estimando para todas);
+- aba separada para o cadastro do ERP;
+- corte por natureza jurídica da Receita;
+- Curitiba marcar as tags (ou validar os 1.530 sem prova);
+- ligar o contas a receber das unidades sem integração (Recife, São Bernardo, Fortaleza, São Luís, Sorocaba, Patos e Matriz). Sem isso, as 2.875 "cadastradas no Pipefy" continuam sem prova.
