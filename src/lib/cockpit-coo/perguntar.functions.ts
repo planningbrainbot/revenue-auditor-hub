@@ -1,8 +1,8 @@
 // "Perguntar ao Brain" do Cockpit do COO no servidor.
 //
 // Modelo pelo OpenRouter (OPENROUTER_API_KEY; no local, COCKPIT_IA_KEYCHAIN=1), escolhido por
-// COCKPIT_COO_MODELO dentro de uma lista fechada; padrão openai/gpt-5.5 (o mesmo que a avaliação
-// de 25/09 escolheu para o CEO). Teto de gasto próprio do COO (ops.cockpit_ia_orcamento('coo')),
+// COCKPIT_COO_MODELO dentro de uma lista fechada; padrão openai/gpt-6-luna desde 01/10/2026 (o
+// mesmo do CEO; antes era o openai/gpt-5.5 da avaliação de 25/09). Teto de gasto próprio do COO (ops.cockpit_ia_orcamento('coo')),
 // conferido antes da chamada; consumo gravado com cockpit = 'coo'. Sem histórico gravado nesta
 // versão: cada pergunta é uma rodada.
 import { createServerFn } from "@tanstack/react-start";
@@ -38,7 +38,12 @@ import {
   resumoDosOkrs,
 } from "./perguntar.ts";
 
-export const MODELOS_COO = ["openai/gpt-5.5", "anthropic/claude-sonnet-5", "openai/gpt-5.4-mini"] as const;
+export const MODELOS_COO = [
+  "openai/gpt-6-luna",
+  "openai/gpt-5.5",
+  "anthropic/claude-sonnet-5",
+  "openai/gpt-5.4-mini",
+] as const;
 const MAX_PASSOS = 6;
 
 export interface RespostaCoo {
@@ -98,6 +103,22 @@ export const perguntarCoo = createServerFn({ method: "POST" })
       }
     };
 
+    // Consulta repetida não lê de novo. Na prova real do GPT-6 Luna (01/10/2026) ele pediu a mesma
+    // leitura de Financeiro e Operações 16 vezes, em paralelo, até estourar o tempo, e a pessoa ficou
+    // sem resposta. A primeira chamada lê; as iguais (mesmo na mesma rodada) recebem só o aviso.
+    const vistas = new Set<string>();
+    const repetida = (nome: string, args: Record<string, unknown>) => {
+      const usados = Object.entries(args).filter(([, v]) => v !== undefined && v !== "" && v !== false);
+      const chave = nome + JSON.stringify(usados.sort());
+      if (vistas.has(chave))
+        return {
+          repetida: true,
+          aviso: "Esta consulta já foi feita nesta pergunta. Use o resultado anterior e responda.",
+        };
+      vistas.add(chave);
+      return null;
+    };
+
     const temaSchema = z.enum(ORDEM_TEMAS as [Tema, ...Tema[]]);
     const unidadeSchema = z
       .string()
@@ -109,6 +130,8 @@ export const perguntarCoo = createServerFn({ method: "POST" })
         description: "Números, alertas e gráfico de um tema da semana, no recorte de unidade pedido. É o mesmo dado da tela.",
         inputSchema: z.object({ tema: temaSchema, unidade: unidadeSchema }).strict(),
         execute: async ({ tema, unidade }: { tema: Tema; unidade?: string }) => {
+          const rep = repetida("ler_tema", { tema, unidade: filtroDe(unidade) });
+          if (rep) return rep;
           consultas.push({ ferramenta: "ler_tema", args: { tema, unidade: unidade ?? "" } });
           const l = await lerTema(tema, filtroDe(unidade));
           const r = "numeros" in l ? resumoDaLeitura(l) : l;
@@ -120,6 +143,8 @@ export const perguntarCoo = createServerFn({ method: "POST" })
         description: "Evolução dos OKRs dos departamentos de um tema (progresso contra o esperado do ciclo).",
         inputSchema: z.object({ tema: temaSchema }).strict(),
         execute: async ({ tema }: { tema: Tema }) => {
+          const rep = repetida("ler_okrs", { tema });
+          if (rep) return rep;
           consultas.push({ ferramenta: "ler_okrs", args: { tema } });
           const b = await obterBase();
           const r = b.okrs.ok ? resumoDosOkrs(montarOkrsTema(tema, b.okrs.dado, ctx.hoje)) : { estado: b.okrs.estado, motivo: b.okrs.motivo };
@@ -139,6 +164,8 @@ export const perguntarCoo = createServerFn({ method: "POST" })
           })
           .strict(),
         execute: async ({ tema, soVencidos, soAbertas, departamento }: { tema?: Tema; soVencidos?: boolean; soAbertas?: boolean; departamento?: string }) => {
+          const rep = repetida("ler_compromissos", { tema, soVencidos, soAbertas, departamento });
+          if (rep) return rep;
           consultas.push({ ferramenta: "ler_compromissos", args: { tema: tema ?? "", soVencidos: !!soVencidos, soAbertas: !!soAbertas, departamento: departamento ?? "" } });
           const b = await obterBase();
           if (!b.clickup.conectado) {
@@ -173,6 +200,9 @@ export const perguntarCoo = createServerFn({ method: "POST" })
         messages: [{ role: "user", content: data.pergunta }],
         tools: ferramentas,
         stopWhen: [isStepCount(MAX_PASSOS)],
+        // O último passo é sem ferramenta: o modelo tem de escrever a resposta com o que já leu.
+        prepareStep: ({ stepNumber }) =>
+          stepNumber >= MAX_PASSOS - 1 ? { toolChoice: "none" as const } : {},
         maxRetries: 0,
         // Sem teto explícito o provedor reserva 65 mil tokens de saída (medido em 24/09).
         maxOutputTokens: 2000,

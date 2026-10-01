@@ -20,7 +20,7 @@ unset SBTOK
 export COCKPIT_IA_KEYCHAIN=1
 export COCKPIT_IA_KEYCHAIN_SERVICO="${COCKPIT_IA_KEYCHAIN_SERVICO:-planning-openrouter-cockpit-3}"
 export COCKPIT_COO_JEV="${COCKPIT_COO_JEV:-1}"
-export COCKPIT_COO_MODELO="${COCKPIT_COO_MODELO:-openai/gpt-5.5}"
+export COCKPIT_COO_MODELO="${COCKPIT_COO_MODELO:-openai/gpt-6-luna}"
 export NODE_OPTIONS="--max-old-space-size=6144"
 PORTA="${PORTA:-8083}"
 echo "Entre em http://127.0.0.1:${PORTA}/auth e abra http://127.0.0.1:${PORTA}/cockpit-coo"

@@ -85,3 +85,17 @@ A primeira pergunta de cada sessão leva de 30 a 38 s, porque carrega todas as f
 - Falha de Jev, modelo e ferramenta está coberta pelos testes com modelo simulado.
 - Claude não foi avaliado, por falta de crédito no OpenRouter.
 - O custo da OpenAI é estimado pelos tokens com a tabela oficial de 25/09. A OpenAI não devolve o custo por chamada.
+
+## Rodada de 01/10/2026: GPT-6 Luna
+
+Mesmas 24 perguntas, pelo OpenRouter (chave `planning-openrouter-cockpit-3`), Jev desligado.
+
+- Primeira rodada: 18/24, número certo em 24/24, US$ 0,012 no total, latência mediana 13 s.
+- Das 6 reprovações, 2 eram do avaliador (I2 e M1 casaram a lista de proibidos dentro de uma recusa
+  correta) e 3 eram a conferência tirando frase. Uma delas era defeito da conferência: o horário
+  "21:01" virava número e derrubava o valor do vencido (D2). Corrigido em `conferir.ts`.
+- Depois da correção, os 6 casos: P6, A2 e I2 passam. Sobram D2 (não diz a data da fotografia),
+  R1 (a ressalva "2 dos 3 meses" sai por ser contagem sem origem) e M1 (não abre a consulta de MRR
+  vendido).
+
+Decisão e números completos em `DECISIONS.md` (2026-10-01).

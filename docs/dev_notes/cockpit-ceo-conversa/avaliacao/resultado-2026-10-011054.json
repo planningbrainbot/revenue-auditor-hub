@@ -1,0 +1,120 @@
+{
+  "em": "2026-10-01T10:54:20.700Z",
+  "teto": 5,
+  "gastoAcumuladoUsd": 1.3128460000000002,
+  "gabaritos": {
+    "grupo_ultimo_fechado": [
+      7455047.01
+    ],
+    "grupo_setembro_parcial": [
+      6851979.08
+    ],
+    "onboarding_30": [
+      96
+    ],
+    "rede_cur_bel_todas": [
+      247951.75,
+      157997.19,
+      405948.94,
+      201160.76,
+      217765.85,
+      418926.61,
+      824875.55
+    ],
+    "rede_cur_bel_nova": [
+      247951.75,
+      157997.19,
+      405948.94,
+      201160.76,
+      217765.85,
+      418926.61,
+      824875.55
+    ],
+    "rede_cur_pat_nova": [
+      201160.76,
+      217765.85,
+      418926.61,
+      120531.11,
+      176536,
+      297067.11,
+      715993.72
+    ]
+  },
+  "porModelo": {
+    "openai/gpt-6-luna": {
+      "casos": 2,
+      "aprovados": 2,
+      "estado": 2,
+      "metrica": 2,
+      "visual": 2,
+      "numero": 2,
+      "semInvencao": 2,
+      "texto": 2,
+      "proibido": 2,
+      "latenciaMedianaS": 39.951,
+      "latenciaP90S": 39.951,
+      "custoTotalUsd": 0.0018,
+      "custoMedioUsd": 0.0009
+    }
+  },
+  "resultados": [
+    {
+      "modelo": "openai/gpt-6-luna",
+      "caso": "P1",
+      "categoria": "simples",
+      "estado": "ok",
+      "criterios": {
+        "estado": true,
+        "metrica": true,
+        "visual": true,
+        "numero": true,
+        "semInvencao": true,
+        "texto": true,
+        "proibido": true
+      },
+      "aprovado": true,
+      "conclusao": "Para “neste mês”, considero o último mês fechado, setembro/2026; porém, a fonte não disponibiliza faturamento de setembro. O dado mais recente retornado é agosto/2026: R$ 7.455.047,01; não dá para comparar com a meta de R$ 1 bi, cujo perímetro ainda não foi decidido e cujo valor está não apurado.",
+      "blocos": [
+        "serie:serie_faturamento",
+        "kpi:indicador",
+        "kpi:indicador"
+      ],
+      "descartadas": [],
+      "jev": {
+        "classe": null,
+        "confianca": null,
+        "motivo": "jev_indisponivel"
+      },
+      "latenciaMs": 39951,
+      "custoUsd": 0.001428
+    },
+    {
+      "modelo": "openai/gpt-6-luna",
+      "caso": "P2",
+      "categoria": "simples",
+      "estado": "ok",
+      "criterios": {
+        "estado": true,
+        "metrica": true,
+        "visual": true,
+        "numero": true,
+        "semInvencao": true,
+        "texto": true,
+        "proibido": true
+      },
+      "aprovado": true,
+      "conclusao": "Na leitura da rede, o faturamento caiu R$ 1.673.185,55 em 09/2026 contra 08/2026. Rio de Janeiro foi o maior impacto negativo (R$ 773.454,17), seguido por Patos de Minas (R$ 241.342,00) e Curitiba (R$ 217.765,85); usei a apuração das unidades, base nova + antiga.",
+      "blocos": [
+        "barras:variacao_por_chave"
+      ],
+      "descartadas": [],
+      "jev": {
+        "classe": null,
+        "confianca": null,
+        "motivo": "jev_indisponivel"
+      },
+      "latenciaMs": 12488,
+      "custoUsd": 0.000407
+    }
+  ]
+}

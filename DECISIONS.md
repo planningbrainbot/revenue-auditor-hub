@@ -3844,3 +3844,38 @@ O projetado × realizado bate com o script que roda o `forecastComparison` do m�
 - **Correção de leitura, também do Pedro:** zero reunião de Consultoria em setembro foi escolha de foco (Cella e Finance); da Consultoria só entrou a base inicial planejada. Não é taxa medida.
   - O texto do bloco não afirma conversão da Consultoria; ele só mostra as entradas.
   - A análise (artifact "Funil do Caixa por produto", versão 2) usa a premissa do v12 para a Consultoria.
+
+## [2026-10-01] IA dos cockpits do CEO e do COO passa para o GPT-6 Luna, pelo OpenRouter
+
+**Contexto:** o Pedro pediu "trocar o modelo da IA que alimenta os dois: pode usar o GPT 6 luna".
+Produção usava `openai/gpt-5.5` direto na OpenAI no CEO (`COCKPIT_CONVERSA_MODELO`), com a
+`OPENAI_API_KEY` sem crédito desde 28/09, e o mesmo modelo pelo OpenRouter no COO.
+
+**Decisão:**
+- Padrão dos dois cockpits = `openai/gpt-6-luna` (US$ 0,10 / 0,50 por milhão de tokens de entrada /
+  saída, contra 5 / 30 do GPT-5.5). Roteado pelo OpenRouter: só `openai/gpt-5.5` e
+  `openai/gpt-5.4-mini` continuam indo direto na OpenAI (`DIRETO_NA_OPENAI` em `provedores.ts`).
+  O GPT-5.5 segue na lista fechada, como volta.
+- A conferência de números passou a ignorar hora ("21:01", "9h30"). Ela derrubava a frase do
+  vencido inteira, com o valor junto, por causa do horário da atualização.
+- O "Perguntar ao Brain" do COO ganhou duas travas: consulta repetida com os mesmos argumentos não
+  lê de novo (devolve aviso), e o último passo é sem ferramenta (força a resposta). Na prova real, o
+  Luna pediu a mesma leitura de Financeiro e Operações 16 vezes em paralelo e estourou o tempo.
+
+**Medido (avaliação de 25/09, mesmas 24 perguntas, percurso real, Jev desligado como em produção):**
+GPT-6 Luna 18/24 na primeira rodada; nos 6 reprovados, com a conferência corrigida, ficaram 3. Os
+que sobram: D2 não diz a data da fotografia, R1 perde a ressalva "2 dos 3 meses" (contagem sem
+origem), M1 não abre a consulta de MRR vendido e não dá o total do faturamento. Critério "número
+certo" 24/24. Custo da rodada US$ 0,012 (média US$ 0,0005 por pergunta); latência mediana 13 s.
+O GPT-5.5 tinha feito 24/24 em 25/09. Ou seja: mais barato e sem número errado, mas segue
+instrução de forma pior.
+
+**Achado fora do escopo (não corrigido):** o tema Financeiro e Operações do COO dispara uma DRE por
+trimestre e um caixa livre por mês ao mesmo tempo no Brain Financeiro. Com duas leituras seguidas, o
+pool de conexões do Financial Brain esgota ("Timed out acquiring connection from connection pool",
+"upstream request timeout") e o fluxo de caixa cai por statement timeout (57014). A IA do COO fica
+sem dado para responder sobre caixa.
+
+**Para publicar:** merge, deploy pela CLI do `ops-brain` e trocar `COCKPIT_CONVERSA_MODELO` em
+Production para `openai/gpt-6-luna` (ou apagar a variável). Sem isso o CEO continua no GPT-5.5 da
+OpenAI sem crédito.
