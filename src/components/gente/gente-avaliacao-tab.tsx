@@ -14,6 +14,7 @@ import {
   type FilaRow,
 } from "@/lib/gente-avaliacao.functions";
 import { Card } from "@/components/ui/card";
+import { RadarExperiencia } from "@/components/gente/gente-radar-experiencia";
 import { AvisoCorte, BotaoComMotivo, ErroDaFonte, dataSP } from "@/components/gente/estados-gente";
 import {
   Carregando,
@@ -426,6 +427,7 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
 
   return (
     <div className="space-y-4">
+      {mostraAdmin && <RadarExperiencia />}
       {mostraAdmin && (
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -435,7 +437,9 @@ export function GenteAvaliacaoTab({ escopo = "tudo" }: { escopo?: Escopo } = {})
           {data.ciclos.length === 0 ? (
             <EstadoVazio
               titulo="Nenhum ciclo de avaliação cadastrado"
-              descricao="Quem conduz o ciclo (manage.gente.avaliacao) cria o ciclo, a escala e quem avalia quem."
+              // Até 01/10/2026 dizia que quem conduz "cria o ciclo", mas não há
+              // tela para isso: os ciclos que existem vieram do Qulture.
+              descricao="O Brain ainda não cria ciclo pela tela: os ciclos que existem vieram do Qulture. Para saber quem está em experiência, use o radar acima."
             />
           ) : (
             <Table>
