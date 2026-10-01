@@ -408,6 +408,7 @@ function HistoricoPessoa({ pessoaId }: { pessoaId: number }) {
                   timeStyle: "short",
                 })}
                 {h.quem ? ` · ${h.quem}` : ""}
+                {h.origem ? ` · pela ${h.origem}` : ""}
               </div>
             </li>
           ))}

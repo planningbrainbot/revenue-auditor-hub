@@ -347,6 +347,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Administração",
   },
   {
+    key: "manage.gente.remuneracao",
+    label: "Gente: salários e movimentações",
+    description:
+      "Ver e carregar salário, registrar movimentação (salário, cargo, setor) e enviar ao Departamento Pessoal. Mora na área própria Planning People: remuneração, separada da área People de propósito: lá ela iria para diretor, head e sócio regional.",
+    group: "Administração",
+  },
+  {
     key: "view.contatos",
     label: "Ver contatos dos clientes",
     description:

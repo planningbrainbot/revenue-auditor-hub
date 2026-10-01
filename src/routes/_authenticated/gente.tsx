@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { GenteView } from "@/components/gente/gente-view";
 import { GenteUmAUmTab, GenteFeedbackTab } from "@/components/gente/gente-conversas-tab";
 import { GenteClimaTab } from "@/components/gente/gente-clima-tab";
+import { GenteMovimentacoesTab } from "@/components/gente/gente-movimentacoes-tab";
 import { GenteLiderancaTab, GenteElogiosTab } from "@/components/gente/gente-lideranca-tab";
 import { GenteAvaliacaoTab } from "@/components/gente/gente-avaliacao-tab";
 import { GentePdiTab } from "@/components/gente/gente-pdi-tab";
@@ -36,7 +37,8 @@ export type Tela =
   | "pdi"
   | "cadastro"
   | "clima"
-  | "adocao";
+  | "adocao"
+  | "movimentacoes";
 
 // `titulo` = item do menu (`areas.ts`); `pergunta` = N1, da tabela do contrato
 // (`docs/design/contratos/gente.md`); `descricao` = o universo de cada tela.
@@ -99,6 +101,12 @@ const TELAS: Record<Tela, { titulo: string; pergunta: string; descricao: () => s
     pergunta: "Como está o eNPS da rede e de cada unidade?",
     descricao: () =>
       "As rodadas de eNPS, da rede e por unidade. Com menos de 5 respostas a nota não aparece.",
+  },
+  movimentacoes: {
+    titulo: "Movimentações",
+    pergunta: "Que mudanças de salário, cargo e setor estão em andamento?",
+    descricao: () =>
+      "Salário atual de cada pessoa da sua unidade e as movimentações, do rascunho ao envio para o Departamento Pessoal. Só o RH e a Matriz veem esta tela.",
   },
   adocao: {
     titulo: "Adoção por unidade",
@@ -190,5 +198,7 @@ function ConteudoDaTela({ tela }: { tela: Tela }) {
       return <GenteClimaTab />;
     case "adocao":
       return <Adocao />;
+    case "movimentacoes":
+      return <GenteMovimentacoesTab />;
   }
 }

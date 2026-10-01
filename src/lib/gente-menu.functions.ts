@@ -41,6 +41,11 @@ export interface ResumoMenuGente {
   administra: boolean;
   /** Enxerga mais de uma unidade: é quem implanta e acompanha adoção. */
   redeInteira: boolean;
+  /**
+   * Salário e movimentações. Aqui a chave separa de verdade: ela mora numa área
+   * própria (`people_remuneracao`), dada só ao RH e ao admin.
+   */
+  remuneracao: boolean;
 }
 
 export const resumoMenuGente = createServerFn({ method: "GET" })
@@ -72,6 +77,7 @@ export const resumoMenuGente = createServerFn({ method: "GET" })
       // `data.scope.own_unit_only` é a trava de unidade. Quem não a tem enxerga
       // a rede, e é para essa pessoa que a tabela de adoção existe.
       redeInteira: !chaves.includes("data.scope.own_unit_only"),
+      remuneracao: chaves.includes("manage.gente.remuneracao"),
     };
     if (!eu) return vazio;
 

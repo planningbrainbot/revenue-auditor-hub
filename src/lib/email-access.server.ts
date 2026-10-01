@@ -23,6 +23,14 @@ export async function enviarEmailAcesso(
         subject: input.subject,
         html: input.html,
         text: input.text,
+        ...(input.anexos?.length
+          ? {
+              attachments: input.anexos.map((a) => ({
+                filename: a.nome,
+                content: a.conteudoBase64,
+              })),
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(15000),
     });

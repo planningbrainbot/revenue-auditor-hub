@@ -44,6 +44,7 @@ import {
   MessagesSquare,
   CalendarDays,
   ClipboardList,
+  ArrowRightLeft,
 } from "lucide-react";
 
 /**
@@ -92,6 +93,7 @@ export type Item = {
     | "temPdi"
     | "administra"
     | "redeInteira"
+    | "remuneracao"
     | "noCadastro";
 };
 
@@ -437,6 +439,12 @@ export const AREAS: Area[] = [
         label: "A rede",
         items: [
           { title: "Cadastro", url: "/gente?tela=cadastro", icon: BookUser },
+          {
+            title: "Movimentações",
+            url: "/gente?tela=movimentacoes",
+            icon: ArrowRightLeft,
+            flag: "remuneracao",
+          },
           { title: "Clima", url: "/gente?tela=clima", icon: Gauge, flag: "administra" },
           {
             title: "Adoção por unidade",

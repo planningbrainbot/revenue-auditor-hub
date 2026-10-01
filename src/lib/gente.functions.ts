@@ -1042,6 +1042,8 @@ export interface HistoricoRow {
   depois: string | null;
   quem: string | null;
   quando: string;
+  /** "movimentação #12" quando a mudança veio de uma movimentação. */
+  origem: string | null;
 }
 
 const CAMPOS_HISTORICO: Record<string, string> = {
@@ -1089,7 +1091,7 @@ export const listHistoricoPessoa = createServerFn({ method: "GET" })
     const supabase = context.supabase as Cliente;
     const { data: linhas, error } = await supabase
       .from("gente_pessoas_historico")
-      .select("campo,antes,depois,alterado_por,alterado_em")
+      .select("campo,antes,depois,alterado_por,alterado_em,origem")
       .eq("pessoa_id", data.pessoaId)
       .order("alterado_em", { ascending: false })
       .limit(200);
@@ -1103,6 +1105,7 @@ export const listHistoricoPessoa = createServerFn({ method: "GET" })
       depois: string | null;
       alterado_por: string | null;
       alterado_em: string;
+      origem: string | null;
     };
     const rows = (linhas ?? []) as L[];
 
@@ -1172,6 +1175,7 @@ export const listHistoricoPessoa = createServerFn({ method: "GET" })
       depois: traduzir(r.campo, r.depois),
       quem: r.alterado_por ? nomeAutor.get(r.alterado_por) || null : null,
       quando: r.alterado_em,
+      origem: r.origem ?? null,
     }));
   });
 

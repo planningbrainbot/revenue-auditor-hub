@@ -13,6 +13,8 @@ export type EnviarEmailInput = {
   subject: string;
   html: string;
   text: string;
+  /** Só o envio pelo Resend (`enviarEmailAcesso`) leva anexo. */
+  anexos?: { nome: string; conteudoBase64: string }[];
 };
 
 /**
