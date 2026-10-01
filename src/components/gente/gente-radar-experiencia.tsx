@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Eye, Radar, Send } from "lucide-react";
+import { Eye, FileSpreadsheet, FileText, Printer, Radar, Send } from "lucide-react";
 import { listGente, type GentePessoaRow } from "@/lib/gente.functions";
 import {
   enviarAve,
@@ -33,7 +33,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { dataDoMarco, diasDeCasa } from "./tempo-de-casa";
+import { exportarRadarExcel, exportarRadarPdf, type LinhaExportavel } from "./radar-exportar";
 
 // Radar de avaliação de experiência (AVE), pedido do RH de Maceió em
 // 01/10/2026. Mostra quem está nos primeiros 90 dias pela data de admissão e,
@@ -323,6 +330,71 @@ function VerRespostasDialog({ pessoa, modelo }: { pessoa: GentePessoaRow; modelo
   );
 }
 
+const GRUPO_DO_MARCO: Record<45 | 90, string> = {
+  45: "Avaliação de 45 dias",
+  90: "Avaliação de 90 dias",
+};
+
+/** O mesmo que a linha mostra, em texto, para PDF e Excel. */
+function paraExportar(l: LinhaRadar): LinhaExportavel {
+  const respondido = l.envios.length > 0 && l.envios.every((e) => e.status === "concluida");
+  return {
+    grupo: GRUPO_DO_MARCO[l.marco],
+    pessoa: l.pessoa.nomeCompleto,
+    cargo: l.pessoa.cargo ?? "",
+    unidade: l.pessoa.unidade ?? "",
+    gestor: l.pessoa.gestorNome ?? "sem gestor",
+    admissao: fmtData(l.pessoa.dataAdmissao!),
+    completaEm: fmtData(l.prazo),
+    prazo: respondido ? "concluída" : situacaoPrazo(l.falta).texto,
+    avaliacao: l.envios.length
+      ? l.envios
+          .map(
+            (e) =>
+              `${TIPO_ROTULO[e.tipo] ?? e.tipo}${e.tipo === "par" && e.avaliadorNome ? ` (${e.avaliadorNome})` : ""}: ${e.status === "concluida" ? "respondida" : "pendente"}`,
+          )
+          .join("; ")
+      : "não enviada",
+  };
+}
+
+function Imprimir({ fase45, fase90 }: { fase45: LinhaRadar[]; fase90: LinhaRadar[] }) {
+  const [gerando, setGerando] = useState(false);
+  const linhas = [...fase45, ...fase90].map(paraExportar);
+  const rodar = async (formato: "pdf" | "excel") => {
+    setGerando(true);
+    try {
+      if (formato === "pdf")
+        await exportarRadarPdf(linhas, [GRUPO_DO_MARCO[45], GRUPO_DO_MARCO[90]]);
+      else await exportarRadarExcel(linhas);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível gerar o arquivo.");
+    } finally {
+      setGerando(false);
+    }
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={gerando}>
+          <Printer className="mr-1.5 h-3.5 w-3.5" />
+          {gerando ? "Gerando…" : "Imprimir"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => void rodar("pdf")}>
+          <FileText className="mr-2 h-4 w-4" />
+          PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void rodar("excel")}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Excel
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function Andamento({ envios }: { envios: AveAvaliacaoRow[] }) {
   return (
     <div className="flex flex-wrap gap-1">
@@ -474,6 +546,11 @@ export function RadarExperiencia() {
       <div className="mb-1 flex items-center gap-2">
         <Radar className="h-4 w-4 text-primary-text" />
         <h3 className="font-semibold">Radar de avaliação de experiência</h3>
+        {fase45.length || fase90.length ? (
+          <div className="ml-auto">
+            <Imprimir fase45={fase45} fase90={fase90} />
+          </div>
+        ) : null}
       </div>
       <p className="mb-4 text-[13px] text-muted-foreground">
         Quem está nos primeiros 90 dias, pela data de admissão do cadastro. Envie a avaliação na
