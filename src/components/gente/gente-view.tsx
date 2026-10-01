@@ -37,6 +37,7 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
+import { diasDeCasa } from "./tempo-de-casa";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
 // `docs/design/contratos/gente.md`). Filtros na URL (N7): `busca`, `unidade`,
@@ -66,15 +67,6 @@ const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (dias: number | null) 
   mais90: { rotulo: "Mais de 90 dias", cabe: (d) => d != null && d > 90 },
   sem: { rotulo: "Sem data de admissão", cabe: (d) => d == null },
 };
-
-/** Dias desde a admissão, contados em data local (a coluna é `date`). */
-function diasDeCasa(admissao: string | null): number | null {
-  if (!admissao) return null;
-  const hoje = new Date();
-  const inicio = new Date(`${admissao.slice(0, 10)}T12:00:00`);
-  const hojeMeioDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12);
-  return Math.round((hojeMeioDia.getTime() - inicio.getTime()) / 86_400_000);
-}
 
 const fmtCasa = (d: number | null) =>
   d == null ? NA : d < 0 ? `entra em ${-d} d` : d === 1 ? "1 dia" : `${NUM.format(d)} dias`;

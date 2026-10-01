@@ -3845,6 +3845,31 @@ O projetado × realizado bate com o script que roda o `forecastComparison` do m�
   - O texto do bloco não afirma conversão da Consultoria; ele só mostra as entradas.
   - A análise (artifact "Funil do Caixa por produto", versão 2) usa a premissa do v12 para a Consultoria.
 
+## [2026-10-01] Pipe 39: funil novo do Caixa (Conexão e Reunião de proposta; Gatilho encerrado)
+
+**Decisão do Pedro (01/10):** um funil só para os três produtos, com o Matheus apresentando o Caixa de Oportunidade inteiro. Medir conexão (o cliente respondeu), reunião de levantamento e reunião de proposta. "A etapa de gatilho identificado precisa morrer". O pipe foi editado no mesmo dia, a pedido dele.
+
+**O que mudou no Pipedrive (pipe 39):**
+- **Renomeadas, com o mesmo id e o histórico:**
+  - Abordagem em curso → 2 · Abordagem iniciada (276);
+  - Reunião agendada → 4 · Reunião de levantamento agendada (277);
+  - Reunião realizada → 5 · Reunião de levantamento realizada (287).
+- **Novas:** 3 · Conexão (290) e 7 · Reunião de proposta (291), esta entre Em negociação e Proposta enviada.
+- **Gatilho identificado (275):** os 9 cards abertos foram para Abordagem iniciada, por escolha do Pedro. A etapa ficou vazia, com o nome "Gatilho (encerrada em 01/10 · não usar)".
+  - Ela não foi apagada porque `crm.mjs` deriva `started` da ordem das etapas e o funil lê o nome de cada etapa em `monetizacao_sync.stages`.
+  - Apagar a etapa tiraria de "trabalhados" os cards de setembro que foram da Base para Gatilho e foram perdidos lá.
+  - Só pode ser apagada depois que a carga souber das etapas aposentadas.
+- **Regras de nome que a carga exige e que foram mantidas:**
+  - `reuni.*(agend|marc)` e `reuni.*realiz` só nas reuniões de levantamento;
+  - "negocia" em Em negociação, e oportunidade validada é a ordem ≥ Em negociação;
+  - a Reunião de proposta fica depois de Em negociação, então não muda a contagem de oportunidades.
+
+**Conferido:** a carga das 12:05 UTC leu as 10 etapas novas sem erro. Total de cards abertos igual antes e depois (215).
+
+**Em aberto:**
+- O funil e a tabela por produto da aba Operação usam a régua por evento, e as taxas não batem com as contagens. O Pedro reprovou isso em 30/09; a régua cumulativa está em `monetizacao/base/medir_funil_cumulativo.mjs`.
+- As três taxas novas (conexão, levantamento, proposta) ainda não aparecem na tela.
+
 ## [2026-10-01] IA dos cockpits do CEO e do COO passa para o GPT-6 Luna, pelo OpenRouter
 
 **Contexto:** o Pedro pediu "trocar o modelo da IA que alimenta os dois: pode usar o GPT 6 luna".
