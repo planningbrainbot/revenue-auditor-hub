@@ -4041,3 +4041,22 @@ Publicado a pedido do Eliezek ("pode publicar"), na ordem migration → Edge Fun
 **Ficou de fora:** item do Brain Meet no menu lateral do Ops; contrato de tela do `/inicio` (não existe em `docs/design/contratos`).
 
 **Publicação:** com o Victor e o Pedro (PR de pedido do Mikael; nada foi mergeado nem publicado por quem abriu).
+
+## [2026-10-01] Publicação do card do Brain Meet na home (PR #52)
+
+**Contexto:** o Mikael pediu o Brain Meet como ferramenta própria, usada por várias
+equipes, com card na home. O PR #52 (`inicio: card do Brain Meet na home, contando como
+produto`) foi aberto para revisão do Victor e do Pedro. O Mikael pediu a publicação na
+hora ("Faça").
+
+**Decisão:** PR #52 mergeado (squash `ce98a13`) e publicado em produção pela CLI, no
+projeto `ops-brain` do time `planning17`: deploy `ops-brain-m1wey2jo1` às 16h51 BRT.
+`planningbrain.com.br` aponta para ele (conferido com `vercel inspect`).
+
+**Antes de publicar:** a `main` estava igual à produção anterior (`ops-brain-2dhj6ncqf`,
+15h54). Depois dela só entrou o registro em `DECISIONS.md`, então nada além do card foi
+ao ar.
+
+**Efeito:** quem só tem o Ops passa a cair em `/inicio`, com os cards Ops e Brain Meet.
+"Sempre começar por aqui" devolve a entrada direta. Os pontos em aberto do PR #52
+continuam com o Victor e o Pedro (ver a descrição do PR).
