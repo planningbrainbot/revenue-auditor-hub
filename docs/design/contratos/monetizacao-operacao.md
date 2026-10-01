@@ -77,3 +77,50 @@ responsável.
 
 **Não entra:**
 - Classificar o motivo de perda por categoria. O motivo é texto livre no Pipedrive e a categoria seria inferência; a lista mostra o motivo.
+
+## Adendo · 01/10/2026 · Régua cumulativa e visão "Hoje"
+
+**Spec aprovada:** `docs/superpowers/specs/2026-10-01-monetizacao-acompanhamento-diario.md` ("pode sim [...] pode fazer", Pedro, 01/10). Mockup aprovado: https://claude.ai/artifact/39RCh3RfopWzvb7KaLVLuJ.
+
+**O que muda na régua.** O funil, "Qual produto avança na base?", o lado a lado e os quadros de meta passam a contar uma coorte, e não eventos:
+- **Coorte do período:** cards com o primeiro `started` (saída da Base) no período, feito por quem o filtro mede (o Matheus), no produto do filtro.
+- **Nível do card:** a etapa mais adiantada alcançada no período, depois desse `started`. Conta a etapa em que o card ficou 30 minutos ou mais, de onde avançou ou em que terminou. Ganho no período é o topo.
+- **Níveis lidos do pipe** por nome e ordem (`data.stages`). Gatilho (encerrada) vale como Conexão; Stand by vale como Levantamento realizado.
+- **Etapa:** cards da coorte com nível maior ou igual ao dela. A taxa é a etapa ÷ a de cima. As contagens só descem e validadas nunca passam de realizadas.
+- **Fila:** cards que estiveram na Base elegível em algum momento do período, no pipe inteiro.
+- **Dias úteis:** segunda a sexta, sem os feriados nacionais (`src/lib/monetizacao/feriados.ts`).
+
+**Números (substituem "Entraram", "Conversão" e "Passagem" da tabela acima):**
+| Número | Definição | Unidade | Drill-down | Bate? |
+|---|---|---|---|---|
+| Funil · Cards | Fila: na Base no período. Demais: coorte com nível ≥ etapa | card | os cards da contagem | sim |
+| Funil · Hoje | abertos agora nas etapas do nível, pipe inteiro; não entra na taxa | card | cards parados | bate com o pipe |
+| Funil · Taxa | contagem ÷ contagem da linha de cima | % | — | refaz-se de cabeça |
+| Leads trabalhados por dia útil | abordados da coorte ÷ dias úteis | card/dia | coorte | sim |
+| Levantamentos agendados, realizados, oportunidades validadas, contratos ganhos | coorte com nível ≥ etapa | card | cards | sim |
+| Meta de contratos no período | meta do mês × dias úteis do período ÷ dias úteis do mês, arredondada para cima | card | — | — |
+
+**Visão "Hoje"** (primeira seção quando o período inclui hoje). Arquétipo: Visão geral, dentro da aba.
+- **Pergunta:** O mês vai chegar a 50% de marcação?
+- **Universo:** pipe 39 · o farmer do filtro · produto do filtro · mês corrente até hoje.
+
+| Número | Definição | Unidade | Drill-down |
+|---|---|---|---|
+| Hoje (dia útil anterior) · abordagens | `started` do dia, sem o usuário "Ops Planning" (23984402) | card | cards do dia |
+| Hoje · conexões, levantamentos agendados, reuniões de proposta | entrada na etapa no dia; toque desfeito em menos de 30 min não conta | card | cards do dia |
+| Hoje · levantamentos realizados | evento `meeting` do dia, sem toque | card | cards do dia |
+| Conexão | Conexão ÷ abordados do mês, alvo 70% | % | coorte com Conexão |
+| Levantamento | agendados ÷ Conexão, alvo 72% | % | coorte agendada |
+| Marcação | agendados ÷ abordados, meta 50% | % | coorte agendada |
+| Faltam para 50% | `max(0, ⌈0,5 × abordados⌉ − agendados)` | levantamento | — |
+| Conexão por unidade | n de N abordados no mês, por `monetizacao_deals.unidade_ids`; sem unidade = "Sem unidade" | card | abordados da unidade |
+| Base elegível | abertos na Base agora, pipe inteiro, por produto | card | cards |
+| Abordagens por dia útil para a meta | `⌈(meta − abordados) ÷ dias úteis restantes, contando hoje⌉`; meta = `capacity` do plano do mês, ou 120 por closer | card/dia | — |
+
+**O que pede atenção** (até 3, caixa com borda, uma linha por item): abordados há 3 dias úteis ou mais sem Conexão (quantos passam de 10) → abre a lista; a Base não cobre a meta → Produtos e listas; "Três produtos ainda não se mede" → por quê.
+
+**Lista de atenção** (Fila de trabalho num `Sheet`): abertos em Abordagem iniciada, do dono atual, que nunca chegaram ao nível da Conexão nas etapas do pipe novo (Conexão ou além, com a regra dos 30 minutos), com o primeiro `started` há 3 dias úteis ou mais. Colunas: empresa (Pipedrive), produto, unidade, sócios da unidade (todos), abordado em, dias úteis. Ordem: dias úteis, do maior para o menor. Filtro "10 ou mais" / "3 a 9" na URL (`atencao`), CSV.
+
+**Estados novos:** sócios sem permissão (`view.unidades_rede` ou `view.rede_headcount`) → "sem acesso aos sócios"; unidade sem sócio → "sem sócio cadastrado"; card sem unidade → "Sem unidade"; meta de abordagens com filtro de produto → o bloco diz que a meta é da frente inteira.
+
+**Não entra:** inferir unidade pelo dono do card; sócio de referência (não existe, decisão de 01/10); medir três produtos no mesmo card (o campo aceita um só).
