@@ -42,6 +42,9 @@ export const BLOCOS = [
   "parceria",
 ] as const;
 export type Bloco = (typeof BLOCOS)[number];
+/** Lista de atenção da visão "Hoje", aberta num Sheet: o filtro de idade em dias úteis. Ausente = fechada. */
+export const FILTROS_ATENCAO = ["todos", "10mais", "3a9"] as const;
+export type FiltroAtencao = (typeof FILTROS_ATENCAO)[number];
 /** Situação da abordagem (`records.body.status`; sem status = rascunho). */
 export const SITUACOES = ["rascunho", "aprovado", "arquivado"] as const;
 export type Situacao = (typeof SITUACOES)[number];
@@ -64,6 +67,7 @@ export type BuscaMonetizacao = {
   totais?: boolean;
   arquivados?: "mostrar";
   situacao?: Situacao;
+  atencao?: FiltroAtencao;
 };
 
 const ehData = (v: unknown): v is string =>
@@ -97,6 +101,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     totais,
     arquivados: s.arquivados === "mostrar" ? "mostrar" : undefined,
     situacao: umDe(SITUACOES, s.situacao),
+    atencao: umDe(FILTROS_ATENCAO, s.atencao),
   };
 }
 

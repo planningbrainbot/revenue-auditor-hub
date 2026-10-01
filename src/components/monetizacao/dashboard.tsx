@@ -36,6 +36,7 @@ import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
+import { VisaoHoje } from "./hoje";
 import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
@@ -479,6 +480,18 @@ export function DashboardMonetizacao({
       )}
       {data.measured_at && aba === "operacao" && funis && metas && (
         <>
+          {/* Visão "Hoje": a primeira seção quando o período inclui hoje (spec de 01/10/2026). */}
+          {filter.from <= today && today <= filter.to && (
+            <VisaoHoje
+              data={data}
+              filter={filter}
+              hoje={today}
+              rotuloProduto={produto}
+              atencao={busca.atencao}
+              mudarAtencao={(atencao) => mudarBusca({ atencao })}
+              abrir={abrir}
+            />
+          )}
           <MetasFarmer
             quadros={metas.quadros}
             uteis={metas.uteis}
