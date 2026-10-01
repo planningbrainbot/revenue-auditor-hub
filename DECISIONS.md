@@ -3958,3 +3958,20 @@ OpenAI sem crédito.
 - **Testes:** 468/469. A falha é anterior e sem relação (`cockpit-ceo-conversa-responder`). O `tsc` não tem erro nos arquivos tocados.
 
 Rollback: `supabase/rollback/20261001200000_base_prova_fornecedor_admin_rollback.sql` (definições de produção de 01/10).
+
+**Ajuste no meio da publicação: conta comprovada não fica presa em "só no cadastro do Omie".** A primeira medição com a régua da tela pegou uma regressão. Quando `procedencia()` deixou de chamar de Pipefy a "Base antiga" só do Omie, clientes de Curitiba com contrato e sem card no Pipefy caíram em `so_omie`, e as comprovadas prontas para Consultoria foram de 337 para 144. Agora `soNoOmie()` exige que a conta não seja comprovada: a prova responde a pergunta que o grupo fazia.
+
+**Medido em produção depois da carga (01/10, régua da tela, `carga-real.mjs` com `prova`):**
+- Prontas por produto:
+
+  | Produto | Antes | Depois | Composição depois |
+  |---|---|---|---|
+  | Consultoria | 2.118 | 1.520 | 337 comprovadas + 1.183 cadastradas no Pipefy |
+  | Cella | 289 | 198 | |
+  | Recon | 327 | 237 | |
+  | Finance | 106 | 106 | |
+
+- Nenhuma conta grupo, fornecedor ou sem prova ficou pronta.
+- Distribuição da carteira: comprovado 2.528, cadastrado 2.875, só tag 1.745, fornecedor 1.611, sem prova 1.530, grupo 33.
+- Admin vê 10.322 contas; Renan Rios (não admin, todas as unidades) vê 8.678; Italo Amaral (uma unidade) vê 332.
+- Os dois não admins têm a ficha da TIM recusada e não veem Google nem TIM na tabela, no catálogo nem no cadastro bruto do Omie.

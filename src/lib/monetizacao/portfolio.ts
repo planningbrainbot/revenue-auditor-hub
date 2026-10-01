@@ -58,7 +58,11 @@ export function procedencia(a: Conta): Procedencia {
 }
 // O grupo que precisa ficar separado na lista de um produto: entrou só pelo ERP da unidade,
 // então a régua do produto aprova sem ninguém nunca ter declarado que é cliente.
-export const soNoOmie = (a: Conta): boolean => procedencia(a) === "omie";
+// Desde 01/10, conta com prova de cliente (contrato, recebimento, ECD ou ganho) não fica presa aqui: a prova responde a
+// pergunta que este grupo fazia ("é cliente?"). Sem isso, cliente de Curitiba com contrato e sem card no Pipefy saía da
+// fila de envio quando a procedência deixou de chamar "Base antiga" só do Omie de Pipefy.
+export const soNoOmie = (a: Conta): boolean =>
+  procedencia(a) === "omie" && a.base?.prova?.nivel !== "comprovado";
 // Por que uma conta da carteira retroativa está onde está em Consultoria. Cartões e "Entenda os
 // números" contam cada motivo à parte: um motivo não pode ser contado como outro (DECISIONS 19/09),
 // e quem já é cliente da Consultoria não é "excluída por Simples/MEI".

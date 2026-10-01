@@ -10,6 +10,7 @@ import {
   motivoConsultoria,
   nivelProva,
   procedencia,
+  soNoOmie,
 } from "../src/lib/monetizacao/portfolio.ts";
 import { fornecedorForaDeOferta, oferta } from "../src/lib/monetizacao/model.ts";
 import { grupoRecon, ofertaRecon } from "../src/lib/monetizacao/recon.ts";
@@ -132,4 +133,11 @@ test("Base antiga só do Omie não é 'Cadastro no Pipefy' (a TIM de Curitiba)",
   assert.equal(procedencia(planilha), "pipefy");
   const comCard = conta(prova("cadastrado"), { base: { omie_records: 3 } });
   assert.equal(procedencia(comCard), "pipefy");
+});
+
+test("Só no Omie com prova de cliente não fica presa no grupo 'só no cadastro do Omie'", () => {
+  const omie = { pipefy_ids: [], empresa_ids: [], omie_records: 2 };
+  assert.equal(soNoOmie(conta(prova("comprovado"), { base: omie })), false);
+  assert.equal(soNoOmie(conta(prova("so_tag"), { base: omie })), true);
+  assert.equal(soNoOmie(conta(undefined, { base: omie })), true);
 });
