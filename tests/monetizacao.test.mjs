@@ -545,15 +545,15 @@ test("Funil sem a carga v4 mede só as etapas com evento próprio", () => {
 
 test("Metas: ritmo por dia útil, contrato proporcional ao mês, dia em curso não é fora", () => {
   const plan = { daily_target: 7, target_contracts: 8 };
-  const f = { ...filter, from: "2026-09-01", to: "2026-09-12" }; // 9 dias úteis (01/09 é terça)
+  const f = { ...filter, from: "2026-09-01", to: "2026-09-12" }; // 8 dias úteis (01/09 é terça; 07/09 é feriado)
   const { quadros, uteis: n } = metasOperacao(operacao([card()], f), plan, f, "2026-09-24");
-  assert.equal(n, 9);
+  assert.equal(n, 8);
   const q = Object.fromEntries(quadros.map((x) => [x.chave, x]));
   assert.equal(q.started.valor, 0.1);
   assert.equal(q.started.status, "fora");
   assert.equal(q.scheduled.status, "sem-meta");
-  // setembro/2026 tem 22 dias úteis: 8 × 9/22 = 3,3
-  assert.equal(q.signed.meta, 3.3);
+  // setembro/2026 tem 21 dias úteis (07/09 é feriado): 8 × 8/21 = 3
+  assert.equal(q.signed.meta, 3);
   const hojeF = { ...filter, from: "2026-09-24", to: "2026-09-24" };
   const h = metasOperacao(operacao([card()], hojeF), plan, hojeF, "2026-09-24");
   assert.equal(h.quadros[0].status, "dia-em-curso");

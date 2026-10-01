@@ -1,3 +1,4 @@
+import { ehDiaUtil } from "./feriados.ts";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
 import type {
   Conta,
@@ -105,8 +106,8 @@ export function dias(from: string, to: string): string[] {
 }
 export const distancia = (a: string, b: string) =>
   Math.max(0, Math.floor((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000));
-export const uteis = (from: string, to: string) =>
-  dias(from, to).filter((d) => ![0, 6].includes(new Date(d).getUTCDay())).length;
+/** Dias úteis do período, nas duas pontas: segunda a sexta, sem os feriados de `feriados.ts`. */
+export const uteis = (from: string, to: string) => dias(from, to).filter(ehDiaUtil).length;
 export const baseRetroativaConsultoria = (a: Conta) =>
   a.old_base === true &&
   !a.new_commercial &&
