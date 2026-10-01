@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Copy, Eye, EyeOff } from "lucide-react";
 import {
   deleteOmieCredential,
   listOmieCredentials,
+  revealOmieSecret,
   setOmieCredentialAtivo,
   upsertOmieCredential,
 } from "@/lib/omie-credentials.functions";
@@ -60,6 +62,7 @@ function IntegracoesPage() {
   const upsertFn = useServerFn(upsertOmieCredential);
   const toggleFn = useServerFn(setOmieCredentialAtivo);
   const deleteFn = useServerFn(deleteOmieCredential);
+  const revealFn = useServerFn(revealOmieSecret);
   const statusFn = useServerFn(listIntegracoesStatus);
 
   useEffect(() => {
@@ -85,6 +88,34 @@ function IntegracoesPage() {
   const [appSecret, setAppSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [excluirAlvo, setExcluirAlvo] = useState<{ id: string; unidade: string; ativo: boolean } | null>(null);
+  // Secrets revelados ficam só na memória da página, por id, e somem ao esconder.
+  const [secretsVisiveis, setSecretsVisiveis] = useState<Record<string, string>>({});
+  const [revelando, setRevelando] = useState<string | null>(null);
+
+  async function alternarSecret(id: string, unidade: string) {
+    if (secretsVisiveis[id] !== undefined) {
+      setSecretsVisiveis(({ [id]: _, ...resto }) => resto);
+      return;
+    }
+    setRevelando(id);
+    try {
+      const r = await revealFn({ data: { id } });
+      setSecretsVisiveis((s) => ({ ...s, [id]: r.app_secret }));
+    } catch (e) {
+      toast.error(`Não foi possível mostrar o APP_SECRET de ${unidade}: ${e instanceof Error ? e.message : "erro desconhecido"}`);
+    } finally {
+      setRevelando(null);
+    }
+  }
+
+  async function copiar(texto: string, rotulo: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast.success(`${rotulo} copiado.`);
+    } catch {
+      toast.error(`Não foi possível copiar o ${rotulo}.`);
+    }
+  }
 
   function resetForm() {
     setUnidade("");
@@ -210,8 +241,9 @@ function IntegracoesPage() {
       <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
 
         <div className="rounded-lg border border-border bg-accent/30 px-4 py-2 text-xs text-muted-foreground">
-          As credenciais ficam no Supabase e nunca são expostas ao navegador — apenas os scripts de sync no servidor têm acesso a elas.
-          O APP_SECRET não é reexibido depois de salvo; para trocar, cadastre a unidade novamente.
+          As credenciais ficam no Supabase e só os scripts de sync no servidor as usam. O APP_SECRET aparece mascarado:
+          o ícone de olho busca o valor completo de uma unidade por vez, só para admin, e cada consulta fica registrada no log do servidor.
+          Para trocar, cadastre a unidade novamente.
         </div>
 
         {error && (
@@ -358,8 +390,38 @@ function IntegracoesPage() {
               {creds.map((c) => (
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-2 font-medium text-foreground">{c.unidade}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-foreground">{c.app_key}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{c.app_secret_masked}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-foreground">
+                    <div className="flex items-center gap-1">
+                      {c.app_key}
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Copiar APP_KEY" onClick={() => copiar(c.app_key, "APP_KEY")}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 font-mono text-xs">
+                    <div className="flex items-center gap-1">
+                      {secretsVisiveis[c.id] !== undefined ? (
+                        <span className="break-all text-foreground">{secretsVisiveis[c.id]}</span>
+                      ) : (
+                        <span className="text-muted-foreground">{c.app_secret_masked}</span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        title={secretsVisiveis[c.id] !== undefined ? "Esconder APP_SECRET" : "Ver APP_SECRET"}
+                        disabled={revelando === c.id}
+                        onClick={() => alternarSecret(c.id, c.unidade)}
+                      >
+                        {secretsVisiveis[c.id] !== undefined ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </Button>
+                      {secretsVisiveis[c.id] !== undefined && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Copiar APP_SECRET" onClick={() => copiar(secretsVisiveis[c.id], "APP_SECRET")}>
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-2">
                     <StatusBadge tom={c.ativo ? "sucesso" : "neutro"}>
                       {c.ativo ? "Ativa" : "Inativa"}

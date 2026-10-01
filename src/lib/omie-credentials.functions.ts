@@ -30,6 +30,31 @@ export const listOmieCredentials = createServerFn({ method: "GET" })
     }));
   });
 
+// O secret completo não vai na listagem: só sai por esta chamada, uma unidade por
+// vez, quando o admin clica para ver. Cada leitura fica no log do servidor.
+export const revealOmieSecret = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => {
+    if (!input?.id) throw new Error("id obrigatório.");
+    return { id: input.id };
+  })
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cred, error } = await supabaseAdmin
+      .from("omie_credentials")
+      .select("unidade, app_secret")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) {
+      console.error("[revealOmieSecret] query failed:", error);
+      throw new Error("Erro ao buscar o APP_SECRET.");
+    }
+    if (!cred) throw new Error("Credencial não encontrada.");
+    console.info(`[revealOmieSecret] user ${context.userId} viu o APP_SECRET de ${cred.unidade}`);
+    return { app_secret: cred.app_secret };
+  });
+
 export const upsertOmieCredential = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { unidade: string; app_key: string; app_secret: string; ativo: boolean }) => {
