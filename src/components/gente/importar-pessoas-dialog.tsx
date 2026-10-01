@@ -4,12 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
-import {
-  importarPessoas,
-  type LinhaImportacao,
-  type ResultadoLinha,
-} from "@/lib/gente.functions";
+import { importarPessoas, type LinhaImportacao, type ResultadoLinha } from "@/lib/gente.functions";
 import { Button } from "@/components/ui/button";
+import { mesmoNome } from "./nomes";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -135,7 +132,9 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
           dataBruta = v;
           continue;
         }
-        const texto = String(v ?? "").trim().replace(/\s+/g, " ");
+        const texto = String(v ?? "")
+          .trim()
+          .replace(/\s+/g, " ");
         if (texto) l[campo] = texto;
       }
 
@@ -164,7 +163,15 @@ function baixarModelo() {
   const ws = XLSX.utils.aoa_to_sheet([
     COLUNAS_MODELO,
     ["Maria Souza", "maria.souza@planning.com.br", "Líder de RH", "RH", "CLT", "01/03/2026", ""],
-    ["João Lima", "joao.lima@planning.com.br", "Analista", "BPO", "PJ", "15/04/2026", "maria.souza@planning.com.br"],
+    [
+      "João Lima",
+      "joao.lima@planning.com.br",
+      "Analista",
+      "BPO",
+      "PJ",
+      "15/04/2026",
+      "maria.souza@planning.com.br",
+    ],
   ]);
   ws["!cols"] = [28, 32, 20, 16, 12, 12, 32].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
@@ -178,7 +185,14 @@ const ROTULO_SITUACAO: Record<ResultadoLinha["situacao"], string> = {
   erro: "Erro",
 };
 
-export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; nome: string }[] }) {
+export function ImportarPessoasDialog({
+  unidades,
+  existentes,
+}: {
+  unidades: { id: number; nome: string }[];
+  /** Ativos já no cadastro, para avisar de nome repetido na unidade. */
+  existentes: { id: number; nome: string; unidadeId: number | null }[];
+}) {
   const fn = useServerFn(importarPessoas);
   const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
@@ -190,8 +204,23 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
     unidades.length === 1 ? String(unidades[0].id) : "",
   );
 
-  const validas = useMemo(() => linhas.filter((l) => !l.problemas.length), [linhas]);
-  const comProblema = linhas.length - validas.length;
+  const [incluirHomonimos, setIncluirHomonimos] = useState(false);
+  // Nome que já existe na unidade com outro e-mail: provável duplicidade.
+  const homonimos = useMemo(() => {
+    const daUnidade = existentes.filter((e) => String(e.unidadeId) === unidadeId);
+    return new Map(
+      linhas
+        .map((l) => [l.linha, daUnidade.find((e) => mesmoNome(e.nome, l.nomeCompleto))] as const)
+        .filter(([, e]) => !!e)
+        .map(([linha, e]) => [linha, e!.nome]),
+    );
+  }, [linhas, existentes, unidadeId]);
+  const validas = useMemo(
+    () =>
+      linhas.filter((l) => !l.problemas.length && (incluirHomonimos || !homonimos.has(l.linha))),
+    [linhas, homonimos, incluirHomonimos],
+  );
+  const comProblema = linhas.filter((l) => l.problemas.length).length;
 
   const limpar = () => {
     setArquivo("");
@@ -225,12 +254,16 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
     try {
       const lidas = lerPlanilha(await f.arrayBuffer(), /\.csv$/i.test(f.name));
       if (!lidas.length) {
-        toast.error("Não achei nenhuma pessoa. Confira se a primeira linha tem os cabeçalhos do modelo.");
+        toast.error(
+          "Não achei nenhuma pessoa. Confira se a primeira linha tem os cabeçalhos do modelo.",
+        );
         setLinhas([]);
         return;
       }
       if (lidas.length > MAX_LINHAS) {
-        toast.error(`A planilha tem ${lidas.length} pessoas. Divida em arquivos de até ${MAX_LINHAS}.`);
+        toast.error(
+          `A planilha tem ${lidas.length} pessoas. Divida em arquivos de até ${MAX_LINHAS}.`,
+        );
         setLinhas([]);
         return;
       }
@@ -274,7 +307,9 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
               Baixar modelo
             </Button>
             <label className="grid gap-1.5 text-sm">
-              <span className="text-xs font-medium text-muted-foreground">Arquivo (.xlsx ou .csv)</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Arquivo (.xlsx ou .csv)
+              </span>
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
@@ -323,8 +358,8 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Quem já tem login no Brain é ligado ao cadastro nos dois casos. Gestão de gente se dá
-                depois, uma pessoa por vez.
+                Quem já tem login no Brain é ligado ao cadastro nos dois casos. Gestão de gente se
+                dá depois, uma pessoa por vez.
               </p>
             </div>
           </div>
@@ -349,18 +384,50 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
                   </thead>
                   <tbody>
                     {linhas.map((l) => (
-                      <tr key={l.linha} className={"border-t " + (l.problemas.length ? "bg-danger-soft" : "")}>
+                      <tr
+                        key={l.linha}
+                        className={
+                          "border-t " +
+                          (l.problemas.length
+                            ? "bg-danger-soft"
+                            : homonimos.has(l.linha)
+                              ? "bg-warning-soft"
+                              : "")
+                        }
+                      >
                         <td className="px-3 py-1.5 tabular-nums">{l.linha}</td>
                         <td className="px-3 py-1.5">{l.nomeCompleto}</td>
                         <td className="px-3 py-1.5">{l.email}</td>
                         <td className="px-3 py-1.5">{l.cargo}</td>
                         <td className="px-3 py-1.5">{l.emailGestor}</td>
-                        <td className="px-3 py-1.5">{l.problemas.join(", ")}</td>
+                        <td className="px-3 py-1.5">
+                          {[
+                            ...l.problemas,
+                            ...(homonimos.has(l.linha)
+                              ? [`já existe "${homonimos.get(l.linha)}" na unidade`]
+                              : []),
+                          ].join(", ")}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              {homonimos.size ? (
+                <label className="flex items-start gap-2 border-t bg-warning-soft px-3 py-2 text-xs text-warning">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={incluirHomonimos}
+                    onChange={(e) => setIncluirHomonimos(e.target.checked)}
+                  />
+                  <span>
+                    {homonimos.size} nome(s) já existem na unidade com outro e-mail e ficam de fora,
+                    porque costuma ser a mesma pessoa cadastrada duas vezes. Marque para importar
+                    mesmo assim, se forem pessoas diferentes.
+                  </span>
+                </label>
+              ) : null}
               {comProblema ? (
                 <div className="flex items-center gap-2 border-t bg-warning-soft px-3 py-2 text-xs text-warning">
                   <AlertTriangle className="h-3.5 w-3.5" />
@@ -389,7 +456,10 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
                   </thead>
                   <tbody>
                     {resultados.map((r) => (
-                      <tr key={r.linha} className={"border-t " + (r.situacao === "erro" ? "bg-danger-soft" : "")}>
+                      <tr
+                        key={r.linha}
+                        className={"border-t " + (r.situacao === "erro" ? "bg-danger-soft" : "")}
+                      >
                         <td className="px-3 py-1.5 tabular-nums">{r.linha}</td>
                         <td className="px-3 py-1.5">{r.email}</td>
                         <td className="px-3 py-1.5">
@@ -413,7 +483,9 @@ export function ImportarPessoasDialog({ unidades }: { unidades: { id: number; no
                     variant="outline"
                     className="h-7 text-xs"
                     onClick={() =>
-                      navigator.clipboard.writeText(links.map((r) => `${r.email}\t${r.link}`).join("\n"))
+                      navigator.clipboard.writeText(
+                        links.map((r) => `${r.email}\t${r.link}`).join("\n"),
+                      )
                     }
                   >
                     Copiar links

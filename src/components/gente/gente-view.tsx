@@ -162,7 +162,7 @@ export function GenteView() {
   const podeCadastrar = q.data.unidadesCadastro.length > 0;
   const novaPessoa = podeCadastrar ? (
     <div className="flex flex-wrap gap-2">
-      <ImportarPessoasDialog unidades={q.data.unidadesCadastro} />
+      <ImportarPessoasDialog unidades={q.data.unidadesCadastro} existentes={q.data.gestores} />
       <NovaPessoaDialog unidades={q.data.unidadesCadastro} gestores={q.data.gestores} />
     </div>
   ) : null;

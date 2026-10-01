@@ -3,11 +3,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { KeyRound, Pencil, UserPlus } from "lucide-react";
+import { mesmoNome } from "./nomes";
 import {
   criarPessoa,
   darAcessoPessoa,
+  definirStatusPessoa,
   editarPessoa,
+  excluirCadastro,
   type AcessoResult,
+  type StatusPessoa,
   type GentePessoaRow,
 } from "@/lib/gente.functions";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -135,6 +139,13 @@ export function NovaPessoaDialog({
 
   const set = (k: keyof Vazio) => (v: string) => setF((s) => ({ ...s, [k]: v }));
   const gestoresDaUnidade = gestores.filter((g) => String(g.unidadeId) === unidadeId);
+  // Mesmo nome já ativo na unidade: avisa e pede um segundo clique (caso do
+  // Adílio, 01/10/2026, que entrou duas vezes com e-mails diferentes).
+  const [confirmouHomonimo, setConfirmouHomonimo] = useState(false);
+  const homonimo =
+    f.nomeCompleto.trim().split(/\s+/).length > 1
+      ? gestoresDaUnidade.find((g) => mesmoNome(g.nome, f.nomeCompleto))
+      : undefined;
 
   const criar = useMutation({
     mutationFn: async () =>
@@ -154,6 +165,7 @@ export function NovaPessoaDialog({
     onSuccess: (r) => {
       avisarAcesso(r);
       setF(VAZIO);
+      setConfirmouHomonimo(false);
       setAberto(false);
       qc.invalidateQueries({ queryKey: ["gente"] });
       qc.invalidateQueries({ queryKey: ["gente-menu"] });
@@ -185,6 +197,10 @@ export function NovaPessoaDialog({
           className="grid gap-3"
           onSubmit={(e) => {
             e.preventDefault();
+            if (homonimo && !confirmouHomonimo) {
+              setConfirmouHomonimo(true);
+              return;
+            }
             criar.mutate();
           }}
         >
@@ -193,7 +209,10 @@ export function NovaPessoaDialog({
             <Input
               id="np-nome"
               value={f.nomeCompleto}
-              onChange={(e) => set("nomeCompleto")(e.target.value)}
+              onChange={(e) => {
+                set("nomeCompleto")(e.target.value);
+                setConfirmouHomonimo(false);
+              }}
               required
             />
           </div>
@@ -328,17 +347,252 @@ export function NovaPessoaDialog({
             </p>
           </div>
 
+          {homonimo ? (
+            <p className="rounded-md border border-warning bg-warning-soft px-3 py-2 text-[13px] text-warning">
+              Já existe {homonimo.nome} ativo nesta unidade. Se for a mesma pessoa, feche e use
+              Editar na linha dela. Se for outra pessoa,{" "}
+              {confirmouHomonimo
+                ? "clique em Cadastrar mesmo assim."
+                : "clique em Cadastrar e confirme."}
+            </p>
+          ) : null}
           <DialogFooter className="mt-2">
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={criar.isPending || !unidadeId}>
-              {criar.isPending ? "Salvando…" : "Cadastrar"}
+              {criar.isPending
+                ? "Salvando…"
+                : homonimo && confirmouHomonimo
+                  ? "Cadastrar mesmo assim"
+                  : "Cadastrar"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const MOTIVOS_DESLIGAMENTO = [
+  "Pedido de demissão",
+  "Dispensa sem justa causa",
+  "Dispensa por justa causa",
+  "Término do contrato de experiência",
+  "Fim de contrato (PJ, estágio ou terceiro)",
+  "Outro",
+];
+
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/**
+ * Situação da pessoa no cadastro (01/10/2026). Desligar guarda o histórico e
+ * corta o login quando a conta é da unidade; excluir só existe para cadastro
+ * sem histórico nenhum, e o banco é quem confere (`gente_excluir_cadastro`).
+ */
+function SituacaoPessoa({
+  pessoa,
+  aoConcluir,
+}: {
+  pessoa: GentePessoaRow;
+  aoConcluir: () => void;
+}) {
+  const statusFn = useServerFn(definirStatusPessoa);
+  const excluirFn = useServerFn(excluirCadastro);
+  const qc = useQueryClient();
+  const [modo, setModo] = useState<"nada" | "desligar" | "excluir">("nada");
+  const [data, setData] = useState(hojeISO());
+  const [motivo, setMotivo] = useState(MOTIVOS_DESLIGAMENTO[0]);
+
+  const recarregar = () => {
+    qc.invalidateQueries({ queryKey: ["gente"] });
+    qc.invalidateQueries({ queryKey: ["gente-menu"] });
+    qc.invalidateQueries({ queryKey: ["gente-ave-radar"] });
+  };
+
+  const mudar = useMutation({
+    mutationFn: (status: StatusPessoa) =>
+      statusFn({
+        data: {
+          pessoaId: pessoa.id,
+          status,
+          data: status === "desligado" ? data : undefined,
+          motivo: status === "desligado" ? motivo : undefined,
+        },
+      }),
+    onSuccess: (r, status) => {
+      const partes = [
+        status === "desligado"
+          ? "Pessoa desligada. O histórico continua no filtro Desligadas."
+          : status === "afastado"
+            ? "Pessoa marcada como afastada."
+            : "Pessoa reativada.",
+      ];
+      if (r.acessoCortado) partes.push("O login no Brain foi cortado.");
+      if (r.acessoReativado) partes.push("O login no Brain voltou.");
+      if (r.acessoMantidoPor) {
+        partes.push(`O login não foi alterado (${r.acessoMantidoPor}): peça à Matriz.`);
+      }
+      if (status === "desligado" && r.lideradosAtivos) {
+        partes.push(
+          `${r.lideradosAtivos} pessoa(s) tinham ela como gestora: defina o novo gestor.`,
+        );
+      }
+      (r.acessoMantidoPor || r.lideradosAtivos ? toast.warning : toast.success)(partes.join(" "), {
+        duration: 10_000,
+      });
+      recarregar();
+      aoConcluir();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const excluir = useMutation({
+    mutationFn: () => excluirFn({ data: { pessoaId: pessoa.id } }),
+    onSuccess: () => {
+      toast.success("Cadastro excluído.");
+      recarregar();
+      aoConcluir();
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setModo("nada");
+    },
+  });
+
+  const ocupado = mudar.isPending || excluir.isPending;
+
+  return (
+    <div className="mt-2 grid gap-3 border-t pt-4">
+      <div>
+        <h4 className="text-sm font-medium">Situação</h4>
+        <p className="text-[13px] text-muted-foreground">
+          {pessoa.status === "desligado"
+            ? `Desligada${pessoa.dataDesligamento ? ` em ${new Date(`${pessoa.dataDesligamento}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}${pessoa.motivoDesligamento ? ` (${pessoa.motivoDesligamento})` : ""}.`
+            : pessoa.status === "afastado"
+              ? "Afastada: fora do radar e das avaliações, com o login mantido."
+              : "Ativa."}
+        </p>
+      </div>
+
+      {modo === "nada" ? (
+        <div className="flex flex-wrap gap-2">
+          {pessoa.status !== "desligado" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setModo("desligar")}
+              disabled={ocupado}
+            >
+              Desligar
+            </Button>
+          ) : null}
+          {pessoa.status === "ativo" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => mudar.mutate("afastado")}
+              disabled={ocupado}
+            >
+              Afastar
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => mudar.mutate("ativo")}
+              disabled={ocupado}
+            >
+              Reativar
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-danger"
+            onClick={() => setModo("excluir")}
+            disabled={ocupado}
+          >
+            Excluir cadastro
+          </Button>
+        </div>
+      ) : null}
+
+      {modo === "desligar" ? (
+        <div className="grid gap-3 rounded-md border p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="dl-data">Data do desligamento</Label>
+              <Input
+                id="dl-data"
+                type="date"
+                value={data}
+                onChange={(e) => setData(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="dl-motivo">Motivo</Label>
+              <Select value={motivo} onValueChange={setMotivo}>
+                <SelectTrigger id="dl-motivo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTIVOS_DESLIGAMENTO.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-[13px] text-muted-foreground">
+            O histórico fica guardado (avaliações, 1:1, feedback, PDI). A pessoa sai das listas de
+            ativos e do radar.
+            {pessoa.temLogin ? " O login no Brain é cortado junto." : ""}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setModo("nada")} disabled={ocupado}>
+              Voltar
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => mudar.mutate("desligado")}
+              disabled={ocupado || !data}
+            >
+              {mudar.isPending ? "Desligando…" : "Confirmar desligamento"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {modo === "excluir" ? (
+        <div className="grid gap-3 rounded-md border border-danger p-3">
+          <p className="text-[13px]">
+            Excluir apaga o cadastro de vez. Serve para quem foi cadastrado por engano, como em
+            duplicidade. Se a pessoa já tem qualquer histórico, a exclusão é recusada e o caminho é
+            Desligar.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setModo("nada")} disabled={ocupado}>
+              Voltar
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => excluir.mutate()}
+              disabled={ocupado}
+            >
+              {excluir.isPending ? "Excluindo…" : "Excluir de vez"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -603,6 +857,7 @@ export function EditarPessoaDialog({
             </Button>
           </DialogFooter>
         </form>
+        <SituacaoPessoa pessoa={pessoa} aoConcluir={() => setAberto(false)} />
       </DialogContent>
     </Dialog>
   );

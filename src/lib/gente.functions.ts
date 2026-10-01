@@ -37,6 +37,8 @@ export interface GentePessoaRow {
   gestorId: number | null;
   unidadeId: number | null;
   temLogin: boolean;
+  dataDesligamento: string | null;
+  motivoDesligamento: string | null;
 }
 
 export interface GenteUnidadeRow {
@@ -79,6 +81,8 @@ type PessoaDB = {
   user_id: string | null;
   gestor_id: number | null;
   unidade_id: number | null;
+  data_desligamento: string | null;
+  motivo_desligamento: string | null;
 };
 
 type UnidadeDB = {
@@ -109,7 +113,7 @@ export const listGente = createServerFn({ method: "GET" })
       supabase
         .from("gente_pessoas")
         .select(
-          "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,user_id,gestor_id,unidade_id",
+          "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,user_id,gestor_id,unidade_id,data_desligamento,motivo_desligamento",
         )
         .order("nome_completo"),
       supabase.from("v_gente_por_unidade").select("*"),
@@ -150,6 +154,8 @@ export const listGente = createServerFn({ method: "GET" })
       gestorId: p.gestor_id,
       unidadeId: p.unidade_id,
       temLogin: !!p.user_id,
+      dataDesligamento: p.data_desligamento,
+      motivoDesligamento: p.motivo_desligamento,
     }));
 
     const unidades: GenteUnidadeRow[] = unidadesDB
@@ -925,6 +931,109 @@ export const importarPessoas = createServerFn({ method: "POST" })
     if (eLog) console.error("[gente.importarPessoas] log falhou:", eLog);
 
     return { resultados: resultados.sort((a, b) => a.linha - b.linha) };
+  });
+
+export type StatusPessoa = "ativo" | "afastado" | "desligado";
+
+export interface StatusResult {
+  acessoCortado: boolean;
+  acessoReativado: boolean;
+  /** Login que ficou como estava, e por quê (a Matriz resolve). */
+  acessoMantidoPor: string | null;
+  lideradosAtivos: number;
+}
+
+const BANIMENTO = "876000h";
+
+// Desligar, afastar ou reativar (01/10/2026, pedido do RH de Maceió). Quem
+// decide e corta o login é `ops.gente_definir_status` (migration
+// 20261001210000), que roda com a autoridade de quem chama. Aqui só se faz o
+// que o banco não alcança: banir no Auth e avisar o Financeiro, do mesmo jeito
+// que o "Desativar" do Admin.
+export const definirStatusPessoa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { pessoaId: number; status: StatusPessoa; data?: string; motivo?: string }) => {
+      if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+      if (!["ativo", "afastado", "desligado"].includes(input?.status)) {
+        throw new Error("Situação inválida.");
+      }
+      const data = input.data || null;
+      if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error("Data inválida.");
+      if (input.status === "desligado" && !data) throw new Error("Informe a data do desligamento.");
+      return {
+        pessoaId: input.pessoaId,
+        status: input.status,
+        data,
+        motivo: input.motivo?.trim().slice(0, 300) || null,
+      };
+    },
+  )
+  .handler(async ({ data, context }): Promise<StatusResult> => {
+    const supabase = context.supabase as Cliente;
+    const { data: r, error } = await supabase.rpc("gente_definir_status", {
+      _pessoa: data.pessoaId,
+      _status: data.status,
+      _data: data.data,
+      _motivo: data.motivo,
+    });
+    if (error) throw new Error(error.message);
+    const res = r as {
+      user_id: string | null;
+      acesso_cortado: boolean;
+      acesso_reativado: boolean;
+      acesso_mantido_por: string | null;
+      liderados_ativos: number;
+    };
+
+    if (res.user_id && (res.acesso_cortado || res.acesso_reativado)) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: u, error: banErr } = await supabaseAdmin.auth.admin.updateUserById(
+        res.user_id,
+        { ban_duration: res.acesso_cortado ? BANIMENTO : "none" },
+      );
+      if (banErr) console.error("[gente.definirStatusPessoa] banimento falhou:", banErr);
+      const email = u?.user?.email ?? "";
+      if (email) {
+        const { aplicarConcessaoNoFinanceiro } = await import("@/lib/sessoes-irmas.functions");
+        await aplicarConcessaoNoFinanceiro(res.user_id, email);
+      }
+    }
+
+    return {
+      acessoCortado: res.acesso_cortado,
+      acessoReativado: res.acesso_reativado,
+      acessoMantidoPor: res.acesso_mantido_por,
+      lideradosAtivos: Number(res.liderados_ativos ?? 0),
+    };
+  });
+
+// Excluir só cadastro sem histórico nenhum, o caso de quem entrou duas vezes
+// por engano. O banco confere em todas as tabelas que apontam para a pessoa e
+// recusa com a lista do que encontrou.
+export const excluirCadastro = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pessoaId: number }) => {
+    if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+    return { pessoaId: input.pessoaId };
+  })
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as Cliente).rpc("gente_excluir_cadastro", {
+      _pessoa: data.pessoaId,
+    });
+    if (error) {
+      // "já tem histórico (gente_avaliacoes.avaliado_id, ...)": a tela não
+      // precisa do nome das tabelas.
+      if (error.code === "23503") {
+        throw new Error(
+          error.message.startsWith("Esta pessoa tem login")
+            ? error.message
+            : "Esta pessoa já tem histórico no Planning People (avaliação, 1:1, feedback, PDI ou liderados). Use Desligar.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 /** "Dar acesso" na linha de quem está no cadastro e ainda não tem login. */
