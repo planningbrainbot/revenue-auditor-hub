@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { KeyRound, Pencil, UserPlus } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   definirStatusPessoa,
   editarPessoa,
   excluirCadastro,
+  listHistoricoPessoa,
   type AcessoResult,
   type StatusPessoa,
   type GentePessoaRow,
@@ -374,6 +375,53 @@ export function NovaPessoaDialog({
   );
 }
 
+/** O que mudou no cadastro, de quem e quando (trigger de 01/10/2026). */
+function HistoricoPessoa({ pessoaId }: { pessoaId: number }) {
+  const fn = useServerFn(listHistoricoPessoa);
+  const q = useQuery({
+    queryKey: ["gente-historico", pessoaId],
+    queryFn: () => fn({ data: { pessoaId } }),
+  });
+  const linhas = q.data ?? [];
+  return (
+    <div className="mt-2 grid gap-2 border-t pt-4">
+      <h4 className="text-sm font-medium">Histórico</h4>
+      {q.isLoading ? (
+        <p className="text-[13px] text-muted-foreground">Carregando…</p>
+      ) : linhas.length ? (
+        <ul className="max-h-56 space-y-2 overflow-auto text-[13px]">
+          {linhas.map((h, i) => (
+            <li key={i} className="border-l-2 border-border pl-3">
+              <div>
+                <span className="font-medium">{h.campo}</span>
+                {h.campo === "Cadastro criado" ? (
+                  <span> {h.depois}</span>
+                ) : (
+                  <span>
+                    : {h.antes ?? "vazio"} → {h.depois ?? "vazio"}
+                  </span>
+                )}
+              </div>
+              <div className="text-muted-foreground">
+                {new Date(h.quando).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+                {h.quem ? ` · ${h.quem}` : ""}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[13px] text-muted-foreground">
+          Nenhuma alteração registrada. O histórico começou em 01/10/2026; o que mudou antes disso
+          não foi guardado.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const MOTIVOS_DESLIGAMENTO = [
   "Pedido de demissão",
   "Dispensa sem justa causa",
@@ -411,6 +459,7 @@ function SituacaoPessoa({
     qc.invalidateQueries({ queryKey: ["gente"] });
     qc.invalidateQueries({ queryKey: ["gente-menu"] });
     qc.invalidateQueries({ queryKey: ["gente-ave-radar"] });
+    qc.invalidateQueries({ queryKey: ["gente-historico", pessoa.id] });
   };
 
   const mudar = useMutation({
@@ -718,6 +767,7 @@ export function EditarPessoaDialog({
       }),
     onSuccess: () => {
       toast.success("Cadastro atualizado.");
+      qc.invalidateQueries({ queryKey: ["gente-historico", pessoa.id] });
       setAberto(false);
       qc.invalidateQueries({ queryKey: ["gente"] });
       qc.invalidateQueries({ queryKey: ["gente-menu"] });
@@ -858,6 +908,7 @@ export function EditarPessoaDialog({
           </DialogFooter>
         </form>
         <SituacaoPessoa pessoa={pessoa} aoConcluir={() => setAberto(false)} />
+        {aberto ? <HistoricoPessoa pessoaId={pessoa.id} /> : null}
       </DialogContent>
     </Dialog>
   );

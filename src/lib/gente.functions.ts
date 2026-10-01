@@ -1036,6 +1036,145 @@ export const excluirCadastro = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export interface HistoricoRow {
+  campo: string;
+  antes: string | null;
+  depois: string | null;
+  quem: string | null;
+  quando: string;
+}
+
+const CAMPOS_HISTORICO: Record<string, string> = {
+  cadastro: "Cadastro criado",
+  nome_completo: "Nome",
+  email: "E-mail",
+  cargo: "Cargo",
+  departamento: "Departamento",
+  gestor_id: "Gestor",
+  tipo_vinculo: "Vínculo",
+  data_admissao: "Admissão",
+  unidade_id: "Unidade",
+  status: "Situação",
+  data_desligamento: "Data de desligamento",
+};
+
+const ROTULO_ORIGEM: Record<string, string> = {
+  manual: "à mão",
+  planilha: "pela planilha",
+  qulture: "importado do Qulture",
+  socios: "pelo cadastro de sócios",
+};
+
+const VINCULO_ROTULO: Record<string, string> = {
+  socio: "Sócio",
+  clt: "CLT",
+  pj: "PJ",
+  estagio: "Estágio",
+  prolabore: "Pró-labore",
+  terceiro: "Terceiro",
+};
+
+const fmtDataBR = (d: string | null) =>
+  d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR") : null;
+
+// Histórico do cadastro (trigger da migration 20261001230000). A RLS recorta
+// pela unidade; aqui só se traduz id em nome para a tela.
+export const listHistoricoPessoa = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pessoaId: number }) => {
+    if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+    return { pessoaId: input.pessoaId };
+  })
+  .handler(async ({ data, context }): Promise<HistoricoRow[]> => {
+    const supabase = context.supabase as Cliente;
+    const { data: linhas, error } = await supabase
+      .from("gente_pessoas_historico")
+      .select("campo,antes,depois,alterado_por,alterado_em")
+      .eq("pessoa_id", data.pessoaId)
+      .order("alterado_em", { ascending: false })
+      .limit(200);
+    if (error) {
+      if (error.code === "42P01") return [];
+      throw new Error(error.message);
+    }
+    type L = {
+      campo: string;
+      antes: string | null;
+      depois: string | null;
+      alterado_por: string | null;
+      alterado_em: string;
+    };
+    const rows = (linhas ?? []) as L[];
+
+    const idsGestor = new Set<number>();
+    const idsUnidade = new Set<number>();
+    for (const r of rows) {
+      for (const v of [r.antes, r.depois]) {
+        if (!v) continue;
+        if (r.campo === "gestor_id") idsGestor.add(Number(v));
+        if (r.campo === "unidade_id") idsUnidade.add(Number(v));
+      }
+    }
+    const autores = Array.from(
+      new Set(rows.map((r) => r.alterado_por).filter(Boolean)),
+    ) as string[];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [gestores, unidades, perfis] = await Promise.all([
+      idsGestor.size
+        ? supabase
+            .from("gente_diretorio")
+            .select("id,nome_completo")
+            .in("id", [...idsGestor])
+        : Promise.resolve({ data: [] }),
+      idsUnidade.size
+        ? supabase
+            .from("unidades")
+            .select("id,nome_da_praca")
+            .in("id", [...idsUnidade])
+        : Promise.resolve({ data: [] }),
+      // Só o nome de quem alterou: `profiles` é do Admin e a RLS não abre para o RH.
+      autores.length
+        ? (supabaseAdmin as Cliente).from("profiles").select("user_id,nome").in("user_id", autores)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const nomeGestor = new Map<string, string>(
+      ((gestores?.data ?? []) as { id: number; nome_completo: string }[]).map((g) => [
+        String(g.id),
+        g.nome_completo,
+      ]),
+    );
+    const nomeUnidade = new Map<string, string>(
+      ((unidades?.data ?? []) as { id: number; nome_da_praca: string }[]).map((u) => [
+        String(u.id),
+        u.nome_da_praca,
+      ]),
+    );
+    const nomeAutor = new Map<string, string>(
+      ((perfis?.data ?? []) as { user_id: string; nome: string | null }[]).map((p) => [
+        p.user_id,
+        p.nome ?? "",
+      ]),
+    );
+
+    const traduzir = (campo: string, v: string | null): string | null => {
+      if (v == null || v === "") return null;
+      if (campo === "gestor_id") return nomeGestor.get(v) ?? "pessoa fora do seu cadastro";
+      if (campo === "unidade_id") return nomeUnidade.get(v) ?? v;
+      if (campo === "tipo_vinculo") return VINCULO_ROTULO[v] ?? v;
+      if (campo === "data_admissao" || campo === "data_desligamento") return fmtDataBR(v);
+      if (campo === "cadastro") return ROTULO_ORIGEM[v] ?? v;
+      return v;
+    };
+
+    return rows.map((r) => ({
+      campo: CAMPOS_HISTORICO[r.campo] ?? r.campo,
+      antes: traduzir(r.campo, r.antes),
+      depois: traduzir(r.campo, r.depois),
+      quem: r.alterado_por ? nomeAutor.get(r.alterado_por) || null : null,
+      quando: r.alterado_em,
+    }));
+  });
+
 /** "Dar acesso" na linha de quem está no cadastro e ainda não tem login. */
 export const darAcessoPessoa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

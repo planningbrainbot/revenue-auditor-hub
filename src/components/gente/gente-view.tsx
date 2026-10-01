@@ -37,7 +37,7 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
-import { diasDeCasa } from "./tempo-de-casa";
+import { aniversarioDeEmpresaNoMes, diasDeCasa, fmtTempoDeCasa } from "./tempo-de-casa";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
 // `docs/design/contratos/gente.md`). Filtros na URL (N7): `busca`, `unidade`,
@@ -61,15 +61,25 @@ const CHAVES_FILTRO = [
 // Faixas pensadas para a avaliação de experiência (45 e 90 dias): o RH filtra
 // quem está na janela antes de mandar a pesquisa. Pedido do RH de Maceió,
 // 30/09/2026, no lugar de um ciclo automático por admissão.
-const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (dias: number | null) => boolean }> = {
-  ate45: { rotulo: "Até 45 dias", cabe: (d) => d != null && d <= 45 },
-  "46a90": { rotulo: "De 46 a 90 dias", cabe: (d) => d != null && d > 45 && d <= 90 },
-  mais90: { rotulo: "Mais de 90 dias", cabe: (d) => d != null && d > 90 },
-  sem: { rotulo: "Sem data de admissão", cabe: (d) => d == null },
-};
-
-const fmtCasa = (d: number | null) =>
-  d == null ? NA : d < 0 ? `entra em ${-d} d` : d === 1 ? "1 dia" : `${NUM.format(d)} dias`;
+// "Aniversário de empresa no mês" entrou em 01/10/2026, também a pedido dela,
+// para homenagear quem completa 1, 2, 3 anos.
+const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (admissao: string | null) => boolean }> =
+  {
+    ate45: { rotulo: "Até 45 dias", cabe: (a) => (diasDeCasa(a) ?? Infinity) <= 45 },
+    "46a90": {
+      rotulo: "De 46 a 90 dias",
+      cabe: (a) => {
+        const d = diasDeCasa(a);
+        return d != null && d > 45 && d <= 90;
+      },
+    },
+    mais90: { rotulo: "Mais de 90 dias", cabe: (a) => (diasDeCasa(a) ?? -1) > 90 },
+    aniversario: {
+      rotulo: "Aniversário de empresa no mês",
+      cabe: (a) => aniversarioDeEmpresaNoMes(a) != null,
+    },
+    sem: { rotulo: "Sem data de admissão", cabe: (a) => !a },
+  };
 const NUM = new Intl.NumberFormat("pt-BR");
 
 const VINCULO_LABEL: Record<string, string> = {
@@ -130,7 +140,7 @@ export function GenteView() {
     return doStatus.filter((p: GentePessoaRow) => {
       if (unidade && p.unidade !== unidade) return false;
       if (departamento && p.departamento !== departamento) return false;
-      if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(diasDeCasa(p.dataAdmissao))) {
+      if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(p.dataAdmissao)) {
         return false;
       }
       const adm = p.dataAdmissao?.slice(0, 10) ?? null;
@@ -452,7 +462,16 @@ export function GenteView() {
                           {p.tipoVinculo ? (VINCULO_LABEL[p.tipoVinculo] ?? p.tipoVinculo) : NA}
                         </TableCell>
                         <TableCell className="num">{fmtData(p.dataAdmissao)}</TableCell>
-                        <TableCell className="num">{fmtCasa(diasDeCasa(p.dataAdmissao))}</TableCell>
+                        <TableCell className="num">
+                          {fmtTempoDeCasa(p.dataAdmissao)}
+                          {aniversarioDeEmpresaNoMes(p.dataAdmissao) ? (
+                            <div className="text-[12px] text-success">
+                              faz {aniversarioDeEmpresaNoMes(p.dataAdmissao)}{" "}
+                              {aniversarioDeEmpresaNoMes(p.dataAdmissao) === 1 ? "ano" : "anos"} em{" "}
+                              {fmtData(p.dataAdmissao).slice(0, 5)}
+                            </div>
+                          ) : null}
+                        </TableCell>
                         <TableCell>
                           {st ? (
                             <StatusBadge tom={st.tom}>{st.rotulo}</StatusBadge>
