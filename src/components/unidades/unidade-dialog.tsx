@@ -30,7 +30,7 @@ import {
 } from "@/lib/unidades-cadastro.functions";
 import { lerNumeroBr, pendenciasDaUnidade, type TipoUnidade } from "@/lib/unidades-cadastro";
 
-/** A linha de ops.unidades como a tela Regras da Rede lê. */
+/** A linha de ops.unidades como a lista de Unidades e a ficha leem. */
 export type UnidadeCadastro = {
   id: number;
   nome_da_praca: string | null;

@@ -4100,3 +4100,63 @@ sending/sent/uncertain) deixa de contar como registro comercial. Qualquer outra 
 de "nova" para "confirmar". Não voltam para "antiga": o Pipefy delas declara "Base Nova", e a validação de 18/09 só
 vale com a correção no Pipefy ("Validação registrada; aguardando confirmação da correção no Pipefy"). O Pipefy de 16
 delas foi atualizado minutos depois do envio de 29/09; vale conferir se alguma automação do Pipefy reescreve a origem.
+
+## [2026-10-01] Ficha da unidade substitui Regras da Rede
+
+**Contexto:** o Eliezek pediu que "a página da unidade" contivesse tudo: dados cadastrais e chaves de acesso, em
+vez de informação separada. Não existia página de unidade. Cadastro e regra de repasse estavam numa tabela de 13
+colunas em `/unidades` (Regras da Rede), os sócios numa linha expandida dela (casados por nome aproximado), o login
+em `/admin/usuarios`, a chave do Omie em `/admin/integracoes` e o e-mail do DP no Gente.
+
+**Decisões do Eliezek:**
+1. Chaves de acesso: só o super admin (`ops.eh_super_admin`), e fora da simulação de unidade.
+2. O sócio vê a ficha da própria unidade, sem as chaves.
+3. Regras da Rede não precisa existir: a regra vai para a ficha. Apuração de Royalties, Funil de CAC e Split
+   continuam como telas da rede, e a ficha aponta para elas.
+
+**Como ficou:**
+- `/unidades/$unidadeId`, montada por `fichaDaUnidade` (`src/lib/unidade-ficha.functions.ts`). A autorização é feita
+  com o cliente de quem pede e a leitura com o service role, porque o sócio não lê `socios`, `profiles` nem o Auth.
+  A matriz (`view.unidades_rede`) abre qualquer unidade. Os outros só abrem unidade de `ops.minhas_unidades()`.
+  A regra de repasse aparece para a matriz ou para quem tem a área `minha_unidade_financeiro` (a mesma de Meus
+  Royalties). Os vínculos com os sistemas aparecem só para a matriz. O servidor apaga os campos que a pessoa não vê.
+  Por isso o botão Editar só aparece para quem recebeu a linha inteira: o diálogo gravaria os vazios por cima.
+- `/unidades` passou a se chamar "Unidades": lista com status, inauguração, sócios e pendências do cadastro, e cada
+  linha abre a ficha. "Nova unidade" continua no cabeçalho, e editar passou para a ficha.
+- Sócio: item "Ficha da unidade" na área Minha Unidade, `/minha-unidade`, que leva à ficha da unidade dele.
+- Pessoas na ficha: os sócios (`socios.unidade_id`) e as contas de `usuario_unidades` com recorte de verdade. As 13
+  a 15 contas da matriz que aparecem em toda unidade (escopo "todas as unidades" ou a lista inteira marcada) ficam
+  de fora.
+- Migration `20261002120000_omie_credentials_unidade_id` (aplicada em 01/10): `ops.omie_credentials.unidade_id`, não
+  única porque Curitiba tem três aplicativos. "Planning CWB 01/02" foram para Curitiba e "São Luís" para São Luis.
+  "Planning Partners (Matriz)" ficou nula de propósito, porque é a holding e não uma unidade. Um gatilho preenche
+  pelo nome exato quando `/admin/integracoes` grava. As edge functions continuam lendo a coluna `unidade`.
+
+**Achado, não resolvido aqui:** a policy "Permission-based read" de `ops.unidades` libera a tabela inteira a quem tem
+`view.clientes`, e o sócio regional tem essa chave. Pelo PostgREST ele lê o royalties e o CSC das outras unidades.
+A ficha não depende disso, porque lê pelo servidor, mas fechar essa leitura pede uma policy RESTRICTIVE por unidade
+(ver feedback_rls_escopo_unidade_restrictive).
+
+## [2026-10-01] Sócio não lê royalties, taxas nem números de outra unidade
+
+**Contexto:** o achado da entrada anterior. O Eliezek pediu para corrigir: "um sócio não pode ver informação de
+royalties e taxas de outras unidades". Medido numa sessão simulada do sócio regional de Belém, ele lia pelo PostgREST
+`ops.unidades` (15 unidades), `v_royalties_mensais`, `v_funil_mensal` e `v_reconciliacao_mensal` (11 unidades cada),
+`v_payback_simulacao` e `broker_saldo` (15), `v_cac_cobranca_pipe` (6) e o caixa da Partners inteiro
+(`partners_dfc_caixa_competencia`, 1.344 lançamentos, policy `tem_produto('ops')`).
+
+**Decisão:** migration `20261002130000_escopo_unidade_royalties`, aplicada em 01/10 depois de um ensaio com rollback.
+- `ops.unidades` ganhou a RESTRICTIVE `escopo_unidade` de SELECT, pelo id da unidade (`minhas_unidades()`).
+- As seis views mantêm a definição inteira, agora dentro de um filtro pela unidade da linha. O filtro só vale para
+  sessão `authenticated` com recorte de unidade. Service role e postgres passam direto, então syncs e edge functions
+  não mudam.
+- `partners_dfc_*`: quem tem recorte de unidade não lê.
+
+**Efeito medido:** o sócio de Belém passou a ler só Belém em todas, e 0 no caixa da Partners. Admin, CS, head,
+financeiro e service role ficaram idênticos (contagem antes e depois). Paula Almeida (Gente de Maceió) passou a ler
+só Maceió. Rayssa Silva, com as 15 unidades marcadas uma a uma, segue vendo as 15, mas não verá unidade nova e perdeu o
+caixa da Partners. Se ela é da matriz, o certo é `todas_unidades = true`. Rollback em
+`supabase/rollback/20261002130000_escopo_unidade_royalties_rollback.sql`.
+
+**Fora deste recorte, para decidir depois:** `v_clientes_diretorio` (clientes de 5 unidades) e `v_nps_regional` (NPS
+de 7 unidades) ainda abrem linhas de outras unidades ao sócio. Não têm royalties nem taxas, mas são da mesma família.

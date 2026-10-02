@@ -246,7 +246,7 @@ const DESTINO_COMPROMISSOS: Destino = destino(
 
 const DESTINO_UNIDADES: Destino = destino(
   "/unidades",
-  "Abrir Regras da Rede",
+  "Abrir Unidades",
   true,
   "O cadastro mostra a data de inauguração de cada unidade; sem ela, a unidade fica em implantação.",
 );

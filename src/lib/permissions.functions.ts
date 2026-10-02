@@ -143,9 +143,9 @@ export const KNOWN_PERMISSIONS: {
   },
   {
     key: "view.unidades_rede",
-    label: "Regras da Rede e Apuração de Royalties",
+    label: "Unidades e Apuração de Royalties",
     description:
-      "As duas páginas de /unidades que andam juntas: Regras da Rede e Apuração de Royalties. Uma chave só porque quem apura precisa das duas.",
+      "As duas páginas de /unidades que andam juntas: Unidades (com a ficha de cada uma) e Apuração de Royalties. Uma chave só porque quem apura precisa das duas.",
     group: "Acesso",
   },
   {
@@ -508,7 +508,7 @@ export const KNOWN_PERMISSIONS: {
     key: "manage.unidades_rede",
     label: "Cadastrar e editar unidades",
     description:
-      "Criar unidade e editar o cadastro em Regras da Rede: CNPJ, royalties, CSC, CAC, mídia e os vínculos com Pipefy, Pipedrive e Omie. Fica na área Administração.",
+      "Criar unidade em Unidades e editar o cadastro na ficha dela: CNPJ, royalties, CSC, CAC, mídia e os vínculos com Pipefy, Pipedrive e Omie. Fica na área Administração.",
     group: "Administração",
   },
   {

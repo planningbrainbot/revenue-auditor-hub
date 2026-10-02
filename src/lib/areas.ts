@@ -348,9 +348,11 @@ export const AREAS: Area[] = [
         label: "Repasses das unidades",
         items: [
           {
-            title: "Regras da Rede",
+            // Era "Regras da Rede" até 01/10/2026: a regra de repasse foi para
+            // a ficha de cada unidade, junto com sócios, acessos e chaves.
+            title: "Unidades",
             url: "/unidades",
-            icon: ScrollText,
+            icon: Landmark,
           },
           {
             title: "Apuração de Royalties",
@@ -617,6 +619,8 @@ export const AREAS: Area[] = [
         label: "Minha Unidade",
         items: [
           { title: "Painel", url: "/painel-unidade", icon: Gauge, chave: "view.painel_unidade" },
+          // A ficha da própria unidade (/unidades/$unidadeId), sem as chaves.
+          { title: "Ficha da unidade", url: "/minha-unidade", icon: ScrollText },
           { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },

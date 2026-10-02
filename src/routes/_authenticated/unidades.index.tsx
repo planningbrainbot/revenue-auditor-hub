@@ -42,27 +42,27 @@ export const Route = createFileRoute("/_authenticated/unidades/")({
   },
   head: () => ({
     meta: [
-      { title: "Regras da Rede – Planning" },
+      { title: "Unidades – Planning" },
       {
         name: "description",
-        content: "Cadastro das unidades e as regras de royalties que valem para cada uma.",
+        content: "As unidades da rede. Cada uma abre a ficha com cadastro, regra de repasse, sócios, acessos e chaves.",
       },
     ],
   }),
-  component: RegrasDaRedePage,
+  component: UnidadesPage,
 });
 
-function RegrasDaRedePage() {
+function UnidadesPage() {
   useAuth();
   const { can, loading } = usePermissions();
   const [novaAberta, setNovaAberta] = useState(false);
   const podeCadastrar = !loading && can("manage.unidades_rede");
   return (
     <MolduraReceita
-      titulo="Regras da Rede"
-      pergunta="Qual é a regra de repasse de cada unidade?"
-      descricao="Unidades da rede e a regra vigente hoje: percentual de royalties, CSC (fixo ou % da base antiga), mídia e CAC. Quem tem a chave de cadastro cria e edita unidades aqui."
-      procedencia={{ fonte: "Cadastro de unidades e sócios (Supabase)", regua: "regra vigente hoje" }}
+      titulo="Unidades"
+      pergunta="Quais são as unidades da rede, e o cadastro delas está completo?"
+      descricao="Cada unidade abre a sua ficha: cadastro, regra de repasse, sócios e quem entra no Ops, vínculos com os sistemas e, para o super admin, as chaves do Omie. Quem tem a chave de cadastro cria unidades aqui e edita na ficha."
+      procedencia={{ fonte: "Cadastro de unidades e sócios (Supabase)", regua: "cadastro vigente hoje" }}
       acoes={
         loading ? undefined : podeCadastrar ? (
           <Button onClick={() => setNovaAberta(true)}>
@@ -90,7 +90,7 @@ function RegrasDaRedePage() {
         )
       }
     >
-      <GuardaUnidades permissao="view.unidades_rede" nome="as Regras da Rede">
+      <GuardaUnidades permissao="view.unidades_rede" nome="as Unidades">
         <RedeContent novaAberta={novaAberta} aoMudarNovaAberta={setNovaAberta} />
       </GuardaUnidades>
     </MolduraReceita>

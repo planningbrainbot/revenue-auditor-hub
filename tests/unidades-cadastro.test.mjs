@@ -8,6 +8,8 @@ import {
   normalizarEmails,
   normalizarSigla,
   pendenciasDaUnidade,
+  statusDaUnidade,
+  tempoDeCasa,
   validarUnidade,
 } from "../src/lib/unidades-cadastro.ts";
 
@@ -129,4 +131,17 @@ test("Sigla e e-mails do CSC", () => {
     "b@x.com.br",
   ]);
   assert.throws(() => normalizarEmails(["sem-arroba"]), /inválido/);
+});
+
+test("status e tempo de casa leem a data no fuso local", () => {
+  const hoje = new Date(2026, 9, 1); // 01/10/2026
+  assert.equal(statusDaUnidade({ tipo: "interna", data_inauguracao: "2030-01-01" }, hoje), "interna");
+  assert.equal(statusDaUnidade({ tipo: "regional", data_inauguracao: "2026-10-01" }, hoje), "ativa");
+  assert.equal(statusDaUnidade({ tipo: "regional", data_inauguracao: "2026-10-02" }, hoje), "futura");
+  assert.equal(statusDaUnidade({ tipo: "regional", data_inauguracao: null }, hoje), "ativa");
+  assert.equal(tempoDeCasa("2026-09-01", hoje), "1 mês");
+  assert.equal(tempoDeCasa("2024-10-01", hoje), "2 anos");
+  assert.equal(tempoDeCasa("2025-04-15", hoje), "1a 6m");
+  assert.equal(tempoDeCasa("2026-11-01", hoje), "inicia 11/2026");
+  assert.equal(tempoDeCasa(null, hoje), "—");
 });

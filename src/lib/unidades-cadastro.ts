@@ -211,6 +211,40 @@ export function lerRegistroPipefy(no: NoPipefy): RegistroPipefyUnidade {
   };
 }
 
+/** Data `AAAA-MM-DD` no fuso local, sem passar por `new Date(iso)` (que lê como UTC e volta um dia). */
+function dataLocal(iso: string): Date {
+  const [a, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(a, m - 1, d);
+}
+
+export type StatusUnidade = "ativa" | "futura" | "interna";
+
+/** O mesmo status na lista de unidades e na ficha. */
+export function statusDaUnidade(
+  u: { tipo: string | null; data_inauguracao: string | null },
+  hoje: Date = new Date(),
+): StatusUnidade {
+  if ((u.tipo ?? "").toLowerCase() === "interna") return "interna";
+  if (u.data_inauguracao && dataLocal(u.data_inauguracao) > hoje) return "futura";
+  return "ativa";
+}
+
+export function tempoDeCasa(dataInauguracao: string | null, hoje: Date = new Date()): string {
+  if (!dataInauguracao) return "—";
+  const inicio = dataLocal(dataInauguracao);
+  if (inicio > hoje) {
+    return `inicia ${inicio.toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" })}`;
+  }
+  const meses =
+    (hoje.getFullYear() - inicio.getFullYear()) * 12 + (hoje.getMonth() - inicio.getMonth());
+  if (meses < 1) return "< 1 mês";
+  if (meses < 12) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
+  const anos = Math.floor(meses / 12);
+  const resto = meses % 12;
+  if (resto === 0) return `${anos} ${anos === 1 ? "ano" : "anos"}`;
+  return `${anos}a ${resto}m`;
+}
+
 /** O que a unidade precisa ter, e o que ainda não tem. Lido de ops.unidades e de ops.csc_unidades. */
 export type Pendencia = { chave: string; texto: string };
 
