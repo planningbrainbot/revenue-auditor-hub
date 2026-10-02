@@ -355,7 +355,7 @@ export function ReceitaOverviewContent() {
         fonte: "Apuração de royalties, faturas e títulos do Omie",
         regua: "caixa no repasse, competência na receita",
       }}
-      filtros={<SeletorMes mes={mes} aoMudar={setMes} maximo={maximo} />}
+      filtros={<SeletorMes mes={mes} aoMudar={setMes} maximo={maximo} comApuracao />}
     >
       <div className="space-y-6 p-4 md:p-6">
         {isLoading && <Carregando variante="kpis" />}
@@ -367,10 +367,6 @@ export function ReceitaOverviewContent() {
             tentarNovamente={() => void refetch()}
           />
         )}
-
-        {/* ================= O QUE FICOU DE MESES ANTERIORES ================= */}
-        {/* Antes do bloco do mês: é o único que não recomeça quando o mês vira. */}
-        {data?.podeRepasse && <RepassePendenteBloco destinoApuracao={destinoApuracao} />}
 
         {/* ================= REPASSE ================= */}
         {data && !data.podeRepasse && (
@@ -712,6 +708,10 @@ export function ReceitaOverviewContent() {
             </CartaoGrafico>
           </Secao>
         )}
+
+        {/* ================= O QUE FICOU DE MESES ANTERIORES ================= */}
+        {/* Depois dos blocos do mês: é o único que não segue o seletor de mês. */}
+        {data?.podeRepasse && <RepassePendenteBloco destinoApuracao={destinoApuracao} />}
 
         {/* ================= ATALHOS ================= */}
         {atalhos.length > 0 && (

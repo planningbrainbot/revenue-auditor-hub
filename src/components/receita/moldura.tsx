@@ -114,11 +114,17 @@ export function SeletorMes({
   aoMudar,
   maximo = mesCorrente(),
   minimo,
+  comApuracao = false,
 }: {
   mes: string;
   aoMudar: (mes: string) => void;
   maximo?: string;
   minimo?: string;
+  /**
+   * Mostra, embaixo da competência, o mês em que ela é apurada e cobrada
+   * (M+1). Olhar só um mês confunde: a apuração de setembro se faz em outubro.
+   */
+  comApuracao?: boolean;
 }) {
   const anterior = deslocarMes(mes, -1);
   const proximo = deslocarMes(mes, 1);
@@ -137,12 +143,24 @@ export function SeletorMes({
       >
         <ChevronLeft className="size-4" aria-hidden />
       </Button>
-      <span
-        className="min-w-[160px] rounded-md border bg-background px-3 py-1 text-center text-sm font-medium"
-        aria-live="polite"
-      >
-        {rotuloMes(mes)}
-      </span>
+      {comApuracao ? (
+        <span
+          className="flex min-w-[200px] flex-col rounded-md border bg-background px-3 py-1 text-center"
+          aria-live="polite"
+        >
+          <span className="text-sm font-medium">Competência {rotuloMes(mes)}</span>
+          <span className="text-xs text-muted-foreground">
+            apurada e cobrada em {rotuloMes(proximo).toLowerCase()}
+          </span>
+        </span>
+      ) : (
+        <span
+          className="min-w-[160px] rounded-md border bg-background px-3 py-1 text-center text-sm font-medium"
+          aria-live="polite"
+        >
+          {rotuloMes(mes)}
+        </span>
+      )}
       <Button
         type="button"
         variant="outline"
