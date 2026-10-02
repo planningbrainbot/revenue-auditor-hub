@@ -37,6 +37,7 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
 import { VisaoHoje } from "./hoje";
+import { FONTE_GRAVACOES, VisaoGravacoes } from "./gravacoes";
 import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
@@ -95,6 +96,7 @@ const TITULOS: Record<Aba, string> = {
   pessoas: "Pessoas e PDI",
   roteiros: "Abordagens",
   distribuicao: "Distribuição",
+  gravacoes: "Gravações",
 };
 const PERGUNTAS: Record<Aba, string> = {
   operacao: "O farmer está no ritmo, e onde a base trava?",
@@ -107,6 +109,7 @@ const PERGUNTAS: Record<Aba, string> = {
     "Como o hunter está nos cinco critérios, e qual é o próximo passo de desenvolvimento dele?",
   roteiros: "O que eu digo para este produto e este segmento?",
   distribuicao: "A carga está bem dividida entre os responsáveis, ou alguém está sem base?",
+  gravacoes: "O que foi dito e ofertado em cada reunião do pipe 39?",
 };
 
 /**
@@ -125,6 +128,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean } | null> = {
   distribuicao: { periodo: true, produto: true },
   forecast: null,
   roteiros: null,
+  // Gravações tem barra própria (mês da reunião, situação da gravação e busca), dentro da visão.
+  gravacoes: null,
 };
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -257,7 +262,10 @@ export function DashboardMonetizacao({
       />
     </>
   );
-  const procedencia = procedenciaMonetizacao(data);
+  const procedencia =
+    aba === "gravacoes"
+      ? { fonte: FONTE_GRAVACOES, atualizadoEm: data.measured_at }
+      : procedenciaMonetizacao(data);
 
   if (!data.permissions.view)
     return (
@@ -329,6 +337,7 @@ export function DashboardMonetizacao({
     dias: busca.dias ?? DIAS_PADRAO,
     donoPlano: responsavel,
     ate: diaMes(filter.to),
+    mesGravacoes: busca.mes,
   });
 
   const menosDias = (n: number) =>
@@ -529,7 +538,9 @@ export function DashboardMonetizacao({
         </>
       )}
 
-      {data.measured_at && aba !== "operacao" && (
+      {aba === "gravacoes" && <VisaoGravacoes data={data} busca={busca} mudarBusca={mudarBusca} />}
+
+      {data.measured_at && aba !== "operacao" && aba !== "gravacoes" && (
         <Analysis
           aba={aba}
           data={data}
@@ -565,6 +576,7 @@ function descricaoDaAba(
     dias: number;
     donoPlano: string;
     ate: string;
+    mesGravacoes?: string;
   },
 ): string {
   switch (aba) {
@@ -597,6 +609,8 @@ function descricaoDaAba(
       const aprovadas = roteiros.filter((r) => r.body.status === "aprovado").length;
       return `Biblioteca de abordagens da equipe · ${roteiros.length} ${roteiros.length === 1 ? "salva" : "salvas"}, ${aprovadas} ${aprovadas === 1 ? "aprovada" : "aprovadas"}`;
     }
+    case "gravacoes":
+      return `Reuniões de levantamento e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
     case "distribuicao":
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
   }
