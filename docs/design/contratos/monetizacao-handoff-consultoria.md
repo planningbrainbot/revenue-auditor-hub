@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Victor Eliezek (repo) · Pedro Luca (tela)   **Data:** 02/10/2026
 
-Estado: **em aprovação**. Mockup com dado real: https://claude.ai/artifact/F5kUmqPVvKnkZL6X1CoecQ (medido em 02/10, 10h19).
+Estado: **construído em 02/10** a pedido do dono ("preciso que seja um painel ao vivo no módulo de monetização"), com as recomendações P1–P3 gravadas como regra **proposta** na tabela `ops.handoff_consultoria_regras` (o selo "Regra proposta" fica na tela até a confirmação). Mockup com dado real: https://claude.ai/artifact/F5kUmqPVvKnkZL6X1CoecQ.
 A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os filtros são os desta tela (abaixo).
 
 ## Propósito
@@ -18,7 +18,7 @@ A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os fi
 - **Chegou à Consultoria:** CNPJ (ou a raiz) cadastrado na plataforma da Consultoria (`ops.consultoria_clientes`, sem `ausente_desde`). Mês = dia do cadastro. O cadastro de 26/07 é a carga inicial e aparece marcado (hachurado no gráfico).
 - **Encaminhado:** campo "Será Encaminhado Para Consultoria Tributária?" = Sim, na fase de kickoff (existe desde 16/09). Mês = data do kickoff.
 - **Trabalhado:** chegou e tem proposta da Consultoria casada por CNPJ, valor a recuperar informado ou receita da PAT depois da chegada. Estado `parcial` enquanto a plataforma não enviar o status do trabalho.
-- **Receita da Consultoria:** títulos da PAT (grupo PAT do Financial Brain) com crédito no caixa no dia da chegada ou depois; cliente casado pelo nome do Omie (`omie_contraparte`) → CNPJ.
+- **Receita da Consultoria:** títulos da PAT (grupo PAT do Financial Brain) recebidos no caixa (`titulo_valor_pago`, líquido de retenções), pela data de crédito, do mês da chegada em diante; cliente casado pelo nome do Omie (`omie_contraparte`) → CNPJ. A régua é por mês, não por dia: o espelho guarda o recebido por CNPJ e mês.
 - **Recuperado (estimado):** créditos tributários faturados pela PAT (categoria "Creditos triburários", `fn_faturamento_mensal`) a partir do mês da chegada ÷ fee (tabela de regras). Substituído pelo valor real quando a plataforma enviar.
 - **A repassar à Expansão:** base × percentual da regra vigente (tabela de regras, nunca no código). Base: ver P2.
 - **Faixa:** "Faturamento anual" declarado no negócio ganho do Pipedrive; sem ele, o mesmo rótulo no campo "Faturamento" do card de onboarding. A estimativa da DataStone nunca entra.
@@ -29,9 +29,9 @@ A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os fi
 | Chegaram | clientes do onboarding na plataforma, cadastro no período | cliente | Pipefy + plataforma | sync de 15 min + hora | lista de clientes | sim |
 | Trabalhados | chegaram e têm sinal de trabalho | cliente | plataforma + PAT | idem | lista | sim |
 | Recuperado | créditos faturados ÷ fee | R$ | Financial Brain (PAT) | carga diária do Financeiro (`sync_log`) | clientes com crédito | sim |
-| Receita Consultoria | recebido pela PAT desde a chegada | R$ | Financial Brain (PAT) | idem | clientes com recebimento | sim |
+| Receita Consultoria | recebido pela PAT do mês da chegada em diante | R$ | Financial Brain (PAT) | idem | clientes com recebimento | sim |
 | A repassar à Expansão | base × regra | R$ | regra em tabela | idem | clientes na base, com "na base?" | sim |
-| Funil | No onboarding → Na Consultoria → Trabalhados → Com receita na PAT → Geram repasse; taxa = etapa ÷ a de cima | cliente | as acima | — | lista de cada etapa | só desce |
+| Funil | No onboarding → Na Consultoria → Trabalhados → Com receita na PAT → Geram repasse; taxa = etapa ÷ a de cima | cliente | as acima | — | lista de cada etapa · pipe inteiro, não segue o período | só desce |
 | Faixa | chegaram ÷ no onboarding, por faixa declarada | cliente | Pipedrive | — | lista da faixa | sim |
 | Tabela por mês | chegaram, recebido, fora da regra, base, Expansão, unidade | cliente / R$ | as acima | — | clientes do mês | sim |
 
@@ -53,7 +53,7 @@ A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os fi
 ## Filtros na URL (N7)
 | Parâmetro | Valores | Padrão | Afeta |
 |---|---|---|---|
-| `de`, `ate` | AAAA-MM-DD | 01/07/2026 → hoje | tudo |
+| `de`, `ate` | AAAA-MM-DD | 01/07/2026 → hoje | chegadas, meses e dinheiro (o funil é o pipe inteiro) |
 | `unidade` | nome da unidade | todas | tudo |
 | `grafico` | id do bloco | — | abre a gaveta |
 
@@ -74,6 +74,11 @@ A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os fi
 2. **P2 · Base e marco.** Recomendado: recebido em caixa, desde a chegada, sem os clientes que a PAT já faturava antes da chegada. Alternativa: todos desde a chegada.
 3. **P3 · Recuperado.** Recomendado: estimar pelo fee de 25% com selo "estimado" até a plataforma enviar o valor real.
 
+## Fontes técnicas
+- Sync: Edge Function `handoff-consultoria-sync` (a cada 30 min, job `handoff-consultoria-sync-30min`), só leitura no Pipefy e no Pipedrive.
+- Banco: migration `20261002180000_monetizacao_handoff_consultoria.sql` (duas tabelas espelho, regras, RPC `ops.handoff_consultoria_painel()`).
+- A edge function antiga `pipefy-contrato-onboarding-link` não entra: a automação nativa do Pipefy 308120505 já cria o card de onboarding a partir do contrato.
+
 ## Checagem
-- [ ] Definição de pronto de `docs/design/README.md` cumprida
-- [ ] Números conferidos na fonte (`scripts/monetizacao/conferir-handoff-consultoria`, recontagem independente)
+- [x] Definição de pronto de `docs/design/README.md` cumprida (capturas claro, escuro, celular e gaveta com dado real, fora do repositório)
+- [x] Números conferidos na fonte (`scripts/monetizacao/conferir-handoff-consultoria.mjs` contra `monetizacao/medicoes/2026-10-02-handoff-consultoria/medir_independente.py`)

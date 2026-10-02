@@ -46,6 +46,7 @@ import {
   CalendarDays,
   ClipboardList,
   ArrowRightLeft,
+  HandCoins,
 } from "lucide-react";
 
 /**
@@ -480,6 +481,11 @@ export const AREAS: Area[] = [
         label: "Oportunidades",
         items: [
           { title: "Operação diária", url: "/monetizacao", icon: LayoutDashboard },
+          {
+            title: "Handoff Consultoria",
+            url: "/monetizacao?aba=handoff-consultoria",
+            icon: HandCoins,
+          },
           { title: "Temporal e previsão", url: "/monetizacao?aba=temporal", icon: TrendingUp },
           { title: "Projetado × realizado", url: "/monetizacao?aba=forecast", icon: BarChart3 },
           { title: "Capacidade e alocação", url: "/monetizacao?aba=capacidade", icon: Gauge },
