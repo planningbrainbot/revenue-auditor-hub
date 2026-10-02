@@ -4277,3 +4277,29 @@ em `ops.socios` (Adílio, Maceió; Rogério, Curitiba; Wirlon, São Luis). A inf
 **Efeito medido:** Maceió vê 27 vendas, 4 delas por inferência. No total são 171 vendas com unidade, 21 por
 inferência. Ficam 33 sem unidade possível, porque o dono não é sócio de unidade nenhuma; para elas entrarem, é preciso
 preencher a Unidade de Negócio no Pipedrive.
+
+## [2026-10-02] Monetização: tela Gravações, trava por closer no servidor e o ofertado no campo do pipe (desligado)
+
+**Contexto:** frente 05 da call de 01/10. O Pedro pediu uma área para "registrar todas as gravações e transcrições" e
+"pela gravação da call vou saber o que tá ofertado". Mockup aprovado (https://claude.ai/artifact/GS3D2jtsYttXfmWp4EdzDG).
+Spec: `docs/superpowers/specs/2026-10-02-monetizacao-gravacoes-tela.md`; contrato `docs/design/contratos/monetizacao-gravacoes.md`.
+
+**Decisão:**
+1. **Tela** `/monetizacao?aba=gravacoes` ("Gravações", em Desenvolvimento comercial), Lista/Relatório com a ficha ao
+   lado. Junta as reuniões registradas (`ops.monetizacao_reunioes`) com as do histórico do card (régua cumulativa;
+   data = primeira entrada em levantamento realizado ou além, senão em agendado; proposta desde 01/10). Situações: Na
+   fila, Gravando, Avaliada, Sem gravação, Erro, Sem registro no card.
+2. **Quem vê o quê, no servidor:** o closer vê só as reuniões dos próprios cards; admin da Monetização (nível 3) e
+   super admin veem todas. Closer = login com o mesmo e-mail do usuário do Pipedrive dono do card
+   (`ops.monetizacao_closers`, nova). RPCs `security definer` `ops.monetizacao_gravacoes_lista()` (sem trecho) e
+   `ops.monetizacao_gravacao(event_id)` (a transcrição só sai depois da checagem); a RLS de `ops.monetizacao_reunioes`
+   segue a mesma regra. Com "ver como", ninguém é admin.
+3. **Ofertado:** confiança alta = trecho inteiro numa fala; média = 12 palavras seguidas; o minuto é o início da fala.
+   O campo "Caixa · Produtos ofertados" recebe só produto com confiança alta, por união (nunca remove), idempotente, e
+   a linha registra o que somou e quando. Só com o secret `MONET_GRAVAR_OFERTADOS=on` (não criado).
+
+**Aberto, fora do Ops:** as gravações `pedido-monet-` nascem abertas no Brain Meet do Growth, e lá qualquer pessoa
+ativa lista e lê a transcrição (`growth.meet_gravacoes`, `growth.meet_transcricao`). Fechar é decisão do Mikael.
+
+**Status:** migration `20261002180000` ensaiada contra a produção num bloco que termina em exceção, junto com
+`tests/monetizacao-gravacoes.sql` (TESTE_OK, nada gravado). Não aplicada; função e app não publicados.
