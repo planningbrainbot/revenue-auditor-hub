@@ -47,7 +47,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { PlanningLogo } from "@/components/planning-logo";
-import { AREAS, areaDoItem, type Area, type Item } from "@/lib/areas";
+import { AREAS, areaDoItem, casaComCaminho, type Area, type Item } from "@/lib/areas";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,12 +100,6 @@ export function AppSidebar() {
   // papel vestido (falso), então o item some sozinho e a volta é pela tarja.
   const [verComoAberto, setVerComoAberto] = useState(false);
 
-  // "Está dentro deste caminho?" — serve para descobrir a ÁREA da rota, onde
-  // qualquer filha de /unidades deve acender a área de Receita e Repasses.
-  const dentroDe = (url: string) => {
-    const path = url.split("?")[0];
-    return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(path + "/");
-  };
   const consultaConfere = (url: string) => {
     const expected = new URLSearchParams(url.split("?")[1] || "");
     const current = new URLSearchParams(searchStr);
@@ -168,9 +162,10 @@ export function AppSidebar() {
   // acenderia junto com "Split do Asaas" (/unidades/split) se bastasse o
   // prefixo — dois itens grifados e nenhum deles respondendo "onde estou".
   const itemAtivo = areasVisiveis
-    .flatMap((a) => a.grupos.flatMap((g) => g.items.map((i) => i.url)))
-    .filter((url) => dentroDe(url) && consultaConfere(url))
-    .sort((a, b) => b.length - a.length)[0];
+    .flatMap((a) => a.grupos.flatMap((g) => g.items))
+    .map((i) => ({ url: i.url, tamanho: casaComCaminho(i, pathname) }))
+    .filter((i) => i.tamanho >= 0 && consultaConfere(i.url))
+    .sort((a, b) => b.tamanho - a.tamanho)[0]?.url;
 
   const isActive = (url: string) => url === itemAtivo;
 
@@ -186,7 +181,7 @@ export function AppSidebar() {
   // favorito e botão voltar abrem a lateral já na área certa. Estado à parte
   // só serviria para discordar da tela.
   const areaDaRota = areasVisiveis.find((a) =>
-    a.grupos.some((g) => g.items.some((i) => dentroDe(i.url))),
+    a.grupos.some((g) => g.items.some((i) => casaComCaminho(i, pathname) >= 0)),
   );
   const [areaEscolhida, setAreaEscolhida] = useState<string | null>(null);
   const areaAtual =

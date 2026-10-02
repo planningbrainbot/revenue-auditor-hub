@@ -78,15 +78,6 @@ const TOM_STATUS: Record<StatusUnidade, TomStatus> = {
   interna: "neutro",
 };
 
-const ROTULO_PAPEL: Record<string, string> = {
-  admin: "Super admin",
-  diretor: "Diretor",
-  socio: "Sócio",
-  socio_regional: "Sócio regional",
-  head: "Head",
-  auditor: "Auditor",
-};
-
 function FichaUnidadePage() {
   const { unidadeId } = Route.useParams();
   const id = Number(unidadeId);
@@ -105,6 +96,8 @@ function FichaUnidadePage() {
           aria-label="Trilha"
           className="flex items-center gap-1.5 text-sm text-muted-foreground"
         >
+          <span>Administração</span>
+          <ChevronRight className="size-3.5" aria-hidden />
           <Link to="/unidades" className="hover:text-foreground hover:underline">
             Unidades
           </Link>
@@ -137,13 +130,13 @@ function Ficha({ f, atualizadoEm }: { f: FichaDaUnidade; atualizadoEm: Date }) {
   // quem não os vê, e o diálogo gravaria esses vazios por cima do cadastro.
   const podeEditar = f.pode.cadastrar && f.pode.financeiro && f.pode.sistemas;
   const pendencias = podeEditar ? pendenciasDaUnidade(u, f.csc ? f.csc.noFaturamento : null) : [];
-  const comLogin = f.pessoas.filter((p) => p.conta?.ativo).length;
   const socios = f.pessoas.filter((p) => p.socioId != null);
+  const sociosComLogin = socios.filter((p) => p.conta?.ativo).length;
 
   return (
     <>
       <PageHeader
-        area={f.pode.rede ? "receita" : "minha_unidade"}
+        area={f.pode.rede ? "admin" : "minha_unidade"}
         titulo={nome}
         pergunta={`O que é preciso saber sobre ${nome}?`}
         descricao={[
@@ -201,7 +194,7 @@ function Ficha({ f, atualizadoEm }: { f: FichaDaUnidade; atualizadoEm: Date }) {
         <KpiCard
           rotulo="Sócios"
           valor={socios.length}
-          nota={`${comLogin} ${comLogin === 1 ? "pessoa entra" : "pessoas entram"} no Ops por esta unidade`}
+          nota={`${sociosComLogin} com login no Ops`}
         />
       </KpiGrade>
 
@@ -356,92 +349,116 @@ function situacaoDoLogin(p: PessoaDaUnidade): { tom: TomStatus; texto: string } 
 }
 
 function SecaoPessoas({ f }: { f: FichaDaUnidade }) {
-  // Quem abre a ficha da pessoa é o super admin, o mesmo que vê as chaves.
-  const abreFichaDaPessoa = f.pode.chaves;
+  // Sócio é quem está no cadastro de sócios da unidade. Equipe é quem entra no
+  // Ops com acesso só a esta unidade sem ser sócio, como a Gente de Maceió
+  // (pedido do Eliezek em 02/10/2026: "tem que diferenciar sócios e equipe").
+  const socios = f.pessoas.filter((p) => p.socioId != null);
+  const equipe = f.pessoas.filter((p) => p.socioId == null);
   return (
-    <Secao
-      titulo="Quem são os sócios, e quem entra no Ops?"
-      descricao="Sócios do cadastro e as contas com acesso só a esta unidade. A equipe da matriz, que vê a rede inteira, fica de fora."
-    >
-      {f.pessoas.length === 0 ? (
-        <EstadoVazio titulo="Nenhum sócio cadastrado para esta unidade" />
-      ) : (
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Pessoa</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Perfil</TableHead>
-                <TableHead>Login</TableHead>
-                <TableHead>Último acesso</TableHead>
+    <>
+      <Secao
+        titulo="Quem são os sócios?"
+        descricao="O cadastro de sócios da unidade e o login de cada um."
+      >
+        {socios.length === 0 ? (
+          <EstadoVazio titulo="Nenhum sócio cadastrado para esta unidade" />
+        ) : (
+          <TabelaPessoas pessoas={socios} abreFichaDaPessoa={f.pode.chaves} rotuloPessoa="Sócio" />
+        )}
+      </Secao>
+      <Secao
+        titulo="Quem mais da unidade entra no Ops?"
+        descricao="A equipe com acesso a esta unidade, fora do cadastro de sócios. A equipe da matriz, que vê a rede inteira, fica de fora."
+      >
+        {equipe.length === 0 ? (
+          <EstadoVazio titulo="Ninguém da equipe da unidade tem acesso ao Ops" />
+        ) : (
+          <TabelaPessoas pessoas={equipe} abreFichaDaPessoa={f.pode.chaves} rotuloPessoa="Equipe" />
+        )}
+      </Secao>
+    </>
+  );
+}
+
+function TabelaPessoas({
+  pessoas,
+  abreFichaDaPessoa,
+  rotuloPessoa,
+}: {
+  pessoas: PessoaDaUnidade[];
+  /** Quem abre a ficha da pessoa é o super admin, o mesmo que vê as chaves. */
+  abreFichaDaPessoa: boolean;
+  rotuloPessoa: string;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{rotuloPessoa}</TableHead>
+            <TableHead>Contato</TableHead>
+            <TableHead>Perfil no Ops</TableHead>
+            <TableHead>Login</TableHead>
+            <TableHead>Último acesso</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pessoas.map((p) => {
+            const s = situacaoDoLogin(p);
+            return (
+              <TableRow key={p.socioId ?? p.userId}>
+                <TableCell>
+                  <div className="font-medium">
+                    {abreFichaDaPessoa && p.userId && p.conta ? (
+                      <Link
+                        to="/admin/usuarios/$userId"
+                        params={{ userId: p.userId }}
+                        className="hover:underline"
+                      >
+                        {p.nome}
+                      </Link>
+                    ) : (
+                      p.nome
+                    )}
+                  </div>
+                  {p.cargo && <div className="text-xs text-muted-foreground">{p.cargo}</div>}
+                </TableCell>
+                <TableCell className="space-y-1 text-xs">
+                  {p.email && (
+                    <a
+                      href={`mailto:${p.email}`}
+                      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <Mail className="h-3 w-3" aria-hidden /> {p.email}
+                    </a>
+                  )}
+                  {p.telefone && (
+                    <a
+                      href={`tel:${p.telefone.replace(/\D/g, "")}`}
+                      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <Phone className="h-3 w-3" aria-hidden /> {p.telefone}
+                    </a>
+                  )}
+                  {!p.email && !p.telefone && (
+                    <span className="text-muted-foreground">Sem contato</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {p.conta?.papeis.length ? p.conta.papeis.join(" + ") : "—"}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge tom={s.tom}>{s.texto}</StatusBadge>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {p.conta ? haQuanto(p.conta.ultimoLogin) : "—"}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {f.pessoas.map((p) => {
-                const s = situacaoDoLogin(p);
-                return (
-                  <TableRow key={p.socioId ?? p.userId}>
-                    <TableCell>
-                      <div className="font-medium">
-                        {abreFichaDaPessoa && p.userId && p.conta ? (
-                          <Link
-                            to="/admin/usuarios/$userId"
-                            params={{ userId: p.userId }}
-                            className="hover:underline"
-                          >
-                            {p.nome}
-                          </Link>
-                        ) : (
-                          p.nome
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {p.socioId != null
-                          ? (p.cargo ?? "Sócio")
-                          : "Acesso pela unidade, fora do cadastro de sócios"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="space-y-1 text-xs">
-                      {p.email && (
-                        <a
-                          href={`mailto:${p.email}`}
-                          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          <Mail className="h-3 w-3" aria-hidden /> {p.email}
-                        </a>
-                      )}
-                      {p.telefone && (
-                        <a
-                          href={`tel:${p.telefone.replace(/\D/g, "")}`}
-                          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          <Phone className="h-3 w-3" aria-hidden /> {p.telefone}
-                        </a>
-                      )}
-                      {!p.email && !p.telefone && (
-                        <span className="text-muted-foreground">Sem contato</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {p.conta?.papeis.length
-                        ? p.conta.papeis.map((r) => ROTULO_PAPEL[r] ?? r).join(" + ")
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge tom={s.tom}>{s.texto}</StatusBadge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {p.conta ? haQuanto(p.conta.ultimoLogin) : "—"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </Secao>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 

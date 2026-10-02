@@ -4232,3 +4232,20 @@ o que foi conferido em atividades reais.
 **Depende de:** o closer registrar a reunião no card como atividade do tipo Reunião, com o link do Teams (aprovado pelo
 Pedro em 01/10), e alguém admitir "Planning - Assistente de Reuniao" no lobby. O bot grava no máximo 2 reuniões ao mesmo
 tempo.
+
+## [2026-10-02] Unidades vai para a Administração, e a ficha separa sócios de equipe
+
+**Contexto:** pedido do Eliezek depois de abrir a ficha publicada em 01/10: "a ficha da unidade tem que ficar dentro de
+administração" e, na ficha de Maceió, "a Paula não é sócio, tem que diferenciar sócios e equipe".
+
+**Decisões:**
+1. O item "Unidades" (`/unidades`) saiu de Receita e Repasses e foi para o grupo "Rede" da Administração. O portão de
+   área segue o menu, então a lista passa a abrir só para quem tem a área `admin`. Em 02/10 isso tirou a lista de 14
+   pessoas da matriz (auditor, CS, diretor, head e sócio da matriz), e o Eliezek aceitou. A ficha continua decidida no
+   servidor: a matriz com `view.unidades_rede` ainda abre `/unidades/<id>` por link.
+2. A ficha tem duas seções: "Quem são os sócios?" (`ops.socios` da unidade) e "Quem mais da unidade entra no Ops?"
+   (contas com recorte de unidade fora do cadastro de sócios). O perfil aparece pelo nome de `ops.roles`
+   ("Gente & Gestão", não `gente_gestao`).
+3. O cabeçalho "Área › Página" e o grifo da lateral passaram a considerar só as áreas da pessoa. O item pode declarar
+   `tambem` (outros caminhos que contam como ele), e a "Ficha da unidade" do sócio responde por `/unidades/<id>`.
+   Antes, o sócio via "Receita e Repasses › Unidades", e depois da mudança veria "Administração".

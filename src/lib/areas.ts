@@ -95,7 +95,24 @@ export type Item = {
     | "redeInteira"
     | "remuneracao"
     | "noCadastro";
+  /**
+   * Outros caminhos que contam como "estar neste item", além da `url`. Só para
+   * o grifo da lateral e o cabeçalho, nunca para o portão de área.
+   *
+   * Existe pela Ficha da unidade do sócio: o item é /minha-unidade, mas a tela
+   * é /unidades/8, que pelo prefixo diria "Administração › Unidades".
+   */
+  tambem?: RegExp;
 };
+
+/** Quanto do caminho o item cobre: o tamanho da url que casa, ou -1. */
+export function casaComCaminho(item: Item, pathname: string): number {
+  const caminho = item.url.split("?")[0];
+  const casa =
+    caminho === "/" ? pathname === "/" : pathname === caminho || pathname.startsWith(caminho + "/");
+  if (casa) return caminho.length;
+  return item.tambem?.test(pathname) ? pathname.length : -1;
+}
 
 // Os grupos do menu.
 //
@@ -345,15 +362,9 @@ export const AREAS: Area[] = [
         // dentro de tela: quem não abrisse a página não sabia que Split e
         // Histórico existiam. Com a lateral por área cada destino aparece por
         // nome. Sobraram quatro: o Histórico de Royalties saiu em 22/09/2026.
+        // Em 02/10/2026 a lista de Unidades foi para a Administração.
         label: "Repasses das unidades",
         items: [
-          {
-            // Era "Regras da Rede" até 01/10/2026: a regra de repasse foi para
-            // a ficha de cada unidade, junto com sócios, acessos e chaves.
-            title: "Unidades",
-            url: "/unidades",
-            icon: Landmark,
-          },
           {
             title: "Apuração de Royalties",
             url: "/unidades/royalties",
@@ -620,7 +631,12 @@ export const AREAS: Area[] = [
         items: [
           { title: "Painel", url: "/painel-unidade", icon: Gauge, chave: "view.painel_unidade" },
           // A ficha da própria unidade (/unidades/$unidadeId), sem as chaves.
-          { title: "Ficha da unidade", url: "/minha-unidade", icon: ScrollText },
+          {
+            title: "Ficha da unidade",
+            url: "/minha-unidade",
+            icon: ScrollText,
+            tambem: /^\/unidades\/\d+$/,
+          },
           { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
@@ -695,6 +711,13 @@ export const AREAS: Area[] = [
             area: "admin_financeiro",
           },
         ],
+      },
+      {
+        // A lista das unidades e a ficha de cada uma (cadastro, regra de
+        // repasse, sócios, acessos e chaves). Morava em Receita e Repasses
+        // como "Regras da Rede"; veio para cá a pedido do Eliezek em 02/10/2026.
+        label: "Rede",
+        items: [{ title: "Unidades", url: "/unidades", icon: Landmark }],
       },
       {
         label: "Sistema",

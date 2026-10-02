@@ -15,7 +15,7 @@ import { VerComoTarja } from "@/components/ver-como/ver-como-tarja";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
 import { temSenhaProvisoria } from "@/lib/senha-provisoria";
-import { areasDoCaminho, AREAS, type Area, type Item } from "@/lib/areas";
+import { areasDoCaminho, AREAS, casaComCaminho, type Area, type Item } from "@/lib/areas";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { Button } from "@/components/ui/button";
 import { Filete } from "@/components/planning";
@@ -54,25 +54,29 @@ const ROLE_LABEL: Record<string, string> = {
 // que casa, para /unidades/split dizer "Split do Asaas" e não "Regras da Rede".
 // Não passa por permissão de propósito: é rótulo de onde você está, e o portão
 // de área logo abaixo já decide se a tela abre.
+//
+// Desde 02/10/2026 só conta área que a pessoa tem, quando já se sabe quais são:
+// a ficha da unidade (/unidades/8) é "Administração › Unidades" para o super
+// admin e "Minha Unidade › Ficha da unidade" para o sócio, que não tem a
+// Administração. Sem nenhuma que case, não há trilha.
 function trilhaDoCaminho(
   pathname: string,
   searchStr: string,
+  temArea: ((slug: string) => boolean) | null,
 ): { area: Area; item: Item } | null {
   const atual = new URLSearchParams(searchStr);
-  let melhor: { area: Area; item: Item } | null = null;
+  let melhor: { area: Area; item: Item; tamanho: number } | null = null;
   for (const area of AREAS) {
+    if (temArea && !temArea(area.slug)) continue;
     for (const grupo of area.grupos) {
       for (const item of grupo.items) {
-        const [caminho, busca] = item.url.split("?");
-        const casa =
-          caminho === "/"
-            ? pathname === "/"
-            : pathname === caminho || pathname.startsWith(caminho + "/");
+        const busca = item.url.split("?")[1];
+        const tamanho = casaComCaminho(item, pathname);
         const consultaConfere = [...new URLSearchParams(busca || "")].every(
           ([k, v]) => atual.get(k) === v,
         );
-        if (casa && consultaConfere && (!melhor || item.url.length > melhor.item.url.length)) {
-          melhor = { area, item };
+        if (tamanho >= 0 && consultaConfere && (!melhor || tamanho > melhor.tamanho)) {
+          melhor = { area, item, tamanho };
         }
       }
     }
@@ -120,7 +124,7 @@ function AuthenticatedLayout() {
       ? (AREAS.find((a) => a.slug === slugsDaArea[0])?.nome ?? slugsDaArea[0])
       : null;
 
-  const trilha = trilhaDoCaminho(pathname, searchStr);
+  const trilha = trilhaDoCaminho(pathname, searchStr, loading ? null : temArea);
   // Cor da área na raiz do layout: filete de card clicável, abas e o que mais
   // pedir `--area-atual` herdam daqui sem repetir o slug (a lateral define a
   // sua, porque no celular ela abre em portal).

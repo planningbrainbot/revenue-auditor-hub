@@ -31,6 +31,7 @@ export type PessoaDaUnidade = {
   /** Conta no banco único: nulo quando não há login. */
   conta: {
     ativo: boolean;
+    /** Nome dos perfis, como em /admin/permissoes. */
     papeis: string[];
     ultimoLogin: string | null;
     senhaProvisoria: boolean;
@@ -240,7 +241,7 @@ export const fichaDaUnidade = createServerFn({ method: "GET" })
 
     // Perfil, papel e último login de cada conta. São poucas por unidade (10 em
     // Goiânia, a maior), então uma chamada ao Auth por conta é aceitável.
-    const [perfis, papeis, auth] = await Promise.all([
+    const [perfis, papeis, auth, rotulos] = await Promise.all([
       todosIds.length
         ? db
             .schema("public")
@@ -252,6 +253,8 @@ export const fichaDaUnidade = createServerFn({ method: "GET" })
         ? db.from("user_roles").select("user_id,role").in("user_id", todosIds)
         : Promise.resolve({ data: [], error: null }),
       Promise.all(todosIds.map((id) => db.auth.admin.getUserById(id))),
+      // O nome do perfil como /admin/permissoes mostra ("Gente & Gestão", não gente_gestao).
+      db.from("roles").select("key,label"),
     ]);
     if (perfis.error) throw new Error("Não foi possível ler as contas da unidade.");
     if (papeis.error) throw new Error("Não foi possível ler os perfis das contas.");
@@ -265,9 +268,16 @@ export const fichaDaUnidade = createServerFn({ method: "GET" })
         }[]
       ).map((p) => [p.user_id, p]),
     );
+    const rotuloDe = new Map(
+      ((rotulos.data ?? []) as { key: string; label: string | null }[]).map((r) => [
+        r.key,
+        r.label || r.key,
+      ]),
+    );
     const papeisDe = new Map<string, string[]>();
     for (const r of (papeis.data ?? []) as { user_id: string; role: string }[]) {
-      papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), r.role]);
+      const rotulo = rotuloDe.get(r.role) ?? r.role;
+      papeisDe.set(r.user_id, [...(papeisDe.get(r.user_id) ?? []), rotulo]);
     }
     const authDe = new Map<
       string,
