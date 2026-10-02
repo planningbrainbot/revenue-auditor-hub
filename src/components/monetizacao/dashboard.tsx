@@ -88,6 +88,7 @@ export type { Aba };
 /** Título = rótulo do item do menu (`areas.ts`); pergunta = contrato de cada aba (N1). */
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
+  "handoff-consultoria": "Handoff Consultoria",
   forecast: "Projetado × realizado",
   temporal: "Temporal e previsão",
   capacidade: "Capacidade e alocação",
@@ -100,6 +101,7 @@ const TITULOS: Record<Aba, string> = {
 };
 const PERGUNTAS: Record<Aba, string> = {
   operacao: "O farmer está no ritmo, e onde a base trava?",
+  "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   "follow-day": "Qual negócio aberto eu destravo hoje?",
   temporal: "Quando as oportunidades abertas devem virar contrato, e quanto valem?",
   forecast: "O mês está acima ou abaixo do que a planilha projetou?",
@@ -130,6 +132,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean } | null> = {
   roteiros: null,
   // Gravações tem barra própria (mês da reunião, situação da gravação e busca), dentro da visão.
   gravacoes: null,
+  // Tela própria (handoff-consultoria.tsx), com barra e leitura dela; a rota desvia antes daqui.
+  "handoff-consultoria": null,
 };
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -613,6 +617,8 @@ function descricaoDaAba(
       return `Reuniões de levantamento e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
     case "distribuicao":
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
+    case "handoff-consultoria":
+      return "Onboarding Cliente da Expansão · cliente (CNPJ)";
   }
 }
 

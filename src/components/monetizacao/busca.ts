@@ -12,6 +12,7 @@ import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
  */
 export const ABAS = [
   "operacao",
+  "handoff-consultoria",
   "forecast",
   "temporal",
   "capacidade",
@@ -79,6 +80,10 @@ export type BuscaMonetizacao = {
   q?: string;
   /** Gravações: a reunião aberta na ficha. */
   reuniao?: string;
+  /** Handoff Consultoria: unidade do onboarding (nome em ops.unidades); ausente = todas. */
+  unidade?: string;
+  /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
+  grafico?: string;
 };
 
 const ehData = (v: unknown): v is string =>
@@ -116,6 +121,12 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     gravacao: umDe(SITUACOES_GRAVACAO, s.gravacao),
     q: typeof s.q === "string" && s.q.trim() ? s.q.trim().slice(0, 80) : undefined,
     reuniao: typeof s.reuniao === "string" && REUNIAO.test(s.reuniao) ? s.reuniao : undefined,
+    unidade:
+      typeof s.unidade === "string" && s.unidade.trim() && s.unidade.length <= 60
+        ? s.unidade.trim()
+        : undefined,
+    grafico:
+      typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
   };
 }
 
