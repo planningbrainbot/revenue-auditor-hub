@@ -2,6 +2,8 @@ import { FARMER, hoje } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
+import { SITUACOES_GRAVACAO } from "@/lib/monetizacao/gravacoes";
+import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
 
 /**
  * Estado de tela de `/monetizacao` na URL (contrato da moldura, "Filtros na URL").
@@ -18,6 +20,7 @@ export const ABAS = [
   "pessoas",
   "roteiros",
   "distribuicao",
+  "gravacoes",
 ] as const;
 export type Aba = (typeof ABAS)[number];
 
@@ -48,6 +51,8 @@ export type FiltroAtencao = (typeof FILTROS_ATENCAO)[number];
 /** Situação da abordagem (`records.body.status`; sem status = rascunho). */
 export const SITUACOES = ["rascunho", "aprovado", "arquivado"] as const;
 export type Situacao = (typeof SITUACOES)[number];
+/** Chave de uma reunião na tela Gravações: registrada (`pedido-monet-…`) ou do histórico do card (`hist-…`). */
+const REUNIAO = /^(pedido-monet-\d{1,12}-\d{8}T\d{4}|hist-\d{1,12}-(levantamento|proposta))$/;
 
 export type BuscaMonetizacao = {
   aba: Aba;
@@ -58,7 +63,7 @@ export type BuscaMonetizacao = {
   produto?: ProdutoUrl;
   /** Régua de "sem movimento" do Follow Day, 1–180; padrão 7. */
   dias?: number;
-  /** aaaa-mm do Projetado × realizado; padrão mês de `ate`. */
+  /** aaaa-mm do Projetado × realizado (padrão: mês de `ate`) e da tela Gravações (padrão: todos os meses). */
   mes?: string;
   /** Id da fonte do forecast (versão e cenário); padrão: o cenário padrão da versão mais recente. */
   cenario?: string;
@@ -68,6 +73,12 @@ export type BuscaMonetizacao = {
   arquivados?: "mostrar";
   situacao?: Situacao;
   atencao?: FiltroAtencao;
+  /** Gravações: situação da gravação. */
+  gravacao?: SituacaoGravacao;
+  /** Gravações: busca por empresa, card ou closer. */
+  q?: string;
+  /** Gravações: a reunião aberta na ficha. */
+  reuniao?: string;
 };
 
 const ehData = (v: unknown): v is string =>
@@ -102,6 +113,9 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     arquivados: s.arquivados === "mostrar" ? "mostrar" : undefined,
     situacao: umDe(SITUACOES, s.situacao),
     atencao: umDe(FILTROS_ATENCAO, s.atencao),
+    gravacao: umDe(SITUACOES_GRAVACAO, s.gravacao),
+    q: typeof s.q === "string" && s.q.trim() ? s.q.trim().slice(0, 80) : undefined,
+    reuniao: typeof s.reuniao === "string" && REUNIAO.test(s.reuniao) ? s.reuniao : undefined,
   };
 }
 
