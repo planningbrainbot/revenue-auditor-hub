@@ -4303,3 +4303,30 @@ ativa lista e lê a transcrição (`growth.meet_gravacoes`, `growth.meet_transcr
 
 **Status:** migration `20261002180000` ensaiada contra a produção num bloco que termina em exceção, junto com
 `tests/monetizacao-gravacoes.sql` (TESTE_OK, nada gravado). Não aplicada; função e app não publicados.
+
+## [2026-10-02] Monetização: regra de região do Finance pronta, desligada
+
+**Contexto:** anotação do Pedro depois da call de 01/10 (14:48): "Finance: filtrar por região, o produto FCO do finance
+funciona só para centro-oeste". Duas leituras esperam o Dárcio: (a) o Finance inteiro só no Centro-Oeste; (b) o Finance
+em todo lugar, e a região escolhe a linha (FCO no Centro-Oeste, BNDES e FINAME nacionais; BASA e FNE a confirmar).
+
+**Decisão (técnica, sem efeito até ligar):**
+1. A regra mora no banco: `ops.monetizacao_regras` (chave `finance_regiao`: `desligada`, `so_centro_oeste` ou
+   `regiao_escolhe_linha`), `ops.monetizacao_finance_linhas` e `ops.monetizacao_uf_regiao`. Ligar é um UPDATE, sem deploy.
+   Nasce `desligada`.
+2. A UF da conta vem de `ops.base_conta_uf`, nesta ordem: Receita (via Consultoria), cadastro, ECD, Omie e, por último, o
+   campo Estado dos negócios da organização no Pipedrive (`ops.base_pipedrive_estado`, preenchida por
+   `scripts/monetizacao/sincronizar-estado-pipedrive.mjs`).
+3. A tela recebe a regra e a UF por página de contas (`ops.monetizacao_regiao_contas`) e aplica em `oferta()` só no
+   Finance já elegível (`src/lib/monetizacao/regiao.ts`). Leitura (a): fora do Centro-Oeste sai, sem UF fica "a
+   confirmar". Leitura (b): ninguém sai; o motivo diz a linha. Sem a migration, a página segue como antes.
+4. O servidor repete a leitura (a) em `ops.monetizacao_finance_regiao_issue`, chamada por `ops.monetizacao_offer_issue`.
+   A migration copia a versão viva dessa função (PR #50) e para se ela tiver mudado até a hora de aplicar.
+
+**Medido em 02/10 (carga real, ensaio da migration num DO com RAISE, nada gravado):** Finance pronta 108. Leitura (a):
+ficam 20 (Centro-Oeste), 4 sem UF vão para "a confirmar", 84 saem. Leitura (b): 108, com a linha no motivo. Desligada:
+as ofertas das 10.326 contas ficam idênticas. A página de 1.500 contas leva 121 ms a mais. Sem UF: 4 das 108 de Finance;
+1.211 das 1.689 contas prontas (quase todas de Consultoria).
+
+**Para ligar, na ordem:** migration → `sincronizar-estado-pipedrive.mjs --gravar` → app → UPDATE da chave. Cada passo
+precisa do ok do Pedro, e a leitura, do Dárcio.
