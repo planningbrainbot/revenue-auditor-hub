@@ -4193,3 +4193,42 @@ negociação. A tela foi conferida numa captura local com a mesma carga, por uma
 
 **Fora:** a Edge Function `monetizacao-crm` e as migrations não mudaram. A tela só lê `unidade_ids`, que a carga já
 gravava, e o cadastro de sócios, com a permissão que já existia.
+
+## [2026-10-02] Monetização: bot nas reuniões do pipe 39 e nota de avaliação no card
+
+**Contexto:** em setembro, só 1 das 49 reuniões do pipe 39 foi gravada. O Matheus usa o Teams, e nenhum dos três caminhos
+de gravação o alcança: o MeetGeek de vendas, o MeetGeek da Monetização e o Brain Meet. Em 01/10, o Pedro pediu duas
+coisas: "preciso que o bot seja convidado automaticamente para o Matheus ou para qualquer closer assim que a reunião for
+movida para agendada" e uma "nota automática no card avaliando a reunião exatamente como acontece hoje dentro do módulo
+do growth, só que para monetização e de acordo com os critérios do playbook". Spec:
+`docs/superpowers/specs/2026-10-01-monetizacao-reunioes-bot-e-avaliacao.md`.
+
+**Decisão:**
+1. **Edge Function `monetizacao-reunioes`**, chamada a cada 5 minutos pelo cron `monetizacao-reunioes-5min`, com o mesmo
+   segredo da carga do CRM. O cron fica em `ops.monetizacao_reunioes_cron()`.
+2. **Bot.** Um card aberto numa etapa de reunião é lido pelo nome: levantamento agendada ou reunião de proposta. Se ele
+   tiver uma atividade do tipo Reunião com hora e link do Teams, a função grava
+   `pedido-monet-<deal>-<AAAAMMDDTHHMM UTC>` em `growth.reunioes_agendadas`, no formato que a SDR IA usa.
+   - O bot em modo teste já aceita o prefixo `pedido-`: o schema do Mikael não muda.
+   - Remarcação cancela a linha anterior que o bot ainda não pegou.
+   - A chave `MONET_BOT_ENFILEIRAR=on` liga essa parte.
+3. **Avaliação.** Quando a transcrição do Brain Meet fica `pronta`, o modelo responde fase a fase, com trecho literal,
+   pela rubrica do playbook do Caixa (guia do closer, Momentos 2 e 3). O código confere cada trecho e calcula a nota,
+   pelo mesmo método da aderência de reunião do Growth.
+   - A nota vai ao card como "Avaliação da reunião por IA (playbook do Caixa)", uma por reunião, com o que foi ofertado
+     (Cella, Consultoria e Finance).
+   - Reunião sem gravação ganha uma nota curta com o motivo.
+4. **Registro** em `ops.monetizacao_reunioes`. Lê quem tem `view.monetizacao`; escreve só o service role.
+
+**O Growth não faz isso hoje:** ele avalia a condução e a aderência das reuniões, mas não escreve essa avaliação no card.
+As notas de IA dele no Pipedrive são da ligação do SDR e do direcionamento de FUP. A nota da Monetização reproduz o
+método, não uma nota que já exista.
+
+**Conferência:** `scripts/monetizacao/testar-avaliacao-reunioes.mjs` compara o porte com o protótipo Python validado em
+01/10 (`monetizacao/comercial/guia-closer/avaliacao/`). Sobre a mesma resposta do modelo, as fases, a nota, os blocos, o
+ofertado e o HTML da nota saem iguais. O teste também cobre a leitura da atividade do Pipedrive: `due_time` vem em UTC,
+o que foi conferido em atividades reais.
+
+**Depende de:** o closer registrar a reunião no card como atividade do tipo Reunião, com o link do Teams (aprovado pelo
+Pedro em 01/10), e alguém admitir "Planning - Assistente de Reuniao" no lobby. O bot grava no máximo 2 reuniões ao mesmo
+tempo.
