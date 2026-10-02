@@ -1,5 +1,6 @@
 import { ehDiaUtil } from "./feriados.ts";
 import { linhaDa } from "./funil-cumulativo.ts";
+import { aplicarRegiaoFinance } from "./regiao.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
 import type {
@@ -358,9 +359,13 @@ function ofertaDoProduto(a: Conta, produto: Produto, review: Revisao): Oferta {
         "revisar",
         "Faixa atravessa R$ 25 milhões; confirmar faturamento abaixo do limite.",
       );
-    return result(
-      "elegivel",
-      `Contrato ganho no Pipedrive, faturamento abaixo de R$ 25 mi${pelaReceita} e regime fora do Simples.`,
+    // Região (frente 02, 02/10): só age com a chave ligada no banco; desligada, a oferta é a mesma.
+    return aplicarRegiaoFinance(
+      result(
+        "elegivel",
+        `Contrato ganho no Pipedrive, faturamento abaixo de R$ 25 mi${pelaReceita} e regime fora do Simples.`,
+      ),
+      a.finance_regiao,
     );
   }
   return bounds[0] >= 25
@@ -413,7 +418,10 @@ export function disponibilidade(
     if (caixa)
       return {
         free: false,
-        reason: "Card aberto do Caixa em " + NOMES_ENVIO[caixa.route as ProdutoEnvio] + " · um card por empresa",
+        reason:
+          "Card aberto do Caixa em " +
+          NOMES_ENVIO[caixa.route as ProdutoEnvio] +
+          " · um card por empresa",
         deal: caixa,
       };
   }

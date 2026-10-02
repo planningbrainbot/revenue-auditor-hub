@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { oferta } from "./model";
+import { regiaoPorConta } from "./regiao";
 import type {
   BaseMonetizacao,
   Conta,
@@ -217,10 +218,20 @@ export async function lerContasBase(
   const by = new Map<string, BaseEmpresa>((master || []).map((m: BaseEmpresa) => [m.key, m]));
   if (rows.some((a: DB) => !by.has(a.key)))
     throw new Error("A base mudou durante a leitura. Atualize para conferir os totais.");
+  // Regra de região do Finance e UF de cada conta (frente 02, 02/10). Sem a migration 20261002160000, ou se a
+  // leitura falhar, a página segue sem região: a oferta do Finance fica como antes.
+  const { data: regiao } = await db
+    .rpc("monetizacao_regiao_contas", { _keys: rows.map((a: DB) => a.key) })
+    .then(
+      (r: DB) => r,
+      () => ({ data: null }),
+    );
+  const regiaoDa = regiaoPorConta(regiao ?? null);
   return {
     accounts: rows.map((a: DB) => ({
       ...aplicarBase(a.perfil as Conta, by.get(a.key)),
       unit_ids: a.unidade_ids,
+      ...(regiaoDa.has(a.key) ? { finance_regiao: regiaoDa.get(a.key) } : {}),
     })),
     next: batch.next,
     catalog_at: batch.catalog_at,

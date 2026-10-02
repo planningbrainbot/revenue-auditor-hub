@@ -98,6 +98,8 @@ export interface Conta {
   consultoria_priority: boolean;
   finance_candidate: boolean;
   finance: Oferta;
+  /** Regra de região do Finance e UF da conta (`ops.monetizacao_regiao_contas`); ausente = regra desligada. */
+  finance_regiao?: import("./regiao").RegiaoDaConta;
   ecd: boolean;
   driva?: {
     source: string;
