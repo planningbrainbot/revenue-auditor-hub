@@ -7,6 +7,8 @@
 // que a SDR IA usa. Remarcação cancela a linha anterior que o bot ainda não pegou. Só roda com MONET_BOT_ENFILEIRAR=on.
 // Parte B (avaliar): quando a transcrição fica pronta, avalia pelo playbook do Caixa e posta uma nota no card; reunião
 // sem gravação ganha uma nota curta com o motivo. Uma nota por reunião.
+// Parte C (campo do pipe): o que a reunião avaliada ofertou com confiança alta é somado ao campo "Caixa · Produtos
+// ofertados" do card, sem tirar nada. Só roda com MONET_GRAVAR_OFERTADOS=on (spec 2026-10-02-monetizacao-gravacoes-tela).
 //
 // Roda pelo cron (cabeçalho x-monetizacao-sync), com {"action":"rodar"}; {"dry": true} não escreve nada.
 import { pipedriveApi } from "../monetizacao-crm/pipedrive.mjs";
@@ -22,6 +24,7 @@ import {
   type TipoReuniao,
 } from "./avaliacao.ts";
 import { dataSaoPaulo, eventId, motivoSemGravacao, proximaReuniao, tipoDaEtapa } from "./agenda.ts";
+import { detalharOfertado, gravarOfertados } from "./ofertado.ts";
 import { RUBRICA } from "./rubrica.ts";
 
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
@@ -30,6 +33,7 @@ const PD = Deno.env.get("PIPEDRIVE_TOKEN")!;
 const OPENROUTER = Deno.env.get("OPENROUTER_API_KEY") || "";
 const SEGREDO = Deno.env.get("MONETIZACAO_SYNC_SECRET");
 const ENFILEIRAR = Deno.env.get("MONET_BOT_ENFILEIRAR") === "on";
+const GRAVAR_OFERTADOS = Deno.env.get("MONET_GRAVAR_OFERTADOS") === "on";
 const MODELO = Deno.env.get("MONET_AVALIACAO_MODELO") || "anthropic/claude-sonnet-5.5";
 const SEM_GRAVACAO_DEPOIS_MS = 3 * 60 * 60 * 1000;
 const AVALIAR_DEPOIS_MS = 30 * 60 * 1000;
@@ -100,7 +104,23 @@ async function enfileirar(dry: boolean) {
     const dono = Number(p.owner_id) || null;
     if (dono && !emails.has(dono)) {
       try {
-        emails.set(dono, (await pd(`users/${dono}`)).data?.email || null);
+        const u = (await pd(`users/${dono}`)).data;
+        const email =
+          String(u?.email || "")
+            .trim()
+            .toLowerCase() || null;
+        emails.set(dono, email);
+        // A tela Gravações reconhece o closer pelo e-mail do dono do card (ops.monetizacao_closers).
+        if (!dry && email)
+          await rest("ops", "monetizacao_closers?on_conflict=pipedrive_user_id", {
+            body: {
+              pipedrive_user_id: dono,
+              nome: String(u?.name || p.owner || email),
+              email,
+              atualizado_em: new Date().toISOString(),
+            },
+            prefer: "resolution=merge-duplicates,return=minimal",
+          }).catch(() => undefined);
       } catch {
         emails.set(dono, null);
       }
@@ -295,7 +315,9 @@ async function avaliar(dry: boolean) {
         const { resposta, custo, modelo } = await chamarModelo(m.tipo, transcricao);
         const av = apurar(m.tipo, resposta, transcricao);
         const html = notaPipedrive(av, quando, "gravação da reunião pelo bot do Brain");
-        await fechar(m, { ...av, custo_usd: custo, modelo }, html, "avaliada", grav.id);
+        // Minuto e confiança de cada trecho do ofertado: a tela mostra, e a Parte C decide o campo do pipe por eles.
+        const ofertado = detalharOfertado(av.ofertado, falas);
+        await fechar(m, { ...av, ofertado, custo_usd: custo, modelo }, html, "avaliada", grav.id);
         saida.push({ event_id: m.event_id, situacao: "avaliada", nota: av.nota });
       } else if (falhou) {
         const motivo = motivoSemGravacao(fila?.joiner_status ?? null, trans?.status ?? null);
@@ -332,6 +354,48 @@ async function avaliar(dry: boolean) {
         await rest("ops", `monetizacao_reunioes?event_id=eq.${encodeURIComponent(m.event_id)}`, {
           method: "PATCH",
           body: { erro: (e as Error).message.slice(0, 500), updated_at: new Date().toISOString() },
+          prefer: "return=minimal",
+        });
+    }
+  }
+  return saida;
+}
+
+// ---------------------------------------------------------------------------- Parte C
+
+/** Reuniões avaliadas que ainda não passaram pelo campo do pipe: soma o ofertado com confiança alta. */
+async function gravarOfertadosPendentes(dry: boolean) {
+  if (!GRAVAR_OFERTADOS) return "desligado (MONET_GRAVAR_OFERTADOS)";
+  const linhas: Row[] = await rest(
+    "ops",
+    "monetizacao_reunioes?status=eq.avaliada&ofertados_gravados_em=is.null&select=event_id,deal_id,ofertado,ofertados_gravados_em&order=inicio&limit=10",
+  );
+  const saida: Row[] = [];
+  for (const m of linhas) {
+    const alvo = `monetizacao_reunioes?event_id=eq.${encodeURIComponent(m.event_id)}`;
+    try {
+      const r = await gravarOfertados({
+        ligado: true,
+        dry,
+        reuniao: m as { deal_id: number; ofertado: unknown; ofertados_gravados_em: string | null },
+        pd,
+        registrar: (patch) =>
+          rest("ops", `${alvo}&ofertados_gravados_em=is.null`, {
+            method: "PATCH",
+            body: { ...patch, erro: null, updated_at: new Date().toISOString() },
+            prefer: "return=minimal",
+          }),
+      });
+      saida.push({ event_id: m.event_id, deal: m.deal_id, ...r });
+    } catch (e) {
+      saida.push({ event_id: m.event_id, situacao: "erro", erro: (e as Error).message });
+      if (!dry)
+        await rest("ops", alvo, {
+          method: "PATCH",
+          body: {
+            erro: `campo do pipe: ${(e as Error).message}`.slice(0, 500),
+            updated_at: new Date().toISOString(),
+          },
           prefer: "return=minimal",
         });
     }
@@ -384,7 +448,8 @@ Deno.serve(async (req) => {
     const enfileiradas =
       ENFILEIRAR || dry ? await enfileirar(dry || !ENFILEIRAR) : "desligado (MONET_BOT_ENFILEIRAR)";
     const avaliadas = await avaliar(dry);
-    return new Response(JSON.stringify({ status: "ok", dry, enfileiradas, avaliadas }), {
+    const ofertados = await gravarOfertadosPendentes(dry);
+    return new Response(JSON.stringify({ status: "ok", dry, enfileiradas, avaliadas, ofertados }), {
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   } catch (e) {
