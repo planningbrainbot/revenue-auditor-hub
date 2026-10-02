@@ -70,7 +70,8 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
         "key,contas,cnpjs,cnpjs_pipefy,cnpjs_omie,omie_integrado",
         "key",
       ),
-      all(db, "monetizacao_deals", "id,payload", "id"),
+      // `unidade_ids` vem da conta da Base (carga); a visão "Hoje" agrupa a Conexão por unidade.
+      all(db, "monetizacao_deals", "id,payload,unidade_ids", "id"),
       all(db, "monetizacao_listas", "*", "created_at"),
       all(db, "monetizacao_itens", "*", "id"),
       all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
@@ -108,7 +109,10 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
         omie_integrado: (c?.omie_integrado as boolean) ?? false,
       };
     }),
-    cards: cards.map((d) => d.payload as Negocio),
+    cards: cards.map((d) => ({
+      ...(d.payload as Negocio),
+      unidade_ids: Array.isArray(d.unidade_ids) ? (d.unidade_ids as number[]) : [],
+    })),
     lists: lists.map((l) => ({
       ...l,
       items: items.filter((i) => i.list_id === l.id) as ItemLista[],
@@ -132,6 +136,59 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
 export const carregarMonetizacao = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(({ context }) => lerMonetizacao(context));
+
+export interface ApoioAcompanhamento {
+  /** Sócios por unidade (`ops.socios`). `acesso` falso = a pessoa não lê o cadastro de sócios. */
+  socios: { acesso: boolean; linhas: { unidade_id: number; nome: string }[] };
+  /**
+   * Nome das unidades do cadastro da rede, para as que `monetizacao_unidades` não traz (Construção Civil,
+   * Consultoria, São Bernardo). Vazio quando a RLS de `ops.unidades` não libera a leitura.
+   */
+  unidades: { id: number; nome: string }[];
+}
+
+/**
+ * Apoio da lista de atenção da visão "Hoje", com a sessão da pessoa. A RLS de `ops.socios` pede
+ * `view.unidades_rede` ou `view.rede_headcount` e, sem a chave, devolve vazio sem erro; por isso a chave é
+ * conferida antes, para a tela dizer "sem acesso aos sócios" e não "sem sócio cadastrado". Só nome e unidade:
+ * e-mail, telefone e CPF do cadastro não saem daqui.
+ */
+export async function lerApoioAcompanhamento(context: {
+  supabase: unknown;
+}): Promise<ApoioAcompanhamento> {
+  const db = (context.supabase as DB).schema("ops");
+  const [rede, headcount, unidades] = await Promise.all([
+    db.rpc("can", { _key: "view.unidades_rede" }),
+    db.rpc("can", { _key: "view.rede_headcount" }),
+    db.from("unidades").select("id,nome_da_praca").order("id"),
+  ]);
+  const acesso = rede.data === true || headcount.data === true;
+  let linhas: ApoioAcompanhamento["socios"]["linhas"] = [];
+  if (acesso) {
+    const { data, error } = await db
+      .from("socios")
+      .select("unidade_id,nome_completo")
+      .not("unidade_id", "is", null)
+      .order("nome_completo");
+    if (error) throw new Error("Não foi possível ler o cadastro de sócios das unidades.");
+    linhas = (data as { unidade_id: number; nome_completo: string | null }[])
+      .filter((r) => r.nome_completo)
+      .map((r) => ({ unidade_id: r.unidade_id, nome: r.nome_completo!.trim() }));
+  }
+  return {
+    socios: { acesso, linhas },
+    unidades: unidades.error
+      ? []
+      : (unidades.data as { id: number; nome_da_praca: string }[]).map((u) => ({
+          id: u.id,
+          nome: u.nome_da_praca,
+        })),
+  };
+}
+
+export const carregarApoioAcompanhamento = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(({ context }) => lerApoioAcompanhamento(context));
 
 // Paginação no transporte evita estourar o limite de resposta do servidor.
 // A interface só publica a contagem depois de carregar todas as páginas.

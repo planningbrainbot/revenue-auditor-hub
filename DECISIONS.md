@@ -4160,3 +4160,36 @@ caixa da Partners. Se ela é da matriz, o certo é `todas_unidades = true`. Roll
 
 **Fora deste recorte, para decidir depois:** `v_clientes_diretorio` (clientes de 5 unidades) e `v_nps_regional` (NPS
 de 7 unidades) ainda abrem linhas de outras unidades ao sócio. Não têm royalties nem taxas, mas são da mesma família.
+## [2026-10-02] Monetização: Operação na régua cumulativa e visão "Hoje"
+
+**Contexto:** a aba Operação contava "entrou na etapa no período" pelo ator e a conversão era uma "passagem". Em setembro
+isso mostrava 33 reuniões realizadas e 40 oportunidades validadas, com contagens que não desciam. Depois da edição do
+pipe 39 em 01/10, as etapas novas apareciam com zero no meio de setembro. O Pedro já tinha reprovado essa leitura em
+30/09 e, em 01/10, mandou corrigir no próprio painel ("pode sim. tu vai corrigir no painel direto no brain né? pode
+fazer"). Spec: `docs/superpowers/specs/2026-10-01-monetizacao-acompanhamento-diario.md`.
+
+**Decisão:**
+1. `funilCumulativo` (`src/lib/monetizacao/funil-cumulativo.ts`) passa a ser a única régua da Operação: funil do mês,
+   "Qual produto avança", lado a lado por produto e quadros de meta. Coorte = cards que saíram da Base no período; nível =
+   a etapa mais adiantada em que o card ficou 30 min ou mais, de onde avançou, ou em que terminou. As etapas são lidas por
+   nome e pela ordem do pipe em tempo de execução: Gatilho = Conexão, Stand by = levantamento realizado. As contagens só
+   descem, e validadas nunca passam de realizadas.
+2. Visão "Hoje", a primeira seção quando o período inclui hoje (`src/components/monetizacao/hoje.tsx`, lógica em
+   `src/lib/monetizacao/acompanhamento.ts`):
+   - eventos de hoje e do dia útil anterior;
+   - Conexão, levantamento e marcação do mês contra os alvos de 70%, 72% e 50% (DEFINIDOS pelo Pedro em 01/10), e quantos
+     levantamentos faltam para 50%;
+   - Conexão por unidade;
+   - estoque e ritmo;
+   - "O que pede atenção";
+   - lista de abordados há 3 dias úteis ou mais sem Conexão, com todos os sócios da unidade (não há sócio de referência,
+     decisão de 01/10).
+3. Dias úteis sem os feriados nacionais de 2026 e 2027 (`src/lib/monetizacao/feriados.ts`).
+
+**Conferência:** `scripts/monetizacao/conferir-funil-cumulativo.mjs` roda contra a carga real e compara a função com uma
+reimplementação independente. Na carga de 02/10 às 09h05 BRT, as 359 checagens passaram. Setembro: 313 → 155 → 84 →
+49 → 41 → 36, igual ao script de referência do repositório `monetizacao`, já com a Reunião de proposta antes de Em
+negociação. A tela foi conferida numa captura local com a mesma carga, por uma rota de preview que não foi commitada.
+
+**Fora:** a Edge Function `monetizacao-crm` e as migrations não mudaram. A tela só lê `unidade_ids`, que a carga já
+gravava, e o cadastro de sócios, com a permissão que já existia.
