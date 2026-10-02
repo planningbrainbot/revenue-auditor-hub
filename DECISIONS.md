@@ -4249,3 +4249,31 @@ administração" e, na ficha de Maceió, "a Paula não é sócio, tem que difere
 3. O cabeçalho "Área › Página" e o grifo da lateral passaram a considerar só as áreas da pessoa. O item pode declarar
    `tambem` (outros caminhos que contam como ele), e a "Ficha da unidade" do sócio responde por `/unidades/<id>`.
    Antes, o sócio via "Receita e Repasses › Unidades", e depois da mudança veria "Administração".
+
+## [2026-10-02] Hunter Sócio: vendas do pipe Sócios na visão da unidade
+
+**Contexto:** pedido do Eliezek: "trazer para a visão do sócio quantos clientes ele vendeu, página chamada Hunter
+Sócio". Medido antes de desenhar: 203 deals ganhos no pipe 4 ("Negociação - Sócios") do Pipedrive, 204 em
+`ops.contratos` com `origem_pipeline = 'socios'`. Três problemas no dado:
+1. O dono do deal só é o sócio quando ele mesmo cria o deal. 115 estão no nome do Paulo, dono do token da integração
+   (cargas e deals criados pela apuração), 81 deles em agosto/2026.
+2. Nesses deals lançados em lote, a data de ganho é a do lançamento, não a da venda.
+3. 54 deals não têm "Unidade de Negócio" e não apareciam para unidade nenhuma.
+
+**Decisões do Eliezek:** o grão é a unidade. Venda sem unidade cai na unidade do sócio dono do deal, quando ele está
+em `ops.socios` (Adílio, Maceió; Rogério, Curitiba; Wirlon, São Luis). A inferência vale só para esta tela:
+`contratos.unidade` não muda, então royalties, CAC e carteira seguem iguais.
+
+**Como ficou:**
+- Migration `20261002150000_hunter_socio` (aplicada em 02/10): `contratos.pipedrive_owner_email`, preenchida com os
+  203 deals lidos da API v2, e a view `v_hunter_socio`, com a trava dentro. Quem tem recorte de unidade só vê a sua; a
+  matriz precisa de `view.hunter_socio` ou `view.unidades_rede`. A chave `view.hunter_socio` fica na área
+  `minha_unidade`.
+- `pipedrive-contratos-sync` versão 23 (repo AI Projects, `a47907d`) passou a gravar o dono a cada rodada. Na rodada
+  manual de 02/10: 687 deals, 0 removidos, e o dono preenchido em 681 dos 802 contratos.
+- Tela `/hunter-socio` no menu Minha Unidade: clientes vendidos, MRR vendido (valor do deal), vendas no mês, mês a mês
+  e a lista de clientes, com aviso na venda que veio sem unidade.
+
+**Efeito medido:** Maceió vê 27 vendas, 4 delas por inferência. No total são 171 vendas com unidade, 21 por
+inferência. Ficam 33 sem unidade possível, porque o dono não é sócio de unidade nenhuma; para elas entrarem, é preciso
+preencher a Unidade de Negócio no Pipedrive.

@@ -637,6 +637,8 @@ export const AREAS: Area[] = [
             icon: ScrollText,
             tambem: /^\/unidades\/\d+$/,
           },
+          // As vendas que a unidade fechou pelo pipe Sócios do Pipedrive (02/10/2026).
+          { title: "Hunter Sócio", url: "/hunter-socio", icon: Target, chave: "view.hunter_socio" },
           { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },

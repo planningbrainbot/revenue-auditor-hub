@@ -35,6 +35,7 @@ import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedGenteRouteImport } from './routes/_authenticated/gente'
+import { Route as AuthenticatedHunterSocioRouteImport } from './routes/_authenticated/hunter-socio'
 import { Route as AuthenticatedIduRouteImport } from './routes/_authenticated/idu'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
@@ -224,6 +225,12 @@ const AuthenticatedGenteRoute = AuthenticatedGenteRouteImport.update({
   path: '/gente',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedHunterSocioRoute =
+  AuthenticatedHunterSocioRouteImport.update({
+    id: '/hunter-socio',
+    path: '/hunter-socio',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedIduRoute = AuthenticatedIduRouteImport.update({
   id: '/idu',
   path: '/idu',
@@ -538,6 +545,7 @@ export interface FileRoutesByFullPath {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
+  '/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -614,6 +622,7 @@ export interface FileRoutesByTo {
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
+  '/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
@@ -691,6 +700,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/gente': typeof AuthenticatedGenteRoute
+  '/_authenticated/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/_authenticated/idu': typeof AuthenticatedIduRoute
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
@@ -771,6 +781,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/gente'
+    | '/hunter-socio'
     | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
@@ -847,6 +858,7 @@ export interface FileRouteTypes {
     | '/financeiro-partners'
     | '/funil-receita'
     | '/gente'
+    | '/hunter-socio'
     | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
@@ -923,6 +935,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/funil-receita'
     | '/_authenticated/gente'
+    | '/_authenticated/hunter-socio'
     | '/_authenticated/idu'
     | '/_authenticated/indicadores-trimestre'
     | '/_authenticated/inicio'
@@ -1170,6 +1183,13 @@ declare module '@tanstack/react-router' {
       path: '/gente'
       fullPath: '/gente'
       preLoaderRoute: typeof AuthenticatedGenteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hunter-socio': {
+      id: '/_authenticated/hunter-socio'
+      path: '/hunter-socio'
+      fullPath: '/hunter-socio'
+      preLoaderRoute: typeof AuthenticatedHunterSocioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/idu': {
@@ -1585,6 +1605,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedGenteRoute: typeof AuthenticatedGenteRoute
+  AuthenticatedHunterSocioRoute: typeof AuthenticatedHunterSocioRoute
   AuthenticatedIduRoute: typeof AuthenticatedIduRoute
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
@@ -1648,6 +1669,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedGenteRoute: AuthenticatedGenteRoute,
+  AuthenticatedHunterSocioRoute: AuthenticatedHunterSocioRoute,
   AuthenticatedIduRoute: AuthenticatedIduRoute,
   AuthenticatedIndicadoresTrimestreRoute:
     AuthenticatedIndicadoresTrimestreRoute,

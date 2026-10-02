@@ -162,6 +162,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.hunter_socio",
+    label: "Hunter Sócio",
+    description:
+      "As vendas que a própria unidade fechou pelo pipe Negociação - Sócios do Pipedrive, na área Minha Unidade.",
+    group: "Acesso",
+  },
+  {
     key: "view.minhas_auditorias",
     label: "Auditorias da unidade",
     description:
