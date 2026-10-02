@@ -126,6 +126,11 @@ const DATA_LONGA = new Intl.DateTimeFormat("pt-BR", {
 const quando = (iso: string | null, f = DIA_HORA) =>
   iso ? f.format(new Date(iso.replace(" ", "T"))).replace(",", "") : "sem data";
 const reunioes = (n: number) => (n === 1 ? "reunião" : "reuniões");
+/** "Matheus Pereira de Carvalho" → "Matheus Carvalho": a lista cabe em duas linhas por reunião. */
+const nomeCurto = (nome: string) => {
+  const p = nome.trim().split(/\s+/);
+  return p.length > 2 ? `${p[0]} ${p[p.length - 1]}` : nome;
+};
 
 export type MudarBusca = (patch: Partial<BuscaMonetizacao>) => void;
 
@@ -434,11 +439,11 @@ export function PainelGravacoes({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-28">Data</TableHead>
+                    <TableHead className="w-24 sm:w-28">Data</TableHead>
                     <TableHead>Empresa</TableHead>
                     <TableHead className="hidden md:table-cell">Tipo</TableHead>
                     <TableHead className="hidden lg:table-cell">Etapa de hoje</TableHead>
-                    <TableHead>Gravação</TableHead>
+                    <TableHead className="hidden sm:table-cell">Gravação</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">Nota</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -476,8 +481,11 @@ export function PainelGravacoes({
                         <TableCell className="min-w-0">
                           <span className="block font-medium text-foreground">{r.empresa}</span>
                           <span className="num block text-xs text-muted-foreground">
-                            card {r.deal_id} · {r.closer}
+                            card {r.deal_id} · {nomeCurto(r.closer)}
                             <span className="md:hidden"> · {ROTULO_TIPO[r.tipo]}</span>
+                          </span>
+                          <span className="mt-1 block sm:hidden">
+                            <Selo situacao={r.situacao} />
                           </span>
                         </TableCell>
                         <TableCell className="hidden text-[13px] md:table-cell">
@@ -486,7 +494,7 @@ export function PainelGravacoes({
                         <TableCell className="hidden text-[13px] lg:table-cell">
                           {r.etapa}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Selo situacao={r.situacao} />
                         </TableCell>
                         <TableCell className="num hidden text-right sm:table-cell">
@@ -749,9 +757,11 @@ function FichaReuniao({
           </ul>
         ) : (
           <p className="text-[13px] text-muted-foreground">
-            {registrada && d?.transcricao !== "pronta"
-              ? "Sai da transcrição, quando ela ficar pronta."
-              : "Sem gravação, só o que o card diz."}
+            {r.situacao === "sem_registro"
+              ? "A reunião ainda vai acontecer: registrada no card, o ofertado sai da gravação."
+              : registrada && d?.transcricao !== "pronta" && r.situacao !== "sem_gravacao"
+                ? "Sai da transcrição, quando ela ficar pronta."
+                : "Sem gravação, só o que o card diz."}
           </p>
         )}
         <p className="text-xs text-muted-foreground">
@@ -783,10 +793,7 @@ function FichaReuniao({
             {d.duracao_s ? ` · ${minuto(d.duracao_s)} de gravação` : ""} · transcrição automática,
             separada por falante
           </p>
-          <ol
-            ref={falasRef}
-            className="max-h-[28rem] divide-y overflow-y-auto rounded-lg border text-[13px]"
-          >
+          <ol ref={falasRef} className="divide-y rounded-lg border text-[13px]">
             {d.falas.map((f) => {
               const m = marcas.get(f.ordem);
               return (
