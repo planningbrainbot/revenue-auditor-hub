@@ -162,6 +162,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.ranking_unidades",
+    label: "Ranking da Rede",
+    description:
+      "Ranking das unidades regionais por trimestre: carteira por MRR, Hunter Sócio, IDU, retenção, monetização, inadimplência e NPS. Sem royalties nem taxas.",
+    group: "Acesso",
+  },
+  {
     key: "view.hunter_socio",
     label: "Hunter Sócio",
     description:

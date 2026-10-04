@@ -46,6 +46,7 @@ import {
   CalendarDays,
   ClipboardList,
   ArrowRightLeft,
+  Trophy,
 } from "lucide-react";
 
 /**
@@ -249,6 +250,8 @@ export const AREAS: Area[] = [
         items: [
           { title: "Overview", url: "/rede-overview", icon: Activity },
           { title: "IDU", url: "/idu", icon: Gauge },
+          // O mesmo ranking que o sócio vê em Minha Unidade (02/10/2026).
+          { title: "Ranking da Rede", url: "/ranking-unidades", icon: Trophy },
           {
             title: "Indicadores do Trimestre",
             url: "/indicadores-trimestre",
@@ -646,6 +649,13 @@ export const AREAS: Area[] = [
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },
           { title: "IDU", url: "/idu", icon: Activity, chave: "view.idu" },
+          // Ranking aberto entre as unidades, com números, como o IDU (decisão de 28/08/2026).
+          {
+            title: "Ranking da Rede",
+            url: "/ranking-unidades",
+            icon: Trophy,
+            chave: "view.ranking_unidades",
+          },
           {
             // Tela própria, e não /auditoria-interna em duas áreas: aquela é a
             // visão da matriz (ranking entre unidades, botão de sync). Esta mostra

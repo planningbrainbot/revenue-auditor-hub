@@ -4330,3 +4330,34 @@ as ofertas das 10.326 contas ficam idênticas. A página de 1.500 contas leva 12
 
 **Para ligar, na ordem:** migration → `sincronizar-estado-pipedrive.mjs --gravar` → app → UPDATE da chave. Cada passo
 precisa do ok do Pedro, e a leitura, do Dárcio.
+
+## [2026-10-02] Ranking da Rede entre as unidades regionais
+
+**Contexto:** pedido do Eliezek: "página com ranking entre unidades: quem está vendendo mais, IDU, melhor retenção,
+melhor monetização e outros que façam sentido". Medido antes de desenhar, no 3º trimestre de 2026, nas 8 regionais:
+vendas tem dado nas 8; o IDU dá 100 para as 8, porque só 15 a 45 dos 100 pontos têm dado; retenção e inadimplência só
+existem onde há Omie da unidade; NPS tem no máximo 8 respostas por unidade; o pipe Caixa tem 3 oportunidades ganhas.
+`ops.indicadores_trimestre` passa de 2 minutos e não serve de base para tela.
+
+**Decisões do Eliezek:** todos os sócios veem o ranking, com posição e números, como o IDU (ranking aberto,
+28/08/2026), sem royalties nem taxas. O período é o trimestre, com seletor. Venda da máquina e venda de sócio são
+rankings separados.
+
+**Como ficou:**
+- `ops.ranking_unidades(p_inicio, p_fim)` (migration `20261002170000`, aplicada em 02/10), SECURITY DEFINER, devolve
+  só o agregado por unidade, com a trava `view.ranking_unidades` (áreas `minha_unidade` e `rede`). Roda em ~3 s.
+- Sete rankings: maior carteira (MRR), Hunter Sócio (pipeline 4, com a unidade do sócio dono do deal), IDU,
+  retenção, monetização (pipe Caixa), inadimplência e NPS. As réguas estão no cabeçalho da migration.
+- **Sem ranking de venda da máquina nem de ticket médio** (Eliezek, ao ver a tela): quem atribui o cliente da máquina
+  às unidades é a matriz, então o número mede a distribuição e não a unidade.
+- **Maior carteira** usa `v_cliente_mrr` (Omie > Pipefy > Pipedrive) e conta cada CNPJ uma vez, porque a carga do Omie
+  criou empresas com o código no lugar do nome e o mesmo contrato aparecia em duas. Em 02/10 a soma das 8 regionais
+  deu R$ 2,80 milhões, contra R$ 2,09 milhões na mesma view em 22/09 (+34%). Os clientes com MRR do Omie passaram de
+  308 para 452. A carga de contratos do Omie é refeita inteira todo dia, então não há histórico para provar a causa.
+- **Unidade sem dado não fica em último lugar.** Cada linha diz `ok`, `amostra_insuficiente` ou `sem_dado`, e só `ok`
+  ganha posição. Os mínimos: IDU com 50 pontos medidos, retenção com 20 clientes recorrentes, inadimplência com 10
+  títulos maduros, NPS com 10 respostas.
+- **Retenção é sobre cliente recorrente** (título em 2 meses ou mais do trimestre anterior). Sem esse corte, Campo
+  Novo, que vende muito serviço avulso, caía para 45%.
+- Tela `/ranking-unidades`, no menu Minha Unidade (grifa a unidade do sócio) e no da Rede. Abre no trimestre corrente
+  depois do primeiro mês dele; antes disso, no último fechado.
