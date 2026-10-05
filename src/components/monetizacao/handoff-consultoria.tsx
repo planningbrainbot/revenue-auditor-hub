@@ -238,8 +238,8 @@ export function PainelHandoffConsultoria({
       className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <StatusBadge tom={regra.proposta ? "atencao" : "neutro"}>
-        {regra.proposta ? "Regra proposta" : "Regra"} · Expansão {pct(regra.expansao)} · unidade{" "}
-        {pct(regra.unidade)}
+        {regra.proposta ? "Regra proposta" : "Regra"} · Expansão {pct(regra.expansao)}
+        {regra.unidade ? ` · unidade ${pct(regra.unidade)}` : ""}
       </StatusBadge>
     </button>
   );
@@ -302,9 +302,21 @@ export function PainelHandoffConsultoria({
             <KpiCard
               rotulo="Recuperado"
               valor={brlCurto(p.dinheiro.recuperado)}
-              estado={semPorta ? "sem-acesso" : p.regras.fee === null ? "nao-apurado" : "ok"}
-              nota={`estimado pelo fee de ${pct(p.regras.fee)}`}
-              abrir={{ onClick: () => abrir("recuperado") }}
+              estado={
+                p.dinheiro.recuperadoFonte === "plataforma"
+                  ? "ok"
+                  : semPorta
+                    ? "sem-acesso"
+                    : p.regras.fee === null
+                      ? "nao-apurado"
+                      : "ok"
+              }
+              nota={
+                p.dinheiro.recuperadoFonte === "plataforma"
+                  ? `de ${brlCurto(p.dinheiro.identificado)} identificado`
+                  : `estimado pelo fee de ${pct(p.regras.fee)}`
+              }
+              abrir={{ onClick: () => abrir("recuperado"), rotulo: "Ver clientes" }}
             />
             <KpiCard
               rotulo="Receita Consultoria"
@@ -604,6 +616,9 @@ function GraficoDinheiro({
     const mes = mesDoClique(d);
     if (mes) abrir(`mes-${mes}`);
   };
+  // O recuperado mês a mês só existe estimado pelo fee; com o valor da plataforma (acumulado, sem mês),
+  // ele fica no número do topo e na gaveta, e o gráfico mostra só o dinheiro que passou pela PAT.
+  const estimado = p.dinheiro.recuperadoFonte === "estimado";
   // Só o número em mil (o eixo diz a unidade): "32,8 mil" não cabe acima de barras de 24 px no celular.
   const rotulo = (v: number) =>
     v ? (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "";
@@ -612,7 +627,7 @@ function GraficoDinheiro({
       titulo="Dinheiro por mês · R$ mil"
       legenda={
         <>
-          <Chave cor={CORES_SERIE[2]} texto="Recuperado (est.)" />
+          {estimado && <Chave cor={CORES_SERIE[2]} texto="Recuperado (est.)" />}
           <Chave cor={CORES_SERIE[1]} texto="Recebido pela PAT" />
           <Chave cor={CORES_SERIE[0]} texto="A repassar" />
         </>
@@ -629,18 +644,20 @@ function GraficoDinheiro({
             tickFormatter={(v: number) => (v ? `${(v / 1000).toLocaleString("pt-BR")} mil` : "0")}
           />
           <Tooltip {...tooltipProps} formatter={(v: number, nome: string) => [brl(v), nome]} />
-          <Bar
-            dataKey="recuperado"
-            name="Recuperado (estimado)"
-            fill={CORES_SERIE[2]}
-            radius={RAIO_BARRA}
-            maxBarSize={24}
-            isAnimationActive={false}
-            onClick={clique}
-            cursor="pointer"
-          >
-            <LabelList dataKey="recuperado" content={rotuloTopo(rotulo)} />
-          </Bar>
+          {estimado && (
+            <Bar
+              dataKey="recuperado"
+              name="Recuperado (estimado)"
+              fill={CORES_SERIE[2]}
+              radius={RAIO_BARRA}
+              maxBarSize={24}
+              isAnimationActive={false}
+              onClick={clique}
+              cursor="pointer"
+            >
+              <LabelList dataKey="recuperado" content={rotuloTopo(rotulo)} />
+            </Bar>
+          )}
           <Bar
             dataKey="recebido"
             name="Recebido pela PAT"
@@ -802,6 +819,8 @@ function TabelaRepasse({
   semPorta: boolean;
 }) {
   const r = p.regras;
+  // A unidade só recebe sobre a base retroativa (Pedro, 05/10): no onboarding a regra dela é 0.
+  const comUnidade = !!r.unidade;
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -830,7 +849,9 @@ function TabelaRepasse({
                 <TableHead className="text-right">Fora da regra</TableHead>
                 <TableHead className="text-right">Base</TableHead>
                 <TableHead className="text-right">Expansão {pct(r.expansao)}</TableHead>
-                <TableHead className="text-right">dos quais unidade {pct(r.unidade)}</TableHead>
+                {comUnidade && (
+                  <TableHead className="text-right">dos quais unidade {pct(r.unidade)}</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -855,7 +876,7 @@ function TabelaRepasse({
                   <TableCell className="num text-right font-semibold text-primary-text">
                     {brl(m.expansao)}
                   </TableCell>
-                  <TableCell className="num text-right">{brl(m.unidade)}</TableCell>
+                  {comUnidade && <TableCell className="num text-right">{brl(m.unidade)}</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
@@ -871,7 +892,9 @@ function TabelaRepasse({
                 <TableCell className="num text-right text-primary-text">
                   {brl(p.dinheiro.expansao)}
                 </TableCell>
-                <TableCell className="num text-right">{brl(p.dinheiro.unidade)}</TableCell>
+                {comUnidade && (
+                  <TableCell className="num text-right">{brl(p.dinheiro.unidade)}</TableCell>
+                )}
               </TableRow>
             </TableFooter>
           </Table>
@@ -890,6 +913,8 @@ type ConteudoGaveta = {
   comoCalcula: ReactNode;
   atencao?: ReactNode;
   clientes?: Cliente[];
+  /** Colunas da lista: dinheiro da PAT (padrão), crédito da plataforma ou etapa do trabalho. */
+  modo?: "recebido" | "credito" | "trabalho";
   extra?: ReactNode;
 };
 
@@ -904,6 +929,12 @@ function situacao(c: Cliente) {
     return (
       <StatusBadge tom="sucesso" icone={false}>
         na base do repasse
+      </StatusBadge>
+    );
+  if ((c.recuperado ?? 0) > 0)
+    return (
+      <StatusBadge tom="sucesso" icone={false}>
+        crédito recuperado
       </StatusBadge>
     );
   if (c.trabalhado)
@@ -931,14 +962,28 @@ function situacao(c: Cliente) {
   );
 }
 
-function ListaClientes({ clientes, meses }: { clientes: Cliente[]; meses?: string[] }) {
+function ListaClientes({
+  clientes,
+  meses,
+  modo = "recebido",
+}: {
+  clientes: Cliente[];
+  meses?: string[];
+  modo?: ConteudoGaveta["modo"];
+}) {
   if (!clientes.length)
     return <p className="text-sm text-muted-foreground">Nenhum cliente neste recorte.</p>;
   const recebido = (c: Cliente) =>
     meses ? meses.reduce((s, m) => s + (c.porMes[m]?.recebido ?? 0), 0) : c.recebido;
+  const valor = (c: Cliente) =>
+    modo === "credito"
+      ? (c.recuperado ?? 0) * 1e3 + (c.identificado ?? 0) / 1e9
+      : modo === "trabalho"
+        ? 0
+        : recebido(c);
   const ordem = [...clientes].sort(
     (a, b) =>
-      recebido(b) - recebido(a) ||
+      valor(b) - valor(a) ||
       (b.chegada ?? "").localeCompare(a.chegada ?? "") ||
       a.titulo.localeCompare(b.titulo),
   );
@@ -949,8 +994,22 @@ function ListaClientes({ clientes, meses }: { clientes: Cliente[]; meses?: strin
           <TableRow>
             <TableHead className="text-xs">Cliente</TableHead>
             <TableHead className="text-xs">Unidade</TableHead>
-            <TableHead className="text-xs">Chegou</TableHead>
-            <TableHead className="text-right text-xs">Recebido</TableHead>
+            {modo === "credito" ? (
+              <>
+                <TableHead className="text-right text-xs">Identificado</TableHead>
+                <TableHead className="text-right text-xs">Recuperado</TableHead>
+                <TableHead className="text-right text-xs">Saldo</TableHead>
+              </>
+            ) : (
+              <>
+                <TableHead className="text-xs">Chegou</TableHead>
+                {modo === "trabalho" ? (
+                  <TableHead className="text-xs">Etapa na plataforma</TableHead>
+                ) : (
+                  <TableHead className="text-right text-xs">Recebido</TableHead>
+                )}
+              </>
+            )}
             <TableHead className="text-xs">Situação</TableHead>
           </TableRow>
         </TableHeader>
@@ -970,15 +1029,38 @@ function ListaClientes({ clientes, meses }: { clientes: Cliente[]; meses?: strin
                 <span className="block text-muted-foreground">{faixaCurta(c.faixa)}</span>
               </TableCell>
               <TableCell className="text-xs">{c.unidade}</TableCell>
-              <TableCell className="text-xs">
-                {ddmm(c.chegada)}
-                {c.cargaInicial && (
-                  <span className="block text-muted-foreground">carga inicial</span>
-                )}
-              </TableCell>
-              <TableCell className="num text-right text-xs">
-                {recebido(c) ? brl(recebido(c)) : "—"}
-              </TableCell>
+              {modo === "credito" ? (
+                <>
+                  <TableCell className="num text-right text-xs">{brl(c.identificado)}</TableCell>
+                  <TableCell className="num text-right text-xs">
+                    {brl(c.recuperado)}
+                    {c.ultimaRecuperacao && (
+                      <span className="block text-muted-foreground">
+                        última {ddmm(c.ultimaRecuperacao)}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="num text-right text-xs">{brl(c.saldo)}</TableCell>
+                </>
+              ) : (
+                <>
+                  <TableCell className="text-xs">
+                    {ddmm(c.chegada)}
+                    {c.cargaInicial && (
+                      <span className="block text-muted-foreground">carga inicial</span>
+                    )}
+                  </TableCell>
+                  {modo === "trabalho" ? (
+                    <TableCell className="text-xs">
+                      {c.etapa ?? (c.projetos.length ? "projetos encerrados" : "—")}
+                    </TableCell>
+                  ) : (
+                    <TableCell className="num text-right text-xs">
+                      {recebido(c) ? brl(recebido(c)) : "—"}
+                    </TableCell>
+                  )}
+                </>
+              )}
               <TableCell className="text-xs">{situacao(c)}</TableCell>
             </TableRow>
           ))}
@@ -990,7 +1072,7 @@ function ListaClientes({ clientes, meses }: { clientes: Cliente[]; meses?: strin
 
 function conteudo(id: string, p: Painel): ConteudoGaveta | null {
   const r = p.regras;
-  const regraTexto = `Base = o que a PAT recebeu desses clientes, do mês da chegada em diante${r.excluiPrevio ? ", sem os clientes que a PAT já faturava antes da chegada" : ""}. Repasse à Expansão = base × ${pct(r.expansao)}; dentro dele, a unidade que vendeu fica com ${pct(r.unidade)} da base.`;
+  const regraTexto = `Base = o que a PAT recebeu desses clientes, do mês da chegada em diante${r.excluiPrevio ? ", só do que veio do comercial: cliente que a PAT já faturava antes da chegada fica fora" : ""}. Repasse à Expansão (Planning Partners) = base × ${pct(r.expansao)}; o resto fica com a PAT. ${r.unidade ? `Dentro do repasse, a unidade que vendeu fica com ${pct(r.unidade)} da base.` : "A unidade não recebe sobre cliente do onboarding: ela só recebe sobre a base retroativa."}`;
   if (id === "chegaram")
     return {
       titulo: "Chegaram à Consultoria",
@@ -1005,13 +1087,26 @@ function conteudo(id: string, p: Painel): ConteudoGaveta | null {
     return {
       titulo: "Trabalhados",
       valor: INT.format(id === "trabalhados" ? p.trabalhados.length : p.funil[2].clientes.length),
-      oQueDiz: "Clientes que já têm sinal de trabalho da Consultoria.",
+      oQueDiz:
+        "Clientes que a Consultoria já trabalha: têm projeto na plataforma ou receita na PAT.",
       comoCalcula:
-        "Proposta da Consultoria casada pelo CNPJ, valor a recuperar informado pela plataforma ou receita da PAT depois da chegada.",
+        "Projeto cadastrado na plataforma da Consultoria (diagnóstico, retificação e outros), proposta casada pelo CNPJ ou receita da PAT depois da chegada. O mês é o do primeiro projeto, nunca antes da chegada.",
       atencao: p.atencao.plataformaSemStatus
-        ? "Parcial: a plataforma ainda não envia o status do trabalho nem o valor a recuperar."
+        ? "Parcial: a plataforma não enviou projeto nem crédito de nenhum cliente que chegou."
         : undefined,
       clientes: id === "trabalhados" ? p.trabalhados : p.funil[2].clientes,
+      modo: "trabalho",
+    };
+  if (id === "recuperado" && p.dinheiro.recuperadoFonte === "plataforma")
+    return {
+      titulo: "Crédito recuperado",
+      valor: brl(p.dinheiro.recuperado),
+      oQueDiz:
+        "Crédito já recuperado para os clientes que chegaram no período, acumulado na plataforma da Consultoria.",
+      comoCalcula:
+        "Soma do crédito recuperado de cada cliente na plataforma do Pedro Siqueira. Ao lado, o identificado no diagnóstico e o saldo a recuperar. A plataforma informa a data da última recuperação, não o mês de cada uma; por isso o número é acumulado e não entra no gráfico mês a mês.",
+      clientes: p.chegaram.filter((c) => (c.identificado ?? 0) > 0 || (c.recuperado ?? 0) > 0),
+      modo: "credito",
     };
   if (id === "recuperado")
     return {
@@ -1023,24 +1118,24 @@ function conteudo(id: string, p: Painel): ConteudoGaveta | null {
       atencao: "O fee está em aberto no forecast. O valor real virá da plataforma da Consultoria.",
       clientes: p.todos.filter((c) => c.creditos > 0),
     };
-  if (id === "receita" || id === "funil-receita")
+  if (id === "receita")
     return {
       titulo: "Receita da Consultoria",
       valor: brl(p.dinheiro.recebido),
       oQueDiz: "O que a PAT recebeu desses clientes depois da chegada.",
       comoCalcula:
         "Títulos da PAT recebidos no caixa (valor pago, líquido de retenções), pela data de crédito, do mês da chegada em diante. O cliente do lançamento é casado pelo cadastro do Omie.",
-      clientes: id === "receita" ? p.todos.filter((c) => c.recebido > 0) : p.funil[3].clientes,
+      clientes: p.todos.filter((c) => c.recebido > 0),
     };
-  if (id === "repassar" || id === "regra" || id === "funil-repasse")
+  if (id === "repassar" || id === "regra")
     return {
       titulo: "A repassar à Expansão",
       valor: brl(p.dinheiro.expansao),
-      oQueDiz: `${pct(r.expansao)} do que a PAT recebe dos clientes que chegaram pelo onboarding.`,
+      oQueDiz: `${pct(r.expansao)} do que a PAT recebe dos clientes que vieram do comercial pelo onboarding.`,
       comoCalcula: regraTexto,
       atencao: r.proposta
-        ? "Regra proposta em 02/10, aguardando confirmação. Ela mora na tabela ops.handoff_consultoria_regras e muda sem código."
-        : undefined,
+        ? "Regra proposta, aguardando confirmação. Ela mora na tabela ops.handoff_consultoria_regras e muda sem código."
+        : "A regra mora na tabela ops.handoff_consultoria_regras e muda sem código.",
       extra: (
         <div className="space-y-2">
           <ul className="space-y-1 text-[13px]">
@@ -1131,6 +1226,12 @@ function conteudo(id: string, p: Painel): ConteudoGaveta | null {
           ? "Todos os clientes do pipe de onboarding."
           : `${e.taxa}% da etapa de cima.`,
       clientes: e.clientes,
+      modo:
+        e.id === "identificado" || e.id === "recuperado"
+          ? "credito"
+          : e.id === "trabalhados"
+            ? "trabalho"
+            : undefined,
     };
   }
   if (id.startsWith("faixa-")) {
@@ -1195,7 +1296,7 @@ function Gaveta({ id, p, fechar }: { id: string | null; p: Painel; fechar: () =>
               {c.extra}
               {c.clientes && (
                 <Parte titulo={`Os clientes (${INT.format(c.clientes.length)})`}>
-                  <ListaClientes clientes={c.clientes} meses={meses} />
+                  <ListaClientes clientes={c.clientes} meses={meses} modo={c.modo} />
                 </Parte>
               )}
             </div>

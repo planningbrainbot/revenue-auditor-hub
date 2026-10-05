@@ -461,6 +461,8 @@ test("painel: números, dinheiro por mês, funil que só desce e atenção", () 
   assert.equal(p.trabalhados.length, 2);
   assert.deepEqual(p.dinheiro, {
     recuperado: 36751.76,
+    recuperadoFonte: "estimado",
+    identificado: null,
     recebido: 11843.18,
     base: 4000,
     fora: 7843.18,
@@ -479,11 +481,11 @@ test("painel: números, dinheiro por mês, funil que só desce e atenção", () 
   );
   assert.deepEqual(
     p.funil.map((e) => e.clientes.length),
-    [5, 3, 2, 2, 1],
+    [5, 3, 2, 0, 0],
   );
   assert.deepEqual(
     p.funil.map((e) => e.taxa),
-    [null, 60, 67, 100, 50],
+    [null, 60, 67, 0, null],
   );
   for (let i = 1; i < p.funil.length; i++) {
     assert.ok(p.funil[i].clientes.length <= p.funil[i - 1].clientes.length, "etapa só desce");
@@ -557,4 +559,133 @@ test("filtros: período corta chegadas e dinheiro; unidade corta tudo", () => {
     true,
     "a lista de unidades não encolhe com o filtro",
   );
+});
+
+// A plataforma da Consultoria manda projetos e créditos por cliente desde 05/10/2026.
+const projeto = (cadastrado, etapa, valor = 0, extra = {}) => ({
+  produto: "Diagnóstico de oportunidades",
+  linha_produto: "diagnostico_tributario",
+  etapa: null,
+  etapa_descricao: etapa,
+  cadastrado_em: cadastrado,
+  na_etapa_desde: cadastrado,
+  entregue_em: null,
+  encerrado: false,
+  encerrado_em: null,
+  valor_identificado: valor,
+  ...extra,
+});
+const naPlataforma = (dia, extra) => ({ ...chegou(dia), ...extra });
+const REGRAS_05_10 = [
+  {
+    chave: "repasse_expansao",
+    valor: 0.5,
+    vigente_desde: "2026-07-01",
+    situacao: "confirmada",
+    origem: "05/10",
+  },
+  {
+    chave: "repasse_unidade",
+    valor: 0,
+    vigente_desde: "2026-07-01",
+    situacao: "confirmada",
+    origem: "05/10",
+  },
+  {
+    chave: "fee_estimado",
+    valor: 0.25,
+    vigente_desde: "2026-07-01",
+    situacao: "confirmada",
+    origem: "05/10",
+  },
+  {
+    chave: "exclui_cliente_previo_pat",
+    valor: 1,
+    vigente_desde: "2026-07-01",
+    situacao: "confirmada",
+    origem: "05/10",
+  },
+];
+
+test("plataforma: projeto marca o trabalho, o crédito recuperado vem dela e vence o estimado", () => {
+  const clientes = [
+    // P1: carga inicial, projeto de fevereiro (antes da chegada), crédito recuperado.
+    cli("P1", {
+      cnpj: "11111111000111",
+      consultoria: naPlataforma("2026-07-26", {
+        valor_identificado: 100000,
+        credito_aprovado: 90000,
+        credito_recuperado: 40000,
+        credito_saldo: 50000,
+        credito_ultima_recuperacao_em: "2026-09-25",
+        projetos: [projeto("2026-02-23", "Pós Entrega", 100000)],
+      }),
+      pat: [
+        {
+          mes: "2026-08-01",
+          faturado: 10000,
+          creditos: 10000,
+          recebido: 10000,
+          cliente_omie: "P1",
+        },
+      ],
+    }),
+    // P2: chegou no kickoff de setembro, projeto aberto, nada identificado ainda.
+    cli("P2", {
+      cnpj: "22222222000122",
+      consultoria: naPlataforma("2026-09-10", {
+        valor_identificado: 0,
+        credito_recuperado: 0,
+        projetos: [
+          projeto("2026-09-01", "Pós Entrega", 0, { encerrado: true }),
+          projeto("2026-09-29", "Fluxo de Documentos"),
+        ],
+      }),
+    }),
+    // P3: chegou e ainda não tem projeto.
+    cli("P3", {
+      cnpj: "33333333000133",
+      consultoria: naPlataforma("2026-09-15", { credito_recuperado: 0, projetos: [] }),
+    }),
+  ];
+  const p = montarPainel({ ...bruto(clientes), regras: REGRAS_05_10 }, {}, "2026-10-05");
+  const porCard = Object.fromEntries(p.todos.map((c) => [c.card, c]));
+  assert.equal(porCard.P1.trabalhado, true);
+  assert.equal(
+    porCard.P1.mesTrabalho,
+    "2026-07",
+    "projeto antes da chegada conta no mês da chegada",
+  );
+  assert.equal(porCard.P1.etapa, "Pós Entrega");
+  assert.equal(porCard.P2.mesTrabalho, "2026-09");
+  assert.equal(
+    porCard.P2.etapa,
+    "Fluxo de Documentos",
+    "a etapa é a do projeto aberto mais recente",
+  );
+  assert.equal(porCard.P3.trabalhado, false);
+  assert.equal(p.trabalhados.length, 2);
+  assert.equal(p.dinheiro.recuperadoFonte, "plataforma");
+  assert.equal(p.dinheiro.recuperado, 40000);
+  assert.equal(p.dinheiro.identificado, 100000);
+  assert.ok(
+    p.porMes.every((m) => m.recuperado === null),
+    "sem estimativa mês a mês quando a plataforma informa",
+  );
+  assert.deepEqual(
+    p.funil.map((e) => [e.id, e.clientes.length, e.taxa]),
+    [
+      ["onboarding", 3, null],
+      ["consultoria", 3, 100],
+      ["trabalhados", 2, 67],
+      ["identificado", 1, 50],
+      ["recuperado", 1, 100],
+    ],
+  );
+  assert.equal(p.atencao.plataformaSemStatus, false);
+  // Regra de 05/10: 50% à Expansão e nada para a unidade no onboarding.
+  assert.equal(p.regras.proposta, false);
+  assert.equal(p.regras.unidade, 0);
+  assert.equal(p.dinheiro.expansao, 5000);
+  assert.equal(p.dinheiro.unidade, 0);
 });

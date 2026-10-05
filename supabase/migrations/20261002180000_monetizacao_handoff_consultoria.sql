@@ -7,7 +7,8 @@
 --      recuperada pelos conectores do card. `ops.cs_onboarding_cards` não serve: a sync dela lê dois
 --      campos que saíram do pipe, e CNPJ e organização chegam vazios nos 206 cards (medido em 02/10).
 --   2. Plataforma da Consultoria: `ops.consultoria_clientes` e `ops.consultoria_propostas`, que a
---      `consultoria-sync` já mantém. Nada muda nelas.
+--      `consultoria-sync` já mantém. Nada muda nelas: projetos e créditos por cliente (API desde
+--      05/10/2026) são lidos do `payload`, que a sync guarda inteiro.
 --   3. PAT no Financial Brain (a empresa que fatura a Consultoria): receita por CNPJ e mês.
 -- As regras do repasse ficam em `ops.handoff_consultoria_regras`, nunca no código.
 
@@ -68,8 +69,8 @@ create table if not exists ops.handoff_consultoria_regras (
   id bigint generated always as identity primary key,
   chave text not null check (chave in (
     'repasse_expansao',          -- fração do recebido que vai à Expansão
-    'repasse_unidade',           -- dela, a parte da unidade que vendeu (informativo, já dentro da anterior)
-    'fee_estimado',              -- fee sobre o crédito, para estimar o recuperado
+    'repasse_unidade',           -- dela, a parte da unidade que vendeu (0 no onboarding: só a base retroativa paga a unidade)
+    'fee_estimado',              -- fee sobre o crédito, para estimar o recuperado quando a plataforma não informa
     'exclui_cliente_previo_pat'  -- 1 = cliente que a PAT já faturava antes da chegada fica fora
   )),
   valor numeric not null check (valor >= 0 and valor <= 1),
@@ -82,14 +83,14 @@ create unique index if not exists handoff_consultoria_regras_vigencia
   on ops.handoff_consultoria_regras (chave, vigente_desde);
 
 insert into ops.handoff_consultoria_regras (chave, valor, vigente_desde, situacao, origem) values
-  ('repasse_expansao', 0.50, '2026-07-01', 'proposta',
-   'Decisão de 29/09/2026 (monetizacao/memoria/decisoes.md): a parte da Planning Partners na Consultoria é 50%. Recomendação de 02/10, aguardando o Pedro.'),
-  ('repasse_unidade', 0.20, '2026-07-01', 'proposta',
-   'Decisão de 29/09/2026: a unidade sócia fica com 40% da parte da Partners (40% × 50% = 20%). Recomendação de 02/10, aguardando o Pedro.'),
-  ('fee_estimado', 0.25, '2026-07-01', 'proposta',
-   'Fee da Consultoria no forecast v12 (crédito 600 mil × 25%), EM ABERTO. Só estima o recuperado até a plataforma enviar o valor real.'),
-  ('exclui_cliente_previo_pat', 1, '2026-07-01', 'proposta',
-   'Recomendação de 02/10: cliente que a PAT já faturava antes de chegar pelo onboarding não gera repasse.')
+  ('repasse_expansao', 0.50, '2026-07-01', 'confirmada',
+   'Pedro, 05/10/2026: "50% pra pat". A outra metade é da Planning Partners (Expansão), a mesma parte da decisão de 29/09.'),
+  ('repasse_unidade', 0, '2026-07-01', 'confirmada',
+   'Pedro, 05/10/2026: "a unidade só recebe sobre base retroativa. Tirando isso não recebe." Cliente do onboarding não é base retroativa.'),
+  ('fee_estimado', 0.25, '2026-07-01', 'confirmada',
+   'Pedro, 05/10/2026: estimar pelo fee de 25% ("ok"), só quando a plataforma da Consultoria não informa o crédito recuperado.'),
+  ('exclui_cliente_previo_pat', 1, '2026-07-01', 'confirmada',
+   'Pedro, 05/10/2026: "só paga a partners o que veio do comercial". Cliente que a PAT já faturava antes de chegar pelo onboarding fica fora.')
 on conflict (chave, vigente_desde) do nothing;
 
 -- ── RLS: leitura só pelo RPC abaixo (as regras também por select, para quem vê a Monetização) ───
@@ -176,9 +177,16 @@ begin
         from ops.handoff_consultoria_onboarding o
         -- Chegou: o CNPJ, ou na falta dele a raiz (mesma pessoa jurídica), na plataforma.
         left join lateral (
+          -- Projetos e créditos chegam no payload da API desde 05/10 (a consultoria-sync guarda o objeto inteiro).
           select jsonb_build_object('cadastrado_em', cc.cadastrado_em, 'via', x.via, 'ativo', cc.ativo,
                    'inativo_desde', cc.inativo_desde, 'valor_a_recuperar', cc.valor_a_recuperar,
-                   'valor_a_recuperar_em', cc.valor_a_recuperar_em) as j
+                   'valor_a_recuperar_em', cc.valor_a_recuperar_em,
+                   'valor_identificado', cc.payload->'valor_identificado',
+                   'credito_aprovado', cc.payload->'credito_aprovado',
+                   'credito_recuperado', cc.payload->'credito_recuperado',
+                   'credito_saldo', cc.payload->'credito_saldo',
+                   'credito_ultima_recuperacao_em', cc.payload->'credito_ultima_recuperacao_em',
+                   'projetos', coalesce(cc.payload->'projetos', '[]'::jsonb)) as j
           from (
             select cc.id, 'cnpj' as via, 0 as ord from ops.consultoria_clientes cc
              where o.cnpj is not null and cc.cnpj = o.cnpj and cc.ausente_desde is null

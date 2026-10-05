@@ -5,7 +5,8 @@
 // (scripts/monetizacao/conferir-handoff-consultoria.mjs) usarem a mesma conta.
 //
 // Unidade de contagem: cliente = CNPJ distinto; card sem CNPJ conta como cliente próprio.
-// Dinheiro: do mês da chegada à Consultoria em diante. As porcentagens vêm da tabela de regras.
+// Dinheiro da PAT: do mês da chegada à Consultoria em diante. As porcentagens vêm da tabela de regras.
+// Trabalho e crédito recuperado: da plataforma da Consultoria (projetos e créditos por cliente, API desde 05/10).
 
 export type ChaveRegra =
   "repasse_expansao" | "repasse_unidade" | "fee_estimado" | "exclui_cliente_previo_pat";
@@ -24,6 +25,19 @@ export interface MesPat {
   creditos: number;
   recebido: number;
   cliente_omie: string | null;
+}
+
+export interface ProjetoConsultoria {
+  produto: string | null;
+  linha_produto: string | null;
+  etapa: string | null;
+  etapa_descricao: string | null;
+  cadastrado_em: string | null;
+  na_etapa_desde: string | null;
+  entregue_em: string | null;
+  encerrado: boolean | null;
+  encerrado_em: string | null;
+  valor_identificado: number | null;
 }
 
 export interface ClienteBruto {
@@ -48,6 +62,13 @@ export interface ClienteBruto {
     inativo_desde: string | null;
     valor_a_recuperar: number | null;
     valor_a_recuperar_em: string | null;
+    /** Campos da API da plataforma desde 05/10/2026 (ausentes antes disso). */
+    valor_identificado?: number | null;
+    credito_aprovado?: number | null;
+    credito_recuperado?: number | null;
+    credito_saldo?: number | null;
+    credito_ultima_recuperacao_em?: string | null;
+    projetos?: ProjetoConsultoria[] | null;
   } | null;
   propostas: number;
   pat: MesPat[] | null;
@@ -142,6 +163,15 @@ export interface Cliente {
   via: "cnpj" | "raiz" | null;
   propostas: number;
   valorARecuperar: number | null;
+  projetos: ProjetoConsultoria[];
+  /** Etapa do projeto aberto mais recente na plataforma. */
+  etapa: string | null;
+  identificado: number | null;
+  aprovado: number | null;
+  /** Crédito já recuperado para o cliente, acumulado na plataforma. `null` = a plataforma não informa. */
+  recuperado: number | null;
+  saldo: number | null;
+  ultimaRecuperacao: string | null;
   /** A PAT já faturava ou recebia do cliente antes do mês da chegada. `null` sem a porta do Financeiro. */
   jaPagavaPat: boolean | null;
   /** Por mês, do mês da chegada em diante. */
@@ -191,12 +221,28 @@ export function clientesDoPainel(bruto: PainelBruto, regras: Regras): Cliente[] 
     const recebido = meses.reduce((s, m) => s + porMes[m].recebido, 0);
     const creditos = meses.reduce((s, m) => s + porMes[m].creditos, 0);
     const comReceita = meses.filter((m) => porMes[m].faturado > 0 || porMes[m].recebido > 0);
-    const valorARecuperar = b.consultoria?.valor_a_recuperar ?? null;
+    const cons = b.consultoria;
+    const valorARecuperar = cons?.valor_a_recuperar ?? null;
+    const projetos = cons?.projetos ?? [];
+    const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
     const trabalhado =
-      !!chegada && (b.propostas > 0 || valorARecuperar !== null || comReceita.length > 0);
+      !!chegada &&
+      (projetos.length > 0 || b.propostas > 0 || valorARecuperar !== null || comReceita.length > 0);
+    // Mês do trabalho: o primeiro sinal (projeto, receita ou valor apurado), nunca antes da chegada.
+    const sinais = [
+      ...projetos.map((x) => mesDe(diaSP(x.cadastrado_em))),
+      comReceita[0] ?? null,
+      mesDe(diaSP(cons?.valor_a_recuperar_em)),
+    ].filter((x): x is string => !!x);
+    const primeiro = sinais.sort()[0] ?? mesCheg;
     const mesTrabalho = !trabalhado
       ? null
-      : (comReceita[0] ?? mesDe(diaSP(b.consultoria?.valor_a_recuperar_em)) ?? mesCheg);
+      : primeiro && mesCheg && primeiro < mesCheg
+        ? mesCheg
+        : primeiro;
+    const aberto = [...projetos]
+      .filter((x) => !x.encerrado)
+      .sort((x, y) => (y.cadastrado_em ?? "").localeCompare(x.cadastrado_em ?? ""))[0];
     return {
       chave,
       card: b.card,
@@ -215,6 +261,13 @@ export function clientesDoPainel(bruto: PainelBruto, regras: Regras): Cliente[] 
       via: b.consultoria?.via ?? null,
       propostas: b.propostas,
       valorARecuperar,
+      projetos,
+      etapa: aberto?.etapa_descricao ?? null,
+      identificado: num(cons?.valor_identificado),
+      aprovado: num(cons?.credito_aprovado),
+      recuperado: num(cons?.credito_recuperado),
+      saldo: num(cons?.credito_saldo),
+      ultimaRecuperacao: cons?.credito_ultima_recuperacao_em ?? null,
       jaPagavaPat,
       porMes,
       trabalhado,
@@ -241,7 +294,7 @@ export interface MesPainel {
 }
 
 export interface EtapaFunil {
-  id: "onboarding" | "consultoria" | "trabalhados" | "receita" | "repasse";
+  id: "onboarding" | "consultoria" | "trabalhados" | "identificado" | "recuperado";
   rotulo: string;
   clientes: Cliente[];
   /** Etapa ÷ etapa de cima, inteiro em %. Nulo na primeira. */
@@ -261,7 +314,10 @@ export interface Painel {
   chegaram: Cliente[];
   trabalhados: Cliente[];
   dinheiro: {
+    /** Crédito recuperado dos clientes que chegaram no período: o da plataforma ou, sem ele, o estimado. */
     recuperado: number | null;
+    recuperadoFonte: "plataforma" | "estimado";
+    identificado: number | null;
     recebido: number | null;
     base: number | null;
     fora: number | null;
@@ -281,7 +337,7 @@ export interface Painel {
   atencao: {
     encaminhadosFora: Cliente[];
     semCnpj: Cliente[];
-    /** A plataforma não mandou status nem valor a recuperar de nenhum cliente que chegou. */
+    /** A plataforma não mandou projeto, crédito nem valor a recuperar de nenhum cliente que chegou. */
     plataformaSemStatus: boolean;
   };
 }
@@ -309,7 +365,9 @@ export function montarPainel(
   const chegaram = todos.filter((c) => naJanela(c.chegada));
   const trabalhados = chegaram.filter((c) => c.trabalhado);
   const comPorta = bruto.porta_financeiro.aberta;
-  const fee = regras.fee;
+  // A plataforma informa o crédito recuperado desde 05/10; o fee só estima quando ela não informa.
+  const daPlataforma = chegaram.some((c) => c.recuperado !== null);
+  const fee = daPlataforma ? null : regras.fee;
 
   const porMes: MesPainel[] = meses.map((m) => {
     const recebido = soma(todos.map((c) => c.porMes[m]?.recebido ?? 0));
@@ -332,19 +390,21 @@ export function montarPainel(
   const somaMeses = (k: "recuperado" | "recebido" | "base" | "fora" | "expansao" | "unidade") =>
     porMes.some((x) => x[k] === null) ? null : arred(soma(porMes.map((x) => x[k] as number)));
 
-  // Funil: o pipe inteiro (estoque), cada etapa dentro da de cima; não segue o período.
-  // Receita implica trabalhado, e base do repasse implica recebido: cada etapa cabe na de cima.
+  // Funil: o pipe inteiro (estoque), do onboarding ao crédito recuperado; não segue o período.
+  // Cada etapa é a de cima com mais uma condição, então só desce.
   const naConsultoria = todos.filter((c) => c.chegada);
   const trabalhadosTodos = naConsultoria.filter((c) => c.trabalhado);
-  const comReceita = trabalhadosTodos.filter((c) =>
-    Object.values(c.porMes).some((x) => x.faturado > 0 || x.recebido > 0),
-  );
+  const comIdentificado = trabalhadosTodos.filter((c) => (c.identificado ?? 0) > 0);
   const etapas: Omit<EtapaFunil, "taxa">[] = [
     { id: "onboarding", rotulo: "No onboarding", clientes: todos },
     { id: "consultoria", rotulo: "Na Consultoria", clientes: naConsultoria },
     { id: "trabalhados", rotulo: "Trabalhados", clientes: trabalhadosTodos },
-    { id: "receita", rotulo: "Com receita na PAT", clientes: comReceita },
-    { id: "repasse", rotulo: "Geram repasse", clientes: comReceita.filter((c) => c.naBase) },
+    { id: "identificado", rotulo: "Crédito identificado", clientes: comIdentificado },
+    {
+      id: "recuperado",
+      rotulo: "Crédito recuperado",
+      clientes: comIdentificado.filter((c) => (c.recuperado ?? 0) > 0),
+    },
   ];
   const funil = etapas.map((e, i) => ({
     ...e,
@@ -405,7 +465,13 @@ export function montarPainel(
     chegaram,
     trabalhados,
     dinheiro: {
-      recuperado: somaMeses("recuperado"),
+      recuperado: daPlataforma
+        ? arred(soma(chegaram.map((c) => c.recuperado ?? 0)))
+        : somaMeses("recuperado"),
+      recuperadoFonte: daPlataforma ? "plataforma" : "estimado",
+      identificado: chegaram.some((c) => c.identificado !== null)
+        ? arred(soma(chegaram.map((c) => c.identificado ?? 0)))
+        : null,
       recebido: somaMeses("recebido"),
       base: somaMeses("base"),
       fora: somaMeses("fora"),
@@ -420,7 +486,10 @@ export function montarPainel(
       encaminhadosFora: todos.filter((c) => c.encaminhado && !c.chegada),
       semCnpj: todos.filter((c) => !c.cnpj),
       plataformaSemStatus:
-        naConsultoria.length > 0 && naConsultoria.every((c) => c.valorARecuperar === null),
+        naConsultoria.length > 0 &&
+        naConsultoria.every(
+          (c) => !c.projetos.length && c.valorARecuperar === null && c.recuperado === null,
+        ),
     },
   };
 }

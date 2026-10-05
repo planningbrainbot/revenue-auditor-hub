@@ -51,7 +51,9 @@ const I = new Map(indep.clientes.map((c) => [chave(c), c]));
 const T = new Map(p.todos.map((c) => [c.chave, c]));
 checar(T.size === I.size, `clientes: tela ${T.size} × independente ${I.size}`);
 const chegTela = new Set(p.chegaram.map((c) => c.chave));
-const chegInd = new Set(indep.clientes.filter((c) => c.chegada && c.chegada >= p.de && c.chegada <= p.ate).map(chave));
+const chegInd = new Set(
+  indep.clientes.filter((c) => c.chegada && c.chegada >= p.de && c.chegada <= p.ate).map(chave),
+);
 for (const k of new Set([...chegTela, ...chegInd]))
   checar(chegTela.has(k) === chegInd.has(k), `chegou diverge: ${T.get(k)?.card ?? I.get(k)?.card}`);
 for (const [k, t] of T) {
@@ -64,20 +66,55 @@ for (const [k, t] of T) {
   checar(t.trabalhado === i.trabalhado, `trabalhado ${t.card}`);
   checar(t.naBase === i.na_base, `base do repasse ${t.card}`);
   checar(t.jaPagavaPat === i.ja_pagava, `já pagava a PAT ${t.card}`);
-  checar((t.faixa === "Sem faixa declarada" ? null : t.faixa) === i.faixa, `faixa ${t.card}: ${t.faixa} × ${i.faixa}`);
+  checar(
+    (t.faixa === "Sem faixa declarada" ? null : t.faixa) === i.faixa,
+    `faixa ${t.card}: ${t.faixa} × ${i.faixa}`,
+  );
   checar(t.encaminhado === i.encaminhado, `encaminhado ${t.card}`);
+  checar(
+    t.mesTrabalho === i.mes_trabalho,
+    `mês do trabalho ${t.card}: ${t.mesTrabalho} × ${i.mes_trabalho}`,
+  );
+  if (t.chegada) {
+    checar(
+      perto(t.recuperado, i.recuperado),
+      `recuperado ${t.card}: ${t.recuperado} × ${i.recuperado}`,
+    );
+    checar(perto(t.identificado, i.identificado), `identificado ${t.card}`);
+  }
 }
 
 // ── mês a mês ────────────────────────────────────────────────────────────────────────────────────
 for (const m of p.porMes) {
   const i = indep.por_mes[m.mes];
   if (!i) continue;
-  checar(m.chegaram.length === i.chegaram, `${m.mes} chegaram ${m.chegaram.length} × ${i.chegaram}`);
-  checar(m.trabalhados.length === i.trabalhados, `${m.mes} trabalhados ${m.trabalhados.length} × ${i.trabalhados}`);
+  checar(
+    m.chegaram.length === i.chegaram,
+    `${m.mes} chegaram ${m.chegaram.length} × ${i.chegaram}`,
+  );
+  checar(
+    m.trabalhados.length === i.trabalhados,
+    `${m.mes} trabalhados ${m.trabalhados.length} × ${i.trabalhados}`,
+  );
   checar(perto(m.recebido, i.recebido), `${m.mes} recebido ${m.recebido} × ${i.recebido}`);
   checar(perto(m.base, i.base), `${m.mes} base ${m.base} × ${i.base}`);
   checar(perto(m.expansao, i.expansao), `${m.mes} a repassar ${m.expansao} × ${i.expansao}`);
-  checar(perto(m.recuperado, i.recuperado), `${m.mes} recuperado ${m.recuperado} × ${i.recuperado}`);
+  checar(
+    perto(m.recuperado, i.recuperado),
+    `${m.mes} recuperado ${m.recuperado} × ${i.recuperado}`,
+  );
+}
+
+// ── crédito da plataforma (coorte que chegou no período) ─────────────────────────────────────────
+if (p.dinheiro.recuperadoFonte === "plataforma" && p.de === "2026-07-01") {
+  checar(
+    perto(p.dinheiro.recuperado, indep.total.recuperado_desde_jul),
+    `recuperado total ${p.dinheiro.recuperado} × ${indep.total.recuperado_desde_jul}`,
+  );
+  checar(
+    perto(p.dinheiro.identificado, indep.total.identificado_desde_jul),
+    `identificado total ${p.dinheiro.identificado} × ${indep.total.identificado_desde_jul}`,
+  );
 }
 
 // ── funil e contagens ────────────────────────────────────────────────────────────────────────────
@@ -86,10 +123,19 @@ p.funil.forEach((e, n) => {
   if (!n) return;
   const cima = p.funil[n - 1].clientes;
   checar(e.clientes.length <= cima.length, `${e.rotulo} sobe em relação à etapa de cima`);
-  checar(e.clientes.every((c) => cima.includes(c)), `${e.rotulo} não cabe na etapa de cima`);
-  checar(e.taxa === (cima.length ? Math.round((e.clientes.length / cima.length) * 100) : null), `${e.rotulo}: taxa ≠ etapa ÷ de cima`);
+  checar(
+    e.clientes.every((c) => cima.includes(c)),
+    `${e.rotulo} não cabe na etapa de cima`,
+  );
+  checar(
+    e.taxa === (cima.length ? Math.round((e.clientes.length / cima.length) * 100) : null),
+    `${e.rotulo}: taxa ≠ etapa ÷ de cima`,
+  );
 });
-checar(perto(p.dinheiro.expansao, (p.dinheiro.base ?? 0) * (p.regras.expansao ?? 0)), "repasse ≠ base × regra");
+checar(
+  perto(p.dinheiro.expansao, (p.dinheiro.base ?? 0) * (p.regras.expansao ?? 0)),
+  "repasse ≠ base × regra",
+);
 
 console.log(
   JSON.stringify(
@@ -102,7 +148,13 @@ console.log(
       trabalhados: p.trabalhados.length,
       funil: p.funil.map((e) => [e.rotulo, e.clientes.length, e.taxa]),
       dinheiro: p.dinheiro,
-      por_mes: p.porMes.map((m) => [m.mes, m.chegaram.length, m.trabalhados.length, m.recebido, m.expansao]),
+      por_mes: p.porMes.map((m) => [
+        m.mes,
+        m.chegaram.length,
+        m.trabalhados.length,
+        m.recebido,
+        m.expansao,
+      ]),
       checagens,
       falhas: falhas.length,
     },
