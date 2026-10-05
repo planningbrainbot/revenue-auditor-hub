@@ -13,6 +13,11 @@
 // DS v2 (contrato `docs/design/contratos/receita-e-repasses.md` §6): um nome só
 // para cada número (N11: "Cobrado", "A cobrar"), filtros na URL (N7) e erro de
 // qualquer das duas views vira `EstadoErro`, não card zerado nem lista vazia.
+//
+// Duas telas usam este componente: /unidades/funil-cac (a rede, chave
+// `view.unidades_rede`) e /meu-funil-cac (a unidade do sócio, chave
+// `view.meu_funil_cac`, desde 05/10/2026). Quem recorta a unidade é a view, não
+// o componente; no modo "unidade" ele só tira o que é comparação entre unidades.
 import { useEffect, useMemo, useState } from "react";
 import { OctagonAlert } from "lucide-react";
 import {
@@ -165,14 +170,18 @@ function tomDoDegrau(i: number, total: number): string {
 const ROTULO = new Map(ETAPAS.map((e) => [e.chave, e.rotulo]));
 const EXIGE_ACAO = new Set(ETAPAS.filter((e) => e.acao).map((e) => e.chave));
 
-export function FunilCacContent() {
+export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidade" } = {}) {
+  const daRede = escopo === "rede";
+  const chave = daRede ? "view.unidades_rede" : "view.meu_funil_cac";
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroResumo, setErroResumo] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [resumo, setResumo] = useState<Resumo[]>([]);
-  const [unidade, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  const [unidadeNaUrl, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  // Na tela da unidade a view já devolve uma unidade só; o filtro não existe.
+  const unidade = daRede ? unidadeNaUrl : "todas";
   const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
   const [soChurn, setSoChurn] = useFiltroNaUrl("churn", false);
   const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa", "churn"]);
@@ -346,7 +355,7 @@ export function FunilCacContent() {
       <div className="px-4 py-6 md:px-6">
         <ErroDaConsulta
           erro={erro}
-          chaves="view.unidades_rede"
+          chaves={chave}
           titulo="Não foi possível ler o funil de CAC"
           tentarNovamente={tentarDeNovo}
         />
@@ -357,10 +366,17 @@ export function FunilCacContent() {
   if (linhas.length === 0) {
     return (
       <div className="px-4 py-6 md:px-6">
-        <EstadoVazio
-          titulo="Nenhuma venda elegível a CAC no recorte"
-          descricao="A unidade entra aqui quando paga CAC ou quando abre o primeiro card no pipe de cobrança."
-        />
+        {daRede ? (
+          <EstadoVazio
+            titulo="Nenhuma venda elegível a CAC no recorte"
+            descricao="A unidade entra aqui quando paga CAC ou quando abre o primeiro card no pipe de cobrança."
+          />
+        ) : (
+          <EstadoVazio
+            titulo="Sua unidade não tem CAC"
+            descricao="O funil aparece aqui quando a unidade passa a pagar CAC sobre as vendas do Inside Sales."
+          />
+        )}
       </div>
     );
   }
@@ -371,13 +387,15 @@ export function FunilCacContent() {
   return (
     <div className="space-y-6 px-4 py-6 md:px-6">
       <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
-        <Select value={unidade} onValueChange={setUnidade}>
-          <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas as unidades</SelectItem>
-            {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {daRede && (
+          <Select value={unidade} onValueChange={setUnidade}>
+            <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as unidades</SelectItem>
+              {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={etapaFiltro} onValueChange={setEtapaFiltro}>
           <SelectTrigger className="w-[280px]" aria-label="Etapa"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -397,12 +415,12 @@ export function FunilCacContent() {
 
       <Secao
         titulo="Quanto já foi cobrado e quanto falta?"
-        descricao="Somado dos cards de cobrança das unidades do recorte. Churn antes do 1º fee sai do “A cobrar”."
+        descricao={`Somado dos cards de cobrança ${daRede ? "das unidades do recorte" : "da unidade"}. Churn antes do 1º fee sai do “A cobrar”.`}
       >
         {erroResumo ? (
           <ErroDaConsulta
             erro={erroResumo}
-            chaves="view.unidades_rede"
+            chaves={chave}
             titulo="Não foi possível ler o resumo por unidade; os totais e a tabela por unidade ficam sem dado"
             tentarNovamente={tentarDeNovo}
           />
@@ -456,7 +474,7 @@ export function FunilCacContent() {
               <li key={`${r.contrato_id}`} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{r.cliente}</span>
                 <span className="num text-muted-foreground">
-                  {r.unidade} · ganho em {fmtData(r.ganho_em)} · {fmtBRL(cacEsperado(r))}
+                  {daRede && `${r.unidade} · `}ganho em {fmtData(r.ganho_em)} · {fmtBRL(cacEsperado(r))}
                 </span>
                 {r.etapa === "card_em_outra_unidade" && (
                   <StatusBadge tom="perigo">card está em {r.unidade_card}</StatusBadge>
@@ -470,7 +488,7 @@ export function FunilCacContent() {
 
       <Secao
         titulo="Quanto foi vendido e assinado, mês a mês?"
-        descricao="Venda no mês em que foi ganha; assinatura no mês em que o contrato foi assinado. Valor é o honorário mensal (MRR) do contrato. Respeita o filtro de unidade; o período vale só para esta seção."
+        descricao={`Venda no mês em que foi ganha; assinatura no mês em que o contrato foi assinado. Valor é o honorário mensal (MRR) do contrato. ${daRede ? "Respeita o filtro de unidade; o" : "O"} período vale só para esta seção.`}
         acoes={
           <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
             <span>De</span>
@@ -594,8 +612,10 @@ export function FunilCacContent() {
             </Table>
           </div>
           <p className="text-xs text-muted-foreground">
-            Entram as vendas do Inside Sales das unidades deste funil (as que cobram CAC ou já
-            abriram card de cobrança), elegíveis ou não. Contrato assinado sem data de
+            {daRede
+              ? "Entram as vendas do Inside Sales das unidades deste funil (as que cobram CAC ou já abriram card de cobrança), elegíveis ou não."
+              : "Entram as vendas do Inside Sales da unidade, elegíveis ou não."}{" "}
+            Contrato assinado sem data de
             assinatura no Pipefy conta como “já assinada”, mas não entra na coluna “Assinados”
             de mês nenhum.
           </p>
@@ -691,7 +711,7 @@ export function FunilCacContent() {
         </div>
       </Secao>
 
-      {!erroResumo && (
+      {daRede && !erroResumo && (
         <Secao titulo="Qual unidade tem mais CAC a cobrar?" descricao="Ordenado pelo que falta cobrar.">
           <div className="overflow-hidden rounded-xl border bg-card">
             <Table>
@@ -790,7 +810,7 @@ export function FunilCacContent() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Unidade</TableHead>
+                    {daRede && <TableHead>Unidade</TableHead>}
                     <TableHead>Ganho</TableHead>
                     <TableHead>Contrato</TableHead>
                     <TableHead>Fase da cobrança</TableHead>
@@ -806,7 +826,7 @@ export function FunilCacContent() {
                       <TableCell className="max-w-[260px] truncate" title={r.cliente ?? ""}>
                         {r.cliente ?? "—"}
                       </TableCell>
-                      <TableCell>{r.unidade}</TableCell>
+                      {daRede && <TableCell>{r.unidade}</TableCell>}
                       <TableCell className="num whitespace-nowrap">{fmtData(r.ganho_em)}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                         {r.fase_contrato ?? "sem card de contrato"}

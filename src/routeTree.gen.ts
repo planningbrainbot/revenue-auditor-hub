@@ -39,6 +39,7 @@ import { Route as AuthenticatedHunterSocioRouteImport } from './routes/_authenti
 import { Route as AuthenticatedIduRouteImport } from './routes/_authenticated/idu'
 import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/_authenticated/indicadores-trimestre'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
+import { Route as AuthenticatedMeuFunilCacRouteImport } from './routes/_authenticated/meu-funil-cac'
 import { Route as AuthenticatedMeusRoyaltiesRouteImport } from './routes/_authenticated/meus-royalties'
 import { Route as AuthenticatedMinhaUnidadeRouteImport } from './routes/_authenticated/minha-unidade'
 import { Route as AuthenticatedMinhasAuditoriasRouteImport } from './routes/_authenticated/minhas-auditorias'
@@ -248,6 +249,12 @@ const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
   path: '/inicio',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMeuFunilCacRoute =
+  AuthenticatedMeuFunilCacRouteImport.update({
+    id: '/meu-funil-cac',
+    path: '/meu-funil-cac',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMeusRoyaltiesRoute =
   AuthenticatedMeusRoyaltiesRouteImport.update({
     id: '/meus-royalties',
@@ -556,6 +563,7 @@ export interface FileRoutesByFullPath {
   '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
+  '/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
   '/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
@@ -634,6 +642,7 @@ export interface FileRoutesByTo {
   '/idu': typeof AuthenticatedIduRoute
   '/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/inicio': typeof AuthenticatedInicioRoute
+  '/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
   '/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
@@ -713,6 +722,7 @@ export interface FileRoutesById {
   '/_authenticated/idu': typeof AuthenticatedIduRoute
   '/_authenticated/indicadores-trimestre': typeof AuthenticatedIndicadoresTrimestreRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
+  '/_authenticated/meu-funil-cac': typeof AuthenticatedMeuFunilCacRoute
   '/_authenticated/meus-royalties': typeof AuthenticatedMeusRoyaltiesRoute
   '/_authenticated/minha-unidade': typeof AuthenticatedMinhaUnidadeRoute
   '/_authenticated/minhas-auditorias': typeof AuthenticatedMinhasAuditoriasRoute
@@ -795,6 +805,7 @@ export interface FileRouteTypes {
     | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
+    | '/meu-funil-cac'
     | '/meus-royalties'
     | '/minha-unidade'
     | '/minhas-auditorias'
@@ -873,6 +884,7 @@ export interface FileRouteTypes {
     | '/idu'
     | '/indicadores-trimestre'
     | '/inicio'
+    | '/meu-funil-cac'
     | '/meus-royalties'
     | '/minha-unidade'
     | '/minhas-auditorias'
@@ -951,6 +963,7 @@ export interface FileRouteTypes {
     | '/_authenticated/idu'
     | '/_authenticated/indicadores-trimestre'
     | '/_authenticated/inicio'
+    | '/_authenticated/meu-funil-cac'
     | '/_authenticated/meus-royalties'
     | '/_authenticated/minha-unidade'
     | '/_authenticated/minhas-auditorias'
@@ -1224,6 +1237,13 @@ declare module '@tanstack/react-router' {
       path: '/inicio'
       fullPath: '/inicio'
       preLoaderRoute: typeof AuthenticatedInicioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/meu-funil-cac': {
+      id: '/_authenticated/meu-funil-cac'
+      path: '/meu-funil-cac'
+      fullPath: '/meu-funil-cac'
+      preLoaderRoute: typeof AuthenticatedMeuFunilCacRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/meus-royalties': {
@@ -1629,6 +1649,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIduRoute: typeof AuthenticatedIduRoute
   AuthenticatedIndicadoresTrimestreRoute: typeof AuthenticatedIndicadoresTrimestreRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
+  AuthenticatedMeuFunilCacRoute: typeof AuthenticatedMeuFunilCacRoute
   AuthenticatedMeusRoyaltiesRoute: typeof AuthenticatedMeusRoyaltiesRoute
   AuthenticatedMinhaUnidadeRoute: typeof AuthenticatedMinhaUnidadeRoute
   AuthenticatedMinhasAuditoriasRoute: typeof AuthenticatedMinhasAuditoriasRoute
@@ -1695,6 +1716,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndicadoresTrimestreRoute:
     AuthenticatedIndicadoresTrimestreRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
+  AuthenticatedMeuFunilCacRoute: AuthenticatedMeuFunilCacRoute,
   AuthenticatedMeusRoyaltiesRoute: AuthenticatedMeusRoyaltiesRoute,
   AuthenticatedMinhaUnidadeRoute: AuthenticatedMinhaUnidadeRoute,
   AuthenticatedMinhasAuditoriasRoute: AuthenticatedMinhasAuditoriasRoute,

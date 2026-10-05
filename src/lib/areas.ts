@@ -97,7 +97,10 @@ export type Item = {
     | "administra"
     | "redeInteira"
     | "remuneracao"
-    | "noCadastro";
+    | "noCadastro"
+    // Fora do Planning People: a unidade do sócio paga CAC (há linha em
+    // `v_cac_funil_resumo` para ele). Avaliada pela lateral, não por `resumoMenuGente`.
+    | "pagaCac";
   /**
    * Outros caminhos que contam como "estar neste item", além da `url`. Só para
    * o grifo da lateral e o cabeçalho, nunca para o portão de área.
@@ -651,6 +654,15 @@ export const AREAS: Area[] = [
           },
           // As vendas que a unidade fechou pelo pipe Sócios do Pipedrive (02/10/2026).
           { title: "Hunter Sócio", url: "/hunter-socio", icon: Target, chave: "view.hunter_socio" },
+          // O Funil de CAC da rede recortado na unidade (05/10/2026). Unidade que
+          // não paga CAC não vê o item: a view não devolve linha para ela.
+          {
+            title: "Funil de CAC",
+            url: "/meu-funil-cac",
+            icon: Filter,
+            chave: "view.meu_funil_cac",
+            flag: "pagaCac",
+          },
           { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },
           { title: "NPS", url: "/nps", icon: MessageSquareHeart, chave: "view.nps" },

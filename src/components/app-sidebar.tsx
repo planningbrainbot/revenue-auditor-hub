@@ -61,6 +61,7 @@ import { VerComoDialog } from "@/components/ver-como/ver-como-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { resumoMenuGente, type ResumoMenuGente } from "@/lib/gente-menu.functions";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { AnelArea, Filete } from "@/components/planning";
@@ -94,7 +95,7 @@ const AREA_RODAPE = "admin";
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
-  const { temArea, can, administra, isAdmin, loading } = usePermissions();
+  const { temArea, can, administra, isAdmin, loading, unidade } = usePermissions();
   // A porta da simulação de unidade fica no seletor de frentes porque é lá que
   // o super admin já troca de contexto. Durante a simulação o `isAdmin` é do
   // papel vestido (falso), então o item some sozinho e a volta é pela tarja.
@@ -123,9 +124,30 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // O Funil de CAC da unidade só aparece para unidade que paga CAC. Quem decide
+  // é a própria view (para a chave do sócio ela só devolve unidade com
+  // `paga_cac`), então basta saber se veio alguma linha.
+  const temMeuFunilCac = !loading && temArea("minha_unidade") && can("view.meu_funil_cac");
+  const pagaCac = useQuery<boolean>({
+    // A unidade entra na chave para o "Ver como" trocar a resposta na hora.
+    queryKey: ["menu-paga-cac", unidade],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("v_cac_funil_resumo")
+        .select("unidade_id")
+        .limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+    enabled: temMeuFunilCac,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Enquanto o resumo não chega, o item com flag não aparece. Piscar o menu
   // todo e depois esconder metade é pior do que aparecer um pouco depois.
-  const passaNaFlag = (item: Item) => !item.flag || Boolean(resumo.data?.[item.flag]);
+  const passaNaFlag = (item: Item) =>
+    !item.flag ||
+    (item.flag === "pagaCac" ? Boolean(pagaCac.data) : Boolean(resumo.data?.[item.flag]));
 
   const podeVer = (area: Area, item: Item) =>
     !loading &&

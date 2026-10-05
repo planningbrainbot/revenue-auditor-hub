@@ -102,6 +102,27 @@ pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
 
 ---
 
+## [2026-10-05] Funil de CAC na Minha Unidade, só para unidade que paga CAC
+
+**Contexto:** o dono pediu o /unidades/funil-cac dentro da visão da unidade, só com os dados dela,
+e "se a unidade não tem CAC não deve aparecer nada para ela". A `v_cac_funil` só abria para
+`view.unidades_rede` (área Receita), que o sócio não tem.
+**Decisão:** tela própria `/meu-funil-cac` no grupo principal de Minha Unidade, com o mesmo
+componente em modo `escopo="unidade"` (sem seletor de unidade, sem a tabela entre unidades, sem a
+coluna Unidade). Chave nova `view.meu_funil_cac`, só em `area_chaves` de `minha_unidade`, que abre
+uma segunda porta na view: só `minhas_unidades()`, sem a exceção de `view.broker_admin`, e só linha
+de unidade com `paga_cac`. "Não ter CAC" é `unidades.paga_cac = false`: nem card órfão aberto em
+nome da unidade aparece. A lateral esconde o item pela mesma régua (flag `pagaCac`: há linha em
+`v_cac_funil_resumo`). Ensaiado com rollback contra os 25 sócios regionais: Maceió 41 linhas, São
+Luís 22, Fortaleza 21, Campo Novo 18, Patos 11; Rio, Curitiba e Belém 0; matriz igual (153).
+**Status:** implementado e publicado em 05/10/2026. Migration
+`20261005120000_meu_funil_cac.sql` aplicada no banco único no mesmo dia (rollback em
+`supabase/rollback/`).
+**Próximos passos:** Recife, São Bernardo e Sorocaba pagam CAC mas não têm sócio com login. A
+Matriz paga CAC desde set/26 e não tem linha em `ops.unidades`, então segue fora do funil.
+
+---
+
 ## [2026-09-23] Tela em duas áreas: o portão pergunta por TODAS, não pela primeira
 
 **Contexto:** o super admin, vestindo o sócio de Maceió pelo "Ver como", abriu a Base de clientes e levou "Esta página é da área Base de clientes. Seu acesso não inclui essa área" com o item grifado na lateral, ao lado. O portão de área que entrou em 22/09 (`route.tsx`, motivado por quem tem só Planning People caindo em `/rede-overview`) resolvia o caminho com `areaDoCaminho`, que devolvia a **primeira** área da lista `AREAS` que declara aquela URL.

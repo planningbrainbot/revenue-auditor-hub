@@ -176,6 +176,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.meu_funil_cac",
+    label: "Funil de CAC da unidade",
+    description:
+      "Da venda ganha à cobrança de CAC, só da própria unidade e só se ela paga CAC, na área Minha Unidade.",
+    group: "Acesso",
+  },
+  {
     key: "view.minhas_auditorias",
     label: "Auditorias da unidade",
     description:
