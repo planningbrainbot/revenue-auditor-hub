@@ -1,5 +1,6 @@
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { DashboardMonetizacao } from "@/components/monetizacao/dashboard";
+import { HandoffConsultoria } from "@/components/monetizacao/handoff-consultoria";
 import { validarBuscaMonetizacao, type BuscaMonetizacao } from "@/components/monetizacao/busca";
 
 // Aba, período, produto e os filtros próprios de cada visão moram na URL (N7):
@@ -17,5 +18,9 @@ function Page() {
       replace: true,
       resetScroll: false,
     });
+  // Handoff Consultoria tem fontes próprias (onboarding, plataforma da Consultoria, PAT): não baixa a
+  // carga do CRM que as outras visões dividem.
+  if (busca.aba === "handoff-consultoria")
+    return <HandoffConsultoria busca={busca} mudarBusca={mudarBusca} />;
   return <DashboardMonetizacao busca={busca} mudarBusca={mudarBusca} />;
 }

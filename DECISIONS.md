@@ -4361,3 +4361,103 @@ rankings separados.
   Novo, que vende muito serviço avulso, caía para 45%.
 - Tela `/ranking-unidades`, no menu Minha Unidade (grifa a unidade do sócio) e no da Rede. Abre no trimestre corrente
   depois do primeiro mês dele; antes disso, no último fechado.
+
+## [2026-10-02] Monetização: tela Handoff Consultoria e o espelho do onboarding com a chave
+
+**Contexto:** pedido do Pedro (02/10): uma tela na Monetização, junto da Operação, que diga quantos clientes saem do
+onboarding da Expansão e chegam à Consultoria, o que ela trabalhou, o recuperado, a receita e, principalmente, quanto
+repassar à Expansão por mês. Mockup com dado real: https://claude.ai/artifact/F5kUmqPVvKnkZL6X1CoecQ. Depois dele, o
+pedido foi "um painel ao vivo no módulo de monetização". As três perguntas do mockup ficaram sem resposta, e as
+recomendações entraram como regra **proposta**. Contrato: `docs/design/contratos/monetizacao-handoff-consultoria.md`.
+
+**O que a descoberta mediu (02/10):**
+- **O handoff acontece no kickoff.** Desde 24/08 o cliente é cadastrado na plataforma da Consultoria no dia do kickoff.
+  Desde 16/09 o card de onboarding tem o campo "Será Encaminhado Para Consultoria Tributária?". Com Sim, a automação
+  nativa 308096562 cria um card no pipe 307349211 quando o card vai a Setup técnico. Esse pipe tem 4 cards, todos parados
+  na Caixa de entrada.
+- **`ops.cs_onboarding_cards` não tem a chave.** CNPJ e organização estão vazios nos 206 cards. A
+  `pipefy-cs-onboarding-sync` (v17, publicada fora do git) lê `id_organiza_o_pipedrive` e `cnpj_raz_o_social`, que saíram
+  do pipe. A chave mora nos conectores do card: o contrato e a Data Base de empresas.
+- **A `pipefy-contrato-onboarding-link` não deve ser consertada.** Ela falha desde 10/09 ("Fields not found"), mas foi
+  substituída pela automação nativa 308120505 (Contratos → Onboarding). Consertar duplicaria cards. Desligar o webhook dela
+  é mutation no Pipefy e fica com o Pedro.
+- **A Consultoria fatura pela PAT** (grupo PAT no Financial Brain), a única empresa com a categoria "Creditos triburários".
+  O cliente do lançamento vem por nome e casa com o CNPJ pelo `omie_contraparte` da PAT: 108 de 108 nomes casaram.
+
+**Decisão — régua:**
+- cliente = CNPJ distinto; card sem CNPJ conta como cliente próprio;
+- chegou = CNPJ, ou a raiz, na plataforma; o mês é o dia do cadastro em São Paulo, e o cadastro de 26/07 é a carga
+  inicial, marcada à parte;
+- trabalhado = proposta casada por CNPJ, valor a recuperar informado ou receita da PAT depois da chegada; fica "parcial"
+  enquanto a plataforma não envia status;
+- dinheiro = do **mês** da chegada em diante: faturado e créditos por competência, recebido pela data de crédito
+  (`titulo_valor_pago`, líquido de retenções);
+- faixa = "Faturamento anual" declarado no negócio ganho do Pipedrive; sem ele, o mesmo rótulo no card; nunca a DataStone;
+- funil = o pipe inteiro, com cada etapa dentro da de cima: No onboarding → Na Consultoria → Trabalhados → Com receita na
+  PAT → Geram repasse.
+
+**Decisão — regra do repasse em tabela, proposta:** `ops.handoff_consultoria_regras` com vigência e situação:
+- 50% do recebido vai à Expansão (a parte da Partners, decisão de 29/09), e dentro disso 20% são da unidade que vendeu;
+- o fee de 25% estima o recuperado;
+- cliente que a PAT já faturava antes da chegada fica fora da base.
+
+Enquanto houver regra "proposta", a tela mostra o selo. Confirmar ou trocar é um insert com `vigente_desde`, sem código.
+
+**Decisão técnica:**
+- **Espelho próprio, sem mexer na sync do Painel CS.** O espelho é gravado pela Edge Function nova
+  `handoff-consultoria-sync`, a cada 30 min (job `handoff-consultoria-sync-30min`, segredo dos sinais da Base). A sync do
+  Painel CS está fora do git e tem um gêmeo no botão de `/painel-cs`; o handoff não depende dela.
+- **Só leitura fora do banco.** A função lê Pipefy, Pipedrive e o Financial Brain (`FINANCEIRO_*` já eram segredos do
+  projeto). Para o Pipefy e o Pipedrive, só vai quando falta CNPJ ou faixa, uma vez por dia por card.
+- **RPC com porta.** `ops.handoff_consultoria_painel()` exige `view.monetizacao`, recorta por unidade como a Monetização
+  e só devolve R$ a quem passa na porta do Financeiro (produto `financeiro` e todas as empresas), a mesma do Cockpit.
+- **Tela de leitura própria.** `?aba=handoff-consultoria` desvia na rota e não baixa a carga do CRM. A explicação mora na
+  gaveta `?grafico=`.
+
+**Números em 02/10, conferidos:**
+- `scripts/monetizacao/conferir-handoff-consultoria.mjs` comparou com a recontagem independente
+  (`monetizacao/medicoes/2026-10-02-handoff-consultoria/medir_independente.py`): 1.332 checagens, 0 falhas.
+- 204 clientes no onboarding; 65 chegaram desde jul/26 (31 pela carga inicial); 2 trabalhados.
+- Recuperado estimado R$ 44.139; recebido pela PAT R$ 43.812.
+- **A repassar: R$ 0.** Os dois clientes com receita (Belém) já pagavam a PAT antes de chegar. Com eles na base, seria
+  R$ 21.906 a 50%.
+
+**Status:** migration ensaiada contra a produção num DO desfeito: o RPC respondeu em 85 ms com a sessão do Pedro, e
+nada ficou gravado. A sync foi ensaiada contra as fontes reais, sem gravar: 56 s, 160 de 206 cards com CNPJ, 553 linhas
+da PAT. Testes 543/543 e `design:lint` limpo. **Não publicado.** Ordem da publicação: migration → Edge Function (`--no-verify-jwt`) → primeira rodada da sync →
+app.
+
+## [2026-10-05] Handoff Consultoria: regras confirmadas, crédito da plataforma e publicação (adendo à entrada de 02/10)
+
+**Respostas do Pedro (05/10), gravadas como "confirmada" em `ops.handoff_consultoria_regras`:**
+1. "50% pra pat. a unidade só recebe sobre base retroativa. Tirando isso não recebe." → 50% do recebido vai à
+   Planning Partners (Expansão), a outra metade fica com a PAT. No onboarding a unidade recebe 0 (`repasse_unidade = 0`);
+   a tela some com a coluna da unidade quando a regra é 0.
+2. "sim. só paga a partners o que veio do comercial" → cliente que a PAT já faturava antes da chegada fica fora da base.
+3. "ok. Veja se consegue puxar da api do Pedro." → a API da plataforma passou a mandar, por cliente, `projetos` (etapa,
+   datas, valor identificado), `valor_identificado`, `credito_aprovado`, `credito_recuperado`, `credito_saldo` e
+   `credito_ultima_recuperacao_em`. A `consultoria-sync` já guardava o objeto inteiro no `payload`, então o RPC lê de lá
+   sem mudar a sync.
+
+**O que mudou na régua:**
+- **Trabalhado** passa a contar pelo projeto na plataforma. Antes contava por proposta ou receita da PAT. O mês é o do
+  primeiro projeto, nunca antes da chegada.
+- **Recuperado** passa a ser o `credito_recuperado` da plataforma, acumulado e somado sobre quem chegou no período. A API
+  dá só a data da última recuperação, então ele não entra no gráfico mês a mês. O fee de 25% só estima quando a
+  plataforma não informa.
+- **Funil** vai até o crédito: No onboarding → Na Consultoria → Trabalhados → Crédito identificado → Crédito recuperado.
+  Quem recuperou conta como identificado, mesmo com o identificado zerado na plataforma (é o caso da Universal Stok).
+
+**Publicado (05/10):**
+- Migration `20261002180000` aplicada em `npknehhyyzelmrbbxvtu` numa transação.
+- Edge Function `handoff-consultoria-sync` publicada (`--no-verify-jwt`). A primeira rodada foi disparada pelo mesmo
+  `net.http_post` do cron, porque a chamada com a chave de serviço da Management API deu 401: a função compara com o seu
+  próprio segredo. A rodada levou 57 s: 208 cards, 161 com CNPJ, 190 com faixa, 554 linhas da PAT.
+- Conferência ao vivo com a sessão do Pedro contra a recontagem independente, que lê a API do Siqueira direto: 1.678
+  checagens, 0 falhas.
+
+**Números em 05/10:**
+- 206 clientes no onboarding; 65 chegaram desde jul/26, 31 deles pela carga inicial; 63 trabalhados.
+- R$ 6,12 mi identificados e R$ 604 mil recuperados. Os R$ 604 mil são de 2 clientes da carga inicial, ambos de Belém.
+- Recebido pela PAT: R$ 43,8 mil. **A repassar: R$ 0.** Os clientes com receita já pagavam a PAT antes de chegar.
+- Sem a carga inicial: 34 chegaram, 32 trabalhados, 4 com crédito identificado (R$ 597 mil) e nenhum recuperado ainda.
