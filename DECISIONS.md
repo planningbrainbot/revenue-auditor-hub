@@ -4461,3 +4461,17 @@ app.
 - R$ 6,12 mi identificados e R$ 604 mil recuperados. Os R$ 604 mil são de 2 clientes da carga inicial, ambos de Belém.
 - Recebido pela PAT: R$ 43,8 mil. **A repassar: R$ 0.** Os clientes com receita já pagavam a PAT antes de chegar.
 - Sem a carga inicial: 34 chegaram, 32 trabalhados, 4 com crédito identificado (R$ 597 mil) e nenhum recuperado ainda.
+
+## [2026-10-05] Publicado: Handoff Consultoria (adendo às entradas de 02/10 e 05/10)
+
+Com o "pode subir" do Pedro (05/10), a publicação seguiu esta ordem: migration, Edge Function, primeira rodada da sync e app.
+
+- **Antes do deploy:** no ar estava `3b9a868` (`dpl_CfP45HepcqMmjkrdqtVB7mk9UbNQ`), e a main `5d344dd` (merge do PR #60) contém esse commit.
+- **Deploy:** `dpl_7fioCLcY1Fzg5FaRiwNoRXQ1icGe` (`5d344dd`), feito por CLI no `ops-brain` com `--global-config ~/.vercel-planning`, a partir de um worktree limpo da main.
+- **Rollback:** promover `dpl_CfP45HepcqMmjkrdqtVB7mk9UbNQ`. Do lado do banco, o rollback é desagendar o job `handoff-consultoria-sync-30min`; as tabelas novas não são lidas por mais nada.
+- **Conferido no bundle servido por planningbrain.com.br:**
+  - "Handoff Consultoria" está no chunk principal (menu) e no da Monetização;
+  - "Quanto a Consultoria deve à Expansão" e "Crédito recuperado" estão no chunk da Monetização.
+- **Primeira rodada da sync (12:20 UTC):** 208 cards, 161 com CNPJ, 554 linhas da PAT, 57 s.
+- **Conferência ao vivo** com a sessão do Pedro contra a recontagem independente: 1.678 checagens, 0 falhas.
+- **Não conferido:** captura da tela logada em produção (sem sessão de navegador nesta máquina). A tela foi conferida com o payload real numa rota de preview local, que não foi commitada.
