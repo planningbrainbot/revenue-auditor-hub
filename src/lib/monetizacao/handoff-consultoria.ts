@@ -394,7 +394,11 @@ export function montarPainel(
   // Cada etapa é a de cima com mais uma condição, então só desce.
   const naConsultoria = todos.filter((c) => c.chegada);
   const trabalhadosTodos = naConsultoria.filter((c) => c.trabalhado);
-  const comIdentificado = trabalhadosTodos.filter((c) => (c.identificado ?? 0) > 0);
+  // Quem já recuperou teve crédito identificado, mesmo que a plataforma mande o identificado zerado
+  // (Universal Stok, 05/10): sem isso o funil perderia um cliente que o número do topo soma.
+  const comIdentificado = trabalhadosTodos.filter(
+    (c) => (c.identificado ?? 0) > 0 || (c.recuperado ?? 0) > 0,
+  );
   const etapas: Omit<EtapaFunil, "taxa">[] = [
     { id: "onboarding", rotulo: "No onboarding", clientes: todos },
     { id: "consultoria", rotulo: "Na Consultoria", clientes: naConsultoria },

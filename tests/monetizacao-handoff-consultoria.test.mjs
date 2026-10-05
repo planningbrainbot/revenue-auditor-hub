@@ -683,6 +683,28 @@ test("plataforma: projeto marca o trabalho, o crédito recuperado vem dela e ven
     ],
   );
   assert.equal(p.atencao.plataformaSemStatus, false);
+  // Recuperado com identificado zerado na plataforma ainda conta como identificado no funil.
+  const zerado = montarPainel(
+    {
+      ...bruto([
+        cli("Z", {
+          cnpj: "44444444000144",
+          consultoria: naPlataforma("2026-07-26", {
+            valor_identificado: 0,
+            credito_recuperado: 40939.68,
+            projetos: [projeto("2026-03-01", "Pós Entrega")],
+          }),
+        }),
+      ]),
+      regras: REGRAS_05_10,
+    },
+    {},
+    "2026-10-05",
+  );
+  assert.deepEqual(
+    zerado.funil.map((e) => e.clientes.length),
+    [1, 1, 1, 1, 1],
+  );
   // Regra de 05/10: 50% à Expansão e nada para a unidade no onboarding.
   assert.equal(p.regras.proposta, false);
   assert.equal(p.regras.unidade, 0);

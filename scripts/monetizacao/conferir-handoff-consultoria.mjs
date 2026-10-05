@@ -99,10 +99,12 @@ for (const m of p.porMes) {
   checar(perto(m.recebido, i.recebido), `${m.mes} recebido ${m.recebido} × ${i.recebido}`);
   checar(perto(m.base, i.base), `${m.mes} base ${m.base} × ${i.base}`);
   checar(perto(m.expansao, i.expansao), `${m.mes} a repassar ${m.expansao} × ${i.expansao}`);
-  checar(
-    perto(m.recuperado, i.recuperado),
-    `${m.mes} recuperado ${m.recuperado} × ${i.recuperado}`,
-  );
+  // Mês a mês só existe o recuperado estimado; com o valor da plataforma a tela não o mostra.
+  if (p.dinheiro.recuperadoFonte === "estimado")
+    checar(
+      perto(m.recuperado, i.recuperado),
+      `${m.mes} recuperado ${m.recuperado} × ${i.recuperado}`,
+    );
 }
 
 // ── crédito da plataforma (coorte que chegou no período) ─────────────────────────────────────────

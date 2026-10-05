@@ -4426,3 +4426,38 @@ Enquanto houver regra "proposta", a tela mostra o selo. Confirmar ou trocar é u
 nada ficou gravado. A sync foi ensaiada contra as fontes reais, sem gravar: 56 s, 160 de 206 cards com CNPJ, 553 linhas
 da PAT. Testes 543/543 e `design:lint` limpo. **Não publicado.** Ordem da publicação: migration → Edge Function (`--no-verify-jwt`) → primeira rodada da sync →
 app.
+
+## [2026-10-05] Handoff Consultoria: regras confirmadas, crédito da plataforma e publicação (adendo à entrada de 02/10)
+
+**Respostas do Pedro (05/10), gravadas como "confirmada" em `ops.handoff_consultoria_regras`:**
+1. "50% pra pat. a unidade só recebe sobre base retroativa. Tirando isso não recebe." → 50% do recebido vai à
+   Planning Partners (Expansão), a outra metade fica com a PAT. No onboarding a unidade recebe 0 (`repasse_unidade = 0`);
+   a tela some com a coluna da unidade quando a regra é 0.
+2. "sim. só paga a partners o que veio do comercial" → cliente que a PAT já faturava antes da chegada fica fora da base.
+3. "ok. Veja se consegue puxar da api do Pedro." → a API da plataforma passou a mandar, por cliente, `projetos` (etapa,
+   datas, valor identificado), `valor_identificado`, `credito_aprovado`, `credito_recuperado`, `credito_saldo` e
+   `credito_ultima_recuperacao_em`. A `consultoria-sync` já guardava o objeto inteiro no `payload`, então o RPC lê de lá
+   sem mudar a sync.
+
+**O que mudou na régua:**
+- **Trabalhado** passa a contar pelo projeto na plataforma. Antes contava por proposta ou receita da PAT. O mês é o do
+  primeiro projeto, nunca antes da chegada.
+- **Recuperado** passa a ser o `credito_recuperado` da plataforma, acumulado e somado sobre quem chegou no período. A API
+  dá só a data da última recuperação, então ele não entra no gráfico mês a mês. O fee de 25% só estima quando a
+  plataforma não informa.
+- **Funil** vai até o crédito: No onboarding → Na Consultoria → Trabalhados → Crédito identificado → Crédito recuperado.
+  Quem recuperou conta como identificado, mesmo com o identificado zerado na plataforma (é o caso da Universal Stok).
+
+**Publicado (05/10):**
+- Migration `20261002180000` aplicada em `npknehhyyzelmrbbxvtu` numa transação.
+- Edge Function `handoff-consultoria-sync` publicada (`--no-verify-jwt`). A primeira rodada foi disparada pelo mesmo
+  `net.http_post` do cron, porque a chamada com a chave de serviço da Management API deu 401: a função compara com o seu
+  próprio segredo. A rodada levou 57 s: 208 cards, 161 com CNPJ, 190 com faixa, 554 linhas da PAT.
+- Conferência ao vivo com a sessão do Pedro contra a recontagem independente, que lê a API do Siqueira direto: 1.678
+  checagens, 0 falhas.
+
+**Números em 05/10:**
+- 206 clientes no onboarding; 65 chegaram desde jul/26, 31 deles pela carga inicial; 63 trabalhados.
+- R$ 6,12 mi identificados e R$ 604 mil recuperados. Os R$ 604 mil são de 2 clientes da carga inicial, ambos de Belém.
+- Recebido pela PAT: R$ 43,8 mil. **A repassar: R$ 0.** Os clientes com receita já pagavam a PAT antes de chegar.
+- Sem a carga inicial: 34 chegaram, 32 trabalhados, 4 com crédito identificado (R$ 597 mil) e nenhum recuperado ainda.
