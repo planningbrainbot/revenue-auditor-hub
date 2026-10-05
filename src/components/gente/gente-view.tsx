@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Search, ShieldCheck } from "lucide-react";
 import { listGente, type GentePessoaRow } from "@/lib/gente.functions";
 import { ErroDaFonte } from "@/components/gente/estados-gente";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -37,6 +38,7 @@ import {
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
+import { GestorEmLoteDialog } from "./gestor-em-lote-dialog";
 import { aniversarioDeEmpresaNoMes, diasDeCasa, fmtTempoDeCasa } from "./tempo-de-casa";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
@@ -113,6 +115,8 @@ export function GenteView() {
   const [admissaoDe, setAdmissaoDe] = useFiltroNaUrl("admissao_de", "");
   const [admissaoAte, setAdmissaoAte] = useFiltroNaUrl("admissao_ate", "");
   const limpar = useLimparFiltrosNaUrl(CHAVES_FILTRO);
+  // Seleção para ações em lote (Definir gestor). Não mora na URL: é rascunho.
+  const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
 
   const pessoas = useMemo(() => q.data?.pessoas ?? [], [q.data]);
   const unidades = useMemo(() => q.data?.unidades ?? [], [q.data]);
@@ -425,11 +429,51 @@ export function GenteView() {
             </div>
           ) : null}
 
+          {podeCadastrar && selecionadas.size ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span>
+                <span className="num">{selecionadas.size}</span> selecionada(s)
+              </span>
+              <GestorEmLoteDialog
+                pessoaIds={[...selecionadas]}
+                gestores={q.data.gestores}
+                unidadeIds={Array.from(
+                  new Set(pessoas.filter((p) => selecionadas.has(p.id)).map((p) => p.unidadeId)),
+                )}
+                aoConcluir={() => setSelecionadas(new Set())}
+              />
+              <Button size="sm" variant="ghost" onClick={() => setSelecionadas(new Set())}>
+                Limpar seleção
+              </Button>
+            </div>
+          ) : null}
+
           {filtradas.length ? (
             <Card className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {podeCadastrar ? (
+                      <TableHead className="w-0">
+                        <input
+                          type="checkbox"
+                          aria-label="Selecionar todas as pessoas da lista"
+                          checked={
+                            filtradas.length > 0 && filtradas.every((p) => selecionadas.has(p.id))
+                          }
+                          onChange={(e) =>
+                            setSelecionadas((s) => {
+                              const n = new Set(s);
+                              for (const p of filtradas) {
+                                if (e.target.checked) n.add(p.id);
+                                else n.delete(p.id);
+                              }
+                              return n;
+                            })
+                          }
+                        />
+                      </TableHead>
+                    ) : null}
                     <TableHead>Nome</TableHead>
                     <TableHead>Cargo</TableHead>
                     <TableHead>Departamento</TableHead>
@@ -447,6 +491,23 @@ export function GenteView() {
                     const st = STATUS[p.status];
                     return (
                       <TableRow key={p.id}>
+                        {podeCadastrar ? (
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              aria-label={`Selecionar ${p.nomeCompleto}`}
+                              checked={selecionadas.has(p.id)}
+                              onChange={(e) =>
+                                setSelecionadas((s) => {
+                                  const n = new Set(s);
+                                  if (e.target.checked) n.add(p.id);
+                                  else n.delete(p.id);
+                                  return n;
+                                })
+                              }
+                            />
+                          </TableCell>
+                        ) : null}
                         <TableCell>
                           <div className="font-medium">{p.nomeCompleto}</div>
                           <div className="text-[13px] text-muted-foreground">{p.email ?? NA}</div>

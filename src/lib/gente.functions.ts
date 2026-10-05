@@ -700,6 +700,109 @@ export const editarPessoa = createServerFn({ method: "POST" })
     return { id: data.pessoaId };
   });
 
+export interface GestorLoteResult {
+  alterados: number;
+  ignorados: { nome: string; motivo: string }[];
+}
+
+// Definir o gestor de várias pessoas de uma vez (05/10/2026, pedido do RH de
+// Maceió: 21 pessoas do Fiscal sem gestor, e o líder só enxerga como time quem
+// o tem no campo Gestor). Mesma regra do `editarPessoa`: roda como o usuário,
+// a RLS prende na unidade, e quem criaria círculo na hierarquia fica de fora.
+export const definirGestorEmLote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pessoaIds: number[]; gestorId: number | null }) => {
+    const ids = Array.from(new Set(Array.isArray(input?.pessoaIds) ? input.pessoaIds : []));
+    if (!ids.length) throw new Error("Selecione ao menos uma pessoa.");
+    if (ids.length > 500) throw new Error("No máximo 500 pessoas por vez.");
+    if (ids.some((i) => !Number.isInteger(i))) throw new Error("Pessoa inválida.");
+    const gestorId = input.gestorId ?? null;
+    if (gestorId != null && !Number.isInteger(gestorId)) throw new Error("Gestor inválido.");
+    return { pessoaIds: ids, gestorId };
+  })
+  .handler(async ({ data, context }): Promise<GestorLoteResult> => {
+    const supabase = context.supabase as Cliente;
+
+    type P = { id: number; nome_completo: string; gestor_id: number | null; status: string };
+    const visiveis: P[] = [];
+    for (let de = 0; ; de += 1000) {
+      const { data: pag, error } = await supabase
+        .from("gente_pessoas")
+        .select("id,nome_completo,gestor_id,status")
+        .order("id")
+        .range(de, de + 999);
+      if (error) throw new Error(error.message);
+      visiveis.push(...((pag ?? []) as P[]));
+      if (!pag || pag.length < 1000) break;
+    }
+    const porId = new Map(visiveis.map((p) => [p.id, p]));
+
+    if (data.gestorId != null) {
+      const g = porId.get(data.gestorId);
+      if (!g || g.status !== "ativo")
+        throw new Error("O gestor escolhido não está no cadastro ativo.");
+    }
+
+    const ignorados: GestorLoteResult["ignorados"] = [];
+    const validos: number[] = [];
+    for (const id of data.pessoaIds) {
+      const p = porId.get(id);
+      if (!p) {
+        ignorados.push({ nome: `#${id}`, motivo: "fora do seu cadastro" });
+        continue;
+      }
+      if (data.gestorId != null) {
+        if (id === data.gestorId) {
+          ignorados.push({ nome: p.nome_completo, motivo: "é o próprio gestor escolhido" });
+          continue;
+        }
+        // Subindo a partir do gestor: se passar pela pessoa, ela lidera o gestor.
+        let atual: number | null | undefined = data.gestorId;
+        let ciclo = false;
+        for (let i = 0; atual != null && i < 100; i++) {
+          if (atual === id) {
+            ciclo = true;
+            break;
+          }
+          atual = porId.get(atual)?.gestor_id;
+        }
+        if (ciclo) {
+          ignorados.push({
+            nome: p.nome_completo,
+            motivo: "está acima do gestor escolhido na hierarquia",
+          });
+          continue;
+        }
+      }
+      if (p.gestor_id === data.gestorId) continue;
+      validos.push(id);
+    }
+
+    let alterados = 0;
+    if (validos.length) {
+      const { data: ok, error } = await supabase
+        .from("gente_pessoas")
+        .update({ gestor_id: data.gestorId })
+        .in("id", validos)
+        .select("id");
+      if (error) {
+        if (error.code === "42501") throw new Error("Sem permissão para alterar essas pessoas.");
+        throw new Error(error.message);
+      }
+      alterados = ok?.length ?? 0;
+      const voltaram = new Set(((ok ?? []) as { id: number }[]).map((r) => r.id));
+      for (const id of validos) {
+        if (!voltaram.has(id)) {
+          ignorados.push({
+            nome: porId.get(id)?.nome_completo ?? `#${id}`,
+            motivo: "sem permissão",
+          });
+        }
+      }
+    }
+    return { alterados, ignorados };
+  });
+
 export interface LinhaImportacao {
   /** Número da linha na planilha, só para o relatório voltar apontando. */
   linha: number;
