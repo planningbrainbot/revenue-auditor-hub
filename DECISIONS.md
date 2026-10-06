@@ -4669,3 +4669,19 @@ dentro de monetização ao vivo [...] Preciso auditar isso", com o "pode publica
   - Como a `source_date` é a mais recente, a tela de forecast e o Cockpit do COO passam a usá-la.
   - Estimado: 177 contratos, R$ 11,14 mi assinados no ano (era R$ 12,94 mi).
   - Planilha: `monetizacao/forecast/v13-2026-10-06-fee-consultoria-20.xlsx`. Cópia no Drive "00. Monetização", sem link no Brain até o Drive dar o id do arquivo.
+
+## [2026-10-06] Financeiro semanal da Partners vira tela do Ops (Receita e Repasses), lendo `ops.reporte_ceo`
+
+**Contexto:** o reporte financeiro semanal do CEO existia só como artifact no claude.ai, que lê um Google Doc pelo conector do Google Drive. Só via o dado ao vivo quem tinha o conector ligado e acesso ao Doc; os outros viam o retrato da última publicação.
+
+**Decisão do Pedro (06/10/2026):** a mesma página dentro do Ops, "do mesmo jeito que está hoje", com atualização que não depende do Google Doc, na área **Receita e Repasses**.
+
+- Rota `/financeiro-semanal`, item "Financeiro semanal" no grupo novo "Caixa da Partners" da área `receita`.
+- A tela lê `ops.reporte_ceo` (id=1), que a Edge Function `reporte-ceo` já gravava às 12h e às 18h (n8n `3uTi32wzqdUzGltE`). Não há cálculo novo: o payload é o mesmo do Doc.
+- A tabela tem RLS ligada e nenhuma policy. A leitura é pelo service_role na server function `carregarReporteCeo`, depois de conferir a área `receita` com `acessoDoUsuario`. Não precisou de migration.
+- Textos, faróis e contas copiados do artifact (regras do usuário: só afirmação, valor visível em todas as barras). O bloco "Risco e decisão" segue "a escrever", como no artifact.
+- A aba refaz a leitura a cada 15 min, para quem deixa a página aberta receber a rodada das 12h ou das 18h.
+
+**Ponto de atenção:** a área `receita` está liberada para `admin`, `diretor`, `head` e `auditor`. A lista de despesas mostra o pagamento de cada PJ pelo nome. Se isso não puder chegar a `head`/`auditor`, a tela precisa de área própria (padrão `area:` no item, como o `broker_matriz`).
+
+**O Google Doc continua sendo gravado** enquanto o artifact estiver em uso.

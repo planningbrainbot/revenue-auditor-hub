@@ -33,6 +33,7 @@ import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_auth
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authenticated/fila-cella'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
+import { Route as AuthenticatedFinanceiroSemanalRouteImport } from './routes/_authenticated/financeiro-semanal'
 import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedGenteRouteImport } from './routes/_authenticated/gente'
 import { Route as AuthenticatedHunterSocioRouteImport } from './routes/_authenticated/hunter-socio'
@@ -214,6 +215,12 @@ const AuthenticatedFinanceiroPartnersRoute =
   AuthenticatedFinanceiroPartnersRouteImport.update({
     id: '/financeiro-partners',
     path: '/financeiro-partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFinanceiroSemanalRoute =
+  AuthenticatedFinanceiroSemanalRouteImport.update({
+    id: '/financeiro-semanal',
+    path: '/financeiro-semanal',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedFunilReceitaRoute =
@@ -557,6 +564,7 @@ export interface FileRoutesByFullPath {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
+  '/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
   '/hunter-socio': typeof AuthenticatedHunterSocioRoute
@@ -636,6 +644,7 @@ export interface FileRoutesByTo {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
+  '/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
   '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
   '/hunter-socio': typeof AuthenticatedHunterSocioRoute
@@ -716,6 +725,7 @@ export interface FileRoutesById {
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
+  '/_authenticated/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
   '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/gente': typeof AuthenticatedGenteRoute
   '/_authenticated/hunter-socio': typeof AuthenticatedHunterSocioRoute
@@ -799,6 +809,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
+    | '/financeiro-semanal'
     | '/funil-receita'
     | '/gente'
     | '/hunter-socio'
@@ -878,6 +889,7 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/fila-cella'
     | '/financeiro-partners'
+    | '/financeiro-semanal'
     | '/funil-receita'
     | '/gente'
     | '/hunter-socio'
@@ -957,6 +969,7 @@ export interface FileRouteTypes {
     | '/_authenticated/equipe'
     | '/_authenticated/fila-cella'
     | '/_authenticated/financeiro-partners'
+    | '/_authenticated/financeiro-semanal'
     | '/_authenticated/funil-receita'
     | '/_authenticated/gente'
     | '/_authenticated/hunter-socio'
@@ -1195,6 +1208,13 @@ declare module '@tanstack/react-router' {
       path: '/financeiro-partners'
       fullPath: '/financeiro-partners'
       preLoaderRoute: typeof AuthenticatedFinanceiroPartnersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/financeiro-semanal': {
+      id: '/_authenticated/financeiro-semanal'
+      path: '/financeiro-semanal'
+      fullPath: '/financeiro-semanal'
+      preLoaderRoute: typeof AuthenticatedFinanceiroSemanalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/funil-receita': {
@@ -1643,6 +1663,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFilaCellaRoute: typeof AuthenticatedFilaCellaRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
+  AuthenticatedFinanceiroSemanalRoute: typeof AuthenticatedFinanceiroSemanalRoute
   AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedGenteRoute: typeof AuthenticatedGenteRoute
   AuthenticatedHunterSocioRoute: typeof AuthenticatedHunterSocioRoute
@@ -1709,6 +1730,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFilaCellaRoute: AuthenticatedFilaCellaRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
+  AuthenticatedFinanceiroSemanalRoute: AuthenticatedFinanceiroSemanalRoute,
   AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedGenteRoute: AuthenticatedGenteRoute,
   AuthenticatedHunterSocioRoute: AuthenticatedHunterSocioRoute,

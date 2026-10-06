@@ -351,6 +351,12 @@ export const AREAS: Area[] = [
         items: [{ title: "Visão geral", url: "/receita-overview", icon: LayoutDashboard }],
       },
       {
+        // O reporte semanal do CEO (06/10/2026): caixa da Partners na semana e no mês, lido de
+        // `ops.reporte_ceo`, que a Edge Function reporte-ceo grava às 12h e às 18h.
+        label: "Caixa da Partners",
+        items: [{ title: "Financeiro semanal", url: "/financeiro-semanal", icon: Wallet }],
+      },
+      {
         label: "Receita da rede",
         items: [
           {
