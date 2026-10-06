@@ -25,6 +25,12 @@ export type UnidadeEntrada = {
   pipefy_id: string | null;
   pipedrive_opcao_id: number | null;
   observacoes_financeiras: string | null;
+  /**
+   * Split do Asaas. Opcionais de propósito: ausente (tela antiga em cache) não
+   * mexe na coluna; só null apaga. Sem isso, salvar a ficha zeraria o split de Maceió.
+   */
+  split_ativo_desde?: string | null;
+  asaas_account_id?: string | null;
 };
 
 /** A linha gravada em ops.unidades, já limpa. */
@@ -130,6 +136,13 @@ export function validarUnidade(e: UnidadeEntrada): UnidadeLinha {
   const pipefy = vazioVira(e.pipefy_id);
   if (pipefy && !/^\d+$/.test(pipefy)) throw new Error("O registro do Pipefy é só número.");
 
+  const contaAsaas = e.asaas_account_id === undefined ? undefined : vazioVira(e.asaas_account_id);
+  if (contaAsaas && !UUID.test(contaAsaas)) {
+    throw new Error(
+      "A conta Asaas da unidade é o id da conta (formato 34396129-4cfc-…), não o cus_ do cliente.",
+    );
+  }
+
   const pagaCac = !!e.paga_cac;
   return {
     nome_da_praca: nome,
@@ -156,8 +169,14 @@ export function validarUnidade(e: UnidadeEntrada): UnidadeLinha {
     pipefy_id: pipefy,
     pipedrive_opcao_id: opcao ?? null,
     observacoes_financeiras: vazioVira(e.observacoes_financeiras),
+    ...(e.split_ativo_desde === undefined
+      ? {}
+      : { split_ativo_desde: lerData(e.split_ativo_desde) }),
+    ...(contaAsaas === undefined ? {} : { asaas_account_id: contaAsaas?.toLowerCase() ?? null }),
   };
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Os ids dos campos da base do Pipefy (o `name` em record_fields é o rótulo, que muda). */
 const CAMPO = {

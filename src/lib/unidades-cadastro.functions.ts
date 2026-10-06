@@ -133,23 +133,28 @@ export const salvarUnidade = createServerFn({ method: "POST" })
 
     const linha = validarUnidade(data.unidade);
     const id = data.unidade.id;
+    // split_ativo_desde e asaas_account_id não estão nos tipos gerados.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const unidades = () => (supabase as any).from("unidades");
 
     let unidadeId: number;
     let antes: Partial<UnidadeLinha> | null = null;
     if (id == null) {
-      const res = await supabase.from("unidades").insert(linha).select("id");
+      const res = await unidades().insert(linha).select("id");
       if (res.error) throw erroDeGravacao(res.error);
-      unidadeId = assertAffected(res, "A unidade não foi criada (bloqueio de permissão).")[0].id;
+      unidadeId = assertAffected<{ id: number }>(
+        res,
+        "A unidade não foi criada (bloqueio de permissão).",
+      )[0].id;
     } else {
-      const { data: atual, error: erroLeitura } = await supabase
-        .from("unidades")
+      const { data: atual, error: erroLeitura } = await unidades()
         .select(Object.keys(linha).join(","))
         .eq("id", id)
         .maybeSingle();
       if (erroLeitura) throw new Error(erroLeitura.message);
       if (!atual) throw new Error("Unidade não encontrada.");
       antes = atual as Partial<UnidadeLinha>;
-      const res = await supabase.from("unidades").update(linha).eq("id", id).select("id");
+      const res = await unidades().update(linha).eq("id", id).select("id");
       if (res.error) throw erroDeGravacao(res.error);
       assertAffected(res, `Nenhuma unidade foi atualizada (id ${id}): bloqueio de permissão.`);
       unidadeId = id;

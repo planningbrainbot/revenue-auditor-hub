@@ -145,3 +145,20 @@ test("status e tempo de casa leem a data no fuso local", () => {
   assert.equal(tempoDeCasa("2026-11-01", hoje), "inicia 11/2026");
   assert.equal(tempoDeCasa(null, hoje), "—");
 });
+
+test("Split do Asaas: ausente não mexe na coluna, vazio apaga, conta é uuid", () => {
+  const sem = validarUnidade(base);
+  assert.equal("split_ativo_desde" in sem, false);
+  assert.equal("asaas_account_id" in sem, false);
+  const com = validarUnidade({
+    ...base,
+    split_ativo_desde: "2026-10-01",
+    asaas_account_id: " 373F11FE-7B2E-488A-A61F-358D101639C1 ",
+  });
+  assert.equal(com.split_ativo_desde, "2026-10-01");
+  assert.equal(com.asaas_account_id, "373f11fe-7b2e-488a-a61f-358d101639c1");
+  const vazio = validarUnidade({ ...base, split_ativo_desde: null, asaas_account_id: "" });
+  assert.equal(vazio.split_ativo_desde, null);
+  assert.equal(vazio.asaas_account_id, null);
+  assert.throws(() => validarUnidade({ ...base, asaas_account_id: "cus_000198464357" }), /cus_/);
+});

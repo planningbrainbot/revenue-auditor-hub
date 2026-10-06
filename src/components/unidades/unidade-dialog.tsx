@@ -51,6 +51,9 @@ export type UnidadeCadastro = {
   pipefy_id: string | null;
   pipedrive_opcao_id: number | null;
   observacoes_financeiras: string | null;
+  /** Opcionais: a lista de Unidades não lê; a ficha lê. */
+  split_ativo_desde?: string | null;
+  asaas_account_id?: string | null;
 };
 
 type Form = {
@@ -72,6 +75,8 @@ type Form = {
   pipefy_id: string;
   pipedrive_opcao_id: string;
   observacoes_financeiras: string;
+  split_ativo_desde: string;
+  asaas_account_id: string;
 };
 
 const numParaCampo = (v: number | null | undefined) =>
@@ -98,6 +103,8 @@ function formDe(u: UnidadeCadastro | null): Form {
     pipefy_id: u?.pipefy_id ?? "",
     pipedrive_opcao_id: u?.pipedrive_opcao_id == null ? "" : String(u.pipedrive_opcao_id),
     observacoes_financeiras: u?.observacoes_financeiras ?? "",
+    split_ativo_desde: u?.split_ativo_desde ?? "",
+    asaas_account_id: u?.asaas_account_id ?? "",
   };
 }
 
@@ -262,7 +269,12 @@ export function UnidadeDialog({
   const opcao = f.pipedrive_opcao_id.trim();
   const opcaoInvalida = opcao !== "" && !/^\d+$/.test(opcao);
   const nomeVazio = !f.nome_da_praca.trim();
-  const algumInvalido = Object.values(nums).some((n) => n.invalido) || opcaoInvalida || nomeVazio;
+  const contaAsaas = f.asaas_account_id.trim();
+  const contaAsaasInvalida =
+    contaAsaas !== "" &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contaAsaas);
+  const algumInvalido =
+    Object.values(nums).some((n) => n.invalido) || opcaoInvalida || nomeVazio || contaAsaasInvalida;
 
   const pendencias = useMemo(
     () =>
@@ -316,6 +328,8 @@ export function UnidadeDialog({
             pipefy_id: f.pipefy_id,
             pipedrive_opcao_id: opcao ? Number(opcao) : null,
             observacoes_financeiras: f.observacoes_financeiras,
+            split_ativo_desde: f.split_ativo_desde || null,
+            asaas_account_id: contaAsaas || null,
           },
           csc: incluirCsc && cscPossivel ? { sigla, emails: [emailsCsc] } : null,
         },
@@ -560,6 +574,18 @@ export function UnidadeDialog({
                 marcado={f.absorve_midia}
                 aoMudar={(v) => set("absorve_midia", v)}
               />
+              <Campo
+                id="unidade-split-desde"
+                rotulo="Split do Asaas desde"
+                ajuda="Liga a unidade na tela de Split. Título pago a partir desta data sem split conta como royalty perdido. Vazio: fora da conferência."
+              >
+                <Input
+                  id="unidade-split-desde"
+                  type="date"
+                  value={f.split_ativo_desde}
+                  onChange={(e) => set("split_ativo_desde", e.target.value)}
+                />
+              </Campo>
             </div>
           </Bloco>
 
@@ -615,6 +641,24 @@ export function UnidadeDialog({
                   id="unidade-asaas"
                   value={f.id_asaas}
                   onChange={(e) => set("id_asaas", e.target.value)}
+                />
+              </Campo>
+              <Campo
+                id="unidade-asaas-conta"
+                rotulo="Conta Asaas da unidade"
+                ajuda="De onde sai o split (origem no Asaas). Não é o cus_ acima. Sem ela, o royalty creditado não soma nos cards da unidade."
+                erro={
+                  contaAsaasInvalida
+                    ? "Formato de id de conta: 34396129-4cfc-4307-aa87-2e8012bc88fb."
+                    : null
+                }
+              >
+                <Input
+                  id="unidade-asaas-conta"
+                  value={f.asaas_account_id}
+                  onChange={(e) => set("asaas_account_id", e.target.value)}
+                  aria-invalid={contaAsaasInvalida}
+                  className="num"
                 />
               </Campo>
             </div>
