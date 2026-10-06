@@ -85,6 +85,29 @@ test("Comprovado, cadastrado e só tag não mudam a oferta; sem prova calculada 
   }
 });
 
+test("Só a tag Cliente da Matriz sai das ofertas; a tag no Omie de uma unidade continua", () => {
+  const omie = (cliente_em) => ({
+    classe: "cliente",
+    cliente_em,
+    fornecedor_em: [],
+    sincronizado_em: null,
+  });
+  const matriz = conta(prova("so_tag"), { base: { omie: omie(["Planning Partners (Matriz)"]) } });
+  const r = fornecedorForaDeOferta(matriz);
+  assert.equal(r?.status, "fora_regra");
+  assert.match(r.reason, /Matriz/);
+  assert.equal(oferta(matriz, "cella").status, "fora_regra");
+  assert.equal(oferta(matriz, "consultoria").status, "fora_regra");
+  assert.equal(ofertaRecon(matriz).status, "fora_regra");
+  assert.equal(motivoConsultoria(matriz), "fornecedor");
+  const unidade = conta(prova("so_tag"), { base: { omie: omie(["Patos de Minas"]) } });
+  assert.equal(fornecedorForaDeOferta(unidade), null);
+  const ambas = conta(prova("so_tag"), {
+    base: { omie: omie(["Planning Partners (Matriz)", "Campo Novo"]) },
+  });
+  assert.equal(fornecedorForaDeOferta(ambas), null);
+});
+
 test("Comprovado com só a tag de fornecedor continua fora (regra de 29/09)", () => {
   const a = conta(prova("comprovado"), {
     base: {

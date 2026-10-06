@@ -4707,3 +4707,30 @@ quero uma só. Pode colocar duas abas, mas na mesma tela."
 - As duas visões continuam com régua, RPC e contrato próprios. Só o título passa a ser "Consultoria" nas duas, e a pergunta muda com a aba.
 - O `aba` continua `handoff-consultoria` para não quebrar link já mandado.
 
+
+## [2026-10-06] Só a tag Cliente no Omie da Matriz sai das ofertas
+
+**Contexto:** a INTECH BOATING (Goiânia, Base nova) aparecia na Base como "Cella · perfil aderente". A Jordana avisou o
+Pedro: "estamos em negociação com essa empresa, deve virar cliente, mas não é ainda". O Pedro respondeu "não era pra
+estar". A única prova da conta era a tag Cliente no Omie da Planning Partners (Matriz), cadastrada em 03/2025, sem
+contrato, recebimento, ECD ou ganho. O negócio 93280 está aberto no Inside Sales desde 19/08, numa organização
+"Intech Boating" sem CNPJ, que a Base não liga à conta.
+- Em 01/10 já se sabia que a Matriz marca Cliente em quem ela paga. Agora se vê que ela marca também prospect.
+- Das 1.745 contas "só tag", 1.737 têm a tag só na Matriz. 143 estavam nas ofertas: 138 em Cella, 7 em Consultoria e
+  nenhuma em Finance.
+
+**Decisão:** conta "só tag" cuja tag Cliente vem só do Omie da Matriz sai de todas as ofertas, Recon inclusive. O
+motivo diz que a Matriz marca prospect e fornecedor como Cliente. A tag no Omie de uma unidade (8 contas, Campo Novo e
+Patos de Minas) continua valendo.
+- **No cliente:** `soTagDaMatriz()` em `fornecedorForaDeOferta()`.
+- **No servidor:** migration `20261006150000`, que recria `monetizacao_offer_issue` com um bloco a mais, logo depois
+  da prova.
+- **Ensaio contra produção (DO terminado em exceção):**
+  - INTECH recusada nos três produtos;
+  - Arco Bras (comprovado) continua apta;
+  - Patense (tag do Omie de Patos) não muda.
+- **Medido pela régua da tela:** as contas "só tag" nas ofertas caem de 143 para 1.
+
+**Aberto:** casando pelo nome do negócio, 14 contas "só tag" têm negócio ganho no Inside Sales. São clientes do
+comercial cuja organização a Base não liga à conta, e por isso não viram "comprovado". Duas delas estavam aptas e agora
+saem. O conserto certo é ligar a organização à conta, não manter a tag como prova.

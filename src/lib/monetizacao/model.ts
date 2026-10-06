@@ -170,6 +170,16 @@ export function distratoForaDeOferta(a: Conta): Oferta | null {
     };
   return null;
 }
+/**
+ * Só a tag Cliente no Omie da Matriz (06/10/2026): a Matriz marca Cliente em quem ela paga (01/10) e em prospect
+ * (INTECH BOATING, negociação aberta no Inside Sales desde 19/08). Sem contrato, recebimento, ECD ou ganho, a conta
+ * sai das ofertas como "sem prova". A tag no Omie de uma unidade continua valendo. Espelho no servidor:
+ * migration 20261006150000 (monetizacao_offer_issue).
+ */
+export const soTagDaMatriz = (clienteEm: readonly string[] | undefined) =>
+  !!clienteEm?.length && clienteEm.every((u) => /matriz/i.test(u));
+export const SO_TAG_MATRIZ =
+  "Só a tag Cliente no Omie da Matriz, sem contrato, recebimento, ECD nem ganho. A Matriz marca prospect e fornecedor como Cliente; fora das ofertas.";
 /** Níveis de prova que tiram a conta de todas as ofertas (migration 20261001200000). */
 export const PROVA_FORA_DE_OFERTA = ["grupo", "fornecedor", "sem_prova"] as const;
 /**
@@ -186,6 +196,8 @@ export function fornecedorForaDeOferta(a: Conta): Oferta | null {
   if (p && (PROVA_FORA_DE_OFERTA as readonly string[]).includes(p.nivel))
     return { status: "fora_regra", reason: p.motivo };
   const o = a.base?.omie;
+  if (p?.nivel === "so_tag" && soTagDaMatriz(o?.cliente_em))
+    return { status: "fora_regra", reason: SO_TAG_MATRIZ };
   if (o?.classe !== "fornecedor") return null;
   const onde = o.fornecedor_em.length ? ` (${o.fornecedor_em.join(", ")})` : "";
   return {
