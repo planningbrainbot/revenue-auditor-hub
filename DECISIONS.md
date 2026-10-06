@@ -4737,6 +4737,17 @@ recuperado, 129 com diagnóstico entregue, 65 esperando documentos, 93 em diagn�
 **Status:** implementado (`consultoria-empresa.ts`, `consultoria-empresa.tsx`, teste
 `tests/monetizacao-consultoria-empresa.test.mjs`).
 
+## [2026-10-06] Publicado: Buscar empresa (adendo à entrada anterior)
+
+- PR #68, merge `db0fb46`.
+- **Migration** `20261006200000` aplicada numa transação e registrada em `supabase_migrations.schema_migrations`.
+  - Lido como o Pedro: 607 de 691 empresas com UF e CNAE, 63 com saldo de crédito.
+  - A conferência do Cruzamento seguiu em 66 checagens e 0 falhas.
+- **App:** `dpl_HuAypGJGnpPWzcctbYMsNaEcQPGY`, publicado por CLI no `ops-brain`.
+  - Antes estava no ar `1267a97`, pai do merge, então o deploy é um superset.
+  - Rollback: promover `dpl_8JsjaMsgr7Z7uq8RdQX7CJxxUoPW`.
+- **Bundle conferido:** a pergunta da aba e a linha da filial pela raiz estão em `monetizacao-*.js`, servido em `planningbrain.com.br`.
+
 
 ## [2026-10-06] Só a tag Cliente no Omie da Matriz sai das ofertas
 
