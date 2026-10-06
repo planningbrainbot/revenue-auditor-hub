@@ -46,6 +46,7 @@ export const GROWTH_DEPARTAMENTOS = [
   'marketing',
   'backoffice',
   'parcerias',
+  'consultoria',
 ] as const;
 
 export type GrowthPapel = (typeof GROWTH_PAPEIS)[number];

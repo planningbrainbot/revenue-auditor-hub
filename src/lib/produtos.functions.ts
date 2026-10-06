@@ -19,17 +19,21 @@ export const meuAcessoGrowth = createServerFn({ method: "GET" })
     const { data, error } = await (supabaseAdmin as any)
       .schema("growth")
       .from("membros")
-      .select("papel")
+      .select("papel, departamento")
       .eq("user_id", context.userId)
       .maybeSingle();
     if (error) {
       console.error("[meuAcessoGrowth] membros query failed:", error);
       return { configurado: true as const, temAcesso: false, papel: null as string | null };
     }
+    const linha = data as { papel?: string; departamento?: string | null } | null;
     return {
       configurado: true as const,
-      temAcesso: Boolean(data),
-      papel: ((data as { papel?: string } | null)?.papel ?? null) as string | null,
+      // A Consultoria (06/10) é membro do Growth só para chamar o bot: no
+      // brain-web ela abre o Brain Meet e mais nada. O Brain Meet já tem cartão
+      // e item próprios; um cartão "Growth" levaria a um Executivo sem acesso.
+      temAcesso: Boolean(linha) && linha?.departamento !== "consultoria",
+      papel: (linha?.papel ?? null) as string | null,
     };
   });
 
