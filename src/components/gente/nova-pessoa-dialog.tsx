@@ -13,7 +13,9 @@ import {
   editarPessoa,
   excluirCadastro,
   listHistoricoPessoa,
+  fmtCnpj,
   type AcessoResult,
+  type EmpresaUnidade,
   type StatusPessoa,
   type GentePessoaRow,
 } from "@/lib/gente.functions";
@@ -68,7 +70,10 @@ function usePerfisQuePossoDar() {
 }
 
 /** Mensagem única para o resultado do acesso, usada no cadastro e no "Dar acesso". */
-export function avisarAcesso(r: AcessoResult & { erroAcesso?: string | null }) {
+export function avisarAcesso(
+  r: AcessoResult & { erroAcesso?: string | null; avisoSalario?: string | null },
+) {
+  if (r.avisoSalario) toast.warning(`Pessoa cadastrada, mas ${r.avisoSalario}.`);
   if (r.erroAcesso) {
     toast.warning(`Pessoa cadastrada, mas o acesso falhou: ${r.erroAcesso}`);
   } else if (r.situacao === "vinculado") {
@@ -93,6 +98,13 @@ function Opcional() {
   return <span className="ml-1 text-xs font-normal text-muted-foreground">(opcional)</span>;
 }
 
+/** "R$ 2.500,00", "2500,00" ou "2500.5". */
+function lerSalario(v: string): number | null {
+  const s = v.replace(/[R$\s]/g, "");
+  const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 const VINCULOS = [
   { v: "clt", t: "CLT" },
   { v: "pj", t: "PJ" },
@@ -110,6 +122,8 @@ type Vazio = {
   tipoVinculo: string;
   dataAdmissao: string;
   dataNascimento: string;
+  salario: string;
+  cnpjEmpregador: string;
   gestorId: string;
   acesso: string;
 };
@@ -122,6 +136,8 @@ const VAZIO: Vazio = {
   tipoVinculo: "clt",
   dataAdmissao: "",
   dataNascimento: "",
+  salario: "",
+  cnpjEmpregador: "",
   gestorId: SEM_GESTOR,
   acesso: "colaborador",
 };
@@ -129,9 +145,14 @@ const VAZIO: Vazio = {
 export function NovaPessoaDialog({
   unidades,
   gestores,
+  podeRemuneracao = false,
+  empresasPorUnidade = {},
 }: {
   unidades: { id: number; nome: string }[];
   gestores: { id: number; nome: string; unidadeId: number | null }[];
+  /** Mostra o campo Salário (só o RH). */
+  podeRemuneracao?: boolean;
+  empresasPorUnidade?: Record<number, EmpresaUnidade[]>;
 }) {
   const perfisQuePossoDar = usePerfisQuePossoDar();
   const fn = useServerFn(criarPessoa);
@@ -165,6 +186,8 @@ export function NovaPessoaDialog({
           tipoVinculo: f.tipoVinculo,
           dataAdmissao: f.dataAdmissao,
           dataNascimento: f.dataNascimento,
+          salario: podeRemuneracao && f.salario.trim() ? lerSalario(f.salario) : null,
+          cnpjEmpregador: f.cnpjEmpregador || null,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
           acesso: f.acesso === SEM_LOGIN ? null : (f.acesso as "colaborador" | "gestao"),
         },
@@ -323,6 +346,46 @@ export function NovaPessoaDialog({
                 onChange={(e) => set("dataNascimento")(e.target.value)}
               />
             </div>
+            {(empresasPorUnidade[Number(unidadeId)] ?? []).length ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="np-empresa">
+                  Empresa (CNPJ)
+                  <Opcional />
+                </Label>
+                <Select
+                  value={f.cnpjEmpregador || "__sem_empresa__"}
+                  onValueChange={(v) => set("cnpjEmpregador")(v === "__sem_empresa__" ? "" : v)}
+                >
+                  <SelectTrigger id="np-empresa">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__sem_empresa__">Não informada</SelectItem>
+                    {(empresasPorUnidade[Number(unidadeId)] ?? []).map((e) => (
+                      <SelectItem key={e.cnpj} value={e.cnpj}>
+                        {e.razaoSocial ? `${e.razaoSocial} · ` : ""}
+                        {fmtCnpj(e.cnpj)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+            {podeRemuneracao ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="np-salario">
+                  Salário
+                  <Opcional />
+                </Label>
+                <Input
+                  id="np-salario"
+                  inputMode="decimal"
+                  placeholder="Ex.: 2.500,00"
+                  value={f.salario}
+                  onChange={(e) => set("salario")(e.target.value)}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-1.5">
@@ -871,11 +934,14 @@ export function EditarPessoaDialog({
   pessoa,
   gestores,
   podeSaude = false,
+  empresas = [],
 }: {
   pessoa: GentePessoaRow;
   gestores: { id: number; nome: string; unidadeId: number | null }[];
   /** Mostra e grava o CID do afastamento (só o RH). */
   podeSaude?: boolean;
+  /** Empresas (CNPJ) da unidade da pessoa. */
+  empresas?: EmpresaUnidade[];
 }) {
   const fn = useServerFn(editarPessoa);
   const qc = useQueryClient();
@@ -887,6 +953,7 @@ export function EditarPessoaDialog({
     tipoVinculo: pessoa.tipoVinculo ?? SEM_VINCULO,
     dataAdmissao: pessoa.dataAdmissao?.slice(0, 10) ?? "",
     dataNascimento: pessoa.dataNascimento?.slice(0, 10) ?? "",
+    cnpjEmpregador: pessoa.cnpjEmpregador ?? "",
     gestorId: pessoa.gestorId != null ? String(pessoa.gestorId) : SEM_GESTOR,
   });
   const [f, setF] = useState(inicial);
@@ -912,6 +979,7 @@ export function EditarPessoaDialog({
           tipoVinculo: f.tipoVinculo === SEM_VINCULO ? "" : f.tipoVinculo,
           dataAdmissao: f.dataAdmissao,
           dataNascimento: f.dataNascimento,
+          cnpjEmpregador: f.cnpjEmpregador || null,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
         },
       }),
@@ -1033,6 +1101,31 @@ export function EditarPessoaDialog({
                 onChange={(e) => set("dataNascimento")(e.target.value)}
               />
             </div>
+            {empresas.length ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="ep-empresa">
+                  Empresa (CNPJ)
+                  <Opcional />
+                </Label>
+                <Select
+                  value={f.cnpjEmpregador || "__sem_empresa__"}
+                  onValueChange={(v) => set("cnpjEmpregador")(v === "__sem_empresa__" ? "" : v)}
+                >
+                  <SelectTrigger id="ep-empresa">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__sem_empresa__">Não informada</SelectItem>
+                    {empresas.map((e) => (
+                      <SelectItem key={e.cnpj} value={e.cnpj}>
+                        {e.razaoSocial ? `${e.razaoSocial} · ` : ""}
+                        {fmtCnpj(e.cnpj)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-1.5">

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
+import { empresasDaUnidade, fmtCnpj } from "@/lib/gente.functions";
 import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
 import {
   MODELOS_TRABALHO,
@@ -59,7 +60,7 @@ export interface MovimentacaoRow {
   vigencia: string;
   motivo: string | null;
   observacao: string | null;
-  status: "rascunho" | "enviada" | "cancelada";
+  status: "rascunho" | "enviada" | "cancelada" | "desfeita";
   enviadaEm: string | null;
   enviadaPara: string | null;
   aplicadaEm: string | null;
@@ -68,6 +69,8 @@ export interface MovimentacaoRow {
   /** "01/2026": número da solicitação na unidade, como no formulário do RH. */
   numero: string | null;
   tipos: string[];
+  desfeitaEm: string | null;
+  motivoDesfazer: string | null;
 }
 
 export interface MovimentacoesResult {
@@ -106,13 +109,15 @@ type MovDB = {
   modelo_trabalho: string | null;
   justificativa: string | null;
   responsabilidades: string | null;
+  desfeita_em: string | null;
+  motivo_desfazer: string | null;
 };
 
 const numeroDe = (m: { numero: number | null; ano: number | null }) =>
   m.numero && m.ano ? `${String(m.numero).padStart(2, "0")}/${m.ano}` : null;
 
 const MOV_COLS =
-  "id,pessoa_id,vigencia,motivo,observacao,salario_antes,salario_depois,cargo_antes,cargo_depois,departamento_antes,departamento_depois,gestor_antes_id,gestor_depois_id,vinculo_antes,vinculo_depois,status,enviada_em,enviada_para,aplicada_em,criado_por,criado_em,numero,ano,tipos,motivos,modelo_trabalho,justificativa,responsabilidades";
+  "id,pessoa_id,vigencia,motivo,observacao,salario_antes,salario_depois,cargo_antes,cargo_depois,departamento_antes,departamento_depois,gestor_antes_id,gestor_depois_id,vinculo_antes,vinculo_depois,status,enviada_em,enviada_para,aplicada_em,criado_por,criado_em,numero,ano,tipos,motivos,modelo_trabalho,justificativa,responsabilidades,desfeita_em,motivo_desfazer";
 
 function mudancasDe(m: MovDB, nome: (id: number | null) => string): [string, string, string][] {
   const out: [string, string, string][] = [];
@@ -272,6 +277,8 @@ export const listMovimentacoes = createServerFn({ method: "GET" })
         mudancas: mudancasDe(m, nome),
         numero: numeroDe(m),
         tipos: m.tipos ?? [],
+        desfeitaEm: m.desfeita_em,
+        motivoDesfazer: m.motivo_desfazer,
         criadoPor: m.criado_por ? autores.get(m.criado_por) || null : null,
       };
     });
@@ -557,7 +564,9 @@ async function documento(
   );
   const { data: ps } = await supabase
     .from("gente_pessoas")
-    .select("id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id")
+    .select(
+      "id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id,cnpj_empregador",
+    )
     .in("id", ids);
   type P = {
     id: number;
@@ -568,6 +577,7 @@ async function documento(
     cargo: string | null;
     departamento: string | null;
     gestor_id: number | null;
+    cnpj_empregador?: string | null;
   };
   const porId = new Map(((ps ?? []) as P[]).map((p) => [p.id, p]));
   const pessoa = porId.get(mov.pessoa_id);
@@ -576,7 +586,9 @@ async function documento(
   if (pessoa.gestor_id != null && !porId.has(pessoa.gestor_id)) {
     const { data: g } = await supabase
       .from("gente_pessoas")
-      .select("id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id")
+      .select(
+        "id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id,cnpj_empregador",
+      )
       .eq("id", pessoa.gestor_id)
       .maybeSingle();
     if (g) porId.set(g.id, g as P);
@@ -599,7 +611,7 @@ async function documento(
   const { data: u } = pessoa.unidade_id
     ? await supabase
         .from("unidades")
-        .select("nome_da_praca")
+        .select("nome_da_praca,cnpj,razao_social")
         .eq("id", pessoa.unidade_id)
         .maybeSingle()
     : { data: null };
@@ -611,6 +623,12 @@ async function documento(
       id: mov.id,
       unidade: u?.nome_da_praca ?? "—",
       pessoa: pessoa.nome_completo,
+      empresa: (() => {
+        const e = empresasDaUnidade(u?.cnpj ?? null, u?.razao_social ?? null).find(
+          (x) => x.cnpj === pessoa.cnpj_empregador,
+        );
+        return e ? [e.razaoSocial, fmtCnpj(e.cnpj)].filter(Boolean).join(" · ") : null;
+      })(),
       email: pessoa.email,
       admissao: pessoa.data_admissao,
       vigencia: mov.vigencia,
@@ -724,7 +742,8 @@ export const enviarMovimentacao = createServerFn({ method: "POST" })
     return { enviadaPara: para, aplicadaAgora: Number(aplicadas ?? 0) > 0 };
   });
 
-export const cancelarMovimentacao = createServerFn({ method: "POST" })
+// Rascunho errado some de vez: ainda não foi a lugar nenhum (06/10/2026).
+export const excluirRascunho = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: number }) => {
     if (!Number.isInteger(input?.id)) throw new Error("Movimentação inválida.");
@@ -733,11 +752,33 @@ export const cancelarMovimentacao = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: ok, error } = await (context.supabase as Cliente)
       .from("gente_movimentacoes")
-      .update({ status: "cancelada", atualizado_em: new Date().toISOString() })
+      .delete()
       .eq("id", data.id)
       .eq("status", "rascunho")
       .select("id");
     if (error) throw new Error(error.message);
-    if (!ok?.length) throw new Error("Só dá para cancelar movimentação ainda em rascunho.");
+    if (!ok?.length)
+      throw new Error("Só dá para excluir movimentação em rascunho. Enviada se desfaz.");
     return { ok: true };
+  });
+
+// Enviada (aplicada ou não) se desfaz: o cadastro e o salário voltam ao que eram
+// e o registro fica, com o motivo (caso da 01/2026 na Bianca errada, 06/10/2026).
+// Quem decide e volta os campos é `ops.gente_desfazer_movimentacao`.
+export const desfazerMovimentacao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: number; motivo: string }) => {
+    if (!Number.isInteger(input?.id)) throw new Error("Movimentação inválida.");
+    const motivo = (input?.motivo ?? "").trim().slice(0, 300);
+    if (!motivo) throw new Error("Diga por que está desfazendo.");
+    return { id: input.id, motivo };
+  })
+  .handler(async ({ data, context }) => {
+    const { data: r, error } = await (context.supabase as Cliente).rpc(
+      "gente_desfazer_movimentacao",
+      { _id: data.id, _motivo: data.motivo },
+    );
+    if (error) throw new Error(error.message);
+    const res = r as { aplicada: boolean; campos_mantidos: string[] };
+    return { aplicada: res.aplicada, camposMantidos: res.campos_mantidos ?? [] };
   });

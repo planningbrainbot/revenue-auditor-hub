@@ -32,6 +32,8 @@ export interface GentePessoaRow {
   status: string;
   dataAdmissao: string | null;
   dataNascimento: string | null;
+  /** CNPJ (só dígitos) da empresa que emprega, entre os da unidade. */
+  cnpjEmpregador: string | null;
   /** Afastamento em aberto. O CID só vem para quem tem `manage.gente.saude`. */
   afastamento: {
     inicio: string;
@@ -61,9 +63,34 @@ export interface GenteUnidadeRow {
   gestores: number;
 }
 
+export interface EmpresaUnidade {
+  cnpj: string;
+  razaoSocial: string | null;
+}
+
+/**
+ * `unidades.cnpj` e `razao_social` guardam um por linha quando a unidade tem
+ * mais de uma empresa (padrão de Curitiba, 03/07/2026; Maceió desde 06/10).
+ */
+export function empresasDaUnidade(cnpj: string | null, razao: string | null): EmpresaUnidade[] {
+  const cnpjs = (cnpj ?? "")
+    .split("\n")
+    .map((c) => c.replace(/\D/g, ""))
+    .filter((c) => c.length === 14);
+  const razoes = (razao ?? "").split("\n").map((r) => r.trim());
+  return cnpjs.map((c, i) => ({ cnpj: c, razaoSocial: razoes[i] || null }));
+}
+
+export const fmtCnpj = (c: string) =>
+  c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+
 export interface GenteResult {
   /** Lê e registra CID de afastamento (área restrita do RH). */
   podeSaude: boolean;
+  /** Vê e grava salário (área restrita do RH). */
+  podeRemuneracao: boolean;
+  /** Empresas (CNPJ) de cada unidade, para o campo "Empresa" do cadastro. */
+  empresasPorUnidade: Record<number, EmpresaUnidade[]>;
   pessoas: GentePessoaRow[];
   unidades: GenteUnidadeRow[];
   /** Tem a chave que abre o módulo. Sem ela a tela mostra o aviso de acesso. */
@@ -89,6 +116,7 @@ type PessoaDB = {
   status: string;
   data_admissao: string | null;
   data_nascimento: string | null;
+  cnpj_empregador: string | null;
   user_id: string | null;
   gestor_id: number | null;
   unidade_id: number | null;
@@ -125,11 +153,11 @@ export const listGente = createServerFn({ method: "GET" })
         supabase
           .from("gente_pessoas")
           .select(
-            "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,data_nascimento,user_id,gestor_id,unidade_id,data_desligamento,motivo_desligamento",
+            "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,data_nascimento,cnpj_empregador,user_id,gestor_id,unidade_id,data_desligamento,motivo_desligamento",
           )
           .order("nome_completo"),
         supabase.from("v_gente_por_unidade").select("*"),
-        supabase.from("unidades").select("id,nome_da_praca"),
+        supabase.from("unidades").select("id,nome_da_praca,cnpj,razao_social"),
         // As duas perguntas que a RLS de escrita faz, feitas antes para o
         // formulário só oferecer unidade em que o insert vai passar.
         supabase.rpc("can", { _key: "data.scope.own_unit_only" }),
@@ -195,6 +223,7 @@ export const listGente = createServerFn({ method: "GET" })
       status: p.status,
       dataAdmissao: p.data_admissao,
       dataNascimento: p.data_nascimento,
+      cnpjEmpregador: p.cnpj_empregador,
       afastamento: afastPorPessoa.get(p.id) ?? null,
       unidade: p.unidade_id != null ? (praças.get(p.unidade_id) ?? null) : null,
       gestorNome: p.gestor_id != null ? (nomePorId.get(p.gestor_id) ?? null) : null,
@@ -244,6 +273,16 @@ export const listGente = createServerFn({ method: "GET" })
       podeAgregado: temChaves ? chaves.includes("view.gente.agregado") : unidades.length > 0,
       podeGerir,
       podeSaude: chaves.includes("manage.gente.saude"),
+      podeRemuneracao: chaves.includes("manage.gente.remuneracao"),
+      empresasPorUnidade: Object.fromEntries(
+        (
+          (praçasRes?.data ?? []) as {
+            id: number;
+            cnpj: string | null;
+            razao_social: string | null;
+          }[]
+        ).map((u) => [u.id, empresasDaUnidade(u.cnpj, u.razao_social)]),
+      ),
       semUnidade: pessoas.filter((p) => !p.unidade).length,
       unidadesCadastro,
       gestores: pessoasDB
@@ -523,12 +562,55 @@ export interface NovaPessoaInput {
   tipoVinculo?: string;
   dataAdmissao?: string;
   dataNascimento?: string;
+  /** Só o RH (`manage.gente.remuneracao`); vale desde a admissão. */
+  salario?: number | null;
+  cnpjEmpregador?: string | null;
   gestorId?: number | null;
   /** `null` cadastra sem login (quem não vai usar o Brain). */
   acesso: PerfilGente | null;
 }
 
 const VINCULOS = ["socio", "clt", "pj", "estagio", "prolabore", "terceiro"];
+
+/** O CNPJ tem de ser uma das empresas da unidade; vazio fica vazio. */
+async function cnpjValido(
+  db: Cliente,
+  unidadeId: number,
+  cnpj: string | null,
+): Promise<string | null> {
+  if (!cnpj) return null;
+  const { data: u } = await db
+    .from("unidades")
+    .select("cnpj,razao_social")
+    .eq("id", unidadeId)
+    .maybeSingle();
+  const empresas = empresasDaUnidade(u?.cnpj ?? null, u?.razao_social ?? null);
+  if (!empresas.some((e) => e.cnpj === cnpj)) {
+    throw new Error("Esse CNPJ não é de uma empresa da unidade.");
+  }
+  return cnpj;
+}
+
+/**
+ * Primeiro salário da pessoa, desde a admissão (ou hoje, sem admissão). Devolve
+ * o aviso quando não grava: o cadastro já está feito e não se desfaz por isso.
+ */
+async function gravarSalarioInicial(
+  db: Cliente,
+  pessoaId: number,
+  salario: number,
+  admissao: string | null,
+): Promise<string | null> {
+  const vigencia =
+    admissao ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const { error } = await db
+    .from("gente_remuneracao")
+    .insert({ pessoa_id: pessoaId, salario, vigencia, origem: "carga" });
+  if (!error) return null;
+  return error.code === "42501"
+    ? "o salário não foi gravado: só o RH grava salário"
+    : `o salário não foi gravado: ${error.message}`;
+}
 
 // Cadastro manual, feito por quem implanta o módulo na unidade. Até 24/09/2026
 // não existia: as 215 pessoas vieram do import do Qulture e as unidades de
@@ -557,10 +639,17 @@ export const criarPessoa = createServerFn({ method: "POST" })
     }
     const acesso = input.acesso ?? null;
     if (acesso && !PERFIS.includes(acesso)) throw new Error("Perfil de acesso inválido.");
+    const salario = input.salario == null ? null : Number(input.salario);
+    if (salario != null && (!Number.isFinite(salario) || salario <= 0)) {
+      throw new Error("Salário inválido.");
+    }
+    const cnpjEmpregador = (input.cnpjEmpregador ?? "").replace(/\D/g, "") || null;
     return {
       nomeCompleto,
       email,
       dataNascimento,
+      salario: salario == null ? null : Math.round(salario * 100) / 100,
+      cnpjEmpregador,
       unidadeId: input.unidadeId,
       cargo: input.cargo?.trim() || null,
       departamento: input.departamento?.trim() || null,
@@ -584,6 +673,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
         tipo_vinculo: data.tipoVinculo,
         data_admissao: data.dataAdmissao,
         data_nascimento: data.dataNascimento,
+        cnpj_empregador: await cnpjValido(supabase, data.unidadeId, data.cnpjEmpregador),
         gestor_id: data.gestorId,
         status: "ativo",
         origem: "manual",
@@ -604,10 +694,16 @@ export const criarPessoa = createServerFn({ method: "POST" })
     }
 
     const id = criada.id as number;
+    // Salário junto do cadastro (06/10/2026: senão o RH cadastrava em dois
+    // lugares). A RLS de `gente_remuneracao` só deixa quem tem a chave do RH.
+    const avisoSalario =
+      data.salario != null
+        ? await gravarSalarioInicial(supabase, id, data.salario, data.dataAdmissao)
+        : null;
     if (!data.acesso) {
       // Sem login novo, mas se o e-mail já tem conta, liga do mesmo jeito.
       const r = await darAcessoSoVinculo(supabase, context.userId, id);
-      return { id, ...r, erroAcesso: null as string | null };
+      return { id, ...r, erroAcesso: null as string | null, avisoSalario };
     }
 
     // O cadastro já está gravado. Se o acesso falhar, a pessoa fica sem login
@@ -615,7 +711,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
     try {
       const acesso = await acessoDoUsuario(supabase, context.userId);
       const r = await darAcesso(supabase, context.userId, acesso.permissions, id, data.acesso);
-      return { id, ...r, erroAcesso: null as string | null };
+      return { id, ...r, erroAcesso: null as string | null, avisoSalario };
     } catch (e) {
       return {
         id,
@@ -623,6 +719,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
         emailEnviado: false,
         link: null,
         erroAcesso: e instanceof Error ? e.message : "Falha ao criar o acesso.",
+        avisoSalario,
       };
     }
   });
@@ -665,6 +762,8 @@ export interface EditarPessoaInput {
   tipoVinculo?: string;
   dataAdmissao?: string;
   dataNascimento?: string;
+  /** "" ou null tira a empresa; ausente não mexe. */
+  cnpjEmpregador?: string | null;
   gestorId?: number | null;
 }
 
@@ -703,6 +802,10 @@ export const editarPessoa = createServerFn({ method: "POST" })
       tipoVinculo,
       dataAdmissao,
       dataNascimento,
+      cnpjEmpregador:
+        input.cnpjEmpregador === undefined
+          ? undefined
+          : (input.cnpjEmpregador ?? "").replace(/\D/g, "") || null,
       gestorId,
     };
   })
@@ -749,6 +852,23 @@ export const editarPessoa = createServerFn({ method: "POST" })
         tipo_vinculo: data.tipoVinculo,
         data_admissao: data.dataAdmissao,
         data_nascimento: data.dataNascimento,
+        ...(data.cnpjEmpregador === undefined
+          ? {}
+          : {
+              cnpj_empregador: data.cnpjEmpregador
+                ? await cnpjValido(
+                    supabase,
+                    (
+                      await supabase
+                        .from("gente_pessoas")
+                        .select("unidade_id")
+                        .eq("id", data.pessoaId)
+                        .maybeSingle()
+                    ).data?.unidade_id,
+                    data.cnpjEmpregador,
+                  )
+                : null,
+            }),
         gestor_id: data.gestorId,
       })
       .eq("id", data.pessoaId)
@@ -868,7 +988,13 @@ export const definirGestorEmLote = createServerFn({ method: "POST" })
 /** Para o import: preenche nascimento/admissão vazios de quem já existe. */
 async function completarDatas(
   db: Cliente,
-  l: { email: string; dataNascimento: string | null; dataAdmissao: string | null },
+  l: {
+    email: string;
+    dataNascimento: string | null;
+    dataAdmissao: string | null;
+    cnpjEmpregador?: string | null;
+    salario?: number | null;
+  },
 ): Promise<string[]> {
   // `ilike` sem curinga, porque o e-mail do Qulture às vezes tem maiúscula.
   const email = l.email.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -876,6 +1002,7 @@ async function completarDatas(
   for (const [coluna, valor, rotulo] of [
     ["data_nascimento", l.dataNascimento, "nascimento"],
     ["data_admissao", l.dataAdmissao, "admissão"],
+    ["cnpj_empregador", l.cnpjEmpregador ?? null, "empresa"],
   ] as const) {
     if (!valor) continue;
     const { data: ok } = await db
@@ -885,6 +1012,26 @@ async function completarDatas(
       .is(coluna, null)
       .select("id");
     if (ok?.length) feitos.push(rotulo);
+  }
+  // Salário só para quem ainda não tem nenhum: carga de quem já existe.
+  if (l.salario != null) {
+    const { data: p } = await db
+      .from("gente_pessoas")
+      .select("id,data_admissao")
+      .ilike("email", email)
+      .maybeSingle();
+    if (p) {
+      const { count } = await db
+        .from("gente_remuneracao")
+        .select("id", { count: "exact", head: true })
+        .eq("pessoa_id", p.id);
+      if (
+        (count ?? 0) === 0 &&
+        !(await gravarSalarioInicial(db, p.id, l.salario, p.data_admissao))
+      ) {
+        feitos.push("salário");
+      }
+    }
   }
   return feitos;
 }
@@ -899,6 +1046,9 @@ export interface LinhaImportacao {
   tipoVinculo?: string;
   dataAdmissao?: string;
   dataNascimento?: string;
+  /** Só grava para o RH (`manage.gente.remuneracao`); vale desde a admissão. */
+  salario?: number;
+  cnpjEmpregador?: string;
   /** E-mail do gestor: alguém já no cadastro ou outra linha da mesma planilha. */
   emailGestor?: string;
 }
@@ -952,6 +1102,11 @@ export const importarPessoas = createServerFn({ method: "POST" })
           tipoVinculo: l.tipoVinculo || null,
           dataAdmissao: l.dataAdmissao || null,
           dataNascimento: l.dataNascimento || null,
+          salario:
+            l.salario != null && Number.isFinite(Number(l.salario)) && Number(l.salario) > 0
+              ? Math.round(Number(l.salario) * 100) / 100
+              : null,
+          cnpjEmpregador: String(l.cnpjEmpregador ?? "").replace(/\D/g, "") || null,
           emailGestor: l.emailGestor?.trim().toLowerCase() || null,
         })),
       };
@@ -962,6 +1117,16 @@ export const importarPessoas = createServerFn({ method: "POST" })
     const resultados: ResultadoLinha[] = [];
     const vistos = new Set<string>();
     const criados: { id: number; r: ResultadoLinha; emailGestor: string | null }[] = [];
+    const { data: unidadeRow } = await supabase
+      .from("unidades")
+      .select("cnpj,razao_social")
+      .eq("id", data.unidadeId)
+      .maybeSingle();
+    const cnpjsDaUnidade = new Set(
+      empresasDaUnidade(unidadeRow?.cnpj ?? null, unidadeRow?.razao_social ?? null).map(
+        (e) => e.cnpj,
+      ),
+    );
 
     const erro = (l: { linha: number; email: string }, mensagem: string): ResultadoLinha => ({
       linha: l.linha,
@@ -1000,6 +1165,10 @@ export const importarPessoas = createServerFn({ method: "POST" })
         resultados.push(erro(l, "Data de nascimento inválida."));
         continue;
       }
+      if (l.cnpjEmpregador && !cnpjsDaUnidade.has(l.cnpjEmpregador)) {
+        resultados.push(erro(l, "CNPJ não é de uma empresa da unidade."));
+        continue;
+      }
 
       const { data: criada, error } = await supabase
         .from("gente_pessoas")
@@ -1012,6 +1181,7 @@ export const importarPessoas = createServerFn({ method: "POST" })
           tipo_vinculo: l.tipoVinculo,
           data_admissao: l.dataAdmissao,
           data_nascimento: l.dataNascimento,
+          cnpj_empregador: l.cnpjEmpregador,
           status: "ativo",
           origem: "planilha",
         })
@@ -1028,7 +1198,7 @@ export const importarPessoas = createServerFn({ method: "POST" })
             ...erro(
               l,
               completou.length
-                ? `Já estava no cadastro. Completado: ${completou.join(" e ")}.`
+                ? `Já estava no cadastro. Completado: ${completou.join(", ")}.`
                 : "Já está no cadastro da rede. Não foi alterada.",
             ),
             situacao: "ja_existe",
@@ -1050,6 +1220,15 @@ export const importarPessoas = createServerFn({ method: "POST" })
         acesso: null,
         link: null,
       };
+      if (l.salario != null) {
+        const aviso = await gravarSalarioInicial(
+          supabase,
+          criada.id as number,
+          l.salario,
+          l.dataAdmissao,
+        );
+        if (aviso) r.mensagem = `Cadastrada, mas ${aviso}.`;
+      }
       resultados.push(r);
       criados.push({ id: criada.id as number, r, emailGestor: l.emailGestor });
     }

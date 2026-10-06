@@ -41,6 +41,8 @@ const COLUNAS_MODELO = [
   "Admissão",
   "Nascimento",
   "E-mail do gestor",
+  "Salário",
+  "CNPJ da empresa",
 ];
 
 const semAcento = (s: string) =>
@@ -56,6 +58,8 @@ function campoDoCabecalho(h: string): keyof Omit<LinhaImportacao, "linha"> | nul
   if (/gestor|lider|superior/.test(k)) return "emailGestor";
   if (/nasc|aniversario/.test(k)) return "dataNascimento";
   if (/e-?mail/.test(k)) return "email";
+  if (/salario|remuneracao/.test(k)) return "salario";
+  if (/cnpj|empresa|empregador/.test(k)) return "cnpjEmpregador";
   if (/nome/.test(k)) return "nomeCompleto";
   if (/cargo|funcao/.test(k)) return "cargo";
   if (/depart|setor|area/.test(k)) return "departamento";
@@ -137,6 +141,18 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
           datasBrutas[campo] = v;
           continue;
         }
+        if (campo === "salario") {
+          // "R$ 2.500,00", "2500,00" ou número do Excel.
+          if (v === "" || v == null) continue;
+          const bruto = typeof v === "number" ? v : String(v).replace(/[R$\s]/g, "");
+          const valor =
+            typeof bruto === "number"
+              ? bruto
+              : Number(bruto.includes(",") ? bruto.replace(/\./g, "").replace(",", ".") : bruto);
+          if (Number.isFinite(valor) && valor > 0) l.salario = valor;
+          else l.problemas.push("salário");
+          continue;
+        }
         const texto = String(v ?? "")
           .trim()
           .replace(/\s+/g, " ");
@@ -181,6 +197,8 @@ function baixarModelo() {
       "01/03/2026",
       "12/05/1990",
       "",
+      3500,
+      "66.438.610/0001-80",
     ],
     [
       "João Lima",
@@ -191,9 +209,11 @@ function baixarModelo() {
       "15/04/2026",
       "03/11/1995",
       "maria.souza@planning.com.br",
+      2800,
+      "66.438.610/0001-80",
     ],
   ]);
-  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32].map((wch) => ({ wch }));
+  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32, 12, 22].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pessoas");
   XLSX.writeFile(wb, "modelo-importacao-pessoas.xlsx");
@@ -336,9 +356,9 @@ export function ImportarPessoasDialog({
           <DialogTitle>Importar pessoas por planilha</DialogTitle>
           <DialogDescription>
             Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo,
-            admissão, nascimento e e-mail do gestor são opcionais. Quem já está no cadastro só tem
-            completadas as datas de admissão e nascimento que estiverem vazias; o resto não é
-            alterado.
+            admissão, nascimento, e-mail do gestor, salário e CNPJ da empresa são opcionais (salário
+            só grava para o RH). Quem já está no cadastro só tem completado o que estiver vazio:
+            admissão, nascimento, empresa e salário (se ainda não tiver nenhum).
           </DialogDescription>
         </DialogHeader>
 

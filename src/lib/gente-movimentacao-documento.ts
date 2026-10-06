@@ -40,6 +40,8 @@ export interface MovimentacaoDocumento {
   numero: string | null;
   unidade: string;
   pessoa: string;
+  /** "Planning Alagoas LTDA · 66.438.610/0001-80", quando a pessoa tem empresa. */
+  empresa?: string | null;
   email: string | null;
   admissao: string | null;
   dataSolicitacao: string;
@@ -96,6 +98,7 @@ function linhas(m: MovimentacaoDocumento) {
     ] as [string, string][],
     colaborador: [
       ["Nome completo", m.pessoa],
+      ...(m.empresa ? ([["Empresa", m.empresa]] as [string, string][]) : []),
       ["Salário atual", fmtSalario(m.atual.salario)],
       ["Cargo atual", m.atual.cargo ?? "—"],
       ["Setor atual", m.atual.setor ?? "—"],

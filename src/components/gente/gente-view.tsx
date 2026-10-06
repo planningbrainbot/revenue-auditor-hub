@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Search, ShieldCheck } from "lucide-react";
-import { listGente, type GentePessoaRow } from "@/lib/gente.functions";
+import { fmtCnpj, listGente, type GentePessoaRow } from "@/lib/gente.functions";
 import { ErroDaFonte } from "@/components/gente/estados-gente";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ const CHAVES_FILTRO = [
   "casa",
   "admissao_de",
   "admissao_ate",
+  "empresa",
 ];
 
 // Faixas pensadas para a avaliação de experiência (45 e 90 dias): o RH filtra
@@ -119,6 +120,8 @@ export function GenteView() {
   const [busca, setBusca] = useFiltroNaUrl("busca", "");
   const [unidade, setUnidade] = useFiltroNaUrl("unidade", "");
   const [departamento, setDepartamento] = useFiltroNaUrl("departamento", "");
+  // Empresa empregadora (CNPJ), 06/10/2026: Maceió tem duas.
+  const [empresa, setEmpresa] = useFiltroNaUrl("empresa", "");
   const [status, setStatus] = useFiltroNaUrl("status", "ativo");
   const [casa, setCasa] = useFiltroNaUrl("casa", "");
   const [admissaoDe, setAdmissaoDe] = useFiltroNaUrl("admissao_de", "");
@@ -135,6 +138,13 @@ export function GenteView() {
     () => Array.from(new Set(pessoas.map((p) => p.unidade).filter(Boolean) as string[])).sort(),
     [pessoas],
   );
+  const listaEmpresas = useMemo(() => {
+    const todas = Object.values(q.data?.empresasPorUnidade ?? {}).flat();
+    const usadas = new Set(pessoas.map((p) => p.cnpjEmpregador).filter(Boolean));
+    return todas.filter(
+      (e, i) => usadas.has(e.cnpj) && todas.findIndex((x) => x.cnpj === e.cnpj) === i,
+    );
+  }, [q.data, pessoas]);
   const listaDepartamentos = useMemo(
     () =>
       Array.from(new Set(pessoas.map((p) => p.departamento).filter(Boolean) as string[])).sort(),
@@ -153,6 +163,7 @@ export function GenteView() {
     return doStatus.filter((p: GentePessoaRow) => {
       if (unidade && p.unidade !== unidade) return false;
       if (departamento && p.departamento !== departamento) return false;
+      if (empresa && p.cnpjEmpregador !== empresa) return false;
       if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(p)) {
         return false;
       }
@@ -164,7 +175,7 @@ export function GenteView() {
         .filter(Boolean)
         .some((c) => (c as string).toLowerCase().includes(termo));
     });
-  }, [doStatus, busca, unidade, departamento, casa, admissaoDe, admissaoAte]);
+  }, [doStatus, busca, unidade, departamento, empresa, casa, admissaoDe, admissaoAte]);
 
   const totais = useMemo(() => {
     const pessoasTotal = unidades.reduce((s, u) => s + u.pessoas, 0);
@@ -191,7 +202,12 @@ export function GenteView() {
           .filter((p) => p.status === "ativo")
           .map((p) => ({ id: p.id, nome: p.nomeCompleto, email: p.email, unidadeId: p.unidadeId }))}
       />
-      <NovaPessoaDialog unidades={q.data.unidadesCadastro} gestores={q.data.gestores} />
+      <NovaPessoaDialog
+        unidades={q.data.unidadesCadastro}
+        gestores={q.data.gestores}
+        podeRemuneracao={q.data.podeRemuneracao}
+        empresasPorUnidade={q.data.empresasPorUnidade}
+      />
     </div>
   ) : null;
 
@@ -217,7 +233,8 @@ export function GenteView() {
     status !== "ativo" ||
     !!casa ||
     !!admissaoDe ||
-    !!admissaoAte;
+    !!admissaoAte ||
+    !!empresa;
 
   return (
     <div className="space-y-6">
@@ -366,6 +383,24 @@ export function GenteView() {
                 <SelectItem value="todos">Todos os status</SelectItem>
               </SelectContent>
             </Select>
+            {listaEmpresas.length > 1 ? (
+              <Select
+                value={empresa || TODOS}
+                onValueChange={(v) => setEmpresa(v === TODOS ? "" : v)}
+              >
+                <SelectTrigger className="h-8 w-52" id="gente-empresa" aria-label="Empresa">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas as empresas</SelectItem>
+                  {listaEmpresas.map((e) => (
+                    <SelectItem key={e.cnpj} value={e.cnpj}>
+                      {e.razaoSocial ?? fmtCnpj(e.cnpj)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             <Select value={casa || TODOS} onValueChange={(v) => setCasa(v === TODOS ? "" : v)}>
               <SelectTrigger className="h-8 w-48" id="gente-casa" aria-label="Tempo de casa">
                 <SelectValue placeholder="Tempo de casa" />
@@ -414,6 +449,15 @@ export function GenteView() {
                   rotulo="Departamento"
                   valor={departamento}
                   aoRemover={() => setDepartamento("")}
+                />
+              ) : null}
+              {empresa ? (
+                <ChipFiltro
+                  rotulo="Empresa"
+                  valor={
+                    listaEmpresas.find((e) => e.cnpj === empresa)?.razaoSocial ?? fmtCnpj(empresa)
+                  }
+                  aoRemover={() => setEmpresa("")}
                 />
               ) : null}
               {status !== "ativo" ? (
@@ -581,6 +625,11 @@ export function GenteView() {
                               pessoa={p}
                               gestores={q.data.gestores}
                               podeSaude={q.data.podeSaude}
+                              empresas={
+                                p.unidadeId != null
+                                  ? (q.data.empresasPorUnidade[p.unidadeId] ?? [])
+                                  : []
+                              }
                             />
                           </TableCell>
                         ) : null}

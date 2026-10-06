@@ -5,7 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowRightLeft, Download, FileSpreadsheet, Mail, Plus, Send, Wallet } from "lucide-react";
 import {
-  cancelarMovimentacao,
+  desfazerMovimentacao,
+  excluirRascunho,
   criarMovimentacao,
   documentoMovimentacao,
   enviarMovimentacao,
@@ -678,9 +679,12 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
 function AcoesMovimentacao({ m, temEmailDp }: { m: MovimentacaoRow; temEmailDp: boolean }) {
   const docFn = useServerFn(documentoMovimentacao);
   const enviarFn = useServerFn(enviarMovimentacao);
-  const cancelarFn = useServerFn(cancelarMovimentacao);
+  const excluirFn = useServerFn(excluirRascunho);
+  const desfazerFn = useServerFn(desfazerMovimentacao);
   const qc = useQueryClient();
   const [confirmar, setConfirmar] = useState(false);
+  const [desfazendo, setDesfazendo] = useState(false);
+  const [motivoDesfazer, setMotivoDesfazer] = useState("");
 
   const baixarDoc = async (formato: "pdf" | "xlsx") => {
     try {
@@ -710,11 +714,35 @@ function AcoesMovimentacao({ m, temEmailDp }: { m: MovimentacaoRow; temEmailDp: 
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  const cancelar = useMutation({
-    mutationFn: () => cancelarFn({ data: { id: m.id } }),
+  const excluir = useMutation({
+    mutationFn: () => excluirFn({ data: { id: m.id } }),
     onSuccess: () => {
-      toast.success("Movimentação cancelada.");
+      toast.success("Rascunho excluído.");
       qc.invalidateQueries({ queryKey: ["gente-movimentacoes"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const desfazer = useMutation({
+    mutationFn: () => desfazerFn({ data: { id: m.id, motivo: motivoDesfazer } }),
+    onSuccess: (r) => {
+      const partes = [
+        r.aplicada
+          ? "Movimentação desfeita: cadastro e salário voltaram ao que eram."
+          : "Movimentação desfeita antes de valer.",
+        "Avise o Departamento Pessoal para desconsiderar o envio.",
+      ];
+      if (r.camposMantidos.length) {
+        partes.push(
+          `Não voltou: ${r.camposMantidos.join(", ")} (já tinha mudado de novo depois). Confira no Editar.`,
+        );
+      }
+      (r.camposMantidos.length ? toast.warning : toast.success)(partes.join(" "), {
+        duration: 12_000,
+      });
+      setDesfazendo(false);
+      setMotivoDesfazer("");
+      qc.invalidateQueries({ queryKey: ["gente-movimentacoes"] });
+      qc.invalidateQueries({ queryKey: ["gente"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -773,12 +801,50 @@ function AcoesMovimentacao({ m, temEmailDp }: { m: MovimentacaoRow; temEmailDp: 
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-xs text-danger"
-              onClick={() => cancelar.mutate()}
-              disabled={cancelar.isPending}
+              onClick={() => excluir.mutate()}
+              disabled={excluir.isPending}
             >
-              Cancelar
+              Excluir
             </Button>
           </>
+        )
+      ) : null}
+      {m.status === "enviada" ? (
+        desfazendo ? (
+          <div className="flex w-full flex-wrap items-center gap-1 pt-1">
+            <Input
+              className="h-7 w-56 text-xs"
+              placeholder="Por que desfazer? Ex.: pessoa errada"
+              value={motivoDesfazer}
+              onChange={(e) => setMotivoDesfazer(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 px-2 text-xs"
+              onClick={() => desfazer.mutate()}
+              disabled={desfazer.isPending || !motivoDesfazer.trim()}
+            >
+              {desfazer.isPending ? "Desfazendo…" : "Confirmar"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => setDesfazendo(false)}
+            >
+              Voltar
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-danger"
+            onClick={() => setDesfazendo(true)}
+          >
+            Desfazer
+          </Button>
         )
       ) : null}
     </div>
@@ -787,6 +853,7 @@ function AcoesMovimentacao({ m, temEmailDp }: { m: MovimentacaoRow; temEmailDp: 
 
 function situacao(m: MovimentacaoRow) {
   if (m.status === "cancelada") return <StatusBadge tom="neutro">cancelada</StatusBadge>;
+  if (m.status === "desfeita") return <StatusBadge tom="neutro">desfeita</StatusBadge>;
   if (m.status === "rascunho") return <StatusBadge tom="info">rascunho</StatusBadge>;
   if (m.aplicadaEm) return <StatusBadge tom="sucesso">aplicada</StatusBadge>;
   return <StatusBadge tom="atencao">enviada, vigência futura</StatusBadge>;
@@ -860,6 +927,12 @@ export function GenteMovimentacoesTab() {
                     {m.enviadaEm ? (
                       <div className="mt-1 text-[12px] text-muted-foreground">
                         {new Date(m.enviadaEm).toLocaleDateString("pt-BR")} para {m.enviadaPara}
+                      </div>
+                    ) : null}
+                    {m.desfeitaEm ? (
+                      <div className="mt-1 text-[12px] text-muted-foreground">
+                        desfeita em {new Date(m.desfeitaEm).toLocaleDateString("pt-BR")}
+                        {m.motivoDesfazer ? `: ${m.motivoDesfazer}` : ""}
                       </div>
                     ) : null}
                   </TableCell>
