@@ -258,6 +258,84 @@ test("Ganho fora da coorte e perdidos de quem marcou ficam à parte da taxa", ()
   );
 });
 
+test("Card abordado no mês anterior que avança no período vai para a nota, e contrato conta sempre", () => {
+  const OUT = { from: "2026-10-01", to: "2026-10-06", owner: M, product: "" };
+  const base = mv(274, "2026-09-29 14:40:00");
+  // Tag (98025): abordada 30/09, agenda, realiza e valida em outubro; o toque do Ops não é do Matheus.
+  const tag = card({
+    moves: [
+      base,
+      mv(276, "2026-09-30 19:47:57"),
+      mv(290, "2026-10-01 12:19:44"),
+      mv(277, "2026-10-01 12:20:41"),
+      mv(287, "2026-10-01 12:20:46"),
+      mv(291, "2026-10-01 14:38:39"),
+      mv(279, "2026-10-01 14:38:42"),
+      mv(291, "2026-10-01 22:36:06", 23984402),
+      mv(277, "2026-10-02 11:41:54"),
+      mv(287, "2026-10-02 11:42:10"),
+      mv(279, "2026-10-02 12:37:27"),
+      mv(278, "2026-10-02 20:01:03"),
+    ],
+  });
+  // Alves e Freitas (98022): validada em 30/09 e ganha em 05/10. Só o ganho é novo em outubro.
+  const alves = card({
+    status: "won",
+    moves: [
+      base,
+      mv(277, "2026-09-30 12:20:28"),
+      mv(279, "2026-09-30 20:22:32"),
+      mv(291, "2026-10-01 13:28:36"),
+      mv(278, "2026-10-01 13:28:56"),
+    ],
+    signed: [ev("2026-10-05 14:10:31")],
+  });
+  // Abordado em outubro: é coorte, não abordagem anterior.
+  const novo = card({ moves: [mv(274, "2026-09-20 12:00:00"), mv(276, "2026-10-02 13:00:00")] });
+  // Perdido em setembro: não avança em outubro.
+  const perdido = card({
+    status: "lost",
+    lost_on: "2026-09-30",
+    moves: [base, mv(276, "2026-09-30 13:00:00")],
+  });
+  const fc = funilCumulativo([tag, alves, novo, perdido], ST, OUT);
+  assert.deepEqual(
+    fc.coorte.map((c) => c.id),
+    [novo.id],
+  );
+  const r = fc.regua;
+  assert.deepEqual(
+    fc.avancosAnteriores.map((a) => [a.card.id, a.de, a.ate]),
+    [
+      [tag.id, r.nivelDe.abordagem, r.nivelDe.propostaEnviada],
+      [alves.id, r.nivelDe.negociacao, r.ganho],
+    ],
+  );
+  const plan = { daily_target: 7, target_contracts: 8 };
+  const q = Object.fromEntries(
+    metasOperacao(fc, plan, OUT, "2026-10-06").quadros.map((x) => [x.chave, x]),
+  );
+  // A coorte não muda: o funil segue cumulativo.
+  assert.equal(q.started.total, 1);
+  assert.equal(q.meeting.valor, 0);
+  assert.equal(q.validated.valor, 0);
+  // A Tag entra à parte em agendados, realizados e validadas; a Alves e Freitas, que validou em setembro, não.
+  assert.match(q.scheduled.nota, /\+1 de abordagem anterior$/);
+  assert.match(q.meeting.nota, /\+1 de abordagem anterior$/);
+  assert.match(q.validated.nota, /\+1 de abordagem anterior$/);
+  assert.deepEqual(
+    q.validated.cards.map((c) => c.id),
+    [tag.id],
+  );
+  // Contrato conta todo ganho do período contra a meta.
+  assert.equal(q.signed.valor, 1);
+  assert.equal(q.signed.nota, "1 de abordagem anterior");
+  assert.deepEqual(
+    q.signed.cards.map((c) => c.id),
+    [alves.id],
+  );
+});
+
 test("Dias úteis pulam os feriados nacionais de 2026 e 2027", () => {
   assert.equal(uteis("2026-09-01", "2026-09-30"), 21); // 07/09
   assert.equal(uteis("2026-10-01", "2026-10-31"), 21); // 12/10

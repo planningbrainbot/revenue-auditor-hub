@@ -36,6 +36,13 @@ export function sameProductDeal(deal, product) {
 // Um card por empresa no Caixa (dono, 01/10/2026): no pipe 39, um card aberto da organização recebe a oferta de
 // qualquer produto, em vez de abrir outro. O mesmo produto continua valendo também para o card criado no mês.
 // Devolve o card a vincular, o do mesmo produto primeiro.
+// Conta sem organização vinculada e com organização de mesmo nome no CRM (06/10/2026): a homônima é a empresa, e
+// bloquear o envio pedia um vínculo que a tela não oferece (12 contas paradas, 4 delas filiais de uma raiz já
+// enviada). Entre várias homônimas, fica a que tem mais negócios; no empate, a mais antiga (menor id).
+export function orgDaHomonima(orgIds, dealsPorOrg) {
+  const n = (o) => (dealsPorOrg.get(o) ?? []).length;
+  return [...orgIds].sort((a, b) => n(b) - n(a) || a - b)[0] ?? null;
+}
 export function cardDaEmpresa(deals, product, month) {
   const mesmo = deals.find(
     (d) =>

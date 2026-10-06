@@ -2,7 +2,13 @@
 // desde 29/09, pipe 38 (Recon). Segredos só no runtime Supabase.
 import { summarize, METRIC_VERSION } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
-import { cardDaEmpresa, dealPayload, hasCanonicalProduct, PIPE_DO_PRODUTO } from "./send.mjs";
+import {
+  cardDaEmpresa,
+  dealPayload,
+  hasCanonicalProduct,
+  orgDaHomonima,
+  PIPE_DO_PRODUTO,
+} from "./send.mjs";
 import { fillHandoff } from "./handoff.mjs";
 import { pipedriveApi } from "./pipedrive.mjs";
 import { registrarUnidades } from "./revenue.mjs";
@@ -278,40 +284,53 @@ async function send(itemIds: string[], token: string) {
         const contractOrg = id(contract?.org_id);
         if (contractOrg && !orgs.includes(contractOrg)) orgs.push(contractOrg);
       }
+      // Sem organização vinculada, a de mesmo nome no CRM é a empresa: entra na checagem de card existente e recebe
+      // o negócio, em vez de bloquear o envio (orgDaHomonima, 06/10/2026).
+      let homonimas: number[] = [];
+      if (!orgs.length) {
+        const matches = await pd("organizations/search", {
+          term: account.name.trim(),
+          fields: "name",
+          exact_match: "true",
+        });
+        homonimas = [
+          ...new Set(
+            ((matches.data?.items ?? []) as Row[])
+              .map((x) => id(x.item))
+              .filter((x): x is number => !!x),
+          ),
+        ];
+        orgs.push(...homonimas);
+      }
       // Verifica todas as organizações da conta, e somente a oferta do produto selecionado.
       const existing: Row[] = [];
-      for (const orgId of orgs)
-        existing.push(
-          ...(await pages(`organizations/${orgId}/deals`, { status: "all_not_deleted" })),
-        );
+      const dealsPorOrg = new Map<number, Row[]>();
+      for (const orgId of orgs) {
+        const deals = await pages(`organizations/${orgId}/deals`, { status: "all_not_deleted" });
+        dealsPorOrg.set(orgId, deals);
+        existing.push(...deals);
+      }
       const vinculo = cardDaEmpresa(existing, product, month);
+      const homonima = homonimas.length ? " Organização localizada pelo nome no CRM." : "";
       if (vinculo) {
         const duplicate = vinculo.deal;
         org = id(duplicate.org_id);
         await finish(
           "sent",
           duplicate.id,
-          vinculo.sameProduct
+          (vinculo.sameProduct
             ? `Vinculada à oportunidade existente do mesmo produto. Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`
-            : `Vinculada ao card aberto da empresa no Caixa (um card por empresa). Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`,
+            : `Vinculada ao card aberto da empresa no Caixa (um card por empresa). Responsável atual: ${duplicate.user_id?.name || id(duplicate.user_id)}.`) +
+            homonima,
         );
         continue;
       }
-      org = orgs[0] || null;
+      org = homonimas.length ? orgDaHomonima(homonimas, dealsPorOrg) : orgs[0] || null;
       if (org) {
         const found = await pd(`organizations/${org}`);
         if (!found.data || found.data.active_flag === false)
           throw new Error("Organização vinculada indisponível; concilie o cadastro");
       } else {
-        const matches = await pd("organizations/search", {
-          term: account.name.trim(),
-          fields: "name",
-          exact_match: "true",
-        });
-        if (matches.data?.items?.length)
-          throw new Error(
-            "Há organização com este nome no CRM. Vincule a organização correta ao cadastro antes de enviar.",
-          );
         remoteStarted = true;
         org = (
           await pd("organizations", {}, { name: account.name.trim(), owner_id: claim.owner_id })

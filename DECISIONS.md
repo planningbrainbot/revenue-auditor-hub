@@ -4496,3 +4496,73 @@ Com o "pode subir" do Pedro (05/10), a publicação seguiu esta ordem: migration
 - **Primeira rodada da sync (12:20 UTC):** 208 cards, 161 com CNPJ, 554 linhas da PAT, 57 s.
 - **Conferência ao vivo** com a sessão do Pedro contra a recontagem independente: 1.678 checagens, 0 falhas.
 - **Não conferido:** captura da tela logada em produção (sem sessão de navegador nesta máquina). A tela foi conferida com o payload real numa rota de preview local, que não foi commitada.
+
+## [2026-10-06] Bugs do Matheus: envio com organização homônima, avanço de abordagem anterior e Sorocaba na Base
+
+**Contexto:** o Pedro pediu para revisar as mensagens do Matheus Carvalho de 29/09 a 06/10 e corrigir os bugs da
+Operação da Monetização e da Base de clientes. Três eram de código ou de dado; os outros relatos não eram defeito (ver o
+fim desta entrada).
+
+**1. Envio ao Pipedrive parado por "Há organização com este nome no CRM" (06/10, AUTO NORTE).** A função
+`monetizacao-crm` bloqueava toda conta sem organização vinculada quando o CRM tinha uma organização de mesmo nome, e
+pedia um vínculo que a tela não oferece. Desde 25/09 eram 14 tentativas em 12 contas. Quatro dessas contas eram filiais
+de uma raiz cujo envio anterior já tinha criado a organização (Boutique, H&D, Panetelli, Transtech, L Perna); as demais
+casavam com organizações antigas, uma delas com 2 homônimas (Canopus Construções).
+- **Decisão:** a homônima é a empresa. As organizações de mesmo nome entram na checagem de card existente, como as
+  vinculadas, e assim a filial cai no card aberto da empresa (um card por empresa, 01/10). Se não houver card, o negócio
+  nasce na homônima. Se houver mais de uma, fica a que tem mais negócios; no empate, a de menor id (`orgDaHomonima` em
+  `send.mjs`). A razão do envio diz "Organização localizada pelo nome no CRM".
+- As 12 contas seguem `blocked` e podem ser reenviadas pela tela; nada foi reenviado por fora.
+
+**2. Card abordado num mês que avança no seguinte (02/10 e 05/10: Tag 98025, Alves e Freitas 98022).** A régua de
+01/10 conta só a coorte do período, isto é, os cards que saíram da Base no período. Os dois saíram em 30/09, então a
+reunião, a validação e o ganho de outubro não apareciam em outubro, e "Contratos ganhos" mostrava 0 enquanto o Cockpit do
+CEO mostrava 1.
+- **Decisão do Pedro (06/10, entre três opções):** "Contrato conta sempre". O quadro de contratos conta todo ganho do
+  período de quem o filtro mede, da coorte ou não, contra a meta. É a mesma conta do Cockpit do CEO. Agendados,
+  realizados e validadas seguem na coorte e na taxa. Os cards de abordagem anterior que chegaram à etapa no período
+  aparecem na nota ("+N de abordagem anterior") e na lista do quadro.
+- **Regra do avanço** (`avancosDeAbordagemAnterior`):
+  - entra o card com `started` antes do período, não perdido nem ganho antes dele;
+  - `de` é o nível do último movimento antes do período;
+  - `ate` é o mais adiantado alcançado no período, pela regra de 30 minutos e só por movimento de quem o filtro mede;
+  - o card conta numa etapa se `de < nível ≤ ate`. Por isso a Alves e Freitas, validada em setembro, não soma em
+    validadas de outubro.
+- **Outubro com a carga real (01–06/10, Matheus):**
+  - coorte de 49;
+  - agendados 11 (+1);
+  - realizados 4 (+2: Tag e Forma Divisórias);
+  - validadas 2 (+1: Tag);
+  - contratos 1 (antes 0).
+
+**3. "Não tem Sorocaba ainda" na Base (05/10).** Eram três lacunas da criação das unidades por SQL (16/09) e do
+backfill de 22/09:
+- 286 das 312 empresas de Sorocaba e 162 de Goiânia tinham `unidade_id` nulo, porque a leitura do Pipefy de 21–22/09
+  gravou o vínculo como "unknown". O backfill de 22/09 corrigiu `unidade`, mas não `unidade_id`.
+- Sorocaba não tinha linha em `ops.monetizacao_unidades`.
+- São Bernardo tinha a linha, mas com `unidade_id` nulo.
+- **Feito:** migration `20261006120000_base_unidade_sorocaba.sql`, aplicada em `npknehhyyzelmrbbxvtu` numa transação.
+  O ensaio prévio, num DO com RAISE, deu 449 vínculos.
+- **Trava nova:** gatilho `unidade_regional_na_base`. Unidade regional nova cadastrada em `ops.unidades` ganha a linha
+  em `monetizacao_unidades`, com chave `sha256(nome)[:16]`.
+- **Recálculo depois da migration:**
+  - `base_refresh_cadastro` em 931 empresas;
+  - `base_carteira_refresh` em 1.180 chaves, das quais 918 mudaram;
+  - `monetizacao_cobertura_refresh()` passou de 14 para 15 linhas.
+- **Medido pela carga da tela:** Sorocaba 312 contas, Goiânia 3.269 e São Bernardo 460 (agora pelo id).
+  "Unidade a confirmar" caiu de 694 para 259.
+- **Backup:** `unidade-sorocaba-backup-20261006/` no scratchpad da sessão. Reversão no cabeçalho da migration.
+
+**Relatos que não eram defeito do Brain, com o que se viu:**
+- **98000 (Forma Divisórias), posto em Reunião de proposta por engano em 02/10.** O Matheus voltou o card em 59
+  minutos. A Reunião de proposta nunca valida, então o card não contou como oportunidade. Pela regra dos 30 minutos ele
+  conta como tendo chegado à Reunião de proposta; não houve ajuste manual.
+- **KENKO (Belém), "Consultoria · confirmar".** O "confirmar" é da origem (sem vínculo Omie/Pipedrive). A empresa não
+  aparece na plataforma da Consultoria, nem como cliente nem como proposta; a sync rodou às 11:20 UTC de 06/10.
+- **Connectoway (Recife), "saiu da Planning".** Também os fornecedores que o sócio de Maceió apontou em 29/09 (ALSCO,
+  B1, BR Trading, Nipponflex) e as multinacionais da lista de Recife (B3, Bridgestone, Covestro). Todas têm prova
+  "cadastrado": a unidade as declarou no Pipefy, e não há Omie, pagamento, distrato ou contrato que as distinga. A prova
+  de 01/10 não alcança unidade sem Omie.
+  - **Pendente, para decisão:** uma marcação manual de "não é cliente" (fornecedor ou saiu), feita por quem já vê
+    fornecedor, que tire a conta das ofertas. A alternativa é a unidade corrigir o Pipefy e abrir o card na Central de
+    Tratativas.
