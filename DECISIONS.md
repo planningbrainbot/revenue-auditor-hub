@@ -4594,3 +4594,11 @@ contava como concedida. Por isso:
   dado sozinho.
 
 **Ordem de publicação:** migration antes do app. O app novo sem a tabela falha ao salvar; o app antigo ignora a tabela.
+
+## [2026-10-06] Publicado: recorte por departamento no acesso ao Financeiro (adendo à entrada anterior)
+
+Com o "pode publicar" do Pedro (06/10). A migration já estava aplicada antes do app.
+- **Antes:** no ar estava `db7f1b3` (`dpl_2YS282oFyCvnAk1SBAgoNnyrVPXH`). A main já tinha `3143892` (formulário do RH), ainda não publicado por quem fez. Por isso o deploy saiu de `db7f1b3` + este fix (`91bf4fa`), e não da main.
+- **Deploy:** `dpl_FGrQj9q6jeSCfys7n8dUnLCZiMry`, CLI no `ops-brain`, `--global-config ~/.vercel-planning`. **Rollback:** promover `dpl_2YS282oFyCvnAk1SBAgoNnyrVPXH`.
+- **Conferido no bundle servido:** o texto novo do diálogo está em `admin.acessos-financeiro-*.js` (168 chunks lidos a partir de `/auth`).
+- **Lado do Financeiro, no mesmo dia:** a edge `unidades` passou a entregar só as unidades concedidas, e o Consolidado só a quem tem todas. Antes ela entregava o menu inteiro a qualquer pessoa, e a concessão por unidade não valia na tela.
