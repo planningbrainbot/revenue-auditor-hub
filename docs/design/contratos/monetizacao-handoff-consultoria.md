@@ -1,8 +1,9 @@
-# Contrato · Handoff Consultoria (`/monetizacao?aba=handoff-consultoria`)
+# Contrato · Consultoria › Handoff e repasse (`/monetizacao?aba=handoff-consultoria`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Victor Eliezek (repo) · Pedro Luca (tela)   **Data:** 02/10/2026
 
 Estado: **aprovado e publicado em 05/10/2026.** Construído a pedido do dono em 02/10 ("preciso que seja um painel ao vivo no módulo de monetização"); regras confirmadas por ele em 05/10 (abaixo) e gravadas como "confirmada" em `ops.handoff_consultoria_regras`. Mockup com dado real: https://claude.ai/artifact/F5kUmqPVvKnkZL6X1CoecQ.
+**06/10/2026:** a tela passou a se chamar **Consultoria**, com duas abas (pedido do dono: "Não quero duas telas, quero uma só"). Esta é a aba "Handoff e repasse"; a outra é "Cruzamento com a call" (`&visao=cruzamento`, contrato `monetizacao-cruzamento-consultoria.md`).
 A moldura comum (cabeçalho, estados, permissões) segue `monetizacao.md`. Os filtros são os desta tela (abaixo).
 
 ## Propósito

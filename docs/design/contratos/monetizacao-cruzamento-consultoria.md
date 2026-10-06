@@ -1,10 +1,13 @@
-# Contrato · Cruzamento Consultoria (`/monetizacao?aba=cruzamento-consultoria`)
+# Contrato · Consultoria › Cruzamento com a call (`/monetizacao?aba=handoff-consultoria&visao=cruzamento`)
 
 **Dono de produto:** Pedro Luca   **Dono do código:** Victor Eliezek (repo) · Pedro Luca (tela)   **Data:** 06/10/2026
 
 Estado: **pedido do dono em 06/10/2026**: "preciso evidenciar o cruzamento da base com o Pedro. Quero que os números
 mencionados pelo Pedro sejam vistos em uma tela dentro de monetização ao vivo. E que seja sexy, didática e dentro da
-nossa IV. Preciso auditar isso." Construído e publicado com o "pode publicar" da mesma mensagem. A moldura comum
+nossa IV. Preciso auditar isso." Construído e publicado com o "pode publicar" da mesma mensagem.
+**06/10, mesmo dia:** "Não quero duas telas, quero uma só. Pode colocar duas abas, mas na mesma tela." Virou a visão
+"Cruzamento com a call" da tela **Consultoria** (uma entrada na lateral, duas abas, `visao` na URL; `consultoria.tsx`).
+O link antigo `?aba=cruzamento-consultoria` abre esta visão. A moldura comum
 (cabeçalho, estados, permissões) segue `monetizacao.md`.
 
 ## Propósito
@@ -70,6 +73,7 @@ nossa IV. Preciso auditar isso." Construído e publicado com o "pode publicar" d
 ## Filtros na URL (N7)
 | Parâmetro | Valores | Padrão | Afeta |
 |---|---|---|---|
+| `visao` | cruzamento | — (Handoff e repasse) | qual aba da tela Consultoria está aberta |
 | `grafico` | id do cartão, da semana, do mês ou da célula | — | abre a gaveta |
 | `regime` | real, presumido, simples, sem | todos | a coorte do teste do CEO |
 

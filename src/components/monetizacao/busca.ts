@@ -13,8 +13,8 @@ import type { Regime } from "@/lib/monetizacao/cruzamento-consultoria";
  */
 export const ABAS = [
   "operacao",
+  // Tela Consultoria: duas visões na mesma aba (`visao`), uma entrada só na lateral.
   "handoff-consultoria",
-  "cruzamento-consultoria",
   "forecast",
   "temporal",
   "capacidade",
@@ -86,7 +86,9 @@ export type BuscaMonetizacao = {
   unidade?: string;
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
-  /** Cruzamento Consultoria: regime tributário da coorte do teste do CEO; ausente = todos. */
+  /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call. */
+  visao?: "cruzamento";
+  /** Consultoria, visão Cruzamento: regime tributário da coorte do teste do CEO; ausente = todos. */
   regime?: Regime;
 };
 
@@ -105,6 +107,10 @@ const inteiro = (v: unknown): number | undefined => {
 };
 
 export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMonetizacao {
+  // O Cruzamento Consultoria nasceu como aba própria (06/10) e virou visão da tela Consultoria no mesmo dia:
+  // o link antigo abre a visão certa.
+  const cruzamentoAntigo = s.aba === "cruzamento-consultoria";
+  if (cruzamentoAntigo) s = { ...s, aba: "handoff-consultoria", visao: "cruzamento" };
   const dias = inteiro(s.dias);
   const totais = s.totais === true || s.totais === "true" ? true : undefined;
   return {
@@ -131,6 +137,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     grafico:
       typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
+    visao: s.visao === "cruzamento" ? "cruzamento" : undefined,
     regime: umDe(["real", "presumido", "simples", "sem"] as const, s.regime),
   };
 }
