@@ -446,6 +446,19 @@ function AcessosFinanceiroPage() {
               })}
             </div>
 
+            {/* 06/10/2026: recorte por departamento é concessão à parte. Antes,
+                marcar o BPO trazia os dois recortes e marcar só um deles abria
+                o BPO inteiro — a Ana não conseguia dar "só o BPO". */}
+            {unidades.some((u) => u.tipo === "departamento") && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Unidades de departamento ({unidades
+                  .filter((u) => u.tipo === "departamento")
+                  .map((u) => u.rotulo)
+                  .join(", ")}) são recortes dentro do BPO: marcar o BPO não as inclui, e marcar uma
+                delas abre só aquele departamento.
+              </p>
+            )}
+
             <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
               <button
                 type="button"

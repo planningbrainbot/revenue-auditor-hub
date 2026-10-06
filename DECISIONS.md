@@ -4496,3 +4496,31 @@ Com o "pode subir" do Pedro (05/10), a publicação seguiu esta ordem: migration
 - **Primeira rodada da sync (12:20 UTC):** 208 cards, 161 com CNPJ, 554 linhas da PAT, 57 s.
 - **Conferência ao vivo** com a sessão do Pedro contra a recontagem independente: 1.678 checagens, 0 falhas.
 - **Não conferido:** captura da tela logada em produção (sem sessão de navegador nesta máquina). A tela foi conferida com o payload real numa rota de preview local, que não foi commitada.
+
+## [2026-10-06] Acesso ao Financeiro: recorte por departamento é concessão à parte
+
+**Contexto:** a Ana (controladoria), no WhatsApp do Pedro, às 08:54: "não consigo dar acesso só o BPO sem dar a finance e a
+negocio estruturados". O `ops.acessos_log` mostra as tentativas dela das 08:51 às 08:53. O Filipe saía "só BPO" e voltava com os
+três. O Eliezek saía "EXPANSÃO + Finance" e voltava com o BPO inteiro, até ela desistir e deixar só EXPANSÃO.
+
+**Causa:** "Negócios Estruturados" e "Finance" são unidades de `unidades_navegacao.tipo = 'departamento'` dentro das empresas
+do BPO. O acesso é gravado por empresa (`ops.usuario_empresas`, entrada de 15/09), e toda unidade que toca uma empresa da pessoa
+contava como concedida. Por isso:
+- dar o BPO dava os dois recortes;
+- dar só o Finance gravava as empresas do BPO e abria o BPO inteiro. É acesso a mais, não só incômodo.
+
+**Decisão:**
+- **Concessão explícita.** O recorte por departamento vira linha própria, em `ops.usuario_recortes_financeiro`, e nunca sai da
+  empresa. Unidade de grupo ou de empresa continua derivando da empresa, como antes.
+- **Onde muda.** Três arquivos:
+  - `acessos-financeiro.functions.ts` grava, lista e revoga (o recorte sai com a porta);
+  - `sessoes-irmas.functions.ts` põe o recorte no token do Financeiro;
+  - a tela de Acessos diz isso em uma linha.
+- **Quem já tinha acesso.** A migração `20261006120000` concede o recorte a quem o tinha marcado na última concessão do log. É o
+  que quem concedeu escolheu na tela. Quem não tem registro e tem empresa do BPO mantém os dois recortes. Quem vê "todas as
+  empresas" não muda.
+- **Ensaio em produção, desfeito:** só o Tiago (BPO + Finance, marcado pela Ana) ganha linha. Filipe e Hugo ficam sem os
+  recortes, como a Ana marcou. Eliezek fica só com EXPANSÃO, que é o estado final que ela deixou; Finance para ele agora pode ser
+  dado sozinho.
+
+**Ordem de publicação:** migration antes do app. O app novo sem a tabela falha ao salvar; o app antigo ignora a tabela.
