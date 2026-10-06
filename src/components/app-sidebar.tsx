@@ -95,7 +95,7 @@ const AREA_RODAPE = "admin";
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
-  const { temArea, can, administra, isAdmin, loading, unidade } = usePermissions();
+  const { temArea, can, administra, isAdmin, loading, unidade, roles } = usePermissions();
   // A porta da simulação de unidade fica no seletor de frentes porque é lá que
   // o super admin já troca de contexto. Durante a simulação o `isAdmin` é do
   // papel vestido (falso), então o item some sozinho e a volta é pela tarja.
@@ -218,7 +218,6 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-  const mostrarGrowth = growthQuery.data?.temAcesso ?? false;
 
   // Quem abre o cockpit vem de `public.produto_acesso`, a mesma fonte que
   // autoriza a emissão da sessão irmã. Antes era uma chave da matriz de papéis
@@ -230,7 +229,13 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-  const mostrarFinanceiro = produtos.data?.financeiro ?? false;
+  // Sócio de unidade não vê Growth nem Financeiro, nem como opção do menu
+  // (06/10/2026). A porta acima é da conta REAL; durante o "Ver como" o
+  // `roles` já é o do sócio vestido, então este corte também vale na simulação,
+  // que antes mostrava os dois produtos do super admin.
+  const ehSocioDeUnidade = roles.includes("socio_regional");
+  const mostrarGrowth = !ehSocioDeUnidade && (growthQuery.data?.temAcesso ?? false);
+  const mostrarFinanceiro = !ehSocioDeUnidade && (produtos.data?.financeiro ?? false);
 
   // O filete do item ativo (ui/sidebar.tsx) pinta com `--area-atual`. Vai num
   // invólucro `contents` e não no <Sidebar> porque no celular a lateral abre
