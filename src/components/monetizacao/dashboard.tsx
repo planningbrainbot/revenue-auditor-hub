@@ -89,6 +89,7 @@ export type { Aba };
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
   "handoff-consultoria": "Handoff Consultoria",
+  "cruzamento-consultoria": "Cruzamento Consultoria",
   forecast: "Projetado × realizado",
   temporal: "Temporal e previsão",
   capacidade: "Capacidade e alocação",
@@ -102,6 +103,8 @@ const TITULOS: Record<Aba, string> = {
 const PERGUNTAS: Record<Aba, string> = {
   operacao: "O farmer está no ritmo, e onde a base trava?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
+  "cruzamento-consultoria":
+    "Os números que a Consultoria e o CEO deram em 05/10 batem com o que o Brain mede hoje?",
   "follow-day": "Qual negócio aberto eu destravo hoje?",
   temporal: "Quando as oportunidades abertas devem virar contrato, e quanto valem?",
   forecast: "O mês está acima ou abaixo do que a planilha projetou?",
@@ -134,6 +137,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean } | null> = {
   gravacoes: null,
   // Tela própria (handoff-consultoria.tsx), com barra e leitura dela; a rota desvia antes daqui.
   "handoff-consultoria": null,
+  // Tela própria (cruzamento-consultoria.tsx); a rota desvia antes daqui.
+  "cruzamento-consultoria": null,
 };
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -619,6 +624,8 @@ function descricaoDaAba(
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
     case "handoff-consultoria":
       return "Onboarding Cliente da Expansão · cliente (CNPJ)";
+    case "cruzamento-consultoria":
+      return "Call de 05/10 × plataforma da Consultoria e contratos ganhos · cliente (CNPJ) e projeto";
   }
 }
 

@@ -4,6 +4,7 @@ import { PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import { SITUACOES_GRAVACAO } from "@/lib/monetizacao/gravacoes";
 import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
+import type { Regime } from "@/lib/monetizacao/cruzamento-consultoria";
 
 /**
  * Estado de tela de `/monetizacao` na URL (contrato da moldura, "Filtros na URL").
@@ -13,6 +14,7 @@ import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
 export const ABAS = [
   "operacao",
   "handoff-consultoria",
+  "cruzamento-consultoria",
   "forecast",
   "temporal",
   "capacidade",
@@ -84,6 +86,8 @@ export type BuscaMonetizacao = {
   unidade?: string;
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
+  /** Cruzamento Consultoria: regime tributário da coorte do teste do CEO; ausente = todos. */
+  regime?: Regime;
 };
 
 const ehData = (v: unknown): v is string =>
@@ -127,6 +131,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     grafico:
       typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
+    regime: umDe(["real", "presumido", "simples", "sem"] as const, s.regime),
   };
 }
 

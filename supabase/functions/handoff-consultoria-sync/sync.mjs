@@ -8,6 +8,8 @@
 //   pipedrive(caminho) → JSON                           GET na API v1 do Pipedrive
 //   fin(caminho, init?) → JSON                          PostgREST do Financial Brain, schema public
 // }
+// Passos: 1. onboarding (Pipefy + conectores + Pipedrive); 2. CNPJ dos negócios ganhos em 2026 que o banco não
+// resolve (Pipedrive); 3. PAT no Financial Brain.
 import {
   categoriaDeCreditos,
   conectoresMudaram,
@@ -15,7 +17,9 @@ import {
   F_REGISTRO_NEGOCIO,
   faixaDeclarada,
   linhaDoCard,
+  linhaNegocio,
   linhasPat,
+  negociosSemCnpj,
   PD,
   PIPE_ONBOARDING,
   podeMarcarAusentes,
@@ -97,7 +101,13 @@ async function camposPipefy(io, ids, tipo) {
 
 export async function sincronizar(
   io,
-  { agora = new Date().toISOString(), trigger = "manual", gravar = true, limiteRemoto = 300 } = {},
+  {
+    agora = new Date().toISOString(),
+    trigger = "manual",
+    gravar = true,
+    limiteRemoto = 300,
+    limiteNegocios = 150,
+  } = {},
 ) {
   const resumo = { trigger };
   // ── 1. Onboarding ──────────────────────────────────────────────────────────────────────────────
@@ -294,7 +304,66 @@ export async function sincronizar(
     } else resumo.ausencia_recusada = decisao.motivo;
   }
 
-  // ── 2. PAT no Financial Brain ──────────────────────────────────────────────────────────────────
+  // ── 2. Negócios ganhos em 2026 sem CNPJ no banco: lê o Pipedrive (tela Cruzamento Consultoria) ──
+  // O RPC ops.cruzamento_consultoria_painel() resolve o CNPJ pelo banco; esta tabela cobre só o resto.
+  try {
+    const ganhos = await paginas(
+      io.ops,
+      "contratos?select=pipedrive_deal_id,cnpj,empresa_id&ganho_em=gte.2026-01-01&pipedrive_deal_id=not.is.null&order=id",
+    );
+    const deals = [...new Set(ganhos.map((g) => String(g.pipedrive_deal_id)))];
+    const docsN = await porLotes(
+      io,
+      "contratos_documentos",
+      "pipedrive_deal_id",
+      deals,
+      "pipedrive_deal_id,cnpj,empresa_id",
+    );
+    const empsN = await porLotes(
+      io,
+      "empresas",
+      "id",
+      [...ganhos.map((g) => g.empresa_id), ...docsN.map((d) => d.empresa_id)],
+      "id,cnpj",
+    );
+    const anterioresN = await io.ops(
+      "handoff_consultoria_negocios?select=pipedrive_deal_id,cnpj,tentado_em&order=pipedrive_deal_id",
+    );
+    const faltam = negociosSemCnpj({
+      ganhos,
+      docs: docsN,
+      empresas: empsN,
+      onboarding: finais,
+      anteriores: anterioresN,
+      agora,
+    });
+    const lerAgora = faltam.slice(0, limiteNegocios);
+    const lidas = await emParalelo(lerAgora, 4, async (deal) => {
+      const d = (await io.pipedrive(`deals/${deal}`))?.data ?? null;
+      const orgId = typeof d?.org_id === "object" && d?.org_id ? d.org_id.value : d?.org_id;
+      const o =
+        orgId && !d?.[PD.cnpjNegocio]
+          ? ((await io.pipedrive(`organizations/${orgId}`))?.data ?? null)
+          : null;
+      return linhaNegocio(deal, d, o, agora);
+    });
+    resumo.negocios = {
+      ganhos_2026: deals.length,
+      sem_cnpj_no_banco: faltam.length,
+      lidos_no_pipedrive: lidas.length,
+      resolvidos_agora: lidas.filter((l) => l.cnpj).length,
+    };
+    if (gravar && lidas.length)
+      await io.ops("handoff_consultoria_negocios?on_conflict=pipedrive_deal_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(lidas),
+      });
+  } catch (e) {
+    resumo.erro_negocios = String(e?.message ?? e).slice(0, 300);
+  }
+
+  // ── 3. PAT no Financial Brain ──────────────────────────────────────────────────────────────────
   let pat = { linhas: [], sem_cnpj: [] };
   try {
     const hoje = agora.slice(0, 10);
@@ -360,6 +429,6 @@ export async function sincronizar(
     // O Financeiro fora não apaga o que já estava espelhado: a tela mostra a última leitura.
     resumo.erro_pat = String(e?.message ?? e).slice(0, 300);
   }
-  resumo.status = resumo.erro_pat ? "parcial" : "sucesso";
+  resumo.status = resumo.erro_pat || resumo.erro_negocios ? "parcial" : "sucesso";
   return { resumo, onboarding: finais, pat: pat.linhas };
 }

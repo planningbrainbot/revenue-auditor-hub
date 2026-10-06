@@ -4602,3 +4602,51 @@ Com o "pode publicar" do Pedro (06/10). A migration já estava aplicada antes do
 - **Deploy:** `dpl_FGrQj9q6jeSCfys7n8dUnLCZiMry`, CLI no `ops-brain`, `--global-config ~/.vercel-planning`. **Rollback:** promover `dpl_2YS282oFyCvnAk1SBAgoNnyrVPXH`.
 - **Conferido no bundle servido:** o texto novo do diálogo está em `admin.acessos-financeiro-*.js` (168 chunks lidos a partir de `/auth`).
 - **Lado do Financeiro, no mesmo dia:** a edge `unidades` passou a entregar só as unidades concedidas, e o Consolidado só a quem tem todas. Antes ela entregava o menu inteiro a qualquer pessoa, e a concessão por unidade não valia na tela.
+
+## [2026-10-06] Cruzamento Consultoria: a call de 05/10 contra o que o Brain mede ao vivo
+
+**Contexto:** na call de 05/10 o Pedro Siqueira (Consultoria) e o CEO deram números sobre a Consultoria e a máquina
+de vendas: R$ 760 mi apresentados, 20% de honorário, 305 empresas com diagnóstico entregue, 16 entram e 6 saem por
+semana, 44 em Fluxo de Documentos, 80 clientes da máquina em setembro, entre outros. Em 06/10 o dono pediu: "preciso
+evidenciar o cruzamento da base com o Pedro. Quero que os números mencionados pelo Pedro sejam vistos em uma tela
+dentro de monetização ao vivo [...] Preciso auditar isso", com o "pode publicar" na mesma mensagem.
+
+**Decisão:**
+- Aba nova `/monetizacao?aba=cruzamento-consultoria`, Visão geral, contrato em
+  `docs/design/contratos/monetizacao-cruzamento-consultoria.md`.
+- Cada número dito vira um cartão "dito × medido": fala literal, quem falou e o tempo da gravação, ao lado da mesma grandeza contada agora.
+- A comparação: até 10% de diferença é "bate", até 25% é "perto", acima é "diverge".
+- O 124 ("chegaram em três meses") é "outra conta": vem de um filtro do painel Esteira da plataforma que a API não reproduz.
+- As falas e o que o CEO disse mês a mês ficam no código (`CITACOES`, `MAQUINA_DITA`): é registro da call, não regra.
+- **Máquina de vendas** = negócio ganho no pipeline Inside Sales em 2026 (`ops.contratos.origem_pipeline`). O pipe Sócios fica fora, como disse o CEO (00:02:35).
+- O CNPJ do negócio sai do banco: contrato, documento do Pipefy, empresa e onboarding. O que faltar, a `handoff-consultoria-sync` lê no Pipedrive e grava em `ops.handoff_consultoria_negocios`:
+  - até 150 negócios por rodada;
+  - quem ficou sem CNPJ é relido depois de 24 h.
+- **Teste do CEO** ("pegar no mês passado os clientes que fecharam e ver se a passagem de bastão está sendo feita", 00:08:28): uma coorte por mês de ganho, cumulativa.
+  - Etapas: ganhos → com CNPJ → na plataforma → trabalhados → faturou na PAT. A % é sobre a etapa anterior.
+  - Filtro por regime tributário (`?regime=`).
+- RPC `ops.cruzamento_consultoria_painel()`, security definer:
+  - exige `view.monetizacao` e escopo de todas as unidades, porque a tela agrega a Consultoria inteira;
+  - a PAT só sai com a porta do Financeiro, a mesma do Handoff Consultoria.
+- Contagem sempre inteira: "por semana" é a soma de 28 dias ÷ 4, arredondada.
+- Conferência independente em SQL: `scripts/monetizacao/conferir-cruzamento-consultoria.mjs --usuario <uuid>`.
+
+**Medido no ensaio (06/10, transação desfeita):** 6 números batem, 1 está perto, 4 divergem e 1 é outra conta.
+- **Batem:**
+  - R$ 775 mi × 760 apresentados;
+  - 18,6% × 20% de honorário;
+  - 6 × 6 saindo por semana;
+  - 22 × 22 entregues por mês;
+  - 54% × 52% de projetos de lucro real;
+  - 76 × 80 da máquina em setembro.
+- **Perto:** 49 × 44 em Fluxo de Documentos.
+- **Divergem:**
+  - 152 × 305 com diagnóstico entregue;
+  - 21 × 16 entrando por semana;
+  - 140 × 361 de lucro real com oportunidade;
+  - R$ 4,7 mi × 1,7 mi de média no lucro real.
+- **Outra conta:** 237 projetos × 124 em jul–set.
+
+**Alternativas descartadas:**
+- Ler o canal de venda que a plataforma guarda por projeto. A API não manda, e a origem pelo Inside Sales é medida do nosso lado.
+- Deixar o número dito numa tabela do banco. São falas datadas de uma call, não regra que muda.
