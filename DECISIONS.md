@@ -4707,6 +4707,36 @@ quero uma só. Pode colocar duas abas, mas na mesma tela."
 - As duas visões continuam com régua, RPC e contrato próprios. Só o título passa a ser "Consultoria" nas duas, e a pergunta muda com a aba.
 - O `aba` continua `handoff-consultoria` para não quebrar link já mandado.
 
+## [2026-10-06] Consultoria ganha a aba "Buscar empresa": nome ou CNPJ → a situação da empresa
+
+**Contexto:** o dono pediu "uma ferramenta de pesquisa na tela da consultoria pra poder pesquisar CNPJ ou nome e ver o
+estado da empresa ali na consultoria". Até aqui, para saber de uma empresa era preciso abrir a plataforma do Siqueira,
+o Pipefy e o Financeiro.
+
+**Decisão:**
+- Terceira aba da tela Consultoria, "Buscar empresa" (`&visao=empresa`, busca em `q`, ficha aberta em `empresa`).
+  Contrato em `docs/design/contratos/monetizacao-consultoria-empresa.md`.
+- A busca roda no navegador sobre os dois RPCs que a tela já lê (`cruzamento_consultoria_painel` e
+  `handoff_consultoria_painel`): uma ficha por CNPJ, juntando plataforma, onboarding, negócios ganhos em 2026,
+  propostas e PAT (`src/lib/monetizacao/consultoria-empresa.ts`). Sem RPC novo e sem permissão nova.
+- **Filial pela raiz:** o CNPJ do onboarding ou do negócio que não está na plataforma, mas cuja raiz está, cai na
+  ficha da empresa da plataforma (a matriz, se estiver lá). Antes disso, a Greenbelt (Menfisrt) 0003-29 aparecia "No
+  onboarding" ao lado da matriz 0001-67 com crédito recuperado. Isso contradizia o Handoff, que dá por chegada pela raiz.
+  Duas filiais que estão na plataforma seguem em fichas separadas.
+- Situação em 9 degraus, do mais avançado ao menos: crédito recuperado → diagnóstico entregue → esperando documentos
+  → em diagnóstico → projetos encerrados → cadastrada sem projeto → encaminhada fora da plataforma → no onboarding →
+  vendida fora da plataforma.
+- Migration `20261006200000` recria `ops.cruzamento_consultoria_painel()` com campos que já vinham na cópia da API:
+  UF, município, CNAE, ativo, situação na Receita, crédito aprovado, saldo e data da última recuperação.
+
+**Medido em 06/10 (como o Pedro, transação só de leitura):** 1.190 empresas buscáveis. Todos os 208 cards do
+onboarding e os 506 negócios caem em alguma ficha. Só 2 fichas juntam uma filial pela raiz. Situação: 68 com crédito
+recuperado, 129 com diagnóstico entregue, 65 esperando documentos, 93 em diagnóstico, 237 com projetos encerrados,
+99 cadastradas sem projeto, 2 encaminhadas fora da plataforma, 138 no onboarding e 359 vendidas fora da plataforma.
+
+**Status:** implementado (`consultoria-empresa.ts`, `consultoria-empresa.tsx`, teste
+`tests/monetizacao-consultoria-empresa.test.mjs`).
+
 
 ## [2026-10-06] Só a tag Cliente no Omie da Matriz sai das ofertas
 
