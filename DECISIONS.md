@@ -4691,3 +4691,19 @@ dentro de monetização ao vivo [...] Preciso auditar isso", com o "pode publica
 - Commit `ffd7fe4` na `main`, publicado por CLI: `dpl_58DHJHsrpdvkF75bdVrZFi3TtsJG`.
 - Bundle conferido no apex: `financeiro-semanal-Cbf95RbO.js` com o texto da tela, e o item "Caixa da Partners" no índice.
 - A pergunta sobre `head` e `auditor` verem os pagamentos de PJ por nome ficou aberta. A página saiu com a área `receita` inteira.
+
+## [2026-10-06] Consultoria vira uma tela só, com duas abas (adendo às entradas de Handoff e Cruzamento)
+
+**Contexto:** horas depois de publicar o Cruzamento Consultoria como aba própria, o dono pediu: "Não quero duas telas,
+quero uma só. Pode colocar duas abas, mas na mesma tela."
+
+**Decisão:**
+- Uma entrada na lateral, **Consultoria** (`/monetizacao?aba=handoff-consultoria`), e duas abas sublinhadas (`ui/tabs`) logo abaixo do cabeçalho:
+  - "Handoff e repasse" (padrão);
+  - "Cruzamento com a call" (`&visao=cruzamento`).
+- A aba fica num parâmetro próprio (`visao`) e não no `aba`. Assim o item da lateral continua grifado nas duas: o grifo exige que a consulta do item confira, e um `aba` diferente grifaria "Operação diária".
+- O link antigo `?aba=cruzamento-consultoria` vira `aba=handoff-consultoria&visao=cruzamento` na validação da URL.
+- Trocar de aba limpa a gaveta e os filtros da outra visão.
+- As duas visões continuam com régua, RPC e contrato próprios. Só o título passa a ser "Consultoria" nas duas, e a pergunta muda com a aba.
+- O `aba` continua `handoff-consultoria` para não quebrar link já mandado.
+

@@ -66,7 +66,8 @@ import type { BuscaMonetizacao } from "./busca";
 // Visão geral: números grandes e palavras-chave; toda explicação mora na gaveta (`?grafico=`),
 // como no Cockpit do CEO desde 28/09. A conta inteira é de src/lib/monetizacao/handoff-consultoria.ts.
 
-const TITULO = "Handoff Consultoria";
+// A tela é "Consultoria"; esta é a visão "Handoff e repasse" (as abas vêm de consultoria.tsx).
+const TITULO = "Consultoria";
 const PERGUNTA = "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?";
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const rotuloMes = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
@@ -122,9 +123,12 @@ const faixaCurta = (f: string) =>
 export function HandoffConsultoria({
   busca,
   mudarBusca,
+  abas,
 }: {
   busca: BuscaMonetizacao;
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
+  /** As abas da tela Consultoria, logo abaixo do cabeçalho. */
+  abas?: ReactNode;
 }) {
   const { user } = useAuth();
   const ler = useServerFn(carregarHandoffConsultoria);
@@ -142,6 +146,7 @@ export function HandoffConsultoria({
     return (
       <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:px-6">
         <PageHeader titulo={TITULO} pergunta={PERGUNTA} />
+        {abas}
         {!erro ? (
           <Carregando variante="kpis" />
         ) : /^Seu acesso não inclui/.test(erro.message) ? (
@@ -155,7 +160,9 @@ export function HandoffConsultoria({
       </main>
     );
   }
-  return <PainelHandoffConsultoria bruto={q.data} busca={busca} mudarBusca={mudarBusca} />;
+  return (
+    <PainelHandoffConsultoria bruto={q.data} busca={busca} mudarBusca={mudarBusca} abas={abas} />
+  );
 }
 
 /** A tela a partir do payload do RPC: separada da leitura para a conferência visual com dado real. */
@@ -164,11 +171,13 @@ export function PainelHandoffConsultoria({
   busca,
   mudarBusca,
   hoje = hojeSP(),
+  abas,
 }: {
   bruto: PainelBruto;
   busca: BuscaMonetizacao;
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
   hoje?: string;
+  abas?: ReactNode;
 }) {
   const de = busca.de ?? INICIO_PADRAO;
   const ate = busca.ate ?? hoje;
@@ -261,6 +270,7 @@ export function PainelHandoffConsultoria({
       >
         {filtros}
       </PageHeader>
+      {abas}
 
       {p.todos.length === 0 ? (
         <EstadoVazio

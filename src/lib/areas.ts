@@ -494,14 +494,9 @@ export const AREAS: Area[] = [
         items: [
           { title: "Operação diária", url: "/monetizacao", icon: LayoutDashboard },
           {
-            title: "Handoff Consultoria",
+            title: "Consultoria",
             url: "/monetizacao?aba=handoff-consultoria",
             icon: HandCoins,
-          },
-          {
-            title: "Cruzamento Consultoria",
-            url: "/monetizacao?aba=cruzamento-consultoria",
-            icon: Scale,
           },
           { title: "Temporal e previsão", url: "/monetizacao?aba=temporal", icon: TrendingUp },
           { title: "Projetado × realizado", url: "/monetizacao?aba=forecast", icon: BarChart3 },

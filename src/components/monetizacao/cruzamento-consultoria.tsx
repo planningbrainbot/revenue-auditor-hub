@@ -77,7 +77,8 @@ import type { BuscaMonetizacao } from "./busca";
 // Visão geral: cada número dito na call de 05/10 vira um cartão "dito × medido"; a conta, a fonte e os
 // registros moram na gaveta (`?grafico=`). A conta inteira é de src/lib/monetizacao/cruzamento-consultoria.ts.
 
-const TITULO = "Cruzamento Consultoria";
+// A tela é "Consultoria"; esta é a visão "Cruzamento com a call" (as abas vêm de consultoria.tsx).
+const TITULO = "Consultoria";
 const PERGUNTA =
   "Os números que a Consultoria e o CEO deram em 05/10 batem com o que o Brain mede hoje?";
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -150,9 +151,12 @@ const REGIME_CURTO: Record<Regime, string> = {
 export function CruzamentoConsultoria({
   busca,
   mudarBusca,
+  abas,
 }: {
   busca: BuscaMonetizacao;
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
+  /** As abas da tela Consultoria, logo abaixo do cabeçalho. */
+  abas?: ReactNode;
 }) {
   const { user } = useAuth();
   const ler = useServerFn(carregarCruzamentoConsultoria);
@@ -170,6 +174,7 @@ export function CruzamentoConsultoria({
     return (
       <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:px-6">
         <PageHeader titulo={TITULO} pergunta={PERGUNTA} />
+        {abas}
         {!erro ? (
           <Carregando variante="kpis" />
         ) : /^Seu acesso não inclui/.test(erro.message) ? (
@@ -183,7 +188,9 @@ export function CruzamentoConsultoria({
       </main>
     );
   }
-  return <PainelCruzamentoConsultoria bruto={q.data} busca={busca} mudarBusca={mudarBusca} />;
+  return (
+    <PainelCruzamentoConsultoria bruto={q.data} busca={busca} mudarBusca={mudarBusca} abas={abas} />
+  );
 }
 
 /** A tela a partir do payload do RPC: separada da leitura para a conferência visual com dado real. */
@@ -192,11 +199,13 @@ export function PainelCruzamentoConsultoria({
   busca,
   mudarBusca,
   hoje = hojeSP(),
+  abas,
 }: {
   bruto: CruzamentoBruto;
   busca: BuscaMonetizacao;
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
   hoje?: string;
+  abas?: ReactNode;
 }) {
   const p = montarCruzamento(bruto, hoje, { regime: busca.regime });
   const abrir = (id: string) => mudarBusca({ grafico: id });
@@ -220,6 +229,7 @@ export function PainelCruzamentoConsultoria({
           </StatusBadge>
         }
       />
+      {abas}
 
       <section aria-label="Placar da call" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {STATUS.map((s) => (
