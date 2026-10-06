@@ -815,7 +815,11 @@ export const adminGrantGrowthAccess = createServerFn({ method: "POST" })
     const departamento = (input?.departamento ?? "").trim();
     if (!EMAIL_RE.test(email)) throw new Error("Email inválido.");
     if (!["admin", "gestao", "operacional"].includes(papel)) throw new Error("Papel do Growth inválido.");
-    if (!["comercial", "diretoria", "marketing", "backoffice", "parcerias"].includes(departamento)) {
+    if (
+      !["comercial", "diretoria", "marketing", "backoffice", "parcerias", "consultoria"].includes(
+        departamento,
+      )
+    ) {
       throw new Error("Departamento do Growth inválido.");
     }
     return { email, papel, departamento };

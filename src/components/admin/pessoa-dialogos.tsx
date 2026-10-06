@@ -200,7 +200,16 @@ export function SenhaDialog({
 }
 
 const GROWTH_PAPEIS = ["admin", "gestao", "operacional"] as const;
-const GROWTH_DEPARTAMENTOS = ["comercial", "diretoria", "marketing", "backoffice", "parcerias"] as const;
+// "consultoria" (06/10): só o Brain Meet no Growth, para a Consultoria chamar o bot
+// nas reuniões de entrega de resultado (brain-web src/lib/acesso.ts).
+const GROWTH_DEPARTAMENTOS = [
+  "comercial",
+  "diretoria",
+  "marketing",
+  "backoffice",
+  "parcerias",
+  "consultoria",
+] as const;
 
 /** Papel e departamento no Growth. Mesma conta dos outros produtos: aqui não se mexe em senha. */
 export function GrowthDialog({

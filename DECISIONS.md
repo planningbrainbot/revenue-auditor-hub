@@ -4734,3 +4734,28 @@ Patos de Minas) continua valendo.
 **Aberto:** casando pelo nome do negócio, 14 contas "só tag" têm negócio ganho no Inside Sales. São clientes do
 comercial cuja organização a Base não liga à conta, e por isso não viram "comprovado". Duas delas estavam aptas e agora
 saem. O conserto certo é ligar a organização à conta, não manter a tag como prova.
+
+## [2026-10-06] Growth ganha o departamento "consultoria", que só abre o Brain Meet
+
+**Contexto:** a Consultoria do Pedro Siqueira (9 pessoas) vai gravar no Brain Meet as reuniões de entrega de resultado
+ao cliente, pedindo o bot pelo link na Agenda do bot (`/growth/meet/agenda`). O pedido exige membro do Growth
+(`growth.e_membro()`), e a Agenda só abria para comercial, gestão de marketing e diretoria. Backoffice não abre em
+nenhum nível. Rodando a matriz do brain-web, a combinação mais estreita que funcionava era comercial operacional,
+que abre 14 telas, 12 delas do comercial. O Pedro escolheu um departamento próprio e mandou fazer e publicar sem
+esperar o Mikael ("troca e publica tu").
+
+**Decisão:**
+- **Growth (brain-web PR #258):** `consultoria` abre só a Agenda do bot e as Gravações, nos dois níveis.
+- **Banco:** `docs/sql/2026-10-06-brain-meet-consultoria.sql` no brain-web, aplicada em 06/10 depois de ensaio.
+  - "Consultoria" entra na lista de departamentos da reunião.
+  - O pedido de quem é da Consultoria nasce particular, com a equipe dela na lista.
+  - A gestão da Consultoria edita essa lista.
+- **Aqui no Ops:**
+  - A ficha (Acesso ao Growth) e `adminGrantGrowthAccess` aceitam `consultoria`.
+  - `meuAcessoGrowth` devolve `temAcesso: false` para a Consultoria. Ela não ganha o cartão nem o item "Growth", que
+    levariam a um Executivo sem acesso, e entra pelo cartão "Brain Meet".
+- **Pessoas:** Pedro Siqueira como gestão, os outros 8 como operacional. A gestão serve para marcar e editar gravação
+  particular.
+
+**Aberto:** o bot tem 2 vagas simultâneas (padrão de `JOINER_MAX_SIMULTANEAS`). Na semana até 06/10, 8 de 29 pedidos
+pelo formulário nunca foram pegos, todos em minutos com 2 ou 3 pedidos juntos. Subir as vagas é com o Mikael.
