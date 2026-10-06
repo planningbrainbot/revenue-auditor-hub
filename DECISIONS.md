@@ -4650,3 +4650,22 @@ dentro de monetização ao vivo [...] Preciso auditar isso", com o "pode publica
 **Alternativas descartadas:**
 - Ler o canal de venda que a plataforma guarda por projeto. A API não manda, e a origem pelo Inside Sales é medida do nosso lado.
 - Deixar o número dito numa tabela do banco. São falas datadas de uma call, não regra que muda.
+
+## [2026-10-06] Publicado: Cruzamento Consultoria e forecast v13 (adendo à entrada anterior)
+
+- Migration `20261006180000` aplicada (uma transação) e registrada em `supabase_migrations.schema_migrations`.
+- Edge Function `handoff-consultoria-sync` publicada com o passo de negócios.
+  - Duas rodadas leram no Pipedrive os 287 negócios ganhos em 2026 sem CNPJ no banco; 59 ganharam CNPJ (51 pela organização, 8 pelo negócio).
+  - Daqui em diante, só o que for novo ou sem CNPJ há mais de 24 h.
+- App publicado por CLI.
+  - `dpl_CUTfVoAv7z4nHMNunJZMdcEijDzf` (`1386c3e`, PR #63). Antes estava no ar `d030b56`, pai do merge, então o deploy é um superset.
+  - Rollback: promover `dpl_47oKDsY18Ac7YpeMapMcTyU5uu1q`.
+  - A CLI também criou `dpl_Ho24nfV9qf6FCji6ARgUhAw4P8Q4` com o mesmo commit.
+  - Bundle conferido: "Cruzamento Consultoria" está no índice e no chunk de monetização.
+- Conferência em produção (`scripts/monetizacao/conferir-cruzamento-consultoria.mjs`, como o Pedro): **66 checagens, 0 falhas**. Placar: 6 batem, 1 perto, 4 divergem, 1 outra conta.
+- Forecast v13 importado em `ops.monetizacao_forecasts` em 06/10 às 14:48 UTC.
+  - Ids `v13-2026-10-06` (Estimado, o padrão), `-conservador` e `-otimista`.
+  - É a v12 com o fee da Consultoria em 20%, por decisão do Pedro em 06/10.
+  - Como a `source_date` é a mais recente, a tela de forecast e o Cockpit do COO passam a usá-la.
+  - Estimado: 177 contratos, R$ 11,14 mi assinados no ano (era R$ 12,94 mi).
+  - Planilha: `monetizacao/forecast/v13-2026-10-06-fee-consultoria-20.xlsx`. Cópia no Drive "00. Monetização", sem link no Brain até o Drive dar o id do arquivo.
