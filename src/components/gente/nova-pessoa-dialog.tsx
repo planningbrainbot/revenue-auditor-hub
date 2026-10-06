@@ -7,7 +7,9 @@ import { mesmoNome } from "./nomes";
 import {
   criarPessoa,
   darAcessoPessoa,
+  afastarPessoa,
   definirStatusPessoa,
+  MOTIVOS_AFASTAMENTO,
   editarPessoa,
   excluirCadastro,
   listHistoricoPessoa,
@@ -19,6 +21,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -106,6 +109,7 @@ type Vazio = {
   departamento: string;
   tipoVinculo: string;
   dataAdmissao: string;
+  dataNascimento: string;
   gestorId: string;
   acesso: string;
 };
@@ -117,6 +121,7 @@ const VAZIO: Vazio = {
   departamento: "",
   tipoVinculo: "clt",
   dataAdmissao: "",
+  dataNascimento: "",
   gestorId: SEM_GESTOR,
   acesso: "colaborador",
 };
@@ -159,6 +164,7 @@ export function NovaPessoaDialog({
           departamento: f.departamento,
           tipoVinculo: f.tipoVinculo,
           dataAdmissao: f.dataAdmissao,
+          dataNascimento: f.dataNascimento,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
           acesso: f.acesso === SEM_LOGIN ? null : (f.acesso as "colaborador" | "gestao"),
         },
@@ -305,6 +311,18 @@ export function NovaPessoaDialog({
                 onChange={(e) => set("dataAdmissao")(e.target.value)}
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="np-nascimento">
+                Nascimento
+                <Opcional />
+              </Label>
+              <Input
+                id="np-nascimento"
+                type="date"
+                value={f.dataNascimento}
+                onChange={(e) => set("dataNascimento")(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="grid gap-1.5">
@@ -444,15 +462,26 @@ const hojeISO = () => {
  */
 function SituacaoPessoa({
   pessoa,
+  podeSaude,
   aoConcluir,
 }: {
   pessoa: GentePessoaRow;
+  podeSaude: boolean;
   aoConcluir: () => void;
 }) {
   const statusFn = useServerFn(definirStatusPessoa);
+  const afastarFn = useServerFn(afastarPessoa);
+  // Afastamento (05/10/2026): antes era um clique, sem perguntar nada.
+  const [af, setAf] = useState({
+    inicio: hojeISO(),
+    motivo: MOTIVOS_AFASTAMENTO[0],
+    previsao: "",
+    cid: "",
+    obs: "",
+  });
   const excluirFn = useServerFn(excluirCadastro);
   const qc = useQueryClient();
-  const [modo, setModo] = useState<"nada" | "desligar" | "excluir">("nada");
+  const [modo, setModo] = useState<"nada" | "desligar" | "afastar" | "excluir">("nada");
   const [data, setData] = useState(hojeISO());
   const [motivo, setMotivo] = useState(MOTIVOS_DESLIGAMENTO[0]);
 
@@ -513,7 +542,33 @@ function SituacaoPessoa({
     },
   });
 
-  const ocupado = mudar.isPending || excluir.isPending;
+  const afastar = useMutation({
+    mutationFn: () =>
+      afastarFn({
+        data: {
+          pessoaId: pessoa.id,
+          inicio: af.inicio,
+          motivo: af.motivo,
+          previsaoRetorno: af.previsao || undefined,
+          cid: podeSaude ? af.cid : undefined,
+          observacao: af.obs,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(
+        af.previsao
+          ? "Afastamento registrado. O retorno previsto aparece no Cadastro, em Afastamentos."
+          : "Afastamento registrado. Sem previsão de retorno, ele fica em aberto até Registrar retorno.",
+      );
+      recarregar();
+      aoConcluir();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const ocupado = mudar.isPending || excluir.isPending || afastar.isPending;
+  const fmt = (d: string | null) =>
+    d ? new Date(`${d.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR") : "";
 
   return (
     <div className="mt-2 grid gap-3 border-t pt-4">
@@ -523,7 +578,9 @@ function SituacaoPessoa({
           {pessoa.status === "desligado"
             ? `Desligada${pessoa.dataDesligamento ? ` em ${new Date(`${pessoa.dataDesligamento}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}${pessoa.motivoDesligamento ? ` (${pessoa.motivoDesligamento})` : ""}.`
             : pessoa.status === "afastado"
-              ? "Afastada: fora do radar e das avaliações, com o login mantido."
+              ? pessoa.afastamento
+                ? `Afastada desde ${fmt(pessoa.afastamento.inicio)} (${pessoa.afastamento.motivo})${pessoa.afastamento.previsaoRetorno ? `, retorno previsto em ${fmt(pessoa.afastamento.previsaoRetorno)}` : ", sem previsão de retorno"}${pessoa.afastamento.cid ? `. CID ${pessoa.afastamento.cid}` : ""}. O login fica mantido.`
+                : "Afastada: fora do radar e das avaliações, com o login mantido."
               : "Ativa."}
         </p>
       </div>
@@ -544,7 +601,7 @@ function SituacaoPessoa({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => mudar.mutate("afastado")}
+              onClick={() => setModo("afastar")}
               disabled={ocupado}
             >
               Afastar
@@ -556,7 +613,7 @@ function SituacaoPessoa({
               onClick={() => mudar.mutate("ativo")}
               disabled={ocupado}
             >
-              Reativar
+              {pessoa.status === "afastado" ? "Registrar retorno" : "Reativar"}
             </Button>
           )}
           <Button
@@ -568,6 +625,93 @@ function SituacaoPessoa({
           >
             Excluir cadastro
           </Button>
+        </div>
+      ) : null}
+
+      {modo === "afastar" ? (
+        <div className="grid gap-3 rounded-md border p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="af-inicio">Início do afastamento</Label>
+              <Input
+                id="af-inicio"
+                type="date"
+                value={af.inicio}
+                onChange={(e) => setAf((s) => ({ ...s, inicio: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="af-previsao">
+                Previsão de retorno
+                <Opcional />
+              </Label>
+              <Input
+                id="af-previsao"
+                type="date"
+                min={af.inicio}
+                value={af.previsao}
+                onChange={(e) => setAf((s) => ({ ...s, previsao: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="af-motivo">Motivo</Label>
+            <Select value={af.motivo} onValueChange={(v) => setAf((s) => ({ ...s, motivo: v }))}>
+              <SelectTrigger id="af-motivo">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MOTIVOS_AFASTAMENTO.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {podeSaude ? (
+            <div className="grid gap-1.5">
+              <Label htmlFor="af-cid">
+                CID
+                <Opcional />
+              </Label>
+              <Input
+                id="af-cid"
+                placeholder="Ex.: M54.5"
+                value={af.cid}
+                onChange={(e) => setAf((s) => ({ ...s, cid: e.target.value }))}
+                className="w-40"
+              />
+              <p className="text-[12px] text-muted-foreground">
+                Dado de saúde: só o RH vê. Gestor, sócio e diretoria veem o afastamento e a
+                previsão, nunca o CID.
+              </p>
+            </div>
+          ) : null}
+          <div className="grid gap-1.5">
+            <Label htmlFor="af-obs">
+              Observação
+              <Opcional />
+            </Label>
+            <Textarea
+              id="af-obs"
+              rows={2}
+              value={af.obs}
+              onChange={(e) => setAf((s) => ({ ...s, obs: e.target.value }))}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setModo("nada")} disabled={ocupado}>
+              Voltar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => afastar.mutate()}
+              disabled={ocupado || !af.inicio || !af.motivo}
+            >
+              {afastar.isPending ? "Registrando…" : "Confirmar afastamento"}
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -726,9 +870,12 @@ export function DarAcessoDialog({
 export function EditarPessoaDialog({
   pessoa,
   gestores,
+  podeSaude = false,
 }: {
   pessoa: GentePessoaRow;
   gestores: { id: number; nome: string; unidadeId: number | null }[];
+  /** Mostra e grava o CID do afastamento (só o RH). */
+  podeSaude?: boolean;
 }) {
   const fn = useServerFn(editarPessoa);
   const qc = useQueryClient();
@@ -739,6 +886,7 @@ export function EditarPessoaDialog({
     departamento: pessoa.departamento ?? "",
     tipoVinculo: pessoa.tipoVinculo ?? SEM_VINCULO,
     dataAdmissao: pessoa.dataAdmissao?.slice(0, 10) ?? "",
+    dataNascimento: pessoa.dataNascimento?.slice(0, 10) ?? "",
     gestorId: pessoa.gestorId != null ? String(pessoa.gestorId) : SEM_GESTOR,
   });
   const [f, setF] = useState(inicial);
@@ -763,6 +911,7 @@ export function EditarPessoaDialog({
           departamento: f.departamento,
           tipoVinculo: f.tipoVinculo === SEM_VINCULO ? "" : f.tipoVinculo,
           dataAdmissao: f.dataAdmissao,
+          dataNascimento: f.dataNascimento,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
         },
       }),
@@ -872,6 +1021,18 @@ export function EditarPessoaDialog({
                 onChange={(e) => set("dataAdmissao")(e.target.value)}
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ep-nascimento">
+                Nascimento
+                <Opcional />
+              </Label>
+              <Input
+                id="ep-nascimento"
+                type="date"
+                value={f.dataNascimento}
+                onChange={(e) => set("dataNascimento")(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="grid gap-1.5">
@@ -908,7 +1069,7 @@ export function EditarPessoaDialog({
             </Button>
           </DialogFooter>
         </form>
-        <SituacaoPessoa pessoa={pessoa} aoConcluir={() => setAberto(false)} />
+        <SituacaoPessoa pessoa={pessoa} podeSaude={podeSaude} aoConcluir={() => setAberto(false)} />
         {aberto ? <HistoricoPessoa pessoaId={pessoa.id} /> : null}
       </DialogContent>
     </Dialog>

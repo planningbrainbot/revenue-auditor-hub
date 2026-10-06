@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ArrowRightLeft, Download, FileSpreadsheet, Mail, Plus, Send, Wallet } from "lucide-react";
 import {
-  MOTIVOS_MOVIMENTACAO,
   cancelarMovimentacao,
   criarMovimentacao,
   documentoMovimentacao,
@@ -18,7 +17,15 @@ import {
   type PessoaRemuneracao,
   type ResultadoSalario,
 } from "@/lib/gente-movimentacoes.functions";
-import { fmtSalario, gerarPdf, gerarXlsx, nomeArquivo } from "@/lib/gente-movimentacao-documento";
+import {
+  MODELOS_TRABALHO,
+  MOTIVOS_FORMULARIO,
+  TIPOS_MOVIMENTACAO,
+  fmtSalario,
+  gerarPdf,
+  gerarXlsx,
+  nomeArquivo,
+} from "@/lib/gente-movimentacao-documento";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -322,13 +329,63 @@ function CarregarSalariosDialog() {
 
 const SEM = "__sem__";
 
+/** Caixas de marcar do formulário, com o "Outro:" no fim. */
+function Marcaveis({
+  titulo,
+  opcoes,
+  marcadas,
+  setMarcadas,
+  outro,
+  setOutro,
+}: {
+  titulo: string;
+  opcoes: string[];
+  marcadas: string[];
+  setMarcadas: (v: string[]) => void;
+  outro: string;
+  setOutro: (v: string) => void;
+}) {
+  return (
+    <div className="grid gap-1.5 rounded-md border p-3">
+      <span className="text-sm font-medium">{titulo}</span>
+      <div className="grid gap-1 sm:grid-cols-2">
+        {opcoes.map((o) => (
+          <label key={o} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={marcadas.includes(o)}
+              onChange={(e) =>
+                setMarcadas(e.target.checked ? [...marcadas, o] : marcadas.filter((x) => x !== o))
+              }
+            />
+            {o}
+          </label>
+        ))}
+      </div>
+      <Input
+        className="h-8"
+        placeholder="Outro (opcional)"
+        value={outro}
+        onChange={(e) => setOutro(e.target.value)}
+      />
+    </div>
+  );
+}
+
 function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
   const fn = useServerFn(criarMovimentacao);
   const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
   const [pessoaId, setPessoaId] = useState("");
   const [vigencia, setVigencia] = useState(hojeISO());
-  const [motivo, setMotivo] = useState(MOTIVOS_MOVIMENTACAO[0]);
+  // Campos do formulário "Solicitação de Movimentação" do RH (05/10/2026).
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [tipoOutro, setTipoOutro] = useState("");
+  const [motivos, setMotivos] = useState<string[]>([]);
+  const [motivoOutro, setMotivoOutro] = useState("");
+  const [modelo, setModelo] = useState("");
+  const [justificativa, setJustificativa] = useState("");
+  const [responsabilidades, setResponsabilidades] = useState("");
   const [obs, setObs] = useState("");
   const [muda, setMuda] = useState({
     salario: false,
@@ -353,7 +410,13 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
   const limpar = () => {
     setPessoaId("");
     setVigencia(hojeISO());
-    setMotivo(MOTIVOS_MOVIMENTACAO[0]);
+    setTipos([]);
+    setTipoOutro("");
+    setMotivos([]);
+    setMotivoOutro("");
+    setModelo("");
+    setJustificativa("");
+    setResponsabilidades("");
     setObs("");
     setMuda({ salario: false, cargo: false, depto: false, gestor: false, vinculo: false });
     setSalario("");
@@ -368,7 +431,12 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
         data: {
           pessoaId: Number(pessoaId),
           vigencia,
-          motivo,
+          motivo: "",
+          tipos: [...tipos, ...(tipoOutro.trim() ? [`Outro: ${tipoOutro.trim()}`] : [])],
+          motivos: [...motivos, ...(motivoOutro.trim() ? [`Outro: ${motivoOutro.trim()}`] : [])],
+          modeloTrabalho: modelo || null,
+          justificativa,
+          responsabilidades,
           observacao: obs,
           salarioDepois: muda.salario ? valor : null,
           cargoDepois: muda.cargo ? cargo : null,
@@ -444,21 +512,39 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="mv-motivo">Motivo</Label>
-              <Select value={motivo} onValueChange={setMotivo}>
-                <SelectTrigger id="mv-motivo">
+              <Label htmlFor="mv-modelo">Modelo de trabalho</Label>
+              <Select value={modelo || SEM} onValueChange={(v) => setModelo(v === SEM ? "" : v)}>
+                <SelectTrigger id="mv-modelo">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MOTIVOS_MOVIMENTACAO.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
+                  <SelectItem value={SEM}>Não muda / não informado</SelectItem>
+                  {MODELOS_TRABALHO.map((m) => (
+                    <SelectItem key={m.v} value={m.v}>
+                      {m.t}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
+
+          <Marcaveis
+            titulo="Tipo de movimentação"
+            opcoes={TIPOS_MOVIMENTACAO}
+            marcadas={tipos}
+            setMarcadas={setTipos}
+            outro={tipoOutro}
+            setOutro={setTipoOutro}
+          />
+          <Marcaveis
+            titulo="Motivo"
+            opcoes={MOTIVOS_FORMULARIO}
+            marcadas={motivos}
+            setMarcadas={setMotivos}
+            outro={motivoOutro}
+            setOutro={setMotivoOutro}
+          />
 
           <div className="grid gap-2 rounded-md border p-3">
             <span className="text-sm font-medium">O que muda</span>
@@ -546,6 +632,24 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
           </div>
 
           <div className="grid gap-1.5">
+            <Label htmlFor="mv-just">Justificativa</Label>
+            <Textarea
+              id="mv-just"
+              rows={2}
+              value={justificativa}
+              onChange={(e) => setJustificativa(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="mv-resp">Principais responsabilidades ou alterações</Label>
+            <Textarea
+              id="mv-resp"
+              rows={2}
+              value={responsabilidades}
+              onChange={(e) => setResponsabilidades(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
             <Label htmlFor="mv-obs">Observação para o DP (opcional)</Label>
             <Textarea id="mv-obs" rows={2} value={obs} onChange={(e) => setObs(e.target.value)} />
           </div>
@@ -554,7 +658,15 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
           <Button variant="outline" onClick={() => setAberto(false)}>
             Cancelar
           </Button>
-          <Button onClick={() => criar.mutate()} disabled={!pessoaId || criar.isPending}>
+          <Button
+            onClick={() => criar.mutate()}
+            disabled={
+              !pessoaId ||
+              criar.isPending ||
+              (!tipos.length && !tipoOutro.trim()) ||
+              (!motivos.length && !motivoOutro.trim())
+            }
+          >
             {criar.isPending ? "Salvando…" : "Salvar rascunho"}
           </Button>
         </DialogFooter>
@@ -730,7 +842,7 @@ export function GenteMovimentacoesTab() {
                   <TableCell>
                     <div className="font-medium">{m.pessoaNome}</div>
                     <div className="text-[13px] text-muted-foreground">
-                      #{m.id}
+                      {m.numero ?? `#${m.id}`}
                       {m.criadoPor ? ` · ${m.criadoPor}` : ""}
                     </div>
                   </TableCell>

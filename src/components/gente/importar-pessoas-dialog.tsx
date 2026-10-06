@@ -39,6 +39,7 @@ const COLUNAS_MODELO = [
   "Departamento",
   "Vínculo",
   "Admissão",
+  "Nascimento",
   "E-mail do gestor",
 ];
 
@@ -53,6 +54,7 @@ const semAcento = (s: string) =>
 function campoDoCabecalho(h: string): keyof Omit<LinhaImportacao, "linha"> | null {
   const k = semAcento(h);
   if (/gestor|lider|superior/.test(k)) return "emailGestor";
+  if (/nasc|aniversario/.test(k)) return "dataNascimento";
   if (/e-?mail/.test(k)) return "email";
   if (/nome/.test(k)) return "nomeCompleto";
   if (/cargo|funcao/.test(k)) return "cargo";
@@ -124,12 +126,15 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
   return bruto
     .map((r, i) => {
       const l: LinhaLida = { linha: i + 2, nomeCompleto: "", email: "", problemas: [] };
-      let dataBruta: unknown = "";
+      const datasBrutas: Record<"dataAdmissao" | "dataNascimento", unknown> = {
+        dataAdmissao: "",
+        dataNascimento: "",
+      };
       for (const [h, v] of Object.entries(r)) {
         const campo = campoDoCabecalho(h);
         if (!campo) continue;
-        if (campo === "dataAdmissao") {
-          dataBruta = v;
+        if (campo === "dataAdmissao" || campo === "dataNascimento") {
+          datasBrutas[campo] = v;
           continue;
         }
         const texto = String(v ?? "")
@@ -150,9 +155,14 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
         if (v) l.tipoVinculo = v;
         else l.problemas.push(`vínculo "${l.tipoVinculo}"`);
       }
-      const data = normalizarData(dataBruta);
-      if (data === null) l.problemas.push("data de admissão");
-      else if (data) l.dataAdmissao = data;
+      for (const [campo, rotulo] of [
+        ["dataAdmissao", "data de admissão"],
+        ["dataNascimento", "data de nascimento"],
+      ] as const) {
+        const data = normalizarData(datasBrutas[campo]);
+        if (data === null) l.problemas.push(rotulo);
+        else if (data) l[campo] = data;
+      }
       if (l.emailGestor && l.emailGestor === l.email) l.problemas.push("gestor é a própria pessoa");
       return l;
     })
@@ -162,7 +172,16 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
 function baixarModelo() {
   const ws = XLSX.utils.aoa_to_sheet([
     COLUNAS_MODELO,
-    ["Maria Souza", "maria.souza@planning.com.br", "Líder de RH", "RH", "CLT", "01/03/2026", ""],
+    [
+      "Maria Souza",
+      "maria.souza@planning.com.br",
+      "Líder de RH",
+      "RH",
+      "CLT",
+      "01/03/2026",
+      "12/05/1990",
+      "",
+    ],
     [
       "João Lima",
       "joao.lima@planning.com.br",
@@ -170,10 +189,11 @@ function baixarModelo() {
       "BPO",
       "PJ",
       "15/04/2026",
+      "03/11/1995",
       "maria.souza@planning.com.br",
     ],
   ]);
-  ws["!cols"] = [28, 32, 20, 16, 12, 12, 32].map((wch) => ({ wch }));
+  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pessoas");
   XLSX.writeFile(wb, "modelo-importacao-pessoas.xlsx");
@@ -191,7 +211,7 @@ export function ImportarPessoasDialog({
 }: {
   unidades: { id: number; nome: string }[];
   /** Ativos já no cadastro, para avisar de nome repetido na unidade. */
-  existentes: { id: number; nome: string; unidadeId: number | null }[];
+  existentes: { id: number; nome: string; email: string | null; unidadeId: number | null }[];
 }) {
   const fn = useServerFn(importarPessoas);
   const qc = useQueryClient();
@@ -205,16 +225,36 @@ export function ImportarPessoasDialog({
   );
 
   const [incluirHomonimos, setIncluirHomonimos] = useState(false);
-  // Nome que já existe na unidade com outro e-mail: provável duplicidade.
+  // Nome que já existe na unidade com OUTRO e-mail: provável duplicidade (caso
+  // do Adílio). Mesmo nome e mesmo e-mail é a mesma pessoa: segue, e o servidor
+  // só completa as datas vazias dela.
+  const mesmoEmail = (a: string | null, b: string) => (a ?? "").trim().toLowerCase() === b;
   const homonimos = useMemo(() => {
     const daUnidade = existentes.filter((e) => String(e.unidadeId) === unidadeId);
     return new Map(
       linhas
-        .map((l) => [l.linha, daUnidade.find((e) => mesmoNome(e.nome, l.nomeCompleto))] as const)
+        .map(
+          (l) =>
+            [
+              l.linha,
+              daUnidade.find(
+                (e) => mesmoNome(e.nome, l.nomeCompleto) && !mesmoEmail(e.email, l.email),
+              ),
+            ] as const,
+        )
         .filter(([, e]) => !!e)
         .map(([linha, e]) => [linha, e!.nome]),
     );
   }, [linhas, existentes, unidadeId]);
+  const jaCadastradas = useMemo(
+    () =>
+      new Set(
+        linhas
+          .filter((l) => existentes.some((e) => mesmoEmail(e.email, l.email)))
+          .map((l) => l.linha),
+      ),
+    [linhas, existentes],
+  );
   const validas = useMemo(
     () =>
       linhas.filter((l) => !l.problemas.length && (incluirHomonimos || !homonimos.has(l.linha))),
@@ -295,8 +335,10 @@ export function ImportarPessoasDialog({
         <DialogHeader>
           <DialogTitle>Importar pessoas por planilha</DialogTitle>
           <DialogDescription>
-            Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo, admissão
-            e e-mail do gestor são opcionais. Quem já está no cadastro da rede não é alterado.
+            Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo,
+            admissão, nascimento e e-mail do gestor são opcionais. Quem já está no cadastro só tem
+            completadas as datas de admissão e nascimento que estiverem vazias; o resto não é
+            alterado.
           </DialogDescription>
         </DialogHeader>
 
@@ -405,6 +447,9 @@ export function ImportarPessoasDialog({
                             ...l.problemas,
                             ...(homonimos.has(l.linha)
                               ? [`já existe "${homonimos.get(l.linha)}" na unidade`]
+                              : []),
+                            ...(jaCadastradas.has(l.linha)
+                              ? ["já cadastrada: só completa datas vazias"]
                               : []),
                           ].join(", ")}
                         </td>

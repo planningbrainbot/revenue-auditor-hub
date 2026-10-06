@@ -39,6 +39,7 @@ import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url
 import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pessoa-dialog";
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
 import { GestorEmLoteDialog } from "./gestor-em-lote-dialog";
+import { AfastamentosCard } from "./afastamentos-card";
 import { aniversarioDeEmpresaNoMes, diasDeCasa, fmtTempoDeCasa } from "./tempo-de-casa";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
@@ -65,23 +66,31 @@ const CHAVES_FILTRO = [
 // 30/09/2026, no lugar de um ciclo automático por admissão.
 // "Aniversário de empresa no mês" entrou em 01/10/2026, também a pedido dela,
 // para homenagear quem completa 1, 2, 3 anos.
-const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (admissao: string | null) => boolean }> =
-  {
-    ate45: { rotulo: "Até 45 dias", cabe: (a) => (diasDeCasa(a) ?? Infinity) <= 45 },
-    "46a90": {
-      rotulo: "De 46 a 90 dias",
-      cabe: (a) => {
-        const d = diasDeCasa(a);
-        return d != null && d > 45 && d <= 90;
-      },
+const FAIXAS_CASA: Record<string, { rotulo: string; cabe: (p: GentePessoaRow) => boolean }> = {
+  ate45: {
+    rotulo: "Até 45 dias",
+    cabe: ({ dataAdmissao: a }) => (diasDeCasa(a) ?? Infinity) <= 45,
+  },
+  "46a90": {
+    rotulo: "De 46 a 90 dias",
+    cabe: ({ dataAdmissao: a }) => {
+      const d = diasDeCasa(a);
+      return d != null && d > 45 && d <= 90;
     },
-    mais90: { rotulo: "Mais de 90 dias", cabe: (a) => (diasDeCasa(a) ?? -1) > 90 },
-    aniversario: {
-      rotulo: "Aniversário de empresa no mês",
-      cabe: (a) => aniversarioDeEmpresaNoMes(a) != null,
-    },
-    sem: { rotulo: "Sem data de admissão", cabe: (a) => !a },
-  };
+  },
+  mais90: { rotulo: "Mais de 90 dias", cabe: ({ dataAdmissao: a }) => (diasDeCasa(a) ?? -1) > 90 },
+  aniversario: {
+    rotulo: "Aniversário de empresa no mês",
+    cabe: ({ dataAdmissao: a }) => aniversarioDeEmpresaNoMes(a) != null,
+  },
+  sem: { rotulo: "Sem data de admissão", cabe: ({ dataAdmissao: a }) => !a },
+  // Data de nascimento entrou no cadastro em 05/10/2026 (Maceió não tinha).
+  nascimento_mes: {
+    rotulo: "Aniversariantes do mês",
+    cabe: ({ dataNascimento: n }) => !!n && Number(n.slice(5, 7)) === new Date().getMonth() + 1,
+  },
+  sem_nascimento: { rotulo: "Sem data de nascimento", cabe: ({ dataNascimento: n }) => !n },
+};
 const NUM = new Intl.NumberFormat("pt-BR");
 
 const VINCULO_LABEL: Record<string, string> = {
@@ -144,7 +153,7 @@ export function GenteView() {
     return doStatus.filter((p: GentePessoaRow) => {
       if (unidade && p.unidade !== unidade) return false;
       if (departamento && p.departamento !== departamento) return false;
-      if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(p.dataAdmissao)) {
+      if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(p)) {
         return false;
       }
       const adm = p.dataAdmissao?.slice(0, 10) ?? null;
@@ -176,7 +185,12 @@ export function GenteView() {
   const podeCadastrar = q.data.unidadesCadastro.length > 0;
   const novaPessoa = podeCadastrar ? (
     <div className="flex flex-wrap gap-2">
-      <ImportarPessoasDialog unidades={q.data.unidadesCadastro} existentes={q.data.gestores} />
+      <ImportarPessoasDialog
+        unidades={q.data.unidadesCadastro}
+        existentes={q.data.pessoas
+          .filter((p) => p.status === "ativo")
+          .map((p) => ({ id: p.id, nome: p.nomeCompleto, email: p.email, unidadeId: p.unidadeId }))}
+      />
       <NovaPessoaDialog unidades={q.data.unidadesCadastro} gestores={q.data.gestores} />
     </div>
   ) : null;
@@ -357,7 +371,7 @@ export function GenteView() {
                 <SelectValue placeholder="Tempo de casa" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TODOS}>Qualquer tempo de casa</SelectItem>
+                <SelectItem value={TODOS}>Tempo de casa e datas</SelectItem>
                 {Object.entries(FAIXAS_CASA).map(([v, f]) => (
                   <SelectItem key={v} value={v}>
                     {f.rotulo}
@@ -428,6 +442,8 @@ export function GenteView() {
               ) : null}
             </div>
           ) : null}
+
+          <AfastamentosCard pessoas={pessoas} />
 
           {podeCadastrar && selecionadas.size ? (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -525,6 +541,12 @@ export function GenteView() {
                         <TableCell className="num">{fmtData(p.dataAdmissao)}</TableCell>
                         <TableCell className="num">
                           {fmtTempoDeCasa(p.dataAdmissao)}
+                          {p.dataNascimento &&
+                          Number(p.dataNascimento.slice(5, 7)) === new Date().getMonth() + 1 ? (
+                            <div className="text-[12px] text-success">
+                              aniversário em {fmtData(p.dataNascimento).slice(0, 5)}
+                            </div>
+                          ) : null}
                           {aniversarioDeEmpresaNoMes(p.dataAdmissao) ? (
                             <div className="text-[12px] text-success">
                               faz {aniversarioDeEmpresaNoMes(p.dataAdmissao)}{" "}
@@ -555,7 +577,11 @@ export function GenteView() {
                         </TableCell>
                         {podeCadastrar ? (
                           <TableCell>
-                            <EditarPessoaDialog pessoa={p} gestores={q.data.gestores} />
+                            <EditarPessoaDialog
+                              pessoa={p}
+                              gestores={q.data.gestores}
+                              podeSaude={q.data.podeSaude}
+                            />
                           </TableCell>
                         ) : null}
                       </TableRow>

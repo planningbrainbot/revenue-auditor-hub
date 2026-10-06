@@ -3,6 +3,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
 import { enviarEmailAcesso as enviarEmail } from "@/lib/email-access.server";
 import {
+  MODELOS_TRABALHO,
+  MOTIVOS_FORMULARIO,
+  TIPOS_MOVIMENTACAO,
   fmtSalario,
   gerarPdf,
   gerarXlsx,
@@ -30,18 +33,6 @@ const VINCULOS: Record<string, string> = {
   prolabore: "Pró-labore",
   terceiro: "Terceiro",
 };
-
-export const MOTIVOS_MOVIMENTACAO = [
-  "Promoção",
-  "Mérito",
-  "Reajuste",
-  "Mudança de função",
-  "Mudança de setor",
-  "Mudança de gestor",
-  "Efetivação",
-  "Enquadramento",
-  "Outro",
-];
 
 export interface PessoaRemuneracao {
   id: number;
@@ -74,6 +65,9 @@ export interface MovimentacaoRow {
   aplicadaEm: string | null;
   mudancas: [string, string, string][];
   criadoPor: string | null;
+  /** "01/2026": número da solicitação na unidade, como no formulário do RH. */
+  numero: string | null;
+  tipos: string[];
 }
 
 export interface MovimentacoesResult {
@@ -104,10 +98,21 @@ type MovDB = {
   enviada_para: string | null;
   aplicada_em: string | null;
   criado_por: string | null;
+  criado_em: string;
+  numero: number | null;
+  ano: number | null;
+  tipos: string[] | null;
+  motivos: string[] | null;
+  modelo_trabalho: string | null;
+  justificativa: string | null;
+  responsabilidades: string | null;
 };
 
+const numeroDe = (m: { numero: number | null; ano: number | null }) =>
+  m.numero && m.ano ? `${String(m.numero).padStart(2, "0")}/${m.ano}` : null;
+
 const MOV_COLS =
-  "id,pessoa_id,vigencia,motivo,observacao,salario_antes,salario_depois,cargo_antes,cargo_depois,departamento_antes,departamento_depois,gestor_antes_id,gestor_depois_id,vinculo_antes,vinculo_depois,status,enviada_em,enviada_para,aplicada_em,criado_por";
+  "id,pessoa_id,vigencia,motivo,observacao,salario_antes,salario_depois,cargo_antes,cargo_depois,departamento_antes,departamento_depois,gestor_antes_id,gestor_depois_id,vinculo_antes,vinculo_depois,status,enviada_em,enviada_para,aplicada_em,criado_por,criado_em,numero,ano,tipos,motivos,modelo_trabalho,justificativa,responsabilidades";
 
 function mudancasDe(m: MovDB, nome: (id: number | null) => string): [string, string, string][] {
   const out: [string, string, string][] = [];
@@ -265,6 +270,8 @@ export const listMovimentacoes = createServerFn({ method: "GET" })
         enviadaPara: m.enviada_para,
         aplicadaEm: m.aplicada_em,
         mudancas: mudancasDe(m, nome),
+        numero: numeroDe(m),
+        tipos: m.tipos ?? [],
         criadoPor: m.criado_por ? autores.get(m.criado_por) || null : null,
       };
     });
@@ -422,6 +429,12 @@ export interface NovaMovimentacaoInput {
   departamentoDepois?: string | null;
   gestorDepoisId?: number | null;
   vinculoDepois?: string | null;
+  /** Campos do formulário de Maceió (05/10/2026). */
+  tipos?: string[];
+  motivos?: string[];
+  modeloTrabalho?: string | null;
+  justificativa?: string;
+  responsabilidades?: string;
 }
 
 export const criarMovimentacao = createServerFn({ method: "POST" })
@@ -429,8 +442,19 @@ export const criarMovimentacao = createServerFn({ method: "POST" })
   .inputValidator((input: NovaMovimentacaoInput) => {
     if (!Number.isInteger(input?.pessoaId)) throw new Error("Escolha a pessoa.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input?.vigencia ?? "")) throw new Error("Informe a vigência.");
-    const motivo = (input?.motivo ?? "").trim();
-    if (!motivo) throw new Error("Informe o motivo.");
+    const tipos = (input?.tipos ?? []).filter(
+      (t) => TIPOS_MOVIMENTACAO.includes(t) || t.startsWith("Outro:"),
+    );
+    const motivos = (input?.motivos ?? []).filter(
+      (t) => MOTIVOS_FORMULARIO.includes(t) || t.startsWith("Outro:"),
+    );
+    const modeloTrabalho = input?.modeloTrabalho || null;
+    if (modeloTrabalho && !MODELOS_TRABALHO.some((m) => m.v === modeloTrabalho)) {
+      throw new Error("Modelo de trabalho inválido.");
+    }
+    if (!tipos.length) throw new Error("Marque o tipo de movimentação.");
+    if (!motivos.length) throw new Error("Marque o motivo.");
+    const motivo = motivos.join(", ");
     const salario = input.salarioDepois == null ? null : Number(input.salarioDepois);
     if (salario != null && (!Number.isFinite(salario) || salario <= 0))
       throw new Error("Salário inválido.");
@@ -446,16 +470,14 @@ export const criarMovimentacao = createServerFn({ method: "POST" })
       departamentoDepois: input.departamentoDepois?.trim() || null,
       gestorDepoisId: input.gestorDepoisId ?? null,
       vinculoDepois: vinculo,
+      tipos,
+      motivos,
+      modeloTrabalho,
+      justificativa: input.justificativa?.trim() || null,
+      responsabilidades: input.responsabilidades?.trim() || null,
     };
-    if (
-      out.salarioDepois == null &&
-      !out.cargoDepois &&
-      !out.departamentoDepois &&
-      out.gestorDepoisId == null &&
-      !out.vinculoDepois
-    ) {
-      throw new Error("Diga o que muda: salário, cargo, setor, gestor ou vínculo.");
-    }
+    // Jornada, modelo de trabalho e transferência de unidade não mexem em campo
+    // do cadastro: o tipo marcado já basta.
     if (out.gestorDepoisId === out.pessoaId)
       throw new Error("A pessoa não pode ser gestora de si mesma.");
     return out;
@@ -501,6 +523,11 @@ export const criarMovimentacao = createServerFn({ method: "POST" })
         gestor_depois_id: data.gestorDepoisId,
         vinculo_antes: data.vinculoDepois ? p.tipo_vinculo : null,
         vinculo_depois: data.vinculoDepois,
+        tipos: data.tipos,
+        motivos: data.motivos,
+        modelo_trabalho: data.modeloTrabalho,
+        justificativa: data.justificativa,
+        responsabilidades: data.responsabilidades,
         status: "rascunho",
       })
       .select("id")
@@ -530,7 +557,7 @@ async function documento(
   );
   const { data: ps } = await supabase
     .from("gente_pessoas")
-    .select("id,nome_completo,email,data_admissao,unidade_id")
+    .select("id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id")
     .in("id", ids);
   type P = {
     id: number;
@@ -538,10 +565,37 @@ async function documento(
     email: string | null;
     data_admissao: string | null;
     unidade_id: number | null;
+    cargo: string | null;
+    departamento: string | null;
+    gestor_id: number | null;
   };
   const porId = new Map(((ps ?? []) as P[]).map((p) => [p.id, p]));
   const pessoa = porId.get(mov.pessoa_id);
   if (!pessoa) throw new Error("Pessoa da movimentação não encontrada.");
+  // Gestor atual quando a movimentação não muda o gestor (o "antes" não foi guardado).
+  if (pessoa.gestor_id != null && !porId.has(pessoa.gestor_id)) {
+    const { data: g } = await supabase
+      .from("gente_pessoas")
+      .select("id,nome_completo,email,data_admissao,unidade_id,cargo,departamento,gestor_id")
+      .eq("id", pessoa.gestor_id)
+      .maybeSingle();
+    if (g) porId.set(g.id, g as P);
+  }
+  // Salário vigente na data da solicitação, quando o salário não muda.
+  const { data: sal } = await supabase
+    .from("gente_remuneracao")
+    .select("salario")
+    .eq("pessoa_id", mov.pessoa_id)
+    .lte("vigencia", mov.criado_em.slice(0, 10))
+    .order("vigencia", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nomeDe = (gid: number | null) =>
+    gid == null ? null : (porId.get(gid)?.nome_completo ?? null);
+  // Antes da aplicação o cadastro é o "atual"; depois, o atual é o que a
+  // movimentação guardou como "antes".
+  const gestorAtualId = mov.gestor_depois_id != null ? mov.gestor_antes_id : pessoa.gestor_id;
   const { data: u } = pessoa.unidade_id
     ? await supabase
         .from("unidades")
@@ -562,11 +616,29 @@ async function documento(
       vigencia: mov.vigencia,
       motivo: mov.motivo,
       observacao: mov.observacao,
-      mudancas: mudancasDe(mov, (gid) =>
-        gid == null ? "—" : (porId.get(gid)?.nome_completo ?? "—"),
-      ),
+      mudancas: mudancasDe(mov, (gid) => nomeDe(gid) ?? "—"),
       registradaPor: mov.criado_por ? autores.get(mov.criado_por) || null : null,
       enviadaEm: mov.enviada_em,
+      numero: numeroDe(mov),
+      dataSolicitacao: mov.criado_em,
+      atual: {
+        salario: mov.salario_depois != null ? mov.salario_antes : (sal?.salario ?? null),
+        cargo: mov.cargo_depois != null ? mov.cargo_antes : pessoa.cargo,
+        setor: mov.departamento_depois != null ? mov.departamento_antes : pessoa.departamento,
+        gestor: nomeDe(gestorAtualId),
+      },
+      apos: {
+        salario: mov.salario_depois,
+        cargo: mov.cargo_depois,
+        setor: mov.departamento_depois,
+        gestor: nomeDe(mov.gestor_depois_id),
+      },
+      tipos: mov.tipos ?? [],
+      motivos: mov.motivos ?? [],
+      modeloTrabalho: mov.modelo_trabalho,
+      justificativa: mov.justificativa,
+      responsabilidades: mov.responsabilidades,
+      gestorImediato: nomeDe(gestorAtualId),
     },
   };
 }

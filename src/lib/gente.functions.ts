@@ -31,6 +31,14 @@ export interface GentePessoaRow {
   tipoVinculo: string | null;
   status: string;
   dataAdmissao: string | null;
+  dataNascimento: string | null;
+  /** Afastamento em aberto. O CID só vem para quem tem `manage.gente.saude`. */
+  afastamento: {
+    inicio: string;
+    motivo: string;
+    previsaoRetorno: string | null;
+    cid: string | null;
+  } | null;
   unidade: string | null;
   gestorNome: string | null;
   /** Para o formulário de edição abrir com o gestor e a unidade atuais. */
@@ -54,6 +62,8 @@ export interface GenteUnidadeRow {
 }
 
 export interface GenteResult {
+  /** Lê e registra CID de afastamento (área restrita do RH). */
+  podeSaude: boolean;
   pessoas: GentePessoaRow[];
   unidades: GenteUnidadeRow[];
   /** Tem a chave que abre o módulo. Sem ela a tela mostra o aviso de acesso. */
@@ -78,6 +88,7 @@ type PessoaDB = {
   tipo_vinculo: string | null;
   status: string;
   data_admissao: string | null;
+  data_nascimento: string | null;
   user_id: string | null;
   gestor_id: number | null;
   unidade_id: number | null;
@@ -109,20 +120,28 @@ export const listGente = createServerFn({ method: "GET" })
     // antiga depois de alguém tirar a área na tela de permissões.
     const acesso = await acessoDoUsuario(supabase, context.userId);
 
-    const [pessoasRes, unidadesRes, praçasRes, soMinhaRes, minhasRes] = await Promise.all([
-      supabase
-        .from("gente_pessoas")
-        .select(
-          "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,user_id,gestor_id,unidade_id,data_desligamento,motivo_desligamento",
-        )
-        .order("nome_completo"),
-      supabase.from("v_gente_por_unidade").select("*"),
-      supabase.from("unidades").select("id,nome_da_praca"),
-      // As duas perguntas que a RLS de escrita faz, feitas antes para o
-      // formulário só oferecer unidade em que o insert vai passar.
-      supabase.rpc("can", { _key: "data.scope.own_unit_only" }),
-      supabase.rpc("minhas_unidades_gente"),
-    ]);
+    const [pessoasRes, unidadesRes, praçasRes, soMinhaRes, minhasRes, afastRes, cidRes] =
+      await Promise.all([
+        supabase
+          .from("gente_pessoas")
+          .select(
+            "id,nome_completo,email,cargo,departamento,tipo_vinculo,status,data_admissao,data_nascimento,user_id,gestor_id,unidade_id,data_desligamento,motivo_desligamento",
+          )
+          .order("nome_completo"),
+        supabase.from("v_gente_por_unidade").select("*"),
+        supabase.from("unidades").select("id,nome_da_praca"),
+        // As duas perguntas que a RLS de escrita faz, feitas antes para o
+        // formulário só oferecer unidade em que o insert vai passar.
+        supabase.rpc("can", { _key: "data.scope.own_unit_only" }),
+        supabase.rpc("minhas_unidades_gente"),
+        // Afastamentos em aberto (migration 20261005130000). O CID vem de outra
+        // tabela, que a RLS só abre para o RH; para os demais volta vazio.
+        supabase
+          .from("gente_afastamentos")
+          .select("id,pessoa_id,inicio,motivo,previsao_retorno")
+          .is("retorno_em", null),
+        supabase.from("gente_afastamento_cid").select("afastamento_id,cid"),
+      ]);
 
     const chaves: string[] = acesso.permissions;
 
@@ -140,6 +159,32 @@ export const listGente = createServerFn({ method: "GET" })
     );
     const nomePorId = new Map<number, string>(pessoasDB.map((p) => [p.id, p.nome_completo]));
 
+    const cidPor = new Map<number, string>(
+      ((cidRes?.data ?? []) as { afastamento_id: number; cid: string }[]).map((c) => [
+        c.afastamento_id,
+        c.cid,
+      ]),
+    );
+    const afastPorPessoa = new Map<number, NonNullable<GentePessoaRow["afastamento"]>>(
+      (
+        (afastRes?.data ?? []) as {
+          id: number;
+          pessoa_id: number;
+          inicio: string;
+          motivo: string;
+          previsao_retorno: string | null;
+        }[]
+      ).map((a) => [
+        a.pessoa_id,
+        {
+          inicio: a.inicio,
+          motivo: a.motivo,
+          previsaoRetorno: a.previsao_retorno,
+          cid: cidPor.get(a.id) ?? null,
+        },
+      ]),
+    );
+
     const pessoas: GentePessoaRow[] = pessoasDB.map((p) => ({
       id: p.id,
       nomeCompleto: p.nome_completo,
@@ -149,6 +194,8 @@ export const listGente = createServerFn({ method: "GET" })
       tipoVinculo: p.tipo_vinculo,
       status: p.status,
       dataAdmissao: p.data_admissao,
+      dataNascimento: p.data_nascimento,
+      afastamento: afastPorPessoa.get(p.id) ?? null,
       unidade: p.unidade_id != null ? (praças.get(p.unidade_id) ?? null) : null,
       gestorNome: p.gestor_id != null ? (nomePorId.get(p.gestor_id) ?? null) : null,
       gestorId: p.gestor_id,
@@ -196,6 +243,7 @@ export const listGente = createServerFn({ method: "GET" })
       podeIndividual,
       podeAgregado: temChaves ? chaves.includes("view.gente.agregado") : unidades.length > 0,
       podeGerir,
+      podeSaude: chaves.includes("manage.gente.saude"),
       semUnidade: pessoas.filter((p) => !p.unidade).length,
       unidadesCadastro,
       gestores: pessoasDB
@@ -474,6 +522,7 @@ export interface NovaPessoaInput {
   departamento?: string;
   tipoVinculo?: string;
   dataAdmissao?: string;
+  dataNascimento?: string;
   gestorId?: number | null;
   /** `null` cadastra sem login (quem não vai usar o Brain). */
   acesso: PerfilGente | null;
@@ -502,11 +551,16 @@ export const criarPessoa = createServerFn({ method: "POST" })
     if (dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataAdmissao)) {
       throw new Error("Data de admissão inválida.");
     }
+    const dataNascimento = input.dataNascimento || null;
+    if (dataNascimento && !/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)) {
+      throw new Error("Data de nascimento inválida.");
+    }
     const acesso = input.acesso ?? null;
     if (acesso && !PERFIS.includes(acesso)) throw new Error("Perfil de acesso inválido.");
     return {
       nomeCompleto,
       email,
+      dataNascimento,
       unidadeId: input.unidadeId,
       cargo: input.cargo?.trim() || null,
       departamento: input.departamento?.trim() || null,
@@ -529,6 +583,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
         departamento: data.departamento,
         tipo_vinculo: data.tipoVinculo,
         data_admissao: data.dataAdmissao,
+        data_nascimento: data.dataNascimento,
         gestor_id: data.gestorId,
         status: "ativo",
         origem: "manual",
@@ -609,6 +664,7 @@ export interface EditarPessoaInput {
   departamento?: string;
   tipoVinculo?: string;
   dataAdmissao?: string;
+  dataNascimento?: string;
   gestorId?: number | null;
 }
 
@@ -628,6 +684,10 @@ export const editarPessoa = createServerFn({ method: "POST" })
     if (nomeCompleto.split(" ").length < 2) throw new Error("Informe nome e sobrenome.");
     const tipoVinculo = input.tipoVinculo || null;
     if (tipoVinculo && !VINCULOS.includes(tipoVinculo)) throw new Error("Vínculo inválido.");
+    const dataNascimento = input.dataNascimento || null;
+    if (dataNascimento && !/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)) {
+      throw new Error("Data de nascimento inválida.");
+    }
     const dataAdmissao = input.dataAdmissao || null;
     if (dataAdmissao && !/^\d{4}-\d{2}-\d{2}$/.test(dataAdmissao)) {
       throw new Error("Data de admissão inválida.");
@@ -642,6 +702,7 @@ export const editarPessoa = createServerFn({ method: "POST" })
       departamento: input.departamento?.trim() || null,
       tipoVinculo,
       dataAdmissao,
+      dataNascimento,
       gestorId,
     };
   })
@@ -687,6 +748,7 @@ export const editarPessoa = createServerFn({ method: "POST" })
         departamento: data.departamento,
         tipo_vinculo: data.tipoVinculo,
         data_admissao: data.dataAdmissao,
+        data_nascimento: data.dataNascimento,
         gestor_id: data.gestorId,
       })
       .eq("id", data.pessoaId)
@@ -803,6 +865,30 @@ export const definirGestorEmLote = createServerFn({ method: "POST" })
     return { alterados, ignorados };
   });
 
+/** Para o import: preenche nascimento/admissão vazios de quem já existe. */
+async function completarDatas(
+  db: Cliente,
+  l: { email: string; dataNascimento: string | null; dataAdmissao: string | null },
+): Promise<string[]> {
+  // `ilike` sem curinga, porque o e-mail do Qulture às vezes tem maiúscula.
+  const email = l.email.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const feitos: string[] = [];
+  for (const [coluna, valor, rotulo] of [
+    ["data_nascimento", l.dataNascimento, "nascimento"],
+    ["data_admissao", l.dataAdmissao, "admissão"],
+  ] as const) {
+    if (!valor) continue;
+    const { data: ok } = await db
+      .from("gente_pessoas")
+      .update({ [coluna]: valor })
+      .ilike("email", email)
+      .is(coluna, null)
+      .select("id");
+    if (ok?.length) feitos.push(rotulo);
+  }
+  return feitos;
+}
+
 export interface LinhaImportacao {
   /** Número da linha na planilha, só para o relatório voltar apontando. */
   linha: number;
@@ -812,6 +898,7 @@ export interface LinhaImportacao {
   departamento?: string;
   tipoVinculo?: string;
   dataAdmissao?: string;
+  dataNascimento?: string;
   /** E-mail do gestor: alguém já no cadastro ou outra linha da mesma planilha. */
   emailGestor?: string;
 }
@@ -864,6 +951,7 @@ export const importarPessoas = createServerFn({ method: "POST" })
           departamento: l.departamento?.trim() || null,
           tipoVinculo: l.tipoVinculo || null,
           dataAdmissao: l.dataAdmissao || null,
+          dataNascimento: l.dataNascimento || null,
           emailGestor: l.emailGestor?.trim().toLowerCase() || null,
         })),
       };
@@ -908,6 +996,10 @@ export const importarPessoas = createServerFn({ method: "POST" })
         resultados.push(erro(l, "Data de admissão inválida."));
         continue;
       }
+      if (l.dataNascimento && !/^\d{4}-\d{2}-\d{2}$/.test(l.dataNascimento)) {
+        resultados.push(erro(l, "Data de nascimento inválida."));
+        continue;
+      }
 
       const { data: criada, error } = await supabase
         .from("gente_pessoas")
@@ -919,6 +1011,7 @@ export const importarPessoas = createServerFn({ method: "POST" })
           departamento: l.departamento,
           tipo_vinculo: l.tipoVinculo,
           data_admissao: l.dataAdmissao,
+          data_nascimento: l.dataNascimento,
           status: "ativo",
           origem: "planilha",
         })
@@ -927,8 +1020,17 @@ export const importarPessoas = createServerFn({ method: "POST" })
 
       if (error) {
         if (error.code === "23505") {
+          // Já cadastrada: completa só nascimento e admissão que estiverem
+          // VAZIOS (05/10/2026, Maceió entrou sem data de nascimento). Nada que
+          // já tenha valor é sobrescrito, e a RLS só deixa tocar na unidade.
+          const completou = await completarDatas(supabase, l);
           resultados.push({
-            ...erro(l, "Já está no cadastro da rede. Não foi alterada."),
+            ...erro(
+              l,
+              completou.length
+                ? `Já estava no cadastro. Completado: ${completou.join(" e ")}.`
+                : "Já está no cadastro da rede. Não foi alterada.",
+            ),
             situacao: "ja_existe",
           });
         } else if (error.code === "42501") {
@@ -1037,6 +1139,67 @@ export const importarPessoas = createServerFn({ method: "POST" })
   });
 
 export type StatusPessoa = "ativo" | "afastado" | "desligado";
+
+export const MOTIVOS_AFASTAMENTO = [
+  "Doença (até 15 dias, atestado)",
+  "Doença (INSS, auxílio-doença)",
+  "Acidente de trabalho",
+  "Licença-maternidade",
+  "Licença-paternidade",
+  "Licença não remunerada",
+  "Outro",
+];
+
+// Afastar com data, motivo, previsão de retorno e CID (05/10/2026, pedido do
+// RH de Maceió para o radar de SST). `ops.gente_afastar` grava o afastamento e
+// troca o status juntos; CID só passa para quem tem `manage.gente.saude`.
+export const afastarPessoa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      pessoaId: number;
+      inicio: string;
+      motivo: string;
+      previsaoRetorno?: string;
+      cid?: string;
+      observacao?: string;
+    }) => {
+      if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(input?.inicio ?? "")) {
+        throw new Error("Informe a data do afastamento.");
+      }
+      const motivo = (input?.motivo ?? "").trim();
+      if (!motivo) throw new Error("Informe o motivo do afastamento.");
+      const previsao = input.previsaoRetorno || null;
+      if (previsao && !/^\d{4}-\d{2}-\d{2}$/.test(previsao)) {
+        throw new Error("Previsão de retorno inválida.");
+      }
+      const cid = (input.cid ?? "").trim().toUpperCase() || null;
+      if (cid && !/^[A-Z]\d{2}(\.?\d{1,2})?$/.test(cid)) {
+        throw new Error("CID inválido. Use o formato da CID-10, como M54.5 ou F32.");
+      }
+      return {
+        pessoaId: input.pessoaId,
+        inicio: input.inicio,
+        motivo,
+        previsao,
+        cid,
+        observacao: input.observacao?.trim().slice(0, 500) || null,
+      };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as Cliente).rpc("gente_afastar", {
+      _pessoa: data.pessoaId,
+      _inicio: data.inicio,
+      _motivo: data.motivo,
+      _previsao: data.previsao,
+      _cid: data.cid,
+      _observacao: data.observacao,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 export interface StatusResult {
   acessoCortado: boolean;
