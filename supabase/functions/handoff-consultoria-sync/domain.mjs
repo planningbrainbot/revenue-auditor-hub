@@ -268,3 +268,68 @@ export function podeMarcarAusentes(lidos, presentes) {
     return { pode: false, motivo: `leu ${lidos} de ${presentes}` };
   return { pode: true, motivo: null };
 }
+
+// ── Negócios ganhos em 2026 (tela Cruzamento Consultoria) ─────────────────────────────────────────
+
+const UM_DIA_MS = 24 * 3600 * 1000;
+
+/**
+ * Negócios ganhos (um por `pipedrive_deal_id`) que o banco não liga a um CNPJ e que valem uma leitura no Pipedrive:
+ * nunca lidos, ou lidos sem CNPJ há mais de 24 h. A ordem do banco é a mesma do RPC ops.cruzamento_consultoria_painel():
+ * contrato, documento do Pipefy, empresa do contrato, empresa do documento, onboarding.
+ *   ganhos: [{ pipedrive_deal_id, cnpj, empresa_id }] de ops.contratos
+ *   docs: [{ pipedrive_deal_id, cnpj, empresa_id }] de ops.contratos_documentos
+ *   empresas: [{ id, cnpj }] de ops.empresas
+ *   onboarding: linhas de ops.handoff_consultoria_onboarding ({ pipedrive_deal_id, cnpj })
+ *   anteriores: [{ pipedrive_deal_id, cnpj, tentado_em }] de ops.handoff_consultoria_negocios
+ */
+export function negociosSemCnpj({ ganhos, docs, empresas, onboarding, anteriores, agora }) {
+  const porDeal = (xs) => {
+    const m = new Map();
+    for (const x of xs ?? []) {
+      if (!x?.pipedrive_deal_id) continue;
+      const k = String(x.pipedrive_deal_id);
+      m.set(k, [...(m.get(k) ?? []), x]);
+    }
+    return m;
+  };
+  const docsDe = porDeal(docs);
+  const onbDe = porDeal(onboarding);
+  const empresa = new Map((empresas ?? []).map((e) => [String(e.id), e.cnpj]));
+  const antes = new Map((anteriores ?? []).map((a) => [String(a.pipedrive_deal_id), a]));
+  const vistos = new Set();
+  const faltam = [];
+  for (const g of ganhos ?? []) {
+    if (!g?.pipedrive_deal_id) continue;
+    const deal = String(g.pipedrive_deal_id);
+    if (vistos.has(deal)) continue;
+    vistos.add(deal);
+    const ds = docsDe.get(deal) ?? [];
+    const candidatos = [
+      g.cnpj,
+      ...ds.map((d) => d.cnpj),
+      empresa.get(String(g.empresa_id)),
+      ...ds.map((d) => empresa.get(String(d.empresa_id))),
+      ...(onbDe.get(deal) ?? []).map((o) => o.cnpj),
+    ];
+    if (candidatos.some((v) => cnpjOuNulo(v))) continue;
+    const a = antes.get(deal);
+    if (a && (a.cnpj || Date.parse(agora) - Date.parse(a.tentado_em) < UM_DIA_MS)) continue;
+    faltam.push(deal);
+  }
+  return faltam;
+}
+
+/** Linha de ops.handoff_consultoria_negocios a partir do negócio e da organização lidos no Pipedrive. */
+export function linhaNegocio(deal, negocio, organizacao, agora) {
+  const doNegocio = cnpjOuNulo(negocio?.[PD.cnpjNegocio]);
+  const daOrganizacao = cnpjOuNulo(organizacao?.[PD.cnpjOrganizacao]);
+  const org = negocio?.org_id;
+  return {
+    pipedrive_deal_id: String(deal),
+    cnpj: doNegocio ?? daOrganizacao ?? null,
+    cnpj_fonte: doNegocio ? "negocio_pipedrive" : daOrganizacao ? "organizacao_pipedrive" : null,
+    organizacao: (typeof org === "object" && org ? org.name : null) ?? organizacao?.name ?? null,
+    tentado_em: agora,
+  };
+}

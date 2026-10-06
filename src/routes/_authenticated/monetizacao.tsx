@@ -1,6 +1,7 @@
 import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { DashboardMonetizacao } from "@/components/monetizacao/dashboard";
 import { HandoffConsultoria } from "@/components/monetizacao/handoff-consultoria";
+import { CruzamentoConsultoria } from "@/components/monetizacao/cruzamento-consultoria";
 import { validarBuscaMonetizacao, type BuscaMonetizacao } from "@/components/monetizacao/busca";
 
 // Aba, período, produto e os filtros próprios de cada visão moram na URL (N7):
@@ -22,5 +23,8 @@ function Page() {
   // carga do CRM que as outras visões dividem.
   if (busca.aba === "handoff-consultoria")
     return <HandoffConsultoria busca={busca} mudarBusca={mudarBusca} />;
+  // Cruzamento Consultoria: a call de 05/10 contra a plataforma, os contratos e a PAT; também fonte própria.
+  if (busca.aba === "cruzamento-consultoria")
+    return <CruzamentoConsultoria busca={busca} mudarBusca={mudarBusca} />;
   return <DashboardMonetizacao busca={busca} mudarBusca={mudarBusca} />;
 }
