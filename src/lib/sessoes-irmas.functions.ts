@@ -110,9 +110,10 @@ async function permissoesDoCockpit(userId: string) {
   // `usuario_empresas` a pessoa não abre unidade nenhuma: o default fecha, e
   // isso é deliberado do modelo dele ("ausência de linha fecha, não abre").
   const db = supabaseAdmin as any;
-  const [escopoRes, empresasRes] = await Promise.all([
+  const [escopoRes, empresasRes, recortesRes] = await Promise.all([
     db.from("usuario_escopo").select("todas_empresas").eq("user_id", userId).maybeSingle(),
     db.from("usuario_empresas").select("empresa_id").eq("user_id", userId),
+    db.from("usuario_recortes_financeiro").select("unidade_id").eq("user_id", userId),
   ]);
 
   const todas = Boolean(escopoRes?.data?.todas_empresas);
@@ -123,8 +124,20 @@ async function permissoesDoCockpit(userId: string) {
   // A TRADUÇÃO empresa -> unidade acontece contra o banco do cockpit, porque é
   // lá que ela é verdade. Reescrever a regra aqui criaria uma segunda cópia
   // dela — foi assim que NEO ficou de fora por semanas.
-  const unidades = await unidadesParaEmpresas(todas ? null : empresaIds);
+  //
+  // RECORTE POR DEPARTAMENTO (06/10/2026): "Negócios Estruturados" e "Finance"
+  // são unidades de `tipo = 'departamento'` DENTRO das empresas do BPO. Derivar
+  // da empresa dava as duas a quem recebia o BPO, e dava o BPO inteiro a quem
+  // recebia só uma delas — a Ana não conseguia dar "só o BPO" nem "só o
+  // Finance". Agora recorte é concessão explícita, em
+  // `ops.usuario_recortes_financeiro`, e nunca sai da empresa.
   const todasAsUnidades = await unidadesParaEmpresas(null);
+  const recortes = ((recortesRes?.data ?? []) as { unidade_id: string }[])
+    .map((r) => r.unidade_id)
+    .filter((id) => todasAsUnidades.includes(id));
+  const unidades = todas
+    ? todasAsUnidades
+    : Array.from(new Set([...(await unidadesParaEmpresas(empresaIds)), ...recortes]));
 
   return {
     acesso: true as const,
@@ -155,14 +168,18 @@ async function unidadesParaEmpresas(empresaIds: string[] | null): Promise<string
 
   const { data: navs } = await fin
     .from("unidades_navegacao")
-    .select("id, grupos, empresas")
+    .select("id, tipo, grupos, empresas")
     .eq("ativo", true);
-  const unidades = (navs ?? []) as {
+  const todasAsNavs = (navs ?? []) as {
     id: string;
+    tipo: string | null;
     grupos: string[] | null;
     empresas: string[] | null;
   }[];
-  if (empresaIds === null) return unidades.map((u) => u.id);
+  if (empresaIds === null) return todasAsNavs.map((u) => u.id);
+  // Recorte por departamento não vem da empresa: é concessão própria
+  // (`ops.usuario_recortes_financeiro`, ver `permissoesDoCockpit`).
+  const unidades = todasAsNavs.filter((u) => u.tipo !== "departamento");
   if (empresaIds.length === 0) return [];
 
   const { data: emps } = await fin

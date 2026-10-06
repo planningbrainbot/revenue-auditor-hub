@@ -84,6 +84,15 @@ export interface UnidadeDoCockpit {
   empresaIds: string[];
 }
 
+/**
+ * Unidade que é recorte por departamento dentro das empresas de outra
+ * (`unidades_navegacao.tipo = 'departamento'`: Negócios Estruturados, Finance).
+ * Ela não se deriva da empresa: é concedida à parte.
+ */
+export function ehRecorte(u: Pick<UnidadeDoCockpit, "tipo">): boolean {
+  return u.tipo === "departamento";
+}
+
 export interface PessoaComAcesso {
   userId: string;
   email: string;
@@ -141,7 +150,7 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
 
-    const [unidades, acessosRes, escopoRes, empresasRes, perfisRes, papeisRes] =
+    const [unidades, acessosRes, escopoRes, empresasRes, perfisRes, papeisRes, recortesRes] =
       await Promise.all([
         unidadesComEmpresas(),
         db.schema("public").from("produto_acesso").select("user_id").eq("produto", PRODUTO),
@@ -149,6 +158,7 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
         db.from("usuario_empresas").select("user_id, empresa_id"),
         db.schema("public").from("profiles").select("user_id, email, nome"),
         db.from("user_roles").select("user_id, role"),
+        db.from("usuario_recortes_financeiro").select("user_id, unidade_id"),
       ]);
 
     const ids = new Set(((acessosRes?.data ?? []) as any[]).map((a) => a.user_id as string));
@@ -161,6 +171,12 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
       s.add(l.empresa_id);
       empresasDe.set(l.user_id, s);
     }
+    const recortesDe = new Map<string, Set<string>>();
+    for (const r of (recortesRes?.data ?? []) as any[]) {
+      const s = recortesDe.get(r.user_id) ?? new Set<string>();
+      s.add(r.unidade_id);
+      recortesDe.set(r.user_id, s);
+    }
     const perfil = new Map(((perfisRes?.data ?? []) as any[]).map((p) => [p.user_id as string, p]));
     const papeis = new Map<string, string[]>();
     for (const r of (papeisRes?.data ?? []) as any[]) {
@@ -170,11 +186,17 @@ export const listarAcessosFinanceiro = createServerFn({ method: "GET" })
     const pessoas: PessoaComAcesso[] = [...ids].map((id) => {
       const todas = todasDe.get(id) ?? false;
       const minhas = empresasDe.get(id) ?? new Set<string>();
+      const meusRecortes = recortesDe.get(id) ?? new Set<string>();
       // Uma unidade aparece quando a pessoa tem PELO MENOS UMA das empresas
-      // dela — é o mesmo critério que o cockpit aplica ao emitir a sessão.
+      // dela — é o mesmo critério que o cockpit aplica ao emitir a sessão. O
+      // recorte por departamento é a exceção: só aparece se foi concedido.
       const unids = todas
         ? unidades.map((u) => u.id)
-        : unidades.filter((u) => u.empresaIds.some((e) => minhas.has(e))).map((u) => u.id);
+        : unidades
+            .filter((u) =>
+              ehRecorte(u) ? meusRecortes.has(u.id) : u.empresaIds.some((e) => minhas.has(e)),
+            )
+            .map((u) => u.id);
       const p = perfil.get(id);
       return {
         userId: id,
@@ -252,13 +274,14 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
     // resposta certa quando uma empresa nova é cadastrada amanhã. Gravar a
     // lista inteira faria a pessoa PERDER a empresa nova sem ninguém mexer.
     const tudo = data.unidades.length === unidades.length;
+    // Recorte por departamento (Negócios Estruturados, Finance) é concessão
+    // própria e NÃO grava as empresas do BPO: antes, dar só o Finance abria o
+    // BPO inteiro, e dar o BPO abria os dois recortes junto (06/10/2026).
+    const escolhidas = unidades.filter((u) => data.unidades.includes(u.id));
+    const recortes = tudo ? [] : escolhidas.filter(ehRecorte).map((u) => u.id);
     const empresaIds = tudo
       ? []
-      : Array.from(
-          new Set(
-            unidades.filter((u) => data.unidades.includes(u.id)).flatMap((u) => u.empresaIds),
-          ),
-        );
+      : Array.from(new Set(escolhidas.filter((u) => !ehRecorte(u)).flatMap((u) => u.empresaIds)));
 
     const flag = await db.from("usuario_escopo")
       .upsert({ user_id: data.userId, todas_empresas: tudo }, { onConflict: "user_id" })
@@ -274,6 +297,21 @@ export const definirEscoposFinanceiro = createServerFn({ method: "POST" })
       const { error: insErr } = await db.from("usuario_empresas")
         .insert(empresaIds.map((empresa_id) => ({ user_id: data.userId, empresa_id })));
       if (insErr) throw new Error(insErr.message);
+    }
+
+    // Recortes: mesma substituição inteira. Com "todas" a flag já cobre tudo.
+    const { error: delRecErr } = await db.from("usuario_recortes_financeiro")
+      .delete().eq("user_id", data.userId);
+    if (delRecErr) throw new Error(delRecErr.message);
+    if (recortes.length) {
+      const { error: insRecErr } = await db.from("usuario_recortes_financeiro").insert(
+        recortes.map((unidade_id) => ({
+          user_id: data.userId,
+          unidade_id,
+          concedido_por: context.userId,
+        })),
+      );
+      if (insRecErr) throw new Error(insRecErr.message);
     }
 
     const { data: perfil } = await db.schema("public").from("profiles")
@@ -325,6 +363,12 @@ export const revogarAcessoFinanceiro = createServerFn({ method: "POST" })
     const { error } = await db.schema("public").from("produto_acesso")
       .delete().eq("user_id", data.userId).eq("produto", PRODUTO);
     if (error) throw new Error(error.message);
+    // O recorte por departamento, ao contrário do escopo de empresas, é só do
+    // Financeiro: sai junto com a porta, para não voltar sozinho numa nova
+    // concessão.
+    const { error: recErr } = await db.from("usuario_recortes_financeiro")
+      .delete().eq("user_id", data.userId);
+    if (recErr) throw new Error(recErr.message);
 
     // A revogação só vale quando o app_metadata do outro lado é reescrito — o
     // guard do cockpit lê ELE, não esta tabela. Sem esta chamada a pessoa
