@@ -86,8 +86,11 @@ export type BuscaMonetizacao = {
   unidade?: string;
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
-  /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call. */
-  visao?: "cruzamento";
+  /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call;
+   *  "empresa" = Buscar empresa (o texto da busca vai em `q`). */
+  visao?: "cruzamento" | "empresa";
+  /** Consultoria, Buscar empresa: a ficha aberta (CNPJ, `card:<id>`, `deal:<id>` ou `cliente:<id>`). */
+  empresa?: string;
   /** Consultoria, visão Cruzamento: regime tributário da coorte do teste do CEO; ausente = todos. */
   regime?: Regime;
 };
@@ -137,7 +140,12 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     grafico:
       typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
-    visao: s.visao === "cruzamento" ? "cruzamento" : undefined,
+    visao: s.visao === "cruzamento" || s.visao === "empresa" ? s.visao : undefined,
+    empresa:
+      typeof s.empresa === "string" &&
+      /^(\d{11}|\d{14}|(card|deal):\d{1,15}|cliente:[\w-]{1,40})$/.test(s.empresa)
+        ? s.empresa
+        : undefined,
     regime: umDe(["real", "presumido", "simples", "sem"] as const, s.regime),
   };
 }

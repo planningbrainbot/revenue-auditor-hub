@@ -35,6 +35,15 @@ export interface ClienteApi {
   valor_identificado: number | string | null;
   credito_recuperado: number | string | null;
   projetos: ProjetoApi[] | null;
+  /** Desde 20261006200000 (Buscar empresa); ausentes no payload antigo. */
+  uf?: string | null;
+  municipio?: string | null;
+  cnae_descricao?: string | null;
+  ativo?: boolean | null;
+  situacao_receita?: string | null;
+  credito_aprovado?: number | string | null;
+  credito_saldo?: number | string | null;
+  credito_ultima_recuperacao_em?: string | null;
 }
 
 export interface PropostaApi {
