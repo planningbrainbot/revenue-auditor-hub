@@ -4685,3 +4685,9 @@ dentro de monetização ao vivo [...] Preciso auditar isso", com o "pode publica
 **Ponto de atenção:** a área `receita` está liberada para `admin`, `diretor`, `head` e `auditor`. A lista de despesas mostra o pagamento de cada PJ pelo nome. Se isso não puder chegar a `head`/`auditor`, a tela precisa de área própria (padrão `area:` no item, como o `broker_matriz`).
 
 **O Google Doc continua sendo gravado** enquanto o artifact estiver em uso.
+
+## [2026-10-06] Publicado: Financeiro semanal da Partners (adendo à entrada anterior)
+
+- Commit `ffd7fe4` na `main`, publicado por CLI: `dpl_58DHJHsrpdvkF75bdVrZFi3TtsJG`.
+- Bundle conferido no apex: `financeiro-semanal-Cbf95RbO.js` com o texto da tela, e o item "Caixa da Partners" no índice.
+- A pergunta sobre `head` e `auditor` verem os pagamentos de PJ por nome ficou aberta. A página saiu com a área `receita` inteira.
