@@ -29,6 +29,7 @@ import {
 } from "../supabase/functions/monetizacao-crm/revenue.mjs";
 import {
   cardDaEmpresa,
+  orgDaHomonima,
   dealPayload,
   hasCanonicalProduct,
   sameProductDeal,
@@ -807,4 +808,16 @@ test("Envio: um card por empresa no Caixa; Recon segue no próprio pipe", () => 
   assert.equal(v.sameProduct, false);
   assert.equal(cardDaEmpresa([{ ...cella, status: "lost" }], "consultoria", "2026-10"), null);
   assert.equal(cardDaEmpresa([cella], "recon", "2026-10"), null);
+});
+
+test("Organização homônima no CRM: fica a de mais negócios, e no empate a mais antiga", () => {
+  const deals = new Map([
+    [48781, []],
+    [2721, []],
+  ]);
+  assert.equal(orgDaHomonima([48781, 2721], deals), 2721);
+  deals.set(48781, [{ id: 1 }]);
+  assert.equal(orgDaHomonima([2721, 48781], deals), 48781);
+  assert.equal(orgDaHomonima([1757], new Map()), 1757);
+  assert.equal(orgDaHomonima([], new Map()), null);
 });

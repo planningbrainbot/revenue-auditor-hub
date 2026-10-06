@@ -170,7 +170,11 @@ function Verbete({ titulo, children }: { titulo: string; children: ReactNode }) 
 const REGRAS: [string, string][] = [
   [
     "Coorte",
-    "Todo número do funil e dos quadros conta os cards que o farmer tirou da Base elegível no período.",
+    "O funil e os quadros, menos o de contratos, contam os cards que o farmer tirou da Base elegível no período.",
+  ],
+  [
+    "Abordagem anterior",
+    "Card abordado antes do período que agendou, realizou ou validou no período aparece na nota do quadro e na lista, fora da taxa. Contrato ganho no período conta sempre, de qualquer mês de abordagem.",
   ],
   [
     "Etapa alcançada",

@@ -226,6 +226,52 @@ export function inicioDaAbordagem(c: Negocio, f: Filtro): string | null {
   return e.reduce((a, x) => (instante(x.at) < instante(a) ? x.at : a), e[0].at);
 }
 
+/** Card abordado antes do período que avançou nele: do nível em que estava no início (`de`) ao alcançado (`ate`). */
+export interface AvancoAnterior {
+  card: Negocio;
+  de: number;
+  ate: number;
+}
+
+/**
+ * Avanços de cards abordados antes do período (06/10/2026). A coorte só conta quem saiu da Base no período, então a
+ * reunião, a validação e o ganho de outubro de um card abordado em setembro não apareciam em lugar nenhum de outubro
+ * (Tag e Alves e Freitas, relato do Matheus). Ficam fora da coorte, que segue cumulativa, e vão para as notas dos
+ * quadros. `de` é o nível do último movimento antes do período; `ate`, o mais adiantado alcançado no período, pela
+ * mesma regra de etapa alcançada e só por movimento de quem o filtro mede. Card perdido ou ganho antes do período,
+ * ou sem abordagem anterior, fica de fora; só entra quem passou do nível em que estava.
+ */
+export function avancosDeAbordagemAnterior(
+  cards: Negocio[],
+  regua: Regua,
+  f: Filtro,
+  naCoorte: ReadonlySet<number>,
+): AvancoAnterior[] {
+  const t0 = inicioDoDia(f.from);
+  const out: AvancoAnterior[] = [];
+  for (const c of cards) {
+    if (naCoorte.has(c.id) || !c.events.started.some((e) => e.date < f.from)) continue;
+    if ((c.lost_on && c.lost_on < f.from) || c.events.signed.some((e) => e.date < f.from)) continue;
+    const mv = trajeto(c, regua);
+    const de = mv.filter((m) => m.t < t0).at(-1)?.nivel ?? 1;
+    let ate = de;
+    mv.forEach((m, i) => {
+      if (!noPeriodo(m.date, f) || m.t < t0 || (f.owner && m.actor_id !== f.owner)) return;
+      if (ficou(mv, i) && m.nivel > ate) ate = m.nivel;
+    });
+    if (c.events.signed.some((e) => noPeriodo(e.date, f) && (!f.owner || e.actor_id === f.owner)))
+      ate = regua.ganho;
+    if (ate > de) out.push({ card: c, de, ate });
+  }
+  return out;
+}
+
+/** Cards de abordagem anterior que chegaram no período a um nível que não tinham: `de < nivel ≤ ate`. */
+export const chegaramAoNivel = (avancos: AvancoAnterior[], nivel: number | undefined) =>
+  nivel === undefined
+    ? []
+    : avancos.filter((a) => a.de < nivel && nivel <= a.ate).map((a) => a.card);
+
 export interface LinhaCumulativa extends NivelRegua {
   /** Nível 0: os cards da fila. Demais: cards da coorte com nível ≥ este. */
   cards: Negocio[];
@@ -246,6 +292,8 @@ export interface FunilCumulativo {
   nivelDoCard: ReadonlyMap<number, number>;
   /** Ganhos no período, pelo filtro, de cards abordados em outro período (fora da coorte). */
   ganhosForaDaCoorte: Negocio[];
+  /** Cards abordados antes do período que avançaram nele (fora da coorte e da taxa). */
+  avancosAnteriores: AvancoAnterior[];
   /** Perdidos no período por quem marcou a perda (`lost_by`, carga v6). `null` antes da carga v4. */
   perdidos: Negocio[] | null;
   /** Abertos agora no pipe (filtro de produto). */
@@ -308,6 +356,7 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
     coorte,
     nivelDoCard,
     ganhosForaDaCoorte,
+    avancosAnteriores: avancosDeAbordagemAnterior(pool, regua, f, naCoorte),
     perdidos,
     abertos: abertos.length,
   };

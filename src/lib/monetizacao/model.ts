@@ -1,5 +1,5 @@
 import { ehDiaUtil } from "./feriados.ts";
-import { linhaDa } from "./funil-cumulativo.ts";
+import { chegaramAoNivel, linhaDa } from "./funil-cumulativo.ts";
 import { aplicarRegiaoFinance } from "./regiao.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
@@ -731,10 +731,14 @@ const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDi
 
 /**
  * Os cinco quadros de meta do farmer, na mesma coorte do funil (régua cumulativa, 01/10/2026): trabalhados,
- * agendados, realizados, validadas e ganhos saem dos mesmos cards, então validadas nunca passam de realizadas. Só os
- * trabalhados são ritmo: abordados ÷ dias úteis do período (segunda a sexta, sem feriado). Contrato é a contagem
- * contra a meta mensal proporcional aos dias úteis do período, arredondada para cima (contagem é sempre inteira).
- * Abaixo da meta num período que é só hoje é "dia em curso", não "fora".
+ * agendados, realizados e validadas saem dos mesmos cards, então validadas nunca passam de realizadas. Só os
+ * trabalhados são ritmo: abordados ÷ dias úteis do período (segunda a sexta, sem feriado). Abaixo da meta num período
+ * que é só hoje é "dia em curso", não "fora".
+ *
+ * Card abordado antes do período que avançou nele (06/10/2026, decisão do dono): agendados, realizados e validadas
+ * seguem na coorte e dizem na nota quantos chegaram à etapa vindos de abordagem anterior, que também entram na lista do
+ * quadro. Contrato conta todo ganho do período, da coorte ou não, contra a meta mensal proporcional aos dias úteis do
+ * período, arredondada para cima: é a mesma conta do Cockpit do CEO.
  */
 export function metasOperacao(
   fc: FunilCumulativo,
@@ -763,7 +767,14 @@ export function metasOperacao(
   const sobre = (a: number, b: number, de: string) =>
     b ? `${PCT.format(a / b)} ${de}` : `Nenhum ${de.replace(/^d[oa]s /, "")} no período`;
   const metaLeads = plan?.daily_target || null;
-  const fora = fc.ganhosForaDaCoorte.length;
+  const anteriores = (chave: "agendada" | "realizada" | "negociacao") =>
+    chegaramAoNivel(fc.avancosAnteriores ?? [], fc.regua.nivelDe[chave]);
+  const mais = (n: number) => (n ? ` · +${n} de abordagem anterior` : "");
+  const agendadosAntes = anteriores("agendada");
+  const realizadosAntes = anteriores("realizada");
+  const validadasAntes = anteriores("negociacao");
+  const fora = fc.ganhosForaDaCoorte;
+  const contratos = ganhos.length + fora.length;
   const quadros: QuadroMeta[] = [
     {
       chave: "started",
@@ -784,10 +795,11 @@ export function metasOperacao(
       total: agendados.length,
       meta: null,
       status: "sem-meta",
-      nota: sobre(agendados.length, abordados.length, "dos abordados"),
+      nota:
+        sobre(agendados.length, abordados.length, "dos abordados") + mais(agendadosAntes.length),
       formula:
-        "Abordados do período que chegaram a Reunião de levantamento agendada, ou a uma etapa depois dela, no período.",
-      cards: agendados,
+        "Abordados do período que chegaram a Reunião de levantamento agendada, ou a uma etapa depois dela, no período. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
+      cards: [...agendados, ...agendadosAntes],
     },
     {
       chave: "meeting",
@@ -796,10 +808,11 @@ export function metasOperacao(
       total: realizados.length,
       meta: null,
       status: "sem-meta",
-      nota: sobre(realizados.length, agendados.length, "dos agendados"),
+      nota:
+        sobre(realizados.length, agendados.length, "dos agendados") + mais(realizadosAntes.length),
       formula:
-        "Abordados do período que chegaram a Reunião de levantamento realizada (Stand by conta como realizada), ou além.",
-      cards: realizados,
+        "Abordados do período que chegaram a Reunião de levantamento realizada (Stand by conta como realizada), ou além. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
+      cards: [...realizados, ...realizadosAntes],
     },
     {
       chave: "validated",
@@ -808,28 +821,29 @@ export function metasOperacao(
       total: validadas.length,
       meta: null,
       status: "sem-meta",
-      nota: realizados.length
-        ? `${validadas.length} de ${realizados.length} realizados viraram oportunidade`
-        : "Nenhum levantamento realizado no período",
+      nota:
+        (realizados.length
+          ? `${validadas.length} de ${realizados.length} realizados viraram oportunidade`
+          : "Nenhum levantamento realizado no período") + mais(validadasAntes.length),
       formula:
-        "Abordados do período que chegaram a Em negociação ou além. Saem da mesma coorte dos realizados, então nunca passam deles.",
-      cards: validadas,
+        "Abordados do período que chegaram a Em negociação ou além. Saem da mesma coorte dos realizados, então nunca passam deles. Card abordado antes que validou no período aparece à parte, na nota e na lista.",
+      cards: [...validadas, ...validadasAntes],
     },
     {
       chave: "signed",
       rotulo: "Contratos ganhos",
-      valor: ganhos.length,
-      total: ganhos.length,
+      valor: contratos,
+      total: contratos,
       meta: metaContratos,
-      status: status(ganhos.length, metaContratos),
-      nota: fora
-        ? `Fora da coorte: ${fora} ${fora === 1 ? "ganho" : "ganhos"} de abordagem anterior`
+      status: status(contratos, metaContratos),
+      nota: fora.length
+        ? `${fora.length} de abordagem anterior`
         : plan?.target_contracts
           ? `Meta de ${plan.target_contracts} no mês, proporcional a ${n} de ${uteisMes} dias úteis`
           : "Meta do mês a definir",
       formula:
-        "Abordados do período marcados como ganhos no Pipedrive no período. Ganho de card abordado em outro período fica fora da coorte, e a nota diz quantos foram.",
-      cards: ganhos,
+        "Cards marcados como ganhos no Pipedrive no período, por quem o filtro mede, abordados no período ou antes: a mesma conta do Cockpit do CEO. A nota diz quantos vieram de abordagem anterior.",
+      cards: [...ganhos, ...fora],
     },
   ];
   return { quadros, uteis: n };
