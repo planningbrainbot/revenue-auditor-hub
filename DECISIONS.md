@@ -4818,3 +4818,24 @@ início, para os dois rankings não divergirem.
 **Consequência:** trimestre anterior à inauguração não lista mais a unidade (antes
 Maceió aparecia no 1º tri/2026 com trimestres negativos). Migration
 `20261007120000_idu_unidades_regionais_automatico.sql`, aplicada em 07/10/2026.
+
+## [2026-10-07] IDU: "Venda de novos clientes" vira "Hunter sócios"; "Venda para a base" fica sem dado
+
+**Contexto:** o indicador `novos` somava a venda que não vinha do pipe de Sócios,
+ou seja, o cliente que a matriz atribui à unidade. A venda do pipe de Sócios caía em
+`base` ("Venda para a base"). O dono corrigiu as duas definições: Hunter sócios é a
+venda feita pelos sócios no pipe de Sócios, e venda para a base é monetização (serviço
+novo para o mesmo cliente), que hoje não tem pipe que a controle.
+
+**Decisão:** `novos` passa a se chamar "Hunter sócios" e a somar `contratos` com
+`origem_pipeline = 'socios'`. Uma venda sem unidade cai na unidade do sócio dono do
+deal, a mesma regra de `v_hunter_socio` e `ranking_unidades`. A chave continua
+`novos`, então as metas lançadas seguem valendo. `base` fica sem dado e sai do
+denominador até ganhar fonte. A venda atribuída pela matriz sai do IDU.
+
+**Consequência medida no 3º tri/2026:** com a meta da rede de R$ 5.000 e peso 40 no
+Ramp-up, seis unidades caem de 100 para 32,7 (Campo Novo, São Luis, Fortaleza,
+Recife, São Bernardo e Sorocaba), porque têm pouca ou nenhuma venda de sócio. As
+Maduras não mudam. Também corrige `inicio <= p_fim` para `inicio < p_fim` (o `p_fim`
+do IDU é exclusivo). Migration `20261007150000_idu_hunter_socios.sql`, aplicada em
+07/10/2026.
