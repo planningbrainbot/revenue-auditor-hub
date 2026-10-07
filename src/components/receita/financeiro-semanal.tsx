@@ -588,7 +588,7 @@ function FaturadoRecebido({
         opcoes={chaves.map((k) => [k, maiuscula(R[k].mes)])}
       />
       <p className="text-base">
-        A Partners faturou <strong>{brl(r.faturado)}</strong> com vencimento em {r.mes} e recebeu{" "}
+        A Partners faturou <strong>{brl(r.faturado)}</strong> em {r.mes}. Desse faturamento, recebeu{" "}
         <strong>{brl(r.recebido)}</strong> ({pct}%).{" "}
         {aberto >= 1 && (
           <>
@@ -630,8 +630,9 @@ function FaturadoRecebido({
         total={["Total", brl(r.faturado), brl(r.recebido), brl(r.a_vencer), brl(r.atrasado)]}
       />
       <p className="text-sm text-muted-foreground">
-        Títulos a receber do Omie de receita (categorias 1.01 e 1.03), pelo vencimento. Entrou no
-        caixa em {r.mes}, contando pagamentos de títulos de outros meses:{" "}
+        Títulos a receber do Omie de receita (categorias 1.01 e 1.03) emitidos em {r.mes}. Título
+        emitido no mês anterior entra no mês anterior, mesmo vencendo neste. Entrou no caixa em{" "}
+        {r.mes}, contando pagamentos de títulos de outros meses:{" "}
         <strong className="text-foreground">{brl(r.caixa)}</strong>.
       </p>
     </Pergunta>
