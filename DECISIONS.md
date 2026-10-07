@@ -4888,3 +4888,19 @@ ainda lê o CSC dele; o valor vem do boleto.
 Migrations: `20261007190000_apuracao_contas_fixas.sql`,
 `20261007191000_csc_ciclos_leitura.sql` (csc_ciclos tinha RLS sem policy para
 admin/diretor).
+
+## [2026-10-07] Financeiro semanal mostra as baixas pendentes do Omie, calculadas a cada rodada
+
+**Contexto:** a Itaú - Partners tinha R$ 180.169,59 de saldo no Omie e cerca de R$ 18 mil no banco.
+A folha de 05/10 e outras saídas de 30/09 a 06/10 (R$ 184.863,47, 34 lançamentos) saíram do banco
+sem baixa no Omie. O saldo do Omie (`nSaldoAtual`) só conta lançamento com baixa, então o caixa da
+página ficava inflado e os mesmos R$ 184,9 mil apareciam como "despesas atrasadas".
+
+**Decisão:** a Edge Function `reporte-ceo` grava `baixas` por conta do fluxo de caixa: lançamentos
+do extrato com `cSituacao = "Previsto"` e data anterior à rodada, separados em saídas e entradas,
+com os 5 maiores nomes. A tela abre com o card "Saldo do Omie fora do banco: baixas pendentes",
+que some quando as baixas são feitas. A página não lê o banco nem guarda saldo digitado à mão; o
+conserto do número é dar baixa no Omie.
+
+**Descartado:** `dDataConciliacao` como "conciliado até". É a data em que a conciliação foi feita,
+não até onde ela chegou.
