@@ -316,7 +316,8 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
           acc.csc += Number((ap.csc_valor_fixo ?? ap.csc_base_antiga_valor ?? 0) as number);
           acc.cac += Number(ap.cac_valor ?? 0);
           acc.midia += Number(ap.csc_trafego_pago ?? 0);
-          acc.outras += Number(ap.outras_receitas ?? 0);
+          // CS, RH e Compliance do boleto de contas fixas contam como outras.
+          acc.outras += Number(ap.outras_receitas ?? 0) + Number(ap.servicos_fixos_valor ?? 0);
           acc.totalFatura += Number(ap.total_fatura ?? 0);
           acc.comApuracao += 1;
           return acc;
@@ -517,7 +518,9 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                             {ap ? brlOuTraco(Number(ap.csc_trafego_pago ?? 0)) : "—"}
                           </TableCell>
                           <TableCell className="num text-right">
-                            {ap ? brlOuTraco(Number(ap.outras_receitas ?? 0)) : "—"}
+                            {ap
+                              ? brlOuTraco(Number(ap.outras_receitas ?? 0) + Number(ap.servicos_fixos_valor ?? 0))
+                              : "—"}
                           </TableCell>
                           <TableCell className="num text-right font-semibold">
                             {ap ? brlOuTraco(Number(ap.total_fatura ?? 0)) : "—"}

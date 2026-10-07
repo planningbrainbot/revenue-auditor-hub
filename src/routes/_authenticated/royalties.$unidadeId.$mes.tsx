@@ -537,11 +537,19 @@ function ApuracaoLoaded({
   }
   const cscPctBaseAntiga = Number(u.csc_percentual_base_antiga ?? 0);
   const cscBaseAntigaValor = (receitaBaseAntiga * cscPctBaseAntiga) / 100;
-  const cscFixo = u.csc_valor_fixo != null ? Number(u.csc_valor_fixo) : null;
+  // Com boleto de contas fixas faturado, a parte fixa é a do boleto, não a do
+  // cadastro (desde 09/2026; ver royalties_aplicar_contas_fixas).
+  const doBoleto = apuracao.contas_fixas_ciclo_id != null;
+  const cscFixo = doBoleto
+    ? Number(apuracao.csc_valor_fixo ?? 0)
+    : u.csc_valor_fixo != null
+      ? Number(u.csc_valor_fixo)
+      : null;
   const cscEfetivo = cscFixo ?? (isCscVariavel ? cscBaseAntigaValor : 0);
   const outras = Number(apuracao.outras_receitas ?? 0);
   const trafegoPago = Number(apuracao.csc_trafego_pago ?? 0);
-  const totalFatura = cscEfetivo + royaltiesValor + cacValor + outras + trafegoPago;
+  const servicosFixos = Number(apuracao.servicos_fixos_valor ?? 0);
+  const totalFatura = cscEfetivo + royaltiesValor + cacValor + outras + trafegoPago + servicosFixos;
   const statusAp = STATUS_APURACAO[apuracao.status] ?? { label: apuracao.status, tom: "neutro" as TomStatus };
   const emAndamento = mesEmAndamento(mes);
   const fatura = faturaDaUnidade(faturasData?.faturas, Number(unidadeId));
@@ -634,8 +642,13 @@ function ApuracaoLoaded({
       cscLabel: cscFixo != null ? "CSC fixo" : `CSC variável (${cscPctBaseAntiga}%)`,
       cscValor: cscEfetivo,
       trafegoPago: apuracao.csc_trafego_pago,
-      outrasReceitas: outras,
-      outrasReceitasItens: outrasReceitasItens.map((it) => ({ nome: it.nome, valor: Number(it.valor) })),
+      outrasReceitas: outras + servicosFixos,
+      outrasReceitasItens: [
+        ...outrasReceitasItens.map((it) => ({ nome: it.nome, valor: Number(it.valor) })),
+        ...(servicosFixos > 0
+          ? [{ nome: "CS, RH e Compliance (boleto de contas fixas)", valor: servicosFixos }]
+          : []),
+      ],
       totalFatura,
       itens,
     };
@@ -1078,6 +1091,14 @@ function ApuracaoLoaded({
               )}
             </div>
           )}
+          {doBoleto && (
+            <div className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+              CSC, mídia e serviços fixos vêm do boleto de contas fixas já faturado no Omie
+              {apuracao.contas_fixas?.num_recibo ? ` (ND ${apuracao.contas_fixas.num_recibo}` : " ("}
+              {apuracao.contas_fixas?.cod_int_os ? `, ${apuracao.contas_fixas.cod_int_os})` : ")"}.
+              Para mudar, corrija o boleto.
+            </div>
+          )}
           <div className="border-t pt-3 space-y-2">
             {cscFixo != null ? (
               <ResumoLinha label="CSC fixo" value={brl(cscFixo)} bold />
@@ -1101,7 +1122,7 @@ function ApuracaoLoaded({
                 id="midia-trafego-pago"
                 type="number"
                 step="0.01"
-                disabled={readOnly}
+                disabled={readOnly || doBoleto}
                 defaultValue={apuracao.csc_trafego_pago ?? ""}
                 onBlur={(e) => {
                   const v = e.target.value === "" ? null : Number(e.target.value);
@@ -1111,6 +1132,9 @@ function ApuracaoLoaded({
                 }}
               />
             </div>
+            {servicosFixos > 0 && (
+              <ResumoLinha label="CS, RH e Compliance" value={brl(servicosFixos)} bold />
+            )}
             <OutrasReceitasSection
               itens={outrasReceitasItens}
               total={outras}
@@ -1127,6 +1151,7 @@ function ApuracaoLoaded({
             </div>
             <div className="text-xs text-muted-foreground">
               CSC + Royalties + CAC + Outras + Mídia (tráfego pago)
+              {servicosFixos > 0 ? " + CS, RH e Compliance" : ""}
             </div>
           </div>
 

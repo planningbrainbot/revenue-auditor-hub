@@ -26,6 +26,7 @@ export interface ApuracaoSummary {
   cac_valor: number | null;
   csc_trafego_pago: number | null;
   outras_receitas: number | null;
+  servicos_fixos_valor: number | null;
   confirmado_em: string | null;
 }
 
@@ -44,6 +45,10 @@ export interface ApuracaoFull {
   cac_valor: number | null;
   csc_trafego_pago: number | null;
   outras_receitas: number | null;
+  servicos_fixos_valor: number | null;
+  contas_fixas_ciclo_id: number | null;
+  /** Boleto de contas fixas de onde vem a parte fixa; `null` = cadastro, como antes de 09/2026. */
+  contas_fixas: { num_recibo: string | null; cod_int_os: string; vence_em: string | null } | null;
   total_fatura: number | null;
   confirmado_em: string | null;
   confirmado_por: string | null;
@@ -124,7 +129,7 @@ export const listRoyaltiesUnidades = createServerFn({ method: "GET" })
     const { data: aps, error: aErr } = await supabase
       .from("royalties_apuracao")
       .select(
-        "id,unidade_id,status,mes_referencia,total_fatura,receita_base,royalties_valor,csc_valor_fixo,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,confirmado_em",
+        "id,unidade_id,status,mes_referencia,total_fatura,receita_base,royalties_valor,csc_valor_fixo,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,confirmado_em",
       )
       .eq("mes_referencia", firstDay);
     if (aErr) throw new Error(aErr.message);
@@ -156,7 +161,10 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
       .eq("mes_referencia", firstDay)
       .maybeSingle();
     if (e1) throw new Error(e1.message);
-    if (existing) return { apuracao_id: existing.id, created: false };
+    if (existing) {
+      await aplicarContasFixas(supabase, existing.id);
+      return { apuracao_id: existing.id, created: false };
+    }
 
     const { data: u, error: uErr } = await supabase
       .from("unidades")
@@ -232,8 +240,30 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
       );
     }
 
+    // Depois da política: a cópia do mês anterior pode ter trazido Customer
+    // Success e Gente e Gestão, que desde 09/2026 saem no boleto de contas fixas.
+    await aplicarContasFixas(supabase, inserted.id);
+
     return { apuracao_id: inserted.id, created: true };
   });
+
+/**
+ * Traz para a apuração aberta a parte fixa que já foi faturada no boleto de
+ * contas fixas da competência (`ops.csc_ciclos`, SIGLA-FIX-MMAAAA): CSC, mídia e
+ * CS + RH + Compliance. Sem boleto faturado, nada muda e vale o cadastro.
+ * Decisão do usuário em 07/10/2026: o que já foi faturado no Omie entra na
+ * apuração. Mês fechado a RPC não toca.
+ */
+async function aplicarContasFixas(supabase: any, apuracao_id: number) {
+  const { error } = await supabase.rpc("royalties_aplicar_contas_fixas", {
+    p_apuracao_id: apuracao_id,
+  });
+  if (error) {
+    throw new Error(
+      `Apuração ${apuracao_id}: não deu para ler o boleto de contas fixas (${error.message}).`,
+    );
+  }
+}
 
 // Churn sem recebimento no mês não precisa de revisão manual — o item já nasce
 // (ou é atualizado/self-healed) excluído do mês automaticamente. Se HOUVER valor
@@ -988,7 +1018,7 @@ export const getApuracao = createServerFn({ method: "GET" })
       const { data: ap, error: apErr } = await supabase
         .from("royalties_apuracao")
         .select(
-          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,total_fatura,confirmado_em,confirmado_por,observacao,unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras)",
+          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,contas_fixas_ciclo_id,total_fatura,confirmado_em,confirmado_por,observacao,contas_fixas:csc_ciclos(num_recibo,cod_int_os,vence_em),unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras)",
         )
         .eq("id", data.apuracao_id)
         .single();
@@ -1348,6 +1378,17 @@ export const updateApuracao = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
+    if ("csc_trafego_pago" in data) {
+      const { data: atual, error: atualErr } = await supabase
+        .from("royalties_apuracao")
+        .select("contas_fixas_ciclo_id")
+        .eq("id", data.id)
+        .single();
+      if (atualErr) throw new Error(atualErr.message);
+      if (atual.contas_fixas_ciclo_id != null) {
+        throw new Error("A mídia desta apuração vem do boleto de contas fixas já faturado.");
+      }
+    }
     const patch: any = {};
     if ("csc_trafego_pago" in data) patch.csc_trafego_pago = data.csc_trafego_pago;
     if ("outras_receitas" in data) patch.outras_receitas = data.outras_receitas;
@@ -1470,10 +1511,13 @@ export const fecharApuracao = createServerFn({ method: "POST" })
     const { supabase, userId, claims } = context;
     await assertAdmin(supabase, userId);
 
+    // O boleto de contas fixas pode ter sido faturado depois de a apuração abrir.
+    await aplicarContasFixas(supabase, data.id);
+
     const { data: ap, error: apErr } = await supabase
       .from("royalties_apuracao")
       .select(
-        "id,status,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,outras_receitas,csc_trafego_pago",
+        "id,status,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,outras_receitas,csc_trafego_pago,servicos_fixos_valor,contas_fixas_ciclo_id",
       )
       .eq("id", data.id)
       .single();
@@ -1518,7 +1562,11 @@ export const fecharApuracao = createServerFn({ method: "POST" })
     const cscEfetivo = cscFixo ?? (ap.csc_percentual_base_antiga != null ? cscBaseAntigaValor : 0);
     const outras = Number(ap.outras_receitas ?? 0);
     const trafegoPago = Number(ap.csc_trafego_pago ?? 0);
-    const total = cscEfetivo + royalties + cacValor + outras + trafegoPago;
+    const servicosFixos = Number(ap.servicos_fixos_valor ?? 0);
+    const total = cscEfetivo + royalties + cacValor + outras + trafegoPago + servicosFixos;
+    // Com boleto de contas fixas o CSC é o fixo do boleto; a base antiga não
+    // cobra nada (Patos de Minas virou fixo de R$ 5.000 em 09/2026).
+    const doBoleto = ap.contas_fixas_ciclo_id != null;
 
     // Atualizar royalties_item por item (em paralelo para evitar estado parcial)
     const { data: itensFull, error: itensFullErr } = await supabase
@@ -1558,7 +1606,8 @@ export const fecharApuracao = createServerFn({ method: "POST" })
         royalties_valor: royalties,
         cac_valor: cacValor,
         receita_base_antiga: receitaBaseAntiga,
-        csc_base_antiga_valor: ap.csc_percentual_base_antiga != null ? cscBaseAntigaValor : null,
+        csc_base_antiga_valor:
+          ap.csc_percentual_base_antiga != null && !doBoleto ? cscBaseAntigaValor : null,
         total_fatura: total,
         confirmado_em: new Date().toISOString(),
         confirmado_por: email ?? userId,

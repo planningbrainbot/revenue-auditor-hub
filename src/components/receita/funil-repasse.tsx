@@ -24,17 +24,25 @@ import { brlOuTraco, pctOuTraco, rotuloDia } from "./moldura";
  * degrau (DATA-RULES: "apurado = cobrado"; divergir do caixa é inadimplência,
  * divergir da cobrança é problema de dado).
  *
- * Só entram unidades com a apuração fechada: rascunho ainda muda de valor, e
- * já tem card próprio em "O que pede atenção".
+ * Entram unidades com a apuração fechada: rascunho ainda muda de valor, e já
+ * tem card próprio em "O que pede atenção". A exceção é o boleto de contas
+ * fixas (desde 09/2026): já faturado, entra mesmo com a apuração aberta, e a
+ * unidade fica "parcial" até o resto fechar.
  */
 
 const NOME_COMPONENTE: Record<ComponenteFunil, string> = {
   nd: "ND de royalties, CAC e outras",
   csc: "CSC",
   midia: "Mídia",
+  fixo: "Boleto de contas fixas (CSC, mídia, CS, RH e Compliance)",
 };
 
-const NOME_CURTO: Record<ComponenteFunil, string> = { nd: "ND", csc: "CSC", midia: "Mídia" };
+const NOME_CURTO: Record<ComponenteFunil, string> = {
+  nd: "ND",
+  csc: "CSC",
+  midia: "Mídia",
+  fixo: "Contas fixas",
+};
 
 function seloDoTitulo(status: string | null): { tom: TomStatus; texto: string } {
   switch (status) {
@@ -120,6 +128,8 @@ export function FunilRepasse({
       .sort((a, b) => b.valor - a.valor);
     return {
       fechadas: fechadas.length,
+      completas: fechadas.filter((u) => !u.funil!.parcial).length,
+      parciais: fechadas.filter((u) => u.funil!.parcial).length,
       abertas: unidades.filter((u) => !u.funil).length,
       apurado: soma((u) => u.funil!.apurado),
       faturado: soma((u) => u.funil!.faturado),
@@ -147,9 +157,11 @@ export function FunilRepasse({
             Do apurado ao recebido: quanto já virou dinheiro?
           </h3>
           <p className="text-[13px] text-muted-foreground">
-            {r.fechadas} unidade(s) com a apuração de {nomeMes} fechada
-            {r.abertas > 0 && ` · ${r.abertas} ainda aberta(s) ficam fora`} · faturado pelos títulos
-            da Partners no mês seguinte, recebido pelo status do título no Omie
+            {r.completas} unidade(s) com a apuração de {nomeMes} fechada
+            {r.parciais > 0 &&
+              ` · ${r.parciais} só com o boleto de contas fixas (royalties, CAC e outras entram quando a apuração fechar)`}
+            {r.abertas > 0 && ` · ${r.abertas} sem nada faturado ficam fora`} · faturado pelos
+            títulos da Partners no mês seguinte, recebido pelo status do título no Omie
           </p>
         </div>
         <Button asChild variant="outline" size="sm">

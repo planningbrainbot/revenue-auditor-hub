@@ -4857,3 +4857,34 @@ como número inteiro.
 indicador fica fora da nota; a única meta existente é a de Curitiba no 3º tri (0, lançada
 quando a medida era R$), que hoje dá 120% do peso. Migration
 `20261007170000_idu_venda_base_monetizacao.sql`, aplicada em 07/10/2026.
+
+## [2026-10-07] A apuração lê o boleto de contas fixas já faturado no Omie
+
+**Contexto:** o funil apurado → faturado → recebido sumiu de /receita-overview em
+outubro. Causa: o componente se esconde quando nenhuma apuração do mês está
+fechada, e em 07/10 setembro tinha só 2 rascunhos. Mas setembro já tinha
+R$ 214.000 faturados no boleto de contas fixas (`SIGLA-FIX-092026`, 11 unidades,
+CSC + mídia + CS + RH + Compliance), que nem a apuração nem o funil liam: o
+funil só conhecia a ND da rotina e os avulsos 1.01.96/1.03.96, e CS/RH/Compliance
+tinham saído de "outras receitas" em 01/10 para não cobrar duas vezes.
+Pedido do dono: "o que eu já faturei no Omie precisa entrar na apuração".
+
+**Decisão:** a partir da competência 09/2026, o boleto faturado (`ops.csc_ciclos`,
+status `faturada`) é a fonte da parte fixa da apuração:
+`csc_valor_fixo` = item csc, `csc_trafego_pago` = item mídia, coluna nova
+`servicos_fixos_valor` = cs + gg + comp, e `contas_fixas_ciclo_id` aponta o
+boleto. RPC `ops.royalties_aplicar_contas_fixas` roda ao abrir e ao fechar a
+apuração; só mexe em apuração aberta; tira de "outras receitas" as linhas de
+Customer Success / Gente / Compliance quando o boleto já as cobra. A mídia fica
+travada na tela quando vem do boleto. A ND de royalties não muda (royalties +
+CAC + outras). No funil, trilho novo `fixo` casado pelo `cod_titulo`; ele entra
+mesmo com a apuração aberta (unidade "parcial").
+
+**Patos de Minas:** o CSC virou fixo de R$ 5.000 a partir de 09/2026 (antes 4%
+sobre a base antiga). Decisão do dono em 07/10/2026. O cadastro da unidade
+(`unidades.csc_valor_fixo`) NÃO foi alterado, porque a tela de meses fechados
+ainda lê o CSC dele; o valor vem do boleto.
+
+Migrations: `20261007190000_apuracao_contas_fixas.sql`,
+`20261007191000_csc_ciclos_leitura.sql` (csc_ciclos tinha RLS sem policy para
+admin/diretor).

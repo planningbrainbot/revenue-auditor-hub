@@ -72,9 +72,12 @@ export interface FaturaDoRepasse {
  *   e outras receitas, mais as notas avulsas de `1.01.99` (CS, Gente) que cobrem
  *   o que entrou na apuração depois da ND sair;
  * - `csc`: títulos `1.01.96` (CSC fixo e base antiga);
- * - `midia`: títulos `1.03.96` (reembolso de tráfego pago).
+ * - `midia`: títulos `1.03.96` (reembolso de tráfego pago);
+ * - `fixo`: desde a competência 09/2026, o boleto de contas fixas
+ *   (`ops.csc_ciclos`, SIGLA-FIX-MMAAAA) com CSC + mídia + CS + RH + Compliance
+ *   num título só. Quando ele existe, substitui os trilhos `csc` e `midia`.
  */
-export type ComponenteFunil = "nd" | "csc" | "midia";
+export type ComponenteFunil = "nd" | "csc" | "midia" | "fixo";
 
 export interface TituloEmAberto {
   componente: ComponenteFunil;
@@ -86,6 +89,11 @@ export interface TituloEmAberto {
 
 /** Apurado → faturado → recebido de uma unidade com o mês fechado. */
 export interface FunilUnidade {
+  /**
+   * `true` quando a apuração ainda não fechou e só o boleto de contas fixas
+   * entra: ele já foi faturado, o resto (royalties, CAC, outras) ainda muda.
+   */
+  parcial: boolean;
   apurado: number;
   /** Cobrado até o apurado, componente a componente (o excedente fica em `acimaDoApurado`). */
   faturado: number;
@@ -109,7 +117,10 @@ export interface RepasseUnidade {
   outras: number;
   receitaBase: number | null;
   fatura: FaturaDoRepasse | null;
-  /** `null` enquanto a apuração não fecha: o que não fechou não entra no funil. */
+  /**
+   * `null` enquanto a apuração não fecha e não há boleto de contas fixas
+   * faturado. Com o boleto e a apuração aberta, o funil é parcial.
+   */
   funil: FunilUnidade | null;
 }
 
@@ -202,7 +213,7 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
     const cobrancaInicio = proximoMesPrimeiroDia(data.mes);
     const cobrancaFim = primeiroDia(data.mes, 2);
 
-    const [unidadesRes, apuracoesRes, faturasRes, reconcRes, avulsosRes] = await Promise.all([
+    const [unidadesRes, apuracoesRes, faturasRes, reconcRes, avulsosRes, boletosRes] = await Promise.all([
       sb
         .from("unidades")
         .select("id,nome_da_praca,cnpj")
@@ -213,7 +224,8 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
             .from("royalties_apuracao")
             .select(
               "id,unidade_id,mes_referencia,status,receita_base,royalties_valor,csc_valor_fixo," +
-                "csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,total_fatura",
+                "csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor," +
+                "contas_fixas_ciclo_id,total_fatura",
             )
             .gte("mes_referencia", inicio)
             .lt("mes_referencia", fimExclusivo)
@@ -243,6 +255,15 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
             .gte("data_vencimento", cobrancaInicio)
             .lt("data_vencimento", cobrancaFim)
         : Promise.resolve({ data: [], error: null }),
+      // O boleto de contas fixas da competência, já faturado. A unidade sai de
+      // `csc_unidades` pela sigla.
+      podeRepasse
+        ? sb
+            .from("csc_ciclos")
+            .select("id,sigla,valor,cod_titulo,vence_em,itens")
+            .eq("competencia", mesInicio)
+            .eq("status", "faturada")
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     for (const [rotulo, res] of [
@@ -251,6 +272,7 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       ["Faturas", faturasRes],
       ["Receita da rede", reconcRes],
       ["Títulos avulsos do repasse", avulsosRes],
+      ["Boletos de contas fixas", boletosRes],
     ] as const) {
       if (res.error) throw new Error(`${rotulo}: ${res.error.message}`);
     }
@@ -330,7 +352,8 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       alvo.csc += csc;
       alvo.cac += N(a.cac_valor);
       alvo.midia += N(a.csc_trafego_pago);
-      alvo.outras += N(a.outras_receitas);
+      // CS, RH e Compliance do boleto de contas fixas contam como outras.
+      alvo.outras += N(a.outras_receitas) + N(a.servicos_fixos_valor);
       alvo.total += N(a.total_fatura);
       alvo.comApuracao += 1;
       // Take rate só sobre mês fechado: rascunho ainda não tem receita base
@@ -370,21 +393,93 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       avulsosPorUnidade.set(id, lista);
     }
 
+    // Boleto de contas fixas por unidade, com o título dele na Partners. O
+    // título sai dos avulsos: o de Sorocaba, por exemplo, vem com 1.01.96 e
+    // seria contado de novo como CSC.
+    const boletos = (boletosRes.data ?? []) as any[];
+    const boletoPorUnidade = new Map<number, { valor: number; titulo: any | null; vence_em: string | null }>();
+    if (boletos.length > 0) {
+      const [siglasRes, titulosBoletoRes] = await Promise.all([
+        sb.from("csc_unidades").select("sigla,unidade_id"),
+        sb
+          .from("contas_receber")
+          .select("codigo_omie,status_pagamento,data_vencimento,valor")
+          .in(
+            "codigo_omie",
+            boletos.map((b) => b.cod_titulo).filter((x) => x != null),
+          ),
+      ]);
+      if (siglasRes.error) throw new Error(`Siglas das unidades: ${siglasRes.error.message}`);
+      if (titulosBoletoRes.error)
+        throw new Error(`Títulos das contas fixas: ${titulosBoletoRes.error.message}`);
+      const unidadeDaSigla = new Map<string, number>(
+        (siglasRes.data ?? []).map((x: any) => [x.sigla, x.unidade_id] as const),
+      );
+      const tituloDoBoleto = new Map<number, any>(
+        (titulosBoletoRes.data ?? []).map((t: any) => [Number(t.codigo_omie), t] as const),
+      );
+      for (const b of boletos) {
+        const id = unidadeDaSigla.get(b.sigla);
+        if (id == null) continue;
+        boletoPorUnidade.set(id, {
+          valor: N(b.valor),
+          titulo: b.cod_titulo != null ? (tituloDoBoleto.get(Number(b.cod_titulo)) ?? null) : null,
+          vence_em: b.vence_em,
+        });
+      }
+      const codigosDosBoletos = new Set(boletos.map((b) => Number(b.cod_titulo)));
+      for (const [id, lista] of avulsosPorUnidade) {
+        avulsosPorUnidade.set(
+          id,
+          lista.filter((t) => !codigosDosBoletos.has(Number(t.codigo_omie))),
+        );
+      }
+    }
+
     /**
      * O funil de uma unidade, componente a componente. O faturado de cada
      * trilho é limitado ao apurado dele: título a mais no mês de cobrança (CSC
      * atrasado de outra competência, por exemplo) não pode tapar o que faltou
      * cobrar em outro trilho, e vai para `acimaDoApurado`.
      */
-    function funilDa(a: any, fatura: FaturaDoRepasse | null, avulsos: any[]): FunilUnidade {
+    function funilDa(
+      a: any | null,
+      fatura: FaturaDoRepasse | null,
+      avulsos: any[],
+      boleto: { valor: number; titulo: any | null; vence_em: string | null } | null,
+    ): FunilUnidade {
+      const parcial = !a;
+      // Apuração ligada ao boleto: a parte fixa apurada é a do boleto (CSC +
+      // mídia + serviços). Sem apuração fechada, só o boleto entra.
+      const fixoApurado = a
+        ? a.contas_fixas_ciclo_id != null
+          ? N(a.csc_valor_fixo) + N(a.csc_trafego_pago) + N(a.servicos_fixos_valor)
+          : 0
+        : (boleto?.valor ?? 0);
+      const usaFixo = parcial || a.contas_fixas_ciclo_id != null;
       const apuradoPor: Record<ComponenteFunil, number> = {
-        nd: N(a.royalties_valor) + N(a.cac_valor) + N(a.outras_receitas),
-        csc: N(a.csc_valor_fixo) + N(a.csc_base_antiga_valor),
-        midia: N(a.csc_trafego_pago),
+        nd: a ? N(a.royalties_valor) + N(a.cac_valor) + N(a.outras_receitas) : 0,
+        csc: usaFixo ? 0 : N(a.csc_valor_fixo) + N(a.csc_base_antiga_valor),
+        midia: usaFixo ? 0 : N(a.csc_trafego_pago),
+        fixo: fixoApurado,
       };
-      const cobradoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0 };
-      const pagoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0 };
+      const cobradoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0, fixo: 0 };
+      const pagoPor: Record<ComponenteFunil, number> = { nd: 0, csc: 0, midia: 0, fixo: 0 };
       const titulosEmAberto: TituloEmAberto[] = [];
+
+      if (boleto) {
+        const t = boleto.titulo;
+        const valor = t ? N(t.valor) : boleto.valor;
+        cobradoPor.fixo += valor;
+        if (t?.status_pagamento === "RECEBIDO") pagoPor.fixo += valor;
+        else
+          titulosEmAberto.push({
+            componente: "fixo",
+            valor,
+            vencimento: t?.data_vencimento ?? boleto.vence_em,
+            status: t?.status_pagamento ?? null,
+          });
+      }
 
       if (fatura && FATURA_VALIDA(fatura.status)) {
         cobradoPor.nd += fatura.valor_total;
@@ -397,7 +492,7 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
             status: fatura.recebimento?.status ?? null,
           });
       }
-      for (const t of avulsos) {
+      for (const t of parcial ? [] : avulsos) {
         const c = CATEGORIA_FUNIL[t.codigo_categoria];
         if (!c) continue;
         cobradoPor[c] += N(t.valor);
@@ -416,7 +511,7 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       let recebido = 0;
       const acimaDoApurado: FunilUnidade["acimaDoApurado"] = [];
       const naoFaturado: FunilUnidade["naoFaturado"] = [];
-      for (const c of ["nd", "csc", "midia"] as const) {
+      for (const c of ["nd", "csc", "midia", "fixo"] as const) {
         const ap = centavos(apuradoPor[c]);
         const fat = Math.min(ap, centavos(cobradoPor[c]));
         apurado += ap;
@@ -428,6 +523,7 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
       }
       titulosEmAberto.sort((x, y) => String(x.vencimento).localeCompare(String(y.vencimento)));
       return {
+        parcial,
         apurado: centavos(apurado),
         faturado: centavos(faturado),
         recebido: centavos(recebido),
@@ -464,7 +560,11 @@ export const carregarReceitaRepasses = createServerFn({ method: "GET" })
         outras: N(a?.outras_receitas),
         receitaBase: a?.receita_base == null ? null : N(a.receita_base),
         fatura,
-        funil: fechada ? funilDa(a, fatura, avulsosPorUnidade.get(u.id) ?? []) : null,
+        funil: fechada
+          ? funilDa(a, fatura, avulsosPorUnidade.get(u.id) ?? [], boletoPorUnidade.get(u.id) ?? null)
+          : boletoPorUnidade.has(u.id)
+            ? funilDa(null, null, [], boletoPorUnidade.get(u.id)!)
+            : null,
       };
     });
 

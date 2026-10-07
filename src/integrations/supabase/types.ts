@@ -4006,6 +4006,7 @@ export type Database = {
           created_at: string | null
           csc_base_antiga_valor: number | null
           csc_percentual_base_antiga: number | null
+          contas_fixas_ciclo_id: number | null
           csc_trafego_pago: number | null
           csc_valor_fixo: number | null
           id: number
@@ -4016,6 +4017,7 @@ export type Database = {
           receita_base_antiga: number | null
           royalties_percentual: number | null
           royalties_valor: number | null
+          servicos_fixos_valor: number | null
           status: string
           total_fatura: number | null
           unidade_id: number
@@ -4028,6 +4030,7 @@ export type Database = {
           created_at?: string | null
           csc_base_antiga_valor?: number | null
           csc_percentual_base_antiga?: number | null
+          contas_fixas_ciclo_id?: number | null
           csc_trafego_pago?: number | null
           csc_valor_fixo?: number | null
           id?: number
@@ -4038,6 +4041,7 @@ export type Database = {
           receita_base_antiga?: number | null
           royalties_percentual?: number | null
           royalties_valor?: number | null
+          servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null
           unidade_id: number
@@ -4050,6 +4054,7 @@ export type Database = {
           created_at?: string | null
           csc_base_antiga_valor?: number | null
           csc_percentual_base_antiga?: number | null
+          contas_fixas_ciclo_id?: number | null
           csc_trafego_pago?: number | null
           csc_valor_fixo?: number | null
           id?: number
@@ -4060,6 +4065,7 @@ export type Database = {
           receita_base_antiga?: number | null
           royalties_percentual?: number | null
           royalties_valor?: number | null
+          servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null
           unidade_id?: number
