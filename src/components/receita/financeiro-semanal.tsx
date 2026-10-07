@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { MolduraReceita } from "@/components/receita/moldura";
 import {
   carregarReporteCeo,
+  type PendenciaBaixa,
   type ReporteCeo,
   type SituacaoTitulo,
 } from "@/lib/reporte-ceo.functions";
@@ -290,6 +291,8 @@ function Conteudo({ D }: { D: ReporteCeo }) {
   return (
     <>
       <p className="text-sm text-muted-foreground">Semana de {D.hoje}</p>
+
+      <Baixas D={D} />
 
       <Pergunta n={1} titulo={`Esta semana: ${w0.ini} a ${w0.fim}`} farol={f1}>
         <p className="text-base">
@@ -635,6 +638,50 @@ function FaturadoRecebido({
         {r.mes}, contando pagamentos de títulos de outros meses:{" "}
         <strong className="text-foreground">{brl(r.caixa)}</strong>.
       </p>
+    </Pergunta>
+  );
+}
+
+// Lançamento do extrato com data passada e ainda "Previsto" está sem baixa: o saldo do Omie não o
+// conta. Em 07/10/2026 a folha de 05/10 saiu do Itaú sem baixa, e o Omie mostrava R$ 180 mil em
+// conta contra R$ 18 mil no banco. O card some quando as baixas são feitas.
+function Baixas({ D }: { D: ReporteCeo }) {
+  const contas = (D.baixas ?? []).filter((c) => c.saidas || c.entradas);
+  if (contas.length === 0) return null;
+  const lista = (p: PendenciaBaixa, verbo: string) => (
+    <>
+      <p className="text-sm">
+        <strong>{brl(p.valor)}</strong> {verbo} de {p.de} a {p.ate} ({p.n} lançamento
+        {p.n > 1 ? "s" : ""}) estão sem baixa.
+      </p>
+      <Tabela
+        cab={[verbo === "em pagamentos" ? "Fornecedor" : "Cliente", "Sem baixa"]}
+        linhas={p.top.map((t) => [t.nome, brl(t.valor)])}
+      />
+    </>
+  );
+  return (
+    <Pergunta titulo="Saldo do Omie fora do banco: baixas pendentes" farol="bad">
+      <p className="text-base">
+        O saldo do Omie só conta o que tem baixa. Pagamento feito no banco e sem baixa deixa o saldo
+        do Omie acima do banco e aparece abaixo como despesa atrasada. Recebimento que caiu no banco
+        e sem baixa deixa o saldo abaixo do banco e aparece como vencido a receber.
+      </p>
+      {contas.map((c) => (
+        <div key={c.conta} className="flex flex-col gap-2 border-t pt-3">
+          <h3 className="text-sm font-semibold">
+            {c.conta}: {brl(c.saldo)} em conta no Omie
+          </h3>
+          {c.saidas && lista(c.saidas, "em pagamentos")}
+          {c.entradas && lista(c.entradas, "em recebimentos")}
+        </div>
+      ))}
+      <Nota>
+        <p>
+          Para o caixa desta página bater com o banco, importe o extrato do banco no Omie e dê baixa
+          nesses lançamentos. A página recalcula às 12h e às 18h.
+        </p>
+      </Nota>
     </Pergunta>
   );
 }

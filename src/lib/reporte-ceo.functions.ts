@@ -19,6 +19,15 @@ export interface ParteReceita {
   atrasado: number;
 }
 
+/** Lançamentos do extrato ainda "Previsto" com data anterior à rodada: estão sem baixa no Omie. */
+export interface PendenciaBaixa {
+  valor: number;
+  n: number;
+  de: string;
+  ate: string;
+  top: { nome: string; valor: number }[];
+}
+
 export interface ReporteCeo {
   hoje: string;
   gerado_em: string;
@@ -64,6 +73,13 @@ export interface ReporteCeo {
     string,
     ParteReceita & { mes: string; caixa: number; clientes: (ParteReceita & { nome: string })[] }
   >;
+  /** Por conta do fluxo de caixa. Ausente nos retratos gravados antes de 07/10/2026. */
+  baixas?: {
+    conta: string;
+    saldo: number;
+    saidas: PendenciaBaixa | null;
+    entradas: PendenciaBaixa | null;
+  }[];
 }
 
 export const carregarReporteCeo = createServerFn({ method: "GET" })
