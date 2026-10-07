@@ -4800,3 +4800,21 @@ esperar o Mikael ("troca e publica tu").
 
 **Aberto:** o bot tem 2 vagas simultâneas (padrão de `JOINER_MAX_SIMULTANEAS`). Na semana até 06/10, 8 de 29 pedidos
 pelo formulário nunca foram pegos, todos em minutos com 2 ou 3 pedidos juntos. Subir as vagas é com o Mikael.
+
+## [2026-10-07] IDU inclui toda unidade regional sozinho, desde o trimestre do cadastro
+
+**Contexto:** São Bernardo, Recife e Sorocaba (cadastradas em 16/09/2026) não
+apareciam no IDU nem no ranking da rede. `idu_apuracao` só pegava unidade com
+`data_inauguracao` preenchida, e as três nasceram sem a data. O pedido foi
+incluir as três e não depender mais de ninguém lembrar disso a cada unidade nova.
+
+**Decisão:** entra no IDU toda linha de `ops.unidades` com `tipo = 'regional'`. A
+data de início é `coalesce(data_inauguracao, created_at::date)`: a unidade aparece
+a partir do trimestre da inauguração, ou do trimestre em que foi cadastrada se a
+data ainda não existir, e entra como Ramp-up. As internas (Goiânia, Consultoria,
+Construção Civil, São Paulo) ficam fora. `ranking_unidades` usa a mesma data de
+início, para os dois rankings não divergirem.
+
+**Consequência:** trimestre anterior à inauguração não lista mais a unidade (antes
+Maceió aparecia no 1º tri/2026 com trimestres negativos). Migration
+`20261007120000_idu_unidades_regionais_automatico.sql`, aplicada em 07/10/2026.
