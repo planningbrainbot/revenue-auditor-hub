@@ -384,7 +384,9 @@ function Conteudo({ D }: { D: ReporteCeo }) {
         />
       </Pergunta>
 
-      <Pergunta n={4} titulo="Risco e decisão">
+      {D.receita_mes && <FaturadoRecebido R={D.receita_mes} mesAtual={D.hoje.slice(3, 5)} />}
+
+      <Pergunta n={D.receita_mes ? 5 : 4} titulo="Risco e decisão">
         <div className="rounded-md border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
           Risco: a escrever
         </div>
@@ -525,6 +527,117 @@ function Conteudo({ D }: { D: ReporteCeo }) {
   );
 }
 
+function Chips({
+  rotulo,
+  atual,
+  mudar,
+  opcoes,
+}: {
+  rotulo: string;
+  atual: string;
+  mudar: (v: string) => void;
+  opcoes: [string, string][];
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label={rotulo}>
+      {opcoes.map(([v, r]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={atual === v}
+          onClick={() => mudar(v)}
+          className={cn(
+            "rounded-full border px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            atual === v
+              ? "border-primary bg-primary font-semibold text-primary-foreground"
+              : "bg-card",
+          )}
+        >
+          {r}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const maiuscula = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+function FaturadoRecebido({
+  R,
+  mesAtual,
+}: {
+  R: NonNullable<ReporteCeo["receita_mes"]>;
+  mesAtual: string;
+}) {
+  const chaves = Object.keys(R);
+  const [mes, setMes] = useState(
+    String(+mesAtual) in R ? String(+mesAtual) : chaves[chaves.length - 1],
+  );
+  const r = R[mes];
+  const aberto = r.a_vencer + r.atrasado;
+  const pct = r.faturado ? Math.round((100 * r.recebido) / r.faturado) : 0;
+  const farol: Farol =
+    r.atrasado < 1 ? "ok" : r.atrasado / (r.faturado || 1) < 0.15 ? "warn" : "bad";
+
+  return (
+    <Pergunta n={4} titulo={`Faturado x recebido de ${r.mes}`} farol={farol}>
+      <Chips
+        rotulo="Mês"
+        atual={mes}
+        mudar={setMes}
+        opcoes={chaves.map((k) => [k, maiuscula(R[k].mes)])}
+      />
+      <p className="text-base">
+        A Partners faturou <strong>{brl(r.faturado)}</strong> com vencimento em {r.mes} e recebeu{" "}
+        <strong>{brl(r.recebido)}</strong> ({pct}%).{" "}
+        {aberto >= 1 && (
+          <>
+            Faltam <strong>{brl(aberto)}</strong>: {brl(r.a_vencer)} a vencer e {brl(r.atrasado)}{" "}
+            atrasados.
+          </>
+        )}
+      </p>
+      <Trilho
+        escala={r.faturado}
+        partes={[
+          { valor: r.recebido, cor: "bg-success" },
+          { valor: r.a_vencer, cor: "bg-chart-1" },
+          { valor: r.atrasado, cor: "bg-danger" },
+        ]}
+      />
+      <Legenda
+        itens={[
+          { cor: "bg-success", rotulo: `Recebido ${brl(r.recebido)}` },
+          { cor: "bg-chart-1", rotulo: `A vencer ${brl(r.a_vencer)}` },
+          { cor: "bg-danger", rotulo: `Atrasado ${brl(r.atrasado)}` },
+        ]}
+      />
+      <Tabela
+        cab={["Cliente", "Faturado", "Recebido", "A vencer", "Atrasado"]}
+        linhas={r.clientes.map((c) => [
+          c.nome,
+          brl(c.faturado),
+          brl(c.recebido),
+          c.a_vencer >= 1 ? brl(c.a_vencer) : "",
+          c.atrasado >= 1 ? (
+            <span key="a" className="text-danger">
+              {brl(c.atrasado)}
+            </span>
+          ) : (
+            ""
+          ),
+        ])}
+        total={["Total", brl(r.faturado), brl(r.recebido), brl(r.a_vencer), brl(r.atrasado)]}
+      />
+      <p className="text-sm text-muted-foreground">
+        Títulos a receber do Omie de receita (categorias 1.01 e 1.03), pelo vencimento. Entrou no
+        caixa em {r.mes}, contando pagamentos de títulos de outros meses:{" "}
+        <strong className="text-foreground">{brl(r.caixa)}</strong>.
+      </p>
+    </Pergunta>
+  );
+}
+
 function Despesas({ D, meses }: { D: ReporteCeo; meses: [string, string][] }) {
   const [mes, setMes] = useState("todos");
   const [sit, setSit] = useState("todos");
@@ -564,32 +677,6 @@ function Despesas({ D, meses }: { D: ReporteCeo; meses: [string, string][] }) {
   }, [D.titulos, mes, sit]);
   const maior = Math.max(1, ...grupos.map((g) => g.total));
 
-  const chips = (
-    rotulo: string,
-    atual: string,
-    mudar: (v: string) => void,
-    opcoes: [string, string][],
-  ) => (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label={rotulo}>
-      {opcoes.map(([v, r]) => (
-        <button
-          key={v}
-          type="button"
-          aria-pressed={atual === v}
-          onClick={() => mudar(v)}
-          className={cn(
-            "rounded-full border px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-            atual === v
-              ? "border-primary bg-primary font-semibold text-primary-foreground"
-              : "bg-card",
-          )}
-        >
-          {r}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <section id="despesas" className="flex scroll-mt-4 flex-col gap-3.5">
       <h2 className="mt-3 text-lg font-semibold">
@@ -600,16 +687,26 @@ function Despesas({ D, meses }: { D: ReporteCeo; meses: [string, string][] }) {
         categoria para ver os títulos.
       </p>
       <div className="flex flex-wrap gap-x-4 gap-y-2.5">
-        {chips("Mês", mes, setMes, [
-          ["todos", "Todos os meses"],
-          ...meses.map(([m, n]) => [m, n[0].toUpperCase() + n.slice(1)] as [string, string]),
-        ])}
-        {chips("Situação", sit, setSit, [
-          ["todos", "Todas"],
-          ["atrasado", "Atrasado"],
-          ["em_dia", "Em dia"],
-          ["pago", "Pago"],
-        ])}
+        <Chips
+          rotulo="Mês"
+          atual={mes}
+          mudar={setMes}
+          opcoes={[
+            ["todos", "Todos os meses"],
+            ...meses.map(([m, n]) => [m, maiuscula(n)] as [string, string]),
+          ]}
+        />
+        <Chips
+          rotulo="Situação"
+          atual={sit}
+          mudar={setSit}
+          opcoes={[
+            ["todos", "Todas"],
+            ["atrasado", "Atrasado"],
+            ["em_dia", "Em dia"],
+            ["pago", "Pago"],
+          ]}
+        />
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[

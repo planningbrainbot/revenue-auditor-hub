@@ -12,6 +12,13 @@ import { acessoDoUsuario } from "@/lib/permissions.functions";
 
 export type SituacaoTitulo = "atrasado" | "em_dia" | "pago";
 
+export interface ParteReceita {
+  faturado: number;
+  recebido: number;
+  a_vencer: number;
+  atrasado: number;
+}
+
 export interface ReporteCeo {
   hoje: string;
   gerado_em: string;
@@ -52,6 +59,11 @@ export interface ReporteCeo {
     rendimento: number;
     saldo_aplic: number;
   }[];
+  /** Mês anterior e corrente, pela chave do mês (1 a 12). Ausente nos retratos anteriores a 07/10/2026. */
+  receita_mes?: Record<
+    string,
+    ParteReceita & { mes: string; caixa: number; clientes: (ParteReceita & { nome: string })[] }
+  >;
 }
 
 export const carregarReporteCeo = createServerFn({ method: "GET" })
