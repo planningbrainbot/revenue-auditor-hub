@@ -4839,3 +4839,21 @@ Recife, São Bernardo e Sorocaba), porque têm pouca ou nenhuma venda de sócio.
 Maduras não mudam. Também corrige `inicio <= p_fim` para `inicio < p_fim` (o `p_fim`
 do IDU é exclusivo). Migration `20261007150000_idu_hunter_socios.sql`, aplicada em
 07/10/2026.
+
+## [2026-10-07] IDU: "Venda para a base" passa a contar as vendas do pipe de monetização
+
+**Contexto:** venda para a base é monetização (serviço novo para cliente da carteira) e
+estava sem fonte desde a entrada de Hunter sócios. O dono apontou o pipeline 39 do
+Pipedrive, que já é sincronizado em `ops.monetizacao_deals` pela `monetizacao-crm`.
+Medido antes: os 367 deals têm a receita vazia, e dos 6 deals ganhos na história do
+pipe cinco têm `value = 0`.
+
+**Decisão do dono:** medir em quantidade, não em R$. O indicador `base` passa a contar os
+deals ganhos (`status = won`, `won_on` no trimestre) por unidade (`unidade_ids`), e a
+`unidade_medida` vira `vendas`. A tela já formata qualquer medida que não seja R$ ou %
+como número inteiro.
+
+**Consequência:** no 3º tri/2026, Curitiba tem 2 vendas e o Rio, 1. Sem meta lançada, o
+indicador fica fora da nota; a única meta existente é a de Curitiba no 3º tri (0, lançada
+quando a medida era R$), que hoje dá 120% do peso. Migration
+`20261007170000_idu_venda_base_monetizacao.sql`, aplicada em 07/10/2026.
