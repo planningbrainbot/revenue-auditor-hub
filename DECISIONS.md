@@ -4904,3 +4904,11 @@ conserto do número é dar baixa no Omie.
 
 **Descartado:** `dDataConciliacao` como "conciliado até". É a data em que a conciliação foi feita,
 não até onde ela chegou.
+
+## [2026-10-08] IDU: trava corrigida e detalhamento por unidade
+
+- `ops.idu_pode_ver()` liberava quando `current_user` era `postgres`, e dentro de função SECURITY DEFINER o `current_user` é sempre o dono: qualquer usuário logado (Growth, financeiro, login sem papel no Ops) lia o IDU e a apuração de todas as unidades pela API. Agora a trava confere `session_user` (quem abriu a conexão), que não muda dentro de SECURITY DEFINER; o `service_role` só vale pela conexão da API (`authenticator`). Prova: na homologação, uma função chamada pela API devolveu `current_user = postgres` e `session_user = authenticator`.
+- Decisão do usuário: o sócio regional vê o ranking geral do IDU, mas o detalhamento por indicador só da própria unidade. A matriz (`usuario_escopo.todas_unidades`) vê tudo; no "ver como" vale a unidade vestida. O cálculo foi para `ops.idu_apuracao_base` (sem EXECUTE pela API); `ops.idu_ranking` lê a base, e `ops.idu_apuracao` filtra por `ops.idu_ve_detalhe`. A tela /idu explica quando o detalhamento está fechado.
+- Conferido em 08/10 antes de aplicar, em transação desfeita: sócio regional vê 11 unidades no ranking e só a dele no detalhamento; admin vê as 11 nos dois; financeiro não vê nada; notas do IDU iguais às de antes. Quem tem `view.idu`: admin, auditor, CS, 3 dos 4 diretores e os 30 sócios regionais.
+- Migration `20261008120000_idu_trava_session_user.sql`, aplicada no banco único em 08/10 pela Management API. A `20261008121000_consultoria_portas_leitura.sql` (portas de leitura da Consultoria de Campo) ainda NÃO foi aplicada: vai junto com a produção da Consultoria.
+- A frase da tela /idu só aparece no próximo deploy do Ops.
