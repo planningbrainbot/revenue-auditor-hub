@@ -102,6 +102,27 @@ pode ir no mesmo release que acrescentar unidade nova à lista do consolidado.
 
 ---
 
+## [2026-10-08] Split do Asaas: filtro de período e espelho na Minha Unidade
+
+**Contexto:** o dono pediu um filtro de período no /unidades/split e a mesma tela dentro de Minha
+Unidade, só com a unidade do sócio. `v_split_cliente` e `v_split_resumo` somam a história inteira,
+sem data; o split a creditar não tem data nenhuma no Asaas (`creditDate` e `confirmedDate` nulos).
+**Decisão:** duas views no grão de mês, sem mexer na lógica das de sempre. `v_split_cliente_mes`:
+dinheiro por cliente e mês de VENCIMENTO do título (safra, a régua que a view já usava para cortar
+em `split_ativo_desde`). `v_split_resumo_mes`: caixa do Asaas, creditado no mês do CRÉDITO (bate com
+o extrato), a creditar e cancelado no vencimento do título. Na tela, o período (`de`/`ate` em
+AAAA-MM na URL, vazio = história inteira) recorta linhas e dinheiro; a etapa continua sendo a
+situação de hoje. Cliente sem boleto entra se foi vendido até o fim do período (segue devendo
+cobrança). Tela `/meu-split` no grupo principal de Minha Unidade, mesmo componente em
+`escopo="unidade"`; chave nova `view.meu_split` só em `area_chaves` de `minha_unidade`, segunda
+porta nas quatro views só por `minhas_unidades()`. A lateral esconde o item de unidade sem split
+(flag `temSplit`). Ensaiado com rollback contra os sócios regionais: Belém 109 linhas, Campo Novo
+39, Maceió 78 (soma = 226 da matriz); demais unidades 0. Somas por mês = totais, unidade a unidade.
+**Status:** migration `20261008180000_split_periodo_minha_unidade.sql` aplicada no banco único em
+08/10/2026 (rollback em `supabase/rollback/`). Tela em validação local, não publicada.
+
+---
+
 ## [2026-10-05] Funil de CAC na Minha Unidade, só para unidade que paga CAC
 
 **Contexto:** o dono pediu o /unidades/funil-cac dentro da visão da unidade, só com os dados dela,

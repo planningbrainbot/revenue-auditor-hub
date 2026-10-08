@@ -100,7 +100,9 @@ export type Item = {
     | "noCadastro"
     // Fora do Planning People: a unidade do sócio paga CAC (há linha em
     // `v_cac_funil_resumo` para ele). Avaliada pela lateral, não por `resumoMenuGente`.
-    | "pagaCac";
+    | "pagaCac"
+    // Idem: a unidade do sócio tem split do Asaas ativo (há linha em `v_split_cliente_mes`).
+    | "temSplit";
   /**
    * Outros caminhos que contam como "estar neste item", além da `url`. Só para
    * o grifo da lateral e o cabeçalho, nunca para o portão de área.
@@ -668,6 +670,15 @@ export const AREAS: Area[] = [
             icon: Filter,
             chave: "view.meu_funil_cac",
             flag: "pagaCac",
+          },
+          // O Split do Asaas da rede recortado na unidade (08/10/2026). Unidade sem
+          // split ativo não vê o item: a view não devolve linha para ela.
+          {
+            title: "Split do Asaas",
+            url: "/meu-split",
+            icon: Coins,
+            chave: "view.meu_split",
+            flag: "temSplit",
           },
           { title: "Base de clientes", url: "/clientes", icon: Building2, chave: "view.clientes" },
           { title: "CS", url: "/painel-cs", icon: UserCheck, chave: "view.painel_cs" },

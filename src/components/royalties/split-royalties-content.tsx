@@ -10,6 +10,16 @@
 // DS v2 (contrato `docs/design/contratos/receita-e-repasses.md` §7): filtros na
 // URL (N7); erro de `v_split_resumo` deixa os cards de caixa "indisponível", não
 // R$ 0,00 (N4); erro da tabela por cliente vira `EstadoErro`.
+//
+// Duas telas usam este componente: /unidades/split (a rede, chave
+// `view.royalties_split`) e /meu-split (a unidade do sócio, chave
+// `view.meu_split`, desde 08/10/2026). Quem recorta a unidade é a view, não o
+// componente; no modo "unidade" ele só tira o seletor de unidade.
+//
+// Período (08/10/2026): as views de sempre somam a história inteira; o recorte
+// de meses sai de `v_split_cliente_mes` (dinheiro por mês de vencimento do
+// título) e `v_split_resumo_mes` (caixa por mês de crédito). A etapa continua
+// sendo a situação de hoje: o período recorta linhas e dinheiro, não a etapa.
 import { useEffect, useMemo, useState } from "react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -52,6 +62,20 @@ type Linha = {
   etapa: string;
 };
 
+/** As colunas de dinheiro de `Linha`, por mês de vencimento do título. */
+type LinhaMes = {
+  unidade: string | null;
+  cnpj: string | null;
+  mes: string;
+  titulos: number | null;
+  titulos_pagos: number | null;
+  valor_titulos: number | null;
+  valor_pago: number | null;
+  royalty_creditado: number | null;
+  royalty_a_creditar: number | null;
+  royalty_perdido: number | null;
+};
+
 /**
  * Totais vindos de asaas_splits, por unidade. Os cards NAO podem sair da
  * tabela por cliente: ela nasce do titulo do Omie, e split creditado cujo
@@ -67,6 +91,27 @@ type Resumo = {
   creditado_sem_titulo: number | null;
   splits_sem_titulo: number | null;
 };
+
+/** `Resumo` por mês: creditado no mês do crédito, a creditar no vencimento do título. */
+type ResumoMes = Resumo & { mes: string | null };
+
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const fmtMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
+
+/** Meses de `de` a `ate`, inclusive, em AAAA-MM. */
+function mesesEntre(de: string, ate: string): string[] {
+  const out: string[] = [];
+  let [a, m] = de.split("-").map(Number);
+  const [aFim, mFim] = ate.split("-").map(Number);
+  while (a < aFim || (a === aFim && m <= mFim)) {
+    out.push(`${a}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) { m = 1; a += 1; }
+  }
+  return out;
+}
+
+const chaveCliente = (unidade: string | null, cnpj: string | null) => `${unidade ?? ""}|${cnpj ?? ""}`;
 
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -98,34 +143,109 @@ function casaEtapa(etapa: string, filtro: string): boolean {
   return etapa === filtro;
 }
 
-export function SplitRoyaltiesContent() {
+export function SplitRoyaltiesContent({ escopo = "rede" }: { escopo?: "rede" | "unidade" } = {}) {
+  const daRede = escopo === "rede";
+  const chave = daRede ? "view.royalties_split" : "view.meu_split";
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroResumo, setErroResumo] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [linhas, setLinhas] = useState<Linha[]>([]);
+  const [linhasMes, setLinhasMes] = useState<LinhaMes[]>([]);
   const [resumo, setResumo] = useState<Resumo[]>([]);
-  const [unidade, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  const [resumoMes, setResumoMes] = useState<ResumoMes[]>([]);
+  const [unidadeNaUrl, setUnidade] = useFiltroNaUrl("unidade", "todas");
+  // Na tela da unidade a view já devolve uma unidade só; o filtro não existe.
+  const unidade = daRede ? unidadeNaUrl : "todas";
   const [etapaFiltro, setEtapaFiltro] = useFiltroNaUrl("etapa", "todas");
-  const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa"]);
+  // Vazio = sem recorte: a história inteira, como antes do filtro existir.
+  const [de, setDe] = useFiltroNaUrl("de", "");
+  const [ate, setAte] = useFiltroNaUrl("ate", "");
+  const limparFiltros = useLimparFiltrosNaUrl(["unidade", "etapa", "de", "ate"]);
 
   useEffect(() => {
     let vivo = true;
     setLoading(true);
     (async () => {
-      const [l, s] = await Promise.all([
+      const [l, lm, s, sm] = await Promise.all([
         (supabase as any).from("v_split_cliente").select("*").order("etapa"),
+        (supabase as any).from("v_split_cliente_mes").select("*"),
         (supabase as any).from("v_split_resumo").select("*"),
+        (supabase as any).from("v_split_resumo_mes").select("*"),
       ]);
       if (!vivo) return;
-      setErro(l.error ? l.error.message : null);
-      setErroResumo(s.error ? s.error.message : null);
+      setErro(l.error?.message ?? lm.error?.message ?? null);
+      setErroResumo(s.error?.message ?? sm.error?.message ?? null);
       setLinhas((l.data ?? []) as Linha[]);
+      setLinhasMes((lm.data ?? []) as LinhaMes[]);
       setResumo((s.data ?? []) as Resumo[]);
+      setResumoMes((sm.data ?? []) as ResumoMes[]);
       setLoading(false);
     })();
     return () => { vivo = false; };
   }, [tentativa]);
+
+  // Meses do seletor: do primeiro mês com dado ao último (vencimento futuro
+  // incluído), e nunca antes do mês atual.
+  const todosOsMeses = useMemo(() => {
+    const hoje = new Date();
+    const atual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+    const meses = [
+      ...linhasMes.map((r) => r.mes),
+      ...resumoMes.map((r) => r.mes),
+      atual,
+    ].filter(Boolean) as string[];
+    meses.sort();
+    return mesesEntre(meses[0], meses[meses.length - 1]);
+  }, [linhasMes, resumoMes]);
+  const periodoAtivo = de !== "" || ate !== "";
+  const deEf = todosOsMeses.includes(de) ? de : todosOsMeses[0];
+  const ateEf = todosOsMeses.includes(ate) ? ate : todosOsMeses[todosOsMeses.length - 1];
+  const [ini, fim] = deEf <= ateEf ? [deEf, ateEf] : [ateEf, deEf];
+  const noPeriodo = (mes: string | null | undefined) => !!mes && mes >= ini && mes <= fim;
+
+  // Com período, cada linha fica com o dinheiro dos títulos que vencem nele, e
+  // cliente com título só fora do período sai. Cliente sem título nenhum
+  // (etapas 1 a 3) continua devendo cobrança em todo mês depois da venda: entra
+  // se a venda foi ganha até o fim do período.
+  const linhasDoPeriodo = useMemo(() => {
+    if (!periodoAtivo) return linhas;
+    const somas = new Map<string, LinhaMes>();
+    for (const m of linhasMes) {
+      if (!noPeriodo(m.mes)) continue;
+      const k = chaveCliente(m.unidade, m.cnpj);
+      const a = somas.get(k);
+      if (!a) { somas.set(k, { ...m }); continue; }
+      a.titulos = Number(a.titulos ?? 0) + Number(m.titulos ?? 0);
+      a.titulos_pagos = Number(a.titulos_pagos ?? 0) + Number(m.titulos_pagos ?? 0);
+      a.valor_titulos = Number(a.valor_titulos ?? 0) + Number(m.valor_titulos ?? 0);
+      a.valor_pago = Number(a.valor_pago ?? 0) + Number(m.valor_pago ?? 0);
+      a.royalty_creditado = Number(a.royalty_creditado ?? 0) + Number(m.royalty_creditado ?? 0);
+      a.royalty_a_creditar = Number(a.royalty_a_creditar ?? 0) + Number(m.royalty_a_creditar ?? 0);
+      a.royalty_perdido = Number(a.royalty_perdido ?? 0) + Number(m.royalty_perdido ?? 0);
+    }
+    const out: Linha[] = [];
+    for (const r of linhas) {
+      if (!r.titulos) {
+        if (!r.ganho_em || r.ganho_em.slice(0, 7) <= fim) out.push(r);
+        continue;
+      }
+      const p = somas.get(chaveCliente(r.unidade, r.cnpj));
+      if (!p) continue;
+      out.push({
+        ...r,
+        titulos: p.titulos,
+        titulos_pagos: p.titulos_pagos,
+        valor_titulos: p.valor_titulos,
+        valor_pago: p.valor_pago,
+        royalty_creditado: p.royalty_creditado,
+        royalty_a_creditar: p.royalty_a_creditar,
+        royalty_perdido: p.royalty_perdido,
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linhas, linhasMes, periodoAtivo, ini, fim]);
 
   const tentarDeNovo = () => setTentativa((n) => n + 1);
 
@@ -144,22 +264,26 @@ export function SplitRoyaltiesContent() {
   const filtroEtapa5 = etapas5.length === 1 ? etapas5[0] : "5.*";
 
   const filtradas = useMemo(
-    () => linhas.filter(
+    () => linhasDoPeriodo.filter(
       (r) => (unidade === "todas" || r.unidade === unidade)
           && casaEtapa(r.etapa, etapaFiltro),
     ),
-    [linhas, unidade, etapaFiltro],
+    [linhasDoPeriodo, unidade, etapaFiltro],
   );
 
   // Cards seguem a unidade, não o filtro de etapa: filtrar etapa é navegação,
   // não recorte contábil.
   const doUnidade = useMemo(
-    () => linhas.filter((r) => unidade === "todas" || r.unidade === unidade),
-    [linhas, unidade],
+    () => linhasDoPeriodo.filter((r) => unidade === "todas" || r.unidade === unidade),
+    [linhasDoPeriodo, unidade],
   );
+  // Sem período, o resumo de sempre; com período, o do mês (o split cancelado
+  // sem título não tem mês e só aparece sem filtro, mas fica fora dos totais).
   const resumoFiltrado = useMemo(
-    () => resumo.filter((r) => unidade === "todas" || r.unidade === unidade),
-    [resumo, unidade],
+    () => (periodoAtivo ? resumoMes.filter((r) => noPeriodo(r.mes)) : resumo)
+      .filter((r) => unidade === "todas" || r.unidade === unidade),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resumo, resumoMes, periodoAtivo, ini, fim, unidade],
   );
   const somaResumo = (f: (r: Resumo) => number | null) =>
     resumoFiltrado.reduce((a, r) => a + Number(f(r) ?? 0), 0);
@@ -187,7 +311,7 @@ export function SplitRoyaltiesContent() {
       <div className="px-4 py-6 md:px-6">
         <ErroDaConsulta
           erro={erro}
-          chaves="view.royalties_split"
+          chaves={chave}
           titulo="Não foi possível ler a conferência do split"
           tentarNovamente={tentarDeNovo}
         />
@@ -198,10 +322,17 @@ export function SplitRoyaltiesContent() {
   if (linhas.length === 0) {
     return (
       <div className="px-4 py-6 md:px-6">
-        <EstadoVazio
-          titulo="Nenhuma unidade com split ativo"
-          descricao="A unidade entra aqui sozinha assim que unidades.split_ativo_desde for preenchida."
-        />
+        {daRede ? (
+          <EstadoVazio
+            titulo="Nenhuma unidade com split ativo"
+            descricao="A unidade entra aqui sozinha assim que unidades.split_ativo_desde for preenchida."
+          />
+        ) : (
+          <EstadoVazio
+            titulo="Sua unidade ainda não tem split ativo"
+            descricao="O acompanhamento aparece aqui a partir da data em que o split do Asaas da unidade for ligado."
+          />
+        )}
       </div>
     );
   }
@@ -209,18 +340,39 @@ export function SplitRoyaltiesContent() {
   // Sem o resumo do Asaas, os cards de caixa não são zero: são desconhecidos.
   const estadoCaixa = erroResumo ? "indisponivel" : "ok";
   const notaCaixa = erroResumo ? "extrato do Asaas não carregou" : undefined;
-  const temFiltro = unidade !== "todas" || etapaFiltro !== "todas";
+  const temFiltro = unidade !== "todas" || etapaFiltro !== "todas" || periodoAtivo;
 
   return (
     <div className="space-y-6 px-4 py-6 md:px-6">
       <BarraFiltros aoLimpar={temFiltro ? limparFiltros : undefined}>
-        <Select value={unidade} onValueChange={setUnidade}>
-          <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas as unidades</SelectItem>
-            {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {daRede && (
+          <Select value={unidade} onValueChange={setUnidade}>
+            <SelectTrigger className="w-[200px]" aria-label="Unidade"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as unidades</SelectItem>
+              {unidades.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          <span>De</span>
+          <Select value={deEf} onValueChange={(v) => setDe(v === todosOsMeses[0] ? "" : v)}>
+            <SelectTrigger className="w-[110px]" aria-label="Mês inicial"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {todosOsMeses.map((m) => <SelectItem key={m} value={m}>{fmtMes(m)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span>até</span>
+          <Select
+            value={ateEf}
+            onValueChange={(v) => setAte(v === todosOsMeses[todosOsMeses.length - 1] ? "" : v)}
+          >
+            <SelectTrigger className="w-[110px]" aria-label="Mês final"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {todosOsMeses.map((m) => <SelectItem key={m} value={m}>{fmtMes(m)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <Select value={etapaFiltro} onValueChange={setEtapaFiltro}>
           <SelectTrigger className="w-[280px]" aria-label="Etapa"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -238,7 +390,11 @@ export function SplitRoyaltiesContent() {
 
       <Secao
         titulo="Quanto o Asaas reteve e creditou?"
-        descricao="Creditado e a creditar vêm do extrato de splits do Asaas (caixa), não da tabela; seguem a unidade, não a etapa."
+        descricao={
+          periodoAtivo
+            ? `Creditado e a creditar vêm do extrato de splits do Asaas (caixa), não da tabela. De ${fmtMes(ini)} a ${fmtMes(fim)}: creditado pelo mês do crédito, a creditar pelo vencimento do boleto, pago sem reter pelo vencimento do título.`
+            : `Creditado e a creditar vêm do extrato de splits do Asaas (caixa), não da tabela; ${daRede ? "seguem a unidade, não a etapa" : "não seguem o filtro de etapa"}.`
+        }
       >
         {erroResumo && (
           <ErroDaConsulta
@@ -273,7 +429,11 @@ export function SplitRoyaltiesContent() {
 
       <Secao
         titulo="Em que etapa está cada cliente?"
-        descricao="Uma linha por cliente, da venda ao crédito do royalty na matriz."
+        descricao={
+          periodoAtivo
+            ? `Uma linha por cliente com boleto vencendo de ${fmtMes(ini)} a ${fmtMes(fim)}, e os vendidos até o fim do período que ainda não têm boleto. Os valores são só desses boletos; a etapa é a situação de hoje.`
+            : "Uma linha por cliente, da venda ao crédito do royalty na matriz."
+        }
       >
         <div className="flex flex-wrap gap-2">
           {porEtapa.map(([e, n]) => (

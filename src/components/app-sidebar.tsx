@@ -143,11 +143,31 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Split do Asaas da unidade: mesmo critério, linha na view por mês.
+  const temMeuSplit = !loading && temArea("minha_unidade") && can("view.meu_split");
+  const temSplit = useQuery<boolean>({
+    queryKey: ["menu-tem-split", unidade],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("v_split_cliente_mes")
+        .select("unidade")
+        .limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+    enabled: temMeuSplit,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Enquanto o resumo não chega, o item com flag não aparece. Piscar o menu
   // todo e depois esconder metade é pior do que aparecer um pouco depois.
   const passaNaFlag = (item: Item) =>
     !item.flag ||
-    (item.flag === "pagaCac" ? Boolean(pagaCac.data) : Boolean(resumo.data?.[item.flag]));
+    (item.flag === "pagaCac"
+      ? Boolean(pagaCac.data)
+      : item.flag === "temSplit"
+        ? Boolean(temSplit.data)
+        : Boolean(resumo.data?.[item.flag]));
 
   const podeVer = (area: Area, item: Item) =>
     !loading &&

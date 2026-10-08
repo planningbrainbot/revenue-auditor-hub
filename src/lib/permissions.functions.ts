@@ -183,6 +183,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Acesso",
   },
   {
+    key: "view.meu_split",
+    label: "Split do Asaas da unidade",
+    description:
+      "Royalty retido pelo split do Asaas nos boletos da própria unidade, na área Minha Unidade.",
+    group: "Acesso",
+  },
+  {
     key: "view.minhas_auditorias",
     label: "Auditorias da unidade",
     description:

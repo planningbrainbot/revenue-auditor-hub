@@ -4,14 +4,18 @@ import { GuardaUnidades } from "@/components/unidades/guarda-unidades";
 import { SplitRoyaltiesContent } from "@/components/royalties/split-royalties-content";
 import { MolduraReceita } from "@/components/receita/moldura";
 
-type BuscaSplit = { unidade?: string; etapa?: string };
+type BuscaSplit = { unidade?: string; etapa?: string; de?: string; ate?: string };
+
+const MES = /^\d{4}-\d{2}$/;
 
 export const Route = createFileRoute("/_authenticated/unidades/split")({
-  // Unidade e etapa moram na URL (N7).
+  // Unidade, etapa e período moram na URL (N7).
   validateSearch: (search: Record<string, unknown>): BuscaSplit => {
     const out: BuscaSplit = {};
     if (typeof search.unidade === "string" && search.unidade) out.unidade = search.unidade;
     if (typeof search.etapa === "string" && search.etapa) out.etapa = search.etapa;
+    if (typeof search.de === "string" && MES.test(search.de)) out.de = search.de;
+    if (typeof search.ate === "string" && MES.test(search.ate)) out.ate = search.ate;
     return out;
   },
   head: () => ({
