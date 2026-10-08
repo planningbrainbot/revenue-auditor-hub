@@ -51,7 +51,8 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
-import { FARMER, METRICAS, taxa } from "@/lib/monetizacao/model";
+import { METRICAS, taxa } from "@/lib/monetizacao/model";
+import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import type { QuadroMeta, StatusMeta, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
 import { linhaDa } from "@/lib/monetizacao/funil-cumulativo";
 import type {
@@ -76,7 +77,7 @@ const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDi
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 // ---------------------------------------------------------------------------
-// Metas do farmer
+// Metas da pré-venda
 // ---------------------------------------------------------------------------
 
 const TOM: Record<StatusMeta, { tom?: TomKpi; palavra?: string }> = {
@@ -87,6 +88,7 @@ const TOM: Record<StatusMeta, { tom?: TomKpi; palavra?: string }> = {
 };
 
 export function MetasFarmer({
+  quem,
   quadros,
   uteis,
   from,
@@ -94,6 +96,8 @@ export function MetasFarmer({
   abrir,
   onComoContamos,
 }: {
+  /** Pessoa do recorte, ou a pré-venda inteira (`nomeDoRecorte`). */
+  quem: string;
   quadros: QuadroMeta[];
   uteis: number;
   from: string;
@@ -103,11 +107,13 @@ export function MetasFarmer({
 }) {
   const fora = quadros.filter((q) => q.status === "fora").length;
   return (
-    <section className="space-y-3" aria-label={`Metas do ${FARMER.nome}`}>
+    <section className="space-y-3" aria-label={`Metas: ${quem}`}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 space-y-0.5">
           <h2 className="text-base font-semibold text-foreground">
-            O {FARMER.nome.split(" ")[0]} está no ritmo das metas?
+            {quem.startsWith("Pré-venda")
+              ? "A pré-venda está no ritmo das metas?"
+              : `${primeiroNome(quem)} está no ritmo das metas?`}
           </h2>
           <p className="text-[13px] text-muted-foreground">
             Abordados de {ddmm(from)} a {ddmm(to)}, {uteis}{" "}
@@ -170,7 +176,7 @@ function Verbete({ titulo, children }: { titulo: string; children: ReactNode }) 
 const REGRAS: [string, string][] = [
   [
     "Coorte",
-    "O funil e os quadros, menos o de contratos, contam os cards que o farmer tirou da Base elegível no período.",
+    "O funil e os quadros, menos o de contratos, contam os cards que a pré-venda (ou o pré-vendedor escolhido) tirou da Base elegível no período.",
   ],
   [
     "Abordagem anterior",
@@ -199,7 +205,7 @@ const REGRAS: [string, string][] = [
   ],
   [
     "Quem recebe o crédito",
-    "A abordagem é de quem tirou o card da Base, e a saída feita pela integração do Ops não é do farmer.",
+    "A abordagem é de quem tirou o card da Base, e a saída feita pela integração do Ops não é de nenhum pré-vendedor.",
   ],
 ];
 

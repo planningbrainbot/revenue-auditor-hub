@@ -1,6 +1,6 @@
-import { FARMER, hoje } from "@/lib/monetizacao/model";
+import { hoje } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
-import { PRODUTOS } from "@/lib/monetizacao/types";
+import { PRE_VENDEDORES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import { SITUACOES_GRAVACAO } from "@/lib/monetizacao/gravacoes";
 import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
@@ -28,10 +28,10 @@ export const ABAS = [
 export type Aba = (typeof ABAS)[number];
 
 /**
- * Matheus Carvalho é o único farmer da frente (fala do dono, 24/09/2026): o seletor de
- * responsável saiu da tela e o recorte é sempre o `FARMER` do model. Não há chave na URL.
+ * Dois pré-vendedores desde 08/10/2026 (Matheus e Heloá): o seletor de responsável voltou à barra.
+ * Sem `?responsavel=`, o recorte é a pré-venda inteira (os dois); com ele, uma pessoa.
  */
-export const RESPONSAVEL_PADRAO = FARMER.id;
+export const PRE_VENDA_IDS = PRE_VENDEDORES.map(([id]) => id);
 export const DIAS_PADRAO = 7;
 export const SINAIS = ["vencida", "sem_passo", "sem_movimento"] as const;
 export type Sinal = (typeof SINAIS)[number];
@@ -59,6 +59,8 @@ const REUNIAO = /^(pedido-monet-\d{1,12}-\d{8}T\d{4}|hist-\d{1,12}-(levantamento
 
 export type BuscaMonetizacao = {
   aba: Aba;
+  /** Id do pré-vendedor no Pipedrive (`PRE_VENDEDORES`); ausente = a pré-venda inteira. */
+  responsavel?: number;
   /** aaaa-mm-dd; padrão 1º dia do mês corrente (São Paulo). */
   de?: string;
   /** aaaa-mm-dd; padrão hoje (São Paulo). */
@@ -118,6 +120,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
   const totais = s.totais === true || s.totais === "true" ? true : undefined;
   return {
     aba: umDe(ABAS, s.aba) ?? "operacao",
+    responsavel: PRE_VENDA_IDS.find((id) => id === inteiro(s.responsavel)),
     de: ehData(s.de) ? s.de : undefined,
     ate: ehData(s.ate) ? s.ate : undefined,
     produto: umDe(PRODUTOS_URL, s.produto),
@@ -172,7 +175,8 @@ export function filtroDaBusca(b: BuscaMonetizacao): Filtro {
   return {
     from,
     to,
-    owner: RESPONSAVEL_PADRAO,
+    owner: b.responsavel ?? null,
+    owners: b.responsavel ? undefined : PRE_VENDA_IDS,
     product: (b.produto ?? "") as Produto | "",
   };
 }

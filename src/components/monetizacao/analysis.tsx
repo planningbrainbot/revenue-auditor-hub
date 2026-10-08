@@ -53,7 +53,7 @@ import {
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { salvarPlanoMonetizacao, salvarRegistroMonetizacao } from "@/lib/monetizacao/functions";
-import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
+import { NOMES, PRE_VENDEDORES, PRODUTOS } from "@/lib/monetizacao/types";
 import type {
   BaseMonetizacao,
   Metrica,
@@ -65,7 +65,8 @@ import type {
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
-import { DIAS_PADRAO, RESPONSAVEL_PADRAO, SITUACOES } from "./busca";
+import { DIAS_PADRAO, PRE_VENDA_IDS, SITUACOES } from "./busca";
+import { doResponsavel } from "@/lib/monetizacao/responsavel";
 import type { BuscaMonetizacao, ProdutoUrl, Sinal, Situacao } from "./busca";
 import { Forecast } from "./forecast";
 import {
@@ -112,13 +113,13 @@ export function Analysis(props: Props) {
     );
   if (aba === "temporal")
     return <Temporal data={data} filter={filter} openDeals={openDeals} busca={props.busca} />;
-  // Os planos são por responsável: com "Toda a frente" não há plano a mostrar nem a editar
+  // Os planos são por pessoa: com a pré-venda inteira não há plano a mostrar nem a editar
   // (salvar os padrões aqui gravaria sobre o plano de outra pessoa).
   if (aba === "capacidade" && filter.owner === null)
     return (
       <EstadoVazio
-        titulo="Escolha um responsável para ver e editar o plano"
-        descricao="Os planos de capacidade e alocação são por responsável. Escolha um no filtro Responsável acima; com Toda a frente não há plano a mostrar."
+        titulo="Escolha um pré-vendedor para ver e editar o plano"
+        descricao="Os planos de capacidade e alocação são por pessoa. Escolha um pré-vendedor no filtro acima; com a pré-venda inteira não há plano a mostrar."
       />
     );
   if (aba === "capacidade")
@@ -166,12 +167,13 @@ const MESES_CURTOS = [
 ];
 /** "set/2026" a partir de "2026-09". */
 const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
-/** Nome do responsável da barra: "Toda a frente" sem filtro. */
+/** Nome do responsável da barra: a pré-venda inteira sem filtro; o pré-vendedor pelo cadastro (a Heloá ainda sem card). */
 const nomeDoDono = (data: BaseMonetizacao, owner: number | null) =>
   owner === null
-    ? "Toda a frente"
-    : (data.cards.find((c) => c.owner_id === owner)?.owner ??
-      (owner === 28381245 ? "Matheus Carvalho" : `Usuário ${owner}`));
+    ? "Pré-venda (os dois)"
+    : (PRE_VENDEDORES.find(([id]) => id === owner)?.[1] ??
+      data.cards.find((c) => c.owner_id === owner)?.owner ??
+      `Usuário ${owner}`);
 const juntarNotas = (...partes: (string | undefined | false | null)[]) =>
   partes.filter(Boolean).join(" · ") || undefined;
 
@@ -518,7 +520,7 @@ function Capacity({ data, filter, openDeals }: Cut) {
     saved || {
       month,
       owner_id: filter.owner || 28381245,
-      owner_name: data.cards.find((c) => c.owner_id === filter.owner)?.owner || "Matheus Carvalho",
+      owner_name: nomeDoDono(data, filter.owner || 28381245),
       capacity: 120,
       meetings_capacity: 60,
       target_contracts: 8,
@@ -1160,7 +1162,7 @@ const semHistoricoNoRecorte = (data: BaseMonetizacao, f: Filtro) =>
 /** Data mais recente do evento `k` no período, pelo autor filtrado: ordena o detalhe. */
 const ultimoEventoNoPeriodo = (k: Metrica, f: Filtro) => (c: Negocio) =>
   c.events[k]
-    .filter((e) => e.date >= f.from && e.date <= f.to && (!f.owner || e.actor_id === f.owner))
+    .filter((e) => e.date >= f.from && e.date <= f.to && doResponsavel(f, e.actor_id))
     .map((e) => e.date)
     .sort()
     .at(-1);
@@ -1200,10 +1202,7 @@ function Funnel({ data, filter, openDeals }: Cut) {
         (m) =>
           m.date <= filter.to &&
           c.events.scheduled.some(
-            (s) =>
-              s.date >= filter.from &&
-              s.date <= m.date &&
-              (!filter.owner || s.actor_id === filter.owner),
+            (s) => s.date >= filter.from && s.date <= m.date && doResponsavel(filter, s.actor_id),
           ),
       ),
     );
@@ -1218,10 +1217,7 @@ function Funnel({ data, filter, openDeals }: Cut) {
         c.won_on &&
         c.won_on <= filter.to &&
         c.events.validated.some(
-          (e) =>
-            e.date >= filter.from &&
-            e.date <= c.won_on! &&
-            (!filter.owner || e.actor_id === filter.owner),
+          (e) => e.date >= filter.from && e.date <= c.won_on! && doResponsavel(filter, e.actor_id),
         ),
     ),
     validatedOpen = validated.filter((c) => c.status === "open");
@@ -1406,7 +1402,7 @@ function People({
   const falta = {
     responsavel:
       filter.owner === null
-        ? "Escolha um responsável na barra: com Toda a frente não há de quem seja o PDI."
+        ? "Escolha um pré-vendedor na barra: com a pré-venda inteira não há de quem seja o PDI."
         : null,
     title: title.trim().length < 3 ? "Falta o título (3 caracteres ou mais) para salvar." : null,
     sample: !sample.trim() ? "Falta a amostra revisada para salvar." : null,
@@ -2098,13 +2094,14 @@ function Distribution({ data, filter, openDeals, busca }: Cut & Pick<Props, "bus
                       </TableCell>
                     ))}
                     <TableCell className="num text-right">
-                      {/* Capacidade e alocação mostra só o plano do farmer (o seletor de
-                          responsável saiu em 24/09): os outros nomes não têm para onde ir. */}
-                      {id === RESPONSAVEL_PADRAO ? (
+                      {/* Capacidade e alocação é por pré-vendedor (seletor de responsável, 08/10): os
+                          outros nomes não têm plano para onde ir. */}
+                      {PRE_VENDA_IDS.includes(id) ? (
                         <Link
                           to="/monetizacao"
                           search={{
                             aba: "capacidade",
+                            responsavel: id,
                             de: busca?.de,
                             ate: busca?.ate ?? filter.to,
                           }}

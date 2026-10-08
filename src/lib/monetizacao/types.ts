@@ -40,11 +40,16 @@ export const PIPES_ENVIO: Record<PipeEnvio, { id: number; nome: string; entrada:
   recon: { id: 38, nome: "Recon", entrada: "Entrada" },
 };
 export const pipeDoProduto = (p: ProdutoEnvio): PipeEnvio => (p === "recon" ? "recon" : "caixa");
-/** Closers que recebem card (Pedro, 29/09): só estes dois; id do usuário no Pipedrive. */
-export const CLOSERS: [number, string][] = [
+/**
+ * Pré-vendedores do pipe 39 (Pedro, 08/10/2026): Matheus e Heloá, da abordagem até a reunião com o especialista
+ * marcada. Id do usuário no Pipedrive (a Heloá entrou em 08/10, heloa.jesus@planning.com.br).
+ */
+export const PRE_VENDEDORES: [number, string][] = [
   [28381245, "Matheus Carvalho"],
-  [24813890, "Willian Linhares"],
+  [28897937, "Heloá"],
 ];
+/** Quem recebe card no envio: os pré-vendedores do Caixa e o Willian, do Recon (Pedro, 29/09). */
+export const CLOSERS: [number, string][] = [...PRE_VENDEDORES, [24813890, "Willian Linhares"]];
 export type Oferta = { status: "elegivel" | "revisar" | "fora_regra"; reason: string };
 export interface DrivaRecord {
   cnpj: string;

@@ -51,7 +51,8 @@ import {
 import { FERIADOS_NACIONAIS } from "@/lib/monetizacao/feriados";
 import { linhaDa, reguaDoPipe } from "@/lib/monetizacao/funil-cumulativo";
 import { carregarApoioAcompanhamento, type ApoioAcompanhamento } from "@/lib/monetizacao/functions";
-import { FARMER, type Filtro } from "@/lib/monetizacao/model";
+import { type Filtro } from "@/lib/monetizacao/model";
+import { nomeDoRecorte } from "@/lib/monetizacao/responsavel";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import type { FiltroAtencao } from "./busca";
@@ -107,7 +108,8 @@ export function VisaoHoje({
   });
   const [porQue, setPorQue] = useState(false);
 
-  const f = { owner: filter.owner, product: filter.product };
+  const f = { owner: filter.owner, owners: filter.owners, product: filter.product };
+  const quem = nomeDoRecorte(filter);
   const regua = reguaDoPipe(data.stages);
   const anterior = diaUtilAnterior(hoje);
   const dia = eventosDoDia(data.cards, regua, hoje, f);
@@ -131,7 +133,7 @@ export function VisaoHoje({
   );
   const universo = [
     "Pipe 39",
-    `farmer: ${FARMER.nome}`,
+    `pré-venda: ${quem}`,
     rotuloProduto,
     `${rotuloMes(hoje)} até ${ddmm(hoje)}`,
     "régua cumulativa: cada abordado conta até a etapa mais adiantada a que chegou",
@@ -345,6 +347,7 @@ export function VisaoHoje({
         apoio={apoio}
         hoje={hoje}
         recorte={rotuloProduto}
+        quem={quem}
         measuredAt={data.measured_at}
       />
       <Dialog open={porQue} onOpenChange={setPorQue}>
@@ -357,8 +360,8 @@ export function VisaoHoje({
           </DialogHeader>
           <div className="space-y-2 text-sm text-muted-foreground">
             <p>
-              Quando o {FARMER.nome.split(" ")[0]} apresenta o Caixa de Oportunidade inteiro, a tela
-              só sabe o produto que está no card, e cada número por produto conta esse produto.
+              Quando o pré-vendedor apresenta o Caixa de Oportunidade inteiro, a tela só sabe o
+              produto que está no card, e cada número por produto conta esse produto.
             </p>
             <p>
               Medir os três produtos apresentados no mesmo card depende de a frente 01 mudar o
@@ -574,6 +577,7 @@ function ListaAtencao({
   apoio,
   hoje,
   recorte,
+  quem,
   measuredAt,
 }: {
   lista: ItemAtencao[] | null;
@@ -583,6 +587,7 @@ function ListaAtencao({
   apoio: UseQueryResult<ApoioAcompanhamento>;
   hoje: string;
   recorte: string;
+  quem: string;
   measuredAt: string | null;
 }) {
   const todos = lista ?? [];
@@ -623,7 +628,7 @@ function ListaAtencao({
             Abordados sem Conexão há {DIAS_UTEIS_SEM_CONEXAO} dias úteis ou mais
           </SheetTitle>
           <SheetDescription>
-            Abertos em Abordagem iniciada que nunca chegaram à Conexão · dono atual: {FARMER.nome} ·{" "}
+            Abertos em Abordagem iniciada que nunca chegaram à Conexão · dono atual: {quem} ·{" "}
             {recorte} · dias úteis desde a saída da Base, sem feriados
           </SheetDescription>
         </SheetHeader>

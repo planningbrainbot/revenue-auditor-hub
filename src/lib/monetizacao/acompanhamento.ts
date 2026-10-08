@@ -17,7 +17,7 @@ import {
   type Regua,
 } from "./funil-cumulativo.ts";
 import { uteis, type Filtro } from "./model.ts";
-import { CLOSERS } from "./types.ts";
+import { doResponsavel, pessoasNoRecorte } from "./responsavel.ts";
 import type { Negocio, Plano, Produto } from "./types";
 
 // ----------------------------------------------------------------------------------------------- parâmetros
@@ -95,10 +95,10 @@ export function eventosDoDia(
   cards: Negocio[],
   regua: Regua,
   dia: string,
-  f: Pick<Filtro, "owner" | "product">,
+  f: Pick<Filtro, "owner" | "owners" | "product">,
 ): Record<IndicadorDia, Negocio[] | null> {
   const pool = doProduto(cards, f);
-  const doAtor = (actor: number | null) => !f.owner || actor === f.owner;
+  const doAtor = (actor: number | null) => doResponsavel(f, actor);
   const etapa = (chave: "conexao" | "agendada" | "reuniaoProposta") => {
     const n = regua.nivelDe[chave];
     // A etapa principal do nível: "entradas na etapa Conexão" não somam o Gatilho encerrado.
@@ -158,7 +158,7 @@ const razao = (a: number | null, b: number | null) => (a === null || !b ? null :
 export function marcacaoDoMes(
   cards: Negocio[],
   stages: Etapa[],
-  f: Pick<Filtro, "owner" | "product">,
+  f: Pick<Filtro, "owner" | "owners" | "product">,
   hoje: string,
 ): MarcacaoDoMes {
   const funil = funilCumulativo(cards, stages, { ...f, from: hoje.slice(0, 7) + "-01", to: hoje });
@@ -246,7 +246,7 @@ export interface EstoqueERitmo {
 export function estoqueERitmo(
   cards: Negocio[],
   regua: Regua,
-  f: Pick<Filtro, "owner" | "product">,
+  f: Pick<Filtro, "owner" | "owners" | "product">,
   plano: Plano | undefined,
   abordados: number,
   hoje: string,
@@ -260,7 +260,7 @@ export function estoqueERitmo(
     ? null
     : metaDoPlano
       ? plano!.capacity
-      : ABORDAGENS_POR_CLOSER * (f.owner ? 1 : CLOSERS.length);
+      : ABORDAGENS_POR_CLOSER * pessoasNoRecorte(f);
   const faltam = meta === null ? null : Math.max(0, meta - abordados);
   return {
     base,
@@ -293,7 +293,7 @@ export interface ItemAtencao {
 export function listaDeAtencao(
   cards: Negocio[],
   regua: Regua,
-  f: Pick<Filtro, "owner" | "product">,
+  f: Pick<Filtro, "owner" | "owners" | "product">,
   units: { id: number | null; name: string }[],
   hoje: string,
 ): ItemAtencao[] | null {
@@ -306,7 +306,7 @@ export function listaDeAtencao(
   const itens: ItemAtencao[] = [];
   for (const c of doProduto(cards, f)) {
     if (c.status !== "open" || !naAbordagem.has(c.stage_id)) continue;
-    if (f.owner && c.owner_id !== f.owner) continue;
+    if (!doResponsavel(f, c.owner_id)) continue;
     const mv = trajeto(c, regua, encerradas);
     if (mv.some((m, i) => m.nivel >= nConexao && ficou(mv, i))) continue;
     const inicio = [...c.events.started].sort((a, b) => instante(a.at) - instante(b.at))[0];

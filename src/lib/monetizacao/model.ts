@@ -1,6 +1,7 @@
 import { ehDiaUtil } from "./feriados.ts";
 import { chegaramAoNivel, linhaDa } from "./funil-cumulativo.ts";
 import { aplicarRegiaoFinance } from "./regiao.ts";
+import { doResponsavel } from "./responsavel.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
 import type {
@@ -453,7 +454,9 @@ export function disponibilidade(
 export interface Filtro {
   from: string;
   to: string;
+  /** Uma pessoa; `null` com `owners` = a pré-venda inteira (responsavel.ts). */
   owner: number | null;
+  owners?: readonly number[];
   product: Produto | "";
 }
 export function operacao(cards: Negocio[], f: Filtro) {
@@ -462,8 +465,7 @@ export function operacao(cards: Negocio[], f: Filtro) {
   const match = (c: Negocio, k: Metrica, day?: string) =>
     c.events[k].some(
       (e) =>
-        (day ? e.date === day : e.date >= f.from && e.date <= f.to) &&
-        (!f.owner || e.actor_id === f.owner),
+        (day ? e.date === day : e.date >= f.from && e.date <= f.to) && doResponsavel(f, e.actor_id),
     );
   const rows = Object.fromEntries(
     METRICAS.map((m) => [m.key, pool.filter((c) => match(c, m.key))]),
@@ -492,7 +494,7 @@ export function operacao(cards: Negocio[], f: Filtro) {
       (v) =>
         v.date <= f.to &&
         c.events.meeting.some(
-          (m) => m.date >= f.from && m.date <= v.date && (!f.owner || m.actor_id === f.owner),
+          (m) => m.date >= f.from && m.date <= v.date && doResponsavel(f, m.actor_id),
         ),
     ),
   );
@@ -624,8 +626,8 @@ export function csv(rows: unknown[][]) {
       .join("\r\n")
   );
 }
-// Farmer da Monetização. Único da frente desde set/2026 (decisão do dono em 24/09/2026): a Operação
-// mede o trabalho dele e não oferece mais o seletor de responsável.
+// Primeiro pré-vendedor da Monetização (farmer único de 24/09 a 08/10/2026). A tela usa PRE_VENDEDORES e o
+// seletor de responsável; a constante fica para os scripts de conferência que medem o Matheus.
 export const FARMER = { id: 28381245, nome: "Matheus Carvalho" } as const;
 
 /**
@@ -742,7 +744,7 @@ export interface QuadroMeta {
 const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
 
 /**
- * Os cinco quadros de meta do farmer, na mesma coorte do funil (régua cumulativa, 01/10/2026): trabalhados,
+ * Os cinco quadros de meta da pré-venda (uma pessoa ou os dois), na mesma coorte do funil (régua cumulativa, 01/10/2026): trabalhados,
  * agendados, realizados e validadas saem dos mesmos cards, então validadas nunca passam de realizadas. Só os
  * trabalhados são ritmo: abordados ÷ dias úteis do período (segunda a sexta, sem feriado). Abaixo da meta num período
  * que é só hoje é "dia em curso", não "fora".
@@ -797,7 +799,7 @@ export function metasOperacao(
       status: status(ritmo(abordados.length), metaLeads),
       nota: emDias(abordados.length),
       formula:
-        "Cards que o farmer tirou da Base elegível no período (a coorte do funil), divididos pelos dias úteis, sem os feriados nacionais.",
+        "Cards que a pré-venda tirou da Base elegível no período (a coorte do funil), divididos pelos dias úteis, sem os feriados nacionais.",
       cards: abordados,
     },
     {
