@@ -119,7 +119,7 @@ porta nas quatro views só por `minhas_unidades()`. A lateral esconde o item de 
 (flag `temSplit`). Ensaiado com rollback contra os sócios regionais: Belém 109 linhas, Campo Novo
 39, Maceió 78 (soma = 226 da matriz); demais unidades 0. Somas por mês = totais, unidade a unidade.
 **Status:** migration `20261008180000_split_periodo_minha_unidade.sql` aplicada no banco único em
-08/10/2026 (rollback em `supabase/rollback/`). Tela em validação local, não publicada.
+08/10/2026 (rollback em `supabase/rollback/`). Tela publicada em 08/10/2026 (commit eb41ade, deploy por CLI).
 
 ---
 
