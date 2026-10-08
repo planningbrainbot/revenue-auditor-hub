@@ -11,6 +11,10 @@
 --    consultoria (`consultoria_app`), que não tem usuário logado. Corpo idêntico ao de produção
 --    em 08/10/2026; só a linha da guarda muda.
 --
+-- Em produção o schema `ops` só tem USAGE para authenticated, anon e service_role
+-- (conferido em 08/10/2026): `consultoria_app` não alcança o IDU por fora das portas
+-- `ops.consultoria_*`. O teste de varredura do repo planning-broker cobre isso.
+--
 -- Achado em 08/10/2026 (PRD da Consultoria de Campo v1, D-06).
 
 create or replace function ops.idu_pode_ver()
@@ -22,7 +26,10 @@ as $$
   -- service_role pela API e o backend da consultoria enxergam.
   select ops.can('view.idu')
       or session_user in ('postgres', 'supabase_admin', 'consultoria_app')
-      or coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role', '') = 'service_role'
+      -- O papel do token só vale quando a conexão é a da API: login direto no banco
+      -- consegue gravar `request.jwt.claims` com `set` e se passar por service_role.
+      or (session_user = 'authenticator'
+          and coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role', '') = 'service_role')
 $$;
 
 CREATE OR REPLACE FUNCTION ops.ranking_unidades(p_inicio date, p_fim date)
