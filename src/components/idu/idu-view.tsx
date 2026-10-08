@@ -516,58 +516,67 @@ export function IduView() {
                         className="bg-muted/30 hover:bg-muted/30"
                       >
                         <TableCell colSpan={10} className="p-0">
-                          <div className="overflow-x-auto p-4">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Indicador</TableHead>
-                                  <TableHead>Pilar</TableHead>
-                                  <TableHead className="text-right">Peso</TableHead>
-                                  <TableHead className="text-right">Meta</TableHead>
-                                  <TableHead className="text-right">Realizado</TableHead>
-                                  <TableHead className="text-right">Ating.</TableHead>
-                                  <TableHead className="text-right">Pontos</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {linhas.map((l) => (
-                                  <LinhaIndicador
-                                    key={`${l.unidade_id}:${l.indicador}`}
-                                    l={l}
-                                    editando={editando === `${l.unidade_id}:${l.indicador}`}
-                                    rascunho={rascunho}
-                                    salvando={salvando}
-                                    podeEditar={podeEditarMetas}
-                                    onEditar={() => {
-                                      setEditando(`${l.unidade_id}:${l.indicador}`);
-                                      setRascunho(l.meta === null ? "" : String(l.meta));
-                                    }}
-                                    onRascunho={setRascunho}
-                                    onSalvar={() => void salvarMeta(l, rascunho)}
-                                    onCancelar={() => setEditando(null)}
-                                    onVoltar={() =>
-                                      setVoltar({
-                                        unidadeId: l.unidade_id,
-                                        unidade: l.unidade,
-                                        indicador: l.indicador,
-                                        rotulo: l.rotulo,
-                                      })
-                                    }
-                                  />
-                                ))}
-                                <TableRow className="bg-muted/50">
-                                  <TableCell colSpan={6} className="font-medium">
-                                    {sb
-                                      ? "Sem base efetiva: nenhum indicador com meta e dado neste trimestre"
-                                      : `Soma sobre base efetiva de ${r.base_efetiva} pontos`}
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold tabular-nums">
-                                    {fmtNum(r.soma_pontos)}
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </div>
+                          {linhas.length === 0 ? (
+                            // O banco só devolve o detalhamento das unidades de quem pergunta
+                            // (a matriz vê todas). O ranking geral continua aberto.
+                            <p className="p-4 text-sm text-muted-foreground">
+                              O detalhamento por indicador fica disponível só para a própria
+                              unidade.
+                            </p>
+                          ) : (
+                            <div className="overflow-x-auto p-4">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Indicador</TableHead>
+                                    <TableHead>Pilar</TableHead>
+                                    <TableHead className="text-right">Peso</TableHead>
+                                    <TableHead className="text-right">Meta</TableHead>
+                                    <TableHead className="text-right">Realizado</TableHead>
+                                    <TableHead className="text-right">Ating.</TableHead>
+                                    <TableHead className="text-right">Pontos</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {linhas.map((l) => (
+                                    <LinhaIndicador
+                                      key={`${l.unidade_id}:${l.indicador}`}
+                                      l={l}
+                                      editando={editando === `${l.unidade_id}:${l.indicador}`}
+                                      rascunho={rascunho}
+                                      salvando={salvando}
+                                      podeEditar={podeEditarMetas}
+                                      onEditar={() => {
+                                        setEditando(`${l.unidade_id}:${l.indicador}`);
+                                        setRascunho(l.meta === null ? "" : String(l.meta));
+                                      }}
+                                      onRascunho={setRascunho}
+                                      onSalvar={() => void salvarMeta(l, rascunho)}
+                                      onCancelar={() => setEditando(null)}
+                                      onVoltar={() =>
+                                        setVoltar({
+                                          unidadeId: l.unidade_id,
+                                          unidade: l.unidade,
+                                          indicador: l.indicador,
+                                          rotulo: l.rotulo,
+                                        })
+                                      }
+                                    />
+                                  ))}
+                                  <TableRow className="bg-muted/50">
+                                    <TableCell colSpan={6} className="font-medium">
+                                      {sb
+                                        ? "Sem base efetiva: nenhum indicador com meta e dado neste trimestre"
+                                        : `Soma sobre base efetiva de ${r.base_efetiva} pontos`}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold tabular-nums">
+                                      {fmtNum(r.soma_pontos)}
+                                    </TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )}

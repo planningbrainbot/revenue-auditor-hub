@@ -17,7 +17,7 @@ returns table (unidade_id integer, curva text, idu numeric, faixa text, base_efe
 language sql stable security definer
 set search_path to 'ops', 'public', 'extensions'
 as $$
-  with a as (select * from ops.idu_apuracao(p_inicio, p_fim)),
+  with a as (select * from ops.idu_apuracao_base(p_inicio, p_fim)),
   r as (select * from ops.idu_ranking(p_inicio, p_fim)),
   p as (
     select a.unidade_id, a.pilar,
