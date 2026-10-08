@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/table";
 import { useAtualizarMonetizacao, useMonetizacao } from "@/hooks/use-monetizacao";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
+import { nomeDoRecorte } from "@/lib/monetizacao/responsavel";
+import { PRE_VENDEDORES } from "@/lib/monetizacao/types";
 import {
   cadastroACorrigir,
-  FARMER,
   hoje,
   METRICAS,
   metasOperacao,
@@ -100,7 +101,7 @@ const TITULOS: Record<Aba, string> = {
   gravacoes: "Gravações",
 };
 const PERGUNTAS: Record<Aba, string> = {
-  operacao: "O farmer está no ritmo, e onde a base trava?",
+  operacao: "A pré-venda está no ritmo, e onde a base trava?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   "follow-day": "Qual negócio aberto eu destravo hoje?",
   temporal: "Quando as oportunidades abertas devem virar contrato, e quanto valem?",
@@ -117,17 +118,17 @@ const PERGUNTAS: Record<Aba, string> = {
 /**
  * O que a barra de filtros mostra em cada aba (moldura, "Filtros na URL").
  * Follow Day é estoque (sem De/Até); Abordagens e Projetado × realizado não têm barra da
- * moldura (o mês do forecast é seletor da própria visão). Não há seletor de responsável:
- * Matheus é o único farmer (fala do dono, 24/09/2026) e o recorte é sempre o `FARMER`.
+ * moldura (o mês do forecast é seletor da própria visão). O seletor de responsável voltou em 08/10/2026,
+ * com os dois pré-vendedores (Matheus e Heloá): sem escolha, o recorte é a pré-venda inteira.
  */
-const BARRA: Record<Aba, { periodo: boolean; produto: boolean } | null> = {
-  operacao: { periodo: true, produto: true },
-  funil: { periodo: true, produto: true },
-  "follow-day": { periodo: false, produto: true },
-  temporal: { periodo: true, produto: true },
-  capacidade: { periodo: true, produto: false },
-  pessoas: { periodo: true, produto: false },
-  distribuicao: { periodo: true, produto: true },
+const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: boolean } | null> = {
+  operacao: { periodo: true, produto: true, responsavel: true },
+  funil: { periodo: true, produto: true, responsavel: true },
+  "follow-day": { periodo: false, produto: true, responsavel: false },
+  temporal: { periodo: true, produto: true, responsavel: true },
+  capacidade: { periodo: true, produto: false, responsavel: true },
+  pessoas: { periodo: true, produto: false, responsavel: true },
+  distribuicao: { periodo: true, produto: true, responsavel: false },
   forecast: null,
   roteiros: null,
   // Gravações tem barra própria (mês da reunião, situação da gravação e busca), dentro da visão.
@@ -196,6 +197,7 @@ export function DashboardMonetizacao({
     de: busca.de,
     ate: busca.ate,
     produto: busca.produto,
+    responsavel: busca.responsavel,
   };
   type Compartilhados = typeof compartilhados;
   const assinatura = JSON.stringify(compartilhados);
@@ -318,7 +320,7 @@ export function DashboardMonetizacao({
         }
       : null;
   const metas = funis ? metasOperacao(funis.total, plan, filter, today) : null;
-  const responsavel = FARMER.nome;
+  const responsavel = nomeDoRecorte(filter);
   const produto = rotuloProduto(busca.produto);
   const periodo = rotuloPeriodo(filter.from, filter.to);
 
@@ -360,6 +362,7 @@ export function DashboardMonetizacao({
     ? ([
         ...(barra.periodo ? (["de", "ate"] as const) : []),
         ...(barra.produto ? (["produto"] as const) : []),
+        ...(barra.responsavel ? (["responsavel"] as const) : []),
       ] as (keyof Compartilhados)[])
     : [];
   const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined);
@@ -416,6 +419,22 @@ export function DashboardMonetizacao({
             Aplicar
           </Button>
         </>
+      )}
+      {barra.responsavel && (
+        <Field label="Pré-vendedor">
+          <select
+            className={inputClass}
+            value={busca.responsavel ?? ""}
+            onChange={(e) => mudarFiltros({ responsavel: Number(e.target.value) || undefined })}
+          >
+            <option value="">Pré-venda (os dois)</option>
+            {PRE_VENDEDORES.map(([id, nome]) => (
+              <option key={id} value={id}>
+                {nome}
+              </option>
+            ))}
+          </select>
+        </Field>
       )}
       {barra.produto && (
         <Field label="Produto">
@@ -506,6 +525,7 @@ export function DashboardMonetizacao({
             />
           )}
           <MetasFarmer
+            quem={responsavel}
             quadros={metas.quadros}
             uteis={metas.uteis}
             from={filter.from}
@@ -585,7 +605,7 @@ function descricaoDaAba(
 ): string {
   switch (aba) {
     case "operacao":
-      return `Pipe Monetização (39) no Pipedrive · farmer: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
+      return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
     case "follow-day":
       return `Negócios abertos do pipeline 39 · dono atual: ${v.responsavel} · ${v.produto} · sem movimento há ${v.dias}+ dias · estoque de hoje, não usa período`;
     case "temporal":
@@ -652,8 +672,9 @@ function DealDetails({
     [c.title, c.owner, NOMES[c.route]].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
   const nomeAtor = (id: number | null) =>
+    PRE_VENDEDORES.find(([p]) => p === id)?.[1] ||
     data.cards.find((d) => d.owner_id === id)?.owner ||
-    (id === 28381245 ? "Matheus Carvalho" : `Usuário ${id}`);
+    `Usuário ${id}`;
   return (
     <Dialog open={!!detail} onOpenChange={(o) => !o && close()}>
       <DialogContent

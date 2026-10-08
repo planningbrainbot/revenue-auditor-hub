@@ -20,6 +20,12 @@ import {
 } from "../src/lib/monetizacao/acompanhamento.ts";
 import { ehDiaUtil } from "../src/lib/monetizacao/feriados.ts";
 import { metasOperacao, uteis } from "../src/lib/monetizacao/model.ts";
+import {
+  doResponsavel,
+  nomeDoRecorte,
+  pessoasNoRecorte,
+} from "../src/lib/monetizacao/responsavel.ts";
+import { PRE_VENDEDORES } from "../src/lib/monetizacao/types.ts";
 
 const M = 28381245;
 // O pipe 39 depois da edição de 01/10, com a ordem da carga.
@@ -334,6 +340,35 @@ test("Card abordado no mês anterior que avança no período vai para a nota, e 
     q.signed.cards.map((c) => c.id),
     [alves.id],
   );
+});
+
+test("Pré-venda com dois: a coorte soma Matheus e Heloá, sem a integração; uma pessoa conta só ela", () => {
+  const H = 28897937;
+  const ids = PRE_VENDEDORES.map(([id]) => id);
+  assert.deepEqual(ids, [M, H]);
+  const base = mv(274, "2026-09-20 12:00:00");
+  const doMatheus = card({ moves: [base, mv(276, "2026-09-02 13:00:00")] });
+  const daHeloa = card({
+    moves: [base, mv(276, "2026-09-03 13:00:00", H), mv(277, "2026-09-04 13:00:00", H)],
+  });
+  const doOps = card({ moves: [base, mv(276, "2026-09-05 13:00:00", 23984402)] });
+  const cards = [doMatheus, daHeloa, doOps];
+  const equipe = { ...SET, owner: null, owners: ids };
+  assert.deepEqual(
+    funilCumulativo(cards, ST, equipe).coorte.map((c) => c.id),
+    [doMatheus.id, daHeloa.id],
+  );
+  assert.deepEqual(
+    funilCumulativo(cards, ST, { ...SET, owner: H }).coorte.map((c) => c.id),
+    [daHeloa.id],
+  );
+  assert.equal(funilCumulativo(cards, ST, TOTAL).coorte.length, 3);
+  assert.equal(doResponsavel(equipe, 23984402), false);
+  assert.equal(doResponsavel({ owner: null }, 23984402), true);
+  assert.equal(pessoasNoRecorte(equipe), 2);
+  assert.equal(pessoasNoRecorte({ owner: H }), 1);
+  assert.equal(nomeDoRecorte({ owner: H }), "Heloá");
+  assert.equal(nomeDoRecorte(equipe), "Pré-venda (Matheus e Heloá)");
 });
 
 test("Dias úteis pulam os feriados nacionais de 2026 e 2027", () => {

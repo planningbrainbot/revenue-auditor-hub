@@ -92,3 +92,20 @@ Proposta para esta migração: **nenhuma fusão**. As telas são migradas como e
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida
 - [ ] Números conferidos na fonte (recontagem independente pela Management API, só leitura)
+
+## Adendo de 08/10/2026: dois pré-vendedores
+
+O Pedro pediu, em 08/10: "vamos ter dois closers pré-vendedores agora, a Heloá e o Matheus; atualize no pipe e no
+painel".
+- **O seletor volta à barra.** Ele tinha saído em 24/09, quando o Matheus era o único farmer. Chama-se
+  "Pré-vendedor" e tem três opções: "Pré-venda (os dois)", "Matheus Carvalho" e "Heloá". Aparece nas abas Operação,
+  Funil, Temporal, Capacidade e Pessoas.
+- **Na URL:** `?responsavel=<id do Pipedrive>`. Sem a chave, o recorte é a pré-venda inteira: os movimentos dos dois,
+  sem o usuário de integração.
+- **Cálculo:** uma regra só para dizer de quem é o movimento, `doResponsavel` em
+  `src/lib/monetizacao/responsavel.ts`. A lista de pessoas é `PRE_VENDEDORES` em `types.ts`.
+- **Títulos e nomes:**
+  - os quadros perguntam "A pré-venda está no ritmo das metas?" ou "{Nome} está no ritmo das metas?";
+  - o cabeçalho e a procedência dizem "pré-venda: {quem}" no lugar de "farmer";
+  - Capacidade e Pessoas pedem um pré-vendedor quando o recorte é a pré-venda inteira, porque o plano e o PDI são por
+    pessoa.

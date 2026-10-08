@@ -4958,3 +4958,31 @@ tela avisa. O histórico começa em 09/2026, quando o boleto foi unificado.
 **Status:** publicada em 08/10/2026 a pedido do dono, revertendo a decisão do mesmo dia de deixar o
 Ops intocado. Fica como tela provisória até o módulo Minha Unidade do sistema novo
 (app.planningbrain.com.br, PRD `2026-10-minha-unidade-v1`) chegar à produção.
+
+## [2026-10-08] Dois pré-vendedores no pipe 39: Matheus e Heloá
+
+**Pedido do Pedro (08/10):** "Vamos ter dois closers pré-vendedores agora, a Heloá e o Matheus. Atualize no pipe e
+também no painel de monetização." Isso segue a call presencial de 08/10 com Paulo e Jordana: a pré-venda vai da
+abordagem até a reunião com o especialista marcada.
+
+**No Pipedrive:**
+- A Heloá não tinha usuário. Busquei pelo nome e pelo e-mail nos 57 usuários, e só o Matheus tinha movido card no pipe
+  39 desde 01/10.
+- O Pedro mandou criar o acesso como `heloa.jesus@planning.com.br`. O usuário 28897937, "Heloá", foi criado pela API
+  com o perfil "Deals regular user", e não como admin, ao contrário do Matheus. O convite foi para o e-mail dela.
+- **Carteira (decisão do Pedro):** os 131 cards abertos ficam com o Matheus. A base nova aprovada pelos sócios é
+  dividida entre os dois a partir de agora.
+
+**No Brain:**
+- `PRE_VENDEDORES` (Matheus e Heloá) substitui o farmer fixo. O envio ao Pipedrive (`CLOSERS`) passa a oferecer
+  Matheus, Heloá e Willian; o Willian segue para o Recon.
+- `ops.monetizacao_closers` ganhou a Heloá, para a tela Gravações reconhecer as reuniões dela.
+- O painel ganhou o seletor "Pré-vendedor" (adendo de 08/10 em `docs/design/contratos/monetizacao.md`).
+- **Regra do recorte "os dois":** só os movimentos dos dois contam. A saída da Base feita pela integração não entra.
+- **Medido com a carga real (01 a 08/10):** "os dois" é igual ao Matheus (46 abordados, 16 agendados, 10 realizados,
+  5 validadas e 2 contratos), e a Heloá está em zero.
+
+**Aberto, sem decidir aqui:**
+- A visão Hoje e a Capacidade ainda usam o padrão de 120 abordagens por pessoa quando o mês não tem plano, e com os
+  dois isso vira 240. Na call de 08/10, o Paulo vetou meta nova até medir a capacidade. Esse padrão é de 01/10 e
+  continua; tirar ou trocar é decisão dele.

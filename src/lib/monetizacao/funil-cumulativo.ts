@@ -20,6 +20,7 @@
  */
 import type { Filtro } from "./model";
 import type { Movimento, Negocio } from "./types";
+import { doResponsavel } from "./responsavel.ts";
 
 export type Etapa = { id: number; name: string; order: number };
 
@@ -216,12 +217,10 @@ export function naFila(c: Negocio, f: Pick<Filtro, "from" | "to">, regua: Regua)
 
 /**
  * Primeiro `started` do período feito por quem o filtro mede. `null` = o card não é da coorte. Saída da Base pelo
- * usuário de integração não é abordagem do farmer: com o filtro no Matheus, ela fica fora.
+ * usuário de integração não é abordagem da pré-venda: com o filtro numa pessoa ou nos dois, ela fica fora.
  */
 export function inicioDaAbordagem(c: Negocio, f: Filtro): string | null {
-  const e = c.events.started.filter(
-    (x) => noPeriodo(x.date, f) && (!f.owner || x.actor_id === f.owner),
-  );
+  const e = c.events.started.filter((x) => noPeriodo(x.date, f) && doResponsavel(f, x.actor_id));
   if (!e.length) return null;
   return e.reduce((a, x) => (instante(x.at) < instante(a) ? x.at : a), e[0].at);
 }
@@ -256,10 +255,10 @@ export function avancosDeAbordagemAnterior(
     const de = mv.filter((m) => m.t < t0).at(-1)?.nivel ?? 1;
     let ate = de;
     mv.forEach((m, i) => {
-      if (!noPeriodo(m.date, f) || m.t < t0 || (f.owner && m.actor_id !== f.owner)) return;
+      if (!noPeriodo(m.date, f) || m.t < t0 || !doResponsavel(f, m.actor_id)) return;
       if (ficou(mv, i) && m.nivel > ate) ate = m.nivel;
     });
-    if (c.events.signed.some((e) => noPeriodo(e.date, f) && (!f.owner || e.actor_id === f.owner)))
+    if (c.events.signed.some((e) => noPeriodo(e.date, f) && doResponsavel(f, e.actor_id)))
       ate = regua.ganho;
     if (ate > de) out.push({ card: c, de, ate });
   }
@@ -336,7 +335,7 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
   const ganhosForaDaCoorte = pool.filter(
     (c) =>
       !naCoorte.has(c.id) &&
-      c.events.signed.some((e) => noPeriodo(e.date, f) && (!f.owner || e.actor_id === f.owner)),
+      c.events.signed.some((e) => noPeriodo(e.date, f) && doResponsavel(f, e.actor_id)),
   );
   const medePerda = pool.some((c) => c.lost_on !== undefined);
   const perdidos = medePerda
@@ -346,7 +345,7 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
           !!c.lost_on &&
           noPeriodo(c.lost_on, f) &&
           // quem perdeu, como todo movimento; carga anterior à v6 só tem o dono atual
-          (!f.owner || (c.lost_by !== undefined ? c.lost_by : c.owner_id) === f.owner),
+          doResponsavel(f, c.lost_by !== undefined ? c.lost_by : c.owner_id),
       )
     : null;
   return {
