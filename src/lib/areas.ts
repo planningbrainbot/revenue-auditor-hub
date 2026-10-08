@@ -660,6 +660,10 @@ export const AREAS: Area[] = [
             icon: ScrollText,
             tambem: /^\/unidades\/\d+$/,
           },
+          // Serviços contratados da matriz e o boleto de contas fixas, com 2ª via
+          // (07/10/2026). Fica com a área da unidade, não com o Financeiro: é o que a
+          // unidade paga à matriz, e minha_unidade_financeiro não está com nenhum sócio.
+          { title: "Serviços e faturas", url: "/meus-servicos", icon: Receipt },
           // As vendas que a unidade fechou pelo pipe Sócios do Pipedrive (02/10/2026).
           { title: "Hunter Sócio", url: "/hunter-socio", icon: Target, chave: "view.hunter_socio" },
           // O Funil de CAC da rede recortado na unidade (05/10/2026). Unidade que

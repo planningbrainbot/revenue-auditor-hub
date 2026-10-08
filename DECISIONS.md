@@ -4933,3 +4933,28 @@ não até onde ela chegou.
 - Conferido em 08/10 antes de aplicar, em transação desfeita: sócio regional vê 11 unidades no ranking e só a dele no detalhamento; admin vê as 11 nos dois; financeiro não vê nada; notas do IDU iguais às de antes. Quem tem `view.idu`: admin, auditor, CS, 3 dos 4 diretores e os 30 sócios regionais.
 - Migration `20261008120000_idu_trava_session_user.sql`, aplicada no banco único em 08/10 pela Management API. A `20261008121000_consultoria_portas_leitura.sql` (portas de leitura da Consultoria de Campo) ainda NÃO foi aplicada: vai junto com a produção da Consultoria.
 - A frase da tela /idu só aparece no próximo deploy do Ops.
+
+## [2026-10-07] Serviços e faturas: a unidade acompanha o boleto de contas fixas e tira a 2ª via
+
+**Contexto:** o sócio não tinha como ver quais serviços contrata da matriz (CSC, mídia, CS, RH,
+Compliance), quando começou a pagar cada um e quais boletos já pagou.
+
+**Decisão:** página `/meus-servicos` no grupo principal do menu da unidade, com a área
+`minha_unidade` (todo sócio regional tem). Não foi para `minha_unidade_financeiro` porque essa
+área está desligada para o sócio desde 16/09/2026, e a tela ficaria invisível. Escopo decidido pelo dono: **só o boleto de contas fixas**
+(`SIGLA-FIX-MMAAAA`); royalties e CAC ficam fora. Ações: **só 2ª via** do boleto já emitido
+(`ObterBoleto` do Omie da Partners, que lê o boleto e não cria cobrança). A unidade não gera
+cobrança nova. O Asaas fica para um passo seguinte.
+
+**Fontes:** `csc_unidades` (CSC), `servicos_fixos_unidade` (demais, com degraus), `csc_ciclos`
+(um boleto por competência) e `contas_receber` da Partners pelo `codigo_omie` (situação). A
+leitura é feita no servidor (`contas-fixas-unidade.functions.ts`) com o service role, depois de
+autorizar: a matriz (`view.unidades_rede`) vê qualquer unidade com seletor; o sócio só as de
+`ops.minhas_unidades`. Nenhuma policy nova: as tabelas seguem fechadas ao sócio.
+
+**Limite conhecido:** a situação vem do Omie, que dá baixa com 1 a 2 dias úteis de atraso; a
+tela avisa. O histórico começa em 09/2026, quando o boleto foi unificado.
+
+**Status:** publicada em 08/10/2026 a pedido do dono, revertendo a decisão do mesmo dia de deixar o
+Ops intocado. Fica como tela provisória até o módulo Minha Unidade do sistema novo
+(app.planningbrain.com.br, PRD `2026-10-minha-unidade-v1`) chegar à produção.
