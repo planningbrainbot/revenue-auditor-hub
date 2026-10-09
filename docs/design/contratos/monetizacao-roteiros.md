@@ -35,3 +35,11 @@ Envio ao cliente ("Nada é enviado automaticamente", texto atual, fica). Roteiro
 
 ## Para onde manda
 Nenhum destino de negócio. Uso da abordagem: Pipedrive (a Fila Cella foi aposentada em 24/09).
+
+## Adendo · 09/10/2026 · Caixa · todas as frentes
+
+A pré-venda apresenta o Caixa de Oportunidade inteiro, e os roteiros da cadência (e-mail do D0, script de ligação,
+mensagens) valem para as três frentes. Abordagem com `body.product = "caixa"` aparece como **"Caixa · todas as
+frentes"** (antes caía em "Sem produto"). O filtro de produto da aba (`?produto=caixa`, aceito só nesta aba) e o
+formulário "Nova abordagem" oferecem a opção, com um modelo de texto próprio. A lista é `PRODUTOS_ROTEIRO` em
+`src/lib/monetizacao/types.ts`; `PRODUTOS` (rota do card e do plano) não muda.

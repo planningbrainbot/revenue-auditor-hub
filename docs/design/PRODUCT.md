@@ -23,7 +23,7 @@ Síntese de `CP/PRD.md:15`, `CP/contexto-roadmap.md:17`, `PU/spec-banco-unico.md
 | Público | Quando… quero… para… | Onde está hoje |
 |---|---|---|
 | CEO / sócios da matriz | …abro o Brain, entender em 1 min como estamos, o que mudou, o que ameaça o resultado e quais decisões são minhas, para alocar capital e cobrar donos | piloto `/piloto/cockpit-ceo`; Financeiro `/`; `/rede-overview`; OKRs |
-| Comercial / pré-venda / hunter | …começo o dia, saber quem ligar, com qual argumento e onde parei, para ir de abordagem a ganho | `/monetizacao` (Follow Day); `/clientes` → Produtos e listas; Growth `/comercial/*` |
+| Comercial / pré-venda / hunter | …começo o dia, saber quem ligar, com qual argumento e onde parei, para ir de abordagem a ganho | `/monetizacao` (Operação diária e a lista de atenção; o Follow Day saiu em 09/10/2026, e a cadência da pré-venda vira atividade no card do Pipedrive); `/clientes` → Produtos e listas; Growth `/comercial/*` |
 | Marketing / Growth | …reviso campanhas, saber qual recorte compra MQL e reunião no preço certo, para escalar ou cortar verba | Growth `/trafego`, `/criativos` |
 | CS / Relacionamento | …olho a carteira, ver quem está em risco (NPS, inadimplência, tratativa) e agir antes do churn | `/painel-cs`, `/nps`, Contratos e churn, IDU |
 | Financeiro / controladoria | …fecho o mês, ter DRE, caixa e repasse conciliados e com régua declarada, para fechar sem planilha | Brain Financeiro + Receita e Repasses |
@@ -61,8 +61,8 @@ Estado: **E** existe e é usado · **P** parcial (não provoca a ação ou tem d
 | Receita e Repasses | `/unidades`, `/unidades/royalties`, `/unidades/funil-cac`, `/unidades/split` | apurar → confirmar → faturar no Omie; cobrar CAC | E | Configuração / Lista → Ficha |
 | Receita e Repasses | `/comissoes`, `/ebit-operacional` | ratear custo e apurar comissão | E | Lista/Relatório |
 | Planning People | `/gente?tela=*` | liderança, elogios, avaliação, PDI | P (trilha que substituiria o Qulture não existe) | Fila / Ficha |
-| Monetização | `/monetizacao` (9 visões) | trabalhar a fila de negócios; alocar capacidade por produto | P (alocação 0/0/0) | Fila + Lista |
-| Monetização | `/monetizacao?aba=follow-day` | abrir o negócio parado e marcar a próxima atividade | P (Fila Cella aposentada em 24/09) | Fila de trabalho |
+| Monetização | `/monetizacao` (7 visões desde 09/10/2026) | acompanhar a pré-venda e trabalhar a fila de abordados; a alocação de capacidade por produto saiu com a tela Capacidade e alocação (sem meta por enquanto) | P | Fila + Lista |
+| Monetização | `/monetizacao` (lista de atenção da Operação diária, `?atencao=`) | abrir o abordado sem Qualificação e procurar a unidade | P (Fila Cella aposentada em 24/09; Follow Day, Temporal e previsão, Projetado × realizado e Capacidade e alocação saíram em 09/10) | Fila de trabalho |
 | Broker | `/broker`, `/broker/admin` | pegar oportunidade; matriz vê custo/CAC | E | Fila / Configuração |
 | Minha Unidade | `/painel-unidade` e demais | agir na própria unidade | P (sócio cai em bloco vazio sem aviso) | Visão geral |
 | Administração | `/admin/*`, `/equipe`, `/atividade` | conceder o mínimo; validar página antes da main | E | Configuração |
@@ -94,7 +94,7 @@ Nenhuma destas é resolvida pelo design system. Dono **sugerido** pelo relatóri
 | # | Pendência | Conflito | Dono sugerido | Fonte |
 |---|---|---|---|---|
 | 5.1 | O Cockpit do CEO é a área Estratégia & Execução ou outra coisa? | Em 21/09 o dono descartou "Cockpit" (colide com o Financeiro) e criou Estratégia & Execução; em 22/09 o PRD voltou a chamar de "Cockpit do CEO". "Cockpit" hoje tem três sentidos. | Pedro | DECISIONS 21/09; `CP/PRD.md:21` |
-| 5.2 | Qual é a casa única da fila de ligação (S2)? | `/crm` (Bodra) × `/monetizacao` Follow Day (a Fila Cella saiu em 24/09, aposentada pelo Pedro); as próprias specs proíbem o terceiro painel | Pedro, ouvindo Bodra | `CRM:54`; `FC:26,97` |
+| 5.2 | Qual é a casa única da fila de ligação (S2)? | `/crm` (Bodra) × `/monetizacao` (a Fila Cella saiu em 24/09, aposentada pelo Pedro; o Follow Day saiu em 09/10, e a cadência da pré-venda passou a ser atividade no card do Pipedrive); as próprias specs proíbem o terceiro painel | Pedro, ouvindo Bodra | `CRM:54`; `FC:26,97` |
 | 5.3 | "Cliente ativo" por contexto | três réguas: conta conciliada (Base), "pagou em 90 dias" (Contratos), "não deu churn" (Rede) | Pedro + Eliezek | `D:2158-2160`; `CP/PRD.md:121` |
 | 5.4 | Forma final da Base de clientes | 4 blocos numa rolagem (`S:153`) × rotas irmãs (`N:230-252`) × faixa única no topo (implementada 22/09) | Pedro | `D:2189,2210` |
 | 5.5 | Guarda de "Produtos e listas" | decisão é `view.aquario`, mas a entrada aparece para todos; sócio cai em bloco vazio | Pedro (regra), Eliezek (casca) | `D:2154` × `D:2210`; `N:217` |

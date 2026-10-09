@@ -37,3 +37,12 @@ Distribuição de oportunidade inbound para unidade (Growth `/comercial/distribu
 
 ## Conflito (PRODUCT §5.8)
 Mesmo nome, outro job no Growth ("Para qual unidade essa oportunidade deveria ir?"). Proposta: manter e declarar o perímetro na `descricao`, sem fundir.
+
+## Adendo · 09/10/2026 · Abordagens por dia útil no lugar da capacidade
+
+A capacidade mensal vinha do plano (`plano.capacity`) e levava à tela Capacidade e alocação, que saiu do menu em
+09/10/2026 (sem meta por enquanto). A coluna passa a ser **"Abordagens por dia útil no mês"**: negócios de que a pessoa
+é dona hoje com a primeira abordagem (`started_at`) no mês corrente, no fuso de São Paulo, ÷ dias úteis do mês
+decorridos até hoje, inclusive; uma casa decimal; "—" antes do primeiro dia útil. Não usa o período da barra e não tem
+link (`abordagensPorDiaUtil` em `src/lib/monetizacao/model.ts`). A foto salva com a decisão grava
+`abordagens_por_dia_util`; as fotos antigas continuam mostrando "Capacidade (plano)".

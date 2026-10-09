@@ -124,3 +124,26 @@ responsável.
 **Estados novos:** sócios sem permissão (`view.unidades_rede` ou `view.rede_headcount`) → "sem acesso aos sócios"; unidade sem sócio → "sem sócio cadastrado"; card sem unidade → "Sem unidade"; meta de abordagens com filtro de produto → o bloco diz que a meta é da frente inteira.
 
 **Não entra:** inferir unidade pelo dono do card; sócio de referência (não existe, decisão de 01/10); medir três produtos no mesmo card (o campo aceita um só).
+
+## Adendo · 09/10/2026 · Sem meta, e as etapas renomeadas
+
+**Sem meta por enquanto** (decisão do dono do produto em 09/10, depois do veto do Paulo a meta nova até medir a
+capacidade, call de 08/10). A tela Capacidade e alocação, a única que gravava o plano (`ops.monetizacao_planos`), saiu
+do menu. Sai da Operação e da visão "Hoje" todo alvo que vinha do plano, do padrão de 120 por closer ou dos alvos de
+01/10:
+- os quadros da pré-venda mostram o realizado, sem meta nem selo ("Até onde a pré-venda levou os abordados do
+  período?"); a meta de contratos proporcional sai;
+- a série por dia perde a linha "Meta N/dia";
+- a visão "Hoje" pergunta "Como está o mês da pré-venda até hoje?". Qualificação, Levantamento com sócio e Marcação
+  ficam como taxas do mês, sem alvo; "Faltam para 50%" sai; o traço de alvo da Qualificação por unidade sai;
+- "A Base dá para a meta do mês?" vira "Quanto há na Base, e em que ritmo a pré-venda aborda?": Base elegível, dias
+  úteis restantes e o ritmo realizado (abordados do mês ÷ dias úteis decorridos, uma casa decimal);
+- "O que pede atenção" perde "a Base não cobre a meta".
+
+**Etapas renomeadas no pipe 39** (a renomeação no Pipedrive vem depois deste código): 290 Conexão → "3 · Qualificação";
+277 → "4 · Agendado - Levantamento com sócio"; 287 → "5 · Realizado - Levantamento com sócio". A régua lê o nome
+antigo e o novo (`supabase/functions/_shared/etapas-pipe39.ts`). Rótulos: Conexão → Qualificação; levantamento →
+levantamento com sócio ("Lev. com sócio" onde não cabe). As chaves internas (`conexao`, `agendada`, `realizada`) ficam.
+
+**Link antigo** (N14): `?aba=temporal`, `forecast`, `capacidade` e `follow-day` abrem a Operação com o aviso "{tela}:
+esta tela saiu do menu em 09/10/2026", que fecha no X (`?aposentada=` na URL até fechar).
