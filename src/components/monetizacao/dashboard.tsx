@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CircleX, Trophy } from "lucide-react";
+import { CircleX, Info, Trophy, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,8 @@ import {
   cadastroACorrigir,
   hoje,
   METRICAS,
-  metasOperacao,
   operacao,
+  quadrosDaOperacao,
   produtoDoTitulo,
   situacaoDoNegocio,
 } from "@/lib/monetizacao/model";
@@ -39,19 +39,19 @@ import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
 import { VisaoHoje } from "./hoje";
 import { FONTE_GRAVACOES, VisaoGravacoes } from "./gravacoes";
-import { fonteDoForecast, mesDoForecast } from "./forecast";
 import {
   ABAS,
-  DIAS_PADRAO,
+  ABAS_APOSENTADAS,
+  DATA_APOSENTADORIA,
   filtroDaBusca,
   periodoParaBusca,
   type Aba,
   type BuscaMonetizacao,
+  type ProdutoRoteiroUrl,
   type ProdutoUrl,
 } from "./busca";
 import {
   date,
-  downloadCsv,
   estadoDaCarga,
   Field,
   Freshness,
@@ -66,8 +66,8 @@ import {
   ComoContamos,
   FunilLadoALado,
   FunilOperacao,
-  MetasFarmer,
   PorProduto,
+  QuadrosPreVenda,
   SerieDiaria,
   type FunisPorProduto,
 } from "./operacao";
@@ -90,10 +90,6 @@ export type { Aba };
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
   "handoff-consultoria": "Consultoria",
-  forecast: "Projetado × realizado",
-  temporal: "Temporal e previsão",
-  capacidade: "Capacidade e alocação",
-  "follow-day": "Follow Day",
   funil: "Funil comercial",
   pessoas: "Pessoas e PDI",
   roteiros: "Abordagens",
@@ -103,10 +99,6 @@ const TITULOS: Record<Aba, string> = {
 const PERGUNTAS: Record<Aba, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
-  "follow-day": "Qual negócio aberto eu destravo hoje?",
-  temporal: "Quando as oportunidades abertas devem virar contrato, e quanto valem?",
-  forecast: "O mês está acima ou abaixo do que a planilha projetou?",
-  capacidade: "A base disponível cobre o que planejamos trabalhar em cada produto neste mês?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
   pessoas:
     "Como o hunter está nos cinco critérios, e qual é o próximo passo de desenvolvimento dele?",
@@ -117,19 +109,14 @@ const PERGUNTAS: Record<Aba, string> = {
 
 /**
  * O que a barra de filtros mostra em cada aba (moldura, "Filtros na URL").
- * Follow Day é estoque (sem De/Até); Abordagens e Projetado × realizado não têm barra da
- * moldura (o mês do forecast é seletor da própria visão). O seletor de responsável voltou em 08/10/2026,
- * com os dois pré-vendedores (Matheus e Heloá): sem escolha, o recorte é a pré-venda inteira.
+ * Abordagens não tem barra da moldura. O seletor de responsável voltou em 08/10/2026, com os dois
+ * pré-vendedores (Matheus e Heloá): sem escolha, o recorte é a pré-venda inteira.
  */
 const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: boolean } | null> = {
   operacao: { periodo: true, produto: true, responsavel: true },
   funil: { periodo: true, produto: true, responsavel: true },
-  "follow-day": { periodo: false, produto: true, responsavel: false },
-  temporal: { periodo: true, produto: true, responsavel: true },
-  capacidade: { periodo: true, produto: false, responsavel: true },
   pessoas: { periodo: true, produto: false, responsavel: true },
   distribuicao: { periodo: true, produto: true, responsavel: false },
-  forecast: null,
   roteiros: null,
   // Gravações tem barra própria (mês da reunião, situação da gravação e busca), dentro da visão.
   gravacoes: null,
@@ -145,8 +132,8 @@ const rotuloPeriodo = (from: string, to: string) =>
   from.slice(0, 4) === to.slice(0, 4)
     ? `${diaMes(from)} a ${diaMes(to)}`
     : `${diaMes(from)}/${from.slice(0, 4)} a ${diaMes(to)}/${to.slice(0, 4)}`;
-const rotuloProduto = (p: ProdutoUrl | undefined) =>
-  !p ? "Todos os produtos" : p === "sem_produto" ? "Sem produto" : NOMES[p];
+const rotuloProduto = (p: ProdutoRoteiroUrl | undefined) =>
+  !p || p === "caixa" ? "Todos os produtos" : p === "sem_produto" ? "Sem produto" : NOMES[p];
 
 const MOTIVO_ATUALIZAR_SEM_ESCOPO = "Relê a tela; disparar a carga do CRM exige escopo geral";
 const ACESSO_NEGADO = /^Seu acesso não inclui/;
@@ -299,8 +286,7 @@ export function DashboardMonetizacao({
       </main>
     );
 
-  const view = operacao(data.cards, filter),
-    plan = data.plans.find((p) => p.month === filter.to.slice(0, 7) && p.owner_id === filter.owner);
+  const view = operacao(data.cards, filter);
   // Régua cumulativa (01/10/2026): o funil, os quadros e as tabelas por produto contam a mesma coorte.
   // `funis.total` é o recorte da barra; os produtos ignoram o filtro de produto para poder comparar.
   const funis: FunisPorProduto | null =
@@ -319,7 +305,8 @@ export function DashboardMonetizacao({
           }),
         }
       : null;
-  const metas = funis ? metasOperacao(funis.total, plan, filter, today) : null;
+  // Sem meta desde 09/10/2026: os quadros mostram o realizado do período.
+  const quadros = funis ? quadrosDaOperacao(funis.total, filter) : null;
   const responsavel = nomeDoRecorte(filter);
   const produto = rotuloProduto(busca.produto);
   const periodo = rotuloPeriodo(filter.from, filter.to);
@@ -337,11 +324,6 @@ export function DashboardMonetizacao({
     responsavel,
     produto,
     periodo,
-    mes: filter.to.slice(0, 7),
-    mesForecast: busca.mes ?? filter.to.slice(0, 7),
-    cenarioForecast: busca.cenario,
-    dias: busca.dias ?? DIAS_PADRAO,
-    donoPlano: responsavel,
     ate: diaMes(filter.to),
     mesGravacoes: busca.mes,
   });
@@ -457,7 +439,7 @@ export function DashboardMonetizacao({
   );
 
   // O recorte que o detalhe declara no cabeçalho: abas que ignoram um filtro não o repetem.
-  const ignoraResponsavel = aba === "forecast" || aba === "distribuicao" || aba === "roteiros";
+  const ignoraResponsavel = aba === "distribuicao" || aba === "roteiros";
   const abrir = (title: string, rows: Negocio[], opcoes?: OpcoesDetalhe) =>
     setDetail({ title, rows, ...opcoes });
   const ignoraProduto = !BARRA[aba]?.produto;
@@ -510,7 +492,13 @@ export function DashboardMonetizacao({
           }
         />
       )}
-      {data.measured_at && aba === "operacao" && funis && metas && (
+      {aba === "operacao" && busca.aposentada && (
+        <AvisoTelaAposentada
+          tela={ABAS_APOSENTADAS[busca.aposentada]}
+          fechar={() => mudarBusca({ aposentada: undefined })}
+        />
+      )}
+      {data.measured_at && aba === "operacao" && funis && quadros && (
         <>
           {/* Visão "Hoje": a primeira seção quando o período inclui hoje (spec de 01/10/2026). */}
           {filter.from <= today && today <= filter.to && (
@@ -524,10 +512,10 @@ export function DashboardMonetizacao({
               abrir={abrir}
             />
           )}
-          <MetasFarmer
+          <QuadrosPreVenda
             quem={responsavel}
-            quadros={metas.quadros}
-            uteis={metas.uteis}
+            quadros={quadros.quadros}
+            uteis={quadros.uteis}
             from={filter.from}
             to={filter.to}
             abrir={abrir}
@@ -536,11 +524,11 @@ export function DashboardMonetizacao({
           <ComoContamos
             open={comoContamos}
             onOpenChange={setComoContamos}
-            quadros={metas.quadros}
+            quadros={quadros.quadros}
           />
           <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.3fr)]">
             <FunilOperacao dados={funis.total} abrir={abrir} />
-            <SerieDiaria view={view} metaDia={plan?.daily_target ?? null} abrir={abrir} />
+            <SerieDiaria view={view} abrir={abrir} />
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
           <PorProduto funis={funis} produto={filter.product} abrir={abrir} />
@@ -578,7 +566,7 @@ export function DashboardMonetizacao({
         detail={detail}
         close={() => setDetail(null)}
         filter={{ ...filter, ...detail?.period }}
-        estoque={detail?.estoque ?? aba === "follow-day"}
+        estoque={detail?.estoque ?? false}
         recorte={recorte}
         data={data}
       />
@@ -594,11 +582,6 @@ function descricaoDaAba(
     responsavel: string;
     produto: string;
     periodo: string;
-    mes: string;
-    mesForecast: string;
-    cenarioForecast?: string;
-    dias: number;
-    donoPlano: string;
     ate: string;
     mesGravacoes?: string;
   },
@@ -606,24 +589,6 @@ function descricaoDaAba(
   switch (aba) {
     case "operacao":
       return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
-    case "follow-day":
-      return `Negócios abertos do pipeline 39 · dono atual: ${v.responsavel} · ${v.produto} · sem movimento há ${v.dias}+ dias · estoque de hoje, não usa período`;
-    case "temporal":
-      return `Oportunidades validadas em aberto · dono atual: ${v.responsavel} · ${v.produto} · estoque de hoje; ciclo e cenário no período ${v.periodo} · receita declarada no CRM, não é MRR nem caixa`;
-    case "forecast": {
-      const fonte = fonteDoForecast(data, v.cenarioForecast);
-      const corte = data.measured_at ? date(data.measured_at) : null;
-      return [
-        "Toda a frente",
-        rotuloMes(fonte ? mesDoForecast(fonte, v.mesForecast) : v.mesForecast),
-        fonte
-          ? `projetado: planilha ${fonte.version} de ${date(fonte.source_date)}`
-          : "sem planilha importada",
-        corte ? `realizado: CRM até ${corte}` : "realizado: CRM após a primeira carga",
-      ].join(" · ");
-    }
-    case "capacidade":
-      return `Plano de ${v.donoPlano} para ${rotuloMes(v.mes)} · base: contas elegíveis por produto · trabalho: negócios do mês`;
     case "funil":
       return `Coortes do período ${v.periodo} · ${v.responsavel} · ${v.produto} · negócio; realização e ganho contam até ${v.ate} · base instalada, pipeline 39`;
     case "pessoas":
@@ -634,12 +599,42 @@ function descricaoDaAba(
       return `Biblioteca de abordagens da equipe · ${roteiros.length} ${roteiros.length === 1 ? "salva" : "salvas"}, ${aprovadas} ${aprovadas === 1 ? "aprovada" : "aprovadas"}`;
     }
     case "gravacoes":
-      return `Reuniões de levantamento e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
+      return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
     case "distribuicao":
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
     case "handoff-consultoria":
       return "Onboarding Cliente da Expansão · cliente (CNPJ)";
   }
+}
+
+/**
+ * Link antigo de uma tela que saiu do menu (NAVEGACAO.md N14): a Operação diária abre com um aviso discreto, em vez de
+ * trocar de tela em silêncio. Fechar tira a chave da URL.
+ */
+function AvisoTelaAposentada({ tela, fechar }: { tela: string; fechar: () => void }) {
+  return (
+    <div
+      role="status"
+      className="flex items-start justify-between gap-3 rounded-lg border bg-card px-3 py-2 text-[13px] text-muted-foreground"
+    >
+      <p className="flex min-w-0 items-start gap-2">
+        <Info className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={1.75} aria-hidden />
+        <span>
+          <span className="font-medium text-foreground">{tela}</span>: esta tela saiu do menu em{" "}
+          {DATA_APOSENTADORIA}. Você está na Operação diária.
+        </span>
+      </p>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="size-8 shrink-0 p-0"
+        onClick={fechar}
+        aria-label="Fechar o aviso"
+      >
+        <X className="size-4" strokeWidth={1.75} aria-hidden />
+      </Button>
+    </div>
+  );
 }
 
 function DealDetails({

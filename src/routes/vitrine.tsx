@@ -1489,13 +1489,15 @@ function FilaDeTrabalho() {
   const filtro = HIGIENE.find((h) => h.chave === higiene);
   const linhas = filtro ? FILA.filter(filtro.teste) : FILA;
 
+  // O Follow Day, exemplo vivo até 09/10/2026, saiu do menu; a Fila em uso na Monetização é a lista de atenção da
+  // Operação diária (Sheet aberto por `?atencao=`). O conteúdo abaixo é modelo, não dado.
   return (
-    <Arquetipo n={2} nome="Fila de trabalho" rota="/monetizacao?aba=follow-day">
+    <Arquetipo n={2} nome="Fila de trabalho" rota="/monetizacao?atencao=todos">
       <PageHeader
         area="monetizacao"
-        titulo="Follow Day"
-        pergunta="Qual negócio aberto eu destravo hoje?"
-        descricao="312 negócios abertos · dono atual: Matheus · daily às 13h30 · ordem: vencidos primeiro, depois dias parado"
+        titulo="Fila de trabalho"
+        pergunta="Quem eu procuro agora, e onde parei?"
+        descricao="312 negócios abertos · dono atual: Matheus · ordem: vencidos primeiro, depois dias parado"
         procedencia={{ fonte: "Pipedrive · Pipefy", atualizadoEm: AGORA }}
       />
 

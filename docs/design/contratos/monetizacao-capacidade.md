@@ -1,5 +1,7 @@
 # Contrato · Capacidade e alocação (`/monetizacao?aba=capacidade`)
 
+> **Tela aposentada em 09/10/2026** (aprovado pelo dono do produto): "Capacidade e alocação" saiu do menu da Monetização. O link antigo abre a Operação diária com o aviso "Esta tela saiu do menu em 09/10/2026" (NAVEGACAO.md N14), e o código da tela foi removido. A tabela `ops.monetizacao_planos` e a RPC `monetizacao_save_plan` ficam no banco, sem tela que grave; a pré-venda está sem meta por enquanto, e a Distribuição troca a capacidade pelo ritmo realizado (abordagens por dia útil no mês). Este contrato fica como registro; não vale para tela nova.
+
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
 Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 

@@ -68,7 +68,7 @@ Regras do preenchimento:
 
 ## 2. Exemplo · Fila Cella (`/fila-cella`)
 
-> **Tela aposentada em 24/09/2026** (decisão do Pedro; `/fila-cella` hoje só avisa e manda para o Follow Day). O exemplo fica porque mostra bem como preencher um contrato de Fila. Para uma Fila em uso, veja `contratos/monetizacao-follow-day.md`.
+> **Tela aposentada em 24/09/2026** (decisão do Pedro; `/fila-cella` hoje só avisa e manda para a Operação diária). O exemplo fica porque mostra bem como preencher um contrato de Fila. O Follow Day, que veio depois, também saiu (09/10/2026); para uma Fila em uso, veja a lista de atenção em `contratos/monetizacao-operacao.md`.
 
 Preenchido a partir de `src/routes/_authenticated/fila-cella.tsx`, `src/components/fila-cella/*`, DECISIONS 25/08 e `diagnostico/objetivos-e-modulos.md` (sigla `FC` = `PM Work/projeto-unificado/spec-tela-fila-cella.md`). Estado em `eea3d90`.
 

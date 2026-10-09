@@ -320,9 +320,9 @@ test("todas as unidades: projetado × realizado primeiro, depois engajadas e par
     assert.equal(n.destino.rota, "/monetizacao");
     assert.equal(n.dataDado !== null, true);
   }
-  // A aba do módulo é o mesmo recorte do projetado; o Funil não separa por unidade.
-  assert.equal(ganhos.destino.search.aba, "forecast");
-  assert.equal(ganhos.destino.mesmoRecorte, true);
+  // Projetado × realizado saiu do menu em 09/10/2026: o projetado leva à Operação diária, que não tem a planilha.
+  assert.equal(ganhos.destino.search.aba, "operacao");
+  assert.equal(ganhos.destino.mesmoRecorte, false);
   assert.equal(eng.destino.mesmoRecorte, false);
   assert.ok(l.avisos.some((a) => a.includes("Parte D")));
   assert.ok(l.avisos.some((a) => a.includes("não projeta por unidade")));
@@ -398,7 +398,7 @@ test("alertas: desvio do projetado primeiro; depois cobrar a unidade e cobrar a 
     ],
   );
   assert.equal(ordem[0].chave, "coo:monetizacao:projetado-signed:rede:2026-09");
-  assert.equal(ordem[0].destino.search.aba, "forecast");
+  assert.equal(ordem[0].destino.search.aba, "operacao");
   const saoLuis = ordem.find((a) => a.unidade === "São Luis");
   assert.equal(saoLuis.chave, "coo:monetizacao:unidade-parada:sao-luis:2026-09");
   assert.equal(saoLuis.unidade, "São Luis");
@@ -407,7 +407,7 @@ test("alertas: desvio do projetado primeiro; depois cobrar a unidade e cobrar a 
   const recife = ordem.find((a) => a.unidade === "Recife");
   assert.equal(recife.regra, "matriz-sem-trabalho");
   assert.match(recife.limiar, /50 ou mais contas elegíveis e menos de 5 leads maduros/);
-  assert.equal(recife.destino.search.aba, "capacidade");
+  assert.equal(recife.destino.search.aba, "operacao");
   // São Bernardo (em implantação) tem 6 leads e nenhuma reunião, mas não recebe alerta de unidade.
   assert.equal(l.alertas.some((a) => a.unidade === "São Bernardo"), false);
 });

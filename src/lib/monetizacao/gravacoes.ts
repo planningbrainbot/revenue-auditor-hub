@@ -18,6 +18,7 @@ import {
   type ProdutoOfertado,
 } from "../../../supabase/functions/monetizacao-reunioes/ofertado.ts";
 import type { Fala } from "../../../supabase/functions/monetizacao-reunioes/avaliacao.ts";
+import { chaveDaEtapa } from "../../../supabase/functions/_shared/etapas-pipe39.ts";
 import { ficou, instante, reguaDoPipe, trajeto, type Etapa } from "./funil-cumulativo.ts";
 import type { Negocio, Produto } from "./types";
 
@@ -46,7 +47,7 @@ export const ROTULO_SITUACAO: Record<SituacaoGravacao, string> = {
   sem_registro: "Sem registro no card",
 };
 export const ROTULO_TIPO: Record<TipoReuniao, string> = {
-  levantamento: "Levantamento",
+  levantamento: "Levantamento com sócio",
   proposta: "Proposta",
 };
 
@@ -161,8 +162,9 @@ export const mesSaoPaulo = (iso: string | null) => {
 /** Desde quando a etapa "Reunião de proposta" existe (funil novo do pipe 39, 01/10/2026 em São Paulo). */
 export const INICIO_REUNIAO_PROPOSTA = "2026-10-01T03:00:00Z";
 
-const AGENDADA = /reuni.*(agend|marc)/i;
-const PROPOSTA = /reuni.*proposta/i;
+// Pelo nome, antigo ou novo ("Agendado - Levantamento com sócio" desde 09/10/2026): `_shared/etapas-pipe39.ts`.
+const ehAgendada = (nome: string) => chaveDaEtapa(nome) === "agendada";
+const ehProposta = (nome: string) => chaveDaEtapa(nome) === "reuniaoProposta";
 const ISO = (t: number) => new Date(t).toISOString();
 
 /** Situação de uma reunião registrada. */
@@ -192,7 +194,7 @@ export function levantamentoDoHistorico(
   const passo = realiz ?? agend;
   if (!passo) return null;
   // Pendente: o card está aberto hoje na etapa de levantamento agendado e nunca passou dela.
-  const pendente = !realiz && c.status === "open" && AGENDADA.test(c.stage);
+  const pendente = !realiz && c.status === "open" && ehAgendada(c.stage);
   return { data: ISO(passo.t), pendente };
 }
 
@@ -201,7 +203,7 @@ export function propostaDoHistorico(
   c: Negocio,
   stages: Etapa[],
 ): { data: string; pendente: boolean } | null {
-  const ids = new Set(stages.filter((s) => PROPOSTA.test(s.name)).map((s) => s.id));
+  const ids = new Set(stages.filter((s) => ehProposta(s.name)).map((s) => s.id));
   if (!ids.size) return null;
   const desde = instante(INICIO_REUNIAO_PROPOSTA);
   const entradas = (c.moves ?? [])

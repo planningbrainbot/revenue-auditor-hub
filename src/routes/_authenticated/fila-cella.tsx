@@ -7,19 +7,21 @@ export const Route = createFileRoute("/_authenticated/fila-cella")({
 });
 
 // Rota aposentada em 24/09/2026 (DECISIONS): a fila nunca foi sincronizada em
-// produção e o trabalho por negócio mora no Follow Day. A rota explica em vez
-// de sumir (NAVEGACAO.md N14). Tabelas e chaves `*.fila_cella` ficam no banco.
+// produção. O trabalho por negócio foi para o Follow Day, que saiu do menu em
+// 09/10/2026; hoje o destino é a Operação diária (lista de atenção e cadência no
+// Pipedrive). A rota explica em vez de sumir (NAVEGACAO.md N14). Tabelas e
+// chaves `*.fila_cella` ficam no banco.
 function FilaCellaAposentada() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader area="monetizacao" titulo="Fila Cella" />
       <EstadoVazio
         titulo="A Fila Cella foi aposentada"
-        descricao="Desde 24/09/2026 os negócios abertos que pedem ação ficam no Follow Day, e o ritmo do mês na Operação diária."
+        descricao="A Fila Cella saiu em 24/09/2026. Hoje o trabalho da pré-venda fica na Operação diária: o ritmo do mês e a lista de abordados que pedem atenção."
         acao={
           <Button asChild>
-            <Link to="/monetizacao" search={{ aba: "follow-day" }}>
-              Abrir o Follow Day
+            <Link to="/monetizacao" search={{ aba: "operacao" }}>
+              Abrir a Operação diária
             </Link>
           </Button>
         }

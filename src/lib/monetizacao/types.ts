@@ -14,13 +14,27 @@ export type RegistroValor =
       loaded: number;
       started: number;
       validated: number;
-      capacity: number | null;
+      /** Decisões de distribuição até 09/10/2026: capacidade do plano do mês. */
+      capacity?: number | null;
+      /** Desde 09/10/2026: abordagens por dia útil no mês corrente. */
+      abordagens_por_dia_util?: number | null;
     }[];
 export const NOMES: Record<Produto | "sem_produto", string> = {
   consultoria: "Consultoria",
   finance: "Finance",
   cella: "Cella",
   sem_produto: "Sem produto",
+};
+/**
+ * Produto de uma abordagem da biblioteca (`records.body.product`, aba Abordagens). Desde 09/10/2026 a pré-venda
+ * apresenta o Caixa de Oportunidade inteiro, e os roteiros da cadência (e-mail do D0, script de ligação, mensagens)
+ * valem para as três frentes: `caixa`. Lista própria: `PRODUTOS` continua sendo a rota do card e do plano.
+ */
+export const PRODUTOS_ROTEIRO = ["caixa", ...PRODUTOS] as const;
+export type ProdutoRoteiro = (typeof PRODUTOS_ROTEIRO)[number];
+export const NOMES_ROTEIRO: Record<ProdutoRoteiro | "sem_produto", string> = {
+  caixa: "Caixa · todas as frentes",
+  ...NOMES,
 };
 /**
  * Produto de envio ao Pipedrive (29/09): os três do Caixa vão para o pipe 39 (Monetização · Caixa de

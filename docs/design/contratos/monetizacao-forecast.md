@@ -1,5 +1,7 @@
 # Contrato · Projetado × realizado (`/monetizacao?aba=forecast`)
 
+> **Tela aposentada em 09/10/2026** (aprovado pelo dono do produto): "Projetado × realizado" saiu do menu da Monetização. O link antigo abre a Operação diária com o aviso "Esta tela saiu do menu em 09/10/2026" (NAVEGACAO.md N14), e o código da tela foi removido. O projetado da planilha (`ops.monetizacao_forecasts`, `src/lib/monetizacao/forecast.ts`) continua no Cockpit do COO. Este contrato fica como registro; não vale para tela nova.
+
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
 Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 

@@ -12,6 +12,7 @@ import {
 import { fillHandoff } from "./handoff.mjs";
 import { pipedriveApi } from "./pipedrive.mjs";
 import { registrarUnidades } from "./revenue.mjs";
+import { etapaDaChave } from "../_shared/etapas-pipe39.ts";
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const ADMIN = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -87,7 +88,7 @@ async function stages() {
   const rows = (await pages("stages"))
     .filter((s) => s.pipeline_id === PIPE && s.active_flag !== false)
     .sort((a, b) => a.order_nr - b.order_nr);
-  if (!rows.length || !rows.some((s) => /negocia/i.test(s.name)))
+  if (!rows.length || !etapaDaChave(rows, "negociacao"))
     throw new Error("Etapas do pipe de Monetização não identificadas");
   return rows;
 }

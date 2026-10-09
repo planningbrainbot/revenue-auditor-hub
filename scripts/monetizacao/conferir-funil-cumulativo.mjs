@@ -63,9 +63,10 @@ function referencia(cards, stages) {
   const re = {
     base: /base/i,
     gatilho: /gatilho/i,
-    conexao: /conex/i,
+    // Nome antigo e novo (09/10/2026: "3 · Qualificação" e "5 · Realizado - Levantamento com sócio").
+    conexao: /conex|qualifica/i,
     standby: /stand ?by/i,
-    realizada: /reuni.*realiz/i,
+    realizada: /reuni.*realiz|realizad.*levant/i,
   };
   const passos = ord.filter(
     (s) => !re.base.test(s.name) && !re.gatilho.test(s.name) && !re.standby.test(s.name),
@@ -266,17 +267,17 @@ for (const k of Object.keys(dia))
 const mes = marcacaoDoMes(cards, stages, f, hoje);
 const pct = (x) => (x === null ? "—" : (x * 100).toFixed(1).replace(".", ",") + "%");
 console.log(
-  `  Mês até hoje: ${mes.abordados} abordados · Conexão ${mes.conexao} (${pct(mes.taxaConexao)}) · agendados ${mes.agendados} (levantamento ${pct(mes.taxaLevantamento)}, marcação ${pct(mes.marcacao)}) · faltam ${mes.faltam} para 50%`,
+  `  Mês até hoje: ${mes.abordados} abordados · Qualificação ${mes.conexao} (${pct(mes.taxaConexao)}) · agendados ${mes.agendados} (levantamento com sócio ${pct(mes.taxaLevantamento)}, marcação ${pct(mes.marcacao)})`,
 );
 const porUnidade = conexaoPorUnidade(mes, base.units);
 console.log(
-  "  Conexão por unidade:",
+  "  Qualificação por unidade:",
   porUnidade?.map((u) => `${u.unidade} ${u.conexao.length} de ${u.abordados.length}`).join(" · "),
 );
-const plano = base.plans.find((p) => p.month === hoje.slice(0, 7) && p.owner_id === FARMER.id);
-const estoque = estoqueERitmo(cards, reguaAtual, f, plano, mes.abordados, hoje);
+// Sem meta desde 09/10/2026: o ritmo é o realizado do mês (abordados ÷ dias úteis decorridos).
+const estoque = estoqueERitmo(cards, reguaAtual, f, mes.abordados, hoje);
 console.log(
-  `  Base elegível: ${estoque.base.length} · dias úteis restantes, contando hoje: ${estoque.uteisRestantes} de ${uteis(MES.from, fimDoMes(hoje.slice(0, 7)))} · meta ${estoque.meta} (${estoque.metaDoPlano ? "plano" : "120 por closer"}) · ${estoque.porDiaUtil} por dia útil · faltam ${estoque.faltamContas} contas`,
+  `  Base elegível: ${estoque.base.length} · dias úteis restantes, contando hoje: ${estoque.uteisRestantes} de ${uteis(MES.from, fimDoMes(hoje.slice(0, 7)))} · ${estoque.porDiaUtil ?? "—"} abordagens por dia útil em ${estoque.uteisDecorridos} dias úteis decorridos`,
 );
 const atencao = listaDeAtencao(cards, reguaAtual, f, base.units, hoje);
 console.log(
@@ -288,7 +289,10 @@ checar(
   ),
   "visão Hoje: contagem não inteira",
 );
-checar(Number.isInteger(mes.faltam), "visão Hoje: faltam não inteiro");
+checar(
+  [mes.abordados, mes.conexao, mes.agendados].every((x) => x === null || Number.isInteger(x)),
+  "visão Hoje: contagem do mês não inteira",
+);
 
 console.log(
   falhas.length

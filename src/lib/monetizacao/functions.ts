@@ -76,6 +76,8 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
       all(db, "monetizacao_listas", "*", "created_at"),
       all(db, "monetizacao_itens", "*", "id"),
       all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
+      // Plano do mês: desde 09/10/2026 não se edita no Brain (Capacidade e alocação saiu do menu, sem meta por
+      // enquanto). A tabela e a RPC `monetizacao_save_plan` ficam; o Cockpit do CEO ainda lê a meta de contratos.
       all(db, "monetizacao_planos", "payload", "month"),
       all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
       all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
@@ -425,36 +427,6 @@ export const acionarMonetizacao = createServerFn({ method: "POST" })
     };
   });
 
-export const salvarPlanoMonetizacao = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(
-    z.object({
-      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
-      owner_id: z.number().int().positive(),
-      owner_name: z.string().min(1).max(160),
-      capacity: z.number().int().min(0).max(10000),
-      meetings_capacity: z.number().int().min(0).max(10000),
-      target_contracts: z.number().int().min(0).max(10000),
-      daily_target: z.number().int().min(0).max(1000),
-      allocation: z.object({
-        cella: z.number().int().nonnegative(),
-        consultoria: z.number().int().nonnegative(),
-        finance: z.number().int().nonnegative(),
-      }),
-      rates: z.object({
-        cella: z.number().min(0).max(1).nullable(),
-        consultoria: z.number().min(0).max(1).nullable(),
-        finance: z.number().min(0).max(1).nullable(),
-      }),
-    }),
-  )
-  .handler(async ({ context, data }) => {
-    const { error } = await (context.supabase as DB)
-      .schema("ops")
-      .rpc("monetizacao_save_plan", { _plan: data });
-    if (error) throw new Error(error.message);
-    return { saved: true };
-  });
 export const salvarRegistroMonetizacao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(

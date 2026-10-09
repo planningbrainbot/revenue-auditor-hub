@@ -68,7 +68,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 
 **Quando usar:** a pessoa entra para trabalhar uma lista de itens, um por vez, e registra o que fez. A ordem padrão é a ordem de trabalho (N5).
 
-**Pergunta típica:** "Quem eu ligo agora, com qual argumento, e onde parei?" (Fila Cella, `FC:1385-1442`; tela aposentada em 24/09, hoje o exemplo vivo é o Follow Day).
+**Pergunta típica:** "Quem eu ligo agora, com qual argumento, e onde parei?" (Fila Cella, `FC:1385-1442`; tela aposentada em 24/09. O Follow Day, exemplo vivo depois dela, saiu do menu em 09/10/2026; hoje a Fila em uso na Monetização é a lista de atenção da Operação diária).
 
 **Anatomia, em ordem:**
 1. `PageHeader` com pergunta, universo (quem opera, cadência), `procedencia`.
@@ -110,7 +110,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 - Botão sem permissão escondido em vez de desabilitado com motivo (N8).
 - Abas "Fila / Novos / Log / Dicionário" sem URL (`/fila-cella` hoje).
 
-**Rotas atuais que deveriam seguir:** `/broker` (Fila de oportunidades), `/monetizacao?aba=operacao` e `?aba=follow-day`, `/nps` (execução: disparar e registrar ligação), a visão "Validar origem" de `/clientes`, tratativas de `/painel-cs`, `/contas-receber` (hoje é consulta sem ação; a spec diz "cobrar").
+**Rotas atuais que deveriam seguir:** `/broker` (Fila de oportunidades), `/monetizacao?aba=operacao` (lista de atenção, `?atencao=`; o Follow Day saiu em 09/10/2026), `/nps` (execução: disparar e registrar ligação), a visão "Validar origem" de `/clientes`, tratativas de `/painel-cs`, `/contas-receber` (hoje é consulta sem ação; a spec diz "cobrar").
 
 ---
 
@@ -154,7 +154,7 @@ Regra de escolha: se a tela tem próxima ação por linha, é **Fila**. Se agreg
 - KPI do topo com denominador diferente da tabela (N11: "contas" × "CNPJs" × "clientes").
 - Menu interno de visões que repete a lateral.
 
-**Rotas atuais que deveriam seguir:** `/clientes` (Base, Produtos e listas, Contratos e churn), `/base-contatos`, `/idu`, `/rede-realizado`, `/rede-ltv`, `/rede-headcount`, `/funil-receita`, `/unidades/royalties` (lista do mês que abre a Ficha), `/unidades/funil-cac`, `/unidades/split`, `/comissoes`, `/ebit-operacional`, `/auditoria-interna`, `/meus-royalties`, `/atividade`, `/monetizacao?aba=temporal|forecast|capacidade|funil`.
+**Rotas atuais que deveriam seguir:** `/clientes` (Base, Produtos e listas, Contratos e churn), `/base-contatos`, `/idu`, `/rede-realizado`, `/rede-ltv`, `/rede-headcount`, `/funil-receita`, `/unidades/royalties` (lista do mês que abre a Ficha), `/unidades/funil-cac`, `/unidades/split`, `/comissoes`, `/ebit-operacional`, `/auditoria-interna`, `/meus-royalties`, `/atividade`, `/monetizacao?aba=funil|distribuicao` (Temporal e previsão, Projetado × realizado e Capacidade e alocação saíram em 09/10/2026).
 
 ---
 

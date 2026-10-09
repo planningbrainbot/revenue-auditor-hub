@@ -63,7 +63,7 @@ const diaSaoPaulo = (iso: string) =>
   }).format(new Date(iso));
 
 /**
- * Projetado × realizado, com a mesma conta da aba do módulo (`forecastComparison`) e a mesma
+ * Projetado × realizado, com a conta da antiga aba do módulo (`forecastComparison`; a aba saiu em 09/10/2026) e a mesma
  * escolha de planilha (`escolherForecast`: o cenário padrão da versão mais recente). Serve ao
  * navegador (carga da Monetização) e ao servidor (Perguntar ao Brain), que lê só negócios e
  * planilhas.

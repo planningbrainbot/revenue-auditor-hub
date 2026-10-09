@@ -4986,3 +4986,84 @@ abordagem até a reunião com o especialista marcada.
 - A visão Hoje e a Capacidade ainda usam o padrão de 120 abordagens por pessoa quando o mês não tem plano, e com os
   dois isso vira 240. Na call de 08/10, o Paulo vetou meta nova até medir a capacidade. Esse padrão é de 01/10 e
   continua; tirar ou trocar é decisão dele.
+
+## [2026-10-09] Monetização: etapas do pipe 39 renomeadas, quatro telas fora do menu, sem meta, e a cadência da pré-venda no card
+
+**Contexto:** depois da call de 08/10 (Paulo e Jordana) e da retrospectiva da monetização, o Pedro mandou três mudanças
+para a pré-venda, com aprovação do dono do produto: renomear etapas do pipe 39, tirar do menu as telas que ninguém
+operava e automatizar a cadência de abordagem (régua validada em 08/10, e-mail e pitch de 09/10). Branch
+`feat/monetizacao-pre-venda-etapas-20261009`, sobre `51a6cc2`.
+
+**Decisão 1 · Etapas pelo nome antigo e pelo novo, antes da renomeação.** O pipe 39 vai trocar 290 "3 · Conexão" por
+"3 · Qualificação", 277 por "4 · Agendado - Levantamento com sócio" e 287 por "5 · Realizado - Levantamento com sócio"
+(mesmos ids). A carga lia as etapas por regex de nome (`reuni.*(agend|marc)`, `reuni.*realiz`, `conex`) e, com os nomes
+novos, pararia com "Etapas de reunião e negociação não identificadas"; o bot de reuniões deixaria de entrar no
+levantamento. Agora o papel da etapa sai de um lugar só, `supabase/functions/_shared/etapas-pipe39.ts`
+(`chaveDaEtapa`), usado pela carga (`crm.mjs`, `index.ts`), pelo bot (`agenda.ts`), pela régua da Operação
+(`funil-cumulativo.ts`), por Gravações e pelos ícones do funil. Aceita os nomes de antes de 01/10, de 01/10 e de 09/10.
+"Reunião de proposta" nunca é levantamento; "Realizado - Levantamento" nunca é agendado. A régua v7 não muda: o mesmo
+histórico dá os mesmos eventos com qualquer nome (teste em `tests/monetizacao-etapas.test.mjs`). A carga relê o
+histórico de todos os cards na primeira rodada depois da renomeação, porque a assinatura das etapas muda (como em 01/10).
+Rótulos da tela: Conexão → Qualificação; levantamento → levantamento com sócio. Chaves internas ficam.
+
+**Decisão 2 · Quatro telas saem do menu e do código:** Temporal e previsão, Projetado × realizado, Capacidade e alocação
+e Follow Day. O link antigo (`?aba=temporal|forecast|capacidade|follow-day`) abre a Operação diária com o aviso
+"{tela}: esta tela saiu do menu em 09/10/2026", que fecha no X (N14; `?aposentada=` na URL até fechar). Contratos
+marcados como aposentados, não apagados. Ficam no banco e no código o que outras telas leem:
+`ops.monetizacao_forecasts` e `src/lib/monetizacao/forecast.ts` (Cockpit do COO), `ops.monetizacao_planos` e a RPC
+`monetizacao_save_plan` (sem tela que grave; o Cockpit do CEO ainda lê a meta de contratos do plano, se houver).
+Saíram: `forecast.tsx`, `forecast-model.tsx`, `temporal()`, `capacidade()`, `quantil`, `distancia`, a server function
+`salvarPlanoMonetizacao` e as chaves de URL `dias`, `sinal`, `cenario`, `blocos`, `totais`.
+
+**Decisão 3 · Sem meta por enquanto.** Capacidade e alocação era a única tela que gravava o plano, e o Paulo vetou meta
+nova até medir a capacidade (08/10). A Operação diária e a visão "Hoje" mostram o realizado, sem alvo: saem os alvos de
+70%, 72% e 50% de 01/10 (entrada "Operação na régua cumulativa e visão Hoje"), o "Faltam para 50%", a meta de
+abordagens do plano ou de 120 por closer, a meta de contratos proporcional, a linha "Meta N/dia" e o item "a Base não
+cobre a meta". O quadro de estoque passa a mostrar o ritmo realizado (abordados do mês ÷ dias úteis decorridos).
+
+**Decisão 4 · Distribuição.** A coluna "Capacidade mensal" (plano, com link para a tela que saiu) vira "Abordagens por
+dia útil no mês": negócios de que a pessoa é dona hoje com `started_at` no mês corrente, em São Paulo, ÷ dias úteis do
+mês até hoje, uma casa decimal, sem link (`abordagensPorDiaUtil`). A foto salva com a decisão grava
+`abordagens_por_dia_util`; as fotos antigas continuam mostrando a capacidade.
+
+**Decisão 5 · Cockpits.** CEO: a receita prevista em aberto fica sem tela de origem (`destino: null`); sai a
+comparação "Capacidade do mês / Ritmo esperado da capacidade" dos leads trabalhados; saem a ameaça
+`plano-sem-alocacao` e as decisões `alocar-plano` e `cadastrar-plano`. A meta de contratos do plano continua. COO:
+`DESTINO_FORECAST` e `DESTINO_CAPACIDADE` abrem a Operação diária (`mesmoRecorte: false`). `/fila-cella` e o exemplo de
+Fila de trabalho da vitrine deixam de apontar para o Follow Day.
+
+**Decisão 6 · Abordagens do Caixa inteiro.** Roteiro com `body.product = "caixa"` aparece como "Caixa · todas as
+frentes" (antes caía em "Sem produto"); o filtro da aba (`?produto=caixa`, aceito só nela) e o formulário "Nova
+abordagem" oferecem a opção. Lista própria `PRODUTOS_ROTEIRO` em `types.ts`; `PRODUTOS` não muda.
+
+**Decisão 7 · Cadência da pré-venda no card (Edge Function nova, não publicada).** `monetizacao-cadencia`, chamada a
+cada 5 minutos pelo cron `monetizacao-cadencia-5min` (`ops.monetizacao_cadencia_cron()`, mesmo segredo da carga).
+Quando um card do pipe 39 entra em "2 · Abordagem iniciada" (276) vindo de "1 · Base elegível" (274), a função cria no
+card as 19 atividades da régua v2 (`regua.ts`, `VERSAO_REGUA = "v2-2026-10-09"`, confirmada pelo dono do produto:
+D0 a D8 e o descarte no D10, D4 e D9 vazios). Assunto `Caixa · D{n} · {canal} · {manhã|tarde}`, nota com o texto pronto,
+dono = dono do card, 09:00 e 14:00 de São Paulo gravados em UTC, dias úteis sem sábado, domingo e os feriados
+nacionais de 2026–2027.
+- **Estado:** `ops.monetizacao_cadencia`, PK `(deal_id, entrou_em)` = idempotência; RLS ligada sem policy (só service
+  role). Status `ativa`, `encerrada` e `ignorada` (card que entrou na 276 sem vir da 274: voltou da 290 ou foi criado
+  direto nela; gravado para não reler o histórico a cada rodada).
+- **Encerramento:** card que sai da 276 (avança, volta, perde, ganha, é apagado, ou sai e volta) tem a cadência
+  encerrada, e só as atividades da lista que ainda não foram feitas são apagadas; nenhuma outra é tocada.
+- **D0:** o dia da entrada, em São Paulo; entrada em sábado, domingo ou feriado começa no próximo dia útil. Entrada
+  depois das 09h ou das 14h mantém o D0 no mesmo dia (a atividade nasce atrasada).
+- **Liga e desliga:** `MONET_CADENCIA_ATIVA` diferente de `sim` = só simula (dry-run) e responde o que faria;
+  `MONET_CADENCIA_INICIO` (ISO) define a partir de quando a entrada conta; sem ele, nada é criado. Tipo de atividade
+  que não existe na conta (ex.: `whatsapp`) vira `task` e aparece em `tipos_substituidos`.
+
+**Publicação (não feita, a cargo do Pedro), nesta ordem:**
+1. `supabase functions deploy monetizacao-crm --no-verify-jwt` e `supabase functions deploy monetizacao-reunioes
+   --no-verify-jwt` (os dois leem `_shared/etapas-pipe39.ts`); conferir uma rodada da carga sem erro.
+2. App (Vercel, projeto `ops-brain`).
+3. Só depois disso, renomear as três etapas no Pipedrive e conferir a carga seguinte.
+4. `supabase functions deploy monetizacao-cadencia --no-verify-jwt`, com `MONET_CADENCIA_ATIVA` ausente; depois a
+   migration `20261009120000_monetizacao_cadencia.sql` (cria a tabela e o cron); conferir o dry-run (inclusive
+   `tipos_substituidos`).
+5. Para ligar: `MONET_CADENCIA_INICIO` com o instante da virada (não antes: cards que entrarem entre o INICIO e a
+   ativação recebem cadência com datas passadas) e `MONET_CADENCIA_ATIVA=sim`.
+
+**Aberto:** a catraca do `design:lint` já reprova no `origin/main` (V21 em `meus-servicos.tsx:360`, fora desta branch).
+Workflows do n8n e scripts fora do repositório que leiam o nome das etapas do pipe 39 não foram revisados.

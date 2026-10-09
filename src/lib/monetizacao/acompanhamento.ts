@@ -1,6 +1,8 @@
 /**
  * Visão "Hoje" da Operação da Monetização (spec `docs/superpowers/specs/2026-10-01-monetizacao-acompanhamento-diario.md`).
- * Pergunta: o mês vai chegar a 50% de marcação? Tudo aqui é leitura da carga do CRM; nada é gravado.
+ * Pergunta: como está o mês da pré-venda até hoje? Tudo aqui é leitura da carga do CRM; nada é gravado.
+ * Sem meta desde 09/10/2026 (decisão do dono do produto): os alvos de 01/10 (70%, 72% e 50%), o "faltam para 50%" e a
+ * meta de abordagens do plano ou de 120 por closer saíram; a visão mostra o realizado.
  *
  * Os números do mês saem da mesma régua cumulativa do funil (`funil-cumulativo.ts`). Os do dia são eventos do dia,
  * de qualquer mês de abordagem.
@@ -17,22 +19,12 @@ import {
   type Regua,
 } from "./funil-cumulativo.ts";
 import { uteis, type Filtro } from "./model.ts";
-import { doResponsavel, pessoasNoRecorte } from "./responsavel.ts";
-import type { Negocio, Plano, Produto } from "./types";
+import { doResponsavel } from "./responsavel.ts";
+import type { Negocio, Produto } from "./types";
 
 // ----------------------------------------------------------------------------------------------- parâmetros
-// DEFINIDO pelo Pedro em 01/10/2026: alvos da marcação, meta de abordagens sem plano e prazo da lista de atenção.
-export const ALVOS = {
-  /** Conexão ÷ abordados. Conexão = qualquer resposta do cliente. */
-  conexao: 0.7,
-  /** Levantamentos agendados ÷ Conexão. */
-  levantamento: 0.72,
-  /** Levantamentos agendados ÷ abordados: a meta do mês. */
-  marcacao: 0.5,
-} as const;
-/** Meta de abordagens do mês por closer, quando o mês não tem plano em `monetizacao_planos`. */
-export const ABORDAGENS_POR_CLOSER = 120;
-/** Abordado há este tanto de dias úteis, sem Conexão, entra na lista de atenção. */
+// DEFINIDO pelo Pedro em 01/10/2026: prazo da lista de atenção. Os alvos e a meta de abordagens saíram em 09/10/2026.
+/** Abordado há este tanto de dias úteis, sem Qualificação (antes, Conexão), entra na lista de atenção. */
 export const DIAS_UTEIS_SEM_CONEXAO = 3;
 /** Na lista de atenção, a faixa mais antiga. */
 export const DIAS_UTEIS_ALERTA_ALTO = 10;
@@ -77,9 +69,9 @@ export function contarPorProduto(cards: Negocio[]): Record<Produto | "sem_produt
 export type IndicadorDia = "abordagens" | "conexoes" | "agendados" | "realizados" | "propostas";
 export const INDICADORES_DIA: { chave: IndicadorDia; rotulo: string }[] = [
   { chave: "abordagens", rotulo: "Abordagens" },
-  { chave: "conexoes", rotulo: "Conexões" },
-  { chave: "agendados", rotulo: "Levantamentos agendados" },
-  { chave: "realizados", rotulo: "Levantamentos realizados" },
+  { chave: "conexoes", rotulo: "Qualificações" },
+  { chave: "agendados", rotulo: "Lev. com sócio agendados" },
+  { chave: "realizados", rotulo: "Lev. com sócio realizados" },
   { chave: "propostas", rotulo: "Reuniões de proposta" },
 ];
 
@@ -145,11 +137,12 @@ export interface MarcacaoDoMes {
   /** `null` quando o pipe não tem a etapa. */
   conexao: number | null;
   agendados: number | null;
+  /** Qualificação ÷ abordados. */
   taxaConexao: number | null;
+  /** Levantamentos com sócio agendados ÷ Qualificação. */
   taxaLevantamento: number | null;
+  /** Levantamentos com sócio agendados ÷ abordados. */
   marcacao: number | null;
-  /** Levantamentos que faltam para 50% dos abordados: `max(0, ⌈0,5 × abordados⌉ − agendados)`. */
-  faltam: number | null;
 }
 
 const razao = (a: number | null, b: number | null) => (a === null || !b ? null : a / b);
@@ -173,8 +166,6 @@ export function marcacaoDoMes(
     taxaConexao: razao(conexao, abordados),
     taxaLevantamento: razao(agendados, conexao),
     marcacao: razao(agendados, abordados),
-    faltam:
-      agendados === null ? null : Math.max(0, Math.ceil(ALVOS.marcacao * abordados) - agendados),
   };
 }
 
@@ -234,41 +225,30 @@ export interface EstoqueERitmo {
   base: Negocio[];
   /** Dias úteis de hoje ao fim do mês, contando hoje. */
   uteisRestantes: number;
-  /** Meta de abordagens do mês; `null` com filtro de produto (a meta é da frente inteira). */
-  meta: number | null;
-  metaDoPlano: boolean;
-  /** Abordagens por dia útil para chegar à meta, arredondadas para cima. */
+  /** Dias úteis do mês de 1º até hoje, contando hoje. */
+  uteisDecorridos: number;
+  /** Ritmo realizado: abordados do mês ÷ dias úteis decorridos, uma casa. `null` antes do primeiro dia útil. */
   porDiaUtil: number | null;
-  /** Contas que faltam mesmo esgotando a Base: meta − abordados − Base, quando positivo. */
-  faltamContas: number;
 }
 
+/** Estoque da Base e ritmo realizado de abordagem no mês, sem meta (09/10/2026). */
 export function estoqueERitmo(
   cards: Negocio[],
   regua: Regua,
   f: Pick<Filtro, "owner" | "owners" | "product">,
-  plano: Plano | undefined,
   abordados: number,
   hoje: string,
 ): EstoqueERitmo {
   const base = doProduto(cards, f).filter(
     (c) => c.status === "open" && regua.niveis[0].stage_ids.includes(c.stage_id),
   );
-  const uteisRestantes = uteis(hoje, fimDoMes(hoje.slice(0, 7)));
-  const metaDoPlano = !!plano?.capacity;
-  const meta = f.product
-    ? null
-    : metaDoPlano
-      ? plano!.capacity
-      : ABORDAGENS_POR_CLOSER * pessoasNoRecorte(f);
-  const faltam = meta === null ? null : Math.max(0, meta - abordados);
+  const mes = hoje.slice(0, 7);
+  const uteisDecorridos = uteis(mes + "-01", hoje);
   return {
     base,
-    uteisRestantes,
-    meta,
-    metaDoPlano,
-    porDiaUtil: faltam === null || !uteisRestantes ? null : Math.ceil(faltam / uteisRestantes),
-    faltamContas: meta === null ? 0 : Math.max(0, meta - abordados - base.length),
+    uteisRestantes: uteis(hoje, fimDoMes(mes)),
+    uteisDecorridos,
+    porDiaUtil: uteisDecorridos ? Math.round((abordados / uteisDecorridos) * 10) / 10 : null,
   };
 }
 

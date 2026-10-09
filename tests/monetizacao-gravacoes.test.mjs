@@ -458,7 +458,7 @@ test("exportar transcrição em texto", () => {
   };
   const texto = transcricaoEmTexto(r, { falas: FALAS, nomes: { "Falante 1": "Matheus" } });
   const linhas = texto.split("\n");
-  assert.equal(linhas[0], "Reunião de levantamento · Empresa Ação Ltda · card 42");
+  assert.equal(linhas[0], "Reunião de levantamento com sócio · Empresa Ação Ltda · card 42");
   assert.equal(linhas[1], "02/10/2026 14:00 (horário de Brasília) · closer: Closer A");
   assert.ok(linhas.includes("[03:12] Matheus: " + FALAS[1].texto));
   assert.ok(linhas.includes("[07:05] Falante 2: " + FALAS[2].texto));

@@ -109,3 +109,15 @@ painel".
   - o cabeçalho e a procedência dizem "pré-venda: {quem}" no lugar de "farmer";
   - Capacidade e Pessoas pedem um pré-vendedor quando o recorte é a pré-venda inteira, porque o plano e o PDI são por
     pessoa.
+
+## Adendo de 09/10/2026: quatro telas saem do menu
+
+Aprovado pelo dono do produto: Temporal e previsão (`?aba=temporal`), Projetado × realizado (`?aba=forecast`),
+Capacidade e alocação (`?aba=capacidade`) e Follow Day (`?aba=follow-day`) saem do menu e do código. Ficam sete visões:
+Operação diária, Consultoria, Funil comercial, Gravações, Pessoas e PDI, Abordagens e Distribuição.
+- O link antigo abre a Operação diária com um aviso discreto ("esta tela saiu do menu em 09/10/2026"), conforme N14.
+- Os contratos das quatro ficam em `contratos/` marcados como aposentados.
+- Fica no banco o que outras telas leem: `ops.monetizacao_planos` (o Cockpit do CEO lê a meta de contratos),
+  `ops.monetizacao_forecasts` e `src/lib/monetizacao/forecast.ts` (o Cockpit do COO lê o projetado).
+- Os destinos do Cockpit do CEO e do COO que levavam a essas telas foram trocados pela Operação diária ou retirados.
+- O seletor "Pré-vendedor" segue em Operação, Funil e Pessoas.

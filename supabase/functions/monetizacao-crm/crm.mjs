@@ -1,5 +1,6 @@
 import { expectedRevenue } from "./revenue.mjs";
 import { PRODUCT_KEY, localDate, today, METRICS } from "./dates.mjs";
+import { etapaDaChave } from "../_shared/etapas-pipe39.ts";
 export const PRODUCT = PRODUCT_KEY;
 // Versão da régua gravada em cada card. Subir aqui faz a carga reler o histórico de todos os
 // negócios na rodada seguinte; o index.ts compara com esta mesma constante.
@@ -29,16 +30,18 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
   stages = stages.filter((s) => !/(reciclad|perdid|descart|estacion|parking)/i.test(s.name));
   const first = stages[0].id,
     order = new Map(stages.map((s) => [Number(s.id), s.order_nr]));
-  const stageFor = (re) => stages.find((s) => re.test(s.name));
-  const scheduled = stageFor(/reuni.*(agend|marc)/i),
-    meeting = stageFor(/reuni.*realiz/i),
-    negotiation = stageFor(/negocia/i),
+  // Etapas pelo nome, antigo ou novo (renomeação de 09/10/2026: "Agendado - Levantamento com sócio" e
+  // "Realizado - Levantamento com sócio"). A régua de cada nome mora em _shared/etapas-pipe39.ts.
+  const stageFor = (chave) => etapaDaChave(stages, chave);
+  const scheduled = stageFor("agendada"),
+    meeting = stageFor("realizada"),
+    negotiation = stageFor("negociacao"),
     // Reunião de proposta é a call com o especialista (Igor, Dárcio, Jordana). Ela vem antes de Em negociação e
     // nunca valida a oportunidade, em qualquer ordem do pipe (dono, 01/10/2026).
-    proposal = stageFor(/reuni.*propost/i),
+    proposal = stageFor("reuniaoProposta"),
     // Stand by é espera depois da reunião, antes do ganho (dono, 28/09/2026): entrar nele conta
     // como reunião realizada quando o card ainda não tinha passado por Reunião realizada.
-    standby = stageFor(/stand ?by/i);
+    standby = stageFor("standby");
   if (!meeting || !negotiation) throw Error("Etapas de reunião e negociação não identificadas");
   // Oportunidade validada = entrar em Em negociação ou numa etapa posterior. Stand by não valida (dono, 01/10/2026):
   // é espera depois da reunião, e o card que vai direto para ele não passou pelo especialista.
