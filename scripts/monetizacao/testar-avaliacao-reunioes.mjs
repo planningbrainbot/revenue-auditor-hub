@@ -41,6 +41,10 @@ checar("etapas por nome", () => {
   assert.equal(tipoDaEtapa("6 · Reunião de proposta"), "proposta");
   assert.equal(tipoDaEtapa("5 · Reunião de levantamento realizada"), null);
   assert.equal(tipoDaEtapa("7 · Em negociação"), null);
+  // Renomeação de 09/10/2026.
+  assert.equal(tipoDaEtapa("4 · Agendado - Levantamento com sócio"), "levantamento");
+  assert.equal(tipoDaEtapa("5 · Realizado - Levantamento com sócio"), null);
+  assert.equal(tipoDaEtapa("3 · Qualificação"), null);
 });
 checar("link do Teams em qualquer campo", () => {
   assert.equal(linkDoTeams({ location: "sala" }), null);

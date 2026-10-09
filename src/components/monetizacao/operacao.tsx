@@ -54,8 +54,9 @@ import { cn } from "@/lib/utils";
 import { METRICAS, taxa } from "@/lib/monetizacao/model";
 import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import type { QuadroMeta, StatusMeta, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
-import { linhaDa } from "@/lib/monetizacao/funil-cumulativo";
+import { chaveDaEtapa, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
 import type {
+  ChaveEtapa,
   ChaveNivel,
   FunilCumulativo,
   LinhaCumulativa,
@@ -192,7 +193,7 @@ const REGRAS: [string, string][] = [
   ],
   [
     "Etapas somadas",
-    "O Gatilho, encerrado em 01/10, conta como Conexão, e o Stand by conta como Levantamento realizado.",
+    "O Gatilho, encerrado em 01/10, conta como Qualificação (a antiga Conexão), e o Stand by conta como Levantamento com sócio realizado.",
   ],
   ["Fila", "A fila são os cards que estiveram na Base elegível em algum momento do período."],
   [
@@ -256,21 +257,25 @@ export function ComoContamos({
 // Funil
 // ---------------------------------------------------------------------------
 
-// Um ícone por etapa, pelo nome (a ordem no pipe muda; o nome da etapa, não).
-const ICONES: [RegExp, LucideIcon][] = [
-  [/base/i, Building2],
-  [/abordag/i, MessagesSquare],
-  [/conex/i, MessageCircleReply],
-  [/gatilho/i, Zap],
-  [/reuni.*(agend|marc)/i, CalendarClock],
-  [/reuni.*realiz/i, CalendarCheck],
-  [/negocia/i, Scale],
-  [/reuni.*proposta/i, Presentation],
-  [/proposta/i, FileSignature],
-  [/stand ?by/i, CirclePause],
-  [/^ganho$/i, Trophy],
-];
-const iconeDa = (nome: string) => ICONES.find(([re]) => re.test(nome))?.[1] ?? Building2;
+// Um ícone por papel da etapa, lido do nome antigo ou novo (a ordem no pipe muda, e o nome mudou em 01/10 e 09/10).
+const ICONES: Record<ChaveEtapa, LucideIcon> = {
+  base: Building2,
+  abordagem: MessagesSquare,
+  conexao: MessageCircleReply,
+  gatilho: Zap,
+  agendada: CalendarClock,
+  realizada: CalendarCheck,
+  negociacao: Scale,
+  reuniaoProposta: Presentation,
+  propostaEnviada: FileSignature,
+  standby: CirclePause,
+};
+const iconeDa = (nome: string) => {
+  if (/^ganho$/i.test(nome)) return Trophy;
+  const papel = chaveDaEtapa(nome);
+  if (papel) return ICONES[papel];
+  return /proposta/i.test(nome) ? FileSignature : Building2;
+};
 
 // Rampa sequencial de uma cor (DESIGN.md §5, funil): o verde da marca em texto (`primary-text`)
 // misturado ao `muted`, do claro ao escuro conforme o negócio avança. O ícone troca para a cor do
@@ -558,13 +563,13 @@ type ColunaProduto = ChaveNivel | "fila" | "ganho";
 const GRUPOS: { titulo: string; chaves: ColunaProduto[] }[] = [
   { titulo: "Esforço", chaves: ["fila", "abordagem"] },
   { titulo: "Resposta", chaves: ["conexao"] },
-  { titulo: "Levantamentos", chaves: ["agendada", "realizada"] },
+  { titulo: "Levantamentos com sócio", chaves: ["agendada", "realizada"] },
   { titulo: "Resultado", chaves: ["negociacao", "ganho"] },
 ];
 const CURTO: Record<ColunaProduto, string> = {
   fila: "Fila",
   abordagem: "Abordados",
-  conexao: "Conexão",
+  conexao: "Qualificação",
   agendada: "Agendados",
   realizada: "Realizados",
   negociacao: "Validadas",

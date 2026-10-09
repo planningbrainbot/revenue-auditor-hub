@@ -804,7 +804,7 @@ export function metasOperacao(
     },
     {
       chave: "scheduled",
-      rotulo: "Levantamentos agendados",
+      rotulo: "Levantamentos com sócio agendados",
       valor: agendados.length,
       total: agendados.length,
       meta: null,
@@ -812,12 +812,12 @@ export function metasOperacao(
       nota:
         sobre(agendados.length, abordados.length, "dos abordados") + mais(agendadosAntes.length),
       formula:
-        "Abordados do período que chegaram a Reunião de levantamento agendada, ou a uma etapa depois dela, no período. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
+        "Abordados do período que chegaram a Agendado - Levantamento com sócio (antes, Reunião de levantamento agendada), ou a uma etapa depois dela, no período. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
       cards: [...agendados, ...agendadosAntes],
     },
     {
       chave: "meeting",
-      rotulo: "Levantamentos realizados",
+      rotulo: "Levantamentos com sócio realizados",
       valor: realizados.length,
       total: realizados.length,
       meta: null,
@@ -825,7 +825,7 @@ export function metasOperacao(
       nota:
         sobre(realizados.length, agendados.length, "dos agendados") + mais(realizadosAntes.length),
       formula:
-        "Abordados do período que chegaram a Reunião de levantamento realizada (Stand by conta como realizada), ou além. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
+        "Abordados do período que chegaram a Realizado - Levantamento com sócio (antes, Reunião de levantamento realizada; Stand by conta como realizado), ou além. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
       cards: [...realizados, ...realizadosAntes],
     },
     {
@@ -838,7 +838,7 @@ export function metasOperacao(
       nota:
         (realizados.length
           ? `${validadas.length} de ${realizados.length} realizados viraram oportunidade`
-          : "Nenhum levantamento realizado no período") + mais(validadasAntes.length),
+          : "Nenhum levantamento com sócio realizado no período") + mais(validadasAntes.length),
       formula:
         "Abordados do período que chegaram a Em negociação ou além. Saem da mesma coorte dos realizados, então nunca passam deles. Card abordado antes que validou no período aparece à parte, na nota e na lista.",
       cards: [...validadas, ...validadasAntes],

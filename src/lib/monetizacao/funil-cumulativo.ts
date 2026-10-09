@@ -21,6 +21,13 @@
 import type { Filtro } from "./model";
 import type { Movimento, Negocio } from "./types";
 import { doResponsavel } from "./responsavel.ts";
+import {
+  chaveDaEtapa,
+  type ChaveEtapa,
+} from "../../../supabase/functions/_shared/etapas-pipe39.ts";
+
+export { chaveDaEtapa };
+export type { ChaveEtapa };
 
 export type Etapa = { id: number; name: string; order: number };
 
@@ -37,21 +44,22 @@ export type ChaveNivel =
   | "reuniaoProposta"
   | "propostaEnviada";
 
-const BASE = /base/i;
-const GATILHO = /gatilho/i;
-const STAND_BY = /stand ?by/i;
-const CONEXAO = /conex/i;
-// Ordem importa: a primeira expressão que casa dá a chave da etapa. Sem a etapa Conexão (pipe anterior a 01/10), o
-// Gatilho é uma etapa da sequência e faz o papel dela.
-const CHAVES: [ChaveNivel, RegExp][] = [
-  ["abordagem", /abordag/i],
-  ["conexao", /conex|gatilho/i],
-  ["agendada", /reuni.*(agend|marc)/i],
-  ["realizada", /reuni.*realiz/i],
-  ["negociacao", /negocia/i],
-  ["reuniaoProposta", /reuni.*proposta/i],
-  ["propostaEnviada", /proposta.*envi/i],
+// O papel de cada etapa vem do nome, antigo ou novo (`_shared/etapas-pipe39.ts`; renomeação de 09/10/2026:
+// Conexão → Qualificação, "Reunião de levantamento agendada/realizada" → "Agendado/Realizado - Levantamento com sócio").
+const papelDe = (s: Etapa) => chaveDaEtapa(s.name);
+// Cada chave fica com o primeiro passo que tem esse papel. Sem a etapa Conexão (pipe anterior a 01/10), o Gatilho é
+// uma etapa da sequência e faz o papel dela.
+const CHAVES: ChaveNivel[] = [
+  "abordagem",
+  "conexao",
+  "agendada",
+  "realizada",
+  "negociacao",
+  "reuniaoProposta",
+  "propostaEnviada",
 ];
+const temPapel = (s: Etapa, papel: ChaveNivel) =>
+  papelDe(s) === papel || (papel === "conexao" && papelDe(s) === "gatilho");
 
 export interface NivelRegua {
   nivel: number;
@@ -88,27 +96,25 @@ export const nomeDaEtapa = (nome: string) =>
 /** Níveis lidos do pipe, por nome e pela ordem de `stages` (campo `order`). */
 export function reguaDoPipe(stages: Etapa[]): Regua {
   const ord = [...stages].sort((a, b) => a.order - b.order);
-  const base = ord.filter((s) => BASE.test(s.name));
-  const temConexao = ord.some(
-    (s) => CONEXAO.test(s.name) && !BASE.test(s.name) && !STAND_BY.test(s.name),
-  );
-  const somada = (s: Etapa) => STAND_BY.test(s.name) || (temConexao && GATILHO.test(s.name));
-  const passos = ord.filter((s) => !BASE.test(s.name) && !somada(s));
+  const base = ord.filter((s) => papelDe(s) === "base");
+  const temConexao = ord.some((s) => papelDe(s) === "conexao");
+  const somada = (s: Etapa) => papelDe(s) === "standby" || (temConexao && papelDe(s) === "gatilho");
+  const passos = ord.filter((s) => papelDe(s) !== "base" && !somada(s));
   const nivelDaEtapa = new Map<number, number>();
   for (const s of base) nivelDaEtapa.set(s.id, 0);
   passos.forEach((s, i) => nivelDaEtapa.set(s.id, i + 1));
   const chaveDe = new Map<number, ChaveNivel>();
   const nivelDe: Partial<Record<ChaveNivel, number>> = {};
-  for (const [chave, re] of CHAVES) {
-    const s = passos.find((p) => re.test(p.name) && !chaveDe.has(p.id));
+  for (const papel of CHAVES) {
+    const s = passos.find((p) => temPapel(p, papel) && !chaveDe.has(p.id));
     if (!s) continue;
-    chaveDe.set(s.id, chave);
-    nivelDe[chave] = nivelDaEtapa.get(s.id);
+    chaveDe.set(s.id, papel);
+    nivelDe[papel] = nivelDaEtapa.get(s.id);
   }
   const somadasDo = new Map<number, { id: number; nome: string }[]>();
   const semNivel: string[] = [];
   for (const s of ord.filter(somada)) {
-    const v = STAND_BY.test(s.name) ? nivelDe.realizada : nivelDe.conexao;
+    const v = papelDe(s) === "standby" ? nivelDe.realizada : nivelDe.conexao;
     if (v === undefined) {
       semNivel.push(s.name);
       continue;

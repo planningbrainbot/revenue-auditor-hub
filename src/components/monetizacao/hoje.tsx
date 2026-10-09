@@ -229,7 +229,7 @@ export function VisaoHoje({
       <div className="space-y-2">
         <KpiGrade colunas={4}>
           {taxaKpi(
-            "Conexão",
+            "Qualificação",
             mes.taxaConexao,
             ALVOS.conexao,
             "alvo",
@@ -237,11 +237,11 @@ export function VisaoHoje({
             conexao?.cards,
           )}
           {taxaKpi(
-            "Levantamento",
+            "Levantamento com sócio",
             mes.taxaLevantamento,
             ALVOS.levantamento,
             "alvo",
-            `${INT.format(mes.agendados ?? 0)} de ${INT.format(mes.conexao ?? 0)} com Conexão`,
+            `${INT.format(mes.agendados ?? 0)} de ${INT.format(mes.conexao ?? 0)} com Qualificação`,
             agendada?.cards,
           )}
           {taxaKpi(
@@ -282,7 +282,7 @@ export function VisaoHoje({
                     {INT.format(lista.length)}
                   </strong>{" "}
                   {lista.length === 1 ? "abordado" : "abordados"} há {DIAS_UTEIS_SEM_CONEXAO} dias
-                  úteis ou mais, sem Conexão · {INT.format(altos)}{" "}
+                  úteis ou mais, sem Qualificação · {INT.format(altos)}{" "}
                   {altos === 1 ? "passa" : "passam"} de {DIAS_UTEIS_ALERTA_ALTO} dias úteis
                 </>
               }
@@ -327,7 +327,7 @@ export function VisaoHoje({
         </ul>
       </section>
 
-      {/* 3 e 4. Conexão por unidade · Estoque e ritmo */}
+      {/* 3 e 4. Qualificação por unidade · Estoque e ritmo */}
       <div className="grid gap-3 lg:grid-cols-2">
         <ConexaoPorUnidade porUnidade={porUnidade} abrir={abrir} />
         <EstoqueRitmo
@@ -416,7 +416,7 @@ function ConexaoPorUnidade({
         Em que unidade os abordados do mês respondem?
       </h3>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
-        Conexão de N abordados no mês, pela unidade da conta na Base. Traço: alvo de{" "}
+        Qualificação de N abordados no mês, pela unidade da conta na Base. Traço: alvo de{" "}
         {PCT.format(ALVOS.conexao)}.
       </p>
       {porUnidade === null ? (
@@ -566,7 +566,7 @@ const FAIXAS: { v: FiltroAtencao; rotulo: string; vale: (i: ItemAtencao) => bool
 ];
 
 /**
- * Lista de atenção (Fila de trabalho num Sheet): abordados sem Conexão há 3 dias úteis ou mais, com os sócios da
+ * Lista de atenção (Fila de trabalho num Sheet): abordados sem Qualificação há 3 dias úteis ou mais, com os sócios da
  * unidade (todos: não há sócio de referência, decisão do Pedro em 01/10). Filtro de idade na URL (`atencao`).
  */
 function ListaAtencao({
@@ -625,10 +625,10 @@ function ListaAtencao({
       <SheetContent className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-4xl">
         <SheetHeader className="pr-8">
           <SheetTitle>
-            Abordados sem Conexão há {DIAS_UTEIS_SEM_CONEXAO} dias úteis ou mais
+            Abordados sem Qualificação há {DIAS_UTEIS_SEM_CONEXAO} dias úteis ou mais
           </SheetTitle>
           <SheetDescription>
-            Abertos em Abordagem iniciada que nunca chegaram à Conexão · dono atual: {quem} ·{" "}
+            Abertos em Abordagem iniciada que nunca chegaram à Qualificação · dono atual: {quem} ·{" "}
             {recorte} · dias úteis desde a saída da Base, sem feriados
           </SheetDescription>
         </SheetHeader>
@@ -663,11 +663,11 @@ function ListaAtencao({
         {lista === null ? (
           <EstadoVazio
             titulo="Lista não apurada"
-            descricao="O pipe não tem as etapas Abordagem iniciada e Conexão com esses nomes."
+            descricao="O pipe não tem as etapas Abordagem iniciada e Qualificação (antes, Conexão)."
           />
         ) : visiveis.length === 0 ? (
           <EstadoVazio
-            titulo="Nenhum abordado sem Conexão nesta faixa"
+            titulo="Nenhum abordado sem Qualificação nesta faixa"
             total={filtro === "todos" ? undefined : todos.length}
           />
         ) : (
@@ -727,7 +727,7 @@ function ListaAtencao({
           className="mt-auto"
           fonte={`${FONTE_MONETIZACAO}; sócios: cadastro de sócios das unidades`}
           atualizadoEm={measuredAt}
-          regua={`abordado há ${DIAS_UTEIS_SEM_CONEXAO}+ dias úteis, sem nunca ficar 30 min na Conexão ou além`}
+          regua={`abordado há ${DIAS_UTEIS_SEM_CONEXAO}+ dias úteis, sem nunca ficar 30 min na Qualificação ou além`}
         />
       </SheetContent>
     </Sheet>

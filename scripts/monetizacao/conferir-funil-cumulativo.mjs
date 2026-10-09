@@ -63,9 +63,10 @@ function referencia(cards, stages) {
   const re = {
     base: /base/i,
     gatilho: /gatilho/i,
-    conexao: /conex/i,
+    // Nome antigo e novo (09/10/2026: "3 · Qualificação" e "5 · Realizado - Levantamento com sócio").
+    conexao: /conex|qualifica/i,
     standby: /stand ?by/i,
-    realizada: /reuni.*realiz/i,
+    realizada: /reuni.*realiz|realizad.*levant/i,
   };
   const passos = ord.filter(
     (s) => !re.base.test(s.name) && !re.gatilho.test(s.name) && !re.standby.test(s.name),

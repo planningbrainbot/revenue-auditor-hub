@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON do Pipedrive, do banco e do modelo chega sem tipo. */
 // Da atividade de Reunião do card do Pipedrive para a linha da fila do bot de reuniões (Brain Meet). Sem API do
 // Deno: roda também no Node, nos testes.
+import { chaveDaEtapa } from "../_shared/etapas-pipe39.ts";
 import type { TipoReuniao } from "./avaliacao.ts";
 
 type Atividade = Record<string, any>;
@@ -9,11 +10,15 @@ export type Reuniao = { inicio: string; fim: string; link: string; atividade_id:
 const TEAMS = /https:\/\/teams\.(?:microsoft|live)\.com\/[^\s"'<>]+/i;
 const HORA_DE_TOLERANCIA = 60 * 60 * 1000;
 
-/** Etapa de reunião, lida pelo nome (nunca pelo id): a frente 01 reordena o pipe. */
+/**
+ * Etapa de reunião, lida pelo nome (nunca pelo id): a frente 01 reordena e renomeia o pipe. Aceita o nome antigo e o
+ * novo ("4 · Reunião de levantamento agendada" e "4 · Agendado - Levantamento com sócio", 09/10/2026). Levantamento
+ * realizado não é etapa de reunião: o bot só entra na agendada e na de proposta.
+ */
 export function tipoDaEtapa(nome: string | null | undefined): TipoReuniao | null {
-  const n = nome || "";
-  if (/reuni.*proposta/i.test(n)) return "proposta";
-  if (/reuni.*(agend|marc)/i.test(n)) return "levantamento";
+  const chave = chaveDaEtapa(nome);
+  if (chave === "reuniaoProposta") return "proposta";
+  if (chave === "agendada") return "levantamento";
   return null;
 }
 

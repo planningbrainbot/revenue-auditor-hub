@@ -9,14 +9,14 @@ Estado: **conteúdo aprovado no mockup** (https://claude.ai/artifact/GS3D2jtsYtt
 - **Ação que provoca:** conferir a reunião antes da proposta (o que o cliente disse, o que foi ofertado, a nota pelo playbook) e corrigir o registro do card quando a reunião não tem gravação ("sem registro no card").
 - **Métrica de sucesso:** "Sem registro no card" chega a zero, e a fatia "Avaliadas" cresce a cada mês.
 - **Arquétipo:** **Lista/Relatório** que abre a **Ficha** ao lado (no celular, em `Sheet`).
-- **Universo (`descricao`):** "Reuniões de levantamento e de proposta dos cards do pipe 39 · mês da reunião em São Paulo · reunião".
+- **Universo (`descricao`):** "Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · mês da reunião em São Paulo · reunião". (Rótulo "levantamento com sócio" desde 09/10/2026, com a renomeação das etapas 4 e 5 do pipe 39.)
 
 ## Números
 | Número (rótulo exato) | Definição | Unidade | Fonte e régua | Frescor | Drill-down | O destino bate? |
 |---|---|---|---|---|---|---|
 | Avaliadas | reuniões do recorte com transcrição pronta e nota pelo playbook ("X de N", N = reuniões do recorte) | reunião | `ops.monetizacao_reunioes.status = avaliada` | cron de 5 min | filtra a lista (`gravacao=avaliada`) | sim |
 | Sem gravação | reuniões que aconteceram sem o bot: o bot não entrou, a transcrição falhou, ou a reunião é do histórico do card sem pedido ao bot | reunião | `status = sem_gravacao` + histórico do card | idem | filtra a lista | sim |
-| Sem registro no card | card parado numa etapa de reunião (levantamento agendada ou reunião de proposta) sem atividade de Reunião com link do Teams | reunião | etapa de hoje do card × `ops.monetizacao_reunioes` | carga do CRM | filtra a lista | sim |
+| Sem registro no card | card parado numa etapa de reunião (levantamento agendado, "4 · Agendado - Levantamento com sócio" desde 09/10, ou reunião de proposta) sem atividade de Reunião com link do Teams | reunião | etapa de hoje do card × `ops.monetizacao_reunioes` | carga do CRM | filtra a lista | sim |
 | Na fila do bot | reunião registrada que o bot ainda vai gravar | reunião | `status = na_fila` | cron de 5 min | filtra a lista | sim |
 
 Nenhum número mistura unidade: tudo conta reunião, e N é o mesmo nos quatro (N11).

@@ -77,9 +77,9 @@ export function contarPorProduto(cards: Negocio[]): Record<Produto | "sem_produt
 export type IndicadorDia = "abordagens" | "conexoes" | "agendados" | "realizados" | "propostas";
 export const INDICADORES_DIA: { chave: IndicadorDia; rotulo: string }[] = [
   { chave: "abordagens", rotulo: "Abordagens" },
-  { chave: "conexoes", rotulo: "Conexões" },
-  { chave: "agendados", rotulo: "Levantamentos agendados" },
-  { chave: "realizados", rotulo: "Levantamentos realizados" },
+  { chave: "conexoes", rotulo: "Qualificações" },
+  { chave: "agendados", rotulo: "Lev. com sócio agendados" },
+  { chave: "realizados", rotulo: "Lev. com sócio realizados" },
   { chave: "propostas", rotulo: "Reuniões de proposta" },
 ];
 
