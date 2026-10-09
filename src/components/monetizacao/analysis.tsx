@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -14,7 +14,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -42,14 +41,13 @@ import {
 import { abordagensPorDiaUtil, hoje, operacao } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { salvarRegistroMonetizacao } from "@/lib/monetizacao/functions";
-import { NOMES, NOMES_ROTEIRO, PRE_VENDEDORES, PRODUTOS_ROTEIRO } from "@/lib/monetizacao/types";
+import { NOMES, NOMES_ROTEIRO, PRODUTOS_ROTEIRO } from "@/lib/monetizacao/types";
 import type {
   BaseMonetizacao,
   Metrica,
   Negocio,
   ProdutoRoteiro,
   Registro,
-  RegistroValor,
 } from "@/lib/monetizacao/types";
 import { useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
 import type { Aba, OpcoesDetalhe } from "./dashboard";
@@ -81,17 +79,18 @@ type Props = {
     period?: { from: string; to: string },
     opcoes?: OpcoesDetalhe,
   ) => void;
-  /** Estado da tela na URL (`dias`, `mes`, `sinal`, `blocos`, `totais`, `arquivados`, `situacao`): as visões passam a usar nas T3–T8. */
+  /** Estado da tela na URL (`situacao`, `produto`): Abordagens lê e grava aqui. */
   busca?: BuscaMonetizacao;
   mudarBusca?: (patch: Partial<BuscaMonetizacao>) => void;
 };
 // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram do menu em 09/10/2026
 // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso (busca.ts, ABAS_APOSENTADAS).
+// Pessoas e PDI saiu no mesmo dia (decisão 1A do PRD da Pré-venda): o formulário manual de PDI (People) e o histórico
+// de PDI foram removidos; o link antigo abre a Pré-venda › Aderência. Os registros `kind = "pdi"` ficam em
+// ops.monetizacao_registros, sem tela.
 export function Analysis(props: Props) {
   const { aba, data, filter, openDeals } = props;
   if (aba === "funil") return <Funnel data={data} filter={filter} openDeals={openDeals} />;
-  if (aba === "pessoas")
-    return <People data={data} filter={filter} busca={props.busca} mudarBusca={props.mudarBusca} />;
   if (aba === "roteiros")
     return <Scripts data={data} busca={props.busca} mudarBusca={props.mudarBusca} />;
   return <Distribution data={data} filter={filter} openDeals={openDeals} />;
@@ -114,13 +113,6 @@ const MESES_CURTOS = [
 ];
 /** "set/2026" a partir de "2026-09". */
 const rotuloMes = (m: string) => `${MESES_CURTOS[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
-/** Nome do responsável da barra: a pré-venda inteira sem filtro; o pré-vendedor pelo cadastro (a Heloá ainda sem card). */
-const nomeDoDono = (data: BaseMonetizacao, owner: number | null) =>
-  owner === null
-    ? "Pré-venda (os dois)"
-    : (PRE_VENDEDORES.find(([id]) => id === owner)?.[1] ??
-      data.cards.find((c) => c.owner_id === owner)?.owner ??
-      `Usuário ${owner}`);
 /** Uma casa decimal, para ritmo (abordagens por dia útil). */
 const DECIMAL = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 1,
@@ -128,53 +120,6 @@ const DECIMAL = new Intl.NumberFormat("pt-BR", {
 });
 const juntarNotas = (...partes: (string | undefined | false | null)[]) =>
   partes.filter(Boolean).join(" · ") || undefined;
-
-/** Campo do plano (Configuração §5): rótulo acima, ajuda abaixo, erro no próprio campo. */
-function CampoPlano({
-  rotulo,
-  ajuda,
-  erro,
-  anunciar = false,
-  children,
-}: {
-  rotulo: string;
-  ajuda?: string;
-  erro?: string | null;
-  /** Anuncia o erro ao leitor de tela (`role="alert"`): só um campo por erro, para não repetir. */
-  anunciar?: boolean;
-  children: (a11y: { id: string; "aria-describedby"?: string; "aria-invalid"?: true }) => ReactNode;
-}) {
-  const id = useId();
-  const ajudaId = `${id}-ajuda`,
-    erroId = `${id}-erro`;
-  const descritoPor = [erro ? erroId : null, ajuda ? ajudaId : null].filter(Boolean).join(" ");
-  return (
-    <div className="grid gap-1">
-      <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-        {rotulo}
-      </Label>
-      {children({
-        id,
-        "aria-describedby": descritoPor || undefined,
-        "aria-invalid": erro ? true : undefined,
-      })}
-      {erro && (
-        <p
-          id={erroId}
-          role={anunciar ? "alert" : undefined}
-          className="text-xs font-medium text-danger"
-        >
-          {erro}
-        </p>
-      )}
-      {ajuda && (
-        <p id={ajudaId} className="text-xs text-muted-foreground">
-          {ajuda}
-        </p>
-      )}
-    </div>
-  );
-}
 
 /**
  * Z2 no recorte da barra (mesma régua da Operação diária): negócio sem histórico lido não tem
@@ -402,208 +347,6 @@ function Funnel({ data, filter, openDeals }: Cut) {
           </NotaApoio>
         </div>
       </SecaoCartao>
-    </div>
-  );
-}
-
-const CRITERIOS = [
-  "Investigou faturamento e segmento",
-  "Conectou a necessidade ao produto",
-  "Validou oportunidade com o especialista",
-  "Combinou próximo passo e prazo",
-  "Preencheu produto, receita prevista e split",
-];
-/**
- * Pessoas e PDI (contrato `monetizacao-pessoas.md`, Ficha): avaliação da amostra do responsável
- * da barra e o histórico de PDI. Cada campo que falta diz, nele mesmo, que falta para salvar.
- */
-function People({
-  data,
-  filter,
-  busca,
-  mudarBusca,
-}: Pick<Props, "data" | "filter" | "busca" | "mudarBusca">) {
-  const [title, setTitle] = useState(""),
-    [sample, setSample] = useState(""),
-    [scores, setScores] = useState<Record<string, number>>({}),
-    [goal, setGoal] = useState(""),
-    [action, setAction] = useState(""),
-    [due, setDue] = useState(""),
-    [busy, setBusy] = useState(false);
-  const fn = useServerFn(salvarRegistroMonetizacao),
-    invalidate = useAtualizarMonetizacao();
-  const values = Object.values(scores).filter((n) => n > 0),
-    average = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-  const dono = nomeDoDono(data, filter.owner);
-  const falta = {
-    responsavel:
-      filter.owner === null
-        ? "Escolha um pré-vendedor na barra: com a pré-venda inteira não há de quem seja o PDI."
-        : null,
-    title: title.trim().length < 3 ? "Falta o título (3 caracteres ou mais) para salvar." : null,
-    sample: !sample.trim() ? "Falta a amostra revisada para salvar." : null,
-    scores: !values.length ? "Falta dar nota a pelo menos um critério para salvar." : null,
-    goal: !goal.trim() ? "Falta o objetivo para salvar." : null,
-    action: !action.trim() ? "Falta a ação para salvar." : null,
-    due: !due ? "Falta o prazo para salvar." : null,
-  };
-  const motivos = [motivoSemEscopo(data), ...Object.values(falta)];
-  const limpar = () => {
-    setTitle("");
-    setSample("");
-    setScores({});
-    setGoal("");
-    setAction("");
-    setDue("");
-  };
-  const save = async () => {
-    setBusy(true);
-    try {
-      await fn({
-        data: {
-          kind: "pdi",
-          title: title.trim(),
-          body: {
-            owner_id: filter.owner,
-            from: filter.from,
-            to: filter.to,
-            sample,
-            scores,
-            goal,
-            action,
-            due,
-            status: "em_andamento",
-            rubric_version: 1,
-          },
-        },
-      });
-      await invalidate();
-      toast.success(`Avaliação e PDI de ${dono} registrados.`);
-      limpar();
-    } catch (e) {
-      toast.error(`A avaliação não foi salva: ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <SecaoCartao
-        titulo={
-          filter.owner === null
-            ? "Como o hunter foi na amostra do período?"
-            : `Como ${dono} foi na amostra do período?`
-        }
-        descricao={`Amostra de ${date(filter.from)} a ${date(filter.to)} · 5 critérios, nota 1–5`}
-      >
-        <div className="space-y-3">
-          <NotaApoio>
-            Avaliação registrada pelo gestor, com evidências. Volume de atividade e nota de
-            qualidade são medidas separadas.
-          </NotaApoio>
-          {falta.responsavel && (
-            <p className="text-xs font-medium text-muted-foreground">{falta.responsavel}</p>
-          )}
-          <CampoPlano rotulo="Título da avaliação / pessoa" ajuda={falta.title ?? undefined}>
-            {(a11y) => (
-              <input
-                {...a11y}
-                className={inputClass}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            )}
-          </CampoPlano>
-          <CampoPlano rotulo="Amostra e evidências revisadas" ajuda={falta.sample ?? undefined}>
-            {(a11y) => (
-              <textarea
-                {...a11y}
-                className={`${inputClass} h-20 py-2`}
-                value={sample}
-                onChange={(e) => setSample(e.target.value)}
-                placeholder="IDs das oportunidades, calls ou links revisados"
-              />
-            )}
-          </CampoPlano>
-          {CRITERIOS.map((c) => (
-            <CampoPlano key={c} rotulo={c}>
-              {(a11y) => (
-                <select
-                  {...a11y}
-                  className={inputClass}
-                  value={scores[c] || 0}
-                  onChange={(e) => setScores({ ...scores, [c]: Number(e.target.value) })}
-                >
-                  <option value="0">Não avaliado</option>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <option key={n} value={n}>
-                      {n} ·{" "}
-                      {n === 1
-                        ? "Não demonstrado"
-                        : n === 3
-                          ? "Parcial"
-                          : n === 5
-                            ? "Consistente"
-                            : "Intermediário"}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </CampoPlano>
-          ))}
-          <div>
-            <p className="text-sm">
-              Média da amostra: <strong className="num">{number(average)}</strong> · {values.length}{" "}
-              de {CRITERIOS.length} critérios avaliados
-            </p>
-            {falta.scores && <p className="text-xs text-muted-foreground">{falta.scores}</p>}
-          </div>
-          <CampoPlano rotulo="Objetivo de desenvolvimento" ajuda={falta.goal ?? undefined}>
-            {(a11y) => (
-              <input
-                {...a11y}
-                className={inputClass}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-              />
-            )}
-          </CampoPlano>
-          <CampoPlano
-            rotulo="Ação observável para o próximo ciclo"
-            ajuda={falta.action ?? undefined}
-          >
-            {(a11y) => (
-              <textarea
-                {...a11y}
-                className={`${inputClass} h-20 py-2`}
-                value={action}
-                onChange={(e) => setAction(e.target.value)}
-              />
-            )}
-          </CampoPlano>
-          <CampoPlano rotulo="Revisar até" ajuda={falta.due ?? undefined}>
-            {(a11y) => (
-              <input
-                {...a11y}
-                type="date"
-                className={inputClass}
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-              />
-            )}
-          </CampoPlano>
-          <BotaoComMotivo onClick={save} disabled={busy || motivos.some(Boolean)} motivo={motivos}>
-            {busy ? "Salvando" : "Salvar avaliação e PDI"}
-          </BotaoComMotivo>
-        </div>
-      </SecaoCartao>
-      <RecordList
-        data={data}
-        kind="pdi"
-        title="Quais PDIs estão registrados, e em que pé?"
-        arquivados={busca?.arquivados === "mostrar"}
-        mudarArquivados={(mostrar) => mudarBusca?.({ arquivados: mostrar ? "mostrar" : undefined })}
-      />
     </div>
   );
 }
@@ -1273,121 +1016,46 @@ function FotoDistribuicao({
   );
 }
 
-const SITUACAO_PDI: Record<string, { rotulo: string; tom: TomStatus }> = {
-  em_andamento: { rotulo: "Em andamento", tom: "info" },
-  concluido: { rotulo: "Concluído", tom: "sucesso" },
-  arquivado: { rotulo: "Arquivado", tom: "neutro" },
-};
-
 /**
- * Histórico de registros (PDI e decisões de distribuição). PDI mostra de quem é e o período
- * avaliado, esconde arquivados por padrão (`?arquivados=mostrar`) e arquiva com confirmação.
+ * Histórico das decisões de distribuição: o que foi decidido, a regra e a foto da tabela por responsável.
+ * Até 09/10/2026 servia também ao histórico de PDI, que saiu com a tela Pessoas e PDI (decisão 1A).
  */
 function RecordList({
   data,
   kind,
   title,
-  arquivados = false,
-  mudarArquivados,
 }: {
   data: BaseMonetizacao;
-  kind: "pdi" | "distribuicao";
+  kind: "distribuicao";
   title: string;
-  arquivados?: boolean;
-  mudarArquivados?: (mostrar: boolean) => void;
 }) {
-  const fn = useServerFn(salvarRegistroMonetizacao),
-    invalidate = useAtualizarMonetizacao();
-  const [arquivar, setArquivar] = useState<Registro | null>(null),
-    [busy, setBusy] = useState<string | null>(null);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const todos = data.records
+  const registros = data.records
     .filter((r) => r.kind === kind)
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  const nArquivados = todos.filter((r) => r.body.status === "arquivado").length;
-  const records =
-    kind === "pdi" && !arquivados ? todos.filter((r) => r.body.status !== "arquivado") : todos;
-  const motivoEscrita = motivoSemEscopo(data);
-  const changeStatus = async (r: Registro, status: string, mensagem: string) => {
-    setBusy(r.id);
-    try {
-      await fn({ data: { id: r.id, kind: r.kind, title: r.title, body: { ...r.body, status } } });
-      await invalidate();
-      toast.success(mensagem);
-      // O PDI arquivado some da lista: o foco que estava nele vai para "Mostrar arquivados".
-      if (status === "arquivado")
-        requestAnimationFrame(() => {
-          if (!document.activeElement || document.activeElement === document.body)
-            toggleRef.current?.focus();
-        });
-    } catch (e) {
-      toast.error(`O registro não foi atualizado: ${(e as Error).message}`);
-    } finally {
-      setBusy(null);
-    }
-  };
   const fields: Record<string, string> = {
-    sample: "Evidências",
-    goal: "Objetivo",
-    action: "Ação",
-    due: "Prazo",
     reason: "Decisão",
     rule: "Regra",
   };
-  const valorDoCampo = (k: string, v: RegistroValor) =>
-    k === "due" && typeof v === "string" ? date(v) : String(v);
   return (
-    <SecaoCartao
-      titulo={title}
-      acoes={
-        kind === "pdi" &&
-        (nArquivados > 0 || arquivados) && (
-          <Button
-            ref={toggleRef}
-            size="sm"
-            variant={arquivados ? "secondary" : "ghost"}
-            aria-pressed={arquivados}
-            onClick={() => mudarArquivados?.(!arquivados)}
-          >
-            Mostrar arquivados ({nArquivados})
-          </Button>
-        )
-      }
-    >
+    <SecaoCartao titulo={title}>
       <div className="space-y-3">
-        {!todos.length ? (
+        {!registros.length ? (
           <EstadoVazio
             titulo="Nenhum registro ainda."
-            descricao="As avaliações, evidências e decisões salvas ficam disponíveis à equipe com acesso à operação geral."
+            descricao="As decisões salvas ficam disponíveis à equipe com acesso à operação geral."
           />
-        ) : !records.length ? (
-          <EstadoVazio titulo="Todos os PDIs estão arquivados." total={todos.length} />
         ) : (
-          records.map((r) => {
-            const situacao =
-              kind === "pdi"
-                ? (SITUACAO_PDI[String(r.body.status)] ?? SITUACAO_PDI.em_andamento)
-                : null;
-            const ownerId = typeof r.body.owner_id === "number" ? r.body.owner_id : null;
+          registros.map((r) => {
             const periodo =
               typeof r.body.from === "string" && typeof r.body.to === "string"
                 ? `${date(r.body.from)} a ${date(r.body.to)}`
                 : null;
-            const aberto = r.body.status !== "concluido" && r.body.status !== "arquivado";
             return (
               <details key={r.id} className="rounded-lg border p-3">
                 <summary className={`cursor-pointer text-sm font-medium ${FOCO_VISIVEL}`}>
-                  <span className="inline-flex flex-wrap items-center gap-2 align-middle">
-                    {r.title}
-                    {situacao && <StatusBadge tom={situacao.tom}>{situacao.rotulo}</StatusBadge>}
-                  </span>
+                  {r.title}
                   <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                    {[
-                      kind === "pdi" &&
-                        `PDI de ${ownerId === null ? "responsável não registrado" : nomeDoDono(data, ownerId)}`,
-                      periodo && (kind === "pdi" ? `amostra de ${periodo}` : `período ${periodo}`),
-                      `atualizado em ${date(r.updated_at)}`,
-                    ]
+                    {[periodo && `período ${periodo}`, `atualizado em ${date(r.updated_at)}`]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
@@ -1398,60 +1066,16 @@ function RecordList({
                     .map(([k, label]) => (
                       <div key={k}>
                         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                        <p className="whitespace-pre-wrap text-sm">{valorDoCampo(k, r.body[k])}</p>
+                        <p className="whitespace-pre-wrap text-sm">{String(r.body[k])}</p>
                       </div>
                     ))}
                   {Array.isArray(r.body.rows) && <FotoDistribuicao rows={r.body.rows} />}
-                  {r.body.scores && typeof r.body.scores === "object" ? (
-                    <ul className="space-y-1 text-xs">
-                      {Object.entries(r.body.scores).map(([c, n]) => (
-                        <li key={c}>
-                          {c}: {Number(n) || "Não avaliado"}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {kind === "pdi" && r.body.status !== "arquivado" && (
-                    <div className="flex flex-wrap gap-2">
-                      {aberto && (
-                        <BotaoComMotivo
-                          size="sm"
-                          variant="outline"
-                          disabled={!!motivoEscrita || busy === r.id}
-                          motivo={motivoEscrita}
-                          onClick={() =>
-                            changeStatus(r, "concluido", "PDI marcado como concluído.")
-                          }
-                        >
-                          Marcar concluído
-                        </BotaoComMotivo>
-                      )}
-                      <BotaoComMotivo
-                        size="sm"
-                        variant="ghost"
-                        disabled={!!motivoEscrita || busy === r.id}
-                        motivo={motivoEscrita}
-                        onClick={() => setArquivar(r)}
-                      >
-                        Arquivar
-                      </BotaoComMotivo>
-                    </div>
-                  )}
                 </div>
               </details>
             );
           })
         )}
       </div>
-      <ConfirmarArquivar
-        registro={arquivar}
-        oQue="o PDI"
-        onCancelar={() => setArquivar(null)}
-        onConfirmar={(r) => {
-          setArquivar(null);
-          void changeStatus(r, "arquivado", "PDI arquivado.");
-        }}
-      />
     </SecaoCartao>
   );
 }

@@ -1,5 +1,7 @@
 # Contrato · Pessoas e PDI (`/monetizacao?aba=pessoas`)
 
+> **Tela aposentada em 09/10/2026** (decisão 1A do PRD da Pré-venda, aprovado pelo dono do produto): "Pessoas e PDI" saiu do menu da Monetização, e o formulário manual de avaliação e PDI e o histórico de PDI saíram do código (`People` em `analysis.tsx`). O link antigo abre a Pré-venda › Aderência com o aviso "Pessoas e PDI: esta tela saiu do menu em 09/10/2026" (NAVEGACAO.md N14). Os registros `kind = "pdi"` continuam em `ops.monetizacao_registros`, sem tela. A visão por pessoa passou a ser a aderência ao script medida nas ligações (`contratos/monetizacao-pre-venda.md`). Este contrato fica como registro; não vale para tela nova.
+
 **Dono de produto:** Pedro Luca   **Dono do código:** Pedro Luca · Eliezek (merge)   **Data:** 23/09/2026
 Estado: **aprovado pelas propostas** (Pedro, 24/09: "pode seguir conforme suas propostas"). Moldura comum: `monetizacao.md`.
 

@@ -61,7 +61,7 @@ Estado: **E** existe e é usado · **P** parcial (não provoca a ação ou tem d
 | Receita e Repasses | `/unidades`, `/unidades/royalties`, `/unidades/funil-cac`, `/unidades/split` | apurar → confirmar → faturar no Omie; cobrar CAC | E | Configuração / Lista → Ficha |
 | Receita e Repasses | `/comissoes`, `/ebit-operacional` | ratear custo e apurar comissão | E | Lista/Relatório |
 | Planning People | `/gente?tela=*` | liderança, elogios, avaliação, PDI | P (trilha que substituiria o Qulture não existe) | Fila / Ficha |
-| Monetização | `/monetizacao` (7 visões desde 09/10/2026) | acompanhar a pré-venda e trabalhar a fila de abordados; a alocação de capacidade por produto saiu com a tela Capacidade e alocação (sem meta por enquanto) | P | Fila + Lista |
+| Monetização | `/monetizacao` (6 itens desde 09/10/2026; a Pré-venda tem três visões: Ritmo, Aderência e Ficha) | acompanhar a pré-venda e trabalhar a fila de abordados; a alocação de capacidade por produto saiu com a tela Capacidade e alocação (sem meta por enquanto) | P | Fila + Lista |
 | Monetização | `/monetizacao` (lista de atenção da Operação diária, `?atencao=`) | abrir o abordado sem Qualificação e procurar a unidade | P (Fila Cella aposentada em 24/09; Follow Day, Temporal e previsão, Projetado × realizado e Capacidade e alocação saíram em 09/10) | Fila de trabalho |
 | Broker | `/broker`, `/broker/admin` | pegar oportunidade; matriz vê custo/CAC | E | Fila / Configuração |
 | Minha Unidade | `/painel-unidade` e demais | agir na própria unidade | P (sócio cai em bloco vazio sem aviso) | Visão geral |
@@ -99,7 +99,7 @@ Nenhuma destas é resolvida pelo design system. Dono **sugerido** pelo relatóri
 | 5.4 | Forma final da Base de clientes | 4 blocos numa rolagem (`S:153`) × rotas irmãs (`N:230-252`) × faixa única no topo (implementada 22/09) | Pedro | `D:2189,2210` |
 | 5.5 | Guarda de "Produtos e listas" | decisão é `view.aquario`, mas a entrada aparece para todos; sócio cai em bloco vazio | Pedro (regra), Eliezek (casca) | `D:2154` × `D:2210`; `N:217` |
 | 5.6 | OKRs em dois apps | passo 2 (tirar do Growth) não executado | Pedro + Mika | DECISIONS 21/09 |
-| 5.7 | Pessoas/PDI em três casas | Growth `/pessoas` `/pdi`, `/monetizacao?aba=pessoas`, `/gente` | Eliezek (People) + Mika (Growth) | `objetivos-e-modulos.md` §4.2 |
+| 5.7 | Pessoas/PDI em duas casas (a da Monetização saiu em 09/10/2026) | Growth `/pessoas` `/pdi`, `/gente` | Eliezek (People) + Mika (Growth) | `objetivos-e-modulos.md` §4.2 |
 | 5.8 | Funil comercial e Distribuição em dois apps | Growth (inbound) × Monetização (base); fronteira não documentada | Pedro + Mika | idem |
 | 5.9 | Contatos | visão oculta de `/clientes` × `/base-contatos` | Pedro + Eliezek | `N:90-98` |
 | 5.10 | Doutrina de rota aposentada (N14) | Ops redireciona em silêncio (22/09: "link antigo não pode virar 404"); Financeiro explica a rota aposentada | Eliezek | `F/src/App.tsx:20-26`; DECISIONS 22/09 |

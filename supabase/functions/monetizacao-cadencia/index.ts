@@ -18,12 +18,18 @@
 //    etapa antes disso não recebe). Sem ele, nada é criado.
 // 3. secret MONET_CADENCIA_ATIVA=sim. Kill switch: qualquer outro valor deixa a função em dry-run (não escreve no
 //    Pipedrive nem no banco).
+//
+// Depois da rodada, `feita`/`feita_em` de cada atividade das cadências ativas (e das encerradas há menos de 2 dias)
+// são atualizados pelo estado no Pipedrive, um GET deals/{id}/activities por card (marcarFeitas, 09/10/2026: a tela
+// Pré-venda conta as atividades feitas e as vencidas por pessoa e por dia). Também só grava com MONET_CADENCIA_ATIVA=sim.
 import { pipedriveApi } from "../monetizacao-crm/pipedrive.mjs";
 import {
+  marcarFeitas,
   rodarCadencia,
   type LinhaCadencia,
   type PipedriveCadencia,
   type StoreCadencia,
+  type StoreFeitas,
 } from "./logica.ts";
 import { REGUA, VERSAO_REGUA } from "./regua.ts";
 
@@ -78,7 +84,7 @@ async function rest(
   return json;
 }
 
-const store: StoreCadencia = {
+const store: StoreCadencia & StoreFeitas = {
   async linhasDosDeals(deals) {
     const linhas: LinhaCadencia[] = [];
     for (let i = 0; i < deals.length; i += 100) {
@@ -88,6 +94,10 @@ const store: StoreCadencia = {
     return linhas;
   },
   ativas: () => rest(`${TABELA}?status=eq.ativa&select=*&order=criado_em`),
+  paraConferir: (desde) =>
+    rest(
+      `${TABELA}?or=${encodeURIComponent(`(status.eq.ativa,and(status.eq.encerrada,encerrado_em.gte."${desde}"))`)}&select=*&order=criado_em`,
+    ),
   async inserir(linha) {
     const r = await rest(`${TABELA}?on_conflict=deal_id,entrou_em`, {
       body: linha,
@@ -117,6 +127,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     if (body?.action !== "rodar") return json({ error: "Ação inválida" }, 400);
     const ativo = ATIVA && body.dry !== true;
+    const comeco = Date.now();
     const resumo = await rodarCadencia({
       pd: pipedrive,
       store,
@@ -126,8 +137,18 @@ Deno.serve(async (req) => {
       regua: REGUA,
       versao: VERSAO_REGUA,
     });
+    // O cron espera 150 s: a conferência das feitas usa o que sobrou até 125 s.
+    const feitas = await marcarFeitas({
+      pd: pipedrive,
+      store,
+      agora: new Date(),
+      ativo,
+      orcamentoMs: Math.max(0, 125_000 - (Date.now() - comeco)),
+    });
     return json({
       ...resumo,
+      status: resumo.status === "ok" && !feitas.erros.length ? "ok" : "com_erros",
+      feitas,
       automacao: ATIVA ? "ligada" : "desligada (MONET_CADENCIA_ATIVA diferente de sim)",
     });
   } catch (e) {

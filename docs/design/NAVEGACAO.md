@@ -110,10 +110,12 @@ Planning People (people)
   Desenvolvimento .... Avaliação · PDI
   A rede ............. Cadastro · Clima · Adoção por unidade
 Monetização (monetizacao)
-  Oportunidades ...... Operação diária · Consultoria   (/monetizacao?aba=…)   [Fila Cella aposentada em 24/09;
-                       Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day em 09/10: o
-                       link antigo abre a Operação diária com aviso, N14]
-  Desenv. comercial .. Funil comercial · Gravações · Pessoas e PDI · Abordagens · Distribuição (/monetizacao?aba=…)
+  Oportunidades ...... Operação diária · Pré-venda · Consultoria   (/monetizacao?aba=…)   [Fila Cella aposentada em
+                       24/09; Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day em 09/10:
+                       o link antigo abre a Operação diária com aviso, N14. Pré-venda (09/10) tem três visões em
+                       `?visao=`: Ritmo, Aderência e Ficha]
+  Desenv. comercial .. Funil comercial · Abordagens · Distribuição (/monetizacao?aba=…)   [Gravações virou Pré-venda ›
+                       Ficha › Reuniões e Pessoas e PDI saiu em 09/10; os links antigos abrem a Pré-venda com aviso]
 Broker (broker)
   Broker ............. Fila de oportunidades /broker · Matriz /broker/admin [área broker_matriz]
 Minha Unidade (minha_unidade)
@@ -140,7 +142,7 @@ Fora do `areas.ts` desta branch: **Estratégia & Execução** (OKRs), criada no 
 | `/clientes`, `/painel-cs`, `/nps`, `/idu` | Base de clientes ou Rede **e** Minha Unidade | com as duas áreas, o grifo pode acender a área errada (`areaDaRota` pega a primeira; `telas-do-brain.md` §2.7) |
 | `/funil-receita`, `/contas-receber` | Receita **e** Minha Unidade › Financeiro | idem |
 | `/broker` | Broker **e** Minha Unidade | idem |
-| Pessoas/PDI | Growth `/pessoas` `/pdi`, `/monetizacao?aba=pessoas`, `/gente?tela=pdi` | mesmo job em três casas (`objetivos-e-modulos.md` §4.2) |
+| Pessoas/PDI | Growth `/pessoas` `/pdi`, `/gente?tela=pdi` (o `/monetizacao?aba=pessoas` saiu em 09/10/2026 e abre a Pré-venda › Aderência) | mesmo job em duas casas (`objetivos-e-modulos.md` §4.2) |
 | Distribuição | Growth `/comercial/distribuicao` e `/monetizacao?aba=distribuicao` | idem |
 | Contatos | visão Contatos de `/clientes` e `/base-contatos` | idem |
 | Fila de ligação | `/fila-cella`, `/monetizacao` Operação, `/crm` (S2, repo do Bodra) | `CRM:54` e `FC:97` proíbem o terceiro painel |
@@ -195,9 +197,10 @@ Rede                    Visão geral · IDU · Indicadores do Trimestre · Reali
 Base de clientes        Base de clientes (visões por URL) · CS · NPS · Base de Contatos* · Auditoria Interna
                         · Reforma Tributária · Disparos de WhatsApp
 Receita e Repasses      (sem mudança de estrutura; aplicar nomes 4.2)
-Monetização             Visão geral · Operação diária · Consultoria · Funil comercial · Gravações · Abordagens
-                        · Distribuição* · Pessoas e PDI*   (Follow Day, Temporal e previsão, Projetado × realizado
-                        e Capacidade e alocação saíram em 09/10/2026)
+Monetização             Visão geral · Operação diária · Pré-venda · Consultoria · Funil comercial · Abordagens
+                        · Distribuição*   (Follow Day, Temporal e previsão, Projetado × realizado e Capacidade e
+                        alocação saíram em 09/10/2026; Gravações virou Pré-venda › Ficha › Reuniões e Pessoas e PDI
+                        saiu no mesmo dia)
 Broker, Minha Unidade, Planning People, Administração   (sem mudança de estrutura)
 ```
 \* item marcado depende de decisão de casa única (`PRODUCT.md` §5): Contatos, Distribuição, Pessoas/PDI.

@@ -1,0 +1,1948 @@
+{
+  "_leia": "Dados de EXEMPLO no formato exato de monetizacao/outputs/2026-10-09-pre-venda-v2/contrato-pre-venda.md: o que cada RPC devolve. Hoje = 2026-10-09. Empresas e falas fictícias. O mp3 do card 900304 é um áudio público de exemplo (Wikimedia Commons, Example.ogg em mp3), só para conferir que o player toca; os outros apontam para um caminho fictício da Api4Com. Inclui os acréscimos do backend de 09/10: rebaixado/rebaixada, trecho da frente, oportunidade sim|nao|sem_dado, tentativas, custo_usd, modelos e notas_em; a ficha traz o nome bruto do Pipedrive.",
+  "hoje": "2026-10-09",
+  "ritmo": [
+    {
+      "dia": "2026-10-01",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 25,
+      "atividades_previstas": 0,
+      "atividades_feitas": 0,
+      "atividades_vencidas": 0,
+      "ligacoes": 0,
+      "ligacoes_atendidas": 0,
+      "minutos_falados": 0
+    },
+    {
+      "dia": "2026-10-02",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 3,
+      "atividades_previstas": 0,
+      "atividades_feitas": 0,
+      "atividades_vencidas": 0,
+      "ligacoes": 0,
+      "ligacoes_atendidas": 0,
+      "minutos_falados": 0
+    },
+    {
+      "dia": "2026-10-05",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 8,
+      "atividades_previstas": 12,
+      "atividades_feitas": 10,
+      "atividades_vencidas": 2,
+      "ligacoes": 9,
+      "ligacoes_atendidas": 5,
+      "minutos_falados": 22.5
+    },
+    {
+      "dia": "2026-10-05",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "abordagens": 4,
+      "atividades_previstas": 6,
+      "atividades_feitas": 6,
+      "atividades_vencidas": 0,
+      "ligacoes": 4,
+      "ligacoes_atendidas": 2,
+      "minutos_falados": 6
+    },
+    {
+      "dia": "2026-10-06",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 8,
+      "atividades_previstas": 14,
+      "atividades_feitas": 13,
+      "atividades_vencidas": 1,
+      "ligacoes": 11,
+      "ligacoes_atendidas": 6,
+      "minutos_falados": 31
+    },
+    {
+      "dia": "2026-10-06",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "abordagens": 5,
+      "atividades_previstas": 8,
+      "atividades_feitas": 7,
+      "atividades_vencidas": 1,
+      "ligacoes": 6,
+      "ligacoes_atendidas": 3,
+      "minutos_falados": 11
+    },
+    {
+      "dia": "2026-10-07",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 0,
+      "atividades_previstas": 10,
+      "atividades_feitas": 7,
+      "atividades_vencidas": 3,
+      "ligacoes": 6,
+      "ligacoes_atendidas": 3,
+      "minutos_falados": 12
+    },
+    {
+      "dia": "2026-10-07",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "abordagens": 3,
+      "atividades_previstas": 8,
+      "atividades_feitas": 8,
+      "atividades_vencidas": 0,
+      "ligacoes": 5,
+      "ligacoes_atendidas": 2,
+      "minutos_falados": 7.5
+    },
+    {
+      "dia": "2026-10-08",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 2,
+      "atividades_previstas": 16,
+      "atividades_feitas": 12,
+      "atividades_vencidas": 4,
+      "ligacoes": 12,
+      "ligacoes_atendidas": 7,
+      "minutos_falados": 40.5
+    },
+    {
+      "dia": "2026-10-08",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "abordagens": 6,
+      "atividades_previstas": 10,
+      "atividades_feitas": 8,
+      "atividades_vencidas": 2,
+      "ligacoes": 7,
+      "ligacoes_atendidas": 4,
+      "minutos_falados": 16
+    },
+    {
+      "dia": "2026-10-09",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "abordagens": 6,
+      "atividades_previstas": 18,
+      "atividades_feitas": 9,
+      "atividades_vencidas": 3,
+      "ligacoes": 8,
+      "ligacoes_atendidas": 4,
+      "minutos_falados": 18
+    },
+    {
+      "dia": "2026-10-09",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "abordagens": 4,
+      "atividades_previstas": 12,
+      "atividades_feitas": 5,
+      "atividades_vencidas": 1,
+      "ligacoes": 5,
+      "ligacoes_atendidas": 3,
+      "minutos_falados": 9
+    }
+  ],
+  "atrasados": [
+    {
+      "deal_id": 900101,
+      "empresa": "Transportadora Vale do Ipê Ltda",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 3,
+      "vencidas": 4,
+      "proxima": "Caixa · D3 · Ligação · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900101"
+    },
+    {
+      "deal_id": 900102,
+      "empresa": "Agropecuária Serra Azul",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 2,
+      "vencidas": 3,
+      "proxima": "Caixa · D2 · WhatsApp retomada · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900102"
+    },
+    {
+      "deal_id": 900201,
+      "empresa": "Metalúrgica Rio Verde",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "dia_cadencia": 2,
+      "vencidas": 2,
+      "proxima": "Caixa · D2 · Ligação · manhã",
+      "url": "https://grupoplanning.pipedrive.com/deal/900201"
+    },
+    {
+      "deal_id": 900103,
+      "empresa": "Laticínios Boa Vista",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 5,
+      "vencidas": 2,
+      "proxima": "Caixa · D5 · Ligação · manhã",
+      "url": "https://grupoplanning.pipedrive.com/deal/900103"
+    },
+    {
+      "deal_id": 900104,
+      "empresa": "Comercial Três Irmãos",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 1,
+      "vencidas": 2,
+      "proxima": "Caixa · D1 · Ligação · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900104"
+    },
+    {
+      "deal_id": 900105,
+      "empresa": "Cerealista Monte Alegre",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 6,
+      "vencidas": 1,
+      "proxima": "Caixa · D6 · E-mail de reforço · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900105"
+    },
+    {
+      "deal_id": 900106,
+      "empresa": "Auto Peças Horizonte",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "dia_cadencia": 0,
+      "vencidas": 1,
+      "proxima": "Caixa · D0 · Ligação · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900106"
+    },
+    {
+      "deal_id": 900202,
+      "empresa": "Distribuidora Cuiabá Norte",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "dia_cadencia": 1,
+      "vencidas": 1,
+      "proxima": "Caixa · D1 · WhatsApp mensagem-base · tarde",
+      "url": "https://grupoplanning.pipedrive.com/deal/900202"
+    },
+    {
+      "deal_id": 900203,
+      "empresa": "Construtora Planalto",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "dia_cadencia": 3,
+      "vencidas": 1,
+      "proxima": "Caixa · D3 · WhatsApp aos sócios da unidade · manhã",
+      "url": "https://grupoplanning.pipedrive.com/deal/900203"
+    }
+  ],
+  "avaliacoes": [
+    {
+      "deal_id": 900403,
+      "empresa": "Posto Estrela do Norte",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-09T14:00:00+00:00",
+      "duracao_seg": 145,
+      "status": "transcrevendo",
+      "nota": null,
+      "blocos": null,
+      "perguntas": null,
+      "antipadroes": null
+    },
+    {
+      "deal_id": 900305,
+      "empresa": "Cooperativa Vale Verde",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "inicio": "2026-10-09T13:20:00+00:00",
+      "duracao_seg": 212,
+      "status": "pendente",
+      "nota": null,
+      "blocos": null,
+      "perguntas": null,
+      "antipadroes": null
+    },
+    {
+      "deal_id": 900304,
+      "empresa": "Usina Boa Esperança",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "inicio": "2026-10-08T12:40:00+00:00",
+      "duracao_seg": 665,
+      "status": "avaliada",
+      "nota": 41.7,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "sim",
+          "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "rebaixado": false,
+          "nota_curta": "Equipe do sócio e o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "parcial",
+          "trecho": null,
+          "nota_curta": "2 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "nao",
+          "trecho": null,
+          "rebaixado": false,
+          "nota_curta": "Encerrou sem próximo passo."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": true,
+          "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": true
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": [
+        {
+          "chave": "disse_frente",
+          "titulo": "Disse ao cliente qual é a frente específica",
+          "trecho": "Isso é com o nosso time de crédito rural do Finance, eles cuidam disso."
+        },
+        {
+          "chave": "prometeu_economia",
+          "titulo": "Prometeu economia de imposto",
+          "trecho": "Com certeza dá para reduzir bastante o imposto de vocês."
+        }
+      ]
+    },
+    {
+      "deal_id": 900402,
+      "empresa": "Clínica Bem Viver",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-07T19:30:00+00:00",
+      "duracao_seg": 405,
+      "status": "avaliada",
+      "nota": 58.3,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "nao",
+          "trecho": null,
+          "rebaixado": true,
+          "nota_curta": "Abriu sem dizer quem é nem o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "parcial",
+          "trecho": null,
+          "nota_curta": "2 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "sim",
+          "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "rebaixado": false,
+          "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": true,
+          "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "rebaixada": false
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": [
+        {
+          "chave": "falou_preco",
+          "titulo": "Falou de preço, honorário ou prazo",
+          "trecho": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses."
+        }
+      ]
+    },
+    {
+      "deal_id": 900303,
+      "empresa": "Têxtil Santa Rita",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "inicio": "2026-10-06T18:05:00+00:00",
+      "duracao_seg": 330,
+      "status": "avaliada",
+      "nota": 66.7,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "parcial",
+          "trecho": "Oi, aqui é o Matheus, da Planning. Tudo bem? Queria falar rapidinho sobre a sua empresa.",
+          "rebaixado": false,
+          "nota_curta": "Não citou o sócio nem o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "parcial",
+          "trecho": null,
+          "nota_curta": "2 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "sim",
+          "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "rebaixado": false,
+          "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": true,
+          "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "rebaixada": false
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": [
+        {
+          "chave": "falou_preco",
+          "titulo": "Falou de preço, honorário ou prazo",
+          "trecho": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses."
+        }
+      ]
+    },
+    {
+      "deal_id": 900401,
+      "empresa": "Madeireira Araguaia",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-05T14:10:00+00:00",
+      "duracao_seg": 260,
+      "status": "avaliada",
+      "nota": 83.3,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "sim",
+          "trecho": "Aqui é o Heloá, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "rebaixado": false,
+          "nota_curta": "Equipe do sócio e o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "sim",
+          "trecho": null,
+          "nota_curta": "4 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "parcial",
+          "trecho": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+          "rebaixado": false,
+          "nota_curta": "Combinou retorno, sem marcar a conversa com o sócio."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": true,
+          "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": true,
+          "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "rebaixada": false
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": true,
+          "trecho": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": []
+    },
+    {
+      "deal_id": 900302,
+      "empresa": "Grãos do Cerrado Comércio",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "inicio": "2026-10-02T13:15:00+00:00",
+      "duracao_seg": 550,
+      "status": "avaliada",
+      "nota": 100,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "sim",
+          "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "rebaixado": false,
+          "nota_curta": "Equipe do sócio e o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "sim",
+          "trecho": null,
+          "nota_curta": "4 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "sim",
+          "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "rebaixado": false,
+          "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": true,
+          "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": true,
+          "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "rebaixada": false
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": true,
+          "trecho": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": []
+    },
+    {
+      "deal_id": 900301,
+      "empresa": "Frigorífico Pantanal Ltda",
+      "user_id": 28381245,
+      "pessoa": "Matheus Carvalho",
+      "inicio": "2026-10-01T16:42:00+00:00",
+      "duracao_seg": 430,
+      "status": "avaliada",
+      "nota": 70.8,
+      "blocos": [
+        {
+          "chave": "abertura",
+          "titulo": "Abertura",
+          "peso": 1,
+          "executou": "sim",
+          "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "rebaixado": false,
+          "nota_curta": "Equipe do sócio e o e-mail enviado."
+        },
+        {
+          "chave": "perguntas",
+          "titulo": "Perguntas",
+          "peso": 3,
+          "executou": "sim",
+          "trecho": null,
+          "nota_curta": "3 de 4",
+          "rebaixado": false
+        },
+        {
+          "chave": "fechamento",
+          "titulo": "Fechamento",
+          "peso": 2,
+          "executou": "parcial",
+          "trecho": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+          "rebaixado": false,
+          "nota_curta": "Combinou retorno, sem marcar a conversa com o sócio."
+        }
+      ],
+      "perguntas": [
+        {
+          "chave": "momento",
+          "titulo": "Momento e investimento",
+          "frentes": [
+            "T",
+            "F"
+          ],
+          "feita": true,
+          "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "rebaixada": false
+        },
+        {
+          "chave": "capital",
+          "titulo": "Estrutura de capital",
+          "frentes": [
+            "F"
+          ],
+          "feita": true,
+          "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "rebaixada": false
+        },
+        {
+          "chave": "porte",
+          "titulo": "Porte e regime",
+          "frentes": [
+            "J",
+            "T"
+          ],
+          "feita": true,
+          "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "rebaixada": false
+        },
+        {
+          "chave": "teses",
+          "titulo": "Teses na justiça",
+          "frentes": [
+            "J"
+          ],
+          "feita": false,
+          "trecho": null,
+          "rebaixada": false
+        }
+      ],
+      "antipadroes": []
+    }
+  ],
+  "fichas": {
+    "900301": {
+      "deal_id": 900301,
+      "empresa": "Frigorífico Pantanal Ltda",
+      "user_id": 28381245,
+      "pessoa": "Matheus Pereira de Carvalho",
+      "inicio": "2026-10-01T16:42:00+00:00",
+      "duracao_seg": 430,
+      "activity_id": 9003011,
+      "mp3_url": "https://listener.api4com.com/exemplo/900301.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Vi sim, mas não tive tempo de responder.",
+          "inicio_seg": 20
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 26
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 35
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "inicio_seg": 44
+        },
+        {
+          "falante": "cliente",
+          "texto": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante.",
+          "inicio_seg": 55
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "inicio_seg": 64
+        },
+        {
+          "falante": "cliente",
+          "texto": "Fatura uns 40 milhões por ano, e é Lucro Real.",
+          "inicio_seg": 73
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+          "inicio_seg": 79
+        },
+        {
+          "falante": "cliente",
+          "texto": "Combinado.",
+          "inicio_seg": 88
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "sim",
+            "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+            "rebaixado": false,
+            "nota_curta": "Equipe do sócio e o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "sim",
+            "trecho": null,
+            "nota_curta": "3 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "parcial",
+            "trecho": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+            "rebaixado": false,
+            "nota_curta": "Combinou retorno, sem marcar a conversa com o sócio."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": true,
+            "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": true,
+            "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+            "rebaixada": false
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [],
+        "qualificacao": {
+          "resumo": "Lucro Real, cerca de R$ 40 milhões por ano. Quer investir no próximo ano e já usa crédito bancário.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "segue",
+              "porque": "Financiamento ativo e investimento planejado.",
+              "trecho": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante."
+            },
+            {
+              "frente": "cella",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou sobre teses na justiça.",
+              "trecho": null
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Marcar a conversa com o sócio da área."
+        },
+        "oportunidade": "sim"
+      },
+      "nota": 70.8,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9003012,
+      "nota_avaliacao_id": 9003013,
+      "atualizado_em": "2026-10-01T16:42:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-01T16:42:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900301"
+    },
+    "900302": {
+      "deal_id": 900302,
+      "empresa": "Grãos do Cerrado Comércio",
+      "user_id": 28381245,
+      "pessoa": "Matheus Pereira de Carvalho",
+      "inicio": "2026-10-02T13:15:00+00:00",
+      "duracao_seg": 550,
+      "activity_id": 9003021,
+      "mp3_url": "https://listener.api4com.com/exemplo/900302.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Vi sim, mas não tive tempo de responder.",
+          "inicio_seg": 20
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 26
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 35
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "inicio_seg": 44
+        },
+        {
+          "falante": "cliente",
+          "texto": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante.",
+          "inicio_seg": 55
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "inicio_seg": 64
+        },
+        {
+          "falante": "cliente",
+          "texto": "Fatura uns 40 milhões por ano, e é Lucro Real.",
+          "inicio_seg": 73
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+          "inicio_seg": 79
+        },
+        {
+          "falante": "cliente",
+          "texto": "Não, nunca entramos com nada na justiça.",
+          "inicio_seg": 87
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "inicio_seg": 93
+        },
+        {
+          "falante": "cliente",
+          "texto": "Quarta às 15h fica bom.",
+          "inicio_seg": 109
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "sim",
+            "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+            "rebaixado": false,
+            "nota_curta": "Equipe do sócio e o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "sim",
+            "trecho": null,
+            "nota_curta": "4 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "sim",
+            "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+            "rebaixado": false,
+            "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": true,
+            "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": true,
+            "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+            "rebaixada": false
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": true,
+            "trecho": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [],
+        "qualificacao": {
+          "resumo": "Lucro Real, cerca de R$ 40 milhões por ano. Quer investir no próximo ano e já usa crédito bancário.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "segue",
+              "porque": "Financiamento ativo e investimento planejado.",
+              "trecho": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante."
+            },
+            {
+              "frente": "cella",
+              "sinal": "nao_segue",
+              "porque": "Nunca entrou com tese; Lucro Real, vale levantar.",
+              "trecho": "Não, nunca entramos com nada na justiça."
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Conversa com o sócio da área marcada para quarta às 15h."
+        },
+        "oportunidade": "sim"
+      },
+      "nota": 100,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9003022,
+      "nota_avaliacao_id": 9003023,
+      "atualizado_em": "2026-10-02T13:15:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-02T13:15:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900302"
+    },
+    "900303": {
+      "deal_id": 900303,
+      "empresa": "Têxtil Santa Rita",
+      "user_id": 28381245,
+      "pessoa": "Matheus Pereira de Carvalho",
+      "inicio": "2026-10-06T18:05:00+00:00",
+      "duracao_seg": 330,
+      "activity_id": 9003031,
+      "mp3_url": "https://listener.api4com.com/exemplo/900303.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Oi, aqui é o Matheus, da Planning. Tudo bem? Queria falar rapidinho sobre a sua empresa.",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Pois não, pode falar.",
+          "inicio_seg": 16
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 22
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 31
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "inicio_seg": 40
+        },
+        {
+          "falante": "cliente",
+          "texto": "Fatura uns 40 milhões por ano, e é Lucro Real.",
+          "inicio_seg": 49
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses.",
+          "inicio_seg": 55
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "inicio_seg": 64
+        },
+        {
+          "falante": "cliente",
+          "texto": "Quarta às 15h fica bom.",
+          "inicio_seg": 80
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "parcial",
+            "trecho": "Oi, aqui é o Matheus, da Planning. Tudo bem? Queria falar rapidinho sobre a sua empresa.",
+            "rebaixado": false,
+            "nota_curta": "Não citou o sócio nem o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "parcial",
+            "trecho": null,
+            "nota_curta": "2 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "sim",
+            "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+            "rebaixado": false,
+            "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": true,
+            "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+            "rebaixada": false
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [
+          {
+            "chave": "falou_preco",
+            "titulo": "Falou de preço, honorário ou prazo",
+            "trecho": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses."
+          }
+        ],
+        "qualificacao": {
+          "resumo": "Lucro Real, cerca de R$ 40 milhões por ano. Quer investir no próximo ano.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou a estrutura de capital.",
+              "trecho": null
+            },
+            {
+              "frente": "cella",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou sobre teses na justiça.",
+              "trecho": null
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Conversa com o sócio da área marcada para quarta às 15h."
+        },
+        "oportunidade": "sim"
+      },
+      "nota": 66.7,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9003032,
+      "nota_avaliacao_id": 9003033,
+      "atualizado_em": "2026-10-06T18:05:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-06T18:05:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900303"
+    },
+    "900304": {
+      "deal_id": 900304,
+      "empresa": "Usina Boa Esperança",
+      "user_id": 28381245,
+      "pessoa": "Matheus Pereira de Carvalho",
+      "inicio": "2026-10-08T12:40:00+00:00",
+      "duracao_seg": 665,
+      "activity_id": 9003041,
+      "mp3_url": "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c8/Example.ogg/Example.ogg.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Vi sim, mas não tive tempo de responder.",
+          "inicio_seg": 20
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 26
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 35
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "inicio_seg": 44
+        },
+        {
+          "falante": "cliente",
+          "texto": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante.",
+          "inicio_seg": 55
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Isso é com o nosso time de crédito rural do Finance, eles cuidam disso.",
+          "inicio_seg": 64
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Com certeza dá para reduzir bastante o imposto de vocês.",
+          "inicio_seg": 72
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Então tá bom, obrigado pelo seu tempo.",
+          "inicio_seg": 78
+        },
+        {
+          "falante": "cliente",
+          "texto": "Imagina, até mais.",
+          "inicio_seg": 84
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "sim",
+            "trecho": "Aqui é o Matheus, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+            "rebaixado": false,
+            "nota_curta": "Equipe do sócio e o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "parcial",
+            "trecho": null,
+            "nota_curta": "2 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "nao",
+            "trecho": null,
+            "rebaixado": false,
+            "nota_curta": "Encerrou sem próximo passo."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": true,
+            "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": true
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [
+          {
+            "chave": "disse_frente",
+            "titulo": "Disse ao cliente qual é a frente específica",
+            "trecho": "Isso é com o nosso time de crédito rural do Finance, eles cuidam disso."
+          },
+          {
+            "chave": "prometeu_economia",
+            "titulo": "Prometeu economia de imposto",
+            "trecho": "Com certeza dá para reduzir bastante o imposto de vocês."
+          }
+        ],
+        "qualificacao": {
+          "resumo": "Porte e regime não perguntados. Quer investir no próximo ano e já usa crédito bancário.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "segue",
+              "porque": "Financiamento ativo e investimento planejado.",
+              "trecho": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante."
+            },
+            {
+              "frente": "cella",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou sobre teses na justiça.",
+              "trecho": null
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Marcar a conversa com o sócio da área."
+        },
+        "oportunidade": "sem_dado"
+      },
+      "nota": 41.7,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9003042,
+      "nota_avaliacao_id": 9003043,
+      "atualizado_em": "2026-10-08T12:40:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-08T12:40:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900304"
+    },
+    "900305": {
+      "deal_id": 900305,
+      "empresa": "Cooperativa Vale Verde",
+      "user_id": 28381245,
+      "pessoa": "Matheus Pereira de Carvalho",
+      "inicio": "2026-10-09T13:20:00+00:00",
+      "duracao_seg": 212,
+      "activity_id": 9003051,
+      "mp3_url": "https://listener.api4com.com/exemplo/900305.mp3",
+      "status": "pendente",
+      "erro": null,
+      "transcricao": null,
+      "avaliacao": null,
+      "nota": null,
+      "regua_versao": null,
+      "nota_qualificacao_id": null,
+      "nota_avaliacao_id": null,
+      "atualizado_em": "2026-10-09T13:20:00+00:00",
+      "tentativas": 0,
+      "custo_usd": null,
+      "modelos": null,
+      "notas_em": null,
+      "url": "https://grupoplanning.pipedrive.com/deal/900305"
+    },
+    "900401": {
+      "deal_id": 900401,
+      "empresa": "Madeireira Araguaia",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-05T14:10:00+00:00",
+      "duracao_seg": 260,
+      "activity_id": 9004011,
+      "mp3_url": "https://listener.api4com.com/exemplo/900401.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Aqui é o Heloá, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Vi sim, mas não tive tempo de responder.",
+          "inicio_seg": 20
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 26
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 35
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+          "inicio_seg": 44
+        },
+        {
+          "falante": "cliente",
+          "texto": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante.",
+          "inicio_seg": 55
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "inicio_seg": 64
+        },
+        {
+          "falante": "cliente",
+          "texto": "Fatura uns 40 milhões por ano, e é Lucro Real.",
+          "inicio_seg": 73
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+          "inicio_seg": 79
+        },
+        {
+          "falante": "cliente",
+          "texto": "Não, nunca entramos com nada na justiça.",
+          "inicio_seg": 87
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+          "inicio_seg": 93
+        },
+        {
+          "falante": "cliente",
+          "texto": "Combinado.",
+          "inicio_seg": 102
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "sim",
+            "trecho": "Aqui é o Heloá, da equipe do Ricardo. Te mandei um e-mail para falarmos sobre oportunidades financeiras. Você chegou a ver?",
+            "rebaixado": false,
+            "nota_curta": "Equipe do sócio e o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "sim",
+            "trecho": null,
+            "nota_curta": "4 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "parcial",
+            "trecho": "Vou pedir para alguém da equipe te procurar para continuar essa conversa, combinado?",
+            "rebaixado": false,
+            "nota_curta": "Combinou retorno, sem marcar a conversa com o sócio."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": true,
+            "trecho": "E como está a estrutura de capital da empresa hoje? Vocês têm algum financiamento ou linha de crédito?",
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": true,
+            "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+            "rebaixada": false
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": true,
+            "trecho": "Vocês já entraram com alguma ação tributária, alguma tese na justiça?",
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [],
+        "qualificacao": {
+          "resumo": "Lucro Real, cerca de R$ 40 milhões por ano. Quer investir no próximo ano e já usa crédito bancário.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "segue",
+              "porque": "Financiamento ativo e investimento planejado.",
+              "trecho": "Hoje tem um financiamento no banco e uma conta garantida que a gente usa bastante."
+            },
+            {
+              "frente": "cella",
+              "sinal": "nao_segue",
+              "porque": "Nunca entrou com tese; Lucro Real, vale levantar.",
+              "trecho": "Não, nunca entramos com nada na justiça."
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Marcar a conversa com o sócio da área."
+        },
+        "oportunidade": "sim"
+      },
+      "nota": 83.3,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9004012,
+      "nota_avaliacao_id": 9004013,
+      "atualizado_em": "2026-10-05T14:10:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-05T14:10:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900401"
+    },
+    "900402": {
+      "deal_id": 900402,
+      "empresa": "Clínica Bem Viver",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-07T19:30:00+00:00",
+      "duracao_seg": 405,
+      "activity_id": 9004021,
+      "mp3_url": "https://listener.api4com.com/exemplo/900402.mp3",
+      "status": "avaliada",
+      "erro": null,
+      "transcricao": [
+        {
+          "falante": "cliente",
+          "texto": "Alô?",
+          "inicio_seg": 0
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Bom dia, é da Clínica Bem Viver? Estou ligando da Planning.",
+          "inicio_seg": 6
+        },
+        {
+          "falante": "cliente",
+          "texto": "Pois não, pode falar.",
+          "inicio_seg": 13
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+          "inicio_seg": 19
+        },
+        {
+          "falante": "cliente",
+          "texto": "Sim, a gente quer ampliar a câmara fria e trocar dois caminhões no ano que vem.",
+          "inicio_seg": 28
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+          "inicio_seg": 37
+        },
+        {
+          "falante": "cliente",
+          "texto": "Fatura uns 40 milhões por ano, e é Lucro Real.",
+          "inicio_seg": 46
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses.",
+          "inicio_seg": 52
+        },
+        {
+          "falante": "pre_venda",
+          "texto": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+          "inicio_seg": 61
+        },
+        {
+          "falante": "cliente",
+          "texto": "Quarta às 15h fica bom.",
+          "inicio_seg": 77
+        }
+      ],
+      "avaliacao": {
+        "blocos": [
+          {
+            "chave": "abertura",
+            "titulo": "Abertura",
+            "peso": 1,
+            "executou": "nao",
+            "trecho": null,
+            "rebaixado": true,
+            "nota_curta": "Abriu sem dizer quem é nem o e-mail enviado."
+          },
+          {
+            "chave": "perguntas",
+            "titulo": "Perguntas",
+            "peso": 3,
+            "executou": "parcial",
+            "trecho": null,
+            "nota_curta": "2 de 4",
+            "rebaixado": false
+          },
+          {
+            "chave": "fechamento",
+            "titulo": "Fechamento",
+            "peso": 2,
+            "executou": "sim",
+            "trecho": "O próximo passo é uma conversa com o Ricardo, sócio líder da nossa área de Inteligência Financeira. Fica melhor terça às 10h ou quarta às 15h?",
+            "rebaixado": false,
+            "nota_curta": "Conversa com o sócio com dois horários, sem dizer a frente."
+          }
+        ],
+        "perguntas": [
+          {
+            "chave": "momento",
+            "titulo": "Momento e investimento",
+            "frentes": [
+              "T",
+              "F"
+            ],
+            "feita": true,
+            "trecho": "Vocês estão planejando algum investimento ou expansão para os próximos meses?",
+            "rebaixada": false
+          },
+          {
+            "chave": "capital",
+            "titulo": "Estrutura de capital",
+            "frentes": [
+              "F"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          },
+          {
+            "chave": "porte",
+            "titulo": "Porte e regime",
+            "frentes": [
+              "J",
+              "T"
+            ],
+            "feita": true,
+            "trecho": "Qual é o faturamento aproximado e o regime tributário, Lucro Real ou Presumido?",
+            "rebaixada": false
+          },
+          {
+            "chave": "teses",
+            "titulo": "Teses na justiça",
+            "frentes": [
+              "J"
+            ],
+            "feita": false,
+            "trecho": null,
+            "rebaixada": false
+          }
+        ],
+        "antipadroes": [
+          {
+            "chave": "falou_preco",
+            "titulo": "Falou de preço, honorário ou prazo",
+            "trecho": "O honorário fica em uns 20% do que a gente recuperar, e sai em uns três meses."
+          }
+        ],
+        "qualificacao": {
+          "resumo": "Lucro Real, cerca de R$ 40 milhões por ano. Quer investir no próximo ano.",
+          "frentes": [
+            {
+              "frente": "finance",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou a estrutura de capital.",
+              "trecho": null
+            },
+            {
+              "frente": "cella",
+              "sinal": "sem_dado",
+              "porque": "Não perguntou sobre teses na justiça.",
+              "trecho": null
+            }
+          ],
+          "quem_decide": "O dono, com o contador externo.",
+          "proximo_passo": "Conversa com o sócio da área marcada para quarta às 15h."
+        },
+        "oportunidade": "sim"
+      },
+      "nota": 58.3,
+      "regua_versao": "script-v2-2026-10-09",
+      "nota_qualificacao_id": 9004022,
+      "nota_avaliacao_id": 9004023,
+      "atualizado_em": "2026-10-07T19:30:00+00:00",
+      "tentativas": 1,
+      "custo_usd": 0.031,
+      "modelos": {
+        "transcricao": "exemplo-transcricao",
+        "avaliacao": "exemplo-avaliacao"
+      },
+      "notas_em": "2026-10-07T19:30:00+00:00",
+      "url": "https://grupoplanning.pipedrive.com/deal/900402"
+    },
+    "900403": {
+      "deal_id": 900403,
+      "empresa": "Posto Estrela do Norte",
+      "user_id": 28897937,
+      "pessoa": "Heloá",
+      "inicio": "2026-10-09T14:00:00+00:00",
+      "duracao_seg": 145,
+      "activity_id": 9004031,
+      "mp3_url": "https://listener.api4com.com/exemplo/900403.mp3",
+      "status": "transcrevendo",
+      "erro": null,
+      "transcricao": null,
+      "avaliacao": null,
+      "nota": null,
+      "regua_versao": null,
+      "nota_qualificacao_id": null,
+      "nota_avaliacao_id": null,
+      "atualizado_em": "2026-10-09T14:00:00+00:00",
+      "tentativas": 0,
+      "custo_usd": null,
+      "modelos": null,
+      "notas_em": null,
+      "url": "https://grupoplanning.pipedrive.com/deal/900403"
+    }
+  }
+}
