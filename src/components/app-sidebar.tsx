@@ -203,11 +203,17 @@ export function AppSidebar() {
   // que casam. Desde que /unidades ganhou filhas, "Regras da Rede" (/unidades)
   // acenderia junto com "Split do Asaas" (/unidades/split) se bastasse o
   // prefixo — dois itens grifados e nenhum deles respondendo "onde estou".
+  // No empate de caminho, vence quem casa mais parâmetros da consulta: em /monetizacao?aba=pre-venda,
+  // "Operação diária" (/monetizacao, sem parâmetro) também casa, e ganhava por vir antes na lista (09/10/2026).
   const itemAtivo = areasVisiveis
     .flatMap((a) => a.grupos.flatMap((g) => g.items))
-    .map((i) => ({ url: i.url, tamanho: casaComCaminho(i, pathname) }))
+    .map((i) => ({
+      url: i.url,
+      tamanho: casaComCaminho(i, pathname),
+      parametros: [...new URLSearchParams(i.url.split("?")[1] || "")].length,
+    }))
     .filter((i) => i.tamanho >= 0 && consultaConfere(i.url))
-    .sort((a, b) => b.tamanho - a.tamanho)[0]?.url;
+    .sort((a, b) => b.tamanho - a.tamanho || b.parametros - a.parametros)[0]?.url;
 
   const isActive = (url: string) => url === itemAtivo;
 
@@ -371,6 +377,11 @@ export function AppSidebar() {
                             ? Object.fromEntries(new URLSearchParams(item.url.split("?")[1]))
                             : undefined
                         }
+                        // Clique de mouse ou toque solta o foco: sem isso o anel de foco ficava preso no item,
+                        // parecendo hover congelado. Enter pelo teclado (detail 0) mantém o foco e o anel.
+                        onClick={(e) => {
+                          if (e.detail > 0) e.currentTarget.blur();
+                        }}
                         className="flex items-center gap-2"
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
