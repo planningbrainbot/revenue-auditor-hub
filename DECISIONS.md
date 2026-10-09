@@ -5211,3 +5211,9 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 **Aberto:**
 - O link do mp3 da Api4Com é público (quem tem a URL ouve), e vai para o banco e para a nota do card.
 - A separação de falantes é feita pela IA e pode errar. Por isso a conferência de trecho usa a transcrição inteira.
+
+## 2026-10-09 — Barra lateral: item ativo nas abas por `?aba=` e foco solto no clique
+
+**Contexto:** na Monetização › Pré-venda, a lateral grifava "Operação diária", e a Pré-venda ficava com o anel de foco preso depois do clique ("hover congelado", relato do Pedro).
+**Decisão:** no empate de caminho entre itens do menu, vence o que casa mais parâmetros da consulta. `/monetizacao` (Operação diária) perdia para ninguém e ganhava de todas as abas `?aba=`, por vir primeiro na lista. O clique de mouse ou toque num item da lateral solta o foco (`blur` quando `event.detail > 0`); Enter pelo teclado mantém o foco e o anel.
+**Onde:** `src/components/app-sidebar.tsx` (`itemAtivo` e o `onClick` do `Link`).
