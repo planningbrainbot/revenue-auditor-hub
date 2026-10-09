@@ -4,12 +4,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  aplicarFeitas,
   assunto,
   chavesDaRegua,
   diaUtilApos,
   diaZero,
   escolherTipos,
   instante,
+  marcarFeitas,
   notaHtml,
   origemDaEntrada,
   planejar,
@@ -646,4 +648,208 @@ test("régua real: assunto e nota prontos para o Pipedrive", () => {
 
 test("notaHtml escapa &, < e > e troca quebra de linha por <br>", () => {
   assert.equal(notaHtml("A & B <x>\n[NOME]"), "A &amp; B &lt;x&gt;<br>[NOME]");
+});
+
+// ---------------------------------------------------------------------------- feita / feita_em (tela Pré-venda)
+
+const item = (id, dia, due_date, extra = {}) => ({
+  id,
+  chave: `d${dia}-manha-call`,
+  dia,
+  canal: "Ligação",
+  tipo: "call",
+  turno: "manha",
+  due_date,
+  due_time: "12:00",
+  ...extra,
+});
+const doCard = (id, done, quando = null) => ({
+  id,
+  done,
+  marked_as_done_time: quando,
+  deal_id: 401,
+});
+
+test("aplicarFeitas: feita e feita_em vêm do card; atividade que sumiu do card fica como estava", () => {
+  const lista = [
+    item(1, 0, "2026-10-07"),
+    item(2, 1, "2026-10-08"),
+    item(3, 2, "2026-10-09", { feita: true, feita_em: "2026-10-09T12:30:00.000Z" }),
+    item(4, 3, "2026-10-13"),
+  ];
+  const r = aplicarFeitas(
+    lista,
+    [doCard(1, true, "2026-10-07 12:40:05"), doCard(2, false), doCard(3, false)],
+    AGORA,
+  );
+  assert.equal(r.mudou, true);
+  assert.equal(r.marcadas, 1);
+  assert.equal(r.desmarcadas, 1);
+  assert.deepEqual(
+    r.lista.map((a) => [a.id, a.feita, a.feita_em]),
+    [
+      [1, true, "2026-10-07T12:40:05.000Z"],
+      [2, false, null],
+      [3, false, null],
+      [4, undefined, undefined],
+    ],
+  );
+  // O resto do item não muda.
+  assert.deepEqual(
+    { ...r.lista[0], feita: undefined, feita_em: undefined },
+    { ...lista[0], feita: undefined, feita_em: undefined },
+  );
+  // Rodar de novo com o mesmo estado não muda nada.
+  const r2 = aplicarFeitas(
+    r.lista,
+    [doCard(1, true, "2026-10-07 12:40:05"), doCard(2, false), doCard(3, false)],
+    AGORA,
+  );
+  assert.equal(r2.mudou, false);
+});
+
+function cenarioFeitas() {
+  const linhas = [
+    {
+      deal_id: 401,
+      entrou_em: "2026-10-07T12:00:00+00:00",
+      dono: 7001,
+      versao_regua: VERSAO,
+      status: "ativa",
+      atividades: [item(1, 0, "2026-10-07"), item(2, 1, "2026-10-08"), item(3, 2, "2026-10-09")],
+    },
+    {
+      deal_id: 402,
+      entrou_em: "2026-10-06T12:00:00+00:00",
+      dono: 7001,
+      versao_regua: VERSAO,
+      status: "encerrada",
+      encerrado_em: "2026-10-08T15:00:00.000Z",
+      atividades: [item(11, 0, "2026-10-06")],
+    },
+    {
+      deal_id: 403,
+      entrou_em: "2026-10-01T12:00:00+00:00",
+      dono: 7001,
+      versao_regua: VERSAO,
+      status: "encerrada",
+      encerrado_em: "2026-10-05T15:00:00.000Z", // há mais de 2 dias: não é relida
+      atividades: [item(21, 0, "2026-10-01")],
+    },
+    {
+      deal_id: 404,
+      entrou_em: "2026-10-07T12:00:00+00:00",
+      dono: 7001,
+      versao_regua: VERSAO,
+      status: "ativa",
+      atividades: [
+        item(31, 0, "2026-10-07", { feita: true, feita_em: "2026-10-07T13:00:00.000Z" }),
+      ], // tudo feito
+    },
+  ];
+  const chamadas = [];
+  const store = {
+    linhas,
+    chamadas,
+    async paraConferir(desde) {
+      chamadas.push(["paraConferir", desde]);
+      return copia(
+        linhas.filter(
+          (l) => l.status === "ativa" || (l.status === "encerrada" && l.encerrado_em >= desde),
+        ),
+      );
+    },
+    async atualizar(deal, entrou, patch) {
+      chamadas.push(["update", deal, entrou]);
+      Object.assign(
+        linhas.find((l) => l.deal_id === deal && l.entrou_em === entrou),
+        copia(patch),
+      );
+    },
+  };
+  const card = {
+    401: [
+      doCard(1, true, "2026-10-07 12:40:05"),
+      doCard(2, false),
+      doCard(3, true, "2026-10-09 12:10:00"),
+      doCard(99, true, "2026-10-09 10:00:00"),
+    ],
+    402: [doCard(11, true, "2026-10-08 16:00:00")],
+  };
+  const pdChamadas = [];
+  const pd = {
+    chamadas: pdChamadas,
+    async pages(path, params) {
+      pdChamadas.push([path, params]);
+      const m = /^deals\/(\d+)\/activities$/.exec(path);
+      assert.ok(m, path);
+      return copia(card[m[1]] || []);
+    },
+  };
+  return { pd, store };
+}
+
+test("marcarFeitas: um GET por card (nunca por atividade), ativas e encerradas há menos de 2 dias", async () => {
+  const { pd, store } = cenarioFeitas();
+  const r = await marcarFeitas({ pd, store, agora: AGORA, ativo: true });
+  assert.deepEqual(store.chamadas[0], ["paraConferir", "2026-10-07T18:00:00.000Z"]);
+  // 403 encerrou há mais de 2 dias; 404 já está toda feita: nenhum dos dois é lido.
+  assert.deepEqual(pd.chamadas.map(([p]) => p).sort(), [
+    "deals/401/activities",
+    "deals/402/activities",
+  ]);
+  assert.deepEqual(pd.chamadas[0][1], {});
+  assert.deepEqual(r, {
+    modo: "ativo",
+    conferidos: 2,
+    atualizados: 2,
+    marcadas: 3,
+    desmarcadas: 0,
+    adiados: 0,
+    erros: [],
+  });
+  assert.deepEqual(
+    store.linhas[0].atividades.map((a) => [a.id, a.feita, a.feita_em]),
+    [
+      [1, true, "2026-10-07T12:40:05.000Z"],
+      [2, false, null],
+      [3, true, "2026-10-09T12:10:00.000Z"],
+    ],
+  );
+  assert.equal(store.linhas[1].atividades[0].feita, true);
+  // A atividade 99 do card não é da cadência: não entra na lista.
+  assert.equal(store.linhas[0].atividades.length, 3);
+});
+
+test("marcarFeitas: dry-run lê e conta, mas não grava", async () => {
+  const { pd, store } = cenarioFeitas();
+  const r = await marcarFeitas({ pd, store, agora: AGORA, ativo: false });
+  assert.equal(r.modo, "dry-run");
+  assert.equal(r.atualizados, 2);
+  assert.equal(store.chamadas.filter(([m]) => m === "update").length, 0);
+  assert.equal(store.linhas[0].atividades[0].feita, undefined);
+});
+
+test("marcarFeitas: erro de um card não para os outros; sem tempo, o resto fica para a próxima rodada", async () => {
+  const { pd, store } = cenarioFeitas();
+  const pages = pd.pages;
+  pd.pages = async (path, params) => {
+    if (path === "deals/401/activities") throw new Error("Pipedrive HTTP 500");
+    return pages(path, params);
+  };
+  const r = await marcarFeitas({ pd, store, agora: AGORA, ativo: true });
+  assert.deepEqual(r.erros, [{ deal: 401, erro: "Pipedrive HTTP 500" }]);
+  assert.equal(r.atualizados, 1);
+  assert.equal(store.linhas[1].atividades[0].feita, true);
+
+  const { pd: pd2, store: store2 } = cenarioFeitas();
+  const r2 = await marcarFeitas({
+    pd: pd2,
+    store: store2,
+    agora: AGORA,
+    ativo: true,
+    orcamentoMs: 0,
+  });
+  assert.equal(r2.adiados, 2);
+  assert.equal(pd2.chamadas.length, 0);
 });

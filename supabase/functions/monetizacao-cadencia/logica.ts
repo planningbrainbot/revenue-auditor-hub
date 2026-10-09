@@ -298,6 +298,10 @@ export type AtividadeCriada = {
   turno: Turno;
   due_date: string;
   due_time: string;
+  /** Lido do Pipedrive a cada rodada (marcarFeitas). Ausente = ainda não conferida. */
+  feita?: boolean;
+  /** `marked_as_done_time` da atividade, em UTC (ISO). null quando não feita. */
+  feita_em?: string | null;
 };
 
 export type StatusCadencia = "ativa" | "encerrada" | "ignorada";
@@ -644,5 +648,132 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
   }
 
   if (resumo.erros.length) resumo.status = "com_erros";
+  return resumo;
+}
+
+// ---------------------------------------------------------------------------- feitas
+
+/** Cadência encerrada ainda é conferida por 2 dias: a atividade pode ser marcada como feita depois da saída. */
+export const JANELA_FEITAS_MS = 2 * 86_400_000;
+/** Cards conferidos ao mesmo tempo (um GET deals/{id}/activities por card). */
+export const PARALELO_FEITAS = 4;
+
+/** O que marcarFeitas lê e grava em ops.monetizacao_cadencia. */
+export type StoreFeitas = {
+  /** As cadências ativas e as encerradas desde `desde` (ISO). */
+  paraConferir(desde: string): Promise<LinhaCadencia[]>;
+  atualizar(deal: number, entrouEm: string, patch: Partial<LinhaCadencia>): Promise<void>;
+};
+
+export type ResumoFeitas = {
+  modo: "dry-run" | "ativo";
+  conferidos: number;
+  /** Cadências cuja lista mudou (gravada no modo ativo). */
+  atualizados: number;
+  marcadas: number;
+  desmarcadas: number;
+  /** Cards deixados para a próxima rodada porque o tempo acabou. */
+  adiados: number;
+  erros: { deal: number; erro: string }[];
+};
+
+/**
+ * A lista da cadência com `feita` e `feita_em` lidos das atividades do card (`GET deals/{id}/activities`, feitas e
+ * não feitas). Atividade que não está mais no card (apagada no encerramento ou à mão) fica como estava.
+ */
+export function aplicarFeitas(
+  lista: readonly AtividadeCriada[],
+  doCard: readonly any[],
+  agora: Date,
+): { lista: AtividadeCriada[]; mudou: boolean; marcadas: number; desmarcadas: number } {
+  const porId = new Map((doCard || []).map((a) => [Number(a?.id), a]));
+  let mudou = false,
+    marcadas = 0,
+    desmarcadas = 0;
+  const nova = (lista || []).map((item) => {
+    const a = porId.get(Number(item?.id));
+    if (!a) return item;
+    const f = feita(a.done);
+    const em = f
+      ? (instante(a.marked_as_done_time)?.toISOString() ?? item.feita_em ?? agora.toISOString())
+      : null;
+    if (item.feita === f && (item.feita_em ?? null) === em) return item;
+    mudou = true;
+    if (f && item.feita !== true) marcadas++;
+    if (!f && item.feita === true) desmarcadas++;
+    return { ...item, feita: f, feita_em: em };
+  });
+  return { lista: nova, mudou, marcadas, desmarcadas };
+}
+
+/** Próximo vencimento ainda não feito da lista (ms), para conferir primeiro quem está mais perto de vencer. */
+function proximoAberto(linha: LinhaCadencia): number {
+  let menor = Number.POSITIVE_INFINITY;
+  for (const a of linha.atividades || []) {
+    if (a?.feita === true) continue;
+    const t = instante(`${a.due_date} ${a.due_time || "00:00"}`)?.getTime();
+    if (t !== undefined && t < menor) menor = t;
+  }
+  return menor;
+}
+
+/**
+ * Atualiza `feita`/`feita_em` de cada atividade das cadências ativas e das encerradas há menos de 2 dias, pelo estado
+ * no Pipedrive: um GET por card, nunca um por atividade. Cadência com tudo feito não é relida. No dry-run só conta.
+ */
+export async function marcarFeitas(op: {
+  pd: Pick<PipedriveCadencia, "pages">;
+  store: StoreFeitas;
+  agora: Date;
+  ativo: boolean;
+  relogio?: () => number;
+  orcamentoMs?: number;
+  paralelo?: number;
+}): Promise<ResumoFeitas> {
+  const { pd, store, agora, ativo } = op;
+  const relogio = op.relogio ?? (() => Date.now());
+  const comeco = relogio();
+  const orcamento = op.orcamentoMs ?? 30_000;
+  const resumo: ResumoFeitas = {
+    modo: ativo ? "ativo" : "dry-run",
+    conferidos: 0,
+    atualizados: 0,
+    marcadas: 0,
+    desmarcadas: 0,
+    adiados: 0,
+    erros: [],
+  };
+  const desde = new Date(agora.getTime() - JANELA_FEITAS_MS).toISOString();
+  const fila = (await store.paraConferir(desde))
+    .filter(
+      (l) =>
+        (l.status === "ativa" || l.status === "encerrada") &&
+        (l.atividades || []).some((a) => a?.id && a.feita !== true),
+    )
+    .sort((a, b) => proximoAberto(a) - proximoAberto(b));
+  const passo = Math.max(1, op.paralelo ?? PARALELO_FEITAS);
+  for (let i = 0; i < fila.length; i += passo) {
+    if (relogio() - comeco >= orcamento) {
+      resumo.adiados += fila.length - i;
+      break;
+    }
+    await Promise.all(
+      fila.slice(i, i + passo).map(async (linha) => {
+        const deal = Number(linha.deal_id);
+        try {
+          const doCard = await pd.pages(`deals/${deal}/activities`, {});
+          const r = aplicarFeitas(linha.atividades || [], doCard, agora);
+          resumo.conferidos++;
+          if (!r.mudou) return;
+          if (ativo) await store.atualizar(deal, linha.entrou_em, { atividades: r.lista });
+          resumo.atualizados++;
+          resumo.marcadas += r.marcadas;
+          resumo.desmarcadas += r.desmarcadas;
+        } catch (e) {
+          resumo.erros.push({ deal, erro: mensagem(e) });
+        }
+      }),
+    );
+  }
   return resumo;
 }
