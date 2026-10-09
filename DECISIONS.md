@@ -5122,3 +5122,92 @@ feitas por uma rota de preview local que não foi commitada.
 
 **Não feito aqui:** push, publicação, migration. Os números não foram conferidos na fonte: dependem das RPCs aplicadas e
 da primeira ligação avaliada.
+
+## [2026-10-09] Monetização: avaliação automática das ligações da pré-venda (E3) e as funções da tela Pré-venda
+
+**Contexto:** E3 do PRD da tela Pré-venda (https://claude.ai/artifact/VVsFAthHk5cSdd8yuLHSwg, aprovado em 09/10: 3B =
+só a ligação mais longa de cada card; 4B = todos os que veem a Monetização veem tudo). Contrato das tabelas e das RPCs:
+`monetizacao/outputs/2026-10-09-pre-venda-v2/contrato-pre-venda.md`. A tela, feita em paralelo, consome só as quatro
+RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
+
+**Decisão 1 · Captura pela atividade da Api4Com no card** (o método do Growth, não a API da Api4Com).
+- `GET /v1/activities?user_id=0&type=call` de hoje e dos 2 dias anteriores em São Paulo (`end_date` vai um dia além,
+  porque `due_date` é UTC), filtrado pelos cards de `ops.monetizacao_deals`. `/v1/activities?deal_id=` ignora o filtro.
+- Formato conferido em 1.658 atividades reais de 07 a 09/10. Atendida: assunto "Ligação para (DD) … atendida às
+  dd/mm/aaaa hh:mm:ss e encerrada às …" (horário de Brasília) e nota com o link
+  `listener.api4com.com/files/listen/{uuid}.mp3` e "duração: HH:MM:SS". Não atendida: "… não foi atendida pelo
+  seguinte motivo: …", sem mp3. Texto livre do pré-vendedor fica de fora.
+- **Medido em 09/10:** 2.280 atividades de ligação na janela, 12 em cards do pipe 39, só 1 da Api4Com (não atendida).
+  Até os pré-vendedores ligarem pelo ramal (e a integração da Heloá ser ligada), não há ligação para avaliar.
+
+**Decisão 2 · Transcrição pela OpenRouter, sem provedor novo.**
+- Modelo `google/gemini-3.8-flash` com `input_audio` (mp3 em base64) e JSON com schema
+  `{falas: [{falante, texto, inicio_seg}]}`. O pré-vendedor é quem diz "Aqui é o [nome], da equipe do [sócio]".
+- Prova local de 09/10 com duas ligações reais do Growth (áudio apagado depois):
+  - 588 s de áudio: 6 s de espera, US$ 0,024;
+  - 16,5 min: 6 s, US$ 0,037.
+  - Os tempos das falas batem com a duração.
+- O `gemini-2.5-flash` também funcionou (US$ 0,029), mas comprimiu os tempos: a última fala saiu em 446 s, de 588 s.
+- `max_tokens` 24.000 e raciocínio com teto de 1.024. Resposta com `finish_reason` diferente de stop, ou vazia, é
+  recusada. O mp3 tem teto de 14 MB (~58 min). Modelo trocável por `MONET_LIGACOES_MODELO_TRANSCRICAO`.
+
+**Decisão 3 · Avaliação pelo método das reuniões.**
+- `confere` e `lerResposta` são os de `monetizacao-reunioes/avaliacao.ts`.
+- Rubrica `rubrica-ligacao.ts`, versão `script-v2-2026-10-09`: cópia do texto de `conteudo.py` e da régua de
+  `doc02_v2.py`.
+- Sonnet 5.5 (`MONET_LIGACOES_MODELO_AVALIACAO`), 9.000 tokens com teto de raciocínio de 2.000. Medido: 20 s e
+  US$ 0,046 numa ligação de 10 min. **Custo por card avaliado: ~US$ 0,07.**
+- A nota é calculada no código, pela fórmula do contrato.
+- Trecho que não for achado na transcrição (inteiro ou numa janela de 12 palavras) rebaixa o item para "não".
+- A frente com sinal (segue ou não segue) sem trecho do cliente vira "sem_dado".
+- `oportunidade` sai das frentes: sim quando alguma segue; nao quando todas não seguem; senão sem_dado.
+- **Acréscimos aditivos ao contrato:**
+  - na avaliação: `blocos[].rebaixado`, `perguntas[].rebaixada`, `qualificacao.frentes[].trecho`;
+  - na tabela: `tentativas`, `custo_usd`, `modelos` e `notas_em`.
+
+**Decisão 4 · Estado e rodada.**
+- Uma transcrição e uma avaliação por rodada, com orçamento de 125 s (o cron espera 150 s).
+- Ciclo: pendente → transcrevendo → transcrita → avaliada. Vai para erro depois de 3 falhas.
+- A Api4Com publica o mp3 ~30 min depois da ligação. Até 6 h depois, áudio que dá 404, 403 ou vem quase vazio volta
+  para a fila sem gastar tentativa; passado esse prazo, a linha vai para erro.
+- Linha presa em "transcrevendo" há 10 minutos volta para a fila.
+- Ligação mais longa no card: a linha volta a pendente.
+
+**Decisão 5 · Notas no card** (só com `MONET_LIGACOES_NOTAS=sim`).
+- Duas notas: "Qualificação da ligação por IA (Planning Brain) — para o sócio da área · confira antes de usar" e
+  "Avaliação da ligação por IA (script v2) — confira antes de usar".
+- Avaliação refeita atualiza as MESMAS notas (`PUT /v1/notes/{id}`). Nota apagada à mão nasce de novo.
+- No Growth, as notas não são regravadas quando a ligação avaliada troca. Aqui são.
+
+**Decisão 6 · Liga e desliga.**
+- Sem `MONET_LIGACOES_ATIVA=sim`, a rodada só captura e escolhe: lê o Pipedrive e grava só no nosso banco. A resposta
+  diz qual card transcreveria, qual avaliaria e quantas notas estão pendentes.
+- `{"dry": true}` não escreve nada.
+
+**Decisão 7 · RPCs da tela** (migration `20261009150000_monetizacao_pre_venda.sql`).
+- Acesso: `ops.monetizacao_can('view.monetizacao')`, sem trava por closer (4B). Quem não tem acesso recebe 42501.
+- Ritmo, cadência encerrada: contam a atividade feita e a que venceu antes da saída. As outras foram apagadas pelo
+  Brain na saída da etapa.
+- Ritmo, minutos falados: só das atendidas.
+- Nome da pessoa: o cadastro dos closers; senão, o dono da ligação; senão, o dono do card.
+- Atrasados: `dia_cadencia` é o maior Dn já vencido; `proxima` é o assunto da próxima atividade não feita.
+- Ensaiada contra a produção num DO que termina em exceção, com dados de teste e as quatro RPCs chamadas com e sem
+  acesso. Nada ficou gravado (conferido depois).
+
+**Decisão 8 · A cadência marca `feita`/`feita_em`.**
+- `monetizacao-cadencia` ganha `marcarFeitas`. Depois da rodada, faz um GET `deals/{id}/activities` por card (4 em
+  paralelo, até 125 s da rodada).
+- Confere as cadências ativas e as encerradas há menos de 2 dias. Pula a cadência que já está toda feita.
+- Grava só com `MONET_CADENCIA_ATIVA=sim`. A função precisa ser republicada.
+
+**Publicação (não feita, a cargo do Pedro), nesta ordem:**
+1. `supabase functions deploy monetizacao-ligacoes --no-verify-jwt`.
+2. `supabase functions deploy monetizacao-cadencia --no-verify-jwt`.
+3. A migration `20261009150000_monetizacao_pre_venda.sql`. Ela cria as tabelas, as RPCs e o cron. Conferir uma rodada
+   (modo "só captura").
+4. Secret `MONET_LIGACOES_ATIVA=sim`. Conferir uma avaliação no banco.
+5. Secret `MONET_LIGACOES_NOTAS=sim`.
+
+**Aberto:**
+- O link do mp3 da Api4Com é público (quem tem a URL ouve), e vai para o banco e para a nota do card.
+- A separação de falantes é feita pela IA e pode errar. Por isso a conferência de trecho usa a transcrição inteira.
