@@ -5067,3 +5067,58 @@ nacionais de 2026–2027.
 
 **Aberto:** a catraca do `design:lint` já reprova no `origin/main` (V21 em `meus-servicos.tsx:360`, fora desta branch).
 Workflows do n8n e scripts fora do repositório que leiam o nome das etapas do pipe 39 não foram revisados.
+
+## [2026-10-09] Monetização: tela Pré-venda (Ritmo, Aderência e Ficha); Gravações e Pessoas e PDI saem do menu
+
+**Contexto:** PRD aprovado pelo dono do produto em 09/10 (https://claude.ai/artifact/VVsFAthHk5cSdd8yuLHSwg, decisões 1A,
+2A, 3B, 4B e 5). Critério dele para a forma: "sexy e didática; bate o olho e entende; menos texto, mais gráfico". O banco
+(migration, quatro RPCs e a função de avaliação) foi feito em paralelo por outro agente, pelo contrato de dados
+`monetizacao/outputs/2026-10-09-pre-venda-v2/contrato-pre-venda.md`. Branch `feat/monetizacao-pre-venda-tela-20261009`,
+sobre `80f2a0a`. Contrato de tela: `docs/design/contratos/monetizacao-pre-venda.md`.
+
+**Decisão:**
+1. **Menu com seis itens.** "Pré-venda" (`/monetizacao?aba=pre-venda`, ícone `PhoneCall`) entra em Oportunidades logo
+   depois da Operação diária. Saem "Gravações" e "Pessoas e PDI" (1A). `?aba=gravacoes` abre Pré-venda › Ficha › Reuniões
+   (preservando `reuniao`, `mes`, `gravacao` e `q`) e `?aba=pessoas` abre Pré-venda › Aderência, os dois com o aviso de
+   tela aposentada do PR #71 (`?aposentada=`), agora dizendo onde a pessoa está (`avisoDaAposentada`).
+2. **Três visões na mesma aba**, em `?visao=` (Ritmo é o padrão e fica fora da URL), com controle segmentado no topo (o
+   mesmo grupo de botões do período). Trocar de visão mantém período e pessoa e limpa o resto. Pergunta (`<h1>`) por
+   visão; Ficha › Reuniões mantém a pergunta de Gravações.
+   - **Ritmo** (Visão geral): quatro cartões de uma informação (abordagens por dia útil; feitas hoje "de N previstas";
+     vencidas agora, que rola até a caixa; ligações atendidas ÷ discadas), a caixa "Atrasados na cadência" (uma linha por
+     card, mais vencidas primeiro, 5 visíveis e "Mostrar mais") e dois gráficos: abordagens por dia útil empilhadas por
+     pessoa com o tracejado da **média** do período (não é meta), e atividades por dia (feitas, vencidas, a vencer hoje)
+     em uma faixa por pessoa. A média do gráfico é a do cartão (mesma conta, mesmos dias úteis até hoje).
+   - **Aderência** (Visão geral): um cartão por pessoa (% médio, "N ligações avaliadas", tom ≥ 80 bom, 50–79 atenção,
+     < 50 crítico) e o cartão "Mais fica de fora"; a caixa de antipadrões (uma linha por antipadrão); o mapa de calor
+     (6 linhas × pessoas + "Os dois"; bloco = crédito médio, pergunta = % das ligações; número e ícone sempre escritos) e
+     a evolução semanal. Todo número abre a Ficha › Ligações no recorte que o compõe (`falta=`, `antipadrao=`, pessoa),
+     e o destino tem exatamente as ligações contadas (teste).
+   - **Ficha** (Lista/Relatório com a ficha ao lado; Sheet no celular): "Ligações | Reuniões". Ligações = tabela (data,
+     empresa, pessoa, duração, nota em selo, situação; pendente e transcrevendo = "Na fila") e a ficha com o player
+     `<audio preload="none">`, a nota grande com barra, a trilha dos 3 blocos e os 4 chips de pergunta (clique mostra o
+     trecho e marca a fala na transcrição), antipadrões em vermelho, o que levar ao sócio da área e a transcrição numa
+     sanfona. Reuniões = a tela Gravações inteira, sem reescrever (`VisaoGravacoes`; só `useLargo` passou a ser exportado).
+3. **Acesso (4B):** todos que veem a Monetização veem tudo; a tela não trava por closer. Reuniões continua com a trava
+   das RPCs de Gravações (closer vê só as próprias) até alguém mudar essas RPCs: é migration, fora desta tarefa.
+4. **Pessoas e PDI sai do código:** `People`, `CRITERIOS`, `CampoPlano`, `nomeDoDono` e o ramo PDI do `RecordList`
+   (que fica só para as decisões de distribuição); a chave de URL `arquivados` saiu. `ops.monetizacao_registros` e os
+   registros `kind = "pdi"` ficam; a server function `salvarRegistroMonetizacao` ainda aceita `pdi` (sem tela que grave).
+5. **A régua mora em `src/lib/monetizacao/pre-venda.ts`** (normalização das RPCs, nota pela fórmula do contrato, mapa,
+   pergunta que mais falta, antipadrões, semanas, séries do ritmo); a leitura em `pre-venda.functions.ts` (sessão da
+   pessoa, sem service role). Função inexistente (`PGRST202`/`42883`) vira o estado vazio "ainda não foi ativada no
+   banco", não erro. Sem ligação avaliada: "A avaliação começa quando a ligação pelo ramal da Api4Com cair no card do
+   pipe 39. Matheus: ramal 1023. Heloá: ramal 1020."
+6. **Acréscimos do backend (09/10):** `rebaixado`/`rebaixada` aparecem na trilha e no chip ("citado pela IA, mas o trecho
+   não está na transcrição"); `qualificacao.frentes[].trecho` aparece citado; `oportunidade` (`sim|nao|sem_dado`) vira
+   selo; `notas_em` aparece na ficha; o nome sai do cadastro pelo `user_id` (a ficha traz o do Pipedrive).
+7. **CSP:** o app não define CSP; nada a liberar para `listener.api4com.com`. Conferido na captura: o `<audio>` tocou um mp3
+   público de outro domínio.
+
+**Dados de exemplo:** `tests/fixtures/pre-venda.json`, no formato exato das quatro RPCs (2 pessoas, 6 ligações avaliadas e
+2 na fila, 17 atividades vencidas em 9 cards; o mp3 do card 900304 é um áudio público do Wikimedia Commons, só para o
+player). Usados em `tests/monetizacao-pre-venda.test.mjs` (18 testes) e nas capturas de `docs/design/capturas/pre-venda/`,
+feitas por uma rota de preview local que não foi commitada.
+
+**Não feito aqui:** push, publicação, migration. Os números não foram conferidos na fonte: dependem das RPCs aplicadas e
+da primeira ligação avaliada.

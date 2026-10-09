@@ -121,3 +121,15 @@ Operação diária, Consultoria, Funil comercial, Gravações, Pessoas e PDI, Ab
   `ops.monetizacao_forecasts` e `src/lib/monetizacao/forecast.ts` (o Cockpit do COO lê o projetado).
 - Os destinos do Cockpit do CEO e do COO que levavam a essas telas foram trocados pela Operação diária ou retirados.
 - O seletor "Pré-vendedor" segue em Operação, Funil e Pessoas.
+
+## Adendo de 09/10/2026 (tarde): Pré-venda entra, Gravações e Pessoas e PDI saem
+
+PRD aprovado pelo dono do produto em 09/10 (https://claude.ai/artifact/VVsFAthHk5cSdd8yuLHSwg, decisões 1A, 2A, 3B, 4B e
+5). O menu fica com seis itens: Operação diária, **Pré-venda**, Consultoria, Funil comercial, Abordagens e Distribuição.
+- **Pré-venda** (`?aba=pre-venda`, grupo Oportunidades, ícone `PhoneCall`): três visões na mesma aba (`?visao=ritmo`, o
+  padrão, `aderencia` e `ficha`), com controle segmentado no topo. Contrato próprio: `monetizacao-pre-venda.md`.
+- **Gravações** vira Pré-venda › Ficha › Reuniões (`&ficha=reunioes`), sem reescrever a tela.
+- **Pessoas e PDI** sai do menu e do código (formulário manual e histórico de PDI). Os registros ficam no banco.
+- Links antigos: `?aba=gravacoes` e `?aba=pessoas` abrem a Pré-venda no lugar certo, com o mesmo aviso de tela aposentada
+  (`?aposentada=`, N14), dizendo onde a pessoa está.
+- A chave de URL `arquivados` (só do PDI) saiu. O seletor "Pré-vendedor" segue em Operação, Funil e Pré-venda.

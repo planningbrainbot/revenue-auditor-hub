@@ -1,5 +1,7 @@
 # Contrato · Gravações (`/monetizacao?aba=gravacoes`)
 
+> **Movida em 09/10/2026** (decisão 1A do PRD da Pré-venda): a tela saiu do menu e virou **Pré-venda › Ficha › Reuniões** (`/monetizacao?aba=pre-venda&visao=ficha&ficha=reunioes`), com a mesma lista, a mesma ficha, a mesma barra e a mesma trava por closer no servidor (o código não foi reescrito: `gravacoes.tsx`). O link antigo, inclusive o de uma reunião (`&reuniao=`), abre lá com o aviso "Gravações: esta tela saiu do menu em 09/10/2026". O resto deste contrato continua valendo para essa visão. Ver `contratos/monetizacao-pre-venda.md`.
+
 **Dono de produto:** Pedro Luca   **Operação:** closers do pipe 39 (Matheus Carvalho, Willian Linhares)   **Dono do código:** Pedro Luca · Eliezek (merge, `areas.ts`)   **Data:** 02/10/2026
 Estado: **conteúdo aprovado no mockup** (https://claude.ai/artifact/GS3D2jtsYttXfmWp4EdzDG, frente 05, 01/10). A forma segue o DS v2 e o arquétipo, não o CSS do mockup. Moldura comum: `monetizacao.md`. Spec: `docs/superpowers/specs/2026-10-02-monetizacao-gravacoes-tela.md`.
 

@@ -46,6 +46,17 @@ Nenhum número mistura unidade com outro do mesmo rótulo (N11): abordagem conta
 ## A ficha da ligação
 Player `<audio controls preload="none">` com o link público da Api4Com; a nota em % grande com o selo da faixa e uma barra; a trilha dos 3 blocos (✔ ◐ ✘, peso de cada um) e as 4 perguntas como chips feitas/não feitas com a frente (F Finance, J Cella, T todas): clicar num deles mostra o trecho citado e a nota curta; antipadrões em vermelho com o trecho; a qualificação para o sócio (resumo, sinal por frente, quem decide, próximo passo); a transcrição por falante numa sanfona, com o trecho escolhido marcado; botão "Abrir o card".
 
+**Acréscimos do backend (09/10, opcionais):** `blocos[].rebaixado` e `perguntas[].rebaixada` (a IA marcou sim ou parcial,
+mas o trecho não está na transcrição, e virou "não"): a trilha e o chip mostram o ícone `SearchX` e o painel diz
+"citado pela IA, mas o trecho não está na transcrição. Conta como não feito"; `qualificacao.frentes[].trecho` (a fala do
+cliente que sustenta o sinal) aparece citada embaixo da frente; `oportunidade` ∈ `sim`, `nao`, `sem_dado` vira selo; as
+colunas `tentativas`, `custo_usd`, `modelos` e `notas_em` chegam na ficha, e só `notas_em` aparece ("notas no card em…").
+O nome da pessoa sai sempre do cadastro dos closers pelo `user_id` (a ficha traz o nome bruto do Pipedrive). No Ritmo,
+cadência encerrada conta só a atividade feita e a que venceu antes de o card sair (regra do servidor).
+
+**Áudio:** o app não define CSP (nem `vercel.json`, nem `<meta>`, nem `server.ts`; o `_headers` do build só tem cache).
+Conferido na captura de 09/10: o `<audio>` da ficha tocou um mp3 público de outro domínio (1,46 s de 6,1 s), sem bloqueio.
+
 ## Estados
 | Estado | Quando acontece | O que a tela mostra |
 |---|---|---|
@@ -104,5 +115,8 @@ A tela não grava nada.
 - A evolução semanal com o período padrão (mês corrente) tem poucas semanas; DESIGN §5 pede 4 pontos para gráfico de linha. Com menos de duas semanas, a tela escreve a frase em vez do gráfico.
 
 ## Checagem
-- [ ] Definição de pronto de `docs/design/README.md` cumprida
-- [ ] Números conferidos na fonte (recontagem independente): depende da primeira ligação avaliada
+- [x] Contrato, arquétipo, `PageHeader` com pergunta e universo, estados, filtros na URL, procedência.
+- [x] `design:lint:changed` sem violação nos arquivos tocados (a catraca V21 de `meus-servicos.tsx` vem do main).
+- [x] Capturas claro, escuro e celular com os dados de exemplo em `docs/design/capturas/pre-venda/`, comparadas com a
+  vitrine (`capturas/depois/*-arquetipos.png`, Visão geral e Lista/Relatório).
+- [ ] Números conferidos na fonte (recontagem independente): depende das RPCs aplicadas e da primeira ligação avaliada.
