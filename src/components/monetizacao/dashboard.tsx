@@ -38,10 +38,17 @@ import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
 import { Analysis } from "./analysis";
 import { VisaoHoje } from "./hoje";
-import { FONTE_GRAVACOES, VisaoGravacoes } from "./gravacoes";
+import { FONTE_GRAVACOES } from "./gravacoes";
+import {
+  FONTE_PRE_VENDA,
+  PERGUNTAS_PRE_VENDA,
+  SeletorVisaoPreVenda,
+  VisaoPreVenda,
+  visaoDa,
+} from "./pre-venda";
 import {
   ABAS,
-  ABAS_APOSENTADAS,
+  avisoDaAposentada,
   DATA_APOSENTADORIA,
   filtroDaBusca,
   periodoParaBusca,
@@ -89,23 +96,27 @@ export type { Aba };
 /** Título = rótulo do item do menu (`areas.ts`); pergunta = contrato de cada aba (N1). */
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
+  "pre-venda": "Pré-venda",
   "handoff-consultoria": "Consultoria",
   funil: "Funil comercial",
-  pessoas: "Pessoas e PDI",
   roteiros: "Abordagens",
   distribuicao: "Distribuição",
-  gravacoes: "Gravações",
 };
-const PERGUNTAS: Record<Aba, string> = {
+const PERGUNTAS: Record<Exclude<Aba, "pre-venda">, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
-  pessoas:
-    "Como o hunter está nos cinco critérios, e qual é o próximo passo de desenvolvimento dele?",
   roteiros: "O que eu digo para este produto e este segmento?",
   distribuicao: "A carga está bem dividida entre os responsáveis, ou alguém está sem base?",
-  gravacoes: "O que foi dito e ofertado em cada reunião do pipe 39?",
 };
+/** Pré-venda › Ficha › Reuniões é a antiga tela Gravações: pergunta, fonte, universo e barra próprios dela. */
+const ehReunioes = (b: BuscaMonetizacao) =>
+  b.aba === "pre-venda" && visaoDa(b) === "ficha" && b.ficha === "reunioes";
+/** A pergunta da tela (N1): na Pré-venda, a da visão aberta. */
+const perguntaDa = (b: BuscaMonetizacao) =>
+  b.aba !== "pre-venda"
+    ? PERGUNTAS[b.aba]
+    : PERGUNTAS_PRE_VENDA[ehReunioes(b) ? "reunioes" : visaoDa(b)];
 
 /**
  * O que a barra de filtros mostra em cada aba (moldura, "Filtros na URL").
@@ -115,11 +126,11 @@ const PERGUNTAS: Record<Aba, string> = {
 const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: boolean } | null> = {
   operacao: { periodo: true, produto: true, responsavel: true },
   funil: { periodo: true, produto: true, responsavel: true },
-  pessoas: { periodo: true, produto: false, responsavel: true },
+  // Pré-venda: período e pessoa nas três visões; sem produto (a cadência e a ligação não têm produto). Ficha ›
+  // Reuniões tem barra própria (mês da reunião, situação da gravação e busca), a da antiga tela Gravações.
+  "pre-venda": { periodo: true, produto: false, responsavel: true },
   distribuicao: { periodo: true, produto: true, responsavel: false },
   roteiros: null,
-  // Gravações tem barra própria (mês da reunião, situação da gravação e busca), dentro da visão.
-  gravacoes: null,
   // Tela própria (consultoria.tsx: Handoff e Cruzamento), com barra e leitura dela; a rota desvia antes daqui.
   "handoff-consultoria": null,
 };
@@ -203,7 +214,7 @@ export function DashboardMonetizacao({
   }, [aba, assinatura]);
 
   const titulo = TITULOS[aba];
-  const pergunta = PERGUNTAS[aba];
+  const pergunta = perguntaDa(busca);
 
   if (!q.data) {
     const erro = q.error;
@@ -255,9 +266,10 @@ export function DashboardMonetizacao({
       />
     </>
   );
-  const procedencia =
-    aba === "gravacoes"
-      ? { fonte: FONTE_GRAVACOES, atualizadoEm: data.measured_at }
+  const procedencia = ehReunioes(busca)
+    ? { fonte: FONTE_GRAVACOES, atualizadoEm: data.measured_at }
+    : aba === "pre-venda"
+      ? { fonte: FONTE_PRE_VENDA, atualizadoEm: data.measured_at }
       : procedenciaMonetizacao(data);
 
   if (!data.permissions.view)
@@ -326,6 +338,7 @@ export function DashboardMonetizacao({
     periodo,
     ate: diaMes(filter.to),
     mesGravacoes: busca.mes,
+    busca,
   });
 
   const menosDias = (n: number) =>
@@ -338,7 +351,7 @@ export function DashboardMonetizacao({
   ];
   const presetAtivo = filter.to === today ? presets.find((p) => p.from === filter.from) : undefined;
 
-  const barra = BARRA[aba];
+  const barra = ehReunioes(busca) ? null : BARRA[aba];
   // Só as chaves que a barra desta aba mostra: filtro escondido não acende "Limpar".
   const chavesDaBarra = barra
     ? ([
@@ -457,6 +470,7 @@ export function DashboardMonetizacao({
         procedencia={procedencia}
         acoes={acoes}
       >
+        {aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
         {filtros}
       </PageHeader>
       {carga.nuncaSincronizou && (
@@ -492,9 +506,9 @@ export function DashboardMonetizacao({
           }
         />
       )}
-      {aba === "operacao" && busca.aposentada && (
+      {(aba === "operacao" || aba === "pre-venda") && busca.aposentada && (
         <AvisoTelaAposentada
-          tela={ABAS_APOSENTADAS[busca.aposentada]}
+          {...avisoDaAposentada(busca.aposentada)}
           fechar={() => mudarBusca({ aposentada: undefined })}
         />
       )}
@@ -550,9 +564,17 @@ export function DashboardMonetizacao({
         </>
       )}
 
-      {aba === "gravacoes" && <VisaoGravacoes data={data} busca={busca} mudarBusca={mudarBusca} />}
+      {aba === "pre-venda" && (
+        <VisaoPreVenda
+          data={data}
+          busca={busca}
+          mudarBusca={mudarBusca}
+          periodo={{ de: filter.from, ate: filter.to, hoje: today }}
+          quem={responsavel}
+        />
+      )}
 
-      {data.measured_at && aba !== "operacao" && aba !== "gravacoes" && (
+      {data.measured_at && aba !== "operacao" && aba !== "pre-venda" && (
         <Analysis
           aba={aba}
           data={data}
@@ -584,6 +606,7 @@ function descricaoDaAba(
     periodo: string;
     ate: string;
     mesGravacoes?: string;
+    busca: BuscaMonetizacao;
   },
 ): string {
   switch (aba) {
@@ -591,15 +614,21 @@ function descricaoDaAba(
       return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
     case "funil":
       return `Coortes do período ${v.periodo} · ${v.responsavel} · ${v.produto} · negócio; realização e ganho contam até ${v.ate} · base instalada, pipeline 39`;
-    case "pessoas":
-      return `Avaliação de ${v.responsavel} · amostra do período ${v.periodo} · 5 critérios, nota 1–5 · PDI comercial do hunter; o PDI de carreira está em Planning People`;
     case "roteiros": {
       const roteiros = data.records.filter((r) => r.kind === "roteiro");
       const aprovadas = roteiros.filter((r) => r.body.status === "aprovado").length;
       return `Biblioteca de abordagens da equipe · ${roteiros.length} ${roteiros.length === 1 ? "salva" : "salvas"}, ${aprovadas} ${aprovadas === 1 ? "aprovada" : "aprovadas"}`;
     }
-    case "gravacoes":
-      return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
+    case "pre-venda": {
+      if (ehReunioes(v.busca))
+        return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
+      const visao = visaoDa(v.busca);
+      if (visao === "ritmo")
+        return `Pipe 39 · pré-venda: ${v.responsavel} · ${v.periodo} · abordagem = card que começou no dia; atividade = item da cadência pelo vencimento; ligação = discada pelo ramal Api4Com`;
+      if (visao === "aderencia")
+        return `Ligações avaliadas, a atendida mais longa de cada card (60 s ou mais) · ${v.responsavel} · ${v.periodo} · % de aderência ao script de 09/10`;
+      return `Uma ligação por card do pipe 39, a atendida mais longa (60 s ou mais) · ${v.responsavel} · ${v.periodo} · ligação`;
+    }
     case "distribuicao":
       return `Responsáveis com negócio aberto hoje (quem só fez movimento e não é dono de nada não aparece) · ${v.produto} · movimentos de ${v.periodo} · negócio`;
     case "handoff-consultoria":
@@ -608,10 +637,18 @@ function descricaoDaAba(
 }
 
 /**
- * Link antigo de uma tela que saiu do menu (NAVEGACAO.md N14): a Operação diária abre com um aviso discreto, em vez de
- * trocar de tela em silêncio. Fechar tira a chave da URL.
+ * Link antigo de uma tela que saiu do menu (NAVEGACAO.md N14): a Operação diária (ou a Pré-venda, para Gravações e
+ * Pessoas e PDI) abre com um aviso discreto, em vez de trocar de tela em silêncio. Fechar tira a chave da URL.
  */
-function AvisoTelaAposentada({ tela, fechar }: { tela: string; fechar: () => void }) {
+function AvisoTelaAposentada({
+  tela,
+  onde,
+  fechar,
+}: {
+  tela: string;
+  onde: string;
+  fechar: () => void;
+}) {
   return (
     <div
       role="status"
@@ -621,7 +658,7 @@ function AvisoTelaAposentada({ tela, fechar }: { tela: string; fechar: () => voi
         <Info className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={1.75} aria-hidden />
         <span>
           <span className="font-medium text-foreground">{tela}</span>: esta tela saiu do menu em{" "}
-          {DATA_APOSENTADORIA}. Você está na Operação diária.
+          {DATA_APOSENTADORIA}. Você está na {onde}.
         </span>
       </p>
       <Button

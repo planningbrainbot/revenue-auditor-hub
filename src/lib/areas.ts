@@ -21,7 +21,7 @@ import {
   ListChecks,
   MessageSquareHeart,
   MessageSquarePlus,
-  Mic,
+  PhoneCall,
   Percent,
   Receipt,
   Scale,
@@ -495,6 +495,9 @@ export const AREAS: Area[] = [
         label: "Oportunidades",
         items: [
           { title: "Operação diária", url: "/monetizacao", icon: LayoutDashboard },
+          // Pré-venda (09/10/2026, PRD aprovado): Ritmo, Aderência e Ficha numa aba só (`visao`). Gravações virou
+          // Ficha › Reuniões e Pessoas e PDI saiu (decisão 1A); os links antigos abrem a Pré-venda com aviso.
+          { title: "Pré-venda", url: "/monetizacao?aba=pre-venda", icon: PhoneCall },
           {
             title: "Consultoria",
             url: "/monetizacao?aba=handoff-consultoria",
@@ -508,9 +511,6 @@ export const AREAS: Area[] = [
         label: "Desenvolvimento comercial",
         items: [
           { title: "Funil comercial", url: "/monetizacao?aba=funil", icon: Filter },
-          // Gravações e transcrições das reuniões do pipe 39 (frente 05, 02/10/2026): closer vê as dele, admin vê todas.
-          { title: "Gravações", url: "/monetizacao?aba=gravacoes", icon: Mic },
-          { title: "Pessoas e PDI", url: "/monetizacao?aba=pessoas", icon: Users },
           { title: "Abordagens", url: "/monetizacao?aba=roteiros", icon: MessageSquarePlus },
           { title: "Distribuição", url: "/monetizacao?aba=distribuicao", icon: GitMerge },
         ],

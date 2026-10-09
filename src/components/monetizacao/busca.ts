@@ -1,10 +1,12 @@
-import { hoje } from "@/lib/monetizacao/model";
-import type { Filtro } from "@/lib/monetizacao/model";
-import { PRE_VENDEDORES, PRODUTOS, PRODUTOS_ROTEIRO } from "@/lib/monetizacao/types";
-import type { Produto } from "@/lib/monetizacao/types";
-import { SITUACOES_GRAVACAO } from "@/lib/monetizacao/gravacoes";
-import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
-import type { Regime } from "@/lib/monetizacao/cruzamento-consultoria";
+// Imports relativos com extensão: o teste de navegação (tests/monetizacao-pre-venda.test.mjs) importa este arquivo no Node.
+import { hoje } from "../../lib/monetizacao/model.ts";
+import type { Filtro } from "../../lib/monetizacao/model.ts";
+import { PRE_VENDEDORES, PRODUTOS, PRODUTOS_ROTEIRO } from "../../lib/monetizacao/types.ts";
+import type { Produto } from "../../lib/monetizacao/types.ts";
+import { SITUACOES_GRAVACAO } from "../../lib/monetizacao/gravacoes.ts";
+import type { SituacaoGravacao } from "../../lib/monetizacao/gravacoes.ts";
+import { CHAVES_ITEM, type ChaveItem } from "../../lib/monetizacao/pre-venda.ts";
+import type { Regime } from "../../lib/monetizacao/cruzamento-consultoria.ts";
 
 /**
  * Estado de tela de `/monetizacao` na URL (contrato da moldura, "Filtros na URL").
@@ -13,15 +15,22 @@ import type { Regime } from "@/lib/monetizacao/cruzamento-consultoria";
  */
 export const ABAS = [
   "operacao",
+  // Pré-venda (09/10/2026): Ritmo, Aderência e Ficha na mesma aba (`visao`). Recebeu Gravações (Ficha › Reuniões) e o
+  // lugar de Pessoas e PDI (Aderência), que saíram do menu (decisão 1A do PRD aprovado em 09/10).
+  "pre-venda",
   // Tela Consultoria: duas visões na mesma aba (`visao`), uma entrada só na lateral.
   "handoff-consultoria",
   "funil",
-  "pessoas",
   "roteiros",
   "distribuicao",
-  "gravacoes",
 ] as const;
 export type Aba = (typeof ABAS)[number];
+
+/** Visões da Pré-venda. Ritmo é o padrão e não vai para a URL. */
+export const VISOES_PRE_VENDA = ["ritmo", "aderencia", "ficha"] as const;
+export type VisaoPreVenda = (typeof VISOES_PRE_VENDA)[number];
+/** Visões da Consultoria (Handoff e repasse é o padrão e não vai para a URL). */
+export const VISOES_CONSULTORIA = ["cruzamento", "empresa"] as const;
 
 /**
  * Telas que saíram do menu em 09/10/2026 (aprovado pelo dono do produto): Temporal e previsão, Projetado × realizado,
@@ -33,8 +42,24 @@ export const ABAS_APOSENTADAS = {
   capacidade: "Capacidade e alocação",
   "follow-day": "Follow Day",
 } as const;
-export type AbaAposentada = keyof typeof ABAS_APOSENTADAS;
+/**
+ * Telas que saíram do menu em 09/10/2026 e viraram parte da Pré-venda (decisão 1A): o link antigo abre a Pré-venda no
+ * lugar certo, com o mesmo aviso (N14). `onde` completa a frase "Você está na …".
+ */
+export const ABAS_MOVIDAS = {
+  gravacoes: { tela: "Gravações", onde: "Pré-venda › Ficha › Reuniões" },
+  pessoas: { tela: "Pessoas e PDI", onde: "Pré-venda › Aderência" },
+} as const;
+export type AbaMovida = keyof typeof ABAS_MOVIDAS;
+export type AbaAposentada = keyof typeof ABAS_APOSENTADAS | AbaMovida;
 export const DATA_APOSENTADORIA = "09/10/2026";
+
+/** O aviso de um link antigo: o nome da tela que saiu e onde a pessoa está agora. */
+export function avisoDaAposentada(a: AbaAposentada): { tela: string; onde: string } {
+  return a in ABAS_MOVIDAS
+    ? ABAS_MOVIDAS[a as AbaMovida]
+    : { tela: ABAS_APOSENTADAS[a as keyof typeof ABAS_APOSENTADAS], onde: "Operação diária" };
+}
 
 /**
  * Dois pré-vendedores desde 08/10/2026 (Matheus e Heloá): o seletor de responsável voltou à barra.
@@ -67,9 +92,8 @@ export type BuscaMonetizacao = {
   produto?: ProdutoRoteiroUrl;
   /** aaaa-mm da tela Gravações (padrão: todos os meses). */
   mes?: string;
-  /** Link antigo de uma tela que saiu do menu: a Operação diária abre com o aviso. */
+  /** Link antigo de uma tela que saiu do menu: a Operação diária (ou a Pré-venda) abre com o aviso. */
   aposentada?: AbaAposentada;
-  arquivados?: "mostrar";
   situacao?: Situacao;
   atencao?: FiltroAtencao;
   /** Gravações: situação da gravação. */
@@ -83,8 +107,16 @@ export type BuscaMonetizacao = {
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
   /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call;
-   *  "empresa" = Buscar empresa (o texto da busca vai em `q`). */
-  visao?: "cruzamento" | "empresa";
+   *  "empresa" = Buscar empresa (o texto da busca vai em `q`). Tela Pré-venda: ausente = Ritmo; "aderencia"; "ficha". */
+  visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "ritmo">;
+  /** Pré-venda › Ficha: "reunioes" mostra as reuniões (a antiga Gravações); ausente = ligações. */
+  ficha?: "reunioes";
+  /** Pré-venda › Ficha › Ligações: o card cuja ligação está aberta na ficha. */
+  ligacao?: number;
+  /** Pré-venda › Ficha › Ligações: só as ligações em que este bloco ou pergunta faltou (clique no mapa de calor). */
+  falta?: ChaveItem;
+  /** Pré-venda › Ficha › Ligações: só as ligações com este antipadrão. */
+  antipadrao?: string;
   /** Consultoria, Buscar empresa: a ficha aberta (CNPJ, `card:<id>`, `deal:<id>` ou `cliente:<id>`). */
   empresa?: string;
   /** Consultoria, visão Cruzamento: regime tributário da coorte do teste do CEO; ausente = todos. */
@@ -110,23 +142,40 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
   // o link antigo abre a visão certa.
   const cruzamentoAntigo = s.aba === "cruzamento-consultoria";
   if (cruzamentoAntigo) s = { ...s, aba: "handoff-consultoria", visao: "cruzamento" };
+  // Gravações e Pessoas e PDI saíram do menu em 09/10/2026 e viraram parte da Pré-venda: o link antigo abre o lugar
+  // certo (Ficha › Reuniões; Aderência) e guarda o aviso, como as telas aposentadas na Operação diária.
+  const movidas = Object.keys(ABAS_MOVIDAS) as AbaMovida[];
+  const movida = umDe(movidas, s.aba);
+  if (movida === "gravacoes")
+    s = { ...s, aba: "pre-venda", visao: "ficha", ficha: "reunioes", aposentada: "gravacoes" };
+  if (movida === "pessoas")
+    s = { ...s, aba: "pre-venda", visao: "aderencia", aposentada: "pessoas" };
   // Tela que saiu do menu em 09/10/2026: abre a Operação diária e diz por quê (N14), sem redirect silencioso.
-  const aposentadas = Object.keys(ABAS_APOSENTADAS) as AbaAposentada[];
+  const aposentadas = Object.keys(ABAS_APOSENTADAS) as (keyof typeof ABAS_APOSENTADAS)[];
   const aba = umDe(ABAS, s.aba) ?? "operacao";
+  const visao =
+    aba === "pre-venda"
+      ? umDe(["aderencia", "ficha"] as const, s.visao)
+      : aba === "handoff-consultoria"
+        ? umDe(VISOES_CONSULTORIA, s.visao)
+        : undefined;
+  const ficha = aba === "pre-venda" && visao === "ficha";
+  const ligacoes = ficha && s.ficha !== "reunioes";
   return {
     aba,
-    // O aviso fica até a pessoa fechar ou sair da Operação (a chave vai para a URL na primeira mudança de filtro).
+    // O aviso fica até a pessoa fechar ou sair da tela (a chave vai para a URL na primeira mudança de filtro).
     aposentada:
       aba === "operacao"
         ? (umDe(aposentadas, s.aba) ?? umDe(aposentadas, s.aposentada))
-        : undefined,
+        : aba === "pre-venda"
+          ? umDe(movidas, s.aposentada)
+          : undefined,
     responsavel: PRE_VENDA_IDS.find((id) => id === inteiro(s.responsavel)),
     de: ehData(s.de) ? s.de : undefined,
     ate: ehData(s.ate) ? s.ate : undefined,
     produto:
       aba === "roteiros" ? umDe(PRODUTOS_ROTEIRO_URL, s.produto) : umDe(PRODUTOS_URL, s.produto),
     mes: typeof s.mes === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.mes) ? s.mes : undefined,
-    arquivados: s.arquivados === "mostrar" ? "mostrar" : undefined,
     situacao: umDe(SITUACOES, s.situacao),
     atencao: umDe(FILTROS_ATENCAO, s.atencao),
     gravacao: umDe(SITUACOES_GRAVACAO, s.gravacao),
@@ -138,7 +187,14 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     grafico:
       typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
-    visao: s.visao === "cruzamento" || s.visao === "empresa" ? s.visao : undefined,
+    visao,
+    ficha: ficha && s.ficha === "reunioes" ? "reunioes" : undefined,
+    ligacao: ligacoes ? inteiro(s.ligacao) : undefined,
+    falta: ligacoes ? umDe(CHAVES_ITEM, s.falta) : undefined,
+    antipadrao:
+      ligacoes && typeof s.antipadrao === "string" && /^[a-z_]{1,40}$/.test(s.antipadrao)
+        ? s.antipadrao
+        : undefined,
     empresa:
       typeof s.empresa === "string" &&
       /^(\d{11}|\d{14}|(card|deal):\d{1,15}|cliente:[\w-]{1,40})$/.test(s.empresa)

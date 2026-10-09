@@ -1,4 +1,5 @@
-// Tela Gravações da Monetização (`/monetizacao?aba=gravacoes`). Contrato docs/design/contratos/monetizacao-gravacoes.md,
+// Tela Gravações da Monetização: desde 09/10/2026 é a Pré-venda › Ficha › Reuniões (`/monetizacao?aba=pre-venda&visao=ficha&
+// ficha=reunioes`; o link antigo `?aba=gravacoes` abre lá com aviso). Contrato docs/design/contratos/monetizacao-gravacoes.md,
 // spec docs/superpowers/specs/2026-10-02-monetizacao-gravacoes-tela.md. Arquétipo Lista/Relatório: barra de filtros
 // com "N de M", até 4 KpiCard que filtram a lista, tabela em caixa com borda, e a Ficha ao lado (no celular, em Sheet).
 // Nada é calculado aqui: a lista vem de src/lib/monetizacao/gravacoes.ts, e o que é sensível chega das RPCs já recortado
@@ -561,8 +562,8 @@ function Selo({ situacao }: { situacao: SituacaoGravacao }) {
   );
 }
 
-/** Largura em que a ficha cabe ao lado da lista (xl); abaixo dela, a ficha abre num Sheet. */
-function useLargo() {
+/** Largura em que a ficha cabe ao lado da lista (xl); abaixo dela, a ficha abre num Sheet. A Pré-venda › Ficha usa igual. */
+export function useLargo() {
   const [largo, setLargo] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1280px)");
