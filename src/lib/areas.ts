@@ -500,10 +500,8 @@ export const AREAS: Area[] = [
             url: "/monetizacao?aba=handoff-consultoria",
             icon: HandCoins,
           },
-          { title: "Temporal e previsão", url: "/monetizacao?aba=temporal", icon: TrendingUp },
-          { title: "Projetado × realizado", url: "/monetizacao?aba=forecast", icon: BarChart3 },
-          { title: "Capacidade e alocação", url: "/monetizacao?aba=capacidade", icon: Gauge },
-          { title: "Follow Day", url: "/monetizacao?aba=follow-day", icon: CalendarClock },
+          // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
+          // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],
       },
       {

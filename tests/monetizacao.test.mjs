@@ -4,11 +4,10 @@ import {
   oferta,
   disponibilidade,
   operacao,
-  temporal,
   receitaSomada,
   dias,
   csv,
-  capacidade,
+  abordagensPorDiaUtil,
   situacaoDoNegocio,
   produtoDoTitulo,
   cadastroACorrigir,
@@ -398,12 +397,6 @@ test("Unidade do cadastro preenche só a opção que o mapa fixo não conhece", 
   r[REVENUE_FIELDS.unit_name] = 694;
   assert.equal(expectedRevenue(r).unit_name, "Matriz");
 });
-test("Sem data fica em bucket explícito, não é alocada ao mês arbitrariamente", () => {
-  const c = card();
-  const t = temporal([c], filter);
-  assert.equal(t.weeks[0].week, "Sem data");
-  assert.equal(t.median, null);
-});
 test("Período valida datas reais e limite; CSV neutraliza fórmulas", () => {
   assert.throws(() => dias("2026-02-30", "2026-03-01"));
   assert.throws(() => dias("2026-03-01", "2026-02-01"));
@@ -424,24 +417,27 @@ test("Reserva compartilhada ocupa só a mesma oferta, inclusive enquanto o CRM a
     true,
   );
 });
-test("Capacidade desconta o trabalho iniciado antes de pedir base adicional", () => {
-  const plan = {
-    month: "2026-09",
-    allocation: { consultoria: 2, finance: 0, cella: 0 },
-    rates: { consultoria: null, finance: null, cella: null },
-  };
-  const row = capacidade(
-    plan,
-    [account(), account({ key: "b", orgs: [11] })],
-    [card()],
-    filter,
-  ).find((r) => r.product === "consultoria");
-  assert.equal(row.started, 1);
-  assert.equal(row.available, 1);
-  assert.equal(row.remaining, 1);
-  assert.equal(row.executable, 1);
-  assert.equal(row.gap, 0);
-  assert.equal(row.estimate, null);
+test("Distribuição: abordagens por dia útil no mês, do dono atual, no fuso de São Paulo (09/10/2026)", () => {
+  const n = (id, owner_id, started_at) => ({ id, owner_id, started_at });
+  const cards = [
+    n(1, 20, "2026-10-01 02:00:00"), // 30/09 23h em São Paulo: setembro, não conta
+    n(2, 20, "2026-10-05 12:00:00"),
+    n(3, 20, "2026-10-09T13:00:00Z"),
+    n(4, 99, "2026-10-06 12:00:00"), // outro dono
+    n(5, 20, null), // nunca abordado
+    n(6, 20, "2026-09-15 12:00:00"),
+  ];
+  // 01 a 09/10/2026: 7 dias úteis (qui, sex, seg a sex). 2 ÷ 7 = 0,29 → 0,3.
+  const r = abordagensPorDiaUtil(cards, 20, "2026-10-09");
+  assert.deepEqual(
+    r.abordados.map((c) => c.id),
+    [2, 3],
+  );
+  assert.equal(r.uteis, 7);
+  assert.equal(r.ritmo, 0.3);
+  assert.equal(abordagensPorDiaUtil(cards, 99, "2026-10-09").ritmo, 0.1);
+  // 01/11/2026 é domingo e 02/11 é feriado: nenhum dia útil decorrido, sem ritmo.
+  assert.equal(abordagensPorDiaUtil(cards, 20, "2026-11-02").ritmo, null);
 });
 
 test("Ganho do CRM conta sem assinatura ou receita e usa data/ator do ganho", () => {

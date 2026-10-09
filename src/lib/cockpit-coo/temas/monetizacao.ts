@@ -1,9 +1,10 @@
 // Qui · Monetização: "A Monetização está entregando o projetado, e quais unidades eu preciso cobrar?"
 //
 // Pedido do Pedro em 30/09/2026: "a informação mais relevante é o que está no módulo de
-// monetização, sobretudo no projetado vs realizado". Os quatro primeiros números são a aba
-// "Projetado × realizado" do módulo, com a mesma conta (`forecastComparison`): o projetado é a
-// planilha de forecast em uso e o realizado é o pipe de Monetização no CRM, no mês corrente.
+// monetização, sobretudo no projetado vs realizado". Os quatro primeiros números são a conta da
+// antiga aba "Projetado × realizado" do módulo (`forecastComparison`; a aba saiu do menu em
+// 09/10/2026 e o projetado ficou só aqui): o projetado é a planilha de forecast em uso e o
+// realizado é o pipe de Monetização no CRM, no mês corrente.
 //
 // Pedido do COO em 29/09/2026, que continua: "Preciso saber quais são as unidades mais engajadas
 // no projeto, assim como preciso ser alertado quando isso não acontecer para poder cobrá-los."
@@ -402,23 +403,25 @@ const DESTINO_OPERACAO: Destino = destino(
   "/monetizacao",
   "Abrir a Operação diária (Monetização)",
   false,
-  "A Operação não separa por unidade e conta só os movimentos do farmer padrão; o cockpit conta todos os negócios das empresas das unidades do filtro.",
+  "A Operação não separa por unidade e conta só os movimentos da pré-venda; o cockpit conta todos os negócios das empresas das unidades do filtro.",
   { aba: "operacao" },
 );
+// Capacidade e alocação e Projetado × realizado saíram do menu da Monetização em 09/10/2026: os alertas que
+// levavam a elas abrem a Operação diária.
 const DESTINO_CAPACIDADE: Destino = destino(
   "/monetizacao",
-  "Abrir Capacidade e alocação (Monetização)",
+  "Abrir a Operação diária (Monetização)",
   false,
-  "A Capacidade mostra a base elegível e o trabalho da frente inteira, sem corte por unidade.",
-  { aba: "capacidade" },
+  "A Operação mostra a Base elegível aberta e o ritmo de abordagem da pré-venda, sem corte por unidade; a tela Capacidade e alocação saiu do menu em 09/10/2026.",
+  { aba: "operacao" },
 );
 
 const DESTINO_FORECAST: Destino = destino(
   "/monetizacao",
-  "Abrir Projetado × realizado (Monetização)",
-  true,
-  "A aba do módulo compara a frente inteira no mesmo mês, como aqui; lá dá para trocar o mês e o cenário da planilha.",
-  { aba: "forecast" },
+  "Abrir a Operação diária (Monetização)",
+  false,
+  "A Operação mostra o realizado da pré-venda no mês, sem a planilha: o projetado fica só no cockpit desde que a aba Projetado × realizado saiu do menu, em 09/10/2026.",
+  { aba: "operacao" },
 );
 
 /** Realizado ÷ projetado proporcional aos dias corridos: abaixo disto, crítico; abaixo do segundo, atenção. */
@@ -570,9 +573,9 @@ export function montarMonetizacao(
       fonte: fonteForecast,
       destino: DESTINO_FORECAST,
       explicacao: {
-        oQueDiz: `${d.rotulo} no mês corrente no pipe de Monetização, contra o que a planilha de forecast projetou para o mês. É a aba "Projetado × realizado" do módulo de Monetização.`,
-        comoCalcula: `Realizado: negócios do pipe de Monetização com o evento (${d.chave}) entre ${deMes} e o corte do CRM, a mesma conta da aba do módulo (forecastComparison). Projetado: linha ${d.linha} da planilha em uso${forecast.ok ? ` (${forecast.versao}, de ${forecast.fonteData.split("-").reverse().join("/")})` : ""}.`,
-        atencao: `Mês em andamento compara com a meta do mês inteiro, como no módulo; o ritmo (alerta) usa o projetado proporcional aos dias corridos. A planilha não projeta por unidade: com filtro de unidade, o número continua sendo da frente inteira.${forecast.ok && forecast.nota ? ` ${forecast.nota}` : ""}`,
+        oQueDiz: `${d.rotulo} no mês corrente no pipe de Monetização, contra o que a planilha de forecast projetou para o mês. É a conta da antiga aba "Projetado × realizado" do módulo, que saiu do menu em 09/10/2026.`,
+        comoCalcula: `Realizado: negócios do pipe de Monetização com o evento (${d.chave}) entre ${deMes} e o corte do CRM, pela conta de forecastComparison. Projetado: linha ${d.linha} da planilha em uso${forecast.ok ? ` (${forecast.versao}, de ${forecast.fonteData.split("-").reverse().join("/")})` : ""}.`,
+        atencao: `Mês em andamento compara com a meta do mês inteiro; o ritmo (alerta) usa o projetado proporcional aos dias corridos. A planilha não projeta por unidade: com filtro de unidade, o número continua sendo da frente inteira.${forecast.ok && forecast.nota ? ` ${forecast.nota}` : ""}`,
         dono: DONO,
       },
     };
@@ -712,7 +715,7 @@ export function montarMonetizacao(
   };
   const explicacaoForecast = {
     oQueDiz:
-      "O realizado do mês no pipe de Monetização contra o projetado da planilha de forecast, como na aba Projetado × realizado do módulo.",
+      "O realizado do mês no pipe de Monetização contra o projetado da planilha de forecast, com a conta da antiga aba Projetado × realizado do módulo (saiu do menu em 09/10/2026).",
     comoCalcula: `Mesma conta dos cartões (forecastComparison): realizado até o corte do CRM, projetado do mês inteiro${forecast.ok ? ` (planilha ${forecast.versao})` : ""}.`,
     atencao: "Mês em andamento compara com a meta do mês inteiro. A planilha não projeta por unidade: o gráfico é da frente inteira.",
     dono: DONO,

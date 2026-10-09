@@ -1,8 +1,8 @@
-// Aba Operação da Monetização, no molde do painel do Recon (Metas do SDR + funil do anúncio à
+// Aba Operação da Monetização, no molde do painel do Recon (quadros do SDR + funil do anúncio à
 // venda + leads por dia), com a identidade da Planning: tokens de src/styles.css, KpiCard do
-// design system, status sempre com ícone e palavra. Nada é calculado aqui: o funil, os quadros de
-// meta e as tabelas por produto vêm da régua cumulativa (`funilCumulativo`, 01/10/2026) e a série
-// diária de `operacao`, em src/lib/monetizacao.
+// design system, status sempre com ícone e palavra. Nada é calculado aqui: o funil, os quadros da
+// pré-venda e as tabelas por produto vêm da régua cumulativa (`funilCumulativo`, 01/10/2026) e a
+// série diária de `operacao`, em src/lib/monetizacao. Sem meta desde 09/10/2026: o realizado, sem alvo.
 import type { ReactNode } from "react";
 import {
   Building2,
@@ -27,7 +27,6 @@ import {
   ComposedChart,
   Legend,
   Line,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -41,19 +40,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { KpiCard, type TomKpi } from "@/components/planning";
+import { KpiCard } from "@/components/planning";
 import {
   CORES_SERIE,
   eixoProps,
   gradeProps,
   legendaProps,
-  linhaMetaProps,
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
 import { METRICAS, taxa } from "@/lib/monetizacao/model";
 import { primeiroNome } from "@/lib/monetizacao/responsavel";
-import type { QuadroMeta, StatusMeta, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
+import type { QuadroOperacao, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
 import { chaveDaEtapa, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
 import type {
   ChaveEtapa,
@@ -78,17 +76,10 @@ const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDi
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 // ---------------------------------------------------------------------------
-// Metas da pré-venda
+// Quadros da pré-venda (sem meta desde 09/10/2026)
 // ---------------------------------------------------------------------------
 
-const TOM: Record<StatusMeta, { tom?: TomKpi; palavra?: string }> = {
-  "na-meta": { tom: "sucesso", palavra: "na meta" },
-  fora: { tom: "perigo", palavra: "fora da meta" },
-  "dia-em-curso": { tom: "atencao", palavra: "dia em curso" },
-  "sem-meta": {},
-};
-
-export function MetasFarmer({
+export function QuadrosPreVenda({
   quem,
   quadros,
   uteis,
@@ -99,29 +90,25 @@ export function MetasFarmer({
 }: {
   /** Pessoa do recorte, ou a pré-venda inteira (`nomeDoRecorte`). */
   quem: string;
-  quadros: QuadroMeta[];
+  quadros: QuadroOperacao[];
   uteis: number;
   from: string;
   to: string;
   abrir: Abrir;
   onComoContamos: () => void;
 }) {
-  const fora = quadros.filter((q) => q.status === "fora").length;
   return (
-    <section className="space-y-3" aria-label={`Metas: ${quem}`}>
+    <section className="space-y-3" aria-label={`Quadros: ${quem}`}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 space-y-0.5">
           <h2 className="text-base font-semibold text-foreground">
             {quem.startsWith("Pré-venda")
-              ? "A pré-venda está no ritmo das metas?"
-              : `${primeiroNome(quem)} está no ritmo das metas?`}
+              ? "Até onde a pré-venda levou os abordados do período?"
+              : `Até onde ${primeiroNome(quem)} levou os abordados do período?`}
           </h2>
           <p className="text-[13px] text-muted-foreground">
             Abordados de {ddmm(from)} a {ddmm(to)}, {uteis}{" "}
-            {uteis === 1 ? "dia útil" : "dias úteis"} ·{" "}
-            {fora === 0
-              ? "nenhuma meta fora"
-              : `${fora} ${fora === 1 ? "meta fora" : "metas fora"}`}
+            {uteis === 1 ? "dia útil" : "dias úteis"} · sem meta por enquanto: o realizado, sem alvo
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onComoContamos}>
@@ -133,24 +120,12 @@ export function MetasFarmer({
         {quadros.map((q) => {
           // Só os trabalhados são ritmo (abordados ÷ dias úteis); o resto é contagem da coorte.
           const ritmo = q.chave === "started";
-          const { tom, palavra } = TOM[q.status];
           return (
             <KpiCard
               key={q.chave}
               rotulo={q.rotulo}
               valor={ritmo ? DEC.format(q.valor) : INT.format(q.valor)}
               nota={q.nota}
-              meta={
-                q.meta === null
-                  ? undefined
-                  : {
-                      valor: ritmo ? `${DEC.format(q.meta)} por dia` : INT.format(q.meta),
-                      rotulo: ritmo ? "meta" : "meta no período",
-                      progresso: q.meta ? q.valor / q.meta : undefined,
-                    }
-              }
-              tom={tom}
-              tomRotulo={palavra}
               abrir={{
                 onClick: () => abrir(ritmo ? "Leads trabalhados no período" : q.rotulo, q.cards),
               }}
@@ -217,7 +192,7 @@ export function ComoContamos({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  quadros: QuadroMeta[];
+  quadros: QuadroOperacao[];
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,8 +200,8 @@ export function ComoContamos({
         <DialogHeader>
           <DialogTitle>Como contamos</DialogTitle>
           <DialogDescription>
-            Régua cumulativa, a mesma do forecast. As metas vêm do plano do mês, em Capacidade e
-            alocação, e são decisão humana.
+            Régua cumulativa, a mesma do funil. Sem meta por enquanto (09/10/2026): os quadros
+            mostram o realizado do período, sem alvo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -242,9 +217,6 @@ export function ComoContamos({
           {quadros.map((q) => (
             <Verbete key={q.chave} titulo={q.rotulo}>
               <p>{q.formula}</p>
-              {q.meta === null && (
-                <p>Sem meta no plano do mês: o quadro mostra o número, sem selo.</p>
-              )}
             </Verbete>
           ))}
         </div>
@@ -450,15 +422,7 @@ export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir:
 // Leads e reuniões por dia
 // ---------------------------------------------------------------------------
 
-export function SerieDiaria({
-  view,
-  metaDia,
-  abrir,
-}: {
-  view: ReturnType<typeof operacao>;
-  metaDia: number | null;
-  abrir: Abrir;
-}) {
+export function SerieDiaria({ view, abrir }: { view: ReturnType<typeof operacao>; abrir: Abrir }) {
   const abrirDia = (date: string) =>
     abrir(`Movimentos de ${ddmm(date)}`, view.movimentosDoDia(date));
   return (
@@ -534,17 +498,6 @@ export function SerieDiaria({
               strokeDasharray="4 3"
               dot={{ r: 2.5 }}
             />
-            {metaDia ? (
-              <ReferenceLine
-                y={metaDia}
-                {...linhaMetaProps}
-                label={{
-                  value: `Meta ${metaDia}/dia`,
-                  fontSize: 12,
-                  fill: "var(--muted-foreground)",
-                }}
-              />
-            ) : null}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

@@ -537,7 +537,7 @@ test("Meta mensal só compara com período dentro de um mês", () => {
   assert.match(metaTri.nota, /mensal/);
 });
 
-test("Ritmo abaixo da meta e plano sem alocação viram ameaça e decisão", () => {
+test("Ritmo abaixo da meta vira ameaça; plano sem alocação não vira mais decisão (09/10/2026)", () => {
   const plano = {
     month: "2026-09",
     owner_id: 1,
@@ -554,7 +554,9 @@ test("Ritmo abaixo da meta e plano sem alocação viram ameaça e decisão", () 
     c.ameacas.some((a) => a.id === "ritmo-contratos"),
     "1 ganho contra ~remaining ritmo de 6",
   );
-  assert.ok(c.decisoes.some((d) => d.id === "alocar-plano"));
+  // Capacidade e alocação saiu do menu da Monetização em 09/10/2026: sem ameaça nem decisão de plano.
+  assert.ok(!c.ameacas.some((a) => a.id === "plano-sem-alocacao"));
+  assert.ok(!c.decisoes.some((d) => ["alocar-plano", "cadastrar-plano"].includes(d.id)));
   // Desde 28/09 a lista vai inteira (a Visão executiva mostra o total e três títulos), com D0 antes.
   assert.deepEqual(
     c.decisoes.slice(0, 2).map((d) => d.id),
@@ -616,7 +618,11 @@ test("Cockpit sobre a fonte sintética marca tudo como sintético e exercita as 
   );
   assert.ok(ind(c, "contratos-ganhos").valor > 0);
   assert.equal(ind(c, "receita-prevista-aberta").estado, "parcial");
-  assert.ok(c.decisoes.some((d) => d.id === "alocar-plano"));
+  assert.ok(!c.decisoes.some((d) => d.id === "alocar-plano"));
+  // Nenhum destino leva a uma tela que saiu do menu da Monetização em 09/10/2026.
+  const saiu = ["temporal", "forecast", "capacidade", "follow-day"];
+  for (const x of [...c.indicadores, ...c.decisoes])
+    assert.ok(!saiu.includes(x.destino?.search?.aba), x.id);
   assert.ok(c.serieDiaria.length === 22);
   assert.ok(c.perimetros.length >= 3);
   // Outro dia gera outro calendário, sem mês fixo.
@@ -676,7 +682,7 @@ test("URL do cockpit omite campos vazios e a normalização é idempotente", () 
   assert.equal(validarBusca(u).perimetro, "");
 });
 
-test("Ritmo esperado diz se é da meta de contratos ou da capacidade de leads", () => {
+test("Ritmo esperado é só da meta de contratos; a capacidade de leads saiu (09/10/2026)", () => {
   const plano = {
     month: "2026-09",
     owner_id: 1,
@@ -691,8 +697,11 @@ test("Ritmo esperado diz se é da meta de contratos ou da capacidade de leads", 
   const c = montarCockpit(fonteOk(dados({ plans: [plano] })), recorte());
   const rotulos = (id) => ind(c, id).comparacoes.map((x) => x.rotulo);
   assert.ok(rotulos("contratos-ganhos").includes("Ritmo esperado da meta"));
-  assert.ok(rotulos("leads-trabalhados").includes("Ritmo esperado da capacidade"));
+  assert.ok(!rotulos("leads-trabalhados").includes("Ritmo esperado da capacidade"));
+  assert.ok(!rotulos("leads-trabalhados").includes("Capacidade do mês"));
   assert.ok(!rotulos("leads-trabalhados").includes("Ritmo esperado da meta"));
+  // A receita prevista em aberto não tem mais tela de origem (Temporal e previsão saiu).
+  assert.equal(ind(c, "receita-prevista-aberta").destino, null);
 });
 
 // ── Correções da revisão final ───────────────────────────────────────────────

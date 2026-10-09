@@ -528,10 +528,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     "Leads trabalhados",
     "Negócios com primeiro trabalho registrado no período, atribuído ao ator do evento.",
     "E2",
-    comparacaoPlano("Capacidade do mês", (pl) => pl.capacity, "Capacidade de leads.", {
-      rotulo: "Ritmo esperado da capacidade",
-      nota: "Capacidade do mês proporcional aos dias úteis decorridos. É conta sobre o plano, não previsão.",
-    }),
+    // Sem comparação com a capacidade do plano desde 09/10/2026: a tela Capacidade e alocação saiu do menu da
+    // Monetização e a pré-venda está sem meta por enquanto (decisão do dono do produto).
+    [],
   );
 
   // ── Receita prevista declarada no CRM ─────────────────────────────────
@@ -617,13 +616,9 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
     ]
       .filter(Boolean)
       .join(" "),
-    destino: {
-      rota: "/monetizacao",
-      search: { aba: "temporal" },
-      rotulo: "Abrir Temporal e previsão",
-      mesmoRecorte: false,
-      observacao: "A tela de origem aplica o filtro de responsável dela; confira o recorte lá.",
-    },
+    // A tela Temporal e previsão saiu do menu da Monetização em 09/10/2026 e nenhuma outra mostra este número: a
+    // composição por produto fica aqui.
+    destino: null,
     lacuna:
       receitaEstado === "parcial" || receitaEstado === "nao_apurado"
         ? {
@@ -855,19 +850,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       gravidade: "alta",
       indicador: "contratos-ganhos",
     });
-  const planoAtual = (dados?.plans ?? []).filter((pl) => pl.month === fonte.hoje.slice(0, 7));
-  const semAlocacao =
-    planoAtual.length > 0 &&
-    planoAtual.every((pl) => PRODUTOS.every((prod) => !(pl.allocation?.[prod] > 0)));
-  if (semAlocacao)
-    ameacas.push({
-      id: "plano-sem-alocacao",
-      titulo: "Plano do mês sem alocação por produto",
-      detalhe:
-        "A capacidade está cadastrada, mas nenhum lead foi alocado a Cella, Consultoria ou Finance: não há previsão por produto.",
-      gravidade: "media",
-      indicador: "leads-trabalhados",
-    });
+  // "Plano do mês sem alocação por produto" saiu em 09/10/2026, com a tela Capacidade e alocação: o plano não se
+  // edita mais no Brain.
   if (soma && soma.missing > 0)
     ameacas.push({
       id: "receita-incompleta",
@@ -905,34 +889,8 @@ export function montarCockpit(fonte: FonteCockpit, recorte: RecorteCockpit): Coc
       destino: null,
     },
   ];
-  if (semAlocacao)
-    decisoes.push({
-      id: "alocar-plano",
-      titulo: "Alocar o plano do mês por produto",
-      porque: "Capacidade e meta existem, mas a alocação está zerada em todos os produtos.",
-      responsavel: "CEO (alocação) + Comercial",
-      destino: {
-        rota: "/monetizacao",
-        search: { aba: "capacidade" },
-        rotulo: "Abrir Capacidade e alocação",
-        mesmoRecorte: false,
-        observacao: "O plano é editado na tela de origem.",
-      },
-    });
-  else if (mes && !unidade && !planosDoMes.length && temNumero(comercial.estado))
-    decisoes.push({
-      id: "cadastrar-plano",
-      titulo: "Cadastrar o plano do mês",
-      porque: "Sem plano não há meta para comparar o realizado.",
-      responsavel: "Comercial + Departamento de Receitas",
-      destino: {
-        rota: "/monetizacao",
-        search: { aba: "capacidade" },
-        rotulo: "Abrir Capacidade e alocação",
-        mesmoRecorte: false,
-        observacao: "O plano é editado na tela de origem.",
-      },
-    });
+  // "Alocar o plano do mês" e "Cadastrar o plano do mês" saíram em 09/10/2026: levavam a Capacidade e alocação, que
+  // saiu do menu, e a pré-venda está sem meta por enquanto.
   decisoes.push(
     soOmie > 0
       ? {

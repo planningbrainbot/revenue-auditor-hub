@@ -1,9 +1,8 @@
 // Visão "Hoje" da Operação da Monetização (spec docs/superpowers/specs/2026-10-01-monetizacao-acompanhamento-diario.md,
-// contrato monetizacao-operacao.md, adendo de 01/10). Arquétipo Visão geral dentro da aba: pergunta e universo,
-// KpiCard com meta, "O que pede atenção" em caixa com borda, e a lista linha a linha só no Sheet (Fila de trabalho).
-// Nada é calculado aqui: os números vêm de src/lib/monetizacao/acompanhamento.ts.
+// contrato monetizacao-operacao.md, adendos de 01/10 e 09/10). Arquétipo Visão geral dentro da aba: pergunta e
+// universo, KpiCard sem meta (09/10/2026: o realizado, sem alvo), "O que pede atenção" em caixa com borda, e a lista
+// linha a linha só no Sheet (Fila de trabalho). Nada é calculado aqui: os números vêm de acompanhamento.ts.
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, Info, ListChecks, TriangleAlert } from "lucide-react";
@@ -34,7 +33,6 @@ import { EstadoVazio, KpiCard, KpiGrade, Procedencia, Secao } from "@/components
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import {
-  ALVOS,
   DIAS_UTEIS_ALERTA_ALTO,
   DIAS_UTEIS_SEM_CONEXAO,
   INDICADORES_DIA,
@@ -65,6 +63,7 @@ type Abrir = (
 ) => void;
 
 const INT = new Intl.NumberFormat("pt-BR");
+const DEC = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -123,8 +122,7 @@ export function VisaoHoje({
       .map((u) => ({ id: u.id, name: u.nome })),
   ];
   const porUnidade = conexaoPorUnidade(mes, unidades);
-  const plano = data.plans.find((p) => p.month === hoje.slice(0, 7) && p.owner_id === filter.owner);
-  const estoque = estoqueERitmo(data.cards, regua, f, plano, mes.abordados, hoje);
+  const estoque = estoqueERitmo(data.cards, regua, f, mes.abordados, hoje);
   const lista = listaDeAtencao(data.cards, regua, f, unidades, hoje);
   const altos = lista?.filter((i) => i.diasUteis >= DIAS_UTEIS_ALERTA_ALTO).length ?? 0;
   const fim = fimDoMes(hoje.slice(0, 7));
@@ -138,11 +136,10 @@ export function VisaoHoje({
     `${rotuloMes(hoje)} até ${ddmm(hoje)}`,
     "régua cumulativa: cada abordado conta até a etapa mais adiantada a que chegou",
   ].join(" · ");
+  // Sem meta desde 09/10/2026: a taxa do mês, sem alvo.
   const taxaKpi = (
     rotulo: string,
     valor: number | null,
-    alvo: number,
-    rotuloAlvo: string,
     nota: string,
     cards: Negocio[] | undefined,
   ) => (
@@ -151,11 +148,6 @@ export function VisaoHoje({
       valor={valor === null ? "" : PCT.format(valor)}
       estado={valor === null ? "nao-apurado" : "ok"}
       nota={valor === null ? "nenhum card na etapa de cima no mês" : nota}
-      meta={
-        valor === null
-          ? undefined
-          : { valor: PCT.format(alvo), rotulo: rotuloAlvo, progresso: valor / alvo }
-      }
       abrir={cards && cards.length ? { onClick: () => abrir(rotulo, cards) } : undefined}
     />
   );
@@ -163,7 +155,7 @@ export function VisaoHoje({
   const agendada = linhaDa(mes.funil, "agendada");
 
   return (
-    <Secao titulo="O mês vai chegar a 50% de marcação?" descricao={universo}>
+    <Secao titulo="Como está o mês da pré-venda até hoje?" descricao={universo}>
       {/* 1. Hoje e o dia útil anterior: eventos do dia, de qualquer mês de abordagem */}
       <section aria-label="Hoje" className="rounded-xl border bg-card p-4">
         <p className="text-[13px] text-muted-foreground">
@@ -227,45 +219,29 @@ export function VisaoHoje({
 
       {/* 2. Mês até hoje, na coorte cumulativa */}
       <div className="space-y-2">
-        <KpiGrade colunas={4}>
+        <KpiGrade colunas={3}>
           {taxaKpi(
             "Qualificação",
             mes.taxaConexao,
-            ALVOS.conexao,
-            "alvo",
             `${INT.format(mes.conexao ?? 0)} de ${INT.format(mes.abordados)} abordados`,
             conexao?.cards,
           )}
           {taxaKpi(
             "Levantamento com sócio",
             mes.taxaLevantamento,
-            ALVOS.levantamento,
-            "alvo",
             `${INT.format(mes.agendados ?? 0)} de ${INT.format(mes.conexao ?? 0)} com Qualificação`,
             agendada?.cards,
           )}
           {taxaKpi(
             "Marcação",
             mes.marcacao,
-            ALVOS.marcacao,
-            "meta",
             `${INT.format(mes.agendados ?? 0)} de ${INT.format(mes.abordados)} abordados`,
             agendada?.cards,
           )}
-          <KpiCard
-            rotulo="Faltam para 50%"
-            valor={mes.faltam === null ? "" : INT.format(mes.faltam)}
-            unidade={mes.faltam === 1 ? "levantamento" : "levantamentos"}
-            estado={mes.faltam === null ? "nao-apurado" : "ok"}
-            nota={`sobre os ${INT.format(mes.abordados)} abordados do mês`}
-          />
         </KpiGrade>
         <p className="text-xs text-muted-foreground">
-          Quem foi abordado hoje ainda não teve tempo de responder. Faltam = metade dos abordados,
-          arredondada para cima, menos os agendados
-          {mes.faltam !== null &&
-            `: ${INT.format(Math.ceil(ALVOS.marcacao * mes.abordados))} − ${INT.format(mes.agendados ?? 0)} = ${INT.format(mes.faltam)}`}
-          .
+          Quem foi abordado hoje ainda não teve tempo de responder. Sem meta por enquanto: as taxas
+          mostram o realizado do mês.
         </p>
       </div>
 
@@ -290,27 +266,6 @@ export function VisaoHoje({
                 <Button variant="outline" size="sm" onClick={() => mudarAtencao("todos")}>
                   <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
                   Abrir lista
-                </Button>
-              }
-            />
-          )}
-          {estoque.meta !== null && estoque.faltamContas > 0 && (
-            <ItemAtencaoLinha
-              icone="atencao"
-              texto={
-                <>
-                  A Base não cobre a meta de {INT.format(estoque.meta)} abordagens: faltam{" "}
-                  <strong className="num font-semibold text-foreground">
-                    {INT.format(estoque.faltamContas)}
-                  </strong>{" "}
-                  {estoque.faltamContas === 1 ? "conta" : "contas"}, mesmo esgotando a Base
-                </>
-              }
-              acao={
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/clientes" search={{ view: "produtos" }}>
-                    Abrir Produtos e listas
-                  </Link>
                 </Button>
               }
             />
@@ -409,15 +364,13 @@ function ConexaoPorUnidade({
   porUnidade: ReturnType<typeof conexaoPorUnidade>;
   abrir: Abrir;
 }) {
-  const alvo = ALVOS.conexao * 100;
   return (
     <section className="flex flex-col rounded-xl border bg-card p-4">
       <h3 className="text-sm font-semibold text-foreground">
         Em que unidade os abordados do mês respondem?
       </h3>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
-        Qualificação de N abordados no mês, pela unidade da conta na Base. Traço: alvo de{" "}
-        {PCT.format(ALVOS.conexao)}.
+        Qualificação de N abordados no mês, pela unidade da conta na Base.
       </p>
       {porUnidade === null ? (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -448,10 +401,6 @@ function ConexaoPorUnidade({
                     <span
                       className="absolute inset-y-0 left-0 rounded-full bg-primary-text"
                       style={{ width: `${pct}%` }}
-                    />
-                    <span
-                      className="absolute -inset-y-1 border-l border-dashed border-muted-foreground"
-                      style={{ left: `${alvo}%` }}
                     />
                   </span>
                   <span className="num text-right text-sm text-foreground">
@@ -500,7 +449,9 @@ function EstoqueRitmo({
   );
   return (
     <section className="flex flex-col rounded-xl border bg-card p-4">
-      <h3 className="text-sm font-semibold text-foreground">A Base dá para a meta do mês?</h3>
+      <h3 className="text-sm font-semibold text-foreground">
+        Quanto há na Base, e em que ritmo a pré-venda aborda?
+      </h3>
       <ul className="mt-3 space-y-3">
         {linha(
           estoque.base.length > 0 ? (
@@ -524,29 +475,18 @@ function EstoqueRitmo({
             ? `${feriados.map(ddmm).join(", ")} ${feriados.length === 1 ? "é feriado" : "são feriados"}`
             : undefined,
         )}
-        {estoque.meta === null
-          ? linha(
-              "—",
-              "abordagens por dia útil",
-              "A meta de abordagens é da frente inteira; limpe o filtro de produto para ver o ritmo.",
-            )
-          : linha(
-              estoque.porDiaUtil === null ? "—" : INT.format(estoque.porDiaUtil),
-              `abordagens por dia útil para chegar a ${INT.format(estoque.meta)}`,
-              estoque.metaDoPlano
-                ? "meta do plano do mês, em Capacidade e alocação"
-                : "120 por closer: o mês não tem plano cadastrado",
-            )}
+        {linha(
+          estoque.porDiaUtil === null ? "—" : DEC.format(estoque.porDiaUtil),
+          "abordagens por dia útil no mês, até hoje",
+          estoque.porDiaUtil === null
+            ? "o mês ainda não teve dia útil"
+            : `${INT.format(abordados)} ${abordados === 1 ? "abordado" : "abordados"} em ${INT.format(estoque.uteisDecorridos)} ${estoque.uteisDecorridos === 1 ? "dia útil" : "dias úteis"}`,
+        )}
       </ul>
-      {estoque.meta !== null && (
-        <p className="mt-auto pt-3 text-[13px] text-muted-foreground">
-          {INT.format(abordados)} abordados + {INT.format(estoque.base.length)} na Base ={" "}
-          {INT.format(abordados + estoque.base.length)}.{" "}
-          {estoque.faltamContas > 0
-            ? `Mesmo esgotando a Base, faltam ${INT.format(estoque.faltamContas)} ${estoque.faltamContas === 1 ? "conta" : "contas"} para ${INT.format(estoque.meta)} abordagens.`
-            : `A Base cobre as ${INT.format(estoque.meta)} abordagens do mês.`}
-        </p>
-      )}
+      <p className="mt-auto pt-3 text-[13px] text-muted-foreground">
+        Sem meta por enquanto: o ritmo é o realizado, sem alvo. {INT.format(abordados)} abordados +{" "}
+        {INT.format(estoque.base.length)} na Base = {INT.format(abordados + estoque.base.length)}.
+      </p>
     </section>
   );
 }

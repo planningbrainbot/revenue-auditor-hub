@@ -19,7 +19,7 @@ import {
   USUARIO_OPS_PLANNING,
 } from "../src/lib/monetizacao/acompanhamento.ts";
 import { ehDiaUtil } from "../src/lib/monetizacao/feriados.ts";
-import { metasOperacao, uteis } from "../src/lib/monetizacao/model.ts";
+import { quadrosDaOperacao, uteis } from "../src/lib/monetizacao/model.ts";
 import {
   doResponsavel,
   nomeDoRecorte,
@@ -317,10 +317,7 @@ test("Card abordado no mês anterior que avança no período vai para a nota, e 
       [alves.id, r.nivelDe.negociacao, r.ganho],
     ],
   );
-  const plan = { daily_target: 7, target_contracts: 8 };
-  const q = Object.fromEntries(
-    metasOperacao(fc, plan, OUT, "2026-10-06").quadros.map((x) => [x.chave, x]),
-  );
+  const q = Object.fromEntries(quadrosDaOperacao(fc, OUT).quadros.map((x) => [x.chave, x]));
   // A coorte não muda: o funil segue cumulativo.
   assert.equal(q.started.total, 1);
   assert.equal(q.meeting.valor, 0);
@@ -333,7 +330,7 @@ test("Card abordado no mês anterior que avança no período vai para a nota, e 
     q.validated.cards.map((c) => c.id),
     [tag.id],
   );
-  // Contrato conta todo ganho do período contra a meta.
+  // Contrato conta todo ganho do período, da coorte ou não.
   assert.equal(q.signed.valor, 1);
   assert.equal(q.signed.nota, "1 de abordagem anterior");
   assert.deepEqual(
@@ -381,7 +378,7 @@ test("Dias úteis pulam os feriados nacionais de 2026 e 2027", () => {
   assert.equal(uteisDesde("2026-10-09", "2026-10-14"), 2);
 });
 
-test("Metas contam a coorte: validadas não passam de realizadas, e a meta de contrato é inteira", () => {
+test("Quadros contam a coorte, sem meta: validadas não passam de realizadas (09/10/2026)", () => {
   const base = mv(274, "2026-08-20 12:00:00");
   const cards = [
     card({ moves: [base, mv(276, "2026-09-02 13:00:00")] }),
@@ -389,22 +386,18 @@ test("Metas contam a coorte: validadas não passam de realizadas, e a meta de co
     card({ moves: [base, mv(279, "2026-09-05 13:00:00")] }),
   ];
   const f = { ...SET, to: "2026-09-12" }; // 8 dias úteis: 07/09 é feriado
-  const plan = { daily_target: 7, target_contracts: 8 };
-  const { quadros, uteis: n } = metasOperacao(funilCumulativo(cards, ST, f), plan, f, "2026-09-24");
+  const { quadros, uteis: n } = quadrosDaOperacao(funilCumulativo(cards, ST, f), f);
   assert.equal(n, 8);
   const q = Object.fromEntries(quadros.map((x) => [x.chave, x]));
   assert.equal(q.started.total, 3);
   assert.equal(q.started.valor, 0.4);
-  assert.equal(q.started.status, "fora");
   assert.equal(q.meeting.valor, 2);
   assert.equal(q.validated.valor, 1);
   assert.ok(q.validated.valor <= q.meeting.valor);
-  // setembro/2026 tem 21 dias úteis: ⌈8 × 8/21⌉ = 4
-  assert.equal(q.signed.meta, 4);
   assert.ok(quadros.every((x) => Number.isInteger(x.total)));
-  const hojeF = { ...SET, from: "2026-09-24", to: "2026-09-24" };
-  const h = metasOperacao(funilCumulativo(cards, ST, hojeF), plan, hojeF, "2026-09-24");
-  assert.equal(h.quadros[0].status, "dia-em-curso");
+  // Sem meta: nenhum quadro carrega alvo nem selo.
+  assert.ok(quadros.every((x) => !("meta" in x) && !("status" in x)));
+  assert.equal(q.scheduled.rotulo, "Levantamentos com sócio agendados");
 });
 
 test("Hoje: abordagem do Ops não conta, toque desfeito não conta, e o realizado vem do evento", () => {
@@ -460,7 +453,7 @@ test("Hoje: abordagem do Ops não conta, toque desfeito não conta, e o realizad
   );
 });
 
-test("Mês até hoje: faltam para 50% é inteiro, metade dos abordados para cima menos os agendados", () => {
+test('Mês até hoje: taxas do mês, sem alvo nem "faltam para 50%" (09/10/2026)', () => {
   const base = mv(274, "2026-09-20 12:00:00");
   const cards = [
     ...Array.from({ length: 20 }, () => card({ moves: [base, mv(276, "2026-10-01 13:00:00")] })),
@@ -471,7 +464,7 @@ test("Mês até hoje: faltam para 50% é inteiro, metade dos abordados para cima
   const m = marcacaoDoMes(cards, ST, { owner: M, product: "" }, "2026-10-01");
   assert.equal(m.abordados, 25);
   assert.equal(m.agendados, 5);
-  assert.equal(m.faltam, 8); // ⌈12,5⌉ − 5
+  assert.equal("faltam" in m, false);
   assert.equal(m.marcacao, 0.2);
   assert.equal(m.taxaLevantamento, 1);
 });
@@ -508,23 +501,25 @@ test("Conexão por unidade: unidade da carga, sem inferir pelo dono; sem unidade
   );
 });
 
-test("Estoque e ritmo: meta do plano ou 120 por closer, e quantas contas faltam", () => {
+test("Estoque e ritmo: Base aberta e o ritmo realizado do mês, sem meta (09/10/2026)", () => {
   const r = reguaDoPipe(ST);
   const naBase = Array.from({ length: 84 }, () =>
     card({ moves: [mv(274, "2026-09-25 12:00:00")] }),
   );
   const f = { owner: M, product: "" };
-  const e = estoqueERitmo(naBase, r, f, undefined, 25, "2026-10-01");
+  const e = estoqueERitmo(naBase, r, f, 25, "2026-10-01");
   assert.equal(e.base.length, 84);
   assert.equal(e.uteisRestantes, 21);
-  assert.equal(e.meta, 120);
-  assert.equal(e.porDiaUtil, 5); // ⌈95 ÷ 21⌉
-  assert.equal(e.faltamContas, 11);
-  assert.equal(estoqueERitmo(naBase, r, f, { capacity: 100 }, 25, "2026-10-01").meta, 100);
-  // a meta é da frente inteira: com filtro de produto não há ritmo nem cobertura
-  const cella = estoqueERitmo(naBase, r, { ...f, product: "cella" }, undefined, 25, "2026-10-01");
-  assert.equal(cella.meta, null);
-  assert.equal(cella.porDiaUtil, null);
+  assert.equal(e.uteisDecorridos, 1);
+  assert.equal(e.porDiaUtil, 25);
+  assert.equal("meta" in e, false);
+  // 01 a 09/10/2026: 7 dias úteis; 25 ÷ 7 = 3,57 → 3,6. O filtro de produto não tira o ritmo.
+  const dia9 = estoqueERitmo(naBase, r, { ...f, product: "cella" }, 25, "2026-10-09");
+  assert.equal(dia9.uteisDecorridos, 7);
+  assert.equal(dia9.porDiaUtil, 3.6);
+  assert.equal(dia9.uteisRestantes, 15); // 09 a 30/10, sem o feriado de 12/10
+  // Mês que começa num fim de semana: antes do primeiro dia útil não há ritmo.
+  assert.equal(estoqueERitmo(naBase, r, f, 0, "2026-11-01").porDiaUtil, null);
 });
 
 test("Lista de atenção: em Abordagem, sem nunca chegar à Conexão, abordado há 3 dias úteis ou mais", () => {

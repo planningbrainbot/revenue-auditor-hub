@@ -1,6 +1,6 @@
 import { hoje } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
-import { PRE_VENDEDORES, PRODUTOS } from "@/lib/monetizacao/types";
+import { PRE_VENDEDORES, PRODUTOS, PRODUTOS_ROTEIRO } from "@/lib/monetizacao/types";
 import type { Produto } from "@/lib/monetizacao/types";
 import { SITUACOES_GRAVACAO } from "@/lib/monetizacao/gravacoes";
 import type { SituacaoGravacao } from "@/lib/monetizacao/gravacoes";
@@ -15,10 +15,6 @@ export const ABAS = [
   "operacao",
   // Tela Consultoria: duas visões na mesma aba (`visao`), uma entrada só na lateral.
   "handoff-consultoria",
-  "forecast",
-  "temporal",
-  "capacidade",
-  "follow-day",
   "funil",
   "pessoas",
   "roteiros",
@@ -28,26 +24,28 @@ export const ABAS = [
 export type Aba = (typeof ABAS)[number];
 
 /**
+ * Telas que saíram do menu em 09/10/2026 (aprovado pelo dono do produto): Temporal e previsão, Projetado × realizado,
+ * Capacidade e alocação e Follow Day. O link antigo abre a Operação diária com um aviso (NAVEGACAO.md N14).
+ */
+export const ABAS_APOSENTADAS = {
+  temporal: "Temporal e previsão",
+  forecast: "Projetado × realizado",
+  capacidade: "Capacidade e alocação",
+  "follow-day": "Follow Day",
+} as const;
+export type AbaAposentada = keyof typeof ABAS_APOSENTADAS;
+export const DATA_APOSENTADORIA = "09/10/2026";
+
+/**
  * Dois pré-vendedores desde 08/10/2026 (Matheus e Heloá): o seletor de responsável voltou à barra.
  * Sem `?responsavel=`, o recorte é a pré-venda inteira (os dois); com ele, uma pessoa.
  */
 export const PRE_VENDA_IDS = PRE_VENDEDORES.map(([id]) => id);
-export const DIAS_PADRAO = 7;
-export const SINAIS = ["vencida", "sem_passo", "sem_movimento"] as const;
-export type Sinal = (typeof SINAIS)[number];
 export const PRODUTOS_URL = [...PRODUTOS, "sem_produto"] as const;
 export type ProdutoUrl = (typeof PRODUTOS_URL)[number];
-/** Blocos do modelo da planilha (`forecast-model.tsx`, `BLOCKS`). */
-export const BLOCOS = [
-  "base",
-  "capacidade",
-  "funil",
-  "receita",
-  "caixa",
-  "margem",
-  "parceria",
-] as const;
-export type Bloco = (typeof BLOCOS)[number];
+/** O filtro de produto da aba Abordagens aceita também o Caixa inteiro (`caixa`, 09/10/2026); as outras abas, não. */
+export const PRODUTOS_ROTEIRO_URL = [...PRODUTOS_ROTEIRO, "sem_produto"] as const;
+export type ProdutoRoteiroUrl = (typeof PRODUTOS_ROTEIRO_URL)[number];
 /** Lista de atenção da visão "Hoje", aberta num Sheet: o filtro de idade em dias úteis. Ausente = fechada. */
 export const FILTROS_ATENCAO = ["todos", "10mais", "3a9"] as const;
 export type FiltroAtencao = (typeof FILTROS_ATENCAO)[number];
@@ -65,16 +63,12 @@ export type BuscaMonetizacao = {
   de?: string;
   /** aaaa-mm-dd; padrão hoje (São Paulo). */
   ate?: string;
-  produto?: ProdutoUrl;
-  /** Régua de "sem movimento" do Follow Day, 1–180; padrão 7. */
-  dias?: number;
-  /** aaaa-mm do Projetado × realizado (padrão: mês de `ate`) e da tela Gravações (padrão: todos os meses). */
+  /** Produto do recorte; "caixa" só na aba Abordagens (roteiros do Caixa inteiro). */
+  produto?: ProdutoRoteiroUrl;
+  /** aaaa-mm da tela Gravações (padrão: todos os meses). */
   mes?: string;
-  /** Id da fonte do forecast (versão e cenário); padrão: o cenário padrão da versão mais recente. */
-  cenario?: string;
-  sinal?: Sinal;
-  blocos?: Bloco;
-  totais?: boolean;
+  /** Link antigo de uma tela que saiu do menu: a Operação diária abre com o aviso. */
+  aposentada?: AbaAposentada;
   arquivados?: "mostrar";
   situacao?: Situacao;
   atencao?: FiltroAtencao;
@@ -116,21 +110,22 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
   // o link antigo abre a visão certa.
   const cruzamentoAntigo = s.aba === "cruzamento-consultoria";
   if (cruzamentoAntigo) s = { ...s, aba: "handoff-consultoria", visao: "cruzamento" };
-  const dias = inteiro(s.dias);
-  const totais = s.totais === true || s.totais === "true" ? true : undefined;
+  // Tela que saiu do menu em 09/10/2026: abre a Operação diária e diz por quê (N14), sem redirect silencioso.
+  const aposentadas = Object.keys(ABAS_APOSENTADAS) as AbaAposentada[];
+  const aba = umDe(ABAS, s.aba) ?? "operacao";
   return {
-    aba: umDe(ABAS, s.aba) ?? "operacao",
+    aba,
+    // O aviso fica até a pessoa fechar ou sair da Operação (a chave vai para a URL na primeira mudança de filtro).
+    aposentada:
+      aba === "operacao"
+        ? (umDe(aposentadas, s.aba) ?? umDe(aposentadas, s.aposentada))
+        : undefined,
     responsavel: PRE_VENDA_IDS.find((id) => id === inteiro(s.responsavel)),
     de: ehData(s.de) ? s.de : undefined,
     ate: ehData(s.ate) ? s.ate : undefined,
-    produto: umDe(PRODUTOS_URL, s.produto),
-    dias: dias !== undefined && dias >= 1 && dias <= 180 && dias !== DIAS_PADRAO ? dias : undefined,
+    produto:
+      aba === "roteiros" ? umDe(PRODUTOS_ROTEIRO_URL, s.produto) : umDe(PRODUTOS_URL, s.produto),
     mes: typeof s.mes === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.mes) ? s.mes : undefined,
-    cenario:
-      typeof s.cenario === "string" && /^[a-z0-9-]{1,80}$/.test(s.cenario) ? s.cenario : undefined,
-    sinal: umDe(SINAIS, s.sinal),
-    blocos: umDe(BLOCOS, s.blocos),
-    totais,
     arquivados: s.arquivados === "mostrar" ? "mostrar" : undefined,
     situacao: umDe(SITUACOES, s.situacao),
     atencao: umDe(FILTROS_ATENCAO, s.atencao),
@@ -177,7 +172,8 @@ export function filtroDaBusca(b: BuscaMonetizacao): Filtro {
     to,
     owner: b.responsavel ?? null,
     owners: b.responsavel ? undefined : PRE_VENDA_IDS,
-    product: (b.produto ?? "") as Produto | "",
+    // "caixa" só existe na aba Abordagens, que não usa o filtro: aqui vale como "todos os produtos".
+    product: (b.produto === "caixa" ? "" : (b.produto ?? "")) as Produto | "",
   };
 }
 

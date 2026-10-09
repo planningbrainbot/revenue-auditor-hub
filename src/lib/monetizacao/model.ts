@@ -4,16 +4,7 @@ import { aplicarRegiaoFinance } from "./regiao.ts";
 import { doResponsavel } from "./responsavel.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
-import type {
-  Conta,
-  Metrica,
-  Negocio,
-  Oferta,
-  Plano,
-  Produto,
-  ProdutoEnvio,
-  Revisao,
-} from "./types";
+import type { Conta, Metrica, Negocio, Oferta, Produto, ProdutoEnvio, Revisao } from "./types";
 
 export const METRICAS: { key: Metrica; label: string }[] = [
   { key: "loaded", label: "Fila carregada" },
@@ -107,8 +98,6 @@ export function dias(from: string, to: string): string[] {
     new Date(Date.parse(from) + i * 86400000).toISOString().slice(0, 10),
   );
 }
-export const distancia = (a: string, b: string) =>
-  Math.max(0, Math.floor((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / 86400000));
 /** Dias úteis do período, nas duas pontas: segunda a sexta, sem os feriados de `feriados.ts`. */
 export const uteis = (from: string, to: string) => dias(from, to).filter(ehDiaUtil).length;
 export const baseRetroativaConsultoria = (a: Conta) =>
@@ -516,42 +505,6 @@ export function operacao(cards: Negocio[], f: Filtro) {
     conversion: rows.meeting.length ? convertedMeetings.length / rows.meeting.length : null,
   };
 }
-export function quantil(values: number[], q: number): number | null {
-  if (!values.length) return null;
-  const a = [...values].sort((a, b) => a - b),
-    x = (a.length - 1) * q,
-    lower = Math.floor(x);
-  return a[lower] + (a[Math.ceil(x)] - a[lower]) * (x - lower);
-}
-export function temporal(cards: Negocio[], f: Filtro) {
-  const selected = cards.filter(
-    (c) => (!f.product || c.route === f.product) && (!f.owner || c.owner_id === f.owner),
-  );
-  const signed = selected.filter(
-    (c) => c.status === "won" && c.won_on && c.won_on >= f.from && c.won_on <= f.to && c.started_at,
-  );
-  const cycles = signed.map((c) => distancia(c.started_at!, c.won_on!));
-  const open = selected.filter((c) => c.status === "open" && c.validated_at);
-  const weeks = new Map<string, Negocio[]>();
-  for (const c of open) {
-    let key = "Sem data";
-    if (c.expected_close) {
-      const d = new Date(c.expected_close + "T12:00:00Z");
-      d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-      key = d.toISOString().slice(0, 10);
-    }
-    weeks.set(key, [...(weeks.get(key) || []), c]);
-  }
-  return {
-    signed,
-    median: quantil(cycles, 0.5),
-    p90: quantil(cycles, 0.9),
-    open,
-    weeks: [...weeks]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([week, rows]) => ({ week, rows, revenue: receitaSomada(rows) })),
-  };
-}
 export function receitaSomada(cards: Negocio[]) {
   const totals = { total: 0, partners: 0, unit: 0, known: 0, missing: 0, divergent: 0 };
   for (const c of cards) {
@@ -576,39 +529,6 @@ export function receitaSomada(cards: Negocio[]) {
     partners: totals.partners / 100,
     unit: totals.unit / 100,
   };
-}
-export function capacidade(
-  plan: Plano,
-  accounts: Conta[],
-  cards: Negocio[],
-  f: Filtro,
-  reservations: Parameters<typeof disponibilidade>[4] = [],
-) {
-  const actual = operacao(cards, f);
-  return PRODUTOS.map((product) => {
-    const eligible = accounts.filter((a) => oferta(a, product).status === "elegivel");
-    const available = eligible.filter(
-      (a) => disponibilidade(a, product, cards, plan.month, reservations).free,
-    );
-    const started = actual.rows.started.filter((c) => c.route === product).length;
-    const planned = Math.max(0, plan.allocation[product]);
-    const remaining = Math.max(0, planned - started);
-    const approved = plan.rates[product];
-    return {
-      product,
-      eligible: eligible.length,
-      available: available.length,
-      started,
-      planned,
-      remaining,
-      executable: Math.min(remaining, available.length),
-      gap: Math.max(0, remaining - available.length),
-      estimate:
-        approved === null
-          ? null
-          : actual.rows.validated.filter((c) => c.route === product).length * approved,
-    };
-  });
 }
 export function csv(rows: unknown[][]) {
   return (
@@ -725,16 +645,13 @@ export function taxa(valor: number, anterior: number): number | null {
   return anterior > 0 ? valor / anterior : null;
 }
 
-export type StatusMeta = "na-meta" | "fora" | "dia-em-curso" | "sem-meta";
-export interface QuadroMeta {
+export interface QuadroOperacao {
   chave: "started" | "scheduled" | "meeting" | "validated" | "signed";
   rotulo: string;
   /** Número do quadro: ritmo por dia útil (abordados) ou contagem da coorte. */
   valor: number;
   unidade?: string;
   total: number;
-  meta: number | null;
-  status: StatusMeta;
   nota: string;
   formula: string;
   /** Os cards que o número conta (drill-down). */
@@ -744,34 +661,24 @@ export interface QuadroMeta {
 const PCT = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 });
 
 /**
- * Os cinco quadros de meta da pré-venda (uma pessoa ou os dois), na mesma coorte do funil (régua cumulativa, 01/10/2026): trabalhados,
- * agendados, realizados e validadas saem dos mesmos cards, então validadas nunca passam de realizadas. Só os
- * trabalhados são ritmo: abordados ÷ dias úteis do período (segunda a sexta, sem feriado). Abaixo da meta num período
- * que é só hoje é "dia em curso", não "fora".
+ * Os cinco quadros da pré-venda (uma pessoa ou os dois), na mesma coorte do funil (régua cumulativa, 01/10/2026):
+ * trabalhados, agendados, realizados e validadas saem dos mesmos cards, então validadas nunca passam de realizadas. Só
+ * os trabalhados são ritmo: abordados ÷ dias úteis do período (segunda a sexta, sem feriado).
+ *
+ * Sem meta desde 09/10/2026 (decisão do dono do produto, com o veto do Paulo a meta nova até medir a capacidade): os
+ * quadros mostram o realizado, sem alvo. O plano do mês (`monetizacao_planos`) não entra mais aqui.
  *
  * Card abordado antes do período que avançou nele (06/10/2026, decisão do dono): agendados, realizados e validadas
  * seguem na coorte e dizem na nota quantos chegaram à etapa vindos de abordagem anterior, que também entram na lista do
- * quadro. Contrato conta todo ganho do período, da coorte ou não, contra a meta mensal proporcional aos dias úteis do
- * período, arredondada para cima: é a mesma conta do Cockpit do CEO.
+ * quadro. Contrato conta todo ganho do período, da coorte ou não: é a mesma conta do Cockpit do CEO.
  */
-export function metasOperacao(
+export function quadrosDaOperacao(
   fc: FunilCumulativo,
-  plan: Plano | undefined,
   f: Filtro,
-  hojeIso = hoje(),
-): { quadros: QuadroMeta[]; uteis: number } {
+): { quadros: QuadroOperacao[]; uteis: number } {
   const n = uteis(f.from, f.to);
-  const soHoje = f.from === hojeIso && f.to === hojeIso;
   const ritmo = (total: number) => (n ? Math.round((total / n) * 10) / 10 : 0);
-  const status = (valor: number, meta: number | null): StatusMeta =>
-    meta === null ? "sem-meta" : valor >= meta ? "na-meta" : soHoje ? "dia-em-curso" : "fora";
   const emDias = (total: number) => `${total} em ${n} ${n === 1 ? "dia útil" : "dias úteis"}`;
-  const mes = f.to.slice(0, 7);
-  const uteisMes = uteis(mes + "-01", fimDoMes(mes));
-  const metaContratos =
-    plan?.target_contracts && uteisMes
-      ? Math.ceil((plan.target_contracts * Math.min(n, uteisMes)) / uteisMes)
-      : null;
   const cards = (chave: Parameters<typeof linhaDa>[1]) => linhaDa(fc, chave)?.cards ?? [];
   const abordados = cards("abordagem");
   const agendados = cards("agendada");
@@ -780,7 +687,6 @@ export function metasOperacao(
   const ganhos = cards("ganho");
   const sobre = (a: number, b: number, de: string) =>
     b ? `${PCT.format(a / b)} ${de}` : `Nenhum ${de.replace(/^d[oa]s /, "")} no período`;
-  const metaLeads = plan?.daily_target || null;
   const anteriores = (chave: "agendada" | "realizada" | "negociacao") =>
     chegaramAoNivel(fc.avancosAnteriores ?? [], fc.regua.nivelDe[chave]);
   const mais = (n: number) => (n ? ` · +${n} de abordagem anterior` : "");
@@ -789,14 +695,12 @@ export function metasOperacao(
   const validadasAntes = anteriores("negociacao");
   const fora = fc.ganhosForaDaCoorte;
   const contratos = ganhos.length + fora.length;
-  const quadros: QuadroMeta[] = [
+  const quadros: QuadroOperacao[] = [
     {
       chave: "started",
       rotulo: "Leads trabalhados por dia útil",
       valor: ritmo(abordados.length),
       total: abordados.length,
-      meta: metaLeads,
-      status: status(ritmo(abordados.length), metaLeads),
       nota: emDias(abordados.length),
       formula:
         "Cards que a pré-venda tirou da Base elegível no período (a coorte do funil), divididos pelos dias úteis, sem os feriados nacionais.",
@@ -807,8 +711,6 @@ export function metasOperacao(
       rotulo: "Levantamentos com sócio agendados",
       valor: agendados.length,
       total: agendados.length,
-      meta: null,
-      status: "sem-meta",
       nota:
         sobre(agendados.length, abordados.length, "dos abordados") + mais(agendadosAntes.length),
       formula:
@@ -820,8 +722,6 @@ export function metasOperacao(
       rotulo: "Levantamentos com sócio realizados",
       valor: realizados.length,
       total: realizados.length,
-      meta: null,
-      status: "sem-meta",
       nota:
         sobre(realizados.length, agendados.length, "dos agendados") + mais(realizadosAntes.length),
       formula:
@@ -833,8 +733,6 @@ export function metasOperacao(
       rotulo: "Oportunidades validadas",
       valor: validadas.length,
       total: validadas.length,
-      meta: null,
-      status: "sem-meta",
       nota:
         (realizados.length
           ? `${validadas.length} de ${realizados.length} realizados viraram oportunidade`
@@ -848,13 +746,11 @@ export function metasOperacao(
       rotulo: "Contratos ganhos",
       valor: contratos,
       total: contratos,
-      meta: metaContratos,
-      status: status(contratos, metaContratos),
       nota: fora.length
         ? `${fora.length} de abordagem anterior`
-        : plan?.target_contracts
-          ? `Meta de ${plan.target_contracts} no mês, proporcional a ${n} de ${uteisMes} dias úteis`
-          : "Meta do mês a definir",
+        : contratos
+          ? "todos abordados no período"
+          : "Nenhum contrato ganho no período",
       formula:
         "Cards marcados como ganhos no Pipedrive no período, por quem o filtro mede, abordados no período ou antes: a mesma conta do Cockpit do CEO. A nota diz quantos vieram de abordagem anterior.",
       cards: [...ganhos, ...fora],
@@ -862,7 +758,21 @@ export function metasOperacao(
   ];
   return { quadros, uteis: n };
 }
-function fimDoMes(mes: string) {
-  const [a, m] = mes.split("-").map(Number);
-  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+
+/**
+ * Ritmo de abordagem de um dono no mês corrente (Distribuição, desde 09/10/2026, no lugar da capacidade do plano):
+ * negócios de que ele é dono hoje com a primeira abordagem (`started_at`) no mês, no fuso de São Paulo, divididos
+ * pelos dias úteis do mês decorridos até hoje, inclusive. Uma casa decimal; `null` antes do primeiro dia útil do mês.
+ */
+export function abordagensPorDiaUtil(cards: Negocio[], dono: number, hojeIso = hoje()) {
+  const mes = hojeIso.slice(0, 7);
+  const abordados = cards.filter(
+    (c) => c.owner_id === dono && !!c.started_at && mesLocal(c.started_at) === mes,
+  );
+  const n = uteis(mes + "-01", hojeIso);
+  return {
+    abordados,
+    uteis: n,
+    ritmo: n ? Math.round((abordados.length / n) * 10) / 10 : null,
+  };
 }
