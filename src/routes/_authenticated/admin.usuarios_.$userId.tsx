@@ -57,6 +57,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { fmtWhatsapp, whatsappHref } from "@/lib/telefone";
 
 /**
  * Ficha da pessoa: o que ela acessa, e por quê, num lugar só.
@@ -271,7 +272,27 @@ function Ficha({
         pergunta={`O que ${primeiroNome} acessa, e por quê?`}
         descricao={
           <>
-            {f.email} · {f.ultimoLogin ? `último acesso ${haQuanto(f.ultimoLogin)}` : "nunca entrou"}
+            <a href={`mailto:${f.email}`} className="hover:text-foreground hover:underline">
+              {f.email}
+            </a>
+            {" · "}
+            {f.telefone ? (
+              <>
+                <a
+                  href={whatsappHref(f.telefone.numero) ?? `tel:${f.telefone.numero}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-foreground hover:underline"
+                >
+                  {fmtWhatsapp(f.telefone.numero)}
+                </a>
+                {f.telefone.fonte === "socio" ? " (cadastro de sócio)" : " (People)"}
+              </>
+            ) : (
+              "sem telefone cadastrado"
+            )}
+            <br />
+            {f.ultimoLogin ? `Último acesso ${haQuanto(f.ultimoLogin)}` : "Nunca entrou"}
             {f.criadoEm && ` · conta criada ${haQuanto(f.criadoEm)}`}
           </>
         }

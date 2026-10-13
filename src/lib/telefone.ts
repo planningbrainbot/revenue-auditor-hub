@@ -73,3 +73,24 @@ export function validarTelefone(raw: string | null | undefined): ValidacaoTelefo
 
   return { valido: true, motivo: null, digitos: d };
 }
+
+/** Telefone como se lê: (DD) 9XXXX-XXXX; o que não reconhece volta como veio. */
+export function fmtWhatsapp(v: string | null): string | null {
+  if (!v) return null;
+  const d = v.replace(/\D/g, "");
+  const local = d.startsWith("55") && d.length > 11 ? d.slice(2) : d;
+  if (local.length === 11) {
+    return local.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  }
+  if (local.length === 10) {
+    return local.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  }
+  return v;
+}
+
+export function whatsappHref(v: string | null): string | null {
+  if (!v) return null;
+  const d = v.replace(/\D/g, "");
+  if (d.length < 10) return null;
+  return `https://wa.me/${d.startsWith("55") ? d : `55${d}`}`;
+}

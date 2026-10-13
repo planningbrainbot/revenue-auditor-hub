@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { fmtWhatsapp, whatsappHref } from "@/lib/telefone";
 
 // Contatos vêm da database Pipefy "[PTRS-DB-03] Stakeholder" (307173446),
 // espelhada em public.contatos (migration 21). O vínculo com o cliente é o
@@ -27,26 +28,6 @@ export type ClienteSelecionado = {
   nome: string;
   unidade: string | null;
 };
-
-function fmtWhatsapp(v: string | null): string | null {
-  if (!v) return null;
-  const d = v.replace(/\D/g, "");
-  const local = d.startsWith("55") && d.length > 11 ? d.slice(2) : d;
-  if (local.length === 11) {
-    return local.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-  }
-  if (local.length === 10) {
-    return local.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
-  }
-  return v;
-}
-
-function whatsappHref(v: string | null): string | null {
-  if (!v) return null;
-  const d = v.replace(/\D/g, "");
-  if (d.length < 10) return null;
-  return `https://wa.me/${d.startsWith("55") ? d : `55${d}`}`;
-}
 
 export function ContatosClienteDialog({
   cliente,

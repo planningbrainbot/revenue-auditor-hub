@@ -990,6 +990,8 @@ export type FichaDaPessoa = {
   userId: string;
   nome: string | null;
   email: string;
+  /** Telefone do cadastro de sócio; sem ele, o do People. */
+  telefone: { numero: string; fonte: "socio" | "gente" } | null;
   ativo: boolean;
   criadoEm: string | null;
   ultimoLogin: string | null;
@@ -1075,10 +1077,10 @@ export const adminFichaPessoa = createServerFn({ method: "POST" })
       db.from("usuario_unidades").select("unidade_id, unidades(nome_da_praca)").eq("user_id", id),
       db.from("usuario_empresas").select("empresa_id").eq("user_id", id),
       db.schema("growth").from("membros").select("papel, departamento").eq("user_id", id).maybeSingle(),
-      db.from("socios").select("unidade, unidade_id, unidades(nome_da_praca)").eq("user_id", id).limit(1).maybeSingle(),
+      db.from("socios").select("unidade, unidade_id, telefone, unidades(nome_da_praca)").eq("user_id", id).limit(1).maybeSingle(),
       db
         .from("gente_pessoas")
-        .select("id, nome_completo, cargo, unidades(nome_da_praca)")
+        .select("id, nome_completo, cargo, telefone, unidades(nome_da_praca)")
         .eq("user_id", id)
         .limit(1)
         .maybeSingle(),
@@ -1168,14 +1170,16 @@ export const adminFichaPessoa = createServerFn({ method: "POST" })
     // Cadastro do Gente com o mesmo e-mail e sem login: o vínculo que a tela
     // oferece fazer, porque sem ele 1:1 e feedback barram em silêncio.
     let genteSemVinculo: FichaDaPessoa["genteSemVinculo"] = null;
+    let telefoneSemVinculo: string | null = null;
     if (!genteRes.data && email) {
       const { data: g } = await db
         .from("gente_pessoas")
-        .select("id, nome_completo, origem, gestor_id, unidades(nome_da_praca)")
+        .select("id, nome_completo, origem, gestor_id, telefone, unidades(nome_da_praca)")
         .eq("email", email)
         .is("user_id", null)
         .maybeSingle();
       if (g) {
+        telefoneSemVinculo = g.telefone ?? null;
         // O gestor é o que importa antes de ligar: quem liga dá a ele a leitura
         // dos 1:1 e PDIs desta pessoa.
         const { data: gestor } = g.gestor_id
@@ -1211,13 +1215,25 @@ export const adminFichaPessoa = createServerFn({ method: "POST" })
       ]),
     );
 
-    const socio = socioRes.data as { unidade: string | null; unidades: { nome_da_praca: string } | null } | null;
+    const socio = socioRes.data as {
+      unidade: string | null;
+      telefone: string | null;
+      unidades: { nome_da_praca: string } | null;
+    } | null;
     const gente = genteRes.data as {
       id: number;
       nome_completo: string;
       cargo: string | null;
+      telefone: string | null;
       unidades: { nome_da_praca: string } | null;
     } | null;
+    const telSocio = socio?.telefone?.trim();
+    const telGente = (gente?.telefone ?? telefoneSemVinculo)?.trim();
+    const telefone: FichaDaPessoa["telefone"] = telSocio
+      ? { numero: telSocio, fonte: "socio" }
+      : telGente
+        ? { numero: telGente, fonte: "gente" }
+        : null;
     const pedido = pedidoRes.data as {
       id: number;
       cargo: string;
@@ -1230,6 +1246,7 @@ export const adminFichaPessoa = createServerFn({ method: "POST" })
       userId: id,
       nome: profile.nome,
       email,
+      telefone,
       ativo: profile.ativo !== false,
       criadoEm: profile.criado_em ?? authUser?.created_at ?? null,
       ultimoLogin: authUser?.last_sign_in_at ?? null,
