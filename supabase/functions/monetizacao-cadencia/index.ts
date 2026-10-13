@@ -39,6 +39,8 @@ const PD = Deno.env.get("PIPEDRIVE_TOKEN")!;
 const SEGREDO = Deno.env.get("MONETIZACAO_SYNC_SECRET");
 const ATIVA = Deno.env.get("MONET_CADENCIA_ATIVA") === "sim";
 const INICIO = Deno.env.get("MONET_CADENCIA_INICIO") || null;
+// MONET_CADENCIA_EMAIL_D0_AUTO=sim quando a automação do Pipedrive manda o e-mail do D0 (13/10/2026): ele nasce feito.
+const EMAIL_D0_AUTO = Deno.env.get("MONET_CADENCIA_EMAIL_D0_AUTO") === "sim";
 const TABELA = "monetizacao_cadencia";
 
 const { pd, pages } = pipedriveApi(PD);
@@ -136,6 +138,7 @@ Deno.serve(async (req) => {
       ativo,
       regua: REGUA,
       versao: VERSAO_REGUA,
+      emailD0Automatico: EMAIL_D0_AUTO,
     });
     // O cron espera 150 s: a conferência das feitas usa o que sobrou até 125 s.
     const feitas = await marcarFeitas({
@@ -150,6 +153,7 @@ Deno.serve(async (req) => {
       status: resumo.status === "ok" && !feitas.erros.length ? "ok" : "com_erros",
       feitas,
       automacao: ATIVA ? "ligada" : "desligada (MONET_CADENCIA_ATIVA diferente de sim)",
+      email_d0: EMAIL_D0_AUTO ? "automático (nasce feito)" : "manual",
     });
   } catch (e) {
     return json({ status: "erro", error: (e as Error).message }, 500);

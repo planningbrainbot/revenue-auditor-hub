@@ -269,6 +269,29 @@ test("cria a cadência do card que veio da 274, com dono, tipo e nota", async ()
   assert.equal(store.chamadas.find(([m]) => m === "insert" || m === "update")[0], "insert");
 });
 
+test("e-mail do D0 automático: nasce feito, com a nota de conferência; o resto nasce aberto", async () => {
+  const pd = fakePipedrive({
+    abertos: [deal(101, "2026-10-09 15:00:00")],
+    flows: { 101: [mudanca(274, 276, "2026-10-09 15:00:00")] },
+  });
+  const store = fakeStore();
+  await rodar(pd, store, { emailD0Automatico: true });
+  const posts = pd.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p);
+  assert.equal(posts.length, 3);
+  assert.equal(posts[0].type, "email");
+  assert.equal(posts[0].done, 1);
+  assert.ok(posts[0].note.startsWith("Enviado pela automação do Pipedrive"));
+  assert.ok(posts[0].note.endsWith("Olá, [NOME]"));
+  assert.deepEqual(posts.slice(1).map((p) => p.done), [0, 0]);
+  // Sem a chave, nada muda.
+  const pd2 = fakePipedrive({
+    abertos: [deal(102, "2026-10-09 15:00:00")],
+    flows: { 102: [mudanca(274, 276, "2026-10-09 15:00:00")] },
+  });
+  await rodar(pd2, fakeStore());
+  assert.deepEqual(pd2.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p.done), [0, 0, 0]);
+});
+
 test("idempotência: rodar duas vezes não duplica atividade nem linha", async () => {
   const pd = fakePipedrive({
     abertos: [deal(101, "2026-10-09 15:00:00")],

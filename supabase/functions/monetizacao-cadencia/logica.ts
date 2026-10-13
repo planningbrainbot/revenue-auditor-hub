@@ -373,7 +373,19 @@ export type OpcoesCadencia = {
   horario?: Readonly<Record<Turno, string>>;
   relogio?: () => number;
   orcamentoMs?: number;
+  /**
+   * MONET_CADENCIA_EMAIL_D0_AUTO=sim: a automação do Pipedrive manda o e-mail de apresentação na entrada da 276, pela
+   * caixa do dono do card (pedido do Pedro, 13/10/2026). O e-mail do D0 da régua nasce já feito, com a nota dizendo
+   * onde conferir, para o pré-vendedor não mandar de novo.
+   */
+  emailD0Automatico?: boolean;
 };
+
+export const NOTA_EMAIL_D0_AUTOMATICO =
+  "Enviado pela automação do Pipedrive na entrada da etapa, pela caixa do dono do card. Confira na aba E-mails do card. Se não estiver lá, mande o texto abaixo e deixe esta atividade como feita.\n\n";
+
+/** O item da régua que a automação do Pipedrive cobre: o e-mail do D0. */
+export const ehEmailD0 = (item: Pick<ItemRegua, "dia" | "tipo">) => item.dia === 0 && item.tipo === "email";
 
 // ---------------------------------------------------------------------------- rodada
 
@@ -473,6 +485,7 @@ async function criarAtividades(
   try {
     for (const p of faltam) {
       const tipo = tipos.get(p.tipo) ?? "task";
+      const automatico = !!op.emailD0Automatico && ehEmailD0(p);
       const r = await pd.post("activities", {
         subject: p.subject,
         type: tipo,
@@ -481,8 +494,8 @@ async function criarAtividades(
         duration: DURACAO_ATIVIDADE,
         deal_id: Number(linha.deal_id),
         ...(dono ? { user_id: dono } : {}),
-        note: p.note,
-        done: 0,
+        note: automatico ? notaHtml(NOTA_EMAIL_D0_AUTOMATICO) + p.note : p.note,
+        done: automatico ? 1 : 0,
       });
       const id = Number(r?.data?.id);
       if (!id) throw new Error(`Pipedrive não devolveu o id da atividade ${p.chave}`);
