@@ -1,5 +1,5 @@
 import { ehDiaUtil } from "./feriados.ts";
-import { chegaramAoNivel, linhaDa } from "./funil-cumulativo.ts";
+import { chegaramAoNivel, linhaDa, noProduto } from "./funil-cumulativo.ts";
 import { aplicarRegiaoFinance } from "./regiao.ts";
 import { doResponsavel } from "./responsavel.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
@@ -450,7 +450,7 @@ export interface Filtro {
 }
 export function operacao(cards: Negocio[], f: Filtro) {
   const period = dias(f.from, f.to),
-    pool = cards.filter((c) => !f.product || c.route === f.product);
+    pool = cards.filter((c) => noProduto(c, f.product));
   const match = (c: Negocio, k: Metrica, day?: string) =>
     c.events[k].some(
       (e) =>
