@@ -249,10 +249,14 @@ async function supaPost(
 // diferentes — acontece sempre que um campo é omitido condicionalmente (ex:
 // cnpj só entra quando tem valor, pra não sobrescrever com null um dado já
 // preenchido em banco). Agrupa por conjunto de chaves antes de enviar.
+// `linhaALinha`: lote recusado é regravado uma linha por vez, e só a linha ruim
+// fica de fora (com a falha no sync_log). Em 14/10/2026 um deal com a unidade
+// 1124, sem rótulo, derrubou o lote de 146 empresas por causa dele sozinho.
 async function supaPostGrouped(
   path: string,
   rows: Record<string, unknown>[],
   prefer?: string,
+  linhaALinha = false,
 ): Promise<any[]> {
   const groups = new Map<string, Record<string, unknown>[]>();
   for (const r of rows) {
@@ -262,7 +266,14 @@ async function supaPostGrouped(
   }
   const result: any[] = [];
   for (const group of groups.values()) {
-    result.push(...(await supaPost(path, group, prefer)));
+    const falhasAntes = FALHAS_ESCRITA.length;
+    const lote = await supaPost(path, group, prefer);
+    if (linhaALinha && group.length > 1 && FALHAS_ESCRITA.length > falhasAntes) {
+      FALHAS_ESCRITA.length = falhasAntes;
+      for (const row of group) result.push(...(await supaPost(path, [row], prefer)));
+    } else {
+      result.push(...lote);
+    }
   }
   return result;
 }
@@ -376,7 +387,10 @@ function mapEmpresa(d: Record<string, unknown>, includeCnpj: boolean): Record<st
     pipedrive_id: String(d.id),
     titulo: title,
     razao_social: razaoSocial,
-    unidade,
+    // Opção do Pipedrive sem rótulo volta como id cru, e `empresas` recusa unidade
+    // numérica (empresas_unidade_nao_e_id). A empresa entra sem unidade; o
+    // contrato segue gravando o id, como antes.
+    unidade: /^\d+$/.test(String(unidade ?? "")) ? null : unidade,
     tipo_unidade: tipoUnidade,
     fonte_cadastro: "pipedrive_sync",
   };
@@ -560,7 +574,7 @@ async function upsertEmpresasSemDuplicarCnpj(
   // Linhas só do Pipedrive: o upsert de sempre, sem risco de bater no guarda.
   if (dealsNormais.length > 0) {
     const empRows = dealsNormais.map((d) => mapEmpresa(d, true));
-    await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows, "resolution=merge-duplicates,return=minimal");
+    await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows, "resolution=merge-duplicates,return=minimal", true);
   }
   // Empresa nova: só insere. Se outra fonte criou a linha no meio da rodada, o
   // conflito é ignorado e a ligação sai na rodada seguinte, pelo caso 1.
@@ -570,6 +584,7 @@ async function upsertEmpresasSemDuplicarCnpj(
       "empresas?on_conflict=pipedrive_id",
       empRows,
       "resolution=ignore-duplicates,return=representation",
+      true,
     );
     for (const e of empResult) {
       if (e.pipedrive_id) pidToEid.set(String(e.pipedrive_id), e.id);
