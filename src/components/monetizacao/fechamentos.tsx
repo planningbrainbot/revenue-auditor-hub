@@ -60,7 +60,7 @@ export function Fechamentos({
     <div className="space-y-6">
       <Secao
         titulo="O que deve fechar, e quando?"
-        descricao={`${contratos(fc.total)} da Reunião de proposta em diante, sem o Stand by, pela data esperada de fechamento do Pipedrive. A data é atualizada na daily.`}
+        descricao={`${INT.format(fc.total)} ${fc.total === 1 ? "card aberto" : "cards abertos"} da Reunião de proposta em diante, sem o Stand by, pela data esperada de fechamento do Pipedrive. A data é atualizada na daily.`}
       >
         <KpiGrade colunas={3}>
           {fc.grupos.map((g) => (
