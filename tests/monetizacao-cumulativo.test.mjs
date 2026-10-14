@@ -577,3 +577,36 @@ test("Lista de atenção: em Abordagem, sem nunca chegar à Conexão, abordado h
   );
   assert.equal(lista[0].abordadoEm, "2026-09-10");
 });
+
+test("Funil por produto com repetição: rota e produtos ofertados; ofertado em outro para no levantamento (14/10/2026)", () => {
+  const base = mv(274, "2026-08-20 12:00:00");
+  const caminho = [
+    base,
+    mv(276, "2026-09-02 13:00:00"),
+    mv(277, "2026-09-03 13:00:00"),
+    mv(287, "2026-09-04 13:00:00"),
+    mv(279, "2026-09-05 13:00:00"),
+  ];
+  // Rota Finance, ofertado Cella e Finance no levantamento: validado nos dois produtos.
+  const ambos = card({ route: "finance", moves: caminho });
+  ambos.offered = ["cella", "finance"];
+  // Rota Finance, ofertado só Cella: no funil Finance para no levantamento realizado; no Cella vai até validada.
+  const trocou = card({ route: "finance", moves: caminho });
+  trocou.offered = ["cella"];
+  // Rota Finance sem Produtos ofertados: vale a rota inteira, como antes.
+  const semOferta = card({ route: "finance", moves: caminho });
+  const cards = [ambos, trocou, semOferta];
+  const total = funilCumulativo(cards, ST, SET);
+  const finance = funilCumulativo(cards, ST, { ...SET, product: "finance" });
+  const cella = funilCumulativo(cards, ST, { ...SET, product: "cella" });
+  const linha = (fc, chave) => fc.linhas.find((l) => l.chave === chave).contagem;
+  assert.equal(linha(total, "abordagem"), 3);
+  assert.equal(linha(total, "negociacao"), 3);
+  assert.equal(linha(finance, "abordagem"), 3);
+  assert.equal(linha(finance, "realizada"), 3);
+  assert.equal(linha(finance, "negociacao"), 2);
+  assert.equal(linha(cella, "abordagem"), 2);
+  assert.equal(linha(cella, "negociacao"), 2);
+  // A soma dos produtos passa do total (repete), e cada funil só desce.
+  assert.ok(linha(finance, "negociacao") + linha(cella, "negociacao") > linha(total, "negociacao"));
+});

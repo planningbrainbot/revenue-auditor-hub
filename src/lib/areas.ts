@@ -503,6 +503,8 @@ export const AREAS: Area[] = [
             url: "/monetizacao?aba=handoff-consultoria",
             icon: HandCoins,
           },
+          // Forecast (14/10/2026, call com o Paulo): data esperada de fechamento e receita do mês.
+          { title: "Forecast", url: "/monetizacao?aba=fechamentos", icon: CalendarClock },
           // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
           // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],
@@ -608,7 +610,8 @@ export const AREAS: Area[] = [
     // na migration 20260929120000; o COO entra pela tela de acessos.
     slug: "cockpit_coo",
     nome: "Cockpit do COO",
-    descricao: "A pauta da semana da Expansão: números de todas as unidades, OKRs, tarefas do ClickUp e compromissos.",
+    descricao:
+      "A pauta da semana da Expansão: números de todas as unidades, OKRs, tarefas do ClickUp e compromissos.",
     icone: CalendarDays,
     grupos: [
       {
@@ -628,7 +631,11 @@ export const AREAS: Area[] = [
       {
         label: "Execução",
         items: [
-          { title: "Tarefas e compromissos", url: "/cockpit-coo/compromissos", icon: ClipboardList },
+          {
+            title: "Tarefas e compromissos",
+            url: "/cockpit-coo/compromissos",
+            icon: ClipboardList,
+          },
           { title: "Perguntar ao Brain", url: "/cockpit-coo/perguntar", icon: MessagesSquare },
         ],
       },

@@ -645,8 +645,9 @@ export function PorProduto({
           <h2 className="text-base font-semibold text-foreground">Qual produto avança na base?</h2>
           <p className="text-[13px] text-muted-foreground">
             Abordados no período por produto, cada um até a etapa mais adiantada. A barra compara os
-            produtos na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. Clique no número
-            para abrir os negócios.
+            produtos na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. O card conta no
+            produto da rota e em cada produto ofertado no levantamento. Clique no número para abrir
+            os negócios.
           </p>
         </div>
       </div>
@@ -758,7 +759,9 @@ export function FunilLadoALado({
         </h2>
         <p className="text-[13px] text-muted-foreground">
           O funil de cima, um produto por coluna: abordados no período, cada um até a etapa mais
-          adiantada. A porcentagem é a etapa ÷ a de cima; a barra compara com a fila do produto.
+          adiantada. A porcentagem é a etapa ÷ a de cima; a barra compara com a fila do produto. O
+          card conta no produto da rota e em cada produto ofertado no levantamento, então a soma das
+          colunas pode passar do total.
         </p>
       </div>
       {produto ? (

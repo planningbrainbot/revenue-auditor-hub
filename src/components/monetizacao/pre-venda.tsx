@@ -18,10 +18,11 @@ import {
   type LinhaAvaliacao,
   type LinhaRitmo,
 } from "@/lib/monetizacao/pre-venda";
-import type { AtividadeCadencia } from "@/lib/monetizacao/hoje-pre-venda";
+import type { AtividadeCadencia, SugestaoJev } from "@/lib/monetizacao/hoje-pre-venda";
 import {
   carregarAtrasadosPreVenda,
   carregarCadenciasPreVenda,
+  carregarSugestoesPreVenda,
   carregarAvaliacaoPreVenda,
   carregarAvaliacoesPreVenda,
   carregarRitmoPreVenda,
@@ -92,6 +93,7 @@ export function PainelPreVenda({
   atualizadoEm,
   data,
   cadencias,
+  sugestoes,
   abrir,
 }: {
   busca: BuscaMonetizacao;
@@ -108,6 +110,7 @@ export function PainelPreVenda({
   atualizadoEm: string | null;
   data: Pick<BaseMonetizacao, "cards" | "stages" | "units">;
   cadencias: Consulta<AtividadeCadencia[]>;
+  sugestoes: Consulta<SugestaoJev[]>;
   abrir: AbrirCards;
 }) {
   const visao = visaoDa(busca);
@@ -116,6 +119,7 @@ export function PainelPreVenda({
       <HojePreVenda
         data={data}
         cadencias={cadencias}
+        sugestoes={sugestoes}
         hoje={periodo.hoje}
         pessoa={busca.responsavel}
         abrir={abrir}
@@ -176,6 +180,7 @@ export function VisaoPreVenda({
   const avaliacoesFn = useServerFn(carregarAvaliacoesPreVenda);
   const fichaFn = useServerFn(carregarAvaliacaoPreVenda);
   const cadenciasFn = useServerFn(carregarCadenciasPreVenda);
+  const sugestoesFn = useServerFn(carregarSugestoesPreVenda);
   const intervalo = { de: periodo.de, ate: periodo.ate };
   // "Ainda não ativada" e "sem acesso" não melhoram tentando de novo.
   const repetir = (n: number, e: Error) => n < 1 && classificarErroPreVenda(e.message) === "erro";
@@ -195,6 +200,12 @@ export function VisaoPreVenda({
   const qCadencias = useQuery({
     queryKey: ["monetizacao-pre-venda-cadencias", user?.id],
     queryFn: () => cadenciasFn(),
+    enabled: !!user && visao === "hoje",
+    ...comum,
+  });
+  const qSugestoes = useQuery({
+    queryKey: ["monetizacao-pre-venda-sugestoes", user?.id],
+    queryFn: () => sugestoesFn(),
     enabled: !!user && visao === "hoje",
     ...comum,
   });
@@ -230,6 +241,7 @@ export function VisaoPreVenda({
       atualizadoEm={data.measured_at}
       data={data}
       cadencias={consulta(qCadencias)}
+      sugestoes={consulta(qSugestoes)}
       abrir={abrir}
     />
   );

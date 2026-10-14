@@ -18,6 +18,9 @@ export const ABAS = [
   // Pré-venda (09/10/2026): Ritmo, Aderência e Ficha na mesma aba (`visao`). Recebeu Gravações (Ficha › Reuniões) e o
   // lugar de Pessoas e PDI (Aderência), que saíram do menu (decisão 1A do PRD aprovado em 09/10).
   "pre-venda",
+  // Forecast (14/10/2026, call com o Paulo): o que deve fechar hoje, na semana e no mês, e quanto o mês fecha em receita.
+  // A chave "forecast" é da tela Projetado × realizado, aposentada em 09/10; por isso "fechamentos".
+  "fechamentos",
   // Tela Consultoria: duas visões na mesma aba (`visao`), uma entrada só na lateral.
   "handoff-consultoria",
   "funil",

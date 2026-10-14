@@ -19,7 +19,7 @@
  * texto ("2026-09-01 10:00:00" < "2026-09-01T03:00:00Z" dava verdadeiro no script de referência).
  */
 import type { Filtro } from "./model";
-import type { Movimento, Negocio } from "./types";
+import type { Movimento, Negocio, Produto } from "./types";
 import { doResponsavel } from "./responsavel.ts";
 import {
   chaveDaEtapa,
@@ -321,8 +321,25 @@ export interface FunilCumulativo {
   abertos: number;
 }
 
+/**
+ * Funil por produto com repetição (call com o Paulo, 14/10/2026: "pode repetir, vai ter cliente que atende os 3"). O card
+ * está no produto pela rota, por onde a empresa entrou, ou por ter sido ofertado no levantamento (Caixa · Produtos
+ * ofertados). Card ofertado em dois produtos aparece nos dois; o total, sem filtro, não repete.
+ */
+export const noProduto = (c: Negocio, product: Filtro["product"] | "sem_produto" | undefined) =>
+  !product || c.route === product || (c.offered ?? []).includes(product as Produto);
+
+/**
+ * O levantamento ofertou outros produtos e não este: no funil da rota, o card para no levantamento realizado (chegou
+ * até lá por este produto e seguiu por outro). Sem Produtos ofertados preenchido, vale a rota inteira, como antes.
+ */
+export const paraNoLevantamento = (
+  c: Negocio,
+  product: Filtro["product"] | "sem_produto" | undefined,
+) => !!product && !!c.offered?.length && !c.offered.includes(product as Produto);
+
 const doProduto = (cards: Negocio[], f: Pick<Filtro, "product">) =>
-  cards.filter((c) => !f.product || c.route === f.product);
+  cards.filter((c) => noProduto(c, f.product));
 
 export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): FunilCumulativo {
   const regua = reguaDoPipe(stages);
@@ -334,7 +351,9 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
     const inicio = inicioDaAbordagem(c, f);
     if (inicio === null) continue;
     coorte.push(c);
-    nivelDoCard.set(c.id, nivelNoPeriodo(c, inicio, f, regua));
+    const nivel = nivelNoPeriodo(c, inicio, f, regua);
+    const teto = paraNoLevantamento(c, f.product) ? regua.nivelDe.realizada : undefined;
+    nivelDoCard.set(c.id, teto === undefined ? nivel : Math.min(nivel, teto));
   }
   const abertos = pool.filter((c) => c.status === "open");
   const linhas: LinhaCumulativa[] = regua.niveis.map((n) => {
@@ -357,6 +376,7 @@ export function funilCumulativo(cards: Negocio[], stages: Etapa[], f: Filtro): F
   const ganhosForaDaCoorte = pool.filter(
     (c) =>
       !naCoorte.has(c.id) &&
+      !paraNoLevantamento(c, f.product) &&
       c.events.signed.some((e) => noPeriodo(e.date, f) && doResponsavel(f, e.actor_id)),
   );
   const medePerda = pool.some((c) => c.lost_on !== undefined);

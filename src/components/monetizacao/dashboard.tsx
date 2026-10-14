@@ -33,6 +33,8 @@ import {
   situacaoDoNegocio,
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
+import { nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
+import { Fechamentos } from "./fechamentos";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
@@ -97,6 +99,7 @@ export type { Aba };
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
   "pre-venda": "Pré-venda",
+  fechamentos: "Forecast",
   "handoff-consultoria": "Consultoria",
   funil: "Funil comercial",
   roteiros: "Abordagens",
@@ -104,6 +107,7 @@ const TITULOS: Record<Aba, string> = {
 };
 const PERGUNTAS: Record<Exclude<Aba, "pre-venda">, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
+  fechamentos: "O que deve fechar hoje, na semana e no mês?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
   roteiros: "O que eu digo para este produto e este segmento?",
@@ -129,6 +133,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: bool
   // Pré-venda: período e pessoa nas três visões; sem produto (a cadência e a ligação não têm produto). Ficha ›
   // Reuniões tem barra própria (mês da reunião, situação da gravação e busca), a da antiga tela Gravações.
   "pre-venda": { periodo: true, produto: false, responsavel: true },
+  // Forecast olha para a frente, a partir de hoje: sem período; pessoa = dono do card.
+  fechamentos: { periodo: false, produto: true, responsavel: true },
   distribuicao: { periodo: true, produto: true, responsavel: false },
   roteiros: null,
   // Tela própria (consultoria.tsx: Handoff e Cruzamento), com barra e leitura dela; a rota desvia antes daqui.
@@ -298,20 +304,36 @@ export function DashboardMonetizacao({
       </main>
     );
 
-  const view = operacao(data.cards, filter);
+  // Filtro por unidade, só na Operação (call com o Paulo, 14/10/2026: produto, pré-vendedor e unidade no mesmo
+  // funil). O card entra quando a conta dele é da unidade (`unidade_ids`, da carga). A chave `unidade` da URL é a mesma
+  // da Consultoria, que guarda o nome; aqui ela guarda o id, e por isso fica fora dos filtros compartilhados.
+  const unidadeId =
+    aba === "operacao" && busca.unidade && /^\d{1,9}$/.test(busca.unidade)
+      ? Number(busca.unidade)
+      : null;
+  const nomeDaUnidade = nomesDasUnidades(data.units);
+  const unidadesNoPipe = [...new Set(data.cards.flatMap((c) => c.unidade_ids ?? []))]
+    .map((id) => ({ id, nome: nomeDaUnidade.get(id) ?? `Unidade ${id}` }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const cards =
+    unidadeId === null
+      ? data.cards
+      : data.cards.filter((c) => (c.unidade_ids ?? []).includes(unidadeId));
+  const dadosDoRecorte = unidadeId === null ? data : { ...data, cards };
+  const view = operacao(cards, filter);
   // Régua cumulativa (01/10/2026): o funil, os quadros e as tabelas por produto contam a mesma coorte.
   // `funis.total` é o recorte da barra; os produtos ignoram o filtro de produto para poder comparar.
   const funis: FunisPorProduto | null =
     aba === "operacao"
       ? {
-          total: funilCumulativo(data.cards, data.stages, filter),
-          cella: funilCumulativo(data.cards, data.stages, { ...filter, product: "cella" }),
-          finance: funilCumulativo(data.cards, data.stages, { ...filter, product: "finance" }),
-          consultoria: funilCumulativo(data.cards, data.stages, {
+          total: funilCumulativo(cards, data.stages, filter),
+          cella: funilCumulativo(cards, data.stages, { ...filter, product: "cella" }),
+          finance: funilCumulativo(cards, data.stages, { ...filter, product: "finance" }),
+          consultoria: funilCumulativo(cards, data.stages, {
             ...filter,
             product: "consultoria",
           }),
-          sem_produto: funilCumulativo(data.cards, data.stages, {
+          sem_produto: funilCumulativo(cards, data.stages, {
             ...filter,
             product: "sem_produto" as Filtro["product"],
           }),
@@ -339,6 +361,8 @@ export function DashboardMonetizacao({
     ate: diaMes(filter.to),
     mesGravacoes: busca.mes,
     busca,
+    unidade:
+      unidadeId === null ? undefined : (nomeDaUnidade.get(unidadeId) ?? `Unidade ${unidadeId}`),
   });
 
   const menosDias = (n: number) =>
@@ -360,13 +384,16 @@ export function DashboardMonetizacao({
         ...(barra.responsavel ? (["responsavel"] as const) : []),
       ] as (keyof Compartilhados)[])
     : [];
-  const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined);
+  const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined) || unidadeId !== null;
   const filtros = barra && (
     <BarraFiltros
       className="items-end"
       aoLimpar={
         temFiltro
-          ? () => mudarFiltros(Object.fromEntries(chavesDaBarra.map((k) => [k, undefined])))
+          ? () => {
+              mudarFiltros(Object.fromEntries(chavesDaBarra.map((k) => [k, undefined])));
+              if (unidadeId !== null) mudarBusca({ unidade: undefined });
+            }
           : undefined
       }
     >
@@ -445,6 +472,22 @@ export function DashboardMonetizacao({
               </option>
             ))}
             <option value="sem_produto">Sem produto</option>
+          </select>
+        </Field>
+      )}
+      {aba === "operacao" && unidadesNoPipe.length > 0 && (
+        <Field label="Unidade">
+          <select
+            className={inputClass}
+            value={unidadeId ?? ""}
+            onChange={(e) => mudarBusca({ unidade: e.target.value || undefined })}
+          >
+            <option value="">Todas as unidades</option>
+            {unidadesNoPipe.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nome}
+              </option>
+            ))}
           </select>
         </Field>
       )}
@@ -534,10 +577,10 @@ export function DashboardMonetizacao({
             <FunilOperacao dados={funis.total} abrir={abrir} />
             <SerieDiaria view={view} abrir={abrir} />
           </div>
-          <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
+          <CadastroACorrigir dados={cadastroACorrigir(cards, filter.product)} abrir={abrir} />
           {filter.from <= today && today <= filter.to && (
             <VisaoHoje
-              data={data}
+              data={dadosDoRecorte}
               filter={filter}
               hoje={today}
               rotuloProduto={produto}
@@ -576,7 +619,17 @@ export function DashboardMonetizacao({
         />
       )}
 
-      {data.measured_at && aba !== "operacao" && aba !== "pre-venda" && (
+      {data.measured_at && aba === "fechamentos" && (
+        <Fechamentos
+          cards={data.cards}
+          stages={data.stages}
+          hoje={today}
+          filtro={filter}
+          abrir={abrir}
+        />
+      )}
+
+      {data.measured_at && aba !== "operacao" && aba !== "pre-venda" && aba !== "fechamentos" && (
         <Analysis
           aba={aba}
           data={data}
@@ -609,11 +662,14 @@ function descricaoDaAba(
     ate: string;
     mesGravacoes?: string;
     busca: BuscaMonetizacao;
+    unidade?: string;
   },
 ): string {
   switch (aba) {
     case "operacao":
-      return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
+      return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.unidade ?? "todas as unidades"} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
+    case "fechamentos":
+      return `Pipe 39 · dono: ${v.responsavel} · ${v.produto} · abertos da Reunião de proposta em diante, sem Stand by · data esperada de fechamento do Pipedrive · contrato`;
     case "funil":
       return `Coortes do período ${v.periodo} · ${v.responsavel} · ${v.produto} · negócio; realização e ganho contam até ${v.ate} · base instalada, pipeline 39`;
     case "roteiros": {

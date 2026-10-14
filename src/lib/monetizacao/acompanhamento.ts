@@ -13,6 +13,7 @@ import {
   funilCumulativo,
   instante,
   linhaDa,
+  noProduto,
   trajeto,
   type Etapa,
   type FunilCumulativo,
@@ -57,7 +58,7 @@ export const fimDoMes = (mes: string) => {
 };
 
 const doProduto = (cards: Negocio[], f: Pick<Filtro, "product">) =>
-  cards.filter((c) => !f.product || c.route === f.product);
+  cards.filter((c) => noProduto(c, f.product));
 
 export function contarPorProduto(cards: Negocio[]): Record<Produto | "sem_produto", number> {
   const out = { cella: 0, finance: 0, consultoria: 0, sem_produto: 0 };
