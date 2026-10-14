@@ -514,18 +514,8 @@ export function DashboardMonetizacao({
       )}
       {data.measured_at && aba === "operacao" && funis && quadros && (
         <>
-          {/* Visão "Hoje": a primeira seção quando o período inclui hoje (spec de 01/10/2026). */}
-          {filter.from <= today && today <= filter.to && (
-            <VisaoHoje
-              data={data}
-              filter={filter}
-              hoje={today}
-              rotuloProduto={produto}
-              atencao={busca.atencao}
-              mudarAtencao={(atencao) => mudarBusca({ atencao })}
-              abrir={abrir}
-            />
-          )}
+          {/* A coorte do período (quadros, funil e leads por dia) abre a tela desde 14/10/2026, a
+              pedido do Pedro; a Visão "Hoje" vem logo depois (era a primeira seção pela spec de 01/10). */}
           <QuadrosPreVenda
             quem={responsavel}
             quadros={quadros.quadros}
@@ -545,6 +535,17 @@ export function DashboardMonetizacao({
             <SerieDiaria view={view} abrir={abrir} />
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(data.cards, filter.product)} abrir={abrir} />
+          {filter.from <= today && today <= filter.to && (
+            <VisaoHoje
+              data={data}
+              filter={filter}
+              hoje={today}
+              rotuloProduto={produto}
+              atencao={busca.atencao}
+              mudarAtencao={(atencao) => mudarBusca({ atencao })}
+              abrir={abrir}
+            />
+          )}
           <PorProduto funis={funis} produto={filter.product} abrir={abrir} />
           <FunilLadoALado funis={funis} produto={filter.product} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
