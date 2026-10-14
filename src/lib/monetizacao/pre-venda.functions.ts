@@ -15,7 +15,12 @@ import {
   type LinhaAvaliacao,
   type LinhaRitmo,
 } from "./pre-venda";
-import { normalizarCadencias, type AtividadeCadencia } from "./hoje-pre-venda";
+import {
+  normalizarCadencias,
+  normalizarSugestoes,
+  type AtividadeCadencia,
+  type SugestaoJev,
+} from "./hoje-pre-venda";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = any;
@@ -70,6 +75,17 @@ export async function lerCadencias(context: { supabase: unknown }): Promise<Ativ
   return normalizarCadencias(data);
 }
 
+/** Próximo passo sugerido pelo Jev para os cards parados da reta final (14/10/2026). */
+export async function lerSugestoes(context: { supabase: unknown }): Promise<SugestaoJev[]> {
+  const data = await rpc(
+    context,
+    "monetizacao_pre_venda_proximo_passo",
+    {},
+    "as sugestões de próximo passo",
+  );
+  return normalizarSugestoes(data);
+}
+
 export async function lerAvaliacoes(
   context: { supabase: unknown },
   p: { de: string; ate: string },
@@ -119,3 +135,7 @@ export const carregarAvaliacaoPreVenda = createServerFn({ method: "GET" })
 export const carregarCadenciasPreVenda = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(({ context }) => lerCadencias(context));
+
+export const carregarSugestoesPreVenda = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(({ context }) => lerSugestoes(context));

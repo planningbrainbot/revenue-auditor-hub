@@ -10,7 +10,11 @@
  */
 import { listaDeAtencao } from "./acompanhamento.ts";
 import { ehDiaUtil } from "./feriados.ts";
-import { reguaDoPipe, type Etapa } from "./funil-cumulativo.ts";
+import { instante, reguaDoPipe, type Etapa } from "./funil-cumulativo.ts";
+import {
+  ROTULO_PASSO,
+  URGENCIAS,
+} from "../../../supabase/functions/monetizacao-proximo-passo/logica.ts";
 import { PRE_VENDEDORES, type Negocio } from "./types.ts";
 
 /** `ops.monetizacao_pre_venda_cadencias()`: uma atividade de cadência ativa. */
@@ -34,6 +38,40 @@ const numOuNulo = (v: unknown): number | null => {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
   return Number.isFinite(n) ? n : null;
 };
+
+/** `ops.monetizacao_pre_venda_proximo_passo()`: a sugestão do Jev para um card parado da reta final. */
+export interface SugestaoJev {
+  deal_id: number;
+  passo: string;
+  confianca: number | null;
+  urgencia: number;
+  gerado_em: string | null;
+}
+
+export const normalizarSugestoes = (linhas: unknown): SugestaoJev[] =>
+  (Array.isArray(linhas) ? linhas : [])
+    .map(obj)
+    .map((l) => ({
+      deal_id: numOuNulo(l.deal_id) ?? 0,
+      passo: texto(l.passo) ?? "",
+      confianca: numOuNulo(l.confianca),
+      urgencia: numOuNulo(l.urgencia) ?? 0,
+      gerado_em: texto(l.gerado_em),
+    }))
+    .filter((s) => s.deal_id > 0 && s.passo in ROTULO_PASSO);
+
+export const rotuloDoPasso = (passo: string) => ROTULO_PASSO[passo] ?? passo;
+export const rotuloDaUrgencia = (u: number) => URGENCIAS[u] ?? "";
+
+/** Dias desde a última entrada na etapa atual. */
+export function diasNaEtapa(c: Negocio, hoje: string): number | null {
+  const ultima = (c.moves ?? []).filter((m) => m.stage_id === c.stage_id).at(-1);
+  if (!ultima) return null;
+  return Math.max(
+    0,
+    Math.floor((Date.parse(hoje + "T23:59:59-03:00") - instante(ultima.at)) / 86400000),
+  );
+}
 
 export const normalizarCadencias = (linhas: unknown): AtividadeCadencia[] =>
   (Array.isArray(linhas) ? linhas : [])
@@ -94,10 +132,19 @@ export interface BlocoHoje {
   cards: Negocio[];
 }
 
+/** Card parado da reta final com a sugestão do Jev (ou sem ela, quando o Jev ainda não avaliou). */
+export interface ParadoComSugestao {
+  card: Negocio;
+  dias: number | null;
+  sugestao: SugestaoJev | null;
+}
+
 export interface HojeDaPessoa {
   id: number;
   nome: string;
   blocos: BlocoHoje[];
+  /** Reta final sem próximo passo, da maior urgência para a menor e do mais parado para o menos. */
+  parados: ParadoComSugestao[];
 }
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -114,6 +161,7 @@ export function hojeDaPreVenda({
   atividades,
   hoje,
   pessoa,
+  sugestoes = [],
 }: {
   cards: Negocio[];
   stages: Etapa[];
@@ -121,7 +169,9 @@ export function hojeDaPreVenda({
   atividades: AtividadeCadencia[];
   hoje: string;
   pessoa?: number;
+  sugestoes?: SugestaoJev[];
 }): HojeDaPessoa[] {
+  const sugestaoDe = new Map(sugestoes.map((s) => [s.deal_id, s]));
   const regua = reguaDoPipe(stages);
   const nivelDe = (c: Negocio) => regua.nivelDaEtapa.get(c.stage_id);
   const nAgendada = regua.nivelDe.agendada;
@@ -238,6 +288,18 @@ export function hojeDaPreVenda({
         cards: cardsDe(deAmanha.map((a) => a.deal_id)),
       },
     ];
-    return { id, nome, blocos };
+    const retaComSugestao = semProximo
+      .map((card) => ({
+        card,
+        dias: diasNaEtapa(card, hoje),
+        sugestao: sugestaoDe.get(card.id) ?? null,
+      }))
+      .sort(
+        (a, b) =>
+          (b.sugestao?.urgencia ?? -1) - (a.sugestao?.urgencia ?? -1) ||
+          (b.dias ?? 0) - (a.dias ?? 0) ||
+          a.card.id - b.card.id,
+      );
+    return { id, nome, blocos, parados: retaComSugestao };
   });
 }
