@@ -5244,3 +5244,13 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 **Contexto:** o Pedro pediu, para a análise de pipeline com o Paulo, que a dobra "Até onde a pré-venda levou os abordados do período?" (quadros, funil "Onde a base avança e onde trava?" e "Quantos leads e reuniões por dia?") fique no topo da tela. Pela spec de 01/10/2026, a Visão Hoje era a primeira seção quando o período incluía hoje.
 **Decisão:** a ordem passa a ser: quadros da coorte → funil e leads por dia → cadastro a corrigir → Visão Hoje → por produto → lado a lado. Só muda a ordem; nenhum número muda.
 **Onde:** `src/components/monetizacao/dashboard.tsx` (aba `operacao`).
+
+## 2026-10-14 — E-mail do D0: o sócio entra por campo manual, e o D0 só nasce feito quando a automação de fato manda
+
+**Contexto:** o Pedro pediu a frase "Eu sou [dono do card] e atuo aqui na Planning no time de Inteligência Financeira, dando suporte para [sócio]", com o sócio num campo personalizado do grupo Monetização, preenchido à mão pelo time conforme a Unidade de Negócio ("às vezes a unidade tem mais de um sócio").
+**Decisão:**
+- Campo de negócio "Caixa · Sócio no e-mail" (id 323, `73bd1e4b…`), do tipo Autocompletar (texto livre que sugere o já digitado), no grupo Monetização e visível só no funil Monetização (Departamento de Receita). O time escreve com o artigo ("a Jordana", "o Adílio e o Rogério"). O "Sócio responsável" global (lista) não foi reaproveitado: ele serve a outros funis e não tem todos os sócios.
+- A automação do Pipedrive ganhou a condição "Caixa · Sócio no e-mail não está vazio". Sem sócio, o e-mail não sai.
+- `monetizacao-cadencia`: com `MONET_CADENCIA_EMAIL_D0_AUTO=sim`, o D0 · E-mail só nasce feito se o card tiver o sócio preenchido e a pessoa tiver e-mail (`emailD0SaiPelaAutomacao`); fora disso, nasce a fazer.
+- A automação e a chave seguem desligadas até o aviso do Pedro.
+**Onde:** `supabase/functions/monetizacao-cadencia/logica.ts`, `tests/monetizacao-cadencia.test.mjs`.

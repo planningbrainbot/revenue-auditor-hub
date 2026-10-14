@@ -387,6 +387,20 @@ export const NOTA_EMAIL_D0_AUTOMATICO =
 /** O item da régua que a automação do Pipedrive cobre: o e-mail do D0. */
 export const ehEmailD0 = (item: Pick<ItemRegua, "dia" | "tipo">) => item.dia === 0 && item.tipo === "email";
 
+/** Campo "Caixa · Sócio no e-mail" do negócio (id 323, criado em 14/10/2026). Sai no e-mail do D0. */
+export const CAMPO_SOCIO_NO_EMAIL = "73bd1e4b5cecc29824871f097f18e6757e17a9ac";
+
+/**
+ * A automação do Pipedrive só manda o e-mail do D0 com o sócio preenchido (condição dela, 14/10/2026) e com e-mail
+ * na pessoa do card. Fora disso o e-mail não sai, e o D0 · E-mail da régua nasce a fazer, como sempre.
+ */
+export function emailD0SaiPelaAutomacao(deal: any): boolean {
+  const socio = String(deal?.[CAMPO_SOCIO_NO_EMAIL] ?? "").trim();
+  const pessoa = deal?.person_id && typeof deal.person_id === "object" ? deal.person_id : null;
+  const emails = Array.isArray(pessoa?.email) ? pessoa.email : [];
+  return socio !== "" && emails.some((e: any) => String(e?.value ?? "").includes("@"));
+}
+
 // ---------------------------------------------------------------------------- rodada
 
 /** Por que a cadência acabou. null = o card segue na 276 com a mesma entrada (a listagem estava defasada). */
@@ -475,6 +489,7 @@ async function criarAtividades(
   plano: AtividadePlanejada[],
   dono: number | null,
   tipos: Map<string, string>,
+  emailD0Auto = false,
 ): Promise<number> {
   const { pd, store, ativo } = op;
   const feitas = [...(linha.atividades || [])];
@@ -485,7 +500,7 @@ async function criarAtividades(
   try {
     for (const p of faltam) {
       const tipo = tipos.get(p.tipo) ?? "task";
-      const automatico = !!op.emailD0Automatico && ehEmailD0(p);
+      const automatico = emailD0Auto && ehEmailD0(p);
       const r = await pd.post("activities", {
         subject: p.subject,
         type: tipo,
@@ -647,7 +662,14 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
           // A linha vem antes da atividade: se outra rodada já gravou, ela é a dona da criação.
           if (ativo && !(await store.inserir(alvo))) continue;
         }
-        const n = await criarAtividades(op, alvo, plano, dono ?? alvo.dono ?? null, tipos.usar);
+        const n = await criarAtividades(
+          op,
+          alvo,
+          plano,
+          dono ?? alvo.dono ?? null,
+          tipos.usar,
+          !!op.emailD0Automatico && emailD0SaiPelaAutomacao(deal),
+        );
         resumo.criados.push({
           deal: id,
           entrou_em: entrouEm,
