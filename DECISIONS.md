@@ -5238,3 +5238,9 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 **Contexto:** a primeira rodada da correção anterior (v28) ligou 31 contratos e criou 13 empresas, mas dois lotes de empresas (146 e 43 linhas) voltaram 400: deals com a opção de unidade 1124 (BPO Financeiro GYN, sem rótulo) chegavam com `unidade = '1124'`, e o check `empresas_unidade_nao_e_id` recusava o lote inteiro.
 **Decisão:** na empresa, unidade numérica vira nula (o contrato segue gravando o id, como antes). Os dois upserts de empresa regravam linha a linha quando o lote é recusado, para uma linha ruim não segurar as outras; a falha da linha continua indo para o `sync_log`, com a rodada `parcial`.
 **Onde:** `supabase/functions/pipedrive-contratos-sync/index.ts` (`mapEmpresa`, `supaPostGrouped`).
+
+## 2026-10-14 — Operação da Monetização abre pela coorte do período, e a Visão Hoje vem depois
+
+**Contexto:** o Pedro pediu, para a análise de pipeline com o Paulo, que a dobra "Até onde a pré-venda levou os abordados do período?" (quadros, funil "Onde a base avança e onde trava?" e "Quantos leads e reuniões por dia?") fique no topo da tela. Pela spec de 01/10/2026, a Visão Hoje era a primeira seção quando o período incluía hoje.
+**Decisão:** a ordem passa a ser: quadros da coorte → funil e leads por dia → cadastro a corrigir → Visão Hoje → por produto → lado a lado. Só muda a ordem; nenhum número muda.
+**Onde:** `src/components/monetizacao/dashboard.tsx` (aba `operacao`).
