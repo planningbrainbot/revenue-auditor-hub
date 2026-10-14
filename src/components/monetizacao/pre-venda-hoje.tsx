@@ -137,14 +137,14 @@ function ProximoPasso({
           <TableBody>
             {parados.map(({ card, dias, sugestao }) => (
               <TableRow key={card.id}>
-                <TableCell className="max-w-[220px]">
+                <TableCell className="max-w-[240px] overflow-hidden">
                   <a
                     href={card.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
+                    className="flex max-w-full items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
                   >
-                    <span className="truncate">{card.org ?? card.title}</span>
+                    <span className="min-w-0 truncate">{card.org ?? card.title}</span>
                     <ExternalLink className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
                   </a>
                 </TableCell>
