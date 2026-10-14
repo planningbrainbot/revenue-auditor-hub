@@ -212,6 +212,13 @@ async function pdGet(path: string): Promise<any> {
 }
 
 // ── Supabase REST helpers ─────────────────────────────────────────────────
+// Escrita recusada não derruba o sync, mas também não some: de 17/09 a 14/10/2026
+// o upsert de `empresas` voltou 400 todo dia (o guarda do Pipefy recusa o lote
+// inteiro), o erro ia só para o console e a rodada era gravada como "sucesso".
+// 71 contratos ganhos ficaram sem empresa e fora da Base de clientes. Agora a
+// rodada com escrita recusada fica "parcial" no sync_log, com a mensagem.
+const FALHAS_ESCRITA: string[] = [];
+
 async function supaPost(
   path: string,
   rows: Record<string, unknown>[],
@@ -229,7 +236,9 @@ async function supaPost(
     body: JSON.stringify(rows),
   });
   if (!res.ok) {
-    console.error(`Supabase error ${res.status} em ${path}: ${(await res.text()).slice(0, 400)}`);
+    const msg = `Supabase error ${res.status} em ${path.split("?")[0]} (${rows.length} linhas): ${(await res.text()).slice(0, 400)}`;
+    console.error(msg);
+    FALHAS_ESCRITA.push(msg);
     return [];
   }
   const body = await res.text();
@@ -437,12 +446,38 @@ async function fetchPipelineWonDeals(pipelineId: number): Promise<Record<string,
   return deals;
 }
 
+// `empresas` passa de 4 mil linhas e o PostgREST corta em 1000 por resposta,
+// qualquer que seja o `limit` pedido: sem paginar, o índice nasce com um quarto
+// da base e o casamento falha em silêncio para o resto.
+async function fetchEmpresasPaginado(select: string, filtro: string): Promise<any[]> {
+  const out: any[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const lote = await supaGet(`empresas?select=${select}&${filtro}&order=id&offset=${offset}&limit=1000`);
+    out.push(...lote);
+    if (lote.length < 1000) break;
+  }
+  return out;
+}
+
 async function fetchEmpresasCnpjIndex(): Promise<Map<string, { id: number; pipedrive_id: string | null }>> {
-  const rows = await supaGet("empresas?select=id,cnpj,pipedrive_id&cnpj=not.is.null&limit=5000");
+  const rows = await fetchEmpresasPaginado("id,cnpj,pipedrive_id", "cnpj=not.is.null");
   const idx = new Map<string, { id: number; pipedrive_id: string | null }>();
   for (const r of rows) {
     const c = String(r.cnpj ?? "").replace(/[^0-9]/g, "");
     if (c.length === 14 && !idx.has(c)) idx.set(c, { id: r.id, pipedrive_id: r.pipedrive_id });
+  }
+  return idx;
+}
+
+// Empresa que já carrega o deal em `pipedrive_id`. Desde 16/09/2026 o cadastro
+// do Pipefy é o dono da empresa e já chega com o deal; `pipefy` diz se a linha
+// é dele (aí este sync só lê) ou se ainda é só do Pipedrive (aí segue atualizando).
+async function fetchEmpresasPorDeal(): Promise<Map<string, { id: number; pipefy: boolean }>> {
+  const rows = await fetchEmpresasPaginado("id,pipedrive_id,pipefy_record_id", "pipedrive_id=not.is.null");
+  const idx = new Map<string, { id: number; pipefy: boolean }>();
+  for (const r of rows) {
+    const pid = String(r.pipedrive_id ?? "").trim();
+    if (pid) idx.set(pid, { id: r.id, pipefy: !!r.pipefy_record_id });
   }
   return idx;
 }
@@ -467,17 +502,33 @@ async function fetchContratosMrrOverride(): Promise<Map<string, number>> {
   );
 }
 
-// Faz o papel do upsert em 'empresas', mas casa por CNPJ primeiro: se já
-// existe uma empresa (de qualquer fonte) com o mesmo CNPJ do deal, funde o
-// pipedrive_id nela via PATCH em vez de inserir uma linha nova.
+// Faz o papel do upsert em 'empresas', em três casos, nesta ordem:
+// 1. já existe empresa com o deal em `pipedrive_id`: liga o contrato a ela. Se a
+//    linha é do Pipefy, não escreve nada; se ainda é só do Pipedrive, atualiza
+//    como sempre fez.
+// 2. existe empresa (de qualquer fonte) com o mesmo CNPJ do deal: funde o
+//    pipedrive_id nela via PATCH em vez de inserir uma linha nova.
+// 3. nenhuma das duas: cria a empresa.
+// Até 14/10/2026 o caso 1 ia no mesmo upsert do caso 3, com merge-duplicates. O
+// lote reescrevia `titulo` de empresa já confirmada no Pipefy, o guarda
+// `sync_empresa_to_pipefy` recusava o lote inteiro, e nenhuma empresa nova era
+// criada nem ligada desde 17/09.
 async function upsertEmpresasSemDuplicarCnpj(
   deals: Record<string, unknown>[],
 ): Promise<Map<string, number>> {
+  const porDeal = await fetchEmpresasPorDeal();
   const cnpjIdx = await fetchEmpresasCnpjIndex();
   const pidToEid = new Map<string, number>();
   const dealsNormais: Record<string, unknown>[] = [];
+  const dealsNovos: Record<string, unknown>[] = [];
 
   for (const d of deals) {
+    const existente = porDeal.get(String(d.id));
+    if (existente) {
+      pidToEid.set(String(d.id), existente.id);
+      if (!existente.pipefy) dealsNormais.push(d);
+      continue;
+    }
     const cnpj = extractCnpj(d);
     const match = cnpj ? cnpjIdx.get(cnpj) : undefined;
     if (match && String(match.pipedrive_id ?? "") !== String(d.id)) {
@@ -502,13 +553,24 @@ async function upsertEmpresasSemDuplicarCnpj(
       }
       pidToEid.set(String(d.id), match.id);
     } else {
-      dealsNormais.push(d);
+      dealsNovos.push(d);
     }
   }
 
+  // Linhas só do Pipedrive: o upsert de sempre, sem risco de bater no guarda.
   if (dealsNormais.length > 0) {
     const empRows = dealsNormais.map((d) => mapEmpresa(d, true));
-    const empResult = await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows);
+    await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows, "resolution=merge-duplicates,return=minimal");
+  }
+  // Empresa nova: só insere. Se outra fonte criou a linha no meio da rodada, o
+  // conflito é ignorado e a ligação sai na rodada seguinte, pelo caso 1.
+  if (dealsNovos.length > 0) {
+    const empRows = dealsNovos.map((d) => mapEmpresa(d, true));
+    const empResult = await supaPostGrouped(
+      "empresas?on_conflict=pipedrive_id",
+      empRows,
+      "resolution=ignore-duplicates,return=representation",
+    );
     for (const e of empResult) {
       if (e.pipedrive_id) pidToEid.set(String(e.pipedrive_id), e.id);
     }
@@ -612,6 +674,8 @@ async function runMergeDuplicates(): Promise<number> {
 
 async function runSync() {
   const startTime = new Date();
+  // O isolate da Edge Function pode servir mais de uma rodada.
+  FALHAS_ESCRITA.length = 0;
   console.log(`Sync Pipedrive → Supabase | ${startTime.toISOString()}`);
 
   await carregarOpcoesDeSelecao();
@@ -712,12 +776,21 @@ async function runSync() {
   const result = {
     deals: deals.length,
     empresas: pidToEid.size,
+    // Contrato que sai desta rodada sem empresa não entra na Base de clientes.
+    contratos_sem_empresa: deals.filter((d) => !pidToEid.has(String(d.id))).length,
     contratos: contRows.length,
     lost_removidos: lostCount,
     duplicatas_removidas: merged,
     elapsed,
+    falhas_escrita: FALHAS_ESCRITA.slice(0, 5),
   };
-  await insertSyncLog(startTime, elapsed, contRows.length, result);
+  await insertSyncLog(
+    startTime,
+    elapsed,
+    contRows.length,
+    result,
+    FALHAS_ESCRITA.length > 0 ? "parcial" : "sucesso",
+  );
   return result;
 }
 
