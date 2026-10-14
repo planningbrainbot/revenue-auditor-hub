@@ -27,3 +27,19 @@ export async function assertAdmin(supabase: any, userId: string): Promise<void> 
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Acesso negado: necessário perfil admin.");
 }
+
+/**
+ * Verifica uma chave via `ops.can` (papel, área ou chave dada direto no
+ * usuário). Para leitura: quem recebeu a área sem papel nenhum não passa em
+ * `assertAdmin`, mesmo com a RLS liberando a tabela.
+ */
+export async function assertCan(supabase: any, chave: string, recado: string): Promise<void> {
+  const { data, error } = await supabase.rpc("can", { _key: chave });
+  if (error) throw new Error("Erro de autorização.");
+  if (!data) throw new Error(`Acesso negado: ${recado}`);
+}
+
+export async function ehSuperAdmin(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase.rpc("eh_super_admin", { _user: userId });
+  return data === true;
+}

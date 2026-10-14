@@ -217,7 +217,8 @@ function AvisoConfirmacao({ children }: { children: React.ReactNode }) {
 function ApuracaoPage() {
   const { unidadeId, mes } = Route.useParams();
   const navigate = useNavigate();
-  const { isAdmin, loading } = usePermissions();
+  const { isAdmin, can, loading } = usePermissions();
+  const podeVer = can("view.auditoria.royalties");
   const [apuracaoId, setApuracaoId] = useState<number | null>(null);
   const getOrCreate = useGetOrCreate();
   const gerar = useGerarItens();
@@ -227,7 +228,7 @@ function ApuracaoPage() {
   const validMes = /^\d{4}-\d{2}$/.test(mes);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!podeVer) return;
     if (!validUnidade || !validMes) return;
     let cancelled = false;
     (async () => {
@@ -238,7 +239,8 @@ function ApuracaoPage() {
         });
         if (cancelled) return;
         setApuracaoId(res.apuracao_id);
-        await gerar.mutateAsync({ apuracao_id: res.apuracao_id });
+        // Gerar itens grava: quem só lê vê a apuração como está.
+        if (isAdmin) await gerar.mutateAsync({ apuracao_id: res.apuracao_id });
       } catch (e: any) {
         if (!cancelled) toast.error(e.message ?? "Erro ao carregar apuração");
       }
@@ -247,7 +249,7 @@ function ApuracaoPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unidadeIdNum, mes, isAdmin, validUnidade, validMes]);
+  }, [unidadeIdNum, mes, isAdmin, podeVer, validUnidade, validMes]);
 
   // A lista de origem, no mesmo mês: voltar sem o mês abria no mês padrão e o
   // total não batia com o que a pessoa acabou de conferir.
@@ -255,10 +257,10 @@ function ApuracaoPage() {
     navigate({ to: "/unidades/royalties", search: validMes ? { mes } : {} });
 
   if (loading) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
-  if (!isAdmin)
+  if (!podeVer)
     return (
       <div className="px-4 py-6 md:px-6">
-        <EstadoSemAcesso oQueFalta="admin (a apuração de royalties é da matriz)" />
+        <EstadoSemAcesso oQueFalta="a permissão de ver a apuração de royalties" />
       </div>
     );
   if (!validUnidade || !validMes)
@@ -323,6 +325,7 @@ function ApuracaoLoaded({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { isAdmin } = usePermissions();
   const { data, isLoading, error: erroApuracao, refetch } = useApuracao(apuracaoId);
   // Fatura do mês desta unidade (mesma consulta da lista): diz se já saiu no
   // Omie, para o Reabrir avisar e o Emitir não aparecer duas vezes.
@@ -467,7 +470,9 @@ function ApuracaoLoaded({
 
   const { apuracao, itens, outrasReceitasItens } = data;
   const u = apuracao.unidade;
-  const readOnly = apuracao.status === "confirmado" || apuracao.status === "faturado";
+  // Sem admin a ficha é só leitura: toda escrita é recusada no servidor.
+  const readOnly =
+    !isAdmin || apuracao.status === "confirmado" || apuracao.status === "faturado";
   const isCscVariavel = u.csc_percentual_base_antiga != null;
   const pctPadrao = Number(u.royalties_percentual ?? 0);
 
@@ -757,8 +762,8 @@ function ApuracaoLoaded({
         <FileSpreadsheet className="h-4 w-4" aria-hidden />
         Demonstrativo (Excel)
       </Button>
-      {botaoReabrir}
-      {(!faturaSaiu || emissaoAberta) && (
+      {isAdmin && botaoReabrir}
+      {isAdmin && (!faturaSaiu || emissaoAberta) && (
         <EmitirFaturasDialog
           competencia={mes}
           unidadeId={Number(unidadeId)}
@@ -845,7 +850,7 @@ function ApuracaoLoaded({
             {mesTexto}, pela data de pagamento. A competência do título pode ser outro mês. As duas
             datas estão nas colunas "Pagamento" e "Competência" das tabelas.
           </SeloRegua>
-          {readOnly && (
+          {readOnly && apuracao.confirmado_em && (
             <span className="text-xs text-muted-foreground">
               Fechada em{" "}
               {apuracao.confirmado_em

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin } from "@/lib/server-utils";
+import { assertAdmin, assertCan } from "@/lib/server-utils";
 
 /**
  * Faturamento da apuração de royalties na conta Omie da Planning Partners.
@@ -168,7 +168,7 @@ export const listarFaturasRoyalties = createServerFn({ method: "GET" })
   })
   .handler(async ({ data, context }): Promise<{ faturas: FaturaDoMes[] }> => {
     const sb = context.supabase as any;
-    await assertAdmin(sb, context.userId);
+    await assertCan(sb, "view.auditoria.royalties", "você não tem acesso às faturas de royalties.");
 
     const { data: faturas, error } = await sb
       .from("royalties_faturas")

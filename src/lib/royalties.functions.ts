@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin, digits, monthRange } from "@/lib/server-utils";
+import { assertAdmin, assertCan, digits, ehSuperAdmin, monthRange } from "@/lib/server-utils";
+
+const VER_ROYALTIES = "view.auditoria.royalties";
+const RECADO_VER = "você não tem acesso à apuração de royalties.";
 import { assertAffected } from "@/lib/supabase-assert";
 
 // ============ Types ============
@@ -113,8 +116,8 @@ export const listRoyaltiesUnidades = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { mes: string }) => d)
   .handler(async ({ data, context }): Promise<{ rows: UnidadeRoyalties[] }> => {
-    const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    const { supabase } = context;
+    await assertCan(supabase, VER_ROYALTIES, RECADO_VER);
     const { firstDay } = monthRange(data.mes);
 
     const { data: unidades, error: uErr } = await supabase
@@ -151,7 +154,10 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
   .inputValidator((d: { unidade_id: number; mes: string }) => d)
   .handler(async ({ data, context }): Promise<{ apuracao_id: number; created: boolean }> => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    // Quem só lê abre a apuração que já existe; criar e aplicar contas fixas
+    // gravam, e isso segue com o admin.
+    await assertCan(supabase, VER_ROYALTIES, RECADO_VER);
+    const admin = await ehSuperAdmin(supabase, userId);
     const { firstDay } = monthRange(data.mes);
 
     const { data: existing, error: e1 } = await supabase
@@ -162,9 +168,10 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
       .maybeSingle();
     if (e1) throw new Error(e1.message);
     if (existing) {
-      await aplicarContasFixas(supabase, existing.id);
+      if (admin) await aplicarContasFixas(supabase, existing.id);
       return { apuracao_id: existing.id, created: false };
     }
+    if (!admin) throw new Error("Esta unidade ainda não tem apuração neste mês.");
 
     const { data: u, error: uErr } = await supabase
       .from("unidades")
@@ -1012,8 +1019,8 @@ export const getApuracao = createServerFn({ method: "GET" })
       itens: ApuracaoItem[];
       outrasReceitasItens: OutraReceitaItem[];
     }> => {
-      const { supabase, userId } = context;
-      await assertAdmin(supabase, userId);
+      const { supabase } = context;
+      await assertCan(supabase, VER_ROYALTIES, RECADO_VER);
 
       const { data: ap, error: apErr } = await supabase
         .from("royalties_apuracao")

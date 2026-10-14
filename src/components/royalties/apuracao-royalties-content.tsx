@@ -244,7 +244,9 @@ export function motivoSemEmissao(
 }
 
 export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
-  const { isAdmin, loading } = usePermissions();
+  const { isAdmin, can, loading } = usePermissions();
+  // Ler é da chave de royalties; emitir e iniciar apuração seguem com o admin.
+  const podeVer = can("view.auditoria.royalties");
   const { data, isLoading, error, refetch } = useRoyaltiesUnidades(mes);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -328,10 +330,10 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
   );
 
   if (loading) return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
-  if (!isAdmin)
+  if (!podeVer)
     return (
       <div className="px-4 py-6 md:px-6">
-        <EstadoSemAcesso oQueFalta="admin (a apuração de royalties é da matriz)" />
+        <EstadoSemAcesso oQueFalta="a permissão de ver a apuração de royalties" />
       </div>
     );
 
@@ -351,7 +353,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
             ? "Mês em andamento: fechar antes do fim do mês é possível; recebimentos posteriores ficam fora. A fatura só sai depois do fim do mês."
             : "Feche a apuração de cada unidade e emita as faturas do mês no Omie."}
         </p>
-        <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />
+        {isAdmin && <EmitirFaturasDialog competencia={mes} motivoIndisponivel={motivoEmitir} />}
       </div>
 
       {error ? (
@@ -553,13 +555,20 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                                 variant="outline"
                                 size="sm"
                               />
+                            ) : !ap && !isAdmin ? (
+                              <BotaoComMotivo
+                                rotulo="Sem apuração"
+                                motivo="A matriz ainda não iniciou a apuração desta unidade neste mês."
+                                variant="outline"
+                                size="sm"
+                              />
                             ) : (
                             <Button size="sm" variant="outline" asChild>
                               <Link
                                 to="/royalties/$unidadeId/$mes"
                                 params={{ unidadeId: String(u.id), mes }}
                               >
-                                {fechada ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
+                                {fechada || !isAdmin ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
                               </Link>
                             </Button>
                             )}
