@@ -26,8 +26,8 @@ export const ABAS = [
 ] as const;
 export type Aba = (typeof ABAS)[number];
 
-/** Visões da Pré-venda. Ritmo é o padrão e não vai para a URL. */
-export const VISOES_PRE_VENDA = ["ritmo", "aderencia", "ficha"] as const;
+/** Visões da Pré-venda. Hoje é o padrão desde 14/10/2026 (a daily roda nela) e não vai para a URL. */
+export const VISOES_PRE_VENDA = ["hoje", "ritmo", "aderencia", "ficha"] as const;
 export type VisaoPreVenda = (typeof VISOES_PRE_VENDA)[number];
 /** Visões da Consultoria (Handoff e repasse é o padrão e não vai para a URL). */
 export const VISOES_CONSULTORIA = ["cruzamento", "empresa"] as const;
@@ -108,7 +108,7 @@ export type BuscaMonetizacao = {
   grafico?: string;
   /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call;
    *  "empresa" = Buscar empresa (o texto da busca vai em `q`). Tela Pré-venda: ausente = Ritmo; "aderencia"; "ficha". */
-  visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "ritmo">;
+  visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "hoje">;
   /** Pré-venda › Ficha: "reunioes" mostra as reuniões (a antiga Gravações); ausente = ligações. */
   ficha?: "reunioes";
   /** Pré-venda › Ficha › Ligações: o card cuja ligação está aberta na ficha. */
@@ -155,7 +155,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
   const aba = umDe(ABAS, s.aba) ?? "operacao";
   const visao =
     aba === "pre-venda"
-      ? umDe(["aderencia", "ficha"] as const, s.visao)
+      ? umDe(["ritmo", "aderencia", "ficha"] as const, s.visao)
       : aba === "handoff-consultoria"
         ? umDe(VISOES_CONSULTORIA, s.visao)
         : undefined;

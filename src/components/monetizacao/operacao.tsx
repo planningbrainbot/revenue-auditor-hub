@@ -168,9 +168,17 @@ const REGRAS: [string, string][] = [
   ],
   [
     "Etapas somadas",
-    "O Gatilho, encerrado em 01/10, conta como Qualificação (a antiga Conexão), e o Stand by conta como Levantamento com sócio realizado.",
+    "O Gatilho, encerrado em 01/10, conta como Qualificação (a antiga Conexão). O Stand by conta como Levantamento com sócio realizado só se o card passou por Agendado antes (desde 14/10).",
   ],
   ["Fila", "A fila são os cards que estiveram na Base elegível em algum momento do período."],
+  [
+    "Re-abordagem",
+    "Card que volta para a Base e sai de novo conta como abordado de novo no ritmo e no gráfico (desde 14/10). A volta desfeita em menos de 30 minutos não conta.",
+  ],
+  [
+    "Gráfico por dia",
+    "Reunião marcada e realizada só contam quando o card ficou 30 minutos na etapa, avançou ou terminou nela. Voltar para a mesma etapa depois de um toque não é marcação nova.",
+  ],
   [
     "Hoje",
     "A coluna Hoje mostra quantos estão na etapa agora, no pipe inteiro, e não entra na taxa.",
@@ -322,11 +330,14 @@ function Linha({
   passo,
   total,
   abrir,
+  anteriores = 0,
 }: {
   linha: LinhaCumulativa;
   passo: number;
   total: number;
   abrir: Abrir;
+  /** Ganho: contratos do período de cards abordados antes, fora da coorte e da taxa (14/10/2026). */
+  anteriores?: number;
 }) {
   const inclui = incluiTexto(linha);
   return (
@@ -343,6 +354,11 @@ function Linha({
         <span className="truncate text-sm text-foreground">
           {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
           {inclui && <span className="ml-1.5 text-xs text-muted-foreground">{inclui}</span>}
+          {anteriores > 0 && (
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              +{INT.format(anteriores)} de abordagem anterior
+            </span>
+          )}
         </span>
       </button>
       {linha.hoje ? (
@@ -372,7 +388,7 @@ function Linha({
 }
 
 export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir: Abrir }) {
-  const { linhas, perdidos, abertos, regua } = dados;
+  const { linhas, perdidos, abertos, regua, ganhosForaDaCoorte } = dados;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -406,7 +422,14 @@ export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir:
           <span className="text-right">Taxa</span>
         </div>
         {linhas.map((l, i) => (
-          <Linha key={l.key} linha={l} passo={i} total={linhas.length} abrir={abrir} />
+          <Linha
+            key={l.key}
+            linha={l}
+            passo={i}
+            total={linhas.length}
+            abrir={abrir}
+            anteriores={l.chave === "ganho" ? ganhosForaDaCoorte.length : 0}
+          />
         ))}
       </div>
       {regua.semNivel.length > 0 && (

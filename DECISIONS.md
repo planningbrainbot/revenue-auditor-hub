@@ -5254,3 +5254,11 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 - `monetizacao-cadencia`: com `MONET_CADENCIA_EMAIL_D0_AUTO=sim`, o D0 · E-mail só nasce feito se o card tiver o sócio preenchido e a pessoa tiver e-mail (`emailD0SaiPelaAutomacao`); fora disso, nasce a fazer.
 - A automação e a chave seguem desligadas até o aviso do Pedro.
 **Onde:** `supabase/functions/monetizacao-cadencia/logica.ts`, `tests/monetizacao-cadencia.test.mjs`.
+
+## 2026-10-14 — Réguas da daily de 15/10 e visão Hoje da Pré-venda
+
+**Contexto:** call de análise de pipeline do Pedro com o Paulo (14/10, 14h07) e conferência card a card do Brain com o Pipedrive no mesmo dia. PRD: https://claude.ai/artifact/PdTV7euynpQEU3C63tt3h4.
+**Decisões do Pedro (14/10):** Stand by direto da Abordagem não conta como levantamento realizado; só conta depois de o card passar por Agendado. Re-abordagem conta no ritmo.
+**Correções da conferência:** a entrada numa etapa só vira reunião marcada, reunião realizada ou nova abordagem se o card ficou 30 minutos, avançou ou terminou nela; volta para a mesma etapa depois de um toque não é marcação nova; card com título começando por "TESTE" sai do snapshot (a conferência com o Pipedrive desconta esses cards); o funil mostra "+N de abordagem anterior" no Ganho. A regra da oportunidade validada não muda (comissão de setembro intacta).
+**Visão Hoje:** a Pré-venda abre por padrão em "O que cada pré-vendedor faz hoje?", pedida pelo Paulo para a daily. Ritmo, Aderência e Ficha seguem como estão (`?visao=ritmo` agora vai para a URL). O ritmo da Pré-venda conta cada abordagem de quem moveu o card, não só a primeira do dono atual.
+**Onde:** `supabase/functions/monetizacao-crm/crm.mjs` (v8), `src/lib/monetizacao/funil-cumulativo.ts`, `src/lib/monetizacao/hoje-pre-venda.ts`, `src/components/monetizacao/pre-venda-hoje.tsx`, migration `20261014180000_monetizacao_pre_venda_hoje.sql`.

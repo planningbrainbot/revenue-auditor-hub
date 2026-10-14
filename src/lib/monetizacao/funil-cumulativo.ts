@@ -85,6 +85,8 @@ export interface Regua {
   nivelDe: Partial<Record<ChaveNivel, number>>;
   /** Etapas que a régua não soube pôr num nível (ficam fora da conta). */
   semNivel: string[];
+  /** Etapas de Stand by: valem Levantamento realizado só depois de o card passar por Agendado (dono, 14/10/2026). */
+  standby: ReadonlySet<number>;
 }
 
 export const nomeDaEtapa = (nome: string) =>
@@ -154,7 +156,8 @@ export function reguaDoPipe(stages: Etapa[]): Regua {
       somadas: [],
     },
   ];
-  return { niveis, ganho: passos.length + 1, nivelDaEtapa, nivelDe, semNivel };
+  const standby = new Set(ord.filter((s) => papelDe(s) === "standby").map((s) => s.id));
+  return { niveis, ganho: passos.length + 1, nivelDaEtapa, nivelDe, semNivel, standby };
 }
 
 /** Instante de um `at` da carga: "aaaa-mm-dd hh:mm:ss" é UTC (Pipedrive); ISO com fuso vale como está. */
@@ -168,12 +171,25 @@ const inicioDoDia = (dia: string) => Date.parse(dia + "T00:00:00-03:00");
 
 type Passo = Movimento & { stage_id: number; t: number; nivel: number };
 
-/** Movimentos do card para etapas com nível, em ordem de tempo (empate mantém a ordem da carga). */
+/**
+ * Movimentos do card para etapas com nível, em ordem de tempo (empate mantém a ordem da carga). Stand by só vale
+ * Levantamento realizado depois de o card ficar em Agendado ou além (dono, 14/10/2026): o Grupo Nilo (97913) foi da
+ * Abordagem direto para Stand by e não teve reunião. Antes disso, a passagem pelo Stand by sai do trajeto e o card
+ * fica no nível em que estava.
+ */
 export function trajeto(c: Negocio, regua: Regua, ignorar?: ReadonlySet<number>): Passo[] {
-  return (c.moves ?? [])
+  const mv = (c.moves ?? [])
     .filter((m) => regua.nivelDaEtapa.has(m.stage_id) && !ignorar?.has(m.stage_id))
     .map((m) => ({ ...m, t: instante(m.at), nivel: regua.nivelDaEtapa.get(m.stage_id)! }))
     .sort((a, b) => a.t - b.t);
+  const nAgendada = regua.nivelDe.agendada;
+  if (nAgendada === undefined || !regua.standby?.size) return mv;
+  let agendou = false;
+  return mv.filter((m, i) => {
+    if (regua.standby.has(m.stage_id)) return agendou;
+    if (m.nivel >= nAgendada && ficou(mv, i)) agendou = true;
+    return true;
+  });
 }
 
 /** A etapa conta como alcançada: o card ficou 30 minutos ou mais, avançou a partir dela ou terminou nela. */

@@ -572,6 +572,7 @@ export function DashboardMonetizacao({
           mudarBusca={mudarBusca}
           periodo={{ de: filter.from, ate: filter.to, hoje: today }}
           quem={responsavel}
+          abrir={abrir}
         />
       )}
 
@@ -624,6 +625,8 @@ function descricaoDaAba(
       if (ehReunioes(v.busca))
         return `Reuniões de levantamento com sócio e de proposta dos cards do pipe 39 · ${v.mesGravacoes ? rotuloMes(v.mesGravacoes) : "todos os meses"} · data da reunião em São Paulo · reunião`;
       const visao = visaoDa(v.busca);
+      if (visao === "hoje")
+        return `Pipe 39 · pré-venda: ${v.responsavel} · hoje · card = dono atual, aberto; atividade = item da cadência ativa pelo vencimento; fila a 8 abordagens por dia útil`;
       if (visao === "ritmo")
         return `Pipe 39 · pré-venda: ${v.responsavel} · ${v.periodo} · abordagem = card que começou no dia; atividade = item da cadência pelo vencimento; ligação = discada pelo ramal Api4Com`;
       if (visao === "aderencia")
