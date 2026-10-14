@@ -5217,3 +5217,18 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 **Contexto:** na Monetização › Pré-venda, a lateral grifava "Operação diária", e a Pré-venda ficava com o anel de foco preso depois do clique ("hover congelado", relato do Pedro).
 **Decisão:** no empate de caminho entre itens do menu, vence o que casa mais parâmetros da consulta. `/monetizacao` (Operação diária) perdia para ninguém e ganhava de todas as abas `?aba=`, por vir primeiro na lista. O clique de mouse ou toque num item da lateral solta o foco (`blur` quando `event.detail > 0`); Enter pelo teclado mantém o foco e o anel.
 **Onde:** `src/components/app-sidebar.tsx` (`itemAtivo` e o `onClick` do `Link`).
+
+## 2026-10-14 — Contrato ganho volta a virar empresa e conta na Base; o sync do Pipedrive não grava mais "sucesso" com escrita recusada
+
+**Contexto:** o Pedro perguntou por que 49 clientes fechados pelo Inside Sales em 2026 não estavam na Base de clientes ("tem que estar"). Medido: os 71 contratos ganhos de 16/09 a 09/10 (todos os pipes) estão com `contratos.empresa_id` nulo. A Base nasce de `ops.empresas` (`monetizacao_intake_ops`), então contrato sem empresa não vira conta.
+
+**Causa:** desde 17/09 o upsert de `empresas` do `pipedrive-contratos-sync` reescrevia `titulo` de empresa já confirmada no Pipefy. O guarda `sync_empresa_to_pipefy` recusava o lote inteiro (HTTP 400), o `supaPost` engolia o erro (`return []`) e a rodada era gravada como `sucesso`. A correção de 18/09 só tirou os campos do Pipefy do PATCH por CNPJ; o upsert em lote seguiu falhando todo dia, com `empresas: 5` no `sync_log`. A versão no ar (v27, 02/10) não estava em nenhuma branch e foi extraída do pacote publicado.
+
+**Decisão:**
+1. O sync liga o contrato à empresa que já tem o deal em `pipedrive_id` (o cadastro do Pipefy já chega com ele). Linha do Pipefy: só leitura. Linha só do Pipedrive: o upsert de sempre. Empresa nova: só insere (`ignore-duplicates`). Os índices de empresa são paginados (o PostgREST corta em 1000).
+2. Escrita recusada deixa a rodada `parcial` no `sync_log`, com a mensagem, e o resultado traz `contratos_sem_empresa`.
+3. `base_ingest_pipefy` adota a empresa criada pelo sync do Pipedrive pelo deal em `pipedrive_id` quando o CNPJ não casa, em vez de colidir na chave única.
+4. `monetizacao_intake_ops` acende `pipedrive_contract` (e `pipedrive_contract_id`) na conta que ganhou contrato depois de nascer. Não mexe em `new_commercial`: ela tira a conta do Aquário retroativo de Consultoria, e a origem da conta não muda por causa de um contrato ligado depois. Ensaio em produção (desfeito): 94 contas acendem (731 → 825); a consulta custa 50–100 ms por rodada.
+
+**Onde:** `supabase/functions/pipedrive-contratos-sync/index.ts`, `supabase/migrations/20261014150000_contratos_empresa_base.sql`.
+**Ordem de publicação:** migration antes da função, para a empresa criada pelo Pipedrive já ser adotada quando o cadastro do Pipefy chegar.

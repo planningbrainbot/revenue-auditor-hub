@@ -9,11 +9,12 @@
 // ficaram fora do CAC por causa disso. Rodando na nuvem elimina essa classe
 // de falha (não depende do laptop estar ligado/acordado/na rede certa).
 //
-// Fonte: Pipedrive pipeline 2 (Inside Sales), deals com status=won.
+// Fonte: Pipedrive pipelines 2 (Inside Sales) e 4 (Negociação - Sócios),
+// deals com status=won.
 // Para cada deal: upsert em 'empresas' (casando por CNPJ antes de criar
 // linha nova) e upsert em 'contratos' (preserva CNPJ já gravado
-// manualmente). Remove contratos recentes (<=90 dias) que saíram do
-// pipeline 2 ou foram marcados 'lost'. Mescla duplicatas em 'empresas'.
+// manualmente). Remove contratos recentes (<=90 dias) que saíram
+// dos dois pipelines ou foram marcados 'lost'. Mescla duplicatas em 'empresas'.
 //
 // NÃO inclui o backfill de entrada_contrato_assinado_em do script original
 // (run_backfill_contrato_assinado) — esse campo não é usado por CAC nem
@@ -22,11 +23,24 @@
 // pro caminho principal. Se precisar dessa data, portar como função
 // separada com cadência menor.
 
+import "../_shared/perfil.ts";
 const PD_TOKEN = Deno.env.get("PIPEDRIVE_TOKEN")!;
 const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPA_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const PIPELINE_VENDAS = 2;
+// Pipeline 4 ("Negociação - Sócios") é a segunda fonte de contratos desde a
+// integração do pipe de Sócios — mesmo campo Unidade de Negócio, mesmo
+// significado de won. O port original desta função (31/07/2026) trouxe só o
+// pipeline 2 e ainda tratava "não é pipeline 2" como motivo de remoção, o que
+// deixou 117 deals ganhos de 2026 invisíveis no Ops (28 só em Belém, achado
+// em 10/09/2026 na validação por unidade do Placar da Base).
+const PIPELINE_SOCIOS = 4;
+const VALID_PIPELINES = new Set([PIPELINE_VENDAS, PIPELINE_SOCIOS]);
+const ORIGEM_LABELS: Record<number, string> = {
+  [PIPELINE_VENDAS]: "inside_sales",
+  [PIPELINE_SOCIOS]: "socios",
+};
 
 // Campos customizados Pipedrive
 const CNPJ_FIELD = "f37f5a5c865fe4f49f16233ed97a989cab34dc7d";
@@ -59,6 +73,15 @@ const UNIDADE_LABELS: Record<string, string> = {
   "930": "Campo Novo",
   "931": "São Luis",
   "984": "Maceió",
+  // Unidades novas da Expansao, cadastradas em `unidades` em 16/09/2026.
+  // Sem elas o extractUnidade devolvia o id cru e 13 contratos de Sao Bernardo
+  // ficaram gravados com unidade = "1055", invisiveis em qualquer leitura por
+  // unidade. Corrigidos no mesmo dia.
+  "1054": "Recife",
+  "1055": "São Bernardo",
+  "1056": "Sorocaba",
+  // 1124 (BPO Financeiro GYN) fica de fora de proposito: e produto atendido
+  // por uma empresa so, nao unidade, e ainda precisa de decisao de modelo.
 };
 
 const MATRIZ_IDS = new Set(["694", "699", "700", "701", "719", "720"]);
@@ -103,6 +126,36 @@ const SDR_LABELS: Record<string, string> = {
   "993": "Jacquelyne Almeida",
 };
 
+// Os mapas acima são cópias congeladas das opções dos campos de seleção do
+// Pipedrive. Quando alguém entra no time e ganha uma opção nova, o id novo não
+// está aqui e `extractEnumLabel` devolvia null: o deal sincroniza inteiro, sem
+// erro, só com a coluna vazia. Foi o que aconteceu com "Closer Responsável" —
+// Anna Carolina (1046), Gabryelly Morais (1058) e Gabriella Oliveira (1126)
+// venderam, e o Ops mostrou "—" em 22/09/2026.
+//
+// Agora as opções são lidas do próprio Pipedrive a cada rodada (uma chamada a
+// `/dealFields`) e os mapas ficam só como rede: se a chamada falhar, o sync
+// continua com o que sabia antes em vez de zerar as três colunas.
+const OPCOES_AO_VIVO: Record<string, Record<string, string>> = {};
+
+async function carregarOpcoesDeSelecao(): Promise<void> {
+  const alvos = new Set([CLOSER_FIELD, SDR_FIELD, REGIME_FIELD]);
+  try {
+    const data = await pdGet(`/dealFields?limit=500`);
+    for (const f of (data?.data ?? []) as Record<string, any>[]) {
+      if (!alvos.has(f.key)) continue;
+      const mapa: Record<string, string> = {};
+      for (const o of (f.options ?? []) as Record<string, any>[]) {
+        mapa[String(o.id)] = String(o.label);
+      }
+      if (Object.keys(mapa).length > 0) OPCOES_AO_VIVO[f.key] = mapa;
+    }
+    console.log(`dealFields: opções carregadas para ${Object.keys(OPCOES_AO_VIVO).length} campos`);
+  } catch (e) {
+    console.error(`dealFields falhou, seguindo com os rótulos fixos: ${e}`);
+  }
+}
+
 function extractEnumLabel(
   d: Record<string, unknown>,
   fieldKey: string,
@@ -110,7 +163,34 @@ function extractEnumLabel(
 ): string | null {
   const raw = d[fieldKey];
   if (!raw || raw === 0) return null;
-  return labels[String(raw)] ?? null;
+  const id = String(raw);
+  return OPCOES_AO_VIVO[fieldKey]?.[id] ?? labels[id] ?? null;
+}
+
+// ── Dono do deal ─────────────────────────────────────────────────────────
+// contratos.pipedrive_owner_email, desde 02/10/2026, para o Hunter Sócio: venda
+// do pipe Sócios sem "Unidade de Negócio" cai na unidade do sócio dono do deal
+// (só na view v_hunter_socio; contratos.unidade continua o que o Pipedrive diz).
+// A lista de deals da v1 às vezes devolve user_id como número, então o e-mail
+// sai do cadastro de usuários quando não vem no próprio deal.
+let EMAIL_DO_USUARIO = new Map<number, string>();
+
+async function carregarUsuariosDoPipedrive(): Promise<void> {
+  const data = await pdGet("/users");
+  EMAIL_DO_USUARIO = new Map(
+    ((data.data ?? []) as { id: number; email?: string }[])
+      .filter((u) => u.email)
+      .map((u) => [u.id, String(u.email).toLowerCase()]),
+  );
+}
+
+function emailDoDono(d: Record<string, unknown>): string | null {
+  const dono = d.user_id as { id?: number; email?: string } | number | null | undefined;
+  if (dono && typeof dono === "object") {
+    if (dono.email) return String(dono.email).toLowerCase();
+    return dono.id != null ? (EMAIL_DO_USUARIO.get(Number(dono.id)) ?? null) : null;
+  }
+  return dono != null ? (EMAIL_DO_USUARIO.get(Number(dono)) ?? null) : null;
 }
 
 // ── Pipedrive HTTP helper (3 tentativas, 3s entre elas) ──────────────────
@@ -132,6 +212,13 @@ async function pdGet(path: string): Promise<any> {
 }
 
 // ── Supabase REST helpers ─────────────────────────────────────────────────
+// Escrita recusada não derruba o sync, mas também não some: de 17/09 a 14/10/2026
+// o upsert de `empresas` voltou 400 todo dia (o guarda do Pipefy recusa o lote
+// inteiro), o erro ia só para o console e a rodada era gravada como "sucesso".
+// 71 contratos ganhos ficaram sem empresa e fora da Base de clientes. Agora a
+// rodada com escrita recusada fica "parcial" no sync_log, com a mensagem.
+const FALHAS_ESCRITA: string[] = [];
+
 async function supaPost(
   path: string,
   rows: Record<string, unknown>[],
@@ -149,7 +236,9 @@ async function supaPost(
     body: JSON.stringify(rows),
   });
   if (!res.ok) {
-    console.error(`Supabase error ${res.status} em ${path}: ${(await res.text()).slice(0, 400)}`);
+    const msg = `Supabase error ${res.status} em ${path.split("?")[0]} (${rows.length} linhas): ${(await res.text()).slice(0, 400)}`;
+    console.error(msg);
+    FALHAS_ESCRITA.push(msg);
     return [];
   }
   const body = await res.text();
@@ -238,12 +327,38 @@ function extractCnpj(d: Record<string, unknown>): string {
   return cleaned.length === 14 ? cleaned : "";
 }
 
+// Unidade cadastrada pela tela Regras da Rede (/unidades) com a opção do
+// Pipedrive preenchida. Lida a cada rodada, então unidade nova deixa de pedir
+// mudança neste arquivo: até 01/10/2026 cada uma exigia uma linha em
+// UNIDADE_LABELS, e esquecer gravava o id cru (os 13 contratos "1055").
+// O mapa fixo continua vencendo nos ids que já conhece: 694 grava "Matriz",
+// que é o apelido que a normalização traduz para Goiânia (DECISIONS 18/09).
+const UNIDADES_DO_OPS: Record<string, [string, string]> = {};
+
+async function carregarUnidadesDoOps(): Promise<void> {
+  try {
+    const rows = await supaGet(
+      "unidades?select=pipedrive_opcao_id,nome_da_praca,tipo&pipedrive_opcao_id=not.is.null",
+    );
+    for (const r of rows) {
+      if (!r.nome_da_praca) continue;
+      UNIDADES_DO_OPS[String(r.pipedrive_opcao_id)] = [
+        r.nome_da_praca,
+        r.tipo === "interna" ? "matriz" : "franquia",
+      ];
+    }
+    console.log(`unidades: ${Object.keys(UNIDADES_DO_OPS).length} com opção do Pipedrive no cadastro`);
+  } catch (e) {
+    console.error(`unidades do cadastro falharam, seguindo com o mapa fixo: ${e}`);
+  }
+}
+
 function extractUnidade(d: Record<string, unknown>): [string | null, string | null] {
   const raw = d[UNIDADE_FIELD];
   if (!raw || raw === 0) return [null, null];
   const uid = String(raw);
   const label = UNIDADE_LABELS[uid];
-  if (label === undefined) return [uid, null];
+  if (label === undefined) return UNIDADES_DO_OPS[uid] ?? [uid, null];
   const tipo = MATRIZ_IDS.has(uid) ? "matriz" : "franquia";
   return [label, tipo];
 }
@@ -309,6 +424,8 @@ function mapContrato(
     closer,
     sdr,
     regime_tributario: regimeTributario,
+    origem_pipeline: ORIGEM_LABELS[d.pipeline_id as number] ?? "inside_sales",
+    pipedrive_owner_email: emailDoDono(d),
   };
   if (empresaId != null) row.empresa_id = empresaId;
   return row;
@@ -329,12 +446,38 @@ async function fetchPipelineWonDeals(pipelineId: number): Promise<Record<string,
   return deals;
 }
 
+// `empresas` passa de 4 mil linhas e o PostgREST corta em 1000 por resposta,
+// qualquer que seja o `limit` pedido: sem paginar, o índice nasce com um quarto
+// da base e o casamento falha em silêncio para o resto.
+async function fetchEmpresasPaginado(select: string, filtro: string): Promise<any[]> {
+  const out: any[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const lote = await supaGet(`empresas?select=${select}&${filtro}&order=id&offset=${offset}&limit=1000`);
+    out.push(...lote);
+    if (lote.length < 1000) break;
+  }
+  return out;
+}
+
 async function fetchEmpresasCnpjIndex(): Promise<Map<string, { id: number; pipedrive_id: string | null }>> {
-  const rows = await supaGet("empresas?select=id,cnpj,pipedrive_id&cnpj=not.is.null&limit=5000");
+  const rows = await fetchEmpresasPaginado("id,cnpj,pipedrive_id", "cnpj=not.is.null");
   const idx = new Map<string, { id: number; pipedrive_id: string | null }>();
   for (const r of rows) {
     const c = String(r.cnpj ?? "").replace(/[^0-9]/g, "");
     if (c.length === 14 && !idx.has(c)) idx.set(c, { id: r.id, pipedrive_id: r.pipedrive_id });
+  }
+  return idx;
+}
+
+// Empresa que já carrega o deal em `pipedrive_id`. Desde 16/09/2026 o cadastro
+// do Pipefy é o dono da empresa e já chega com o deal; `pipefy` diz se a linha
+// é dele (aí este sync só lê) ou se ainda é só do Pipedrive (aí segue atualizando).
+async function fetchEmpresasPorDeal(): Promise<Map<string, { id: number; pipefy: boolean }>> {
+  const rows = await fetchEmpresasPaginado("id,pipedrive_id,pipefy_record_id", "pipedrive_id=not.is.null");
+  const idx = new Map<string, { id: number; pipefy: boolean }>();
+  for (const r of rows) {
+    const pid = String(r.pipedrive_id ?? "").trim();
+    if (pid) idx.set(pid, { id: r.id, pipefy: !!r.pipefy_record_id });
   }
   return idx;
 }
@@ -346,32 +489,88 @@ async function fetchContratosCnpjIndex(): Promise<Set<string>> {
   return new Set(rows.filter((r) => r.cnpj).map((r) => r.pipedrive_deal_id as string));
 }
 
-// Faz o papel do upsert em 'empresas', mas casa por CNPJ primeiro: se já
-// existe uma empresa (de qualquer fonte) com o mesmo CNPJ do deal, funde o
-// pipedrive_id nela via PATCH em vez de inserir uma linha nova.
+// Contratos com MRR fixado à mão (migration 46). O valor do deal no Pipedrive
+// nem sempre é o MRR real — o caso que originou isso foi o deal 93810 (Genial
+// Energia), cujo valor comercial dava 9,5x o que a apuração de royalties do RJ
+// confirma. Quando há override, ele vence o valor do deal.
+async function fetchContratosMrrOverride(): Promise<Map<string, number>> {
+  const rows = await supaGet(
+    "contratos?select=pipedrive_deal_id,mrr_override&mrr_override=not.is.null&pipedrive_deal_id=not.is.null&limit=5000",
+  );
+  return new Map(
+    rows.map((r) => [r.pipedrive_deal_id as string, Number(r.mrr_override)]),
+  );
+}
+
+// Faz o papel do upsert em 'empresas', em três casos, nesta ordem:
+// 1. já existe empresa com o deal em `pipedrive_id`: liga o contrato a ela. Se a
+//    linha é do Pipefy, não escreve nada; se ainda é só do Pipedrive, atualiza
+//    como sempre fez.
+// 2. existe empresa (de qualquer fonte) com o mesmo CNPJ do deal: funde o
+//    pipedrive_id nela via PATCH em vez de inserir uma linha nova.
+// 3. nenhuma das duas: cria a empresa.
+// Até 14/10/2026 o caso 1 ia no mesmo upsert do caso 3, com merge-duplicates. O
+// lote reescrevia `titulo` de empresa já confirmada no Pipefy, o guarda
+// `sync_empresa_to_pipefy` recusava o lote inteiro, e nenhuma empresa nova era
+// criada nem ligada desde 17/09.
 async function upsertEmpresasSemDuplicarCnpj(
   deals: Record<string, unknown>[],
 ): Promise<Map<string, number>> {
+  const porDeal = await fetchEmpresasPorDeal();
   const cnpjIdx = await fetchEmpresasCnpjIndex();
   const pidToEid = new Map<string, number>();
   const dealsNormais: Record<string, unknown>[] = [];
+  const dealsNovos: Record<string, unknown>[] = [];
 
   for (const d of deals) {
+    const existente = porDeal.get(String(d.id));
+    if (existente) {
+      pidToEid.set(String(d.id), existente.id);
+      if (!existente.pipefy) dealsNormais.push(d);
+      continue;
+    }
     const cnpj = extractCnpj(d);
     const match = cnpj ? cnpjIdx.get(cnpj) : undefined;
     if (match && String(match.pipedrive_id ?? "") !== String(d.id)) {
       const row = mapEmpresa(d, false);
       delete row.pipedrive_id;
-      await supaPatch("empresas", match.id, row);
+      // Campos que pertencem ao Pipefy nao vao no PATCH. O trigger
+      // ops.sync_empresa_to_pipefy recusa a escrita com HTTP 400, e como o
+      // PATCH acontece ANTES do upsert de contratos, o run inteiro morria: de
+      // 17/09/2026 a 18/09/2026 nenhum contrato foi atualizado, e foi assim que
+      // a unidade do Grupo Andrade Bezerra ficou divergente do Pipedrive.
+      // Quem manda nesses campos e o Pipefy; aqui so seguimos.
+      for (const campo of ["titulo", "razao_social", "unidade", "tipo_unidade"]) {
+        delete row[campo];
+      }
+      if (Object.keys(row).length > 0) {
+        try {
+          await supaPatch("empresas", match.id, row);
+        } catch (e) {
+          // Uma empresa recusada nao pode derrubar o sync de 600 contratos.
+          console.error(`PATCH empresa ${match.id} recusado: ${String(e)}`);
+        }
+      }
       pidToEid.set(String(d.id), match.id);
     } else {
-      dealsNormais.push(d);
+      dealsNovos.push(d);
     }
   }
 
+  // Linhas só do Pipedrive: o upsert de sempre, sem risco de bater no guarda.
   if (dealsNormais.length > 0) {
     const empRows = dealsNormais.map((d) => mapEmpresa(d, true));
-    const empResult = await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows);
+    await supaPostGrouped("empresas?on_conflict=pipedrive_id", empRows, "resolution=merge-duplicates,return=minimal");
+  }
+  // Empresa nova: só insere. Se outra fonte criou a linha no meio da rodada, o
+  // conflito é ignorado e a ligação sai na rodada seguinte, pelo caso 1.
+  if (dealsNovos.length > 0) {
+    const empRows = dealsNovos.map((d) => mapEmpresa(d, true));
+    const empResult = await supaPostGrouped(
+      "empresas?on_conflict=pipedrive_id",
+      empRows,
+      "resolution=ignore-duplicates,return=representation",
+    );
     for (const e of empResult) {
       if (e.pipedrive_id) pidToEid.set(String(e.pipedrive_id), e.id);
     }
@@ -402,6 +601,27 @@ async function insertSyncLog(
     "return=minimal",
   );
 }
+
+// Tabelas com FK empresa_id -> empresas.id. As de delete_rule NO ACTION
+// (central_tratativas, contatos, contratos, contratos_documentos,
+// cs_onboarding_cards) barravam o DELETE; as de SET NULL se resolveriam
+// sozinhas, mas perderiam o vínculo — repontar é mais fiel à ideia de merge.
+const EMPRESA_FK_TABELAS = [
+  // Tabelas novas do banco unico. Sem elas o DELETE da duplicata dava 409
+  // (23503) e derrubava o sync inteiro: base_sync_registros segurou o run de
+  // 18/09/2026 na empresa 35995.
+  "base_alteracoes",
+  "base_sync_registros",
+  "monetizacao_ingest_pendencias",
+  "central_tratativas",
+  "contatos",
+  "contratos",
+  "contratos_documentos",
+  "cs_onboarding_cards",
+  "ecd_empresa",
+  "empresa_cnpj_de_para",
+  "nps_pesquisas",
+];
 
 // 'empresas' com mesma unidade+título mas pipedrive_id diferente (2 deals
 // pro mesmo cliente). Mantém a linha vinculada a um contrato ativo (a
@@ -434,7 +654,15 @@ async function runMergeDuplicates(): Promise<number> {
     const idsToDelete = others.map((r) => r.id);
 
     if (idsToDelete.length > 0) {
-      await supaDelete(`empresas?id=in.(${idsToDelete.join(",")})`);
+      // Mesclar é repontar, não só apagar: o DELETE dava 409/23503 sempre que
+      // a duplicata já tinha contrato/card/tratativa pendurado (achado em
+      // 10/09/2026, quando o pipeline 4 trouxe dois deals da mesma Rocha
+      // Distribuidora). As linhas pertencem à empresa que fica.
+      const idStr = idsToDelete.join(",");
+      for (const tabela of EMPRESA_FK_TABELAS) {
+        await supaPatchFilter(`${tabela}?empresa_id=in.(${idStr})`, { empresa_id: keeper.id });
+      }
+      await supaDelete(`empresas?id=in.(${idStr})`);
     }
     if (cnpjToApply && !keeper.cnpj) {
       await supaPatch("empresas", keeper.id, { cnpj: cnpjToApply });
@@ -446,11 +674,26 @@ async function runMergeDuplicates(): Promise<number> {
 
 async function runSync() {
   const startTime = new Date();
+  // O isolate da Edge Function pode servir mais de uma rodada.
+  FALHAS_ESCRITA.length = 0;
   console.log(`Sync Pipedrive → Supabase | ${startTime.toISOString()}`);
 
-  const allDeals = await fetchPipelineWonDeals(PIPELINE_VENDAS);
-  const deals = allDeals.filter((d) => d.pipeline_id === PIPELINE_VENDAS && !isCopy(d));
-  console.log(`${allDeals.length} deals encontrados → ${deals.length} a importar`);
+  await carregarOpcoesDeSelecao();
+  await carregarUnidadesDoOps();
+  await carregarUsuariosDoPipedrive();
+
+  // A API do Pipedrive devolve deals de outros pipelines ao filtrar por
+  // pipeline_id, então o pipeline_id do response é revalidado nos dois casos.
+  const allVendas = await fetchPipelineWonDeals(PIPELINE_VENDAS);
+  const dealsVendas = allVendas.filter((d) => d.pipeline_id === PIPELINE_VENDAS && !isCopy(d));
+  const allSocios = await fetchPipelineWonDeals(PIPELINE_SOCIOS);
+  const dealsSocios = allSocios.filter((d) => d.pipeline_id === PIPELINE_SOCIOS);
+  const deals = [...dealsVendas, ...dealsSocios];
+  console.log(
+    `pipeline ${PIPELINE_VENDAS}: ${allVendas.length} encontrados → ${dealsVendas.length} | ` +
+      `pipeline ${PIPELINE_SOCIOS}: ${allSocios.length} → ${dealsSocios.length} | ` +
+      `${deals.length} a importar`,
+  );
 
   console.log("Upserting empresas...");
   const pidToEid = await upsertEmpresasSemDuplicarCnpj(deals);
@@ -458,11 +701,14 @@ async function runSync() {
 
   console.log("Upserting contratos...");
   const contratosComCnpj = await fetchContratosCnpjIndex();
+  const mrrOverrides = await fetchContratosMrrOverride();
   const contRowsNovoCnpj: Record<string, unknown>[] = [];
   const contRowsPreservaCnpj: Record<string, unknown>[] = [];
   for (const d of deals) {
     const empId = pidToEid.get(String(d.id)) ?? null;
     const row = mapContrato(d, empId);
+    const override = mrrOverrides.get(String(d.id));
+    if (override != null && Number.isFinite(override)) row.mrr = override;
     if (contratosComCnpj.has(String(d.id))) {
       delete row.cnpj;
       contRowsPreservaCnpj.push(row);
@@ -481,7 +727,10 @@ async function runSync() {
     "resolution=merge-duplicates,return=minimal",
   );
   const contRows = [...contRowsNovoCnpj, ...contRowsPreservaCnpj];
-  console.log(`${contRows.length} contratos upserted (${contRowsPreservaCnpj.length} com CNPJ preservado)`);
+  console.log(
+    `${contRows.length} contratos upserted ` +
+      `(${contRowsPreservaCnpj.length} com CNPJ preservado, ${mrrOverrides.size} com MRR override)`,
+  );
 
   console.log("Verificando deals órfãos / lost (últimos 90 dias)...");
   const cutoff = new Date(startTime.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
@@ -497,7 +746,7 @@ async function runSync() {
       try {
         const d = await pdGet(`/deals/${c.pipedrive_deal_id}`);
         const deal = d.data ?? {};
-        if (deal.pipeline_id !== PIPELINE_VENDAS || deal.status === "lost") {
+        if (!VALID_PIPELINES.has(deal.pipeline_id as number) || deal.status === "lost") {
           lostIds.push(c.id);
         }
       } catch {
@@ -527,12 +776,21 @@ async function runSync() {
   const result = {
     deals: deals.length,
     empresas: pidToEid.size,
+    // Contrato que sai desta rodada sem empresa não entra na Base de clientes.
+    contratos_sem_empresa: deals.filter((d) => !pidToEid.has(String(d.id))).length,
     contratos: contRows.length,
     lost_removidos: lostCount,
     duplicatas_removidas: merged,
     elapsed,
+    falhas_escrita: FALHAS_ESCRITA.slice(0, 5),
   };
-  await insertSyncLog(startTime, elapsed, contRows.length, result);
+  await insertSyncLog(
+    startTime,
+    elapsed,
+    contRows.length,
+    result,
+    FALHAS_ESCRITA.length > 0 ? "parcial" : "sucesso",
+  );
   return result;
 }
 
