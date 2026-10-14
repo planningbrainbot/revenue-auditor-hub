@@ -148,9 +148,68 @@ test("Carga do CRM: agendada, realizada, Stand by e validação iguais com os no
   assert.deepEqual(depois[0].scheduled, ["2026-10-06"]);
   assert.deepEqual(depois[0].meeting, ["2026-10-07"]);
   assert.deepEqual(depois[0].validated, ["2026-10-09"]);
-  // Stand by sem reunião antes conta como reunião realizada, e não valida.
-  assert.deepEqual(depois[1].meeting, ["2026-10-06"]);
+  // Stand by direto da Abordagem não é reunião (dono, 14/10/2026: Grupo Nilo, 97913), e não valida.
+  assert.deepEqual(depois[1].meeting, []);
   assert.deepEqual(depois[1].validated, []);
+});
+
+test("Carga do CRM: Stand by depois de Agendado conta como realizada; toque e reentrada não contam (14/10/2026)", () => {
+  const fluxos = {
+    // Agendado e depois Stand by, sem passar por Realizado: a reunião aconteceu e o cliente pediu espera.
+    910: [
+      change(274, 276, "2026-10-05 12:00:00"),
+      change(276, 277, "2026-10-06 12:00:00"),
+      change(277, 288, "2026-10-08 12:00:00"),
+    ],
+    // Pro-Seed (98011): em Agendado desde 06/10, 2 segundos em Gatilho e de volta. Não é marcação nova.
+    911: [
+      change(274, 276, "2026-10-05 12:00:00"),
+      change(276, 277, "2026-10-06 12:00:00"),
+      change(277, 275, "2026-10-13 13:18:00"),
+      change(275, 277, "2026-10-13 13:18:02"),
+    ],
+    // P. Silva (100013): 2 segundos em Agendado, Abordagem, Qualificação e Agendado de novo. A segunda entrada vale.
+    912: [
+      change(274, 277, "2026-10-14 15:07:13"),
+      change(277, 276, "2026-10-14 15:07:15"),
+      change(276, 290, "2026-10-14 15:07:20"),
+      change(290, 277, "2026-10-14 15:07:23"),
+    ],
+    // 99720: 24 segundos em Stand by e de volta para Qualificação. Não é reunião.
+    913: [
+      change(274, 276, "2026-10-13 12:00:00"),
+      change(276, 290, "2026-10-13 18:00:00"),
+      change(290, 288, "2026-10-14 13:42:00"),
+      change(288, 290, "2026-10-14 13:42:24"),
+    ],
+    // Re-abordagem: saiu da Base, voltou e saiu de novo em outro dia. A volta de 5 minutos não conta.
+    914: [
+      change(274, 276, "2026-09-20 12:00:00"),
+      change(276, 274, "2026-10-13 12:00:00"),
+      change(274, 276, "2026-10-13 14:00:00"),
+      change(276, 274, "2026-10-14 12:00:00"),
+      change(274, 276, "2026-10-14 12:30:00"),
+      change(276, 274, "2026-10-14 12:35:00"),
+    ],
+  };
+  const deals = [
+    raw({ id: 910, stage_id: 288 }),
+    raw({ id: 911, stage_id: 277 }),
+    raw({ id: 912, stage_id: 277 }),
+    raw({ id: 913, stage_id: 290 }),
+    raw({ id: 914, stage_id: 274 }),
+    raw({ id: 915, stage_id: 274, title: "TESTE · e-mail automático do D0" }),
+  ];
+  const snap = summarize(deals, paraCarga(DEPOIS), fluxos, "2026-10");
+  const ev = (id, k) => snap.cards.find((c) => c.id === id).events[k].map((e) => e.date);
+  assert.deepEqual(ev(910, "meeting"), ["2026-10-08"]);
+  assert.deepEqual(ev(911, "scheduled"), ["2026-10-06"]);
+  assert.deepEqual(ev(912, "scheduled"), ["2026-10-14"]);
+  assert.deepEqual(ev(913, "meeting"), []);
+  assert.deepEqual(ev(914, "started"), ["2026-09-20", "2026-10-13"]);
+  // Card de teste fica fora do snapshot e da conferência.
+  assert.equal(snap.testes, 1);
+  assert.ok(!snap.cards.some((c) => c.id === 915));
 });
 
 test("Carga do CRM recusa o pipe sem etapa de reunião realizada nem negociação", () => {

@@ -4,7 +4,7 @@ import { etapaDaChave } from "../_shared/etapas-pipe39.ts";
 export const PRODUCT = PRODUCT_KEY;
 // Versão da régua gravada em cada card. Subir aqui faz a carga reler o histórico de todos os
 // negócios na rodada seguinte; o index.ts compara com esta mesma constante.
-export const METRIC_VERSION = 7;
+export const METRIC_VERSION = 8;
 const SIGN = "97cd6f5f0f051d7dfd29e709bfde5c048a17cf3e",
   REVENUE = "a62c0a23d29d00e7a314531b1a4f6706a51474bf";
 // "Caixa · Produtos ofertados" (01/10/2026): o que foi apresentado na call, várias opções. O "Caixa · Produto"
@@ -20,6 +20,15 @@ const id = (v) => Number(typeof v === "object" ? (v?.id ?? v?.value) : v) || nul
 const route = (v) =>
   ({ 1128: "cella", 1129: "consultoria", 1130: "finance" })[String(v)] || "sem_produto";
 const unique = (rows) => [...new Map(rows.map((x) => [x.id, x])).values()];
+// Card de teste (título começando por "TESTE", como o 100026 do e-mail do D0, 14/10/2026) fica fora de toda conta.
+export const ehCardDeTeste = (d) => /^\s*teste\b/i.test(String(d?.title ?? ""));
+// Toque desfeito (dono, 14/10/2026): a entrada numa etapa só vira reunião marcada, reunião realizada ou nova abordagem
+// se o card ficou nela 30 minutos ou mais, avançou a partir dela ou terminou nela, a mesma régua do funil da Operação.
+export const PERMANENCIA_MINIMA_MS = 30 * 60_000;
+const instante = (at) => {
+  const s = String(at).trim().replace(" ", "T");
+  return Date.parse(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s + "Z");
+};
 async function mapLimit(rows, fn, n = 6) {
   const out = [];
   for (let i = 0; i < rows.length; i += n)
@@ -27,6 +36,8 @@ async function mapLimit(rows, fn, n = 6) {
   return out;
 }
 export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
+  const testes = deals.filter(ehCardDeTeste).length;
+  deals = deals.filter((d) => !ehCardDeTeste(d));
   stages = stages.filter((s) => !/(reciclad|perdid|descart|estacion|parking)/i.test(s.name));
   const first = stages[0].id,
     order = new Map(stages.map((s) => [Number(s.id), s.order_nr]));
@@ -40,7 +51,8 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
     // nunca valida a oportunidade, em qualquer ordem do pipe (dono, 01/10/2026).
     proposal = stageFor("reuniaoProposta"),
     // Stand by é espera depois da reunião, antes do ganho (dono, 28/09/2026): entrar nele conta
-    // como reunião realizada quando o card ainda não tinha passado por Reunião realizada.
+    // como reunião realizada quando o card ainda não tinha passado por Reunião realizada. Desde 14/10/2026 (dono),
+    // só conta se o card passou por Agendado antes: Stand by direto da Abordagem (Grupo Nilo, 97913) não é reunião.
     standby = stageFor("standby");
   if (!meeting || !negotiation) throw Error("Etapas de reunião e negociação não identificadas");
   // Oportunidade validada = entrar em Em negociação ou numa etapa posterior. Stand by não valida (dono, 01/10/2026):
@@ -90,16 +102,43 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
           actor_id: adiantado ? id(d.creator_user_id) || ownerAt(at) : ownerAt(at),
         });
       }
+      const passoDe = new Map();
       for (const e of movements) {
         const dest = id(e.new_value);
-        if (dest)
+        if (dest) {
           moves.push({
             stage_id: dest,
             at: e.log_time,
             date: localDate(e.log_time),
             actor_id: id(e.user_id) || ownerAt(e.log_time),
           });
+          passoDe.set(e, moves.length - 1);
+        }
       }
+      const t = moves.map((m) => instante(m.at));
+      // Ficou: 30 minutos ou mais na etapa, avançou a partir dela ou terminou nela.
+      const ficou = (i) =>
+        i === moves.length - 1 ||
+        t[i + 1] - t[i] >= PERMANENCIA_MINIMA_MS ||
+        (order.get(moves[i + 1].stage_id) || 0) > (order.get(moves[i].stage_id) || 0);
+      // Voltou: entrou de novo numa etapa em que já estava valendo e de onde tinha saído havia menos de 30 minutos. O
+      // Pro-Seed (98011) estava em Agendado desde 06/10, passou 2 segundos por Gatilho em 13/10 e voltou: não é reunião
+      // marcada de novo. Se a passagem anterior foi só um toque (P. Silva, 100013: 2 segundos em Agendado, Abordagem,
+      // Qualificação e Agendado de novo), a entrada nova é a que vale.
+      const voltou = (i) => {
+        for (let j = i - 1; j >= 0; j--)
+          if (moves[j].stage_id === moves[i].stage_id)
+            return ficou(j) && t[i] - t[j + 1] < PERMANENCIA_MINIMA_MS;
+        return false;
+      };
+      const vale = (e) => {
+        const i = passoDe.get(e);
+        return i !== undefined && ficou(i) && !voltou(i);
+      };
+      const passouPorAgendado = (e) => {
+        const i = passoDe.get(e) ?? moves.length;
+        return !!scheduled && moves.slice(0, i).some((m, k) => m.stage_id === scheduled.id && ficou(k));
+      };
       if ((order.get(initial) || 0) > order.get(first))
         add(
           "started",
@@ -114,15 +153,25 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
         const dest = id(e.new_value),
           previous = id(e.old_value),
           actor = id(e.user_id) || ownerAt(e.log_time);
+        // Saída da Base é abordagem. A primeira conta como sempre; as seguintes (re-abordagem, que conta no ritmo
+        // desde 14/10/2026, dono) só quando valem, para o vai e volta de minutos não virar abordagem.
         if (
-          !events.started.length &&
           (order.get(dest) || 0) > order.get(first) &&
-          (previous === first || !order.has(previous))
+          (previous === first || !order.has(previous)) &&
+          (!events.started.length || vale(e))
         )
-          add("started", e.log_time, actor, "stage_change");
-        if (dest === scheduled?.id) add("scheduled", e.log_time, actor, "stage_change");
-        if (dest === meeting.id) add("meeting", e.log_time, actor, "stage_change");
-        else if (standby && dest === standby.id && !events.meeting.length)
+          add("started", e.log_time, actor, events.started.length ? "reabordagem" : "stage_change");
+        if (dest === scheduled?.id && vale(e)) add("scheduled", e.log_time, actor, "stage_change");
+        // Levantamento realizado: entrada que vale em Realizado, ou a primeira em Stand by depois de passar por Agendado.
+        if (dest === meeting.id) {
+          if (vale(e)) add("meeting", e.log_time, actor, "stage_change");
+        } else if (
+          standby &&
+          dest === standby.id &&
+          !events.meeting.length &&
+          vale(e) &&
+          passouPorAgendado(e)
+        )
           add("meeting", e.log_time, actor, "stand_by");
         if (!validation && validates(dest))
           validation = { at: e.log_time, actor, source: "stage_change" };
@@ -218,6 +267,8 @@ export function summarize(deals, stages, flows, month = today().slice(0, 7)) {
     .sort();
   return {
     schema_version: 3,
+    // Cards de teste fora do snapshot: a conferência com o Pipedrive desconta estes (index.ts).
+    testes,
     month,
     today: today(),
     history_from: allDates[0] || today(),

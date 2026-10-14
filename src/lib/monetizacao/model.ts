@@ -725,7 +725,7 @@ export function quadrosDaOperacao(
       nota:
         sobre(realizados.length, agendados.length, "dos agendados") + mais(realizadosAntes.length),
       formula:
-        "Abordados do período que chegaram a Realizado - Levantamento com sócio (antes, Reunião de levantamento realizada; Stand by conta como realizado), ou além. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
+        "Abordados do período que chegaram a Realizado - Levantamento com sócio (antes, Reunião de levantamento realizada; Stand by conta como realizado se o card passou por Agendado), ou além. Card abordado antes que chegou a ela no período aparece à parte, na nota e na lista.",
       cards: [...realizados, ...realizadosAntes],
     },
     {

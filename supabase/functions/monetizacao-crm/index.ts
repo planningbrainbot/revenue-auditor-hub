@@ -162,7 +162,8 @@ async function collect() {
     );
     return { ...old, ...flags };
   });
-  snapshot.verified_count = expected;
+  // A contagem conciliada desconta os cards de teste, que a régua tira do snapshot (crm.mjs, 14/10/2026).
+  snapshot.verified_count = expected - (snapshot.testes || 0);
   return { snapshot, deals };
 }
 async function sync() {

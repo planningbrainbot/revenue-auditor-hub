@@ -170,7 +170,8 @@ test("Nível: a etapa conta se o card ficou 30 min, avançou dela ou terminou ne
       mv(276, "2026-09-03 14:00:00"),
     ],
   });
-  // Stand by vale reunião realizada; Gatilho (setembro) vale Conexão.
+  // Gatilho (setembro) vale Conexão. Stand by direto, sem Agendado antes, não vale reunião realizada (dono,
+  // 14/10/2026): o card fica na Conexão.
   const espera = card({
     moves: [
       mv(274, "2026-08-20 12:00:00"),
@@ -178,12 +179,22 @@ test("Nível: a etapa conta se o card ficou 30 min, avançou dela ou terminou ne
       mv(288, "2026-09-08 13:00:00"),
     ],
   });
-  const fc = funilCumulativo([toque, avancou, voltou, espera], ST, SET);
+  // Agendado e depois Stand by: vale reunião realizada.
+  const agendouEsperou = card({
+    moves: [
+      mv(274, "2026-08-20 12:00:00"),
+      mv(276, "2026-09-02 13:00:00"),
+      mv(277, "2026-09-03 13:00:00"),
+      mv(288, "2026-09-08 13:00:00"),
+    ],
+  });
+  const fc = funilCumulativo([toque, avancou, voltou, espera, agendouEsperou], ST, SET);
   assert.equal(fc.nivelDoCard.get(toque.id), 1);
   assert.equal(fc.nivelDoCard.get(avancou.id), 3);
   assert.equal(fc.nivelDoCard.get(voltou.id), 3);
-  assert.equal(fc.nivelDoCard.get(espera.id), 4);
-  assert.deepEqual(contagens(fc), [4, 4, 3, 3, 1, 0, 0, 0, 0]);
+  assert.equal(fc.nivelDoCard.get(espera.id), 2);
+  assert.equal(fc.nivelDoCard.get(agendouEsperou.id), 4);
+  assert.deepEqual(contagens(fc), [5, 5, 4, 3, 1, 0, 0, 0, 0]);
 });
 
 test("Contagens só descem, validadas ≤ realizadas, e a taxa é a etapa ÷ a de cima", () => {
