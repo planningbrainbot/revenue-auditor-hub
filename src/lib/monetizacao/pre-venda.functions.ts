@@ -15,6 +15,7 @@ import {
   type LinhaAvaliacao,
   type LinhaRitmo,
 } from "./pre-venda";
+import { normalizarCadencias, type AtividadeCadencia } from "./hoje-pre-venda";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = any;
@@ -56,6 +57,17 @@ export async function lerAtrasados(context: { supabase: unknown }): Promise<Atra
     "os atrasados da cadência",
   );
   return normalizarAtrasados(data);
+}
+
+/** As atividades das cadências ativas, para a visão Hoje (14/10/2026). */
+export async function lerCadencias(context: { supabase: unknown }): Promise<AtividadeCadencia[]> {
+  const data = await rpc(
+    context,
+    "monetizacao_pre_venda_cadencias",
+    {},
+    "as atividades da cadência",
+  );
+  return normalizarCadencias(data);
 }
 
 export async function lerAvaliacoes(
@@ -103,3 +115,7 @@ export const carregarAvaliacaoPreVenda = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(z.object({ deal: z.number().int().positive() }))
   .handler(({ context, data }) => lerAvaliacao(context, data.deal));
+
+export const carregarCadenciasPreVenda = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(({ context }) => lerCadencias(context));

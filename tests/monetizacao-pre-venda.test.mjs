@@ -376,9 +376,10 @@ test("Menu da Monetização: seis itens, Pré-venda logo depois da Operação di
   }
 });
 
-test("Pré-venda: visão na URL, Ritmo por padrão, e cada chave só vale na visão dela", () => {
+test("Pré-venda: visão na URL, Hoje por padrão (14/10/2026), e cada chave só vale na visão dela", () => {
   assert.equal(validarBuscaMonetizacao({ aba: "pre-venda" }).visao, undefined);
-  assert.equal(validarBuscaMonetizacao({ aba: "pre-venda", visao: "ritmo" }).visao, undefined);
+  assert.equal(validarBuscaMonetizacao({ aba: "pre-venda", visao: "hoje" }).visao, undefined);
+  assert.equal(validarBuscaMonetizacao({ aba: "pre-venda", visao: "ritmo" }).visao, "ritmo");
   assert.equal(
     validarBuscaMonetizacao({ aba: "pre-venda", visao: "aderencia" }).visao,
     "aderencia",
