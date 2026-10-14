@@ -269,9 +269,14 @@ test("cria a cadência do card que veio da 274, com dono, tipo e nota", async ()
   assert.equal(store.chamadas.find(([m]) => m === "insert" || m === "update")[0], "insert");
 });
 
+const COM_SOCIO = {
+  "73bd1e4b5cecc29824871f097f18e6757e17a9ac": "a Jordana",
+  person_id: { value: 9, name: "João", email: [{ value: "joao@cliente.com.br", primary: true }] },
+};
+
 test("e-mail do D0 automático: nasce feito, com a nota de conferência; o resto nasce aberto", async () => {
   const pd = fakePipedrive({
-    abertos: [deal(101, "2026-10-09 15:00:00")],
+    abertos: [deal(101, "2026-10-09 15:00:00", COM_SOCIO)],
     flows: { 101: [mudanca(274, 276, "2026-10-09 15:00:00")] },
   });
   const store = fakeStore();
@@ -285,11 +290,28 @@ test("e-mail do D0 automático: nasce feito, com a nota de conferência; o resto
   assert.deepEqual(posts.slice(1).map((p) => p.done), [0, 0]);
   // Sem a chave, nada muda.
   const pd2 = fakePipedrive({
-    abertos: [deal(102, "2026-10-09 15:00:00")],
+    abertos: [deal(102, "2026-10-09 15:00:00", COM_SOCIO)],
     flows: { 102: [mudanca(274, 276, "2026-10-09 15:00:00")] },
   });
   await rodar(pd2, fakeStore());
   assert.deepEqual(pd2.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p.done), [0, 0, 0]);
+});
+
+test("e-mail do D0 automático: sem sócio no e-mail ou sem e-mail na pessoa, a automação não manda e o D0 nasce a fazer", async () => {
+  const semSocio = { ...COM_SOCIO, "73bd1e4b5cecc29824871f097f18e6757e17a9ac": "  " };
+  const semEmail = { ...COM_SOCIO, person_id: { value: 9, name: "João", email: [{ value: "" }] } };
+  const pd = fakePipedrive({
+    abertos: [deal(103, "2026-10-09 15:00:00", semSocio), deal(104, "2026-10-09 15:00:00", semEmail)],
+    flows: {
+      103: [mudanca(274, 276, "2026-10-09 15:00:00")],
+      104: [mudanca(274, 276, "2026-10-09 15:00:00")],
+    },
+  });
+  await rodar(pd, fakeStore(), { emailD0Automatico: true });
+  const posts = pd.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p);
+  assert.equal(posts.length, 6);
+  assert.ok(posts.every((p) => p.done === 0));
+  assert.ok(posts.every((p) => !p.note.startsWith("Enviado pela automação")));
 });
 
 test("idempotência: rodar duas vezes não duplica atividade nem linha", async () => {
