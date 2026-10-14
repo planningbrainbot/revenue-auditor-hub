@@ -352,7 +352,7 @@ test("Erro da RPC: sem acesso e função ainda não criada não viram erro de le
 
 // ── Navegação ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("Menu da Monetização: seis itens, Pré-venda logo depois da Operação diária", () => {
+test("Menu da Monetização: sete itens, Pré-venda logo depois da Operação diária e Forecast (14/10) depois da Consultoria", () => {
   const area = AREAS.find((a) => a.slug === "monetizacao");
   const itens = area.grupos.flatMap((g) => g.items);
   assert.deepEqual(
@@ -361,6 +361,7 @@ test("Menu da Monetização: seis itens, Pré-venda logo depois da Operação di
       "Operação diária",
       "Pré-venda",
       "Consultoria",
+      "Forecast",
       "Funil comercial",
       "Abordagens",
       "Distribuição",
@@ -368,7 +369,7 @@ test("Menu da Monetização: seis itens, Pré-venda logo depois da Operação di
   );
   assert.equal(itens[1].url, "/monetizacao?aba=pre-venda");
   assert.equal(area.grupos[0].label, "Oportunidades");
-  assert.ok(!itens.some((i) => /aba=(gravacoes|pessoas)/.test(i.url)));
+  assert.ok(!itens.some((i) => /aba=(gravacoes|pessoas|forecast)\b/.test(i.url)));
   // Toda aba do menu é uma aba válida da tela.
   for (const i of itens) {
     const aba = new URLSearchParams(i.url.split("?")[1] ?? "").get("aba") ?? "operacao";

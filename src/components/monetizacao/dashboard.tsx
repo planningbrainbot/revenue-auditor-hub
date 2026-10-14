@@ -34,6 +34,7 @@ import {
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
+import { Fechamentos } from "./fechamentos";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
@@ -98,6 +99,7 @@ export type { Aba };
 const TITULOS: Record<Aba, string> = {
   operacao: "Operação diária",
   "pre-venda": "Pré-venda",
+  fechamentos: "Forecast",
   "handoff-consultoria": "Consultoria",
   funil: "Funil comercial",
   roteiros: "Abordagens",
@@ -105,6 +107,7 @@ const TITULOS: Record<Aba, string> = {
 };
 const PERGUNTAS: Record<Exclude<Aba, "pre-venda">, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
+  fechamentos: "O que deve fechar hoje, na semana e no mês?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
   roteiros: "O que eu digo para este produto e este segmento?",
@@ -130,6 +133,8 @@ const BARRA: Record<Aba, { periodo: boolean; produto: boolean; responsavel: bool
   // Pré-venda: período e pessoa nas três visões; sem produto (a cadência e a ligação não têm produto). Ficha ›
   // Reuniões tem barra própria (mês da reunião, situação da gravação e busca), a da antiga tela Gravações.
   "pre-venda": { periodo: true, produto: false, responsavel: true },
+  // Forecast olha para a frente, a partir de hoje: sem período; pessoa = dono do card.
+  fechamentos: { periodo: false, produto: true, responsavel: true },
   distribuicao: { periodo: true, produto: true, responsavel: false },
   roteiros: null,
   // Tela própria (consultoria.tsx: Handoff e Cruzamento), com barra e leitura dela; a rota desvia antes daqui.
@@ -614,7 +619,17 @@ export function DashboardMonetizacao({
         />
       )}
 
-      {data.measured_at && aba !== "operacao" && aba !== "pre-venda" && (
+      {data.measured_at && aba === "fechamentos" && (
+        <Fechamentos
+          cards={data.cards}
+          stages={data.stages}
+          hoje={today}
+          filtro={filter}
+          abrir={abrir}
+        />
+      )}
+
+      {data.measured_at && aba !== "operacao" && aba !== "pre-venda" && aba !== "fechamentos" && (
         <Analysis
           aba={aba}
           data={data}
@@ -653,6 +668,8 @@ function descricaoDaAba(
   switch (aba) {
     case "operacao":
       return `Pipe Monetização (39) no Pipedrive · pré-venda: ${v.responsavel} · ${v.produto} · ${v.unidade ?? "todas as unidades"} · ${v.periodo} · coorte: cards abordados no período, cada um contado até a etapa mais adiantada`;
+    case "fechamentos":
+      return `Pipe 39 · dono: ${v.responsavel} · ${v.produto} · abertos da Reunião de proposta em diante, sem Stand by · data esperada de fechamento do Pipedrive · contrato`;
     case "funil":
       return `Coortes do período ${v.periodo} · ${v.responsavel} · ${v.produto} · negócio; realização e ganho contam até ${v.ate} · base instalada, pipeline 39`;
     case "roteiros": {
