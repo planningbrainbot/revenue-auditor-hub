@@ -5754,3 +5754,17 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Testes: `tests/monetizacao-cadencia.test.mjs`, 40 de 40.
 
 **Fica pendente:** a validação dos textos pelo Paulo e pela Jordana (regra de 08/10) antes de publicar a função e rodar o script. Depois disso: corrigir o documento 01 e o guia da pré-venda, e trocar no dossiê a linha "Demanda / tese" por "Por que esta conta".
+
+## [2026-10-15] Portal de Faturamento, F1: fundação de dados no banco único (não aplicada)
+
+**Contexto:** spec do Portal de Faturamento (`PM Work/execution/portal-faturamento-prd-20261013/spec-portal-faturamento.md`), aprovada pela Ana Carvalhais em 15/10 com "1A 2A 3A 4A 5A". F1 = `empresas_grupo`, `fat_donos`, `fat_servicos`, papéis e RLS; `fat_eventos` entra junto porque F2 em diante dependem dele.
+
+**Decisões:**
+- **Três áreas, não uma.** A RF-A04 pedia a área `faturamento` com as quatro chaves, mas a área libera todas as chaves dela: a tesouraria teria `admin.faturamento` e poderia se cadastrar como dona. Ficaram `faturamento` (`view.faturamento`, `edit.faturamento_pedido`), `faturamento_tesouraria` e `faturamento_controladoria`, como `broker_matriz` e `minha_unidade_financeiro` (16/09). Papéis `fat_tesouraria` e `fat_controladoria` com `is_system = true`, para não herdarem as policies "Custom roles can read" de nove tabelas do Ops.
+- **Quem vê o quê.** Porta = `ops.can('view.faturamento')`. Tesouraria e controladoria = chave da área + empresa no recorte da pessoa (`usuario_escopo.todas_empresas` ou `usuario_empresas`, a régua do Financeiro; o super admin com recorte só da PARTNERS vê só ela). Dono, gestor e solicitante = porta + linha ativa em `receita.fat_donos`, sem exigir também `usuario_empresas`.
+- **`organizacao.empresas_grupo` usa o mesmo uuid do Financial Brain**, que é o que `ops.usuario_empresas.empresa_id` já guarda. 18 empresas. O apelido segue a sigla do Pipefy de Contas a Receber, casada pelo CNPJ. MAROX aqui é a Marox Serviços; a Planning Marox Consultoria (MAROX no Financial Brain) é PMC. `omie_credencial_ref = omie_<sigla>` (16; PAI e PMN sem Omie); os segredos ainda não existem no Vault.
+- **`fat_eventos` append-only** por privilégio, por duas policies RESTRICTIVE e por gatilho (UPDATE, DELETE e TRUNCATE recusados até para postgres). Ganhou `emissora_id` (recorte sem join) e a entidade `dono`: todo cadastro em `fat_donos` vira evento. Não tem `updated_at`: `em` é a criação.
+- Domínios `receita.dinheiro` (numeric(14,2)) e `receita.competencia` (dia 1) para F2 em diante. Os schemas `receita` e `organizacao` não estão expostos no PostgREST.
+
+**Onde:** `supabase/migrations/20261015150000_portal_faturamento_f1.sql`, rollback em `supabase/rollback/`, ensaio em `supabase/gates/20261015_portal_faturamento_f1.sql`, rótulos das chaves em `src/lib/permissions.functions.ts`.
+**Status:** ensaiado no banco único dentro de `begin … rollback` (resposta `[]`, migration e rollback juntos), **não aplicado**. Falta F2 decidir como o navegador lê `receita` (expor o schema ou RPC). A leitura de eventos pelo dono e pelo solicitante também fica para F2.
