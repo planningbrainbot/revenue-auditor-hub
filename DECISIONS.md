@@ -5757,7 +5757,7 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 
 ## [2026-10-15] Portal de Faturamento, F1: fundação de dados no banco único (não aplicada)
 
-**Contexto:** spec do Portal de Faturamento (`PM Work/execution/portal-faturamento-prd-20261013/spec-portal-faturamento.md`), aprovada pela Ana Carvalhais em 15/10 com "1A 2A 3A 4A 5A". F1 = `empresas_grupo`, `fat_donos`, `fat_servicos`, papéis e RLS; `fat_eventos` entra junto porque F2 em diante dependem dele.
+**Contexto:** spec do Portal de Faturamento (`PM Work/execution/portal-faturamento-prd-20261013/spec-portal-faturamento.md`), respondida pela Ana Carvalhais em 15/10: 1A e 3A; 2, 4 e 5 voltaram com contraproposta (spec §13). Nada da F1 depende de 2, 4 ou 5. F1 = `empresas_grupo`, `fat_donos`, `fat_servicos`, papéis e RLS; `fat_eventos` entra junto porque F2 em diante dependem dele.
 
 **Decisões:**
 - **Três áreas, não uma.** A RF-A04 pedia a área `faturamento` com as quatro chaves, mas a área libera todas as chaves dela: a tesouraria teria `admin.faturamento` e poderia se cadastrar como dona. Ficaram `faturamento` (`view.faturamento`, `edit.faturamento_pedido`), `faturamento_tesouraria` e `faturamento_controladoria`, como `broker_matriz` e `minha_unidade_financeiro` (16/09). Papéis `fat_tesouraria` e `fat_controladoria` com `is_system = true`, para não herdarem as policies "Custom roles can read" de nove tabelas do Ops.
