@@ -11,7 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useAuth } from "@/hooks/use-auth";
 import type { Etapa } from "@/lib/monetizacao/funil-cumulativo";
+import { carregarPrevisoesFechamento } from "@/lib/monetizacao/fechamentos.functions";
 import { forecastDeFechamento, type Horizonte } from "@/lib/monetizacao/fechamentos";
 import { reaisCurto } from "@/lib/monetizacao/model";
 import type { RecorteResponsavel } from "@/lib/monetizacao/responsavel";
@@ -45,7 +49,19 @@ export function Fechamentos({
   filtro: RecorteResponsavel & { product: Produto | "" };
   abrir: Abrir;
 }) {
-  const fc = forecastDeFechamento(cards, stages, hoje, filtro);
+  // Previsão do Jev para os cards sem data esperada (15/10/2026). Se a leitura falhar, a tela segue só com as datas.
+  const { user } = useAuth();
+  const previsoesFn = useServerFn(carregarPrevisoesFechamento);
+  const qPrev = useQuery({
+    queryKey: ["monetizacao-previsao-fechamento", user?.id],
+    queryFn: () => previsoesFn(),
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: 1,
+  });
+  const fc = forecastDeFechamento(cards, stages, hoje, filtro, qPrev.data ?? []);
+  const estimados = fc.grupos.reduce((s, g) => s + g.estimados, 0);
   const recorte = `abertos hoje, ${ddmm(hoje)}`;
   const nota = (valor: number, semValor: number, n: number) =>
     !n
@@ -60,7 +76,7 @@ export function Fechamentos({
     <div className="space-y-6">
       <Secao
         titulo="O que deve fechar, e quando?"
-        descricao={`${INT.format(fc.total)} ${fc.total === 1 ? "card aberto" : "cards abertos"} da Reunião de proposta em diante, sem o Stand by, pela data esperada de fechamento do Pipedrive. A data é atualizada na daily.`}
+        descricao={`${INT.format(fc.total)} ${fc.total === 1 ? "card aberto" : "cards abertos"} da Reunião de proposta em diante, sem o Stand by. Vale a data esperada do Pipedrive; sem ela, a previsão do Jev pelas notas do card${estimados ? ` (${INT.format(estimados)} hoje)` : ""}. A data é atualizada na daily.`}
       >
         <KpiGrade colunas={3}>
           {fc.grupos.map((g) => (
@@ -76,8 +92,8 @@ export function Fechamentos({
               valor={INT.format(g.itens.length)}
               nota={
                 g.chave === "semData" && g.itens.length
-                  ? "preencha a data na daily"
-                  : nota(g.valor, g.semValor, g.itens.length)
+                  ? "preencha a data esperada na daily"
+                  : `${nota(g.valor, g.semValor, g.itens.length)}${g.estimados ? ` · ${INT.format(g.estimados)} pela previsão do Jev` : ""}`
               }
               tom={g.itens.length ? TOM[g.chave] : g.chave === "semData" ? "sucesso" : undefined}
               abrir={

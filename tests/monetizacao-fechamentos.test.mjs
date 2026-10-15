@@ -77,3 +77,21 @@ test("Universo da Reunião de proposta em diante, sem Stand by; valor do card an
   assert.equal(finance.esperados.length, 1); // atrasado ainda pode fechar no mês
   assert.equal(finance.esperadosSemValor, 1);
 });
+
+test("Sem data esperada, vale a previsão do Jev; com data, a data manda (15/10/2026)", () => {
+  const comData = card({ stage_id: 278, expected_close: "2026-10-31" });
+  const semData = card({ stage_id: 278 });
+  const semNada = card({ stage_id: 279 });
+  const prev = [
+    { deal_id: comData.id, horizonte: "esta_semana", confianca: 0.9 },
+    { deal_id: semData.id, horizonte: "esta_semana", confianca: 0.7 },
+    { deal_id: semNada.id, horizonte: "sem_previsao", confianca: 0.8 },
+  ];
+  const fc = forecastDeFechamento([comData, semData, semNada], ST, HOJE, TODOS, prev);
+  const g = Object.fromEntries(fc.grupos.map((x) => [x.chave, x]));
+  assert.deepEqual(g.mes.itens.map((i) => i.card.id), [comData.id]);
+  assert.deepEqual(g.semana.itens.map((i) => i.card.id), [semData.id]);
+  assert.equal(g.semana.estimados, 1);
+  assert.equal(g.semData.itens.length, 1);
+  assert.equal(g.semData.estimados, 0);
+});

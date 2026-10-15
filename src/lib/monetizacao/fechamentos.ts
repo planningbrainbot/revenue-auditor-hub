@@ -23,7 +23,7 @@ export const HORIZONTES: { chave: Horizonte; rotulo: string }[] = [
   { chave: "semana", rotulo: "Até domingo" },
   { chave: "mes", rotulo: "Até o fim do mês" },
   { chave: "depois", rotulo: "Depois do mês" },
-  { chave: "semData", rotulo: "Sem data esperada" },
+  { chave: "semData", rotulo: "Sem data nem previsão" },
 ];
 
 export interface TicketMedido {
@@ -41,7 +41,34 @@ export interface CardForecast {
   valor: number | null;
   /** De onde veio o valor. */
   origem: "card" | "ticket" | null;
+  /** O horizonte veio da estimativa do Jev, porque o card não tem data esperada (15/10/2026). */
+  estimado: boolean;
 }
+
+/** `ops.monetizacao_previsao_fechamento()`: o horizonte que o Jev estimou pelas notas do card sem data esperada. */
+export interface PrevisaoJev {
+  deal_id: number;
+  horizonte: "esta_semana" | "este_mes" | "proximo_mes" | "sem_previsao";
+  confianca: number | null;
+}
+
+const HORIZONTE_DO_JEV: Record<PrevisaoJev["horizonte"], Horizonte> = {
+  esta_semana: "semana",
+  este_mes: "mes",
+  proximo_mes: "depois",
+  sem_previsao: "semData",
+};
+
+export const normalizarPrevisoes = (linhas: unknown): PrevisaoJev[] =>
+  (Array.isArray(linhas) ? linhas : [])
+    .map((l) => (l && typeof l === "object" ? (l as Record<string, unknown>) : {}))
+    .map((l) => ({
+      deal_id: Number(l.deal_id) || 0,
+      horizonte: String(l.horizonte) as PrevisaoJev["horizonte"],
+      confianca:
+        typeof l.confianca === "number" ? l.confianca : l.confianca ? Number(l.confianca) : null,
+    }))
+    .filter((p) => p.deal_id > 0 && p.horizonte in HORIZONTE_DO_JEV);
 
 export interface GrupoForecast {
   chave: Horizonte;
@@ -49,6 +76,8 @@ export interface GrupoForecast {
   itens: CardForecast[];
   valor: number;
   semValor: number;
+  /** Quantos do grupo estão nele pela estimativa do Jev. */
+  estimados: number;
 }
 
 export interface LinhaReceita {
@@ -136,8 +165,10 @@ export function forecastDeFechamento(
   stages: Etapa[],
   hoje: string,
   f: RecorteResponsavel & { product: Produto | "" },
+  previsoes: PrevisaoJev[] = [],
 ): Forecast {
   const regua = reguaDoPipe(stages);
+  const previsaoDe = new Map(previsoes.map((p) => [p.deal_id, p]));
   const nProposta = regua.nivelDe.reuniaoProposta;
   const nNegociacao = regua.nivelDe.negociacao;
   const desde = Math.min(nProposta ?? Infinity, nNegociacao ?? Infinity);
@@ -156,12 +187,15 @@ export function forecastDeFechamento(
     const produto = c.route;
     const proprio = valorDoCard(c);
     const ticket = proprio === null ? ticketDe(produto) : null;
+    const data = diaSP(c.expected_close);
+    const jev = data ? undefined : previsaoDe.get(c.id);
     return {
       card: c,
       produto,
-      horizonte: horizonteDe(diaSP(c.expected_close), hoje),
+      horizonte: jev ? HORIZONTE_DO_JEV[jev.horizonte] : horizonteDe(data, hoje),
       valor: proprio ?? ticket,
       origem: proprio !== null ? "card" : ticket !== null ? "ticket" : null,
+      estimado: !!jev && jev.horizonte !== "sem_previsao",
     };
   });
   const grupos: GrupoForecast[] = HORIZONTES.map((h) => {
@@ -171,6 +205,7 @@ export function forecastDeFechamento(
       itens: doGrupo,
       valor: doGrupo.reduce((s, i) => s + (i.valor ?? 0), 0),
       semValor: doGrupo.filter((i) => i.valor === null).length,
+      estimados: doGrupo.filter((i) => i.estimado).length,
     };
   });
   // Receita do mês: ganhos no mês (pela data do ganho) e esperados até o fim do mês, inclusive os de data vencida,
