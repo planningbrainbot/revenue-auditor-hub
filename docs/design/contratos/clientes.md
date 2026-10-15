@@ -87,3 +87,25 @@ Pedido do Pedro (01/10): "edite isso no planning brain e garanta que quem não �
 - **CSV:** coluna "Prova de cliente" (nível · motivo).
 - **Ofertas:** fornecedor, grupo e sem prova ficam fora de todas, com o motivo do banco; o cartão de Consultoria conta as três como "fornecedor" (não como Simples) e o Recon as agrupa em "Fornecedor, empresa do grupo ou sem prova de cliente".
 - **Procedência:** conta só do Omie com carimbo "Base antiga" passa a dizer "Só no cadastro do Omie da unidade", não "Cadastro no Pipefy da unidade".
+
+## Adendo 15/10/2026 · A Base em três telas e a regra de cliente
+
+Pedido do Pedro (13/10, critério do CEO: "tão intuitiva e fácil de mexer que até uma criança consegue usar"), desenhado na proposta "Base à Prova de Criança" (artifact Dht1Xg54sf9Wi4bYozv7vm, versão 14) e aprovado em 15/10: "Boa, finalmente. Pode executar". O "pode executar" vale como "contrato ok" deste adendo.
+
+**A regra de cliente mora no banco** (`ops.base_conta_situacao`, migration `20261015170000`) e chega na ficha como `base.situacao`: estado (cliente, a confirmar, não é cliente, ex-cliente, fornecedor, grupo), grau de 4 a 1 para cliente, o que dizer em reunião e o motivo em uma frase. A tela só desenha.
+
+| `view` | Título (menu interno) | Pergunta (N1) | Arquétipo |
+|---|---|---|---|
+| `clientes` (padrão) | Base de clientes | Esta empresa é nossa cliente? | Lista/Relatório |
+| `confianca` | Confiança | Quanta certeza temos de que cada empresa é cliente hoje? | Visão geral + Lista |
+| `unidades` | Por unidade | Quantos clientes cada unidade tem, e quais deram churn? | Lista/Relatório |
+| `arrumar` (`sub` = vazio, `gates`, `contatos`) | Arrumar a base | O que falta conferir para a Base ficar certa? | Fila de trabalho |
+
+- **Clientes** abre a Base: a busca grande e a lista de clientes e de ex-clientes (`sit=ex`), da maior certeza para a menor. A busca acha qualquer empresa do escopo e diz se ela é cliente; quem não é aparece num cartão "não cite" (ou "confirme antes de citar"), fora da lista.
+- **Confiança**: a barra de confiança (os quatro verdes de cliente, a confirmar, não é cliente, ex-cliente; fornecedor e grupo só para admin) filtra a lista pela faixa (`sit`). Colunas: certeza, unidade, em reunião, por quê.
+- **Por unidade**: cartões por unidade (clientes pela regra, ex-clientes) em cima da lista de Contratos e churn de hoje, que não muda. O cartão aplica a unidade.
+- **Arrumar a base**: Validar origem, Entenda os números e Contatos, para quem gerencia a Base (`manage.aquario` ou admin).
+- **Ficha**: o primeiro bloco responde "é cliente?" com o grau, o "pode citar?", o motivo e os sinais (último recebimento, contrato ativo, faturamento do grupo).
+- **Saíram da Base:** Produtos e Listas, que moram na Monetização (`/monetizacao/produtos`, com "Por produto" e "Carteira da unidade", e `/monetizacao/listas`), com a mesma URL de filtros. Os links antigos (`view=produtos|listas|monetizacao|contratos|pendencias|gates|contatos`) abrem a tela nova.
+- **Ofertas:** só cliente pela regra entra (servidor e cliente, `foraDaRegraDeCliente`).
+- **Fica para depois:** a pergunta à IA na Confiança (precisa de uma ferramenta da Base no motor do "Perguntar ao Brain") e o lead do Pipedrive na regra (hoje a INTECH, só com a tag da Matriz e lead aberto, aparece "A confirmar").

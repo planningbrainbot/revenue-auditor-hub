@@ -77,6 +77,8 @@ import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authe
 import { Route as AuthenticatedCockpitCooPerguntarRouteImport } from './routes/_authenticated/cockpit-coo_.perguntar'
 import { Route as AuthenticatedCockpitCooCompromissosRouteImport } from './routes/_authenticated/cockpit-coo_.compromissos'
 import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
+import { Route as AuthenticatedMonetizacaoProdutosRouteImport } from './routes/_authenticated/monetizacao_.produtos'
+import { Route as AuthenticatedMonetizacaoListasRouteImport } from './routes/_authenticated/monetizacao_.listas'
 import { Route as AuthenticatedBrokerReservasRouteImport } from './routes/_authenticated/broker.reservas'
 import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_authenticated/broker.movimentacoes'
 import { Route as AuthenticatedBrokerFaturasRouteImport } from './routes/_authenticated/broker.faturas'
@@ -469,6 +471,18 @@ const AuthenticatedCockpitCeoPerguntarRoute =
     path: '/cockpit-ceo/perguntar',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedMonetizacaoProdutosRoute =
+  AuthenticatedMonetizacaoProdutosRouteImport.update({
+    id: '/monetizacao_/produtos',
+    path: '/monetizacao/produtos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMonetizacaoListasRoute =
+  AuthenticatedMonetizacaoListasRouteImport.update({
+    id: '/monetizacao_/listas',
+    path: '/monetizacao/listas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedBrokerReservasRoute =
   AuthenticatedBrokerReservasRouteImport.update({
     id: '/broker/reservas',
@@ -621,6 +635,8 @@ export interface FileRoutesByFullPath {
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
+  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -702,6 +718,8 @@ export interface FileRoutesByTo {
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
+  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -787,6 +805,8 @@ export interface FileRoutesById {
   '/_authenticated/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/_authenticated/broker/reservas': typeof AuthenticatedBrokerReservasRoute
   '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
+  '/_authenticated/monetizacao_/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
+  '/_authenticated/monetizacao_/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/_authenticated/cockpit-coo_/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/_authenticated/cockpit-coo_/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
@@ -872,6 +892,8 @@ export interface FileRouteTypes {
     | '/broker/movimentacoes'
     | '/broker/reservas'
     | '/cockpit-ceo/perguntar'
+    | '/monetizacao/produtos'
+    | '/monetizacao/listas'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
     | '/royalties/split'
@@ -953,6 +975,8 @@ export interface FileRouteTypes {
     | '/broker/movimentacoes'
     | '/broker/reservas'
     | '/cockpit-ceo/perguntar'
+    | '/monetizacao/produtos'
+    | '/monetizacao/listas'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
     | '/royalties/split'
@@ -1037,6 +1061,8 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/movimentacoes'
     | '/_authenticated/broker/reservas'
     | '/_authenticated/cockpit-ceo_/perguntar'
+    | '/_authenticated/monetizacao_/produtos'
+    | '/_authenticated/monetizacao_/listas'
     | '/_authenticated/cockpit-coo_/compromissos'
     | '/_authenticated/cockpit-coo_/perguntar'
     | '/_authenticated/royalties/split'
@@ -1543,6 +1569,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCockpitCeoPerguntarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/monetizacao_/produtos': {
+      id: '/_authenticated/monetizacao_/produtos'
+      path: '/monetizacao/produtos'
+      fullPath: '/monetizacao/produtos'
+      preLoaderRoute: typeof AuthenticatedMonetizacaoProdutosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/monetizacao_/listas': {
+      id: '/_authenticated/monetizacao_/listas'
+      path: '/monetizacao/listas'
+      fullPath: '/monetizacao/listas'
+      preLoaderRoute: typeof AuthenticatedMonetizacaoListasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/broker/reservas': {
       id: '/_authenticated/broker/reservas'
       path: '/broker/reservas'
@@ -1746,6 +1786,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
   AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
   AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
+  AuthenticatedMonetizacaoProdutosRoute: typeof AuthenticatedMonetizacaoProdutosRoute
+  AuthenticatedMonetizacaoListasRoute: typeof AuthenticatedMonetizacaoListasRoute
   AuthenticatedCockpitCooCompromissosRoute: typeof AuthenticatedCockpitCooCompromissosRoute
   AuthenticatedCockpitCooPerguntarRoute: typeof AuthenticatedCockpitCooPerguntarRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
@@ -1817,6 +1859,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
   AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
   AuthenticatedCockpitCeoPerguntarRoute: AuthenticatedCockpitCeoPerguntarRoute,
+  AuthenticatedMonetizacaoProdutosRoute: AuthenticatedMonetizacaoProdutosRoute,
+  AuthenticatedMonetizacaoListasRoute: AuthenticatedMonetizacaoListasRoute,
   AuthenticatedCockpitCooCompromissosRoute:
     AuthenticatedCockpitCooCompromissosRoute,
   AuthenticatedCockpitCooPerguntarRoute: AuthenticatedCockpitCooPerguntarRoute,

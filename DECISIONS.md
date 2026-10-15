@@ -5345,3 +5345,18 @@ Planejamento, este como "Planejado") e **Base comum** ("sustenta as três
 frentes": Identidade e Acesso, Rede e Integrações). O Broker entrou em
 Aquisição, e Minha Unidade em Retenção. Os KPIs das frentes no material ficaram
 de fora: a porta de entrada não tem procedência para mostrar número.
+## [2026-10-15] Regra de cliente na Base, a Base em três telas, Produtos e Listas na Monetização
+
+**Contexto:** o CEO definiu o critério de pronto da Base: "tão intuitiva e fácil de mexer que até uma criança consegue usar". Vendedores citavam leads como clientes em reunião (medido em 08/10: 71% das contas visíveis sem prova de cliente, e a linha da tabela não dizia se a empresa é cliente). O Pedro iterou a proposta "Base à Prova de Criança" (artifact Dht1Xg54sf9Wi4bYozv7vm) até a versão 14 e aprovou em 15/10: "Boa, finalmente. Pode executar".
+
+**Decisão — a regra (Pedro, 15/10):** cliente = negócio ganho no Pipedrive (Inside Sales ou Sócios) OU base de clientes do Pipefy OU tag Cliente no Omie de uma unidade OU contrato ou recebimento no Omie, inclusive o faturamento das empresas do grupo (Financial Brain). Não é cliente: distrato concluído (ex-cliente) ou qualquer tag Fornecedor no Omie, inclusive quem tem as duas tags ("duas tags não conta", opção A). Lote da Matriz (só a tag Cliente do Omie da Matriz): com faturamento, contrato ou ganho é cliente; com CNPJ ativo e nada disso fica "a confirmar" (fila do sócio de Goiânia); com CNPJ baixado, inapto, suspenso ou nulo não é cliente (opção A). ECD sozinha não faz cliente, mas sobe o grau de quem é.
+
+**Grau, só para cliente:** 4 pagamento visto (recebimento em 90 dias, contrato ativo ou faturamento do grupo desde o mês de 90 dias atrás) · 3 prova de cliente · 2 Base Antiga sem prova · 1 Base Nova sem prova. Todo cliente pela regra pode ser citado (3B); "a confirmar" pede confirmação.
+
+**Onde mora:** `ops.base_conta_situacao` (migration `20261015170000`), gravada na ficha como `situacao` pela atualização da carteira. `ops.base_conta_prova` ganhou o faturamento do grupo (`ops.base_faturamento_grupo`, gravado pela `omie-pagamentos-sync` a cada 6 horas) e o contrato ganho de `ops.contratos` como prova. Fornecedor pela regra fica só para admin, como o de 01/10. As ofertas (Consultoria, Finance, Cella, Recon) só consideram cliente pela regra, no servidor (`monetizacao_offer_issue`) e no cliente (`foraDaRegraDeCliente`).
+
+**Telas:** a Base vira Clientes (busca + clientes e ex-clientes, a abertura), Confiança (barra de grau e lista), Por unidade (cartões sobre Contratos e churn) e Arrumar a base (Validar origem, Entenda os números, Contatos, só para quem gerencia). Produtos e Listas saem da Base e vão para a Monetização (`/monetizacao/produtos` e `/monetizacao/listas`), lendo a regra do domínio Clientes; leitura do Pedro, a conferir com a visão de módulos do Nathan. Links antigos redirecionam.
+
+**Números de 15/10 (conferência por SQL):** 10.428 contas; 5.743 clientes (1.226 · 1.734 · 2.183 · 600), 609 a confirmar, 1.803 não clientes, 28 ex-clientes, 2.212 fornecedores e 33 do grupo. A regra no banco bateu com a conferência em 354 de 356 contas de amostra; as 2 diferenças são negócio ganho no Pipedrive que agora conta como prova (grau 3).
+
+**Ficou de fora:** a pergunta à IA na tela Confiança e o lead do Pipedrive na regra (a INTECH aparece "a confirmar", não "não é cliente").

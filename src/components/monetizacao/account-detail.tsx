@@ -18,6 +18,7 @@ import { date, money, Notice, Panel } from "./common";
 import { SinaisDetalhe } from "./sinais";
 import { FONTE_OMIE, textoOmie } from "@/lib/monetizacao/sinais";
 import { CLASSES_PROVA } from "@/lib/monetizacao/portfolio";
+import { BlocoSituacao } from "@/components/clientes/regra-cliente";
 
 export function AccountDetail({
   account,
@@ -67,6 +68,8 @@ export function AccountDetail({
         </DialogHeader>
         {account && (
           <div className="space-y-4">
+            {/* Regra de cliente (15/10): a primeira coisa da ficha responde "é cliente?" e "posso citar?". */}
+            <BlocoSituacao conta={account} />
             {account.base && (
               <Panel title="Cadastro e origem">
                 <div className="grid gap-3 text-xs sm:grid-cols-2">

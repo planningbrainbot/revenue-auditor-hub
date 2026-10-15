@@ -48,6 +48,7 @@ import {
   ArrowRightLeft,
   Trophy,
   HandCoins,
+  Package,
 } from "lucide-react";
 
 /**
@@ -505,6 +506,10 @@ export const AREAS: Area[] = [
           },
           // Forecast (14/10/2026, call com o Paulo): data esperada de fechamento e receita do mês.
           { title: "Forecast", url: "/monetizacao?aba=fechamentos", icon: CalendarClock },
+          // Produtos e Listas saíram da Base de clientes em 15/10/2026 ("Base à Prova de Criança", versão 14): a Base
+          // diz quem é cliente; a Monetização monta a lista de cada produto sobre os clientes pela regra.
+          { title: "Produtos", url: "/monetizacao/produtos", icon: Package },
+          { title: "Listas", url: "/monetizacao/listas", icon: ListChecks },
           // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
           // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],

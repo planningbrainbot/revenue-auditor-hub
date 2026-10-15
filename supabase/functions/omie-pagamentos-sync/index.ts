@@ -12,7 +12,13 @@
 //    acumuladas por CNPJ em ops.base_pagamentos_grupo: o título pago sai da tabela de lá, o CNPJ fica aqui. Lida no
 //    máximo uma vez por hora. Sem as variáveis FINANCEIRO_*, a etapa é pulada e a resposta diz por quê.
 //
-// A regra (quem é fornecedor) mora no banco: ops.base_conta_prova. Aqui só se grava o que as fontes devolvem.
+// 3. Faturamento das empresas do grupo no Financial Brain (15/10/2026, regra de cliente: "contrato ou recebimento no
+//    Omie conta"): a receita 1.1 de public.lancamentos, casada com o CNPJ pelo nome do cliente em public.omie_contraparte
+//    (na mesma empresa), mais os títulos a receber em aberto (titulos_receber_live). Gravado por CNPJ em
+//    ops.base_faturamento_grupo, com a última competência faturada. Lido a cada 6 horas.
+//
+// A regra (quem é fornecedor, quem é cliente) mora no banco: ops.base_conta_prova e ops.base_conta_situacao. Aqui só se
+// grava o que as fontes devolvem.
 
 type Row = Record<string, any>;
 
@@ -30,6 +36,8 @@ const ANOS_FRENTE = 2;
 const ORCAMENTO_MS = 110_000;
 const FINANCEIRO = "Financial Brain";
 const FINANCEIRO_A_CADA_MS = 60 * 60 * 1000;
+const RECEITA = "Financial Brain · receita";
+const RECEITA_A_CADA_MS = 6 * 60 * 60 * 1000;
 
 const resposta = (body: Row, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -207,6 +215,84 @@ async function sincronizarFinanceiro() {
   return linhas.length;
 }
 
+/** Lê uma tabela do Financial Brain em páginas de 1.000, pela ordem dada. */
+async function finTudo(path: string) {
+  const linhas: Row[] = [];
+  for (let de = 0; ; de += 1000) {
+    const lote = await fin(`${path}&offset=${de}&limit=1000`);
+    linhas.push(...lote);
+    if (lote.length < 1000) break;
+  }
+  return linhas;
+}
+
+/** Faturamento das empresas do grupo, por CNPJ do cliente. */
+async function sincronizarReceita() {
+  const empresas = new Map((await fin("empresas?select=id,apelido")).map((e) => [e.id, String(e.apelido)]));
+  // Receita bruta (1.1) por empresa e nome do cliente, com a última competência.
+  const receita = await finTudo(
+    "lancamentos?select=empresa_id,cliente,competencia&estrutura_dre=like.1.1.*&cliente=not.is.null&order=id",
+  );
+  const ultima = new Map<string, string>();
+  for (const l of receita) {
+    const k = `${l.empresa_id}|${String(l.cliente).trim()}`;
+    if (!l.competencia) continue;
+    if (!ultima.has(k) || ultima.get(k)! < l.competencia) ultima.set(k, l.competencia);
+  }
+  // O CNPJ do cliente: o cadastro do Omie da mesma empresa, pela razão social ou pelo nome fantasia. Filiais têm a mesma
+  // razão social e CNPJs diferentes: todas entram, porque o lançamento não diz qual delas foi faturada.
+  const contrapartes = await finTudo(
+    "omie_contraparte?select=empresa_id,razao_social,nome_fantasia,doc_digitos&doc_digitos=not.is.null&order=empresa_id,codigo",
+  );
+  const docsDe = new Map<string, Set<string>>();
+  for (const c of contrapartes) {
+    const doc = digitos(c.doc_digitos);
+    if (doc.length !== 14 && doc.length !== 11) continue;
+    for (const nome of [c.razao_social, c.nome_fantasia]) {
+      const k = `${c.empresa_id}|${String(nome ?? "").trim()}`;
+      if (nome && ultima.has(k)) docsDe.set(k, (docsDe.get(k) ?? new Set<string>()).add(doc));
+    }
+  }
+  const porCnpj = new Map<string, { nome: string; empresas: Set<string>; ultima: string | null; abertos: number }>();
+  const soma = (doc: string, nome: string, empresa: string, competencia: string | null, aberto: boolean) => {
+    const atual = porCnpj.get(doc) ?? { nome, empresas: new Set(), ultima: null, abertos: 0 };
+    atual.empresas.add(empresa);
+    if (competencia && (!atual.ultima || atual.ultima < competencia)) atual.ultima = competencia;
+    if (aberto) atual.abertos += 1;
+    porCnpj.set(doc, atual);
+  };
+  for (const [k, competencia] of ultima) {
+    const [empresaId, nome] = [k.slice(0, k.indexOf("|")), k.slice(k.indexOf("|") + 1)];
+    for (const doc of docsDe.get(k) ?? []) soma(doc, nome, empresas.get(empresaId) ?? empresaId, competencia, false);
+  }
+  // Títulos a receber em aberto: faturado, ainda não pago.
+  const abertos = await finTudo("titulos_receber_live?select=empresa_id,cliente_cnpj,cliente_nome&order=id");
+  for (const t of abertos) {
+    const doc = digitos(t.cliente_cnpj);
+    if (doc.length !== 14 && doc.length !== 11) continue;
+    soma(doc, String(t.cliente_nome ?? ""), empresas.get(t.empresa_id) ?? String(t.empresa_id), null, true);
+  }
+  const agora = new Date().toISOString();
+  const linhas = [...porCnpj].map(([cnpj, v]) => ({
+    cnpj,
+    nome: v.nome || null,
+    empresas: [...v.empresas].sort(),
+    ultima_competencia: v.ultima,
+    titulos_abertos: v.abertos,
+    visto_em: agora,
+  }));
+  for (let i = 0; i < linhas.length; i += 500) {
+    await db("base_faturamento_grupo?on_conflict=cnpj", linhas.slice(i, i + 500), "POST", true);
+  }
+  await db(
+    "base_omie_pagamentos_leituras?on_conflict=unidade",
+    [{ unidade: RECEITA, concluida_em: agora, titulos: linhas.length, erro: null }],
+    "POST",
+    true,
+  );
+  return linhas.length;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return resposta({ error: "Método não permitido" }, 405);
   const autorizado = req.headers.get("authorization") === `Bearer ${SERVICE}` ||
@@ -241,7 +327,24 @@ Deno.serve(async (req: Request) => {
         }
       }
     }
-    if (corpo.financeiro && !corpo.unidade) return resposta({ status: "completo", feitas });
+    // Faturamento do grupo: a cada 6 horas, ou quando pedido (`receita: true`).
+    const rl = leituraDe.get(RECEITA);
+    const receitaDevida = !rl?.concluida_em || Date.now() - Date.parse(rl.concluida_em) > RECEITA_A_CADA_MS;
+    if ((corpo.receita || (receitaDevida && !corpo.unidade && !corpo.financeiro)) && corpo.receita !== false) {
+      if (!FIN_URL || !FIN_KEY) {
+        feitas.push({ unidade: RECEITA, erro: "FINANCEIRO_SUPABASE_URL ou FINANCEIRO_SERVICE_ROLE_KEY ausente" });
+      } else {
+        try {
+          feitas.push({ unidade: RECEITA, cnpjs: await sincronizarReceita() });
+        } catch (e) {
+          const erro = (e as Error).message;
+          await db("base_omie_pagamentos_leituras?on_conflict=unidade", [{ unidade: RECEITA, erro }], "POST", true)
+            .catch(() => {});
+          feitas.push({ unidade: RECEITA, erro });
+        }
+      }
+    }
+    if ((corpo.financeiro || corpo.receita) && !corpo.unidade) return resposta({ status: "completo", feitas });
 
     const credenciais = (await db("omie_credentials?ativo=eq.true&select=unidade,app_key,app_secret")) as Row[];
     // Fila pela TENTATIVA, como a omie-tags-sync: a passada em curso vai primeiro (para terminar), depois a nunca

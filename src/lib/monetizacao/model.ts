@@ -170,6 +170,16 @@ export const soTagDaMatriz = (clienteEm: readonly string[] | undefined) =>
   !!clienteEm?.length && clienteEm.every((u) => /matriz/i.test(u));
 export const SO_TAG_MATRIZ =
   "Só a tag Cliente no Omie da Matriz, sem contrato, recebimento, ECD nem ganho. A Matriz marca prospect e fornecedor como Cliente; fora das ofertas.";
+/**
+ * Regra de cliente (15/10/2026): só quem é cliente pela regra entra nas ofertas. Produtos e Listas moram na Monetização
+ * e leem a regra do domínio Clientes (`base.situacao`, migration 20261015170000). Sem a situação (conta nova, antes da
+ * atualização da carteira), valem só as regras de prova. Espelho de ops.monetizacao_offer_issue.
+ */
+export function foraDaRegraDeCliente(a: Conta): Oferta | null {
+  const s = a.base?.situacao;
+  if (!s || s.estado === "cliente") return null;
+  return { status: "fora_regra", reason: `${s.motivo} Fora das ofertas.` };
+}
 /** Níveis de prova que tiram a conta de todas as ofertas (migration 20261001200000). */
 export const PROVA_FORA_DE_OFERTA = ["grupo", "fornecedor", "sem_prova"] as const;
 /**
@@ -182,12 +192,15 @@ export const PROVA_FORA_DE_OFERTA = ["grupo", "fornecedor", "sem_prova"] as cons
  * Fornecedor e grupo nem chegam a quem não é admin; o admin vê a conta com o motivo.
  */
 export function fornecedorForaDeOferta(a: Conta): Oferta | null {
+  const regra = foraDaRegraDeCliente(a);
   const p = a.base?.prova;
   if (p && (PROVA_FORA_DE_OFERTA as readonly string[]).includes(p.nivel))
     return { status: "fora_regra", reason: p.motivo };
   const o = a.base?.omie;
   if (p?.nivel === "so_tag" && soTagDaMatriz(o?.cliente_em))
     return { status: "fora_regra", reason: SO_TAG_MATRIZ };
+  // Regra de cliente (15/10): depois dos motivos de 01/10 e 06/10, que dizem a causa com mais precisão.
+  if (regra) return regra;
   if (o?.classe !== "fornecedor") return null;
   const onde = o.fornecedor_em.length ? ` (${o.fornecedor_em.join(", ")})` : "";
   return {
