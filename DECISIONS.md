@@ -5287,3 +5287,34 @@ RPCs. Branch `feat/monetizacao-pre-venda-avaliacao-20261009`, sobre `80f2a0a`.
 
 **Contexto:** com o banco único saturado (Micro, horário comercial), a Operação ficava em "Carregando" por minutos: a carga principal respondia em ~16 s, mas a tela só abria depois de baixar a carteira da Base inteira (~10 mil contas em páginas), e as páginas estouravam o limite de 8 s da sessão e recomeçavam.
 **Decisão:** `useMonetizacao` em duas etapas. A carga principal (cards, listas, etapas) abre a tela; a carteira vem numa consulta própria, chaveada pelo carimbo, em segundo plano. Por padrão a carga espera a carteira (Base de clientes, Aquário, Cockpits, como antes); a Operação, a Pré-venda e o Forecast não esperam. Leituras secundárias da carga (listas, itens, envios, registros, planos, forecasts, unidades, cobertura) que falham vêm vazias com aviso, em vez de derrubar a tela; a carteira e a previsão do Jev são lidas em paralelo.
+
+## [2026-10-15] /inicio do super admin vira o mapa de módulos
+
+**Contexto:** o Pedro pediu para a porta de entrada já mostrar a organização por
+módulos proposta no mapa "Jornadas do Planning Brain" (aba Módulos, revista em
+09/10/2026), mesmo sem todos os módulos existirem, para apresentar o Brain.
+"Quem vê tudo obviamente é só quem tem o nível de acesso máximo."
+
+**Decisão:** só para `admin` (`isAdmin`), o `/inicio` troca os cartões por área
+pelo mapa: cinco experiências por cima (Minha Unidade, Cockpit do CEO, Cockpit
+do COO, Brain Meet, Portal do executor) e 17 módulos em cinco camadas
+(Fundação, Captar, Carteira, Dinheiro e pessoas, Leitura e gestão). O
+Orquestrador ficou de fora: no mapa ele ainda é "a encaixar depois do
+inventário". Quem não é admin segue com a porta de entrada de antes, sem
+mudança nenhuma.
+
+- Módulo que não existe (Parceiros e Ofertas, Inteligência da Base,
+  Planejamento e o Portal do executor) aparece tracejado, com o selo
+  "Planejado", e não abre nada.
+- Cada módulo que existe abre a tela principal dele. Growth e Financeiro são
+  outras aplicações e abrem por navegação de verdade (`/growth/trafego`,
+  `/growth/comercial`, `/financeiro`). Gestão Executiva abre
+  `/cockpit-coo/compromissos`, a tela de tarefas e compromissos.
+- Minha Unidade, para quem não tem a área, abre o "Ver como" (a mesma porta da
+  lateral) em vez de cair no portão de área.
+- Destino que a pessoa não alcança aparece com "Sem acesso". Consulta de
+  produto que falhou não tranca: o destino confere de novo.
+
+**Ficou de fora:** estender o mapa a quem não é admin (cada um vendo só os
+módulos que alcança) e o contrato de tela do `/inicio`, que continua sem
+existir em `docs/design/contratos`.

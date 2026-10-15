@@ -8,11 +8,21 @@ import { meuAcessoGrowth, meusProdutos } from "@/lib/produtos.functions";
 import { confirmarMeuPedido, meuPedidoDeAcesso, recusarMeuPedido } from "@/lib/pedidos-acesso.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { garantirSessoesIrmas } from "@/lib/sessoes-irmas";
-import { AREAS, areaDoItem, partesDoLink, primeiraTelaAcessivel, type Area } from "@/lib/areas";
+import {
+  AREAS,
+  areaDoItem,
+  areasDoCaminho,
+  partesDoLink,
+  primeiraTelaAcessivel,
+  type Area,
+} from "@/lib/areas";
+import { MapaDeModulos, type Destino } from "@/components/inicio/mapa-de-modulos";
+import { VerComoDialog } from "@/components/ver-como/ver-como-dialog";
 import { PlanningLogo } from "@/components/planning-logo";
 import { Carregando, Filete } from "@/components/planning";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 /**
  * Porta de entrada da plataforma: qual produto você quer abrir.
@@ -159,7 +169,8 @@ function IrParaOutraAplicacao({ href }: { href: string }) {
 
 function InicioPage() {
   const navigate = useNavigate();
-  const { temArea, can, loading } = usePermissions();
+  const { temArea, can, loading, isAdmin } = usePermissions();
+  const [verComoAberto, setVerComoAberto] = useState(false);
 
   const acessoGrowthFn = useServerFn(meuAcessoGrowth);
   const growth = useQuery({
@@ -184,6 +195,47 @@ function InicioPage() {
     return (
       <Moldura semPergunta>
         <Carregando variante="kpis" className="w-full max-w-4xl" />
+      </Moldura>
+    );
+  }
+
+  // Super admin: a porta de entrada vira o mapa de módulos (proposta de
+  // organização de 09/10/2026), com os que ainda não existem tracejados. Só ele
+  // vê o mapa inteiro; quem não é admin segue com os cartões por área abaixo.
+  if (isAdmin) {
+    const alcanca = (d: Destino) => {
+      switch (d.tipo) {
+        case "interno": {
+          const areas = areasDoCaminho(partesDoLink(d.href).to);
+          return areas.length === 0 || areas.some((a) => temArea(a));
+        }
+        // Consulta que falhou não tranca: o destino confere de novo.
+        case "growth":
+          return growth.data?.temAcesso ?? growth.isError;
+        case "financeiro":
+          return acessoProdutos.data?.financeiro ?? acessoProdutos.isError;
+        case "meet":
+          return acessoProdutos.data?.meet ?? acessoProdutos.isError;
+        case "ver_como":
+          return true;
+      }
+    };
+    const abrirDestino = (d: Destino) => {
+      if (d.tipo === "ver_como" && !temArea("minha_unidade")) {
+        setVerComoAberto(true);
+        return;
+      }
+      if (d.tipo === "interno" || d.tipo === "ver_como") {
+        const p = partesDoLink(d.href);
+        navigate({ to: p.to, search: p.search });
+        return;
+      }
+      window.location.href = d.href;
+    };
+    return (
+      <Moldura largo subtitulo="O Brain por módulos, da fundação à gestão.">
+        <MapaDeModulos alcanca={alcanca} abrir={abrirDestino} />
+        <VerComoDialog aberto={verComoAberto} aoFechar={() => setVerComoAberto(false)} />
       </Moldura>
     );
   }
@@ -367,21 +419,29 @@ function InicioPage() {
 function Moldura({
   children,
   semPergunta = false,
+  largo = false,
+  subtitulo = "Dá para trocar a qualquer momento, no topo do menu.",
 }: {
   children: React.ReactNode;
   /** Carregando: sem a pergunta, que ainda pode não valer (redirect, vazio). */
   semPergunta?: boolean;
+  /** Mapa de módulos: mais conteúdo, menos respiro em cima. */
+  largo?: boolean;
+  subtitulo?: string;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4 py-12">
+    <div
+      className={cn(
+        "flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12",
+        largo ? "gap-10" : "gap-8",
+      )}
+    >
       <div className="flex flex-col items-center gap-3 text-center">
         <PlanningLogo className="h-9 w-auto" />
         {!semPergunta && (
           <div>
             <h1 className="text-2xl font-bold text-foreground">Onde você quer entrar?</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Dá para trocar a qualquer momento, no topo do menu.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{subtitulo}</p>
           </div>
         )}
       </div>
