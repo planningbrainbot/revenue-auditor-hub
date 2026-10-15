@@ -294,6 +294,8 @@ export interface Registro {
 }
 export interface BaseMonetizacao {
   base_count?: number;
+  /** O manifesto da carteira da Base não respondeu (banco carregado): a tela abre sem a carteira e avisa. */
+  catalogo_indisponivel?: boolean;
   catalog_pages?: { after: string | null; through: string; count: number }[];
   scope_signature?: string;
   forecasts: ForecastSource[];
