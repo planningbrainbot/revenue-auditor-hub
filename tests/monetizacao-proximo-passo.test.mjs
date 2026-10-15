@@ -10,6 +10,9 @@ import {
   precisaAvaliar,
   rodarProximoPasso,
   VERSAO,
+  elegivelPrevisao,
+  lerPrevisao,
+  VERSAO_PREVISAO,
 } from "../supabase/functions/monetizacao-proximo-passo/logica.ts";
 
 const ETAPAS = [
@@ -98,4 +101,40 @@ test("Rodada: desligada não chama o Jev nem grava; ligada grava a sugestão", a
   assert.equal(gravadas[0].deal_id, 1);
   assert.equal(gravadas[0].passo, "cobrar_retorno");
   assert.equal(gravadas[0].versao, VERSAO);
+});
+
+const ETAPAS_P = [...ETAPAS, { id: 291, name: "6 · Reunião de proposta", order: 7 }];
+
+test("Previsão do Jev: só cards da Reunião de proposta em diante, sem Stand by e sem data esperada", () => {
+  assert.ok(elegivelPrevisao(card(), ETAPAS_P, 7));
+  assert.ok(!elegivelPrevisao(card({ expected_close: "2026-10-20" }), ETAPAS_P, 7));
+  assert.ok(!elegivelPrevisao(card({ stage_id: 288 }), ETAPAS_P, 7));
+  assert.ok(!elegivelPrevisao(card({ stage_id: 287 }), ETAPAS_P, 7));
+  assert.deepEqual(lerPrevisao({ answers: { fechamento: { choice: "este_mes", confidence: 0.6 } }, usage: { cost: 0.00002 } }), {
+    horizonte: "este_mes", confianca: 0.6, custo_usd: 0.00002,
+  });
+  assert.throws(() => lerPrevisao({ answers: { fechamento: { choice: "ontem" } } }));
+});
+
+test("Rodada grava a previsão quando recebe onde gravar, e lê as notas do card uma vez só", async () => {
+  let leituras = 0;
+  const previsoes = [];
+  const r = await rodarProximoPasso({
+    cards: async () => [card({ id: 1 })],
+    etapas: async () => ETAPAS_P,
+    anteriores: async () => new Map(),
+    notas: async () => (leituras++, []),
+    jev: async (p) =>
+      p.questions.fechamento
+        ? { answers: { fechamento: { choice: "este_mes", confidence: 0.7 } }, usage: { cost: 0.00002 } }
+        : { answers: { passo: { choice: "cobrar_retorno", confidence: 0.9 }, urgencia: { score: 1 } }, usage: { cost: 0.00003 } },
+    gravar: async () => {},
+    anterioresPrevisao: async () => new Map(),
+    gravarPrevisao: async (l) => void previsoes.push(l),
+    agora: AGORA, ativo: true, limite: 40, orcamentoMs: 60_000,
+  });
+  assert.equal(r.previsao.avaliados, 1);
+  assert.equal(previsoes[0].horizonte, "este_mes");
+  assert.equal(previsoes[0].versao, VERSAO_PREVISAO);
+  assert.equal(leituras, 1);
 });

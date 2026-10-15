@@ -93,6 +93,19 @@ Deno.serve(async (req) => {
       // Notas do card, sem ordenação no servidor (o v1/notes recusa sort com filtro): a lógica ordena.
       notas: (deal) => pages("notes", { deal_id: deal, limit: 50 }),
       jev,
+      // Previsão de fechamento pelo Jev para os cards do Forecast sem data esperada (15/10/2026).
+      anterioresPrevisao: async () =>
+        new Map(
+          (await rest("monetizacao_previsao_jev?select=deal_id,base,gerado_em,versao")).map(
+            (r: any) => [Number(r.deal_id), r],
+          ),
+        ),
+      gravarPrevisao: async (linha) => {
+        await rest("monetizacao_previsao_jev?on_conflict=deal_id", {
+          body: linha,
+          prefer: "resolution=merge-duplicates,return=minimal",
+        });
+      },
       gravar: async (linha) => {
         await rest(`${TABELA}?on_conflict=deal_id`, {
           body: linha,

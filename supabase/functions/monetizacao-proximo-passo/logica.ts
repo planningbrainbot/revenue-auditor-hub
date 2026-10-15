@@ -191,6 +191,69 @@ export function lerResposta(raw: any): Sugestao {
   };
 }
 
+// ── Previsão de fechamento (15/10/2026) ───────────────────────────────────────────────────────────────────────────
+// A tela Forecast agrupa pela data esperada do Pipedrive, e o time ainda não preenche. Enquanto o card da Reunião de
+// proposta em diante (sem Stand by) não tem data, o Jev lê as notas e estima o horizonte. A data do card, quando
+// existe, sempre manda; a estimativa aparece na tela marcada como do Jev.
+export const VERSAO_PREVISAO = "jev-previsao-v1-2026-10-15";
+export const HORIZONTES_JEV: Record<string, string> = {
+  esta_semana:
+    "Deve fechar (cliente aceita a proposta ou assina) até o próximo domingo: há sinal claro e recente nas notas.",
+  este_mes: "Deve fechar ainda neste mês, depois desta semana.",
+  proximo_mes: "Deve fechar no mês que vem.",
+  sem_previsao:
+    "Não há sinal de fechamento próximo: cliente sumido, pediu para esperar sem data, ou as notas não dizem nada.",
+};
+
+/** Aberto, da Reunião de proposta em diante, sem Stand by e sem data esperada de fechamento. */
+export function elegivelPrevisao(c: any, etapas: Etapa[], ordemProposta: number): boolean {
+  if (c?.status !== "open" || c.expected_close) return false;
+  const etapa = etapas.find((e) => e.id === c.stage_id);
+  if (!etapa || /stand ?by/i.test(etapa.name)) return false;
+  return etapa.order >= ordemProposta;
+}
+
+export function pedidoPrevisao(c: any, etapa: string, notas: string, agora: Date) {
+  const dias = diasNaEtapa(c, agora);
+  return {
+    model: JEV_MODELO,
+    state: {
+      hoje: diaSP(agora),
+      etapa,
+      dias_na_etapa: dias === null ? "desconhecido" : String(dias),
+      produto: String(c.route ?? "sem produto"),
+      ultima_atividade: c.last_activity_date ? String(c.last_activity_date) : "nenhuma registrada",
+      proxima_atividade: c.next_activity ? String(c.next_activity) : "nenhuma marcada",
+      notas,
+    },
+    questions: {
+      fechamento: {
+        type: "choice",
+        instructions:
+          "Hoje é `hoje`. O negócio está na etapa `etapa` de um pipe de vendas B2B. Pelas `notas` do responsável e pelas datas, quando ele deve fechar?",
+        criteria: HORIZONTES_JEV,
+      },
+    },
+  };
+}
+
+export function lerPrevisao(raw: any): {
+  horizonte: string;
+  confianca: number | null;
+  custo_usd: number | null;
+} {
+  const a = raw?.answers?.fechamento;
+  if (typeof a?.choice !== "string" || !(a.choice in HORIZONTES_JEV))
+    throw new Error("Jev: previsão fora das opções");
+  const conf = a.confidence;
+  const custo = raw?.usage?.cost;
+  return {
+    horizonte: a.choice,
+    confianca: typeof conf === "number" && conf >= 0 && conf <= 1 ? conf : null,
+    custo_usd: typeof custo === "number" && custo >= 0 ? custo : null,
+  };
+}
+
 export interface DepsProximoPasso {
   cards: () => Promise<any[]>;
   etapas: () => Promise<Etapa[]>;
@@ -198,6 +261,11 @@ export interface DepsProximoPasso {
   notas: (deal: number) => Promise<any[]>;
   jev: (pedido: any) => Promise<any>;
   gravar: (linha: Record<string, unknown>) => Promise<void>;
+  /** Previsão de fechamento (15/10/2026); sem estes dois, a rodada só faz o próximo passo. */
+  anterioresPrevisao?: () => Promise<
+    Map<number, { base: string; gerado_em: string; versao: string }>
+  >;
+  gravarPrevisao?: (linha: Record<string, unknown>) => Promise<void>;
   agora: Date;
   ativo: boolean;
   limite: number;
@@ -213,6 +281,12 @@ export async function rodarProximoPasso(d: DepsProximoPasso) {
   if (!agendado) throw new Error("Etapa Agendado não encontrada no pipe");
   const hoje = diaSP(d.agora);
   const [cards, anteriores] = await Promise.all([d.cards(), d.anteriores()]);
+  // As notas de um card são lidas uma vez por rodada, para o próximo passo e para a previsão.
+  const cacheNotas = new Map<number, Promise<any[]>>();
+  const notasDe = (deal: number) => {
+    if (!cacheNotas.has(deal)) cacheNotas.set(deal, d.notas(deal));
+    return cacheNotas.get(deal)!;
+  };
   const elegiveis = cards.filter((c) => elegivel(c, etapas, agendado.order, hoje));
   const fila = elegiveis.filter((c) => precisaAvaliar(c, anteriores.get(Number(c.id)), d.agora));
   const resumo = {
@@ -227,7 +301,7 @@ export async function rodarProximoPasso(d: DepsProximoPasso) {
     if (Date.now() - comeco > d.orcamentoMs) break;
     const etapa = etapas.find((e) => e.id === c.stage_id)?.name ?? String(c.stage ?? "");
     try {
-      const notas = notasParaJev(await d.notas(Number(c.id)), Number(c.owner_id) || null);
+      const notas = notasParaJev(await notasDe(Number(c.id)), Number(c.owner_id) || null);
       const pedido = pedidoJev(c, etapa, notas, d.agora);
       if (!d.ativo) {
         resumo.avaliados++;
@@ -251,5 +325,48 @@ export async function rodarProximoPasso(d: DepsProximoPasso) {
       resumo.erros.push({ deal: Number(c.id), erro: (e as Error).message.slice(0, 200) });
     }
   }
-  return resumo;
+  const previsao = { elegiveis: 0, pendentes: 0, avaliados: 0 };
+  const proposta = etapas.find((e) => /reuni/i.test(e.name) && /propost/i.test(e.name));
+  if (d.anterioresPrevisao && d.gravarPrevisao && proposta) {
+    const antes = await d.anterioresPrevisao();
+    const doForecast = cards.filter((c) => elegivelPrevisao(c, etapas, proposta.order));
+    const pendentes = doForecast.filter((c) => {
+      const a = antes.get(Number(c.id));
+      if (!a) return true;
+      if (a.versao !== VERSAO_PREVISAO || a.base !== baseDoCard(c)) return true;
+      return d.agora.getTime() - Date.parse(a.gerado_em) > VALIDADE_MS;
+    });
+    previsao.elegiveis = doForecast.length;
+    previsao.pendentes = pendentes.length;
+    for (const c of pendentes.slice(0, d.limite)) {
+      if (Date.now() - comeco > d.orcamentoMs) break;
+      const etapa = etapas.find((e) => e.id === c.stage_id)?.name ?? String(c.stage ?? "");
+      try {
+        const notas = notasParaJev(await notasDe(Number(c.id)), Number(c.owner_id) || null);
+        const pedido = pedidoPrevisao(c, etapa, notas, d.agora);
+        if (!d.ativo) {
+          previsao.avaliados++;
+          continue;
+        }
+        const r = lerPrevisao(await d.jev(pedido));
+        resumo.custo_usd += r.custo_usd ?? 0;
+        await d.gravarPrevisao({
+          deal_id: Number(c.id),
+          horizonte: r.horizonte,
+          confianca: r.confianca,
+          base: baseDoCard(c),
+          versao: VERSAO_PREVISAO,
+          gerado_em: d.agora.toISOString(),
+          custo_usd: r.custo_usd,
+        });
+        previsao.avaliados++;
+      } catch (e) {
+        resumo.erros.push({
+          deal: Number(c.id),
+          erro: "previsão: " + (e as Error).message.slice(0, 180),
+        });
+      }
+    }
+  }
+  return { ...resumo, previsao };
 }
