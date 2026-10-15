@@ -35,6 +35,7 @@ import {
 import type { Filtro } from "@/lib/monetizacao/model";
 import { nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
 import { Fechamentos } from "./fechamentos";
+import { Segmentado } from "./pre-venda-comum";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
@@ -320,6 +321,66 @@ export function DashboardMonetizacao({
       ? data.cards
       : data.cards.filter((c) => (c.unidade_ids ?? []).includes(unidadeId));
   const dadosDoRecorte = unidadeId === null ? data : { ...data, cards };
+  // Filtros no próprio funil (15/10/2026, pedido do Paulo): produto, pré-vendedor e unidade se somam e mudam a
+  // mesma URL da barra de cima, então o funil, os quadros e o gráfico seguem juntos.
+  const filtrosDoFunil = (
+    <>
+      <Segmentado
+        tamanho="sm"
+        rotulo="Produto no funil"
+        opcoes={[
+          { chave: "todos", rotulo: "Todos" },
+          ...(["cella", "finance", "consultoria"] as const).map((p) => ({
+            chave: p,
+            rotulo: NOMES[p],
+          })),
+        ]}
+        valor={busca.produto && busca.produto !== "caixa" ? busca.produto : "todos"}
+        mudar={(v) => mudarFiltros({ produto: v === "todos" ? undefined : (v as ProdutoUrl) })}
+      />
+      <Segmentado
+        tamanho="sm"
+        rotulo="Pré-vendedor no funil"
+        opcoes={[
+          { chave: "0", rotulo: "Os dois" },
+          ...PRE_VENDEDORES.map(([id, nome]) => ({
+            chave: String(id),
+            rotulo: nome.split(" ")[0],
+          })),
+        ]}
+        valor={String(busca.responsavel ?? 0)}
+        mudar={(v) => mudarFiltros({ responsavel: Number(v) || undefined })}
+      />
+      {unidadesNoPipe.length > 0 && (
+        <select
+          aria-label="Unidade no funil"
+          className="h-9 rounded-lg border border-input bg-card px-3 text-[13px] font-medium text-foreground"
+          value={unidadeId ?? ""}
+          onChange={(e) => mudarBusca({ unidade: e.target.value || undefined })}
+        >
+          <option value="">Todas as unidades</option>
+          {unidadesNoPipe.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.nome}
+            </option>
+          ))}
+        </select>
+      )}
+    </>
+  );
+  const recorteDoFunil = [
+    busca.produto && busca.produto !== "caixa"
+      ? busca.produto === "sem_produto"
+        ? "Sem produto"
+        : NOMES[busca.produto]
+      : "todos os produtos",
+    busca.responsavel
+      ? (PRE_VENDEDORES.find(([id]) => id === busca.responsavel)?.[1] ?? "pré-vendedor")
+      : "os dois pré-vendedores",
+    unidadeId === null
+      ? "todas as unidades"
+      : (nomeDaUnidade.get(unidadeId) ?? `Unidade ${unidadeId}`),
+  ].join(" · ");
   const view = operacao(cards, filter);
   // Régua cumulativa (01/10/2026): o funil, os quadros e as tabelas por produto contam a mesma coorte.
   // `funis.total` é o recorte da barra; os produtos ignoram o filtro de produto para poder comparar.
@@ -574,7 +635,12 @@ export function DashboardMonetizacao({
             quadros={quadros.quadros}
           />
           <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.3fr)]">
-            <FunilOperacao dados={funis.total} abrir={abrir} />
+            <FunilOperacao
+              dados={funis.total}
+              abrir={abrir}
+              filtros={filtrosDoFunil}
+              recorte={recorteDoFunil}
+            />
             <SerieDiaria view={view} abrir={abrir} />
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(cards, filter.product)} abrir={abrir} />
@@ -625,6 +691,7 @@ export function DashboardMonetizacao({
           stages={data.stages}
           hoje={today}
           filtro={filter}
+          previsoes={data.previsoes_jev ?? []}
           abrir={abrir}
         />
       )}

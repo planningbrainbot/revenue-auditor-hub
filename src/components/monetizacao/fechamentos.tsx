@@ -11,12 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { useAuth } from "@/hooks/use-auth";
 import type { Etapa } from "@/lib/monetizacao/funil-cumulativo";
-import { carregarPrevisoesFechamento } from "@/lib/monetizacao/fechamentos.functions";
-import { forecastDeFechamento, type Horizonte } from "@/lib/monetizacao/fechamentos";
+import {
+  forecastDeFechamento,
+  type Horizonte,
+  type PrevisaoJev,
+} from "@/lib/monetizacao/fechamentos";
 import { reaisCurto } from "@/lib/monetizacao/model";
 import type { RecorteResponsavel } from "@/lib/monetizacao/responsavel";
 import { NOMES, type Negocio, type Produto } from "@/lib/monetizacao/types";
@@ -41,26 +41,18 @@ export function Fechamentos({
   stages,
   hoje,
   filtro,
+  previsoes = [],
   abrir,
 }: {
   cards: Negocio[];
   stages: Etapa[];
   hoje: string;
   filtro: RecorteResponsavel & { product: Produto | "" };
+  /** Previsão do Jev para os cards sem data esperada (vem da carga da Monetização). */
+  previsoes?: PrevisaoJev[];
   abrir: Abrir;
 }) {
-  // Previsão do Jev para os cards sem data esperada (15/10/2026). Se a leitura falhar, a tela segue só com as datas.
-  const { user } = useAuth();
-  const previsoesFn = useServerFn(carregarPrevisoesFechamento);
-  const qPrev = useQuery({
-    queryKey: ["monetizacao-previsao-fechamento", user?.id],
-    queryFn: () => previsoesFn(),
-    enabled: !!user,
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
-    retry: 1,
-  });
-  const fc = forecastDeFechamento(cards, stages, hoje, filtro, qPrev.data ?? []);
+  const fc = forecastDeFechamento(cards, stages, hoje, filtro, previsoes);
   const estimados = fc.grupos.reduce((s, g) => s + g.estimados, 0);
   const recorte = `abertos hoje, ${ddmm(hoje)}`;
   const nota = (valor: number, semValor: number, n: number) =>

@@ -316,6 +316,12 @@ export interface BaseMonetizacao {
   sync_status: string;
   sync_error: string | null;
   stages: { id: number; name: string; order: number }[];
+  /** Previsão de fechamento do Jev para cards sem data esperada (Forecast, 15/10/2026). */
+  previsoes_jev?: {
+    deal_id: number;
+    horizonte: "esta_semana" | "este_mes" | "proximo_mes" | "sem_previsao";
+    confianca: number | null;
+  }[];
   permissions: { view: boolean; manage: boolean; send: boolean; all_units: boolean };
 }
 
