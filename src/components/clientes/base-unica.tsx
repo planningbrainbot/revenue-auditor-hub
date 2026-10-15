@@ -494,6 +494,19 @@ export function ClientesBase() {
       </main>
     );
   }
+  // A carteira falhou (com o banco saturado as páginas estouram o tempo): a carga chega sem contas. Nenhuma das três
+  // telas mostra zero no lugar do dado ausente (N4); diz o que houve e oferece tentar de novo.
+  if (query.data.catalogo_indisponivel && !query.data.accounts.length)
+    return (
+      <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
+        <PageHeader titulo={meta.titulo} pergunta={meta.pergunta} />
+        {nav}
+        <EstadoErro
+          detalhe="A carteira da Base não carregou: o banco está ocupado e a leitura das contas estourou o tempo. Os números não foram zerados; tente de novo em instantes."
+          tentarNovamente={() => void invalidate()}
+        />
+      </main>
+    );
   const data = query.data,
     units = data.units.filter((u) => u.account_keys.length),
     pages = Math.max(1, Math.ceil(visible.length / 50)),
@@ -564,13 +577,15 @@ export function ClientesBase() {
   const descricao =
     view === "clientes"
       ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes e ${number(contagemTudo.ex_cliente)} ex-clientes pela regra de cliente · todas as unidades liberadas · a busca acha qualquer empresa do seu escopo`
-      : view === "confianca"
-        ? `${number(filtered.length)} empresas no recorte · ${perimetro} · cliente pela regra: ganho no Pipedrive, base de clientes do Pipefy, tag Cliente ou recebimento no Omie · o grau mede a certeza`
-        : sub === "gates"
-          ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · os recortes se sobrepõem e não somam`
-          : sub === "contatos"
-            ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
-            : `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`;
+      : view === "painel"
+        ? `${number(contagemTudo.g4 + contagemTudo.g3 + contagemTudo.g2 + contagemTudo.g1)} clientes pela regra de cliente · todas as unidades liberadas · os números dos gráficos abrem a lista`
+        : view === "confianca"
+          ? `${number(filtered.length)} empresas no recorte · ${perimetro} · cliente pela regra: ganho no Pipedrive, base de clientes do Pipefy, tag Cliente ou recebimento no Omie · o grau mede a certeza`
+          : sub === "gates"
+            ? `${number(filtered.length)} contas conciliadas no recorte · ${perimetro} · os recortes se sobrepõem e não somam`
+            : sub === "contatos"
+              ? `Pessoas vinculadas às ${number(filtered.length)} contas do recorte · ${perimetro}`
+              : `${number(visible.length)} contas com origem a validar ou a corrigir no Pipefy · ${perimetro}`;
   return (
     <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
       <PageHeader
