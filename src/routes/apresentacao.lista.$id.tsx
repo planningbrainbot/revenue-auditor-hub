@@ -98,7 +98,7 @@ function ApresentacaoLista() {
                   Imprimir ou salvar PDF
                 </Button>
                 <Button size="sm" variant="outline" asChild>
-                  <Link to="/clientes" search={{ view: "listas", lista: id }}>
+                  <Link to="/monetizacao/listas" search={{ lista: id }}>
                     <ArrowLeft className="mr-1 h-4 w-4" />
                     Voltar à lista
                   </Link>

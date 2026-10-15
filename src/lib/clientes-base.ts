@@ -51,10 +51,39 @@ export type NivelProva =
 export type SinalProva = {
   nivel: NivelProva;
   motivo: string;
-  provas: ("contrato" | "receber" | "ecd" | "ganho_pipedrive")[];
+  provas: ("contrato" | "receber" | "ecd" | "ganho_pipedrive" | "faturado_grupo")[];
   pago_em: string[];
   pago_pelo_grupo?: string[];
   filial_fornecedora_em?: string[];
+  /** Regra de cliente (migration 20261015170000): último recebimento, contrato ativo e faturamento do grupo. */
+  recebido_em?: string | null;
+  contrato_ativo?: boolean;
+  faturado_grupo_em?: string | null;
+  faturado_por?: string[];
+};
+/**
+ * Regra de cliente (Pedro, 15/10/2026; migration 20261015170000, `ops.base_conta_situacao`). A regra decide se a empresa
+ * é cliente; o grau (4 a 1) diz a certeza dentro de quem é cliente. Cliente = negócio ganho no Pipedrive, base de
+ * clientes do Pipefy, tag Cliente no Omie de uma unidade, ou contrato ou recebimento no Omie (inclui o faturamento das
+ * empresas do grupo). Não é cliente: distrato concluído (ex-cliente) ou qualquer tag Fornecedor no Omie. O lote da
+ * Matriz (só a tag do Omie da Matriz, sem faturamento) fica "a confirmar" com o sócio.
+ */
+export type EstadoCliente =
+  | "cliente"
+  | "a_confirmar"
+  | "nao_cliente"
+  | "ex_cliente"
+  | "fornecedor"
+  | "grupo";
+export type SituacaoCliente = {
+  estado: EstadoCliente;
+  /** Só para cliente: 4 pagamento visto · 3 prova de cliente · 2 Base Antiga sem prova · 1 Base Nova sem prova. */
+  grau: 1 | 2 | 3 | 4 | null;
+  rotulo: string;
+  /** O que a tela diz em reunião: sim (cliente), confirmar (a confirmar), nao (o resto). */
+  cita: "sim" | "confirmar" | "nao";
+  motivo: string;
+  criterios?: string[];
 };
 /** Casamento com a plataforma da Consultoria: CNPJ completo, raiz (mesma pessoa jurídica) ou nome. */
 export type CasamentoConsultoria = "cnpj" | "raiz" | "nome";
@@ -128,6 +157,8 @@ export type BaseEmpresa = {
   omie?: SinalOmie | null;
   /** Prova de cliente (migration 20261001200000). Ausente até a carteira se atualizar. */
   prova?: SinalProva | null;
+  /** Regra de cliente e grau (migration 20261015170000). Ausente até a carteira se atualizar. */
+  situacao?: SituacaoCliente | null;
 };
 export type Refinamento = "" | "cnpj" | "contato" | "ecd";
 export function passaRefinamento(a: Conta, gate: Refinamento) {

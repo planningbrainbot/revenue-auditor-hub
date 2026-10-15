@@ -290,9 +290,7 @@ export function DashboardMonetizacao({
         <p className="text-sm text-muted-foreground">
           Seu acesso permite consultar a Base de clientes.{" "}
           <Button asChild variant="outline" size="sm" className="ml-1">
-            <Link to="/clientes" search={{ view: "produtos" }}>
-              Abrir Produtos e listas
-            </Link>
+            <Link to="/clientes">Abrir a Base de clientes</Link>
           </Button>
         </p>
       </main>

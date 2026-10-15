@@ -133,3 +133,7 @@ PRD aprovado pelo dono do produto em 09/10 (https://claude.ai/artifact/VVsFAthHk
 - Links antigos: `?aba=gravacoes` e `?aba=pessoas` abrem a Pré-venda no lugar certo, com o mesmo aviso de tela aposentada
   (`?aposentada=`, N14), dizendo onde a pessoa está.
 - A chave de URL `arquivados` (só do PDI) saiu. O seletor "Pré-vendedor" segue em Operação, Funil e Pré-venda.
+
+## Adendo de 15/10/2026: Produtos e Listas entram na Monetização
+
+Saíram da Base de clientes ("Base à Prova de Criança", versão 14, aprovada pelo Pedro em 15/10; contrato em `clientes.md`, adendo de 15/10). Dois itens novos no menu, depois do Forecast: **Produtos** (`/monetizacao/produtos`, visões "Por produto" e "Carteira da unidade", `secao=carteira`) e **Listas** (`/monetizacao/listas`). O conteúdo é o mesmo Aquário de antes, com a mesma URL de filtros (`components/clientes/busca.ts`). As ofertas só consideram quem é cliente pela regra do domínio Clientes (`base.situacao`).

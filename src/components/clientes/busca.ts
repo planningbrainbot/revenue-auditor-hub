@@ -31,6 +31,14 @@ import type {
  * valores diferentes na mesma página).
  */
 export const VIEWS_CLIENTES = [
+  // A Base em três telas (15/10/2026): Clientes abre a Base, Confiança mostra o grau, Por unidade segue a aba
+  // Contratos e churn. Arrumar a base junta Validar origem, Entenda os números e Contatos, para quem gerencia.
+  "clientes",
+  "confianca",
+  "unidades",
+  "arrumar",
+  // Chaves antigas, que links de fora ainda mandam: viram as telas novas (ClientesBase), e Produtos e Listas abrem na
+  // Monetização (/monetizacao/produtos e /monetizacao/listas).
   "monetizacao",
   "produtos",
   "listas",
@@ -39,9 +47,30 @@ export const VIEWS_CLIENTES = [
   "gates",
   "contatos",
 ] as const;
+/** Faixas da tela Confiança (`sit`): os graus de cliente e o que fica fora da regra. */
+export const SITS_CONFIANCA = [
+  "g4",
+  "g3",
+  "g2",
+  "g1",
+  "a_confirmar",
+  "nao_cliente",
+  "ex_cliente",
+  "fornecedor",
+  "grupo",
+] as const;
 
 export type BuscaClientes = {
   view: string;
+  /**
+   * Clientes: "ex" mostra os ex-clientes (ausente = clientes). Confiança: a faixa escolhida na barra
+   * (`SITS_CONFIANCA`); ausente = todas.
+   */
+  sit?: string;
+  /** Arrumar a base: "gates" (Entenda os números) ou "contatos"; ausente = Validar origem. */
+  sub?: "gates" | "contatos";
+  /** Monetização › Produtos: "carteira" abre a carteira da unidade; ausente = por produto. */
+  secao?: "carteira";
   status: string;
   /**
    * Unidades do topo, múltipla escolha (DECISIONS 18/09): chave de `monetizacao_unidades` ou
@@ -128,7 +157,10 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
   const chavesOrigem = Object.keys(ORIGENS_BASE);
   const origem = lista(s.origem)?.filter((o): o is OrigemBase => chavesOrigem.includes(o));
   return {
-    view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "monetizacao",
+    view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "clientes",
+    sit: umDe(["ex", ...SITS_CONFIANCA], s.sit),
+    sub: umDe(["gates", "contatos"], s.sub),
+    secao: umDe(["carteira"], s.secao),
     status: texto(s.status),
     unidade: lista(s.unidade),
     q: texto(s.q),
