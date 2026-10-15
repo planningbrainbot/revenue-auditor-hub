@@ -46,6 +46,26 @@ async function all(db: DB, table: string, columns: string, order: string) {
   throw new Error("Consulta excedeu o limite de segurança. Nenhum total parcial foi exibido.");
 }
 /**
+ * Leitura por RPC que confere a permissão uma vez por consulta (migration 20261015110000, banco saturado em 15/10/2026):
+ * os cards e os itens das listas saíam pela policy, que recalculava a permissão em cada linha. Mesmas linhas da policy;
+ * se a função ainda não existir no banco, cai na leitura pela tabela.
+ */
+async function allRpc(db: DB, fn: string, table: string, columns: string, order: string) {
+  const rows: DB[] = [];
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await db
+      .schema("ops")
+      .rpc(fn)
+      .select(columns)
+      .order(order)
+      .range(page * 500, page * 500 + 499);
+    if (error) return all(db, table, columns, order);
+    rows.push(...data);
+    if (data.length < 500) return rows;
+  }
+  throw new Error("Consulta excedeu o limite de segurança. Nenhum total parcial foi exibido.");
+}
+/**
  * A leitura sem o transporte: a tela e o servidor da conversa do Cockpit do CEO usam a mesma regra,
  * com a sessão da pessoa.
  */
@@ -73,9 +93,9 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
         "key",
       ),
       // `unidade_ids` vem da conta da Base (carga); a visão "Hoje" agrupa a Conexão por unidade.
-      all(db, "monetizacao_deals", "id,payload,unidade_ids", "id"),
+      allRpc(db, "monetizacao_deals_leitura", "monetizacao_deals", "id,payload,unidade_ids", "id"),
       all(db, "monetizacao_listas", "*", "created_at"),
-      all(db, "monetizacao_itens", "*", "id"),
+      allRpc(db, "monetizacao_itens_leitura", "monetizacao_itens", "*", "id"),
       all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
       // Plano do mês: desde 09/10/2026 não se edita no Brain (Capacidade e alocação saiu do menu, sem meta por
       // enquanto). A tabela e a RPC `monetizacao_save_plan` ficam; o Cockpit do CEO ainda lê a meta de contratos.
