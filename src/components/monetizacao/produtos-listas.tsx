@@ -1,6 +1,7 @@
-// Produtos e Listas na Monetização (Pedro, 15/10/2026, proposta "Base à Prova de Criança", versão 14: "Produtos e
-// Listas saem da Base e ficam só na Monetização"). É o mesmo Aquário que vivia em /clientes?view=produtos|listas, com a
-// mesma URL de filtros (`components/clientes/busca.ts`): só mudou de casa. As ofertas leem a regra de cliente do
+// Produtos e Listas (Pedro, 15/10/2026): a construção de listas mora na Base de clientes, liberada só para quem tem a
+// área Monetização ("deve ser uma opção liberada dentro da base apenas para quem tem acesso específico"). É o mesmo
+// Aquário de antes, com a mesma URL de filtros (`components/clientes/busca.ts`), em /clientes/produtos e
+// /clientes/listas. As ofertas leem a regra de cliente do
 // domínio Clientes (`base.situacao`): quem não é cliente pela regra fica fora de todas (model.ts, foraDaRegraDeCliente).
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -9,6 +10,7 @@ import { Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useMonetizacao, useAtualizarMonetizacao } from "@/hooks/use-monetizacao";
+import { usePermissions } from "@/hooks/use-permissions";
 import { acionarMonetizacao } from "@/lib/monetizacao/functions";
 import { normal } from "@/lib/monetizacao/model";
 import {
@@ -52,7 +54,8 @@ export function ProdutosEListas({
     sync = useServerFn(acionarMonetizacao);
   const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
-  const rota = tela === "produtos" ? "/monetizacao/produtos" : "/monetizacao/listas";
+  const rota = tela === "produtos" ? "/clientes/produtos" : "/clientes/listas";
+  const perms = usePermissions();
   // A carteira da unidade (seção "base" do Aquário) mora em Produtos, como segunda visão.
   const secao: SecaoAquario =
     tela === "listas" ? "listas" : search.secao === "carteira" ? "base" : "produtos";
@@ -124,12 +127,12 @@ export function ProdutosEListas({
   // da Base (Entenda os números) moram em Arrumar a base.
   const destinoDa = (s: SecaoAquario): { to: string; patch: Partial<BuscaClientes> } =>
     s === "listas"
-      ? { to: "/monetizacao/listas", patch: { secao: undefined } }
+      ? { to: "/clientes/listas", patch: { secao: undefined } }
       : s === "produtos"
-        ? { to: "/monetizacao/produtos", patch: { secao: undefined } }
+        ? { to: "/clientes/produtos", patch: { secao: undefined } }
         : s === "base"
-          ? { to: "/monetizacao/produtos", patch: { secao: "carteira" } }
-          : { to: "/clientes", patch: { view: "arrumar", sub: "gates" } };
+          ? { to: "/clientes/produtos", patch: { secao: "carteira" } }
+          : { to: "/clientes", patch: { view: "confianca", sub: "gates" } };
   const irPara = (s: SecaoAquario) => {
     const d = destinoDa(s);
     mudar(d.patch, d.to, true);
@@ -147,6 +150,14 @@ export function ProdutosEListas({
     );
   };
   const meta = META[tela];
+  // Só para quem tem a área Monetização (o super admin também).
+  if (!perms.loading && !perms.temArea("monetizacao") && !perms.isAdmin)
+    return (
+      <main className="mx-auto max-w-[1700px] space-y-4 p-4 md:p-6">
+        <PageHeader titulo={meta.titulo} pergunta={meta.pergunta} />
+        <EstadoSemAcesso oQueFalta="a área Monetização (construção de listas)" />
+      </main>
+    );
   if (!query.data) {
     const erro = query.error;
     return (

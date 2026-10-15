@@ -352,7 +352,7 @@ test("Erro da RPC: sem acesso e função ainda não criada não viram erro de le
 
 // ── Navegação ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("Menu da Monetização: nove itens, Pré-venda logo depois da Operação diária, Forecast (14/10) depois da Consultoria e Produtos e Listas (15/10) depois do Forecast", () => {
+test("Menu da Monetização: sete itens, Pré-venda logo depois da Operação diária e Forecast (14/10) depois da Consultoria", () => {
   const area = AREAS.find((a) => a.slug === "monetizacao");
   const itens = area.grupos.flatMap((g) => g.items);
   assert.deepEqual(
@@ -362,8 +362,6 @@ test("Menu da Monetização: nove itens, Pré-venda logo depois da Operação di
       "Pré-venda",
       "Consultoria",
       "Forecast",
-      "Produtos",
-      "Listas",
       "Funil comercial",
       "Abordagens",
       "Distribuição",
@@ -474,5 +472,19 @@ test("Links antigos: Gravações abre Ficha › Reuniões e Pessoas e PDI abre A
   assert.equal(
     "arquivados" in validarBuscaMonetizacao({ aba: "operacao", arquivados: "mostrar" }),
     false,
+  );
+});
+
+test("Menu da Base (15/10/2026): as três telas na lateral, Produtos e Listas só para a área Monetização, sem Base de Contatos", () => {
+  const area = AREAS.find((a) => a.slug === "clientes");
+  const itens = area.grupos.flatMap((g) => g.items);
+  assert.deepEqual(
+    itens.map((i) => i.title),
+    ["Clientes", "Confiança", "Painel", "Produtos", "Listas"],
+  );
+  assert.ok(!itens.some((i) => i.url === "/base-contatos"));
+  assert.deepEqual(
+    itens.filter((i) => i.area === "monetizacao").map((i) => i.url),
+    ["/clientes/produtos", "/clientes/listas"],
   );
 });

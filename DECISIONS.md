@@ -5360,3 +5360,16 @@ de fora: a porta de entrada não tem procedência para mostrar número.
 **Números de 15/10 (conferência por SQL):** 10.428 contas; 5.743 clientes (1.226 · 1.734 · 2.183 · 600), 609 a confirmar, 1.803 não clientes, 28 ex-clientes, 2.212 fornecedores e 33 do grupo. A regra no banco bateu com a conferência em 354 de 356 contas de amostra; as 2 diferenças são negócio ganho no Pipedrive que agora conta como prova (grau 3).
 
 **Ficou de fora:** a pergunta à IA na tela Confiança e o lead do Pipedrive na regra (a INTECH aparece "a confirmar", não "não é cliente").
+
+## [2026-10-15] Goiânia pelo faturamento, lote da Matriz como cliente e as três telas da Base na lateral
+
+**Contexto:** com a primeira versão no ar, Goiânia aparecia com 743 clientes, e o Pedro disse que "é pra ter muito mais". Medido: 1.173 contas de Goiânia só têm a tag Fornecedor; 442 têm as duas tags; 612 eram do lote da Matriz "a confirmar"; 190 contas sem unidade eram faturadas pela contabilidade da Matriz; e 427 CPFs e CNPJs faturados pelo grupo em 2026 nem existiam na Base. A construção de listas também tinha ido para a Monetização, e ele a quer dentro da Base.
+
+**Decisão (respostas do Pedro, 15/10):**
+- faturamento do grupo NÃO vence a tag Fornecedor;
+- conta sem unidade no Pipefy e faturada pela contabilidade da Matriz (PAC, PCC, BPO Contábil, Gestão, Agro, MAROX) é de Goiânia: `ops.base_unidade_faturamento`, usada em `ops.base_refresh_cadastro` (quando o Pipefy não diz a unidade) e em `ops.base_intake_faturamento` (contas sem empresa sincronizada);
+- os CNPJs faturados que a Base não tem viram contas `omie-cnpj-*` (`ops.base_intake_faturamento`, chamada pela `omie-pagamentos-sync` depois da leitura da receita, a cada 6 horas). CPF não entra, porque a Base é por CNPJ (`ops.base_cnpj`). Em 15/10: 334 contas novas, 134 em Goiânia; 180 contas foram para Goiânia;
+- o lote da Matriz com CNPJ ativo conta como cliente, grau 1 (Base Antiga, grau 2), e continua fora das ofertas (soTagDaMatriz) até ser confirmado;
+- telas: Clientes, Confiança (graus + correções) e Painel na lateral da área Base de clientes; Produtos e Listas em `/clientes/produtos` e `/clientes/listas`, só para quem tem a área Monetização; "Base de Contatos" sai do menu.
+
+**Desempenho:** a prova de cliente nova varria `ops.contratos` com `qb_so_digitos` para cada conta, a cada lote de 500 da atualização da carteira; com o banco saturado à tarde, os lotes chegaram a 30 s. Índices parciais e dois caminhos indexados (migration `20261015190000`) trouxeram os lotes para 7 a 15 s, perto do pico normal da tarde (ontem às 14h: 12 s).

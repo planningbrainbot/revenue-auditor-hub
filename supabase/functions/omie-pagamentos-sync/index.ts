@@ -284,6 +284,9 @@ async function sincronizarReceita() {
   for (let i = 0; i < linhas.length; i += 500) {
     await db("base_faturamento_grupo?on_conflict=cnpj", linhas.slice(i, i + 500), "POST", true);
   }
+  // Os CNPJs faturados que a Base ainda não tem viram contas, e a conta sem unidade faturada pela contabilidade da
+  // Matriz vai para Goiânia (Pedro, 15/10; regra em ops.base_intake_faturamento).
+  await db("rpc/base_intake_faturamento", {}, "POST");
   await db(
     "base_omie_pagamentos_leituras?on_conflict=unidade",
     [{ unidade: RECEITA, concluida_em: agora, titulos: linhas.length, erro: null }],

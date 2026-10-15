@@ -109,3 +109,22 @@ Pedido do Pedro (13/10, critério do CEO: "tão intuitiva e fácil de mexer que 
 - **Saíram da Base:** Produtos e Listas, que moram na Monetização (`/monetizacao/produtos`, com "Por produto" e "Carteira da unidade", e `/monetizacao/listas`), com a mesma URL de filtros. Os links antigos (`view=produtos|listas|monetizacao|contratos|pendencias|gates|contatos`) abrem a tela nova.
 - **Ofertas:** só cliente pela regra entra (servidor e cliente, `foraDaRegraDeCliente`).
 - **Fica para depois:** a pergunta à IA na Confiança (precisa de uma ferramenta da Base no motor do "Perguntar ao Brain") e o lead do Pipedrive na regra (hoje a INTECH, só com a tag da Matriz e lead aberto, aparece "A confirmar").
+
+## Adendo 15/10/2026 (tarde) · As três telas na lateral, Listas de volta à Base, Goiânia
+
+Pedido do Pedro depois de ver a primeira versão no ar: "é pra ter muito mais cliente em goiania", "cadê a opção de construção de listas? deve ser uma opção liberada dentro da base apenas para quem tem acesso específico (tipo o pessoal da monetização)" e "tela 1: lista de clientes + filtros + resumo apenas de Ativo, Inativo, Base Antiga e Nova; tela 2: graus de confiança + correções; tela 3: dashboards lindos que mostram a base por unidade e outros indicadores; colocar as 3 na barra lateral e remover Base de Contatos". O pedido vale como "contrato ok".
+
+| Item da lateral | URL | Pergunta (N1) | Arquétipo |
+|---|---|---|---|
+| Clientes | `/clientes` | Quais empresas são nossas clientes hoje? | Lista/Relatório |
+| Confiança | `/clientes?view=confianca` (`sub` = vazio, `validar`, `gates`, `contatos`) | Quanta certeza temos de que cada empresa é cliente, e o que falta corrigir? | Visão geral + Fila |
+| Painel | `/clientes?view=painel` | Como está a Base em cada unidade? | Visão geral |
+| Produtos (área Monetização) | `/clientes/produtos` | Quantos clientes cada produto pode trabalhar agora? | Lista |
+| Listas (área Monetização) | `/clientes/listas` | Quais listas estão prontas para apresentar e enviar? | Fila de trabalho |
+
+- **Clientes**: busca, unidade e o resumo Ativos (cliente pela regra) · Inativos (distrato concluído) · Base Antiga · Base Nova (origem dos ativos), que filtra a lista (`sit=ex`, `base=antiga|nova`). A busca ainda mostra quem não é cliente num cartão "não cite".
+- **Confiança**: a barra de graus e a lista; as correções (Validar origem, Entenda os números, Contatos) ficam na mesma tela, para quem gerencia a Base.
+- **Painel**: clientes por unidade empilhados por grau (a barra abre a lista da unidade), Base Antiga × Nova, regime, segmentos, faixa de faturamento e quem fatura os clientes. Contratos, MRR e churn por unidade abre a tela de antes (`view=unidades`).
+- Quem chega por outra área (o sócio, por Minha Unidade) vê as três telas no topo da página, porque não tem a lateral da Base.
+- "Base de Contatos" saiu do menu; a rota continua.
+- `/monetizacao/produtos` e `/monetizacao/listas` redirecionam para a Base.

@@ -2,9 +2,7 @@
 // empresa é cliente; o grau (4 a 1) diz a certeza dentro de quem é cliente. A regra mora no banco
 // (`ops.base_conta_situacao`, migration 20261015170000) e chega pronta em `base.situacao`: a tela só desenha.
 import { useMemo, type ReactNode } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { EstadoVazio, StatusBadge } from "@/components/planning";
+import { EstadoVazio, KpiCard, KpiGrade, StatusBadge } from "@/components/planning";
 import { BotaoComMotivo, FOCO_VISIVEL, number } from "@/components/monetizacao/common";
 import type { Conta } from "@/lib/monetizacao/types";
 import {
@@ -303,60 +301,86 @@ export function TabelaContas({
 }
 
 /**
- * Tela Clientes: a abertura da Base. Só a busca, e a lista de clientes e de ex-clientes. A busca acha qualquer empresa
- * do escopo e diz se ela é cliente: quem não é aparece com "não cite", e não na lista.
+ * Tela Clientes (15/10/2026, segunda rodada): a lista de clientes com o resumo Ativos · Inativos · Base Antiga · Base
+ * Nova, que também filtra. A busca do topo acha qualquer empresa do escopo e diz se ela é cliente: quem não é aparece
+ * num cartão "não cite", fora da lista. Ativo = cliente pela regra; inativo = ex-cliente (distrato concluído).
  */
 export function VisaoClientes({
   contas,
-  q,
-  aoBuscar,
+  busca,
   sit,
-  aoMudarSit,
+  base,
+  aoMudar,
   pagina,
   aoMudarPagina,
   aoAbrir,
 }: {
   contas: Conta[];
-  q: string;
-  aoBuscar: (q: string) => void;
+  busca: string;
   sit: "clientes" | "ex";
-  aoMudarSit: (s: "clientes" | "ex") => void;
+  base: "antiga" | "nova" | null;
+  aoMudar: (f: { sit?: "ex"; base?: "antiga" | "nova" }) => void;
   pagina: number;
   aoMudarPagina: (p: number) => void;
   aoAbrir: (a: Conta) => void;
 }) {
   const clientes = useMemo(() => contas.filter(ehCliente).sort(porCerteza), [contas]);
   const ex = useMemo(() => contas.filter(ehExCliente).sort(porCerteza), [contas]);
-  const busca = q.trim();
-  const achadas = useMemo(
-    () => (busca.length >= 2 ? contas.filter((a) => casaBusca(a, busca)).sort(porCerteza) : []),
-    [contas, busca],
-  );
-  const foraDaLista = achadas.filter((a) => !ehCliente(a) && !ehExCliente(a));
-  const naLista = achadas.filter((a) => ehCliente(a) || ehExCliente(a));
-  const lista = sit === "ex" ? ex : clientes;
+  const antigas = useMemo(() => clientes.filter((a) => a.base?.origin === "antiga"), [clientes]);
+  const novas = useMemo(() => clientes.filter((a) => a.base?.origin !== "antiga"), [clientes]);
+  const termo = busca.trim();
+  const buscando = termo.length >= 2;
+  const foraDaLista = buscando
+    ? contas.filter((a) => !ehCliente(a) && !ehExCliente(a)).sort(porCerteza)
+    : [];
+  const lista =
+    sit === "ex" ? ex : base === "antiga" ? antigas : base === "nova" ? novas : clientes;
+  const resumo = [
+    {
+      rotulo: "Ativos",
+      n: clientes.length,
+      nota: "Clientes pela regra de cliente",
+      ativo: sit === "clientes" && !base,
+      ir: () => aoMudar({}),
+    },
+    {
+      rotulo: "Inativos",
+      n: ex.length,
+      nota: "Distrato concluído na Central de Tratativas",
+      ativo: sit === "ex",
+      ir: () => aoMudar({ sit: "ex" }),
+    },
+    {
+      rotulo: "Base Antiga",
+      n: antigas.length,
+      nota: "Ativos com origem Base Antiga",
+      ativo: sit === "clientes" && base === "antiga",
+      ir: () => aoMudar({ base: "antiga" }),
+    },
+    {
+      rotulo: "Base Nova",
+      n: novas.length,
+      nota: "Ativos com origem Base Nova ou a confirmar",
+      ativo: sit === "clientes" && base === "nova",
+      ir: () => aoMudar({ base: "nova" }),
+    },
+  ];
   return (
     <div className="space-y-4">
-      <label className="relative block">
-        <Search
-          className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          aria-label="Buscar empresa pelo nome ou CNPJ"
-          className="h-14 pl-12 text-lg"
-          value={q}
-          placeholder="Nome ou CNPJ da empresa"
-          onChange={(e) => aoBuscar(e.target.value)}
-          autoFocus
-        />
-      </label>
-      <p className="text-xs text-muted-foreground">
-        A busca acha qualquer empresa da sua Base e diz se ela é cliente. A lista abaixo só tem
-        clientes e ex-clientes.
-      </p>
-      {busca.length >= 2 ? (
-        <div className="space-y-3">
+      <KpiGrade colunas={4}>
+        {resumo.map((r) => (
+          <KpiCard
+            key={r.rotulo}
+            rotulo={r.rotulo}
+            valor={number(r.n)}
+            nota={`${r.nota}${r.ativo ? " · filtro aplicado" : ""}`}
+            abrir={{ rotulo: r.ativo ? "Na lista abaixo" : "Ver na lista", onClick: r.ir }}
+            className={r.ativo ? "border-primary-text" : undefined}
+          />
+        ))}
+      </KpiGrade>
+      {buscando && foraDaLista.length > 0 && (
+        <div className="space-y-2">
           {foraDaLista.map((a) => {
             const s = a.base?.situacao;
             const confirmar = s?.estado === "a_confirmar";
@@ -396,78 +420,47 @@ export function VisaoClientes({
               </button>
             );
           })}
-          {naLista.length > 0 && (
-            <TabelaContas
-              titulo={`${number(naLista.length)} ${naLista.length === 1 ? "empresa" : "empresas"} na busca`}
-              contas={naLista}
-              colunas={["certeza", "unidade", "reuniao"]}
-              pagina={1}
-              aoMudarPagina={() => {}}
-              aoAbrir={aoAbrir}
-            />
-          )}
-          {!achadas.length && (
-            <EstadoVazio
-              titulo="Nenhuma empresa com esse nome ou CNPJ na sua Base"
-              descricao="Se a empresa não está na Base, ela não é cliente: não cite."
-            />
-          )}
         </div>
+      )}
+      {lista.length ? (
+        <TabelaContas
+          titulo={
+            sit === "ex"
+              ? "Inativos"
+              : base === "antiga"
+                ? "Ativos da Base Antiga"
+                : base === "nova"
+                  ? "Ativos da Base Nova"
+                  : "Ativos"
+          }
+          subtitulo={
+            sit === "ex"
+              ? "Distrato concluído na Central de Tratativas · para reconquista, com o sócio da unidade"
+              : "Das de mais certeza para as de menos · toque na empresa para abrir a ficha"
+          }
+          contas={lista}
+          colunas={["certeza", "unidade", "reuniao"]}
+          pagina={pagina}
+          aoMudarPagina={aoMudarPagina}
+          aoAbrir={aoAbrir}
+        />
       ) : (
-        <>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Clientes ou ex-clientes">
-            {(
-              [
-                ["clientes", "Clientes", clientes.length, "bg-success"],
-                ["ex", "Ex-clientes", ex.length, "bg-info/70"],
-              ] as const
-            ).map(([k, rotulo, n, barra]) => (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={sit === k}
-                onClick={() => aoMudarSit(k)}
-                className={cn(
-                  "grid min-w-36 gap-1.5 rounded-xl border bg-card px-4 py-2.5 text-left",
-                  sit === k ? "border-foreground ring-1 ring-foreground" : "hover:bg-muted/30",
-                  FOCO_VISIVEL,
-                )}
-              >
-                <span className="flex items-baseline justify-between gap-3 text-sm">
-                  {rotulo} <b className="num text-lg">{number(n)}</b>
-                </span>
-                <span className="block h-1.5 overflow-hidden rounded-full bg-muted">
-                  <span
-                    className={cn("block h-full rounded-full", barra)}
-                    style={{ width: `${Math.max(3, (n / Math.max(1, clientes.length)) * 100)}%` }}
-                  />
-                </span>
-              </button>
-            ))}
-          </div>
-          {lista.length ? (
-            <TabelaContas
-              titulo={sit === "ex" ? "Ex-clientes" : "Clientes"}
-              subtitulo={
-                sit === "ex"
-                  ? "Distrato concluído na Central de Tratativas · para reconquista, com o sócio da unidade"
-                  : "Das de mais certeza para as de menos · toque na empresa para abrir a ficha"
-              }
-              contas={lista}
-              colunas={["certeza", "unidade", "reuniao"]}
-              pagina={pagina}
-              aoMudarPagina={aoMudarPagina}
-              aoAbrir={aoAbrir}
-            />
-          ) : (
-            <EstadoVazio
-              titulo={
-                sit === "ex" ? "Nenhum ex-cliente no seu escopo" : "Nenhum cliente no seu escopo"
-              }
-              descricao="A regra de cliente roda na atualização da carteira, a cada poucos minutos."
-            />
-          )}
-        </>
+        <EstadoVazio
+          titulo={
+            buscando
+              ? foraDaLista.length
+                ? "Nenhum cliente com esse nome ou CNPJ"
+                : "Nenhuma empresa com esse nome ou CNPJ na sua Base: não é cliente, não cite"
+              : sit === "ex"
+                ? "Nenhum inativo neste recorte"
+                : "Nenhum cliente neste recorte"
+          }
+          descricao={
+            buscando
+              ? undefined
+              : "A regra de cliente roda na atualização da carteira, a cada poucos minutos."
+          }
+        />
       )}
     </div>
   );
