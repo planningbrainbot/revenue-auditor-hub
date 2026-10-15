@@ -5318,3 +5318,30 @@ mudança nenhuma.
 **Ficou de fora:** estender o mapa a quem não é admin (cada um vendo só os
 módulos que alcança) e o contrato de tela do `/inicio`, que continua sem
 existir em `docs/design/contratos`.
+
+## [2026-10-15] O mapa do /inicio do admin segue as três frentes do material de investidores
+
+**Contexto:** o Pedro pediu que a porta de entrada do admin (entrada anterior,
+mesmo dia) seguisse a forma como o material de investidores apresenta o Brain
+("Planning em Detalhe", seção 6 · Produto): três frentes, cada uma com uma tese.
+Ordem pedida por ele: aquisição, monetização e retenção. O material usa
+aquisição, retenção e monetização.
+
+**Decisão:** as cinco camadas saem. O mapa vira três colunas, cada uma com a
+tese e o produto do material:
+
+- **Aquisição** · "Uma máquina de vendas que entrega clientes às unidades" ·
+  Brain Growth: Marketing e Mídia, Comercial, Brain Meet e Broker.
+- **Monetização** · "Cada cliente da base é um novo ponto de venda" · Base do
+  Brain: Base de clientes e Monetização, mais Inteligência da Base, Parceiros e
+  Ofertas e Portal do executor como "Planejado".
+- **Retenção** · "A rede funciona como uma empresa só" · Brain Ops e
+  Financeiro: Desempenho da Rede, CS e Relacionamento, Receita e Repasses,
+  Financeiro, Gente e Minha Unidade.
+
+O que serve às três frentes fica fora das colunas, em duas faixas: **Gestão**
+("lê as três frentes": Cockpit do CEO, Cockpit do COO, Gestão Executiva e
+Planejamento, este como "Planejado") e **Base comum** ("sustenta as três
+frentes": Identidade e Acesso, Rede e Integrações). O Broker entrou em
+Aquisição, e Minha Unidade em Retenção. Os KPIs das frentes no material ficaram
+de fora: a porta de entrada não tem procedência para mostrar número.
