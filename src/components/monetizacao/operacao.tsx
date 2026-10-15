@@ -3,7 +3,7 @@
 // design system, status sempre com ícone e palavra. Nada é calculado aqui: o funil, os quadros da
 // pré-venda e as tabelas por produto vêm da régua cumulativa (`funilCumulativo`, 01/10/2026) e a
 // série diária de `operacao`, em src/lib/monetizacao. Sem meta desde 09/10/2026: o realizado, sem alvo.
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import {
   Building2,
   CalendarCheck,
@@ -387,7 +387,19 @@ function Linha({
   );
 }
 
-export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir: Abrir }) {
+export function FunilOperacao({
+  dados,
+  abrir,
+  filtros,
+  recorte,
+}: {
+  dados: FunilCumulativo;
+  abrir: Abrir;
+  /** Filtros que se somam no próprio funil (15/10/2026, pedido do Paulo): produto, pré-vendedor e unidade. */
+  filtros?: ReactNode;
+  /** O recorte aplicado, em palavras ("Cella · Heloá · Goiânia"). */
+  recorte?: string;
+}) {
   const { linhas, perdidos, abertos, regua, ganhosForaDaCoorte } = dados;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
@@ -409,6 +421,12 @@ export function FunilOperacao({ dados, abrir }: { dados: FunilCumulativo; abrir:
         Cards abordados no período, cada um contado até a etapa mais adiantada a que chegou. Taxa: a
         etapa ÷ a de cima. Hoje: o pipe inteiro agora, {INT.format(abertos)} abertos, fora da taxa.
       </p>
+      {filtros && <div className="mt-3 flex flex-wrap items-center gap-2">{filtros}</div>}
+      {recorte && (
+        <p className="mt-2 text-xs font-medium text-foreground">
+          Recorte: <span className="text-muted-foreground">{recorte}</span>
+        </p>
+      )}
       <div className="mt-3">
         <div
           className={cn(
@@ -711,12 +729,40 @@ export function PorProduto({
 // Funil por produto, lado a lado
 // ---------------------------------------------------------------------------
 
+/** Rótulo curto de cada etapa no lado a lado (o nome inteiro fica no detalhe). */
+const NOME_CURTO: Partial<Record<ChaveNivel | "fila" | "ganho", string>> = {
+  fila: "Fila",
+  abordagem: "Abordados",
+  conexao: "Qualificação",
+  agendada: "Levantamento agendado",
+  realizada: "Levantamento realizado",
+  reuniaoProposta: "Reunião de proposta",
+  negociacao: "Em negociação",
+  propostaEnviada: "Proposta enviada",
+  ganho: "Ganho",
+};
+
 /**
- * O funil da dobra de cima com os produtos lado a lado (dono, 30/09/2026), na régua cumulativa (01/10/2026): as
- * mesmas etapas, a mesma coorte e a mesma taxa de `funilCumulativo`, uma coluna por produto e o total. Complementa
- * "Qual produto avança na base?", que resume em sete colunas; aqui estão todas as etapas do pipe. Fecha com o que
- * parou (Stand by hoje, que conta como levantamento realizado) e o que saiu (perdidos no período), fora da taxa. Com
- * filtro de produto não há o que comparar: o funil de cima já é o do produto.
+ * A passagem que mais perde em cada funil: a menor taxa entre etapas, da Qualificação em diante (a saída da fila é
+ * ritmo, não conversão) e só quando a etapa de cima tem 3 cards ou mais, para um card não virar gargalo.
+ */
+function gargaloDe(fc: FunilCumulativo): number {
+  let pior = -1;
+  let menor = Infinity;
+  fc.linhas.forEach((l, i) => {
+    if (i < 2 || l.taxa == null || fc.linhas[i - 1].contagem < 3) return;
+    if (l.taxa < menor) {
+      menor = l.taxa;
+      pior = i;
+    }
+  });
+  return pior;
+}
+
+/**
+ * Comparativo lado a lado (15/10/2026, "mais sexy", pedido do Pedro): um funil desenhado por produto e o total, com a
+ * mesma régua do funil de cima. A barra é centrada e proporcional à fila do produto, a taxa fica na passagem entre
+ * etapas e a pior passagem de cada produto ganha a marca de gargalo. Stand by e perdidos ficam no rodapé.
  */
 export function FunilLadoALado({
   funis,
@@ -738,17 +784,18 @@ export function FunilLadoALado({
   );
   const standBy = (fc: FunilCumulativo) =>
     (linhaDa(fc, "realizada")?.hoje ?? []).filter((c) => espera.has(c.stage_id));
-  const numero = (n: number, titulo: string, rows: Negocio[], estoque = false) =>
+  const gargalos = new Map(colunas.map((c) => [c.k, gargaloDe(c.fc)]));
+  const rodape = (n: number, titulo: string, rows: Negocio[], estoque = false) =>
     n > 0 ? (
       <button
         type="button"
         onClick={() => abrir(titulo, rows, estoque ? { estoque: true } : undefined)}
-        className="num rounded-sm text-base font-semibold text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        className="num rounded-sm font-semibold text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
       >
         {INT.format(n)}
       </button>
     ) : (
-      <span className="num text-base text-muted-foreground">0</span>
+      <span className="num text-muted-foreground">0</span>
     );
 
   return (
@@ -758,126 +805,135 @@ export function FunilLadoALado({
           Em que etapa cada produto trava?
         </h2>
         <p className="text-[13px] text-muted-foreground">
-          O funil de cima, um produto por coluna: abordados no período, cada um até a etapa mais
-          adiantada. A porcentagem é a etapa ÷ a de cima; a barra compara com a fila do produto. O
-          card conta no produto da rota e em cada produto ofertado no levantamento, então a soma das
-          colunas pode passar do total.
+          O funil de cima desenhado por produto. A barra mede contra a fila do produto, a
+          porcentagem é a passagem da etapa de cima e o vermelho marca a passagem que mais perde. O
+          card conta na rota e em cada produto ofertado no levantamento, então a soma pode passar do
+          total.
         </p>
       </div>
       {produto ? (
         <p className="px-4 pb-4 pt-2 text-sm text-muted-foreground">
-          Com o filtro de {NOMES[produto]}, o funil de cima já é o do produto. Limpe o filtro de
-          produto para comparar os três.
+          Com o filtro de {NOMES[produto]}, o funil de cima já é o do produto. Volte para "Todos"
+          para comparar os três.
         </p>
       ) : (
-        <div className="overflow-x-auto p-2">
-          <table className="w-full min-w-[760px] table-fixed text-left">
-            <colgroup>
-              <col className="w-44" />
-              {colunas.map((c) => (
-                <col key={c.k} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 pb-2">Etapa</th>
-                {colunas.map((c) => (
-                  <th key={c.k} className="px-3 pb-2 text-right">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        aria-hidden
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: c.cor }}
-                      />
-                      {c.nome}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {etapas.map((e, i) => (
-                <tr key={e.key} className="border-t">
-                  <th className="px-3 py-2 align-top text-sm font-normal text-foreground">
-                    {e.nivel === 0 ? `Fila · ${e.nome}` : e.nome}
-                    {incluiTexto(e) && (
-                      <span className="block text-xs text-muted-foreground">{incluiTexto(e)}</span>
-                    )}
-                  </th>
-                  {colunas.map((c) => {
-                    const l = c.fc.linhas[i];
-                    const topo = c.fc.linhas[0].contagem;
-                    return (
-                      <td key={c.k} className="px-3 py-2 align-top">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span
-                            className={cn(
-                              "num text-xs",
-                              l.taxa != null && l.taxa < 0.2
-                                ? "font-semibold text-danger"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {l.taxa === undefined
-                              ? "fila"
-                              : l.taxa === null
-                                ? "—"
-                                : PCT.format(l.taxa)}
-                          </span>
-                          {numero(l.contagem, `${c.nome} · ${tituloDaLinha(l)}`, l.cards)}
-                        </div>
-                        <span
-                          className="mt-1 block h-1 overflow-hidden rounded-full bg-muted"
-                          aria-hidden
-                        >
-                          <span
-                            className="block h-full rounded-full"
-                            style={{
-                              width: `${topo ? Math.min(1, l.contagem / topo) * 100 : 0}%`,
-                              backgroundColor: c.cor,
-                            }}
-                          />
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-              <tr className="border-t-2 bg-muted/40">
-                <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
-                  Em Stand by hoje
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    pediu tempo depois da reunião; não é perda
-                  </span>
-                </th>
+        <div className="overflow-x-auto px-3 pb-4 pt-3">
+          <div className="grid min-w-[760px] grid-cols-[10rem_repeat(4,minmax(0,1fr))] gap-x-3">
+            <div />
+            {colunas.map((c) => {
+              const ganhos = c.fc.linhas.at(-1)?.contagem ?? 0;
+              return (
+                <div
+                  key={c.k}
+                  className="mb-2 rounded-lg px-3 py-2"
+                  style={{ backgroundColor: `color-mix(in oklab, ${c.cor} 12%, var(--card))` }}
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span
+                      aria-hidden
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: c.cor }}
+                    />
+                    {c.nome}
+                  </div>
+                  <div className="num text-2xl font-semibold leading-tight text-foreground">
+                    {INT.format(c.fc.linhas[0].contagem)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    na fila · {INT.format(ganhos)} {ganhos === 1 ? "ganho" : "ganhos"} da coorte
+                  </div>
+                </div>
+              );
+            })}
+            {etapas.map((e, i) => (
+              <Fragment key={e.key}>
+                <div className="flex min-h-12 flex-col justify-center pr-2 text-sm text-foreground">
+                  <span>{(e.chave && NOME_CURTO[e.chave]) ?? e.nome}</span>
+                  {incluiTexto(e) && (
+                    <span className="text-xs text-muted-foreground">{incluiTexto(e)}</span>
+                  )}
+                </div>
                 {colunas.map((c) => {
-                  const parados = standBy(c.fc);
+                  const l = c.fc.linhas[i];
+                  const topo = c.fc.linhas[0].contagem || 1;
+                  const frac = l.contagem ? Math.max(0.08, Math.min(1, l.contagem / topo)) : 0;
+                  const gargalo = gargalos.get(c.k) === i;
                   return (
-                    <td key={c.k} className="px-3 py-2 text-right align-top">
-                      {numero(parados.length, `${c.nome} · em Stand by hoje`, parados, true)}
-                    </td>
+                    <div key={c.k} className="flex min-h-12 flex-col items-center justify-center">
+                      {i > 0 && (
+                        <span
+                          className={cn(
+                            "num text-xs leading-none",
+                            gargalo ? "font-semibold text-danger" : "text-muted-foreground",
+                          )}
+                        >
+                          {l.taxa == null ? "—" : PCT.format(l.taxa)}
+                          {gargalo && " · gargalo"}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!l.contagem}
+                        onClick={() => abrir(`${c.nome} · ${tituloDaLinha(l)}`, l.cards)}
+                        aria-label={`${c.nome}, ${e.nome}: ${INT.format(l.contagem)} cards`}
+                        className="group relative mt-1 flex h-7 w-full items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute inset-y-0 rounded-md transition-[filter] duration-150 group-hover:brightness-95",
+                            gargalo && "ring-2 ring-danger",
+                          )}
+                          style={{
+                            left: `${(1 - frac) * 50}%`,
+                            width: `${frac * 100}%`,
+                            backgroundColor: `color-mix(in oklab, ${c.cor} ${Math.max(28, 72 - i * 5)}%, var(--card))`,
+                          }}
+                        />
+                        <span
+                          className={cn(
+                            "num relative text-sm font-semibold",
+                            l.contagem ? "text-foreground" : "text-muted-foreground",
+                          )}
+                        >
+                          {INT.format(l.contagem)}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })}
-              </tr>
-              <tr className="border-t bg-muted/40">
-                <th className="px-3 py-2 align-top text-sm font-semibold text-foreground">
-                  Perdidos no período
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    fechados como perdidos; o motivo está na lista
-                  </span>
-                </th>
-                {colunas.map((c) => (
-                  <td key={c.k} className="px-3 py-2 text-right align-top">
-                    {c.fc.perdidos ? (
-                      numero(c.fc.perdidos.length, `${c.nome} · perdidos no período`, c.fc.perdidos)
-                    ) : (
-                      <span className="num text-base text-muted-foreground">—</span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
+              </Fragment>
+            ))}
+            <div className="mt-3 border-t pt-2 text-sm font-semibold text-foreground">
+              Em Stand by hoje
+              <span className="block text-xs font-normal text-muted-foreground">
+                pediu tempo depois da reunião
+              </span>
+            </div>
+            {colunas.map((c) => {
+              const parados = standBy(c.fc);
+              return (
+                <div key={c.k} className="mt-3 border-t pt-2 text-center text-base">
+                  {rodape(parados.length, `${c.nome} · em Stand by hoje`, parados, true)}
+                </div>
+              );
+            })}
+            <div className="pt-2 text-sm font-semibold text-foreground">
+              Perdidos no período
+              <span className="block text-xs font-normal text-muted-foreground">
+                o motivo está na lista
+              </span>
+            </div>
+            {colunas.map((c) => (
+              <div key={c.k} className="pt-2 text-center text-base">
+                {c.fc.perdidos ? (
+                  rodape(c.fc.perdidos.length, `${c.nome} · perdidos no período`, c.fc.perdidos)
+                ) : (
+                  <span className="num text-muted-foreground">—</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </section>

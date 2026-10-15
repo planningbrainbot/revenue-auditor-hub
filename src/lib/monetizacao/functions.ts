@@ -1,4 +1,5 @@
 import { aplicarBase, type BaseEmpresa } from "../clientes-base";
+import { normalizarPrevisoes } from "./fechamentos";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -86,6 +87,8 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
   const { data: catalog, error: catalogError } = await (db as DB)
     .schema("ops")
     .rpc("base_carteira_manifesto");
+  // Previsão de fechamento do Jev para o Forecast (15/10/2026). Sem a função no banco ou sem acesso, segue vazia.
+  const previsao = await (db as DB).schema("ops").rpc("monetizacao_previsao_fechamento");
   if (catalogError) throw new Error("Não foi possível conferir a base e seu escopo atual.");
   const sync = health[0];
   return {
@@ -132,6 +135,7 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     sync_status: sync?.status || "pending",
     sync_error: sync?.error || null,
     stages: sync?.stages || [],
+    previsoes_jev: previsao.error ? [] : normalizarPrevisoes(previsao.data),
     permissions: { view: operation, manage, send, all_units: scope.data === true },
   };
 }
