@@ -65,18 +65,22 @@ function trilhaDoCaminho(
   temArea: ((slug: string) => boolean) | null,
 ): { area: Area; item: Item } | null {
   const atual = new URLSearchParams(searchStr);
-  let melhor: { area: Area; item: Item; tamanho: number } | null = null;
+  let melhor: { area: Area; item: Item; tamanho: number; parametros: number } | null = null;
   for (const area of AREAS) {
     if (temArea && !temArea(area.slug)) continue;
     for (const grupo of area.grupos) {
       for (const item of grupo.items) {
-        const busca = item.url.split("?")[1];
+        const consulta = [...new URLSearchParams(item.url.split("?")[1] || "")];
         const tamanho = casaComCaminho(item, pathname);
-        const consultaConfere = [...new URLSearchParams(busca || "")].every(
-          ([k, v]) => atual.get(k) === v,
-        );
-        if (tamanho >= 0 && consultaConfere && (!melhor || tamanho > melhor.tamanho)) {
-          melhor = { area, item, tamanho };
+        const consultaConfere = consulta.every(([k, v]) => atual.get(k) === v);
+        // No empate de caminho, vence quem casa mais parâmetros, como no grifo da lateral: em
+        // /monetizacao?aba=fechamentos a trilha dizia "Operação diária" (/monetizacao, sem parâmetro) (15/10/2026).
+        const ganha =
+          !melhor ||
+          tamanho > melhor.tamanho ||
+          (tamanho === melhor.tamanho && consulta.length > melhor.parametros);
+        if (tamanho >= 0 && consultaConfere && ganha) {
+          melhor = { area, item, tamanho, parametros: consulta.length };
         }
       }
     }
@@ -165,7 +169,10 @@ function AuthenticatedLayout() {
                     <li aria-hidden className="hidden text-muted-foreground sm:block">
                       <ChevronRight className="h-3.5 w-3.5" />
                     </li>
-                    <li className="min-w-0 truncate font-medium text-foreground" aria-current="page">
+                    <li
+                      className="min-w-0 truncate font-medium text-foreground"
+                      aria-current="page"
+                    >
                       {trilha.item.title}
                     </li>
                   </ol>
