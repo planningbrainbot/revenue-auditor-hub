@@ -31,14 +31,16 @@ import type {
  * valores diferentes na mesma página).
  */
 export const VIEWS_CLIENTES = [
-  // A Base em três telas (15/10/2026): Clientes abre a Base, Confiança mostra o grau, Por unidade segue a aba
-  // Contratos e churn. Arrumar a base junta Validar origem, Entenda os números e Contatos, para quem gerencia.
+  // A Base em três telas (15/10/2026, segunda rodada): Clientes (lista, filtros e o resumo Ativos · Inativos · Base
+  // Antiga · Base Nova), Confiança (graus e correções) e Painel (a Base por unidade em gráficos). Contratos e churn
+  // continua endereçável (`unidades`), aberto pelo Painel. Produtos e Listas moram em /clientes/produtos e
+  // /clientes/listas, para quem tem a área Monetização.
   "clientes",
   "confianca",
+  "painel",
   "unidades",
+  // Chaves antigas, que links de fora ainda mandam: viram as telas novas (ClientesBase).
   "arrumar",
-  // Chaves antigas, que links de fora ainda mandam: viram as telas novas (ClientesBase), e Produtos e Listas abrem na
-  // Monetização (/monetizacao/produtos e /monetizacao/listas).
   "monetizacao",
   "produtos",
   "listas",
@@ -67,8 +69,13 @@ export type BuscaClientes = {
    * (`SITS_CONFIANCA`); ausente = todas.
    */
   sit?: string;
-  /** Arrumar a base: "gates" (Entenda os números) ou "contatos"; ausente = Validar origem. */
-  sub?: "gates" | "contatos";
+  /**
+   * Confiança: a parte de correções aberta ("validar" = Validar origem, "gates" = Entenda os números, "contatos");
+   * ausente = os graus de confiança.
+   */
+  sub?: "validar" | "gates" | "contatos";
+  /** Clientes: só Base Antiga ou só Base Nova (o resumo do topo). Ausente = as duas. */
+  base?: "antiga" | "nova";
   /** Monetização › Produtos: "carteira" abre a carteira da unidade; ausente = por produto. */
   secao?: "carteira";
   status: string;
@@ -159,7 +166,8 @@ export function validarBuscaClientes(s: Record<string, unknown>): BuscaClientes 
   return {
     view: typeof s.view === "string" ? s.view : s.status ? "contratos" : "clientes",
     sit: umDe(["ex", ...SITS_CONFIANCA], s.sit),
-    sub: umDe(["gates", "contatos"], s.sub),
+    sub: umDe(["validar", "gates", "contatos"], s.sub),
+    base: umDe(["antiga", "nova"], s.base),
     secao: umDe(["carteira"], s.secao),
     status: texto(s.status),
     unidade: lista(s.unidade),

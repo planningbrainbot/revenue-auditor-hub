@@ -71,6 +71,7 @@ import {
 import { MultiSelect } from "@/components/monetizacao/multi-select";
 import { buscaDosFiltros, filtrosDaBusca, SITS_CONFIANCA, type BuscaClientes } from "./busca";
 import { BarraConfianca, CartoesUnidades, TabelaContas, VisaoClientes } from "./regra-cliente";
+import { PainelBase } from "./painel-base";
 import {
   contarFaixas,
   FAIXA_META,
@@ -79,48 +80,50 @@ import {
   type Faixa,
 } from "@/lib/clientes/regra-cliente";
 
-// A Base em três telas (Pedro, 15/10/2026, proposta "Base à Prova de Criança", versão 14): Clientes abre a Base (só a
-// busca e a lista de clientes e ex-clientes), Confiança mostra o grau de cada empresa e Por unidade segue a aba
-// Contratos e churn de hoje. Arrumar a base junta Validar origem, Entenda os números e Contatos, para quem gerencia a
-// Base. Produtos e Listas saíram para a Monetização (/monetizacao/produtos e /monetizacao/listas).
+// A Base em três telas (Pedro, 15/10/2026, segunda rodada): Clientes (lista, filtros e o resumo Ativos · Inativos ·
+// Base Antiga · Base Nova), Confiança (graus de confiança e as correções: Validar origem, Entenda os números, Contatos)
+// e Painel (a Base por unidade em gráficos). As três ficam na lateral da área Base de clientes; quem chega por outra
+// área (o sócio, por Minha Unidade) vê as três aqui em cima. Contratos e churn continua aberto pelo Painel.
+// Produtos e Listas moram em /clientes/produtos e /clientes/listas, para quem tem a área Monetização.
 const views = [
   ["clientes", "Clientes"],
   ["confianca", "Confiança"],
-  ["unidades", "Por unidade"],
-  ["arrumar", "Arrumar a base"],
+  ["painel", "Painel"],
 ];
-// Título (o item do menu interno) e pergunta (N1) de cada visão: contrato `clientes.md`.
+// Título (o item do menu) e pergunta (N1) de cada visão: contrato `clientes.md`.
 const VISOES: Record<string, { titulo: string; pergunta: string }> = {
   clientes: {
-    titulo: "Base de clientes",
-    pergunta: "Esta empresa é nossa cliente?",
+    titulo: "Clientes",
+    pergunta: "Quais empresas são nossas clientes hoje?",
   },
   confianca: {
     titulo: "Confiança",
-    pergunta: "Quanta certeza temos de que cada empresa é cliente hoje?",
+    pergunta: "Quanta certeza temos de que cada empresa é cliente, e o que falta corrigir?",
+  },
+  painel: {
+    titulo: "Painel",
+    pergunta: "Como está a Base em cada unidade?",
   },
   unidades: {
-    titulo: "Por unidade",
-    pergunta: "Quantos clientes cada unidade tem, e quais deram churn?",
-  },
-  arrumar: {
-    titulo: "Arrumar a base",
-    pergunta: "O que falta conferir para a Base ficar certa?",
+    titulo: "Contratos e churn",
+    pergunta: "Quais clientes estão ativos, e quais deram churn?",
   },
 };
-// As três partes de Arrumar a base (`sub` na URL): Validar origem é a padrão.
-const SUBS_ARRUMAR = [
-  ["", "Validar origem"],
+// As partes da Confiança (`sub` na URL): os graus são a padrão; as correções, para quem gerencia a Base.
+const SUBS_CONFIANCA = [
+  ["", "Graus de confiança"],
+  ["validar", "Validar origem"],
   ["gates", "Entenda os números"],
   ["contatos", "Contatos"],
 ] as const;
 // Chaves antigas que links de fora ainda mandam (Cockpit, Rede, apresentação ao sócio): viram as telas novas.
-const LEGADO: Record<string, { view: string; sub?: "gates" | "contatos" }> = {
+const LEGADO: Record<string, { view: string; sub?: "validar" | "gates" | "contatos" }> = {
   monetizacao: { view: "confianca" },
   contratos: { view: "unidades" },
-  pendencias: { view: "arrumar" },
-  gates: { view: "arrumar", sub: "gates" },
-  contatos: { view: "arrumar", sub: "contatos" },
+  arrumar: { view: "confianca", sub: "validar" },
+  pendencias: { view: "confianca", sub: "validar" },
+  gates: { view: "confianca", sub: "gates" },
+  contatos: { view: "confianca", sub: "contatos" },
 };
 // A mensagem do servidor quando falta view.aquario, view.clientes e view.monetizacao ao mesmo
 // tempo (`carregarMonetizacao`): vira EstadoSemAcesso, não erro.
@@ -157,17 +160,17 @@ export function ClientesBase() {
   const legado = LEGADO[search.view];
   const view = legado
     ? legado.view
-    : views.some(([v]) => v === search.view)
+    : views.some(([v]) => v === search.view) || search.view === "unidades"
       ? search.view
       : "clientes";
   const sub = legado?.sub ?? search.sub ?? "";
-  // Produtos e Listas moram na Monetização desde 15/10: o link antigo abre lá, com os mesmos filtros.
+  // Produtos e Listas têm página própria na Base (15/10): o link antigo abre lá, com os mesmos filtros.
   const paraMonetizacao =
     search.view === "produtos" || search.view === "listas" ? search.view : null;
   useEffect(() => {
     if (!paraMonetizacao) return;
     void navigate({
-      to: paraMonetizacao === "produtos" ? "/monetizacao/produtos" : "/monetizacao/listas",
+      to: paraMonetizacao === "produtos" ? "/clientes/produtos" : "/clientes/listas",
       search: search as never,
       replace: true,
     });
@@ -212,7 +215,7 @@ export function ClientesBase() {
     queryKey: ["base-contacts", user?.id],
     queryFn: () => contactsFn(),
     refetchInterval: 60000,
-    enabled: view === "arrumar" && sub === "contatos" && perms.can("view.contatos"),
+    enabled: view === "confianca" && sub === "contatos" && perms.can("view.contatos"),
     staleTime: 30000,
   });
   // Unidades do topo resolvidas (a URL aceita chave ou nome; múltipla escolha, DECISIONS 18/09).
@@ -280,7 +283,7 @@ export function ClientesBase() {
   // espelho; depois as que pedem conversa com a unidade.
   const visible = useMemo(
     () =>
-      view === "arrumar" && !sub
+      view === "confianca" && sub === "validar"
         ? filtered
             .filter(precisaValidar)
             .sort(
@@ -349,9 +352,9 @@ export function ClientesBase() {
   // O Aquário só mora aqui em Entenda os números: os números com produto, a carteira e as listas abrem na Monetização.
   const rotaDaSecao = (s: SecaoAquario) =>
     s === "listas"
-      ? "/monetizacao/listas"
+      ? "/clientes/listas"
       : s === "produtos" || s === "base"
-        ? "/monetizacao/produtos"
+        ? "/clientes/produtos"
         : null;
   const mudarFiltros = (f: PortfolioFilters, destino?: SecaoAquario, extras?: ExtrasAquario) => {
     const rota = destino ? rotaDaSecao(destino) : null;
@@ -363,7 +366,7 @@ export function ClientesBase() {
         ...buscaDosFiltros(f),
         ...(extras ? { painel: extras.painel } : {}),
         ...(destino === "base" ? { secao: "carteira" } : {}),
-        ...(destino === "gates" ? { view: "arrumar", sub: "gates" } : {}),
+        ...(destino === "gates" ? { view: "confianca", sub: "gates" } : {}),
       } as never,
       replace: true,
       resetScroll: !!destino,
@@ -380,7 +383,7 @@ export function ClientesBase() {
           ...(s === "base" ? { secao: "carteira" } : {}),
         } as never,
       });
-    else change({ view: "arrumar", sub: "gates" });
+    else change({ view: "confianca", sub: "gates" });
   };
   const abrirLista = (id: string | null) => {
     void navigate({
@@ -390,33 +393,28 @@ export function ClientesBase() {
     });
   };
   const meta = VISOES[view] ?? VISOES.clientes;
-  // Arrumar a base é de quem gerencia a Base (manage.aquario) ou vê fornecedor (admin de Clientes ou Monetização).
+  // As correções (Validar origem, Entenda os números, Contatos) são de quem gerencia a Base (manage.aquario).
   const podeArrumar = !!query.data?.permissions.manage || perms.can("manage.aquario");
-  // O selo da aba conta a mesma base do cabeçalho da visão: depois do recorte do topo e do
-  // refinamento (antes contava antes do refinamento, e os dois números não batiam).
+  // O selo da parte Validar origem conta a mesma base do cabeçalho: depois do recorte do topo e do refinamento.
   const pendentes = filtered.filter(precisaValidar).length;
-  const nav = (
-    <nav aria-label="Visões da base" className="flex gap-1 overflow-x-auto border-b">
-      {views
-        .filter(([key]) => key !== "arrumar" || podeArrumar)
-        .map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-current={view === key ? "page" : undefined}
-            onClick={() => change({ view: key, sit: undefined, sub: undefined })}
-            className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${FOCO_VISIVEL} ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            {label}
-            {key === "arrumar" && query.data && (
-              <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
-                {pendentes}
-              </span>
-            )}
-          </button>
-        ))}
+  // As três telas estão na lateral da área Base de clientes. Quem chega por outra área (o sócio, por Minha Unidade)
+  // não tem essa lateral: para ele as três aparecem aqui em cima.
+  const navNaPagina = !perms.loading && !perms.temArea("clientes");
+  const nav = navNaPagina ? (
+    <nav aria-label="Telas da Base" className="flex gap-1 overflow-x-auto border-b">
+      {views.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          aria-current={view === key ? "page" : undefined}
+          onClick={() => change({ view: key, sit: undefined, sub: undefined, base: undefined })}
+          className={`whitespace-nowrap border-b-2 px-3 py-3 text-sm ${FOCO_VISIVEL} ${view === key ? "border-primary font-semibold text-primary-text" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          {label}
+        </button>
+      ))}
     </nav>
-  );
+  ) : null;
   // A visão Contratos e churn lê as próprias fontes (empresas, Central de Tratativas): não espera
   // a carga da Monetização, e uma falha dela não tranca esta visão.
   if (view === "unidades") {
@@ -561,6 +559,7 @@ export function ClientesBase() {
     ? unidadesSelecionadas.map((u) => u.name).join(", ")
     : "todas as unidades liberadas";
   const temFiltroTopo = !!(search.q || unidadesUrl.length || origensUrl.length || search.gate);
+  const temFiltroClientes = !!(search.q || unidadesUrl.length || search.sit || search.base);
   const contagemTudo = contarFaixas(data.accounts);
   const descricao =
     view === "clientes"
@@ -590,17 +589,6 @@ export function ClientesBase() {
       />
       {nav}
       {view === "clientes" ? (
-        <VisaoClientes
-          contas={data.accounts}
-          q={search.q}
-          aoBuscar={(q) => change({ q })}
-          sit={search.sit === "ex" ? "ex" : "clientes"}
-          aoMudarSit={(s) => change({ sit: s === "ex" ? "ex" : undefined })}
-          pagina={page}
-          aoMudarPagina={setPage}
-          aoAbrir={setDetail}
-        />
-      ) : view === "confianca" ? (
         <>
           <BarraFiltros>
             {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
@@ -625,464 +613,543 @@ export function ClientesBase() {
                 options={units.map((u) => ({ value: u.key, label: u.name }))}
               />
             </div>
-            <div className="w-56">
-              <MultiSelect
-                label="Origem da base"
-                placeholder="Todas as origens"
-                value={origensUrl}
-                onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
-                options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
-              />
-            </div>
-            {search.gate && (
-              <ChipFiltro
-                rotulo="Refinamento"
-                valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
-                aoRemover={() => change({ gate: "" })}
-              />
-            )}
             {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
             <BotaoComMotivo
               type="button"
               variant="ghost"
               size="sm"
               className="ml-auto text-muted-foreground"
-              disabled={!temFiltroTopo}
-              motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
-              onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
+              disabled={!temFiltroClientes}
+              motivo={temFiltroClientes ? null : "Nenhum filtro aplicado."}
+              onClick={() => change({ q: "", unidade: undefined, sit: undefined, base: undefined })}
             >
               <X className="size-4" aria-hidden />
               Limpar filtros
             </BotaoComMotivo>
           </BarraFiltros>
-          <section
-            className="space-y-3 rounded-xl border bg-card p-4"
-            aria-label="Barra de confiança"
-          >
-            <BarraConfianca
-              contagem={contagemConfianca}
-              selecionada={sitConfianca}
-              aoEscolher={(f) => change({ sit: f ?? undefined })}
-            />
-            <p className="text-xs text-muted-foreground">
-              Todo verde é cliente pela regra; quanto mais escuro, mais certeza. Amarelo espera o
-              sócio confirmar, cinza não é cliente, azul é ex-cliente. Toque num pedaço da barra
-              para ver as empresas.
-            </p>
-          </section>
-          <TabelaContas
-            titulo={sitConfianca ? FAIXA_META[sitConfianca].rotulo : "Empresas da base"}
-            subtitulo={`${number(linhasConfianca.length)} empresas · das de mais certeza para as de menos · toque na empresa para abrir a ficha`}
-            contas={linhasConfianca}
-            colunas={["certeza", "unidade", "reuniao", "motivo"]}
+          <VisaoClientes
+            contas={rows}
+            busca={search.q}
+            sit={search.sit === "ex" ? "ex" : "clientes"}
+            base={search.base ?? null}
+            aoMudar={(f) => change({ sit: f.sit, base: f.base })}
             pagina={page}
             aoMudarPagina={setPage}
             aoAbrir={setDetail}
-            acoes={
-              <Button size="sm" variant="outline" onClick={() => exportRows(linhasConfianca)}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportar recorte
-              </Button>
-            }
           />
         </>
+      ) : view === "painel" ? (
+        <PainelBase
+          contas={data.accounts}
+          unidades={data.units}
+          aoAbrirUnidade={(u) =>
+            change({ view: "clientes", unidade: [u.key], sit: undefined, base: undefined })
+          }
+          aoAbrirContratos={() => change({ view: "unidades" })}
+        />
       ) : (
         <>
-          <nav aria-label="Partes de Arrumar a base" className="flex flex-wrap gap-2">
-            {SUBS_ARRUMAR.map(([k, rotulo]) => (
+          <nav aria-label="Partes da Confiança" className="flex flex-wrap gap-2">
+            {SUBS_CONFIANCA.filter(([k]) => !k || podeArrumar).map(([k, rotulo]) => (
               <button
-                key={k || "pendencias"}
+                key={k || "graus"}
                 type="button"
                 aria-pressed={sub === k}
-                onClick={() => change({ sub: k || undefined })}
+                onClick={() => change({ sub: k || undefined, sit: undefined })}
                 className={`rounded-full border px-3 py-1 text-sm ${FOCO_VISIVEL} ${sub === k ? "border-foreground bg-foreground text-background" : "bg-card text-muted-foreground hover:text-foreground"}`}
               >
                 {rotulo}
+                {k === "validar" && (
+                  <span className="ml-2 rounded bg-warning-soft px-1.5 text-xs text-warning">
+                    {pendentes}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
-          <BarraFiltros>
-            {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
+          {!sub ? (
+            <>
+              <BarraFiltros>
+                {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
               Base não tem controle próprio para elas. */}
-            <label className="relative min-w-56 flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                aria-label="Buscar empresa, segmento ou CNPJ"
-                className="pl-9"
-                value={search.q}
-                placeholder="Buscar empresa, segmento ou CNPJ"
-                onChange={(e) => change({ q: e.target.value })}
-              />
-            </label>
-            {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
-            <div className="w-56">
-              <MultiSelect
-                label="Unidade"
-                placeholder="Todas as unidades liberadas"
-                value={unidadeKeys}
-                onChange={(v) => change({ unidade: v.length ? v : undefined })}
-                options={units.map((u) => ({ value: u.key, label: u.name }))}
-              />
-            </div>
-            <div className="w-56">
-              <MultiSelect
-                label="Origem da base"
-                placeholder="Todas as origens"
-                value={origensUrl}
-                onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
-                options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({ value, label }))}
-              />
-            </div>
-            {search.gate && (
-              <ChipFiltro
-                rotulo="Refinamento"
-                valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
-                aoRemover={() => change({ gate: "" })}
-              />
-            )}
-            {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
-            <BotaoComMotivo
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-auto text-muted-foreground"
-              disabled={!temFiltroTopo}
-              motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
-              onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
-            >
-              <X className="size-4" aria-hidden />
-              Limpar filtros
-            </BotaoComMotivo>
-          </BarraFiltros>
-          <KpiGrade colunas={4}>
-            {FUNIL.map(([gate, label], index) => {
-              const ativo = search.gate === gate;
-              return (
-                <KpiCard
-                  key={gate}
-                  rotulo={`${index + 1} · ${label}`}
-                  valor={number(counts[gate || "raw"])}
-                  nota={`${
-                    index === 0
-                      ? "Contas conciliadas, sem multiplicar por contato"
-                      : "Dentro do degrau anterior"
-                  }${ativo && gate ? " · filtro aplicado" : ""}`}
-                  abrir={{
-                    // Clicar de novo no degrau aplicado tira o filtro (volta à base bruta).
-                    rotulo: ativo && gate ? "Tirar o filtro" : "Filtrar",
-                    onClick: () => change({ gate: ativo ? "" : gate }),
-                  }}
-                  className={ativo ? "border-primary-text" : undefined}
-                />
-              );
-            })}
-          </KpiGrade>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <p>
-              Funil cumulativo. Contato e ECD medem completude; não bloqueiam Consultoria. Uma conta
-              pode reunir CNPJs vinculados.
-            </p>
-            {/* Texto, não link: nenhuma visão lista a fila de envio ao Pipefy, e um link com total
-              que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
-            <p>
-              {health.isError
-                ? "Sincronização com o Pipefy indisponível"
-                : health.isPending
-                  ? "Fila de envio ao Pipefy · carregando…"
-                  : `${number(health.data?.pending_changes ?? 0)} alterações na fila de envio ao Pipefy`}
-            </p>
-            {perms.can("view.contatos") && (
-              <button
-                type="button"
-                className={`underline ${FOCO_VISIVEL}`}
-                onClick={() => change({ view: "arrumar", sub: "contatos" })}
-              >
-                Ver contatos vinculados
-              </button>
-            )}
-          </div>
-          {sub === "gates" ? (
-            // Entenda os números (Arrumar a base): os números com produto, a carteira e as listas abrem na Monetização.
-            <Aquario
-              embedded
-              accountKeys={accountKeys}
-              secao="gates"
-              irPara={irParaSecao}
-              accountKeysSemOrigem={accountKeysSemOrigem}
-              filtros={filtros}
-              mudarFiltros={mudarFiltros}
-              recorte={JSON.stringify([unidadeKeys, origensUrl, search.gate])}
-              painel={search.painel}
-              lista={search.lista}
-              aoAbrirLista={abrirLista}
-            />
-          ) : sub === "contatos" ? (
-            // O número de pessoas só aparece com o dado: sem acesso ou carregando, "0 pessoas"
-            // parecia recorte vazio (N4).
-            !perms.can("view.contatos") ? (
-              <EstadoSemAcesso oQueFalta="view.contatos" />
-            ) : contacts.isPending ? (
-              <Carregando variante="tabela" />
-            ) : contacts.isError ? (
-              <EstadoErro
-                detalhe="Fonte: contatos vinculados no seu escopo."
-                tentarNovamente={() => void contacts.refetch()}
-              />
-            ) : // Zero pessoas no recorte é vazio de filtro: diz quantas existem no seu escopo (N4).
-            !contactsRows.length ? (
-              <EstadoVazio
-                titulo="Nenhuma pessoa vinculada às empresas deste recorte"
-                total={contacts.data?.length ? contacts.data.length : undefined}
-                descricao={
-                  contacts.data?.length
-                    ? undefined
-                    : "Nenhum contato vinculado a empresas no seu escopo."
-                }
-              />
-            ) : (
-              <section className="overflow-hidden rounded-xl border bg-card">
-                <div className="border-b p-4 text-sm font-medium">
-                  <span className="num">{number(contactsRows.length)}</span> pessoas vinculadas às
-                  empresas deste recorte
+                <label className="relative min-w-56 flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Buscar empresa, segmento ou CNPJ"
+                    className="pl-9"
+                    value={search.q}
+                    placeholder="Buscar empresa, segmento ou CNPJ"
+                    onChange={(e) => change({ q: e.target.value })}
+                  />
+                </label>
+                {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
+                <div className="w-56">
+                  <MultiSelect
+                    label="Unidade"
+                    placeholder="Todas as unidades liberadas"
+                    value={unidadeKeys}
+                    onChange={(v) => change({ unidade: v.length ? v : undefined })}
+                    options={units.map((u) => ({ value: u.key, label: u.name }))}
+                  />
                 </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
-                          <TableHead key={h}>{h}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {contactsRows.map((c) => (
-                        <TableRow key={c.id}>
-                          <TableCell>
-                            {c.name}
-                            <div className="text-xs text-muted-foreground">{c.role}</div>
-                          </TableCell>
-                          <TableCell>{c.email || "—"}</TableCell>
-                          <TableCell>{c.phone || "—"}</TableCell>
-                          <TableCell>
-                            {c.accounts
-                              .filter((k) => accountKeys.has(k))
-                              .map((k) => (
-                                <button
-                                  key={k}
-                                  type="button"
-                                  className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
-                                  onClick={() =>
-                                    setDetail(data.accounts.find((a) => a.key === k) || null)
-                                  }
-                                >
-                                  {data.accounts.find((a) => a.key === k)?.name}
-                                </button>
-                              ))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <div className="w-56">
+                  <MultiSelect
+                    label="Origem da base"
+                    placeholder="Todas as origens"
+                    value={origensUrl}
+                    onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
+                    options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
+                  />
                 </div>
-              </section>
-            )
-          ) : (
-            <section className="overflow-hidden rounded-xl border bg-card">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
-                <div>
-                  <h2 className="font-semibold">
-                    {!sub ? "Validação da carteira por unidade" : "Empresas da base"}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {number(visible.length)} contas ·{" "}
-                    {!sub
-                      ? "Confira a origem, registre a evidência e acompanhe a correção."
-                      : "Clique na empresa para abrir fontes, contatos e oportunidades."}
-                  </p>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => exportRows()}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar recorte
-                </Button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      {[
-                        "Empresa / CNPJ",
-                        "Unidade",
-                        "Origem",
-                        "Contato / ECD",
-                        "Situação",
-                        !sub ? "Validação" : "Produtos",
-                      ].map((h) => (
-                        <th className="px-4 py-3" key={h}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visible.slice((currentPage - 1) * 50, currentPage * 50).map((a) => (
-                      <tr className="border-t hover:bg-muted/20" key={a.key}>
-                        <td className="max-w-xs px-4 py-3">
-                          <button
-                            type="button"
-                            className={`text-left font-medium hover:text-primary-text hover:underline ${FOCO_VISIVEL}`}
-                            onClick={() => setDetail(a)}
-                          >
-                            {a.name}
-                          </button>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
-                          </p>
-                        </td>
-                        <td className="max-w-[180px] px-4 py-3">{a.unit_label || "A confirmar"}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant={origemBase(a) === "confirmar" ? "outline" : "secondary"}>
-                            {ORIGENS_BASE[origemBase(a)]}
-                          </Badge>
-                          {!sub && (
-                            <p className="mt-2 max-w-xs text-xs text-muted-foreground">
-                              {a.base?.origin_reason}
-                            </p>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-xs">
-                          <div>{a.contact ? "Com contato" : "Sem contato"}</div>
-                          <div className="mt-1 text-muted-foreground">
-                            {a.base?.ecd.length
-                              ? `ECD: ${[...new Set(a.base.ecd.map((e) => e.year))].join(", ")}`
-                              : "ECD não vinculada"}
-                          </div>
-                        </td>
-                        <td className="max-w-[190px] px-4 py-3 text-xs">
-                          {a.base?.needs_source_correction ? (
-                            <span className="text-warning">Origem a corrigir no Pipefy</span>
-                          ) : a.base?.source_status === "ok" ? (
-                            <span className="inline-flex items-center gap-1 text-success">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Pipefy conferido
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-warning">
-                              <AlertCircle className="h-3 w-3" />
-                              {a.base?.source_status === "absent"
-                                ? "Ausente no Pipefy"
-                                : a.base?.source_status === "not_linked"
-                                  ? "Sem vínculo Pipefy"
-                                  : a.base?.synced_at
-                                    ? "Cadastro com divergências"
-                                    : "Leitura pendente"}
-                            </span>
-                          )}
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {a.base?.synced_at
-                              ? at(a.base.synced_at)
-                              : `${a.base?.omie_records || 0} registros Omie`}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          {!sub ? (
-                            // Desabilitado diz o motivo (N8), em vez de um botão cinza mudo.
-                            <BotaoComMotivo
-                              size="sm"
-                              variant="outline"
-                              disabled={!data.permissions.manage}
-                              motivo={data.permissions.manage ? null : "Exige manage.aquario"}
-                              onClick={() => setValidation(a)}
-                            >
-                              Validar origem
-                            </BotaoComMotivo>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").map(
-                                (p) => (
-                                  <Badge key={p} variant="outline">
-                                    {NOMES[p]}
-                                  </Badge>
-                                ),
-                              )}
-                              {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") &&
-                                (situacaoForaDeOferta(a) ? (
-                                  // Empresa fechada não é falta de dado: dizer "a qualificar" manda
-                                  // o operador atrás de informação de um CNPJ que não existe mais.
-                                  <span
-                                    className="text-xs font-medium text-muted-foreground"
-                                    title={a.situacao_receita_fonte ?? undefined}
-                                  >
-                                    Fora das ofertas · {rotuloSituacaoReceita(a)}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">
-                                    A qualificar
-                                  </span>
-                                ))}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!visible.length && (
-                  // Vazio com total (N4): sem filtro é a fila zerada; com filtro, diz quantas
-                  // pendências existem fora dele.
-                  <EstadoVazio
-                    className="m-4"
-                    titulo={
-                      !sub
-                        ? temFiltroTopo
-                          ? "Nenhuma conta a validar neste recorte"
-                          : "Nenhuma conta com origem a validar"
-                        : "Nenhuma empresa neste recorte"
-                    }
-                    total={
-                      temFiltroTopo
-                        ? !sub
-                          ? data.accounts.filter(precisaValidar).length
-                          : data.accounts.length
-                        : undefined
-                    }
-                    descricao={
-                      !sub && !temFiltroTopo
-                        ? "Toda conta do seu escopo tem a origem confirmada ou já está com a correção na fila do Pipefy."
-                        : undefined
-                    }
+                {search.gate && (
+                  <ChipFiltro
+                    rotulo="Refinamento"
+                    valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
+                    aoRemover={() => change({ gate: "" })}
                   />
                 )}
-              </div>
-              <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
-                <span>
-                  Página {currentPage} de {pages} · 50 por página · {number(visible.length)} contas
-                </span>
-                <div className="flex gap-2">
-                  <BotaoComMotivo
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 1}
-                    motivo={currentPage === 1 ? "Já é a primeira página" : null}
-                    onClick={() => setPage(currentPage - 1)}
-                  >
-                    Anterior
-                  </BotaoComMotivo>
-                  <BotaoComMotivo
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === pages}
-                    motivo={currentPage === pages ? "Já é a última página" : null}
-                    onClick={() => setPage(currentPage + 1)}
-                  >
-                    Próxima
-                  </BotaoComMotivo>
+                {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
+                <BotaoComMotivo
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-muted-foreground"
+                  disabled={!temFiltroTopo}
+                  motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
+                  onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
+                >
+                  <X className="size-4" aria-hidden />
+                  Limpar filtros
+                </BotaoComMotivo>
+              </BarraFiltros>
+              <section
+                className="space-y-3 rounded-xl border bg-card p-4"
+                aria-label="Barra de confiança"
+              >
+                <BarraConfianca
+                  contagem={contagemConfianca}
+                  selecionada={sitConfianca}
+                  aoEscolher={(f) => change({ sit: f ?? undefined })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Todo verde é cliente pela regra; quanto mais escuro, mais certeza. Amarelo espera
+                  o sócio confirmar, cinza não é cliente, azul é ex-cliente. Toque num pedaço da
+                  barra para ver as empresas.
+                </p>
+              </section>
+              <TabelaContas
+                titulo={sitConfianca ? FAIXA_META[sitConfianca].rotulo : "Empresas da base"}
+                subtitulo={`${number(linhasConfianca.length)} empresas · das de mais certeza para as de menos · toque na empresa para abrir a ficha`}
+                contas={linhasConfianca}
+                colunas={["certeza", "unidade", "reuniao", "motivo"]}
+                pagina={page}
+                aoMudarPagina={setPage}
+                aoAbrir={setDetail}
+                acoes={
+                  <Button size="sm" variant="outline" onClick={() => exportRows(linhasConfianca)}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Exportar recorte
+                  </Button>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <BarraFiltros>
+                {/* Busca, unidade e origem existem só aqui: valem para todas as visões e a tabela da
+              Base não tem controle próprio para elas. */}
+                <label className="relative min-w-56 flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Buscar empresa, segmento ou CNPJ"
+                    className="pl-9"
+                    value={search.q}
+                    placeholder="Buscar empresa, segmento ou CNPJ"
+                    onChange={(e) => change({ q: e.target.value })}
+                  />
+                </label>
+                {/* Múltipla escolha (DECISIONS 18/09): as marcadas somam entre si. */}
+                <div className="w-56">
+                  <MultiSelect
+                    label="Unidade"
+                    placeholder="Todas as unidades liberadas"
+                    value={unidadeKeys}
+                    onChange={(v) => change({ unidade: v.length ? v : undefined })}
+                    options={units.map((u) => ({ value: u.key, label: u.name }))}
+                  />
                 </div>
-              </footer>
-            </section>
+                <div className="w-56">
+                  <MultiSelect
+                    label="Origem da base"
+                    placeholder="Todas as origens"
+                    value={origensUrl}
+                    onChange={(v) => change({ origem: v.length ? (v as OrigemBase[]) : undefined })}
+                    options={Object.entries(ORIGENS_BASE).map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
+                  />
+                </div>
+                {search.gate && (
+                  <ChipFiltro
+                    rotulo="Refinamento"
+                    valor={FUNIL.find(([g]) => g === search.gate)?.[1] ?? search.gate}
+                    aoRemover={() => change({ gate: "" })}
+                  />
+                )}
+                {/* Sempre montado (desabilitado sem filtro): sumir no clique jogava o foco no body. */}
+                <BotaoComMotivo
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-muted-foreground"
+                  disabled={!temFiltroTopo}
+                  motivo={temFiltroTopo ? null : "Nenhum filtro aplicado."}
+                  onClick={() => change({ q: "", unidade: undefined, origem: undefined, gate: "" })}
+                >
+                  <X className="size-4" aria-hidden />
+                  Limpar filtros
+                </BotaoComMotivo>
+              </BarraFiltros>
+              <KpiGrade colunas={4}>
+                {FUNIL.map(([gate, label], index) => {
+                  const ativo = search.gate === gate;
+                  return (
+                    <KpiCard
+                      key={gate}
+                      rotulo={`${index + 1} · ${label}`}
+                      valor={number(counts[gate || "raw"])}
+                      nota={`${
+                        index === 0
+                          ? "Contas conciliadas, sem multiplicar por contato"
+                          : "Dentro do degrau anterior"
+                      }${ativo && gate ? " · filtro aplicado" : ""}`}
+                      abrir={{
+                        // Clicar de novo no degrau aplicado tira o filtro (volta à base bruta).
+                        rotulo: ativo && gate ? "Tirar o filtro" : "Filtrar",
+                        onClick: () => change({ gate: ativo ? "" : gate }),
+                      }}
+                      className={ativo ? "border-primary-text" : undefined}
+                    />
+                  );
+                })}
+              </KpiGrade>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <p>
+                  Funil cumulativo. Contato e ECD medem completude; não bloqueiam Consultoria. Uma
+                  conta pode reunir CNPJs vinculados.
+                </p>
+                {/* Texto, não link: nenhuma visão lista a fila de envio ao Pipefy, e um link com total
+              que o destino não mostra quebra N2. Enquanto carrega, não é "0". */}
+                <p>
+                  {health.isError
+                    ? "Sincronização com o Pipefy indisponível"
+                    : health.isPending
+                      ? "Fila de envio ao Pipefy · carregando…"
+                      : `${number(health.data?.pending_changes ?? 0)} alterações na fila de envio ao Pipefy`}
+                </p>
+                {perms.can("view.contatos") && (
+                  <button
+                    type="button"
+                    className={`underline ${FOCO_VISIVEL}`}
+                    onClick={() => change({ view: "confianca", sub: "contatos" })}
+                  >
+                    Ver contatos vinculados
+                  </button>
+                )}
+              </div>
+              {sub === "gates" ? (
+                // Entenda os números (Arrumar a base): os números com produto, a carteira e as listas abrem na Monetização.
+                <Aquario
+                  embedded
+                  accountKeys={accountKeys}
+                  secao="gates"
+                  irPara={irParaSecao}
+                  accountKeysSemOrigem={accountKeysSemOrigem}
+                  filtros={filtros}
+                  mudarFiltros={mudarFiltros}
+                  recorte={JSON.stringify([unidadeKeys, origensUrl, search.gate])}
+                  painel={search.painel}
+                  lista={search.lista}
+                  aoAbrirLista={abrirLista}
+                />
+              ) : sub === "contatos" ? (
+                // O número de pessoas só aparece com o dado: sem acesso ou carregando, "0 pessoas"
+                // parecia recorte vazio (N4).
+                !perms.can("view.contatos") ? (
+                  <EstadoSemAcesso oQueFalta="view.contatos" />
+                ) : contacts.isPending ? (
+                  <Carregando variante="tabela" />
+                ) : contacts.isError ? (
+                  <EstadoErro
+                    detalhe="Fonte: contatos vinculados no seu escopo."
+                    tentarNovamente={() => void contacts.refetch()}
+                  />
+                ) : // Zero pessoas no recorte é vazio de filtro: diz quantas existem no seu escopo (N4).
+                !contactsRows.length ? (
+                  <EstadoVazio
+                    titulo="Nenhuma pessoa vinculada às empresas deste recorte"
+                    total={contacts.data?.length ? contacts.data.length : undefined}
+                    descricao={
+                      contacts.data?.length
+                        ? undefined
+                        : "Nenhum contato vinculado a empresas no seu escopo."
+                    }
+                  />
+                ) : (
+                  <section className="overflow-hidden rounded-xl border bg-card">
+                    <div className="border-b p-4 text-sm font-medium">
+                      <span className="num">{number(contactsRows.length)}</span> pessoas vinculadas
+                      às empresas deste recorte
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {["Pessoa / cargo", "E-mail", "Telefone", "Empresa"].map((h) => (
+                              <TableHead key={h}>{h}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {contactsRows.map((c) => (
+                            <TableRow key={c.id}>
+                              <TableCell>
+                                {c.name}
+                                <div className="text-xs text-muted-foreground">{c.role}</div>
+                              </TableCell>
+                              <TableCell>{c.email || "—"}</TableCell>
+                              <TableCell>{c.phone || "—"}</TableCell>
+                              <TableCell>
+                                {c.accounts
+                                  .filter((k) => accountKeys.has(k))
+                                  .map((k) => (
+                                    <button
+                                      key={k}
+                                      type="button"
+                                      className={`block text-left text-primary-text underline ${FOCO_VISIVEL}`}
+                                      onClick={() =>
+                                        setDetail(data.accounts.find((a) => a.key === k) || null)
+                                      }
+                                    >
+                                      {data.accounts.find((a) => a.key === k)?.name}
+                                    </button>
+                                  ))}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </section>
+                )
+              ) : (
+                <section className="overflow-hidden rounded-xl border bg-card">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4">
+                    <div>
+                      <h2 className="font-semibold">
+                        {!sub ? "Validação da carteira por unidade" : "Empresas da base"}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {number(visible.length)} contas ·{" "}
+                        {!sub
+                          ? "Confira a origem, registre a evidência e acompanhe a correção."
+                          : "Clique na empresa para abrir fontes, contatos e oportunidades."}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => exportRows()}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportar recorte
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          {[
+                            "Empresa / CNPJ",
+                            "Unidade",
+                            "Origem",
+                            "Contato / ECD",
+                            "Situação",
+                            !sub ? "Validação" : "Produtos",
+                          ].map((h) => (
+                            <th className="px-4 py-3" key={h}>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visible.slice((currentPage - 1) * 50, currentPage * 50).map((a) => (
+                          <tr className="border-t hover:bg-muted/20" key={a.key}>
+                            <td className="max-w-xs px-4 py-3">
+                              <button
+                                type="button"
+                                className={`text-left font-medium hover:text-primary-text hover:underline ${FOCO_VISIVEL}`}
+                                onClick={() => setDetail(a)}
+                              >
+                                {a.name}
+                              </button>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {a.base?.cnpjs.join(" · ") || "CNPJ a refinar"}
+                              </p>
+                            </td>
+                            <td className="max-w-[180px] px-4 py-3">
+                              {a.unit_label || "A confirmar"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant={origemBase(a) === "confirmar" ? "outline" : "secondary"}
+                              >
+                                {ORIGENS_BASE[origemBase(a)]}
+                              </Badge>
+                              {!sub && (
+                                <p className="mt-2 max-w-xs text-xs text-muted-foreground">
+                                  {a.base?.origin_reason}
+                                </p>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-xs">
+                              <div>{a.contact ? "Com contato" : "Sem contato"}</div>
+                              <div className="mt-1 text-muted-foreground">
+                                {a.base?.ecd.length
+                                  ? `ECD: ${[...new Set(a.base.ecd.map((e) => e.year))].join(", ")}`
+                                  : "ECD não vinculada"}
+                              </div>
+                            </td>
+                            <td className="max-w-[190px] px-4 py-3 text-xs">
+                              {a.base?.needs_source_correction ? (
+                                <span className="text-warning">Origem a corrigir no Pipefy</span>
+                              ) : a.base?.source_status === "ok" ? (
+                                <span className="inline-flex items-center gap-1 text-success">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pipefy conferido
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-warning">
+                                  <AlertCircle className="h-3 w-3" />
+                                  {a.base?.source_status === "absent"
+                                    ? "Ausente no Pipefy"
+                                    : a.base?.source_status === "not_linked"
+                                      ? "Sem vínculo Pipefy"
+                                      : a.base?.synced_at
+                                        ? "Cadastro com divergências"
+                                        : "Leitura pendente"}
+                                </span>
+                              )}
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {a.base?.synced_at
+                                  ? at(a.base.synced_at)
+                                  : `${a.base?.omie_records || 0} registros Omie`}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              {!sub ? (
+                                // Desabilitado diz o motivo (N8), em vez de um botão cinza mudo.
+                                <BotaoComMotivo
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!data.permissions.manage}
+                                  motivo={data.permissions.manage ? null : "Exige manage.aquario"}
+                                  onClick={() => setValidation(a)}
+                                >
+                                  Validar origem
+                                </BotaoComMotivo>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {PRODUTOS.filter((p) => oferta(a, p).status === "elegivel").map(
+                                    (p) => (
+                                      <Badge key={p} variant="outline">
+                                        {NOMES[p]}
+                                      </Badge>
+                                    ),
+                                  )}
+                                  {!PRODUTOS.some((p) => oferta(a, p).status === "elegivel") &&
+                                    (situacaoForaDeOferta(a) ? (
+                                      // Empresa fechada não é falta de dado: dizer "a qualificar" manda
+                                      // o operador atrás de informação de um CNPJ que não existe mais.
+                                      <span
+                                        className="text-xs font-medium text-muted-foreground"
+                                        title={a.situacao_receita_fonte ?? undefined}
+                                      >
+                                        Fora das ofertas · {rotuloSituacaoReceita(a)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">
+                                        A qualificar
+                                      </span>
+                                    ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {!visible.length && (
+                      // Vazio com total (N4): sem filtro é a fila zerada; com filtro, diz quantas
+                      // pendências existem fora dele.
+                      <EstadoVazio
+                        className="m-4"
+                        titulo={
+                          !sub
+                            ? temFiltroTopo
+                              ? "Nenhuma conta a validar neste recorte"
+                              : "Nenhuma conta com origem a validar"
+                            : "Nenhuma empresa neste recorte"
+                        }
+                        total={
+                          temFiltroTopo
+                            ? !sub
+                              ? data.accounts.filter(precisaValidar).length
+                              : data.accounts.length
+                            : undefined
+                        }
+                        descricao={
+                          !sub && !temFiltroTopo
+                            ? "Toda conta do seu escopo tem a origem confirmada ou já está com a correção na fila do Pipefy."
+                            : undefined
+                        }
+                      />
+                    )}
+                  </div>
+                  <footer className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
+                    <span>
+                      Página {currentPage} de {pages} · 50 por página · {number(visible.length)}{" "}
+                      contas
+                    </span>
+                    <div className="flex gap-2">
+                      <BotaoComMotivo
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage === 1}
+                        motivo={currentPage === 1 ? "Já é a primeira página" : null}
+                        onClick={() => setPage(currentPage - 1)}
+                      >
+                        Anterior
+                      </BotaoComMotivo>
+                      <BotaoComMotivo
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage === pages}
+                        motivo={currentPage === pages ? "Já é a última página" : null}
+                        onClick={() => setPage(currentPage + 1)}
+                      >
+                        Próxima
+                      </BotaoComMotivo>
+                    </div>
+                  </footer>
+                </section>
+              )}
+            </>
           )}
         </>
       )}
-      {view !== "clientes" && (
+      {view === "confianca" && (
         <details className="rounded-lg border bg-card px-4 py-3 text-xs">
           <summary className="cursor-pointer font-medium">Atualização das fontes</summary>
           <div className="mt-3 grid gap-2 md:grid-cols-2">

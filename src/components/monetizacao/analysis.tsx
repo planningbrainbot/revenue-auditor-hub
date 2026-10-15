@@ -910,10 +910,10 @@ function Distribution({ data, filter, openDeals }: Cut) {
           descricao={`${date(filter.from)} a ${date(filter.to)} · a tabela acima é salva junto com a decisão`}
           acoes={
             <Link
-              to="/monetizacao/listas"
+              to="/clientes/listas"
               className={`text-sm font-medium text-primary-text underline underline-offset-2 ${FOCO_VISIVEL}`}
             >
-              Abrir as Listas da Monetização →
+              Abrir as Listas →
             </Link>
           }
         >

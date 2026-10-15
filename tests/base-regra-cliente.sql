@@ -1,4 +1,4 @@
--- Casos da regra de cliente (ops.base_conta_situacao, migration 20261015170000). Roda com a função em pg_temp
+-- Casos da regra de cliente (ops.base_conta_situacao, migrations 20261015170000 e 20261015200000). Roda com a função em pg_temp
 -- (scripts da sessão: um query só, `create function pg_temp...` + este select). Todas as linhas devem dar ok = true.
 with c(nome, ficha, perfil, estado, grau) as (values
   ('distrato vence tudo', '{"distrato":{"estado":"concluido"},"prova":{"nivel":"comprovado","provas":["contrato"]},"empresa_ids":[1]}'::jsonb, '{}'::jsonb, 'ex_cliente', null::int),
@@ -16,7 +16,7 @@ with c(nome, ficha, perfil, estado, grau) as (values
   ('tag Cliente de unidade', '{"prova":{"nivel":"so_tag","provas":[]},"omie":{"classe":"cliente","cliente_em":["Belém"]}}', '{}', 'cliente', 1),
   ('ECD com Pipefy é prova', '{"prova":{"nivel":"comprovado","provas":["ecd"]},"empresa_ids":[3],"origin":"antiga"}', '{}', 'cliente', 3),
   ('só ECD não faz cliente', '{"prova":{"nivel":"comprovado","provas":["ecd"]}}', '{}', 'nao_cliente', null),
-  ('lote da Matriz, CNPJ ativo', '{"prova":{"nivel":"so_tag","provas":[]},"omie":{"classe":"cliente","cliente_em":["Planning Partners (Matriz)"]}}', '{"situacao_receita":"ativa"}', 'a_confirmar', null),
+  ('lote da Matriz, CNPJ ativo (cliente grau 1 desde 15/10 à tarde)', '{"prova":{"nivel":"so_tag","provas":[]},"omie":{"classe":"cliente","cliente_em":["Planning Partners (Matriz)"]}}', '{"situacao_receita":"ativa"}', 'cliente', 1),
   ('lote da Matriz, CNPJ baixado', '{"prova":{"nivel":"so_tag","provas":[]},"omie":{"classe":"cliente","cliente_em":["Planning Partners (Matriz)"]}}', '{"situacao_receita":"baixada"}', 'nao_cliente', null),
   ('lote da Matriz faturado pelo grupo', '{"prova":{"nivel":"comprovado","provas":["faturado_grupo"],"faturado_grupo_em":"2026-03-01"},"omie":{"classe":"cliente","cliente_em":["Planning Partners (Matriz)"]}}', '{"situacao_receita":"ativa"}', 'cliente', 3),
   ('só cadastro do Omie', '{"prova":{"nivel":"sem_prova","provas":[]},"omie":{"classe":"sem_tag"}}', '{}', 'nao_cliente', null)

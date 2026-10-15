@@ -328,13 +328,14 @@ export const AREAS: Area[] = [
     grupos: [
       {
         label: "Carteira",
+        // A Base em três telas (Pedro, 15/10/2026): Clientes, Confiança e Painel na lateral. "Base de Contatos" saiu
+        // do menu (a rota continua). Produtos e Listas, a construção de listas, só para quem tem a área Monetização.
         items: [
-          { title: "Base de clientes", url: "/clientes", icon: Building2 },
-          {
-            title: "Base de Contatos",
-            url: "/base-contatos",
-            icon: BookUser,
-          },
+          { title: "Clientes", url: "/clientes", icon: Building2 },
+          { title: "Confiança", url: "/clientes?view=confianca", icon: ShieldCheck },
+          { title: "Painel", url: "/clientes?view=painel", icon: BarChart3 },
+          { title: "Produtos", url: "/clientes/produtos", icon: Package, area: "monetizacao" },
+          { title: "Listas", url: "/clientes/listas", icon: ListChecks, area: "monetizacao" },
         ],
       },
     ],
@@ -506,10 +507,6 @@ export const AREAS: Area[] = [
           },
           // Forecast (14/10/2026, call com o Paulo): data esperada de fechamento e receita do mês.
           { title: "Forecast", url: "/monetizacao?aba=fechamentos", icon: CalendarClock },
-          // Produtos e Listas saíram da Base de clientes em 15/10/2026 ("Base à Prova de Criança", versão 14): a Base
-          // diz quem é cliente; a Monetização monta a lista de cada produto sobre os clientes pela regra.
-          { title: "Produtos", url: "/monetizacao/produtos", icon: Package },
-          { title: "Listas", url: "/monetizacao/listas", icon: ListChecks },
           // Temporal e previsão, Projetado × realizado, Capacidade e alocação e Follow Day saíram em 09/10/2026
           // (aprovado pelo dono do produto); o link antigo abre a Operação diária com aviso.
         ],
