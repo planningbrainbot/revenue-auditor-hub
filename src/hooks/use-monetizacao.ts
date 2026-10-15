@@ -42,8 +42,10 @@ export function useMonetizacao() {
       return juntarCarteira(data, accounts);
     },
     enabled: !!user,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    // A carga do Pipedrive roda a cada 5 minutos; recarregar a cada minuto em cada aba aberta (Monetização e Cockpits)
+    // só pesava no banco, que saturou no horário comercial em 15/10/2026.
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
     refetchOnWindowFocus: true,
     retry: 1,
   });
