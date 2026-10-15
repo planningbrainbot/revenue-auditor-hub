@@ -27,8 +27,15 @@ export function useMonetizacao() {
         previous.sinais_at?.consultoria === data.sinais_at?.consultoria
       )
         return { ...data, accounts: previous.accounts, units: previous.units };
-      if (!data.catalog_pages || data.base_count === undefined)
-        throw new Error("Não foi possível conferir os lotes da carteira.");
+      // Sem o manifesto da carteira (banco carregado, 15/10/2026), a Operação, a Pré-venda e o Forecast seguem com os
+      // cards; a carteira fica a da leitura anterior, se houver, e a tela avisa que ela não foi atualizada.
+      if (data.catalogo_indisponivel || !data.catalog_pages || data.base_count === undefined)
+        return {
+          ...data,
+          catalogo_indisponivel: true,
+          accounts: previous?.accounts ?? [],
+          units: previous?.units?.length ? previous.units : data.units,
+        };
       const accounts = await loadCatalogPages(
         data.catalog_pages,
         (page) => pageFn({ data: { after: page.after, through: page.through } }),

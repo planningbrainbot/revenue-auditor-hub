@@ -109,12 +109,15 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     .rpc("base_carteira_manifesto");
   // Previsão de fechamento do Jev para o Forecast (15/10/2026). Sem a função no banco ou sem acesso, segue vazia.
   const previsao = await (db as DB).schema("ops").rpc("monetizacao_previsao_fechamento");
-  if (catalogError) throw new Error("Não foi possível conferir a base e seu escopo atual.");
+  // Banco carregado (15/10/2026): o manifesto da carteira passava do limite de 8 s da sessão e derrubava a Monetização
+  // inteira, que na Operação, na Pré-venda e no Forecast nem usa a carteira. Sem ele, a tela abre com os cards e avisa.
+  const cat = catalogError ? null : catalog;
   const sync = health[0];
   return {
-    base_count: catalog.count,
-    catalog_pages: catalog.pages,
-    scope_signature: catalog.scope_signature,
+    base_count: cat?.count,
+    catalog_pages: cat?.pages,
+    scope_signature: cat?.scope_signature,
+    catalogo_indisponivel: !cat,
     forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
     reservations: reservations as BaseMonetizacao["reservations"],
     accounts: [],
@@ -146,11 +149,11 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     plans: plans.map((p) => p.payload) as Plano[],
     records: records as Registro[],
     measured_at: sync?.measured_at || null,
-    catalog_at: catalog.catalog_at,
+    catalog_at: cat?.catalog_at ?? null,
     // Antes da migration 20260928200000 o manifesto não traz `sinais`: a tela diz "sem carga".
     sinais_at: {
-      tratativas: catalog.sinais?.tratativas ?? null,
-      consultoria: catalog.sinais?.consultoria ?? null,
+      tratativas: cat?.sinais?.tratativas ?? null,
+      consultoria: cat?.sinais?.consultoria ?? null,
     },
     sync_status: sync?.status || "pending",
     sync_error: sync?.error || null,

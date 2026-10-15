@@ -595,6 +595,22 @@ export function DashboardMonetizacao({
           }
         />
       )}
+      {data.catalogo_indisponivel &&
+        aba !== "operacao" &&
+        aba !== "pre-venda" &&
+        aba !== "fechamentos" && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-lg border bg-card px-3 py-2 text-[13px] text-muted-foreground"
+          >
+            <Info className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={1.75} aria-hidden />
+            <span>
+              A carteira da Base não respondeu a tempo nesta leitura (banco carregado). Os cards do
+              pipe estão atualizados; a lista de empresas é a da última leitura e volta sozinha na
+              próxima.
+            </span>
+          </div>
+        )}
       {carga.parada && (
         <EstadoErro
           titulo={`Os indicadores comerciais estão parados desde ${carga.desde}`}
