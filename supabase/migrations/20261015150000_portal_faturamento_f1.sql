@@ -1,7 +1,8 @@
 -- Portal de Faturamento · F1, fundação de dados (15/10/2026).
 --
 -- Spec: PM Work/execution/portal-faturamento-prd-20261013/spec-portal-faturamento.md (§3, §4, §7, §10, §11 F1).
--- Decisões do Daniel Faria e da Ana Carvalhais em 15/10/2026: 1A 2A 3A 4A 5A.
+-- Respostas da Ana Carvalhais em 15/10/2026: 1A e 3A; 2, 4 e 5 com contraproposta (spec §13).
+-- Nada da F1 depende de 2, 4 ou 5.
 -- Ensaio (begin … rollback, RLS testada como authenticated): supabase/gates/20261015_portal_faturamento_f1.sql
 -- Rollback: supabase/rollback/20261015150000_portal_faturamento_f1_rollback.sql
 --
