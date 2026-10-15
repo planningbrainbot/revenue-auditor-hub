@@ -239,17 +239,18 @@ async function sincronizarReceita() {
     if (!l.competencia) continue;
     if (!ultima.has(k) || ultima.get(k)! < l.competencia) ultima.set(k, l.competencia);
   }
-  // O CNPJ do cliente: o cadastro do Omie da mesma empresa, pela razão social ou pelo nome fantasia.
+  // O CNPJ do cliente: o cadastro do Omie da mesma empresa, pela razão social ou pelo nome fantasia. Filiais têm a mesma
+  // razão social e CNPJs diferentes: todas entram, porque o lançamento não diz qual delas foi faturada.
   const contrapartes = await finTudo(
     "omie_contraparte?select=empresa_id,razao_social,nome_fantasia,doc_digitos&doc_digitos=not.is.null&order=empresa_id,codigo",
   );
-  const docDe = new Map<string, string>();
+  const docsDe = new Map<string, Set<string>>();
   for (const c of contrapartes) {
     const doc = digitos(c.doc_digitos);
     if (doc.length !== 14 && doc.length !== 11) continue;
     for (const nome of [c.razao_social, c.nome_fantasia]) {
       const k = `${c.empresa_id}|${String(nome ?? "").trim()}`;
-      if (nome && ultima.has(k) && !docDe.has(k)) docDe.set(k, doc);
+      if (nome && ultima.has(k)) docsDe.set(k, (docsDe.get(k) ?? new Set<string>()).add(doc));
     }
   }
   const porCnpj = new Map<string, { nome: string; empresas: Set<string>; ultima: string | null; abertos: number }>();
@@ -261,10 +262,8 @@ async function sincronizarReceita() {
     porCnpj.set(doc, atual);
   };
   for (const [k, competencia] of ultima) {
-    const doc = docDe.get(k);
-    if (!doc) continue;
     const [empresaId, nome] = [k.slice(0, k.indexOf("|")), k.slice(k.indexOf("|") + 1)];
-    soma(doc, nome, empresas.get(empresaId) ?? empresaId, competencia, false);
+    for (const doc of docsDe.get(k) ?? []) soma(doc, nome, empresas.get(empresaId) ?? empresaId, competencia, false);
   }
   // Títulos a receber em aberto: faturado, ainda não pago.
   const abertos = await finTudo("titulos_receber_live?select=empresa_id,cliente_cnpj,cliente_nome&order=id");
