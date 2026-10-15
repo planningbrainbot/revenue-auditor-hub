@@ -199,9 +199,10 @@ function InicioPage() {
     );
   }
 
-  // Super admin: a porta de entrada vira o mapa de módulos (proposta de
-  // organização de 09/10/2026), com os que ainda não existem tracejados. Só ele
-  // vê o mapa inteiro; quem não é admin segue com os cartões por área abaixo.
+  // Super admin: a porta de entrada vira o mapa do Brain nas três frentes do
+  // material de investidores (aquisição, monetização e retenção), com os
+  // módulos que ainda não existem tracejados. Só ele vê o mapa inteiro; quem
+  // não é admin segue com os cartões por área abaixo.
   if (isAdmin) {
     const alcanca = (d: Destino) => {
       switch (d.tipo) {
@@ -233,7 +234,7 @@ function InicioPage() {
       window.location.href = d.href;
     };
     return (
-      <Moldura largo subtitulo="O Brain por módulos, da fundação à gestão.">
+      <Moldura largo subtitulo="O Brain em três frentes: aquisição, monetização e retenção.">
         <MapaDeModulos alcanca={alcanca} abrir={abrirDestino} />
         <VerComoDialog aberto={verComoAberto} aoFechar={() => setVerComoAberto(false)} />
       </Moldura>
