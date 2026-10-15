@@ -181,7 +181,10 @@ export function DashboardMonetizacao({
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
 }) {
   const aba = busca.aba;
-  const q = useMonetizacao(),
+  // Operação, Pré-venda e Forecast não usam a carteira da Base: abrem com os cards, sem esperar as ~10 mil contas.
+  const q = useMonetizacao({
+      esperarCarteira: aba !== "operacao" && aba !== "pre-venda" && aba !== "fechamentos",
+    }),
     invalidate = useAtualizarMonetizacao(),
     sync = useServerFn(acionarMonetizacao);
   const today = hoje();
@@ -595,7 +598,9 @@ export function DashboardMonetizacao({
           }
         />
       )}
-      {data.catalogo_indisponivel &&
+      {(data.catalogo_indisponivel ||
+        data.carteira_carregando ||
+        !!data.leituras_incompletas?.length) &&
         aba !== "operacao" &&
         aba !== "pre-venda" &&
         aba !== "fechamentos" && (
@@ -605,9 +610,9 @@ export function DashboardMonetizacao({
           >
             <Info className="mt-0.5 size-4 shrink-0 text-info" strokeWidth={1.75} aria-hidden />
             <span>
-              A carteira da Base não respondeu a tempo nesta leitura (banco carregado). Os cards do
-              pipe estão atualizados; a lista de empresas é a da última leitura e volta sozinha na
-              próxima.
+              {data.carteira_carregando && !data.catalogo_indisponivel
+                ? "Carregando a carteira da Base em segundo plano. Os cards do pipe já estão atualizados; a lista de empresas aparece em seguida."
+                : "A carteira da Base não respondeu a tempo nesta leitura (banco carregado). Os cards do pipe estão atualizados; a lista de empresas volta sozinha na próxima leitura."}
             </span>
           </div>
         )}

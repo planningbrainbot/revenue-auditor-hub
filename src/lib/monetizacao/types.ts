@@ -296,6 +296,10 @@ export interface BaseMonetizacao {
   base_count?: number;
   /** O manifesto da carteira da Base não respondeu (banco carregado): a tela abre sem a carteira e avisa. */
   catalogo_indisponivel?: boolean;
+  /** Leituras secundárias que não responderam a tempo nesta carga (vieram vazias). */
+  leituras_incompletas?: string[];
+  /** A carteira da Base ainda está carregando em segundo plano (a tela já abriu com os cards). */
+  carteira_carregando?: boolean;
   catalog_pages?: { after: string | null; through: string; count: number }[];
   scope_signature?: string;
   forecasts: ForecastSource[];

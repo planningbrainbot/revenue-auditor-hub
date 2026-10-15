@@ -83,32 +83,64 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     throw new Error(
       "Seu acesso não inclui Clientes/Aquário ou Monetização. A administração da plataforma controla esse acesso.",
     );
-  const [units, cobertura, cards, lists, items, health, plans, records, reservations, forecasts] =
-    await Promise.all([
+  // Banco carregado (15/10/2026): cada leitura com a sessão tem 8 s, e qualquer uma que passasse derrubava a tela
+  // inteira. Só os cards e o estado da carga são obrigatórios; o resto, se falhar, vem vazio e a tela avisa.
+  // A carteira e a previsão do Jev rodam em paralelo com as tabelas, não depois delas.
+  const incompletas: string[] = [];
+  const opcional = <T>(nome: string, p: Promise<T[]>) =>
+    p.catch(() => {
+      incompletas.push(nome);
+      return [] as T[];
+    });
+  const [
+    units,
+    cobertura,
+    cards,
+    lists,
+    items,
+    health,
+    plans,
+    records,
+    reservations,
+    forecasts,
+    manifesto,
+    previsao,
+  ] = await Promise.all([
+    opcional(
+      "unidades",
       all(db, "monetizacao_unidades", "key,unidade_id,nome,classification", "key"),
+    ),
+    opcional(
+      "cobertura",
       all(
         db,
         "monetizacao_unidade_cobertura",
         "key,contas,cnpjs,cnpjs_pipefy,cnpjs_omie,omie_integrado",
         "key",
       ),
-      // `unidade_ids` vem da conta da Base (carga); a visão "Hoje" agrupa a Conexão por unidade.
-      allRpc(db, "monetizacao_deals_leitura", "monetizacao_deals", "id,payload,unidade_ids", "id"),
-      all(db, "monetizacao_listas", "*", "created_at"),
+    ),
+    // `unidade_ids` vem da conta da Base (carga); a visão "Hoje" agrupa a Conexão por unidade.
+    allRpc(db, "monetizacao_deals_leitura", "monetizacao_deals", "id,payload,unidade_ids", "id"),
+    opcional("listas", all(db, "monetizacao_listas", "*", "created_at")),
+    opcional(
+      "itens das listas",
       allRpc(db, "monetizacao_itens_leitura", "monetizacao_itens", "*", "id"),
-      all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
-      // Plano do mês: desde 09/10/2026 não se edita no Brain (Capacidade e alocação saiu do menu, sem meta por
-      // enquanto). A tabela e a RPC `monetizacao_save_plan` ficam; o Cockpit do CEO ainda lê a meta de contratos.
-      all(db, "monetizacao_planos", "payload", "month"),
+    ),
+    all(db, "monetizacao_sync", "status,measured_at,catalog_at,error,stages", "id"),
+    // Plano do mês: desde 09/10/2026 não se edita no Brain (Capacidade e alocação saiu do menu, sem meta por
+    // enquanto). A tabela e a RPC `monetizacao_save_plan` ficam; o Cockpit do CEO ainda lê a meta de contratos.
+    opcional("planos", all(db, "monetizacao_planos", "payload", "month")),
+    opcional(
+      "registros",
       all(db, "monetizacao_registros", "id,kind,title,body,updated_at", "updated_at"),
-      all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id"),
-      all(db, "monetizacao_forecasts", "payload", "id"),
-    ]);
-  const { data: catalog, error: catalogError } = await (db as DB)
-    .schema("ops")
-    .rpc("base_carteira_manifesto");
-  // Previsão de fechamento do Jev para o Forecast (15/10/2026). Sem a função no banco ou sem acesso, segue vazia.
-  const previsao = await (db as DB).schema("ops").rpc("monetizacao_previsao_fechamento");
+    ),
+    opcional("envios", all(db, "monetizacao_envios", "account_key,product,status,deal_id", "id")),
+    opcional("forecasts", all(db, "monetizacao_forecasts", "payload", "id")),
+    (db as DB).schema("ops").rpc("base_carteira_manifesto"),
+    // Previsão de fechamento do Jev para o Forecast (15/10/2026). Sem a função no banco ou sem acesso, segue vazia.
+    (db as DB).schema("ops").rpc("monetizacao_previsao_fechamento"),
+  ]);
+  const { data: catalog, error: catalogError } = manifesto;
   // Banco carregado (15/10/2026): o manifesto da carteira passava do limite de 8 s da sessão e derrubava a Monetização
   // inteira, que na Operação, na Pré-venda e no Forecast nem usa a carteira. Sem ele, a tela abre com os cards e avisa.
   const cat = catalogError ? null : catalog;
@@ -118,6 +150,7 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     catalog_pages: cat?.pages,
     scope_signature: cat?.scope_signature,
     catalogo_indisponivel: !cat,
+    leituras_incompletas: incompletas,
     forecasts: forecasts.map((f) => f.payload) as BaseMonetizacao["forecasts"],
     reservations: reservations as BaseMonetizacao["reservations"],
     accounts: [],
