@@ -153,3 +153,4 @@ O Pedro pediu, em 16/10, para a Operação diária: "tem dois filtros redundante
   - `responsavel`: continua um id. Com os dois pré-vendedores marcados, a chave sai, porque isso é a pré-venda inteira.
 - **Funil com mais de um produto.** O card entra se estiver em qualquer produto marcado, pela rota ou por ter sido ofertado. Ele para no levantamento só quando nenhum dos produtos marcados foi ofertado. O total não repete card.
 - **Onde vale:** Operação (período, produto, pré-vendedor, unidade), Forecast (produto, pré-vendedor), Funil comercial e Distribuição (produto), Pré-venda (pré-vendedor).
+- **"+N de abordagem anterior" em toda etapa** (Pedro, 16/10). Antes aparecia só no Ganho. Agora cada etapa do funil mostra, ao lado do nome, os cards abordados antes do período que chegaram a ela no período. O número abre a lista desses cards e fica fora da contagem e da taxa da coorte.

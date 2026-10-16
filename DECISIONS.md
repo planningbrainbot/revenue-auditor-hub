@@ -5397,6 +5397,8 @@ de fora: a porta de entrada não tem procedência para mostrar número.
   - Um produto passa como texto, como antes; só a seleção de dois ou mais passa como lista.
 - **Quadros por produto:** "Qual produto avança na base?" mostra só as linhas marcadas, com o Total quando houver mais de uma. "Em que etapa cada produto trava?" desenha só os marcados, mais o Total.
 
+- **"+N de abordagem anterior" em toda etapa do funil** (resposta do Pedro, 16/10). Era só no Ganho, desde 14/10. Agora cada etapa, a partir da Qualificação, mostra os cards abordados antes do período que chegaram a ela no período (`chegaramAoNivel` sobre `avancosAnteriores`). O número é clicável e fica fora da contagem e da taxa da coorte.
+
 **Conferido no mesmo dia:** o quadro mostrou 1 card na Qualificação em 15–16/10, e está certo pela régua da coorte. O card é o Groot Motors, da Heloá, abordado e qualificado em 15/10. Outros 4 cards entraram na Qualificação no período (Alagoas Combustíveis, Izapael/Merc Petrópolis, RJ Engenharia e Metropole), mas foram abordados em 13 e 14/10; estão em `avancosAnteriores`, e o quadro hoje só mostra "+N de abordagem anterior" no Ganho. Rodado com `funilCumulativo` sobre os 296 cards de `ops.monetizacao_deals` e conferido no fluxo do Pipedrive.
 
 **Onde:** `src/components/planning/selecao-multipla.tsx`, `src/components/monetizacao/{busca,dashboard,operacao,analysis,fechamentos}.ts(x)`, `src/lib/monetizacao/{types,model,funil-cumulativo,fechamentos}.ts`, vitrine (`SelecaoMultiplaExemplo`), adendo de 16/10 em `docs/design/contratos/monetizacao.md`.
