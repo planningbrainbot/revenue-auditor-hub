@@ -52,6 +52,7 @@ import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authentica
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEbitOperacionalRouteImport } from './routes/_authenticated/ebit-operacional'
 import { Route as AuthenticatedDrePartnersRouteImport } from './routes/_authenticated/dre-partners'
+import { Route as AuthenticatedDreCaixaRouteImport } from './routes/_authenticated/dre-caixa'
 import { Route as AuthenticatedDisparosWhatsappRouteImport } from './routes/_authenticated/disparos-whatsapp'
 import { Route as AuthenticatedContasReceberRouteImport } from './routes/_authenticated/contas-receber'
 import { Route as AuthenticatedComissoesRouteImport } from './routes/_authenticated/comissoes'
@@ -74,12 +75,12 @@ import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_au
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedUnidadesUnidadeIdRouteImport } from './routes/_authenticated/unidades.$unidadeId'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
+import { Route as AuthenticatedMonetizacaoProdutosRouteImport } from './routes/_authenticated/monetizacao_.produtos'
+import { Route as AuthenticatedMonetizacaoListasRouteImport } from './routes/_authenticated/monetizacao_.listas'
 import { Route as AuthenticatedCockpitCooPerguntarRouteImport } from './routes/_authenticated/cockpit-coo_.perguntar'
 import { Route as AuthenticatedCockpitCooCompromissosRouteImport } from './routes/_authenticated/cockpit-coo_.compromissos'
 import { Route as AuthenticatedCockpitCeoPerguntarRouteImport } from './routes/_authenticated/cockpit-ceo_.perguntar'
-import { Route as AuthenticatedMonetizacaoProdutosRouteImport } from './routes/_authenticated/monetizacao_.produtos'
 import { Route as AuthenticatedClientesProdutosRouteImport } from './routes/_authenticated/clientes_.produtos'
-import { Route as AuthenticatedMonetizacaoListasRouteImport } from './routes/_authenticated/monetizacao_.listas'
 import { Route as AuthenticatedClientesListasRouteImport } from './routes/_authenticated/clientes_.listas'
 import { Route as AuthenticatedBrokerReservasRouteImport } from './routes/_authenticated/broker.reservas'
 import { Route as AuthenticatedBrokerMovimentacoesRouteImport } from './routes/_authenticated/broker.movimentacoes'
@@ -332,6 +333,11 @@ const AuthenticatedDrePartnersRoute =
     path: '/dre-partners',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedDreCaixaRoute = AuthenticatedDreCaixaRouteImport.update({
+  id: '/dre-caixa',
+  path: '/dre-caixa',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDisparosWhatsappRoute =
   AuthenticatedDisparosWhatsappRouteImport.update({
     id: '/disparos-whatsapp',
@@ -455,6 +461,18 @@ const AuthenticatedRoyaltiesSplitRoute =
     path: '/split',
     getParentRoute: () => AuthenticatedRoyaltiesRoute,
   } as any)
+const AuthenticatedMonetizacaoProdutosRoute =
+  AuthenticatedMonetizacaoProdutosRouteImport.update({
+    id: '/monetizacao_/produtos',
+    path: '/monetizacao/produtos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMonetizacaoListasRoute =
+  AuthenticatedMonetizacaoListasRouteImport.update({
+    id: '/monetizacao_/listas',
+    path: '/monetizacao/listas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCockpitCooPerguntarRoute =
   AuthenticatedCockpitCooPerguntarRouteImport.update({
     id: '/cockpit-coo_/perguntar',
@@ -473,22 +491,10 @@ const AuthenticatedCockpitCeoPerguntarRoute =
     path: '/cockpit-ceo/perguntar',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedMonetizacaoProdutosRoute =
-  AuthenticatedMonetizacaoProdutosRouteImport.update({
-    id: '/monetizacao_/produtos',
-    path: '/monetizacao/produtos',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedClientesProdutosRoute =
   AuthenticatedClientesProdutosRouteImport.update({
     id: '/clientes_/produtos',
     path: '/clientes/produtos',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedMonetizacaoListasRoute =
-  AuthenticatedMonetizacaoListasRouteImport.update({
-    id: '/monetizacao_/listas',
-    path: '/monetizacao/listas',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedClientesListasRoute =
@@ -600,6 +606,7 @@ export interface FileRoutesByFullPath {
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
+  '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -648,13 +655,13 @@ export interface FileRoutesByFullPath {
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
-  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
-  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
-  '/clientes/produtos': typeof AuthenticatedClientesProdutosRoute
-  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/clientes/listas': typeof AuthenticatedClientesListasRoute
+  '/clientes/produtos': typeof AuthenticatedClientesProdutosRoute
+  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
+  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
@@ -686,6 +693,7 @@ export interface FileRoutesByTo {
   '/comissoes': typeof AuthenticatedComissoesRoute
   '/contas-receber': typeof AuthenticatedContasReceberRoute
   '/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
+  '/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -733,13 +741,13 @@ export interface FileRoutesByTo {
   '/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/broker/reservas': typeof AuthenticatedBrokerReservasRoute
-  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
-  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
-  '/clientes/produtos': typeof AuthenticatedClientesProdutosRoute
-  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/clientes/listas': typeof AuthenticatedClientesListasRoute
+  '/clientes/produtos': typeof AuthenticatedClientesProdutosRoute
+  '/cockpit-ceo/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/cockpit-coo/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/cockpit-coo/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/monetizacao/listas': typeof AuthenticatedMonetizacaoListasRoute
+  '/monetizacao/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
@@ -773,6 +781,7 @@ export interface FileRoutesById {
   '/_authenticated/comissoes': typeof AuthenticatedComissoesRoute
   '/_authenticated/contas-receber': typeof AuthenticatedContasReceberRoute
   '/_authenticated/disparos-whatsapp': typeof AuthenticatedDisparosWhatsappRoute
+  '/_authenticated/dre-caixa': typeof AuthenticatedDreCaixaRoute
   '/_authenticated/dre-partners': typeof AuthenticatedDrePartnersRoute
   '/_authenticated/ebit-operacional': typeof AuthenticatedEbitOperacionalRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
@@ -822,13 +831,13 @@ export interface FileRoutesById {
   '/_authenticated/broker/faturas': typeof AuthenticatedBrokerFaturasRoute
   '/_authenticated/broker/movimentacoes': typeof AuthenticatedBrokerMovimentacoesRoute
   '/_authenticated/broker/reservas': typeof AuthenticatedBrokerReservasRoute
-  '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
-  '/_authenticated/monetizacao_/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
-  '/_authenticated/clientes_/produtos': typeof AuthenticatedClientesProdutosRoute
-  '/_authenticated/monetizacao_/listas': typeof AuthenticatedMonetizacaoListasRoute
   '/_authenticated/clientes_/listas': typeof AuthenticatedClientesListasRoute
+  '/_authenticated/clientes_/produtos': typeof AuthenticatedClientesProdutosRoute
+  '/_authenticated/cockpit-ceo_/perguntar': typeof AuthenticatedCockpitCeoPerguntarRoute
   '/_authenticated/cockpit-coo_/compromissos': typeof AuthenticatedCockpitCooCompromissosRoute
   '/_authenticated/cockpit-coo_/perguntar': typeof AuthenticatedCockpitCooPerguntarRoute
+  '/_authenticated/monetizacao_/listas': typeof AuthenticatedMonetizacaoListasRoute
+  '/_authenticated/monetizacao_/produtos': typeof AuthenticatedMonetizacaoProdutosRoute
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
@@ -863,6 +872,7 @@ export interface FileRouteTypes {
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
+    | '/dre-caixa'
     | '/dre-partners'
     | '/ebit-operacional'
     | '/equipe'
@@ -911,13 +921,13 @@ export interface FileRouteTypes {
     | '/broker/faturas'
     | '/broker/movimentacoes'
     | '/broker/reservas'
-    | '/cockpit-ceo/perguntar'
-    | '/monetizacao/produtos'
-    | '/clientes/produtos'
-    | '/monetizacao/listas'
     | '/clientes/listas'
+    | '/clientes/produtos'
+    | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/monetizacao/listas'
+    | '/monetizacao/produtos'
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
@@ -949,6 +959,7 @@ export interface FileRouteTypes {
     | '/comissoes'
     | '/contas-receber'
     | '/disparos-whatsapp'
+    | '/dre-caixa'
     | '/dre-partners'
     | '/ebit-operacional'
     | '/equipe'
@@ -996,13 +1007,13 @@ export interface FileRouteTypes {
     | '/broker/faturas'
     | '/broker/movimentacoes'
     | '/broker/reservas'
-    | '/cockpit-ceo/perguntar'
-    | '/monetizacao/produtos'
-    | '/clientes/produtos'
-    | '/monetizacao/listas'
     | '/clientes/listas'
+    | '/clientes/produtos'
+    | '/cockpit-ceo/perguntar'
     | '/cockpit-coo/compromissos'
     | '/cockpit-coo/perguntar'
+    | '/monetizacao/listas'
+    | '/monetizacao/produtos'
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
@@ -1035,6 +1046,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comissoes'
     | '/_authenticated/contas-receber'
     | '/_authenticated/disparos-whatsapp'
+    | '/_authenticated/dre-caixa'
     | '/_authenticated/dre-partners'
     | '/_authenticated/ebit-operacional'
     | '/_authenticated/equipe'
@@ -1084,13 +1096,13 @@ export interface FileRouteTypes {
     | '/_authenticated/broker/faturas'
     | '/_authenticated/broker/movimentacoes'
     | '/_authenticated/broker/reservas'
-    | '/_authenticated/cockpit-ceo_/perguntar'
-    | '/_authenticated/monetizacao_/produtos'
-    | '/_authenticated/clientes_/produtos'
-    | '/_authenticated/monetizacao_/listas'
     | '/_authenticated/clientes_/listas'
+    | '/_authenticated/clientes_/produtos'
+    | '/_authenticated/cockpit-ceo_/perguntar'
     | '/_authenticated/cockpit-coo_/compromissos'
     | '/_authenticated/cockpit-coo_/perguntar'
+    | '/_authenticated/monetizacao_/listas'
+    | '/_authenticated/monetizacao_/produtos'
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/$unidadeId'
     | '/_authenticated/unidades/funil-cac'
@@ -1420,6 +1432,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDrePartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/dre-caixa': {
+      id: '/_authenticated/dre-caixa'
+      path: '/dre-caixa'
+      fullPath: '/dre-caixa'
+      preLoaderRoute: typeof AuthenticatedDreCaixaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/disparos-whatsapp': {
       id: '/_authenticated/disparos-whatsapp'
       path: '/disparos-whatsapp'
@@ -1574,6 +1593,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoyaltiesSplitRouteImport
       parentRoute: typeof AuthenticatedRoyaltiesRoute
     }
+    '/_authenticated/monetizacao_/produtos': {
+      id: '/_authenticated/monetizacao_/produtos'
+      path: '/monetizacao/produtos'
+      fullPath: '/monetizacao/produtos'
+      preLoaderRoute: typeof AuthenticatedMonetizacaoProdutosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/monetizacao_/listas': {
+      id: '/_authenticated/monetizacao_/listas'
+      path: '/monetizacao/listas'
+      fullPath: '/monetizacao/listas'
+      preLoaderRoute: typeof AuthenticatedMonetizacaoListasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/cockpit-coo_/perguntar': {
       id: '/_authenticated/cockpit-coo_/perguntar'
       path: '/cockpit-coo/perguntar'
@@ -1595,25 +1628,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCockpitCeoPerguntarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/monetizacao_/produtos': {
-      id: '/_authenticated/monetizacao_/produtos'
-      path: '/monetizacao/produtos'
-      fullPath: '/monetizacao/produtos'
-      preLoaderRoute: typeof AuthenticatedMonetizacaoProdutosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/clientes_/produtos': {
       id: '/_authenticated/clientes_/produtos'
       path: '/clientes/produtos'
       fullPath: '/clientes/produtos'
       preLoaderRoute: typeof AuthenticatedClientesProdutosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/monetizacao_/listas': {
-      id: '/_authenticated/monetizacao_/listas'
-      path: '/monetizacao/listas'
-      fullPath: '/monetizacao/listas'
-      preLoaderRoute: typeof AuthenticatedMonetizacaoListasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/clientes_/listas': {
@@ -1777,6 +1796,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComissoesRoute: typeof AuthenticatedComissoesRoute
   AuthenticatedContasReceberRoute: typeof AuthenticatedContasReceberRoute
   AuthenticatedDisparosWhatsappRoute: typeof AuthenticatedDisparosWhatsappRoute
+  AuthenticatedDreCaixaRoute: typeof AuthenticatedDreCaixaRoute
   AuthenticatedDrePartnersRoute: typeof AuthenticatedDrePartnersRoute
   AuthenticatedEbitOperacionalRoute: typeof AuthenticatedEbitOperacionalRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
@@ -1825,13 +1845,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBrokerFaturasRoute: typeof AuthenticatedBrokerFaturasRoute
   AuthenticatedBrokerMovimentacoesRoute: typeof AuthenticatedBrokerMovimentacoesRoute
   AuthenticatedBrokerReservasRoute: typeof AuthenticatedBrokerReservasRoute
-  AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
-  AuthenticatedMonetizacaoProdutosRoute: typeof AuthenticatedMonetizacaoProdutosRoute
-  AuthenticatedClientesProdutosRoute: typeof AuthenticatedClientesProdutosRoute
-  AuthenticatedMonetizacaoListasRoute: typeof AuthenticatedMonetizacaoListasRoute
   AuthenticatedClientesListasRoute: typeof AuthenticatedClientesListasRoute
+  AuthenticatedClientesProdutosRoute: typeof AuthenticatedClientesProdutosRoute
+  AuthenticatedCockpitCeoPerguntarRoute: typeof AuthenticatedCockpitCeoPerguntarRoute
   AuthenticatedCockpitCooCompromissosRoute: typeof AuthenticatedCockpitCooCompromissosRoute
   AuthenticatedCockpitCooPerguntarRoute: typeof AuthenticatedCockpitCooPerguntarRoute
+  AuthenticatedMonetizacaoListasRoute: typeof AuthenticatedMonetizacaoListasRoute
+  AuthenticatedMonetizacaoProdutosRoute: typeof AuthenticatedMonetizacaoProdutosRoute
   AuthenticatedBrokerIndexRoute: typeof AuthenticatedBrokerIndexRoute
   AuthenticatedAdminUsuariosUserIdRoute: typeof AuthenticatedAdminUsuariosUserIdRoute
 }
@@ -1850,6 +1870,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComissoesRoute: AuthenticatedComissoesRoute,
   AuthenticatedContasReceberRoute: AuthenticatedContasReceberRoute,
   AuthenticatedDisparosWhatsappRoute: AuthenticatedDisparosWhatsappRoute,
+  AuthenticatedDreCaixaRoute: AuthenticatedDreCaixaRoute,
   AuthenticatedDrePartnersRoute: AuthenticatedDrePartnersRoute,
   AuthenticatedEbitOperacionalRoute: AuthenticatedEbitOperacionalRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
@@ -1900,14 +1921,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBrokerFaturasRoute: AuthenticatedBrokerFaturasRoute,
   AuthenticatedBrokerMovimentacoesRoute: AuthenticatedBrokerMovimentacoesRoute,
   AuthenticatedBrokerReservasRoute: AuthenticatedBrokerReservasRoute,
-  AuthenticatedCockpitCeoPerguntarRoute: AuthenticatedCockpitCeoPerguntarRoute,
-  AuthenticatedMonetizacaoProdutosRoute: AuthenticatedMonetizacaoProdutosRoute,
-  AuthenticatedClientesProdutosRoute: AuthenticatedClientesProdutosRoute,
-  AuthenticatedMonetizacaoListasRoute: AuthenticatedMonetizacaoListasRoute,
   AuthenticatedClientesListasRoute: AuthenticatedClientesListasRoute,
+  AuthenticatedClientesProdutosRoute: AuthenticatedClientesProdutosRoute,
+  AuthenticatedCockpitCeoPerguntarRoute: AuthenticatedCockpitCeoPerguntarRoute,
   AuthenticatedCockpitCooCompromissosRoute:
     AuthenticatedCockpitCooCompromissosRoute,
   AuthenticatedCockpitCooPerguntarRoute: AuthenticatedCockpitCooPerguntarRoute,
+  AuthenticatedMonetizacaoListasRoute: AuthenticatedMonetizacaoListasRoute,
+  AuthenticatedMonetizacaoProdutosRoute: AuthenticatedMonetizacaoProdutosRoute,
   AuthenticatedBrokerIndexRoute: AuthenticatedBrokerIndexRoute,
   AuthenticatedAdminUsuariosUserIdRoute: AuthenticatedAdminUsuariosUserIdRoute,
 }
