@@ -18,7 +18,7 @@ Substitui `/financeiro-partners` (abas DRE projetada, DRE realizada, FCx, contas
 1. `PageHeader` com a pergunta, o universo, o seletor de mês (`?mes=`) e o selo de situação do mês: **fechado** ou **provisório** com o motivo.
 2. Quatro `KpiCard`: Resultado da DRE · Resultado do caixa · Diferença DRE × caixa · Resultado sem o investidor (DRE e caixa no mesmo cartão).
 3. **Ponte DRE → caixa** do mês escolhido (seção "Ponte"): do resultado da DRE até o resultado do caixa, um degrau por motivo.
-4. **Ponte do EBIT** mês contra o anterior: EBIT do mês anterior, as 12 contas que mais mexeram, demais contas, EBIT do mês.
+4. **Ponte do EBIT** mês contra o anterior: EBIT do mês anterior, as 12 contas que mais mexeram, demais contas, EBIT do mês. Cada degrau abre em conta › fornecedor ou unidade, para responder "o que gerou os R$ 100 mil a mais de despesa" sem sair da tela.
 5. **O que falta para fechar o mês**: a lista de pendências (seção "Conferências").
 6. Tabela da DRE do mês com os 3 níveis (bloco › conta › fornecedor ou unidade) e a série de 12 meses; verde/vermelho = melhora/piora contra o mês anterior.
 7. Gaveta (`?detalhe=`) de qualquer linha: o que é, de onde vem (título do Omie, apuração, fatura, aba do rateio), a régua do mês e os lançamentos que compõem o valor.
@@ -36,7 +36,7 @@ Substitui `/financeiro-partners` (abas DRE projetada, DRE realizada, FCx, contas
 | Despesas com Pessoal (grupo 2.03) | mês do serviço = vencimento − 15 dias | Omie |
 | Demais despesas | mês de emissão do título | Omie |
 | Aporte do investidor (1.04.99) | não operacional; o resultado "sem o investidor" sempre ao lado | Omie |
-| Investimento (grupo 2.07) | fora da DRE, só no caixa | Omie |
+| Investimento em projeto novo (grupo 2.07 e lançamentos apontados) | bloco próprio "(i) Investimentos em novos projetos", abaixo do resultado, no mês do pagamento; não entra no EBIT nem no resultado; no caixa, linha própria e resultado "sem investimentos" | Omie |
 | Caixa (FCX) | data do lançamento no extrato; sem transferências entre contas próprias e sem "Previsto" | extrato de conta corrente do Omie |
 
 ## Números
@@ -72,6 +72,8 @@ Cada item abre a lista e diz quem resolve. Todas foram encontradas na análise d
 | Mês fora do lugar | emissão no Omie diferente do mês do serviço; nota lançada depois do pagamento | notas de PJ de ago emitidas como 31/07 ou em set |
 | Pagamento sem documento | título criado depois do pagamento, sem número de nota, pessoa física | R$ 20 mil de 08/10 (compra de domínio lançada como PJ) |
 | Categoria fora de lugar | investimento lançado como despesa | idem |
+| Variação por falta de lançamento | conta que tinha valor no mês anterior e está zerada no mês | set/26: comissões zeradas (ago R$ 52,2 mil) por não terem sido lançadas |
+| Possível duplicidade na base do CSC | mesmo primeiro nome em duas linhas no mesmo mês | set/26: "RENAN" R$ 23 mil e "Renan Weiser Rios" R$ 36,1 mil |
 
 ## Estados
 | Estado | Quando acontece | O que a tela mostra |
