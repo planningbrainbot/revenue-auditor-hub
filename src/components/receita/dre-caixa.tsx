@@ -166,6 +166,7 @@ function Bi({ D }: { D: DreCaixa }) {
           <TabsTrigger value="midia">Mídia</TabsTrigger>
           <TabsTrigger value="midia-cac">Mídia × CAC</TabsTrigger>
           <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
+          <TabsTrigger value="inadimplencia">Inadimplência</TabsTrigger>
           <TabsTrigger value="caixa">Caixa</TabsTrigger>
           <TabsTrigger value="conferencias">Conferências</TabsTrigger>
         </TabsList>
@@ -196,6 +197,9 @@ function Bi({ D }: { D: DreCaixa }) {
         </TabsContent>
         <TabsContent value="eficiencia" className="mt-4 flex flex-col gap-5">
           <Eficiencia D={D} idx={idx} />
+        </TabsContent>
+        <TabsContent value="inadimplencia" className="mt-4 flex flex-col gap-5">
+          <Inadimplencia D={D} idx={idx} />
         </TabsContent>
         <TabsContent value="caixa" className="mt-4 flex flex-col gap-5">
           <Caixa D={D} idx={idx} />
@@ -1419,6 +1423,174 @@ function FragmentoEficiencia({
           <td className="px-2 py-1.5 text-right">{total.pct}</td>
         </tr>
       )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- inadimplência
+
+/**
+ * (A) Unidades devendo à Partners: receita que já está na DRE e não entrou no caixa.
+ * (B) Clientes da rede devendo às unidades: o royalty é % sobre o recebido do cliente, então
+ * o vencido não pago é royalty que não entra (ou entra atrasado, quando o cliente paga).
+ * Fotografia de hoje, não segue o filtro de período, exceto a série mensal da rede.
+ */
+function Inadimplencia({ D, idx }: { D: DreCaixa; idx: number[] }) {
+  const I = D.inadimplencia;
+  if (!I)
+    return (
+      <EstadoVazio
+        titulo="O retrato ainda não tem a inadimplência"
+        descricao="Ela entra na próxima rodada de tools/dre_caixa_payload.py."
+      />
+    );
+  const devem = I.unidades_partners.reduce((s, x) => s + x.total, 0);
+  const mais60 = I.unidades_partners.reduce((s, x) => s + x.d61_90 + x.mais90, 0);
+  const vencRede = I.rede.reduce((s, x) => s + x.vencido, 0);
+  const fatRede = I.rede.reduce((s, x) => s + x.faturado, 0);
+  const royalty = I.rede.reduce((s, x) => s + x.royalty, 0);
+  const roy = D.dre.find((l) => l.nivel === 2 && l.k.startsWith("Royalties (ap"));
+  const royAno = roy ? somaIdx(roy.v, idx) : 0;
+  const cats = new Map<string, number>();
+  for (const u of I.unidades_partners)
+    for (const [k, v] of Object.entries(u.categorias)) cats.set(k, (cats.get(k) ?? 0) + v);
+  const meses = idx.map((i) => D.meses[i]).filter((m) => I.rede_por_mes[m]);
+  const grafico = meses.map((m) => ({
+    r: rot(m),
+    vencido: Math.round(I.rede_por_mes[m].vencido),
+    royalty: Math.round(I.rede_por_mes[m].royalty),
+  }));
+  const pctTxt = (a: number, b: number) => (b ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "—");
+
+  return (
+    <>
+      <KpiGrade colunas={4}>
+        <KpiCard
+          rotulo="Unidades devem à Partners"
+          valor={brlOuTraco(devem)}
+          nota="vencido hoje · já está na DRE, falta no caixa"
+          tom={devem > 0 ? "perigo" : "sucesso"}
+        />
+        <KpiCard rotulo="Desse, há mais de 60 dias" valor={brlOuTraco(mais60)} nota={pctTxt(mais60, devem) + " do vencido"} />
+        <KpiCard
+          rotulo="Clientes devem às unidades"
+          valor={brlOuTraco(vencRede)}
+          nota={`vencido em ${new Date().getFullYear()} · ${pctTxt(vencRede, fatRede)} do faturado`}
+        />
+        <KpiCard
+          rotulo="Royalty que não entrou"
+          valor={brlOuTraco(royalty)}
+          nota={royAno ? `${pctTxt(royalty, royAno + royalty)} dos royalties do período` : "% da unidade sobre o vencido"}
+        />
+      </KpiGrade>
+
+      <Secao
+        titulo="Quanto as unidades devem à Partners?"
+        sub="Títulos da Partners para as unidades vencidos e não pagos, por faixa de atraso. Pelo Omie da Partners, hoje."
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Unidade</th>
+                <th className="py-2 text-right font-medium">Até 30 dias</th>
+                <th className="py-2 text-right font-medium">31 a 60</th>
+                <th className="py-2 text-right font-medium">61 a 90</th>
+                <th className="py-2 text-right font-medium">Mais de 90</th>
+                <th className="py-2 text-right font-medium">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {I.unidades_partners.map((u) => (
+                <tr key={u.unidade} className="border-b">
+                  <td className="py-1.5">{u.unidade}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(u.ate30)}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(u.d31_60)}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(u.d61_90)}</td>
+                  <td className={cn("py-1.5 text-right", u.mais90 > 0 && "text-danger")}>{brlOuTraco(u.mais90)}</td>
+                  <td className="py-1.5 text-right font-medium">{brlOuTraco(u.total)}</td>
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <td className="py-2">Total</td>
+                <td className="py-2 text-right">{brlOuTraco(I.unidades_partners.reduce((s, x) => s + x.ate30, 0))}</td>
+                <td className="py-2 text-right">{brlOuTraco(I.unidades_partners.reduce((s, x) => s + x.d31_60, 0))}</td>
+                <td className="py-2 text-right">{brlOuTraco(I.unidades_partners.reduce((s, x) => s + x.d61_90, 0))}</td>
+                <td className="py-2 text-right">{brlOuTraco(I.unidades_partners.reduce((s, x) => s + x.mais90, 0))}</td>
+                <td className="py-2 text-right">{brlOuTraco(devem)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Por tipo de cobrança:{" "}
+          {[...cats.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => `${k} ${brlOuTraco(v)}`)
+            .join(" · ")}
+        </p>
+      </Secao>
+
+      <Secao
+        titulo="Os clientes que não pagam as unidades estão reduzindo meus royalties?"
+        sub="Títulos dos clientes de cada unidade vencidos no ano e não pagos (cancelados fora). O royalty é % do que o cliente paga, então o vencido é royalty que não entrou, ou que entra atrasado se o cliente pagar."
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Unidade</th>
+                <th className="py-2 text-right font-medium">Faturado aos clientes</th>
+                <th className="py-2 text-right font-medium">Vencido sem pagamento</th>
+                <th className="py-2 text-right font-medium">% inadimplência</th>
+                <th className="py-2 text-right font-medium">% royalty</th>
+                <th className="py-2 text-right font-medium">Royalty que não entrou</th>
+              </tr>
+            </thead>
+            <tbody>
+              {I.rede.map((u) => (
+                <tr key={u.unidade} className="border-b">
+                  <td className="py-1.5">{u.unidade}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(u.faturado)}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(u.vencido)}</td>
+                  <td className="py-1.5 text-right">{pctTxt(u.vencido, u.faturado)}</td>
+                  <td className="py-1.5 text-right">{u.pct_royalty ? `${u.pct_royalty}%` : "—"}</td>
+                  <td className="py-1.5 text-right font-medium">{brlOuTraco(u.royalty)}</td>
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <td className="py-2">Rede</td>
+                <td className="py-2 text-right">{brlOuTraco(fatRede)}</td>
+                <td className="py-2 text-right">{brlOuTraco(vencRede)}</td>
+                <td className="py-2 text-right">{pctTxt(vencRede, fatRede)}</td>
+                <td />
+                <td className="py-2 text-right">{brlOuTraco(royalty)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {grafico.length > 0 && (
+          <div className="h-64">
+            <ResponsiveContainer>
+              <ComposedChart data={grafico} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+                <CartesianGrid {...gradeProps} />
+                <XAxis dataKey="r" {...eixoProps} />
+                <YAxis yAxisId="v" {...eixoProps} tickFormatter={mil} width={64} />
+                <YAxis yAxisId="r" orientation="right" {...eixoProps} tickFormatter={mil} width={56} />
+                <Tooltip {...tooltipProps} formatter={(v: number, n: string) => [brlOuTraco(v), n]} />
+                <Legend {...legendaProps} />
+                <Bar yAxisId="v" dataKey="vencido" name="Vencido sem pagamento (por mês de vencimento)" fill={CORES_SERIE[3]} radius={3} isAnimationActive={false} />
+                <Line yAxisId="r" dataKey="royalty" name="Royalty que não entrou" stroke="var(--danger)" strokeWidth={2} dot isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {I.sem_dado.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Sem contas a receber sincronizadas no Ops: {I.sem_dado.join(", ")}. Essas unidades ficam fora da conta.
+          </p>
+        )}
+      </Secao>
     </>
   );
 }

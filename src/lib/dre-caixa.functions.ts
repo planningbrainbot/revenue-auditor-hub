@@ -68,6 +68,23 @@ export interface DreCaixa {
    * elegível sem churn. `estimado` usa o MRR quando o card ainda não tem honorário.
    * Ausente nos retratos anteriores a 16/10/2026.
    */
+  /** Ausente nos retratos anteriores a 16/10/2026. */
+  inadimplencia?: {
+    /** (A) o que cada unidade deve à Partners, vencido, por faixa de atraso. */
+    unidades_partners: {
+      unidade: string;
+      ate30: number;
+      d31_60: number;
+      d61_90: number;
+      mais90: number;
+      total: number;
+      categorias: Record<string, number>;
+    }[];
+    /** (B) clientes da rede com as unidades no ano: faturado, pago, vencido e o royalty que não entrou. */
+    rede: { unidade: string; pct_royalty: number; faturado: number; pago: number; vencido: number; royalty: number }[];
+    rede_por_mes: Record<string, { faturado: number; pago: number; vencido: number; royalty: number }>;
+    sem_dado: string[];
+  };
   cac?: Record<
     string,
     { vendas: number; cobrado: number; a_cobrar: number; estimado: number; churn: number }
