@@ -75,3 +75,54 @@ As mesmas das outras duas abas: `view.monetizacao` **e** escopo de todas as unid
 Financeiro. A aba lê os dois RPCs que já existem (`ops.cruzamento_consultoria_painel()` e
 `ops.handoff_consultoria_painel()`); a migration `20261006200000` só acrescenta ao primeiro a UF, o município, o CNAE,
 a situação na Receita e o crédito aprovado, o saldo e a última recuperação, que já vinham na cópia da API.
+
+## Ficha completa da plataforma (16/10/2026)
+
+**Pedido do dono em 16/10/2026:** "Eu quero basicamente puxar todas as infos do cliente que eu pesquiso sem precisar
+entrar na plataforma do Pedro. Garanta isso." Decisões do dono no mesmo dia: login técnico só de leitura na
+plataforma e publicação direta depois de conferir.
+
+**O que faltava.** A API `api-comercial` manda o cadastro, a etapa e o valor dos projetos, o crédito somado e só as
+propostas em negociação. A plataforma tem mais, e nada disso aparecia: as teses uma a uma (332 empresas), os
+gestores (404) e o canal (379) de cada projeto, as faturas e os recebimentos da Consultoria (132), o estoque de
+crédito mês a mês (124), as propostas aceitas e perdidas (77), os follow-ups (61), o histórico de etapas, 77 projetos
+sem CNPJ e 239 teses importadas sem projeto.
+
+**Fonte nova.** `ops.consultoria_plataforma`, espelho de 23 tabelas da plataforma (Supabase do Pedro Siqueira),
+lido a cada 15 min pela Edge Function `consultoria-plataforma-sync` com o login técnico
+planning.brain.bot@gmail.com, papel Comercial (vê toda a PAT; não vê 4 lançamentos da PAC). A cópia da API
+(`consultoria-sync`) passou de hora em hora para a cada 15 min.
+
+**Leituras.**
+- `ops.consultoria_plataforma_indice()`: o que a busca acrescenta. São os projetos sem cliente, as teses sem projeto
+  (agrupadas pelo nome) e as propostas de todos os status.
+- `ops.consultoria_empresa_ficha(cliente_ids, cnpjs, nomes)`: tudo da empresa aberta. Mesma porta das outras abas
+  (`view.monetizacao` e todas as unidades). Faturas e recebimentos da Consultoria só com a porta do Financeiro.
+
+**Réguas novas.**
+- **Busca.** Proposta casa pelo cliente da plataforma; sem ele, pelo CNPJ, pela raiz e pelo nome. Se não casar,
+  vira uma ficha própria (`empresa=proposta:<nome>`). Projeto sem cliente e tese sem projeto casam pelo nome
+  normalizado (sem acento nem pontuação) com uma ficha que já existe; se não casarem, viram
+  `projeto:<nome>` e `tese:<nome>`.
+- **Situação.** Duas situações novas antes de "Encaminhada, fora da plataforma":
+  - "Projeto sem CNPJ": um projeto da plataforma sem cliente casou pelo nome;
+  - "Proposta da Consultoria" e "Teses sem projeto": só a proposta ou só as teses.
+- **Ficha.** Projeto sem cliente e sem CNPJ entra na ficha cujo nome (razão ou fantasia) é igual ao nome ou ao
+  apelido dele. Exemplo: o projeto "YELLOT" cai na Bouhid Brasil Engenharia, de fantasia Yellot. Estoque entra pelo
+  cliente, pelo CNPJ ou pelo projeto. Fatura e recebimento entram pelo CNPJ ou pela proposta.
+- **Valor identificado.** É a soma das teses dos projetos, fora as declinadas e as baixadas. É a mesma conta da API:
+  bate em 642 de 642 projetos, conferido em 16/10. Tese sem projeto aparece na ficha, mas não entra nessa soma.
+
+**Blocos novos da ficha** (abaixo dos quatro números):
+- Projetos na Consultoria: etapa, prazo na etapa contra a meta, responsável, gestores, canal, parceiro, teses e
+  expectativa por área. Projeto baixado fica recolhido.
+- Teses identificadas: total por status e as teses sem projeto.
+- Propostas de todos os status: valor, êxito, follow-up e motivo da perda.
+- Crédito em estoque: aprovado, usado, saldo, êxito e compensações mês a mês.
+- Faturas e recebimentos da Consultoria: faturado, recebido, a receber e em atraso.
+- Follow-ups e histórico na plataforma.
+
+Se a leitura completa falhar, a ficha avisa e mostra só o que a API manda, como antes.
+
+**Conferência.** `monetizacao/medicoes/2026-10-16-consultoria-ficha/conferir.py` compara, cliente a cliente, o RPC
+(como o dono) com a plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.

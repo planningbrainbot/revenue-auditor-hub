@@ -3,6 +3,7 @@
 // abas já leem — a plataforma da Consultoria, as propostas, os negócios ganhos e a PAT (RPC do Cruzamento) e o
 // onboarding (RPC do Handoff) — e responde "qual é o estado desta empresa na Consultoria?".
 import type { ClienteBruto, PainelBruto } from "./handoff-consultoria.ts";
+import type { IndicePlataforma } from "./consultoria-ficha.ts";
 import {
   montarCruzamento,
   type Cliente,
@@ -13,6 +14,9 @@ import {
 } from "./cruzamento-consultoria.ts";
 
 export type TomSituacao = "sucesso" | "info" | "atencao" | "perigo" | "neutro";
+
+/** Projeto da plataforma sem cliente cadastrado (sem CNPJ): casa com a empresa só pelo nome. */
+export type ProjetoSemCliente = IndicePlataforma["projetos_sem_cliente"][number];
 
 export interface MesPatEmpresa {
   mes: string;
@@ -34,6 +38,8 @@ export interface Empresa {
   propostas: Proposta[];
   negocios: Negocio[];
   onboarding: ClienteBruto[];
+  /** O que a plataforma tem sem cliente nem CNPJ e casou pelo nome: projetos e teses importadas sem projeto. */
+  semCadastro: { projetos: ProjetoSemCliente[]; teses: number; valorTeses: number };
   /** PAT por mês (CNPJ exato; sem ele, a raiz). `null` sem a porta do Financeiro. */
   pat: MesPatEmpresa[] | null;
   situacao: { rotulo: string; tom: TomSituacao; detalhe: string };
@@ -46,6 +52,15 @@ const num = (v: unknown) => {
 };
 export const semAcento = (s: string | null | undefined) =>
   (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+/** O mesmo nome normalizado de ops.consultoria_nome_norm: sem acento, só letras e números. */
+export const nomeNorm = (s: string | null | undefined) =>
+  semAcento(s).replace(/[^a-z0-9]+/g, " ").trim();
+
+const STATUS_PROPOSTA: Record<string, string> = {
+  em_negociacao: "em negociação",
+  aceita: "aceita",
+  perdida: "perdida",
+};
 
 const ETAPA: Record<string, string> = {
   fila_processamento: "Fila de Processamento",
@@ -98,6 +113,23 @@ export function situacaoDa(e: Omit<Empresa, "situacao">): Empresa["situacao"] {
       detalhe: "na plataforma, ainda sem projeto",
     };
   }
+  const semCli = e.semCadastro.projetos;
+  if (semCli.length) {
+    const aberto = semCli
+      .filter((p) => !p.baixado)
+      .sort((a, b) => (b.data_entrada ?? "").localeCompare(a.data_entrada ?? ""))[0];
+    return aberto
+      ? {
+          rotulo: "Projeto sem CNPJ",
+          tom: "atencao",
+          detalhe: `projeto em ${rotuloEtapa(aberto.etapa)} na plataforma, sem cliente cadastrado`,
+        }
+      : {
+          rotulo: "Projeto sem CNPJ",
+          tom: "neutro",
+          detalhe: "projeto baixado na plataforma, sem cliente cadastrado",
+        };
+  }
   if (e.onboarding.some((o) => o.encaminhado === "Sim"))
     return {
       rotulo: "Encaminhada, fora da plataforma",
@@ -106,6 +138,21 @@ export function situacaoDa(e: Omit<Empresa, "situacao">): Empresa["situacao"] {
     };
   if (e.onboarding.length)
     return { rotulo: "No onboarding", tom: "neutro", detalhe: "ainda não chegou à Consultoria" };
+  if (!e.negocios.length && e.propostas.length) {
+    const st = e.propostas.map((p) => p.status);
+    const status = st.includes("em_negociacao") ? "em_negociacao" : st.includes("aceita") ? "aceita" : st[0];
+    return {
+      rotulo: "Proposta da Consultoria",
+      tom: status === "em_negociacao" ? "info" : status === "aceita" ? "sucesso" : "neutro",
+      detalhe: `proposta ${STATUS_PROPOSTA[status ?? ""] ?? status ?? "sem status"}, sem cadastro na plataforma`,
+    };
+  }
+  if (!e.negocios.length && e.semCadastro.teses)
+    return {
+      rotulo: "Teses sem projeto",
+      tom: "neutro",
+      detalhe: "teses importadas na plataforma, sem projeto nem cadastro",
+    };
   return {
     rotulo: "Vendida, fora da plataforma",
     tom: "neutro",
@@ -118,6 +165,7 @@ export function indiceEmpresas(
   cruzamento: CruzamentoBruto,
   handoff: PainelBruto | null,
   hoje: string,
+  plataforma: IndicePlataforma | null = null,
 ): Empresa[] {
   const p = montarCruzamento(cruzamento, hoje);
   const apiPorId = new Map((cruzamento.clientes ?? []).map((c) => [String(c.id), c]));
@@ -133,6 +181,7 @@ export function indiceEmpresas(
     propostas: [],
     negocios: [],
     onboarding: [],
+    semCadastro: { projetos: [], teses: 0, valorTeses: 0 },
     pat: null,
   });
   // Raiz → cliente da plataforma: o onboarding e o negócio com o CNPJ de uma filial caem na ficha da empresa que
@@ -173,22 +222,79 @@ export function indiceEmpresas(
     e.negocios.push(n);
     if (n.organizacao && !e.nomes.includes(n.organizacao)) e.nomes.push(n.organizacao);
   }
-  // Propostas: CNPJ exato; sem ele, a raiz de uma empresa com CNPJ; sem CNPJ, o nome igual ao de uma empresa.
+  // Propostas: o cliente da plataforma; sem ele, o CNPJ exato, a raiz de uma empresa com CNPJ e o nome igual ao de
+  // uma empresa. Com o espelho da plataforma, entram as propostas de todos os status (a API manda só as em
+  // negociação), e a que não casa com ninguém vira uma ficha própria pelo nome.
   const porRaiz = new Map<string, Omit<Empresa, "situacao">>();
   const porNome = new Map<string, Omit<Empresa, "situacao">>();
+  const porCliente = new Map<string, Omit<Empresa, "situacao">>();
+  const indexarNome = (e: Omit<Empresa, "situacao">) => {
+    for (const n of e.nomes) {
+      const k = nomeNorm(n);
+      if (k && !porNome.has(k)) porNome.set(k, e);
+    }
+  };
   for (const e of porChave.values()) {
     if (e.raiz && !porRaiz.has(e.raiz)) porRaiz.set(e.raiz, e);
-    for (const n of e.nomes) if (!porNome.has(semAcento(n))) porNome.set(semAcento(n), e);
+    if (e.plataforma) porCliente.set(String(e.plataforma.cliente.id), e);
+    indexarNome(e);
   }
   const porCnpj = new Map<string, Omit<Empresa, "situacao">>();
   for (const e of porChave.values())
     for (const c of e.cnpjs) if (!porCnpj.has(c)) porCnpj.set(c, e);
-  for (const pr of p.propostas) {
+  /** Fica com a ficha de mesmo nome ou abre uma nova (`<tipo>:<nome normalizado>`). */
+  const peloNome = (tipo: string, nome: string) => {
+    const k = nomeNorm(nome);
+    let e = k ? porNome.get(k) : undefined;
+    if (!e) {
+      const chave = `${tipo}:${k || "sem-nome"}`;
+      e = porChave.get(chave);
+      if (!e) {
+        e = nova(chave, nome, null);
+        porChave.set(chave, e);
+        indexarNome(e);
+      }
+    }
+    return e;
+  };
+  const propostas: (Proposta & { clienteId?: string | null })[] = plataforma
+    ? plataforma.propostas.map((x) => ({
+        id: x.id,
+        empresa: x.empresa ?? "",
+        cnpj: so(x.cnpj) || null,
+        produto: x.produto,
+        status: x.status,
+        exito:
+          x.percentual_exito === null || x.percentual_exito === undefined
+            ? null
+            : num(x.percentual_exito),
+        valorTotal: x.valor_total === null || x.valor_total === undefined ? null : num(x.valor_total),
+        envio: x.data_envio ? x.data_envio.slice(0, 10) : null,
+        clienteId: x.cliente_id,
+      }))
+    : p.propostas;
+  for (const pr of propostas) {
     const alvo =
+      (pr.clienteId && porCliente.get(pr.clienteId)) ||
       (pr.cnpj && porCnpj.get(pr.cnpj)) ||
       (pr.cnpj && pr.cnpj.length === 14 && porRaiz.get(pr.cnpj.slice(0, 8))) ||
-      porNome.get(semAcento(pr.empresa));
+      porNome.get(nomeNorm(pr.empresa)) ||
+      (plataforma && pr.empresa ? peloNome("proposta", pr.empresa) : null);
     if (alvo) alvo.propostas.push(pr);
+  }
+  // Projetos sem cliente e teses sem projeto: só o nome.
+  for (const pj of plataforma?.projetos_sem_cliente ?? []) {
+    const nome = pj.nome ?? pj.apelido;
+    if (!nome) continue;
+    const e =
+      (pj.apelido && porNome.get(nomeNorm(pj.apelido))) || peloNome("projeto", nome);
+    e.semCadastro.projetos.push(pj);
+    if (pj.apelido && !e.nomes.includes(pj.apelido)) e.nomes.push(pj.apelido);
+  }
+  for (const t of plataforma?.teses_sem_projeto ?? []) {
+    const e = peloNome("tese", t.empresa);
+    e.semCadastro.teses += t.teses;
+    e.semCadastro.valorTeses += num(t.valor);
   }
   // PAT por mês: CNPJ exato; sem ele, a raiz (a mesma regra do Handoff).
   const pat = cruzamento.porta_financeiro.aberta ? (cruzamento.pat ?? []) : null;
