@@ -5,9 +5,10 @@ import {
   ApuracaoRoyaltiesContent,
   CHAVES_FILTRO_APURACAO,
 } from "@/components/royalties/apuracao-royalties-content";
+import { CHAVES_FILTRO_HISTORICO } from "@/components/royalties/historico-repasse";
 import { MolduraReceita, SeletorMes, useMesNaUrl } from "@/components/receita/moldura";
 
-const CHAVES_BUSCA = ["mes", ...CHAVES_FILTRO_APURACAO] as const;
+const CHAVES_BUSCA = ["mes", ...CHAVES_FILTRO_APURACAO, ...CHAVES_FILTRO_HISTORICO] as const;
 type ChaveBusca = (typeof CHAVES_BUSCA)[number];
 
 export const Route = createFileRoute("/_authenticated/unidades/royalties")({

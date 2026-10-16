@@ -31,6 +31,7 @@ import {
   type TomStatus,
 } from "@/components/planning";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
+import { HistoricoRepasse } from "@/components/royalties/historico-repasse";
 import {
   brlOuTraco,
   ErroDaConsulta,
@@ -388,6 +389,8 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
           </KpiGrade>
         </Secao>
       )}
+
+      <HistoricoRepasse mes={mes} />
 
       {!error && (
         <Secao
