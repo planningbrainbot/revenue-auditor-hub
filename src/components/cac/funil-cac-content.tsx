@@ -243,6 +243,10 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
   const churnACobrar = soma((r) => r.churn_a_cobrar);
   const churnCobrado = soma((r) => r.churn_cobrado);
   const aCobrar = soma((r) => r.a_cobrar) - churnACobrar;
+  // O que foi cobrado de churn antes do 1º fee volta para a unidade como
+  // crédito e abate o saldo de CAC (estorno no extrato do broker, regra de
+  // 16/10/2026). O "Cobrado" mostra o líquido para não contar esse dinheiro.
+  const cobradoLiquido = cobrado - churnCobrado;
 
   // O funil anda em cima das vendas ELEGÍVEIS: unidade que cobra CAC e venda
   // depois de `cac_desde`. Sem esse recorte, São Bernardo (não cobra) e as
@@ -254,7 +258,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
     const comCard = vendas.filter(
       (r) => r.cac_card_id != null && r.etapa !== "card_em_outra_unidade",
     );
-    const cobradas = comCard.filter((r) => Number(r.cobrado ?? 0) > 0);
+    const cobradas = comCard.filter((r) => !r.churn && Number(r.cobrado ?? 0) > 0);
     const passo = (rotulo: string, rs: Linha[], valor?: number) => ({
       rotulo,
       n: rs.length,
@@ -427,7 +431,15 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
         ) : (
           <KpiGrade>
             <KpiCard rotulo="Honorário apurado nos cards" valor={fmtBRL(honorario)} />
-            <KpiCard rotulo="Cobrado" valor={fmtBRL(cobrado)} nota="o que entrou nos cards de cobrança" />
+            <KpiCard
+              rotulo="Cobrado"
+              valor={fmtBRL(cobradoLiquido)}
+              nota={
+                churnCobrado > 0
+                  ? `líquido de ${fmtBRL(churnCobrado)} de crédito por churn`
+                  : "o que entrou nos cards de cobrança"
+              }
+            />
             <KpiCard
               rotulo="A cobrar"
               valor={fmtBRL(aCobrar)}
@@ -451,7 +463,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
               nota={
                 <>
                   {fmtBRL(churnACobrar)} que não entram
-                  {churnCobrado > 0 ? ` · ${fmtBRL(churnCobrado)} já cobrados` : ""}
+                  {churnCobrado > 0 ? ` · ${fmtBRL(churnCobrado)} cobrados viram crédito da unidade` : ""}
                 </>
               }
               abrir={{
@@ -663,7 +675,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
               <div className="num flex flex-wrap gap-6 text-sm">
                 <div>
                   <span className="text-muted-foreground">Cobrado: </span>
-                  <span className="font-semibold">{fmtBRL(cobrado)}</span>
+                  <span className="font-semibold">{fmtBRL(cobradoLiquido)}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">A cobrar: </span>
@@ -785,7 +797,14 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
                         )}
                       </TableCell>
                       <TableCell className="num text-right">{fmtBRL(r.honorario)}</TableCell>
-                      <TableCell className="num text-right">{fmtBRL(r.cobrado)}</TableCell>
+                      <TableCell className="num text-right">
+                        {fmtBRL(Number(r.cobrado) - Number(r.churn_cobrado))}
+                        {Number(r.churn_cobrado) > 0 && (
+                          <span className="block text-xs text-muted-foreground">
+                            crédito de {fmtBRL(r.churn_cobrado)}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="num text-right font-medium">
                         {fmtBRL(Number(r.a_cobrar) - Number(r.churn_a_cobrar))}
                       </TableCell>
@@ -836,7 +855,16 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
                         {r.etapa === "card_em_outra_unidade" && ` (em ${r.unidade_card})`}
                       </TableCell>
                       <TableCell className="num text-right">{fmtBRL(r.honorario)}</TableCell>
-                      <TableCell className="num text-right">{fmtBRL(r.cobrado)}</TableCell>
+                      <TableCell className="num text-right">
+                        {r.churn && Number(r.cobrado ?? 0) > 0 ? (
+                          <span title="Cobrado de churn antes do 1º fee: volta para a unidade como crédito">
+                            {fmtBRL(r.cobrado)}
+                            <span className="block text-xs text-muted-foreground">crédito da unidade</span>
+                          </span>
+                        ) : (
+                          fmtBRL(r.cobrado)
+                        )}
+                      </TableCell>
                       <TableCell className="num text-right">
                         {/* Churn antes do 1º fee não entra no "A cobrar" do card:
                             a linha diz isso em vez de mostrar um valor que não soma. */}
