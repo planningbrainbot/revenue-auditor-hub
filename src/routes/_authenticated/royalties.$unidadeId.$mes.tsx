@@ -91,6 +91,7 @@ import {
   type MotivoExclusaoRoyalties,
   MOTIVOS_CHURN,
   type MotivoChurn,
+  EDITAR_ROYALTIES,
 } from "@/lib/royalties.functions";
 import {
   useAddItem,
@@ -217,8 +218,9 @@ function AvisoConfirmacao({ children }: { children: React.ReactNode }) {
 function ApuracaoPage() {
   const { unidadeId, mes } = Route.useParams();
   const navigate = useNavigate();
-  const { isAdmin, can, loading } = usePermissions();
+  const { can, loading } = usePermissions();
   const podeVer = can("view.auditoria.royalties");
+  const podeEditar = can(EDITAR_ROYALTIES);
   const [apuracaoId, setApuracaoId] = useState<number | null>(null);
   const getOrCreate = useGetOrCreate();
   const gerar = useGerarItens();
@@ -240,7 +242,7 @@ function ApuracaoPage() {
         if (cancelled) return;
         setApuracaoId(res.apuracao_id);
         // Gerar itens grava: quem só lê vê a apuração como está.
-        if (isAdmin) await gerar.mutateAsync({ apuracao_id: res.apuracao_id });
+        if (podeEditar) await gerar.mutateAsync({ apuracao_id: res.apuracao_id });
       } catch (e: any) {
         if (!cancelled) toast.error(e.message ?? "Erro ao carregar apuração");
       }
@@ -249,7 +251,7 @@ function ApuracaoPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unidadeIdNum, mes, isAdmin, podeVer, validUnidade, validMes]);
+  }, [unidadeIdNum, mes, podeEditar, podeVer, validUnidade, validMes]);
 
   // A lista de origem, no mesmo mês: voltar sem o mês abria no mês padrão e o
   // total não batia com o que a pessoa acabou de conferir.
@@ -325,7 +327,8 @@ function ApuracaoLoaded({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAdmin } = usePermissions();
+  const { isAdmin, can } = usePermissions();
+  const podeEditar = can(EDITAR_ROYALTIES);
   const { data, isLoading, error: erroApuracao, refetch } = useApuracao(apuracaoId);
   // Fatura do mês desta unidade (mesma consulta da lista): diz se já saiu no
   // Omie, para o Reabrir avisar e o Emitir não aparecer duas vezes.
@@ -470,9 +473,9 @@ function ApuracaoLoaded({
 
   const { apuracao, itens, outrasReceitasItens } = data;
   const u = apuracao.unidade;
-  // Sem admin a ficha é só leitura: toda escrita é recusada no servidor.
+  // Sem a chave de edição a ficha é só leitura: toda escrita é recusada no servidor.
   const readOnly =
-    !isAdmin || apuracao.status === "confirmado" || apuracao.status === "faturado";
+    !podeEditar || apuracao.status === "confirmado" || apuracao.status === "faturado";
   const isCscVariavel = u.csc_percentual_base_antiga != null;
   const pctPadrao = Number(u.royalties_percentual ?? 0);
 
@@ -762,7 +765,7 @@ function ApuracaoLoaded({
         <FileSpreadsheet className="h-4 w-4" aria-hidden />
         Demonstrativo (Excel)
       </Button>
-      {isAdmin && botaoReabrir}
+      {podeEditar && botaoReabrir}
       {isAdmin && (!faturaSaiu || emissaoAberta) && (
         <EmitirFaturasDialog
           competencia={mes}
@@ -984,9 +987,10 @@ function ApuracaoLoaded({
             toggleCac={toggleCac}
             setCacParcela={setCacParcela}
             onDelete={handleDeleteManual}
-            onMarcarChurn={handleMarcarChurn}
+            // Churn e CNPJ mexem no cadastro do cliente: seguem só do admin.
+            onMarcarChurn={isAdmin ? handleMarcarChurn : undefined}
             churnPending={marcarChurn.isPending}
-            onEditarCnpj={handleSalvarCnpj}
+            onEditarCnpj={isAdmin ? handleSalvarCnpj : undefined}
             editarCnpjPending={atualizarCnpj.isPending || regerar.isPending || gerar.isPending}
             onExcluir={handleExcluir}
             excluirPending={excluirItem.isPending}
@@ -1596,8 +1600,10 @@ function FiliaisCell({
   readOnly: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // O vínculo de filiais é cadastro do contrato e segue só do admin.
+  const { isAdmin } = usePermissions();
   // Não exibir em itens manuais, sem contrato, sem omie na unidade, ou em apuração fechada
-  if (!temOmie || readOnly || it.fonte === "manual" || it.contrato_id == null) {
+  if (!isAdmin || !temOmie || readOnly || it.fonte === "manual" || it.contrato_id == null) {
     return <span className="text-muted-foreground">—</span>;
   }
   const count = it.filiais_count ?? 0;

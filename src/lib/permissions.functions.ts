@@ -533,6 +533,13 @@ export const KNOWN_PERMISSIONS: {
     group: "Administração",
   },
   {
+    key: "edit.royalties.apuracao",
+    label: "Editar apuração de royalties",
+    description:
+      "Lançar, editar, fechar e reabrir a apuração de royalties. Área própria, fora da Receita. Emitir a fatura no Omie segue só do admin.",
+    group: "Receita",
+  },
+  {
     key: "manage.unidades_rede",
     label: "Cadastrar e editar unidades",
     description:

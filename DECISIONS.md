@@ -5455,3 +5455,11 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 - Saem o cartão de Qualificação por unidade do mês e a tabela por produto. O comparativo por produto fica em "Em que etapa cada produto trava?". O estoque e ritmo passa a ocupar a linha inteira.
 
 **Conferido com a carga real (01 a 16/10, os dois pré-vendedores):** Abordados e Qualificação por unidade batem com o cartão antigo, unidade por unidade (Belém 7 de 24, Maceió 8 de 18, Goiânia 1 de 8…). O Total bate com o da tabela por produto que saiu (143 · 85 · 36 · 18 · 10 · 6 · 1).
+
+## [2026-10-16] Edição da apuração de royalties sem ser super admin
+
+- **Pedido:** liberar ao Luiz Pinho (financeiro) lançar, editar, fechar e reabrir a apuração de royalties sem dar a ele o Ops inteiro. Até aqui toda escrita exigia o papel `admin` em três lugares: `assertAdmin` no servidor, RLS `has_role(admin)` e a RPC `royalties_aplicar_contas_fixas`.
+- **Chave nova `edit.royalties.apuracao`, numa área própria `royalties_edicao`** (padrão `people_remuneracao`). Não entrou na `receita` porque lá iria para diretor, head, auditor e financeiro pelo papel (umas 16 pessoas). Pelo papel só o `admin` tem a área.
+- **Concessão pela delegação da área** (`area_admins`, nível admin), igual à que ele já tem na Receita. Chave pessoa a pessoa não serve: `usuario_chaves_usuario_so_consulta` só aceita `view.*`.
+- **O que a chave abre:** gerar itens, iniciar a apuração, editar item, lançar outras receitas, fechar, reabrir, excluir e reincluir item. **Segue só do admin:** emitir a fatura no Omie, mudar o CNPJ do contrato, marcar churn e vincular filiais (são cadastro, ou ação fiscal). A tela esconde esses quatro para quem não é admin.
+- **Onde:** `supabase/migrations/20261016120000_royalties_edicao_area.sql` (aplicada no banco em 16/10; conferido: só os 2 admins e o Luiz passam na chave), `src/lib/royalties.functions.ts`, `src/lib/permissions.functions.ts`, `src/routes/_authenticated/royalties.$unidadeId.$mes.tsx`, `src/components/royalties/apuracao-royalties-content.tsx`.

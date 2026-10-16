@@ -18,6 +18,7 @@ import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialo
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listarFaturasRoyalties, type FaturaDoMes } from "@/lib/royalties-faturamento.functions";
+import { EDITAR_ROYALTIES } from "@/lib/royalties.functions";
 import {
   BarraFiltros,
   Carregando,
@@ -245,8 +246,10 @@ export function motivoSemEmissao(
 
 export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
   const { isAdmin, can, loading } = usePermissions();
-  // Ler é da chave de royalties; emitir e iniciar apuração seguem com o admin.
+  // Ler é da chave de royalties; iniciar e editar, da chave de edição; emitir
+  // no Omie segue com o admin.
   const podeVer = can("view.auditoria.royalties");
+  const podeEditar = can(EDITAR_ROYALTIES);
   const { data, isLoading, error, refetch } = useRoyaltiesUnidades(mes);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -555,7 +558,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                                 variant="outline"
                                 size="sm"
                               />
-                            ) : !ap && !isAdmin ? (
+                            ) : !ap && !podeEditar ? (
                               <BotaoComMotivo
                                 rotulo="Sem apuração"
                                 motivo="A matriz ainda não iniciou a apuração desta unidade neste mês."
@@ -568,7 +571,7 @@ export function ApuracaoRoyaltiesContent({ mes }: { mes: string }) {
                                 to="/royalties/$unidadeId/$mes"
                                 params={{ unidadeId: String(u.id), mes }}
                               >
-                                {fechada || !isAdmin ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
+                                {fechada || !podeEditar ? "Ver apuração" : ap ? "Continuar" : "Iniciar apuração"}
                               </Link>
                             </Button>
                             )}

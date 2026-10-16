@@ -4,6 +4,11 @@ import { assertAdmin, assertCan, digits, ehSuperAdmin, monthRange } from "@/lib/
 
 const VER_ROYALTIES = "view.auditoria.royalties";
 const RECADO_VER = "você não tem acesso à apuração de royalties.";
+// Lançar, editar, fechar e reabrir. Área própria (`royalties_edicao`), não a
+// `receita`: lá iria para todo diretor e financeiro. CNPJ do contrato e churn
+// mexem em outro cadastro e seguem só do admin.
+export const EDITAR_ROYALTIES = "edit.royalties.apuracao";
+const RECADO_EDITAR = "necessário permissão para editar a apuração de royalties.";
 import { assertAffected } from "@/lib/supabase-assert";
 
 // ============ Types ============
@@ -930,7 +935,7 @@ export const gerarItensApuracao = createServerFn({ method: "POST" })
   .inputValidator((d: { apuracao_id: number; force?: boolean }) => d)
   .handler(async ({ data, context }): Promise<{ created: number; skipped: boolean }> => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     if (!data.force) {
       // Skip if items exist
@@ -958,7 +963,7 @@ export const garantirApuracoesAno = createServerFn({ method: "POST" })
   .inputValidator((d: { ano: number }) => d)
   .handler(async ({ data, context }): Promise<{ criadas: number }> => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const hoje = new Date();
     const anoAtual = hoje.getFullYear();
@@ -1127,7 +1132,7 @@ export const updateItem = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     // Bloqueia se apuração fechada
     const { data: item, error: e1 } = await supabase
@@ -1352,7 +1357,7 @@ export const addItemManual = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const { error } = await supabase.from("royalties_itens").insert({
       apuracao_id: data.apuracao_id,
@@ -1384,7 +1389,7 @@ export const updateApuracao = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     if ("csc_trafego_pago" in data) {
       const { data: atual, error: atualErr } = await supabase
         .from("royalties_apuracao")
@@ -1445,7 +1450,7 @@ export const addOutraReceitaItem = createServerFn({ method: "POST" })
   .inputValidator((d: { apuracao_id: number; nome: string; valor: number; observacao?: string | null }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     await assertApuracaoAberta(supabase, data.apuracao_id);
     if (!data.nome.trim()) throw new Error("Nome do item é obrigatório.");
     const { error } = await supabase.from("royalties_outras_receitas_itens").insert({
@@ -1466,7 +1471,7 @@ export const updateOutraReceitaItem = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     const { data: item, error: e1 } = await supabase
       .from("royalties_outras_receitas_itens")
       .select("apuracao_id")
@@ -1493,7 +1498,7 @@ export const deleteOutraReceitaItem = createServerFn({ method: "POST" })
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     const { data: item, error: e1 } = await supabase
       .from("royalties_outras_receitas_itens")
       .select("apuracao_id")
@@ -1516,7 +1521,7 @@ export const fecharApuracao = createServerFn({ method: "POST" })
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     // O boleto de contas fixas pode ter sido faturado depois de a apuração abrir.
     await aplicarContasFixas(supabase, data.id);
@@ -1634,7 +1639,7 @@ export const reabrirApuracao = createServerFn({ method: "POST" })
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     const result = await supabase
       .from("royalties_apuracao")
       .update({ status: "em_revisao", confirmado_em: null, confirmado_por: null })
@@ -1650,7 +1655,7 @@ export const deleteItem = createServerFn({ method: "POST" })
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     const { data: item, error: e1 } = await supabase
       .from("royalties_itens")
       .select("apuracao:royalties_apuracao!inner(status)")
@@ -1684,7 +1689,7 @@ export const excluirItemMes = createServerFn({ method: "POST" })
   .inputValidator((d: { item_id: number; motivo: string }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     if (!MOTIVOS_EXCLUSAO_ROYALTIES.includes(data.motivo as MotivoExclusaoRoyalties)) {
       throw new Error("Motivo da exclusão inválido.");
@@ -1722,7 +1727,7 @@ export const reincluirItemMes = createServerFn({ method: "POST" })
   .inputValidator((d: { item_id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const { data: item, error: e1 } = await supabase
       .from("royalties_itens")
