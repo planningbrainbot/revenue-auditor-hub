@@ -358,19 +358,29 @@ function Linha({
         <span className="num text-right text-base font-semibold text-foreground">
           {INT.format(linha.contagem)}
         </span>
-        <span className="truncate text-sm text-foreground">
-          {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
-          {inclui && <span className="ml-1.5 text-xs text-muted-foreground">{inclui}</span>}
+        {/* O "+N de abordagem anterior" vem antes do "inclui …" e não encolhe: o texto que corta é o "inclui". */}
+        <span className="flex min-w-0 items-baseline gap-1.5 text-sm text-foreground">
+          <span className="truncate">
+            {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
+          </span>
           {anteriores.length > 0 && (
             <button
               type="button"
               onClick={() =>
                 abrir(`${linha.nome} · de abordagem anterior, chegaram no período`, anteriores)
               }
-              className="relative z-10 ml-1.5 rounded-sm text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative z-10 shrink-0 whitespace-nowrap rounded-sm text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             >
               +{INT.format(anteriores.length)} de abordagem anterior
             </button>
+          )}
+          {inclui && (
+            <span
+              title={inclui}
+              className="min-w-0 shrink-[100] truncate text-xs text-muted-foreground"
+            >
+              {inclui}
+            </span>
           )}
         </span>
       </div>

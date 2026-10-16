@@ -19,7 +19,8 @@ export function resumoDaSelecao(
   todos: string,
   plural: string,
 ): string {
-  if (!valor.length) return todos;
+  // Tudo marcado é o mesmo recorte que nada marcado: diz "todos", sem parecer filtro aplicado.
+  if (!valor.length || opcoes.every((o) => valor.includes(o.valor))) return todos;
   const nomes = opcoes.filter((o) => valor.includes(o.valor)).map((o) => o.rotulo);
   if (nomes.length === 1) return nomes[0];
   if (nomes.length === 2 && nomes.join(" e ").length <= 26) return nomes.join(" e ");
@@ -60,6 +61,7 @@ export function SelecaoMultipla({
   const id = useId();
   const marcadas = new Set(valor);
   const resumo = resumoDaSelecao(opcoes, valor, todos, plural);
+  const filtra = valor.length > 0 && !opcoes.every((o) => valor.includes(o.valor));
   const visiveis = busca
     ? opcoes.filter((o) => semAcento(o.rotulo).includes(semAcento(busca)))
     : opcoes;
@@ -89,14 +91,14 @@ export function SelecaoMultipla({
             aria-labelledby={`${id}-rotulo ${id}-resumo`}
             className={cn(
               "flex h-9 min-w-44 max-w-64 items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-left text-[13px] font-medium text-foreground outline-none transition-colors duration-[120ms] hover:border-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-              valor.length > 0 && "border-primary",
+              filtra && "border-primary",
             )}
           >
             <span id={`${id}-resumo`} className="truncate">
               {resumo}
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
-              {valor.length > 1 && (
+              {filtra && valor.length > 1 && (
                 <span className="num rounded-full bg-primary/15 px-1.5 text-xs font-semibold text-primary-text">
                   {valor.length}
                 </span>
