@@ -5497,3 +5497,13 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 **Contexto:** depois de tirar o card Inadimplência, o dono pediu para tirar também a tabela "Quais clientes têm mais valor em atraso?".
 
 **Decisão:** sai a tabela e, com ela, a leitura de `contas_receber` da tela, que não tinha mais outro uso. O painel passa a ler só empresas, contratos, tratativas e pesquisas. O bloco "O que pede atenção?" fica com o card Clientes em risco (situação financeira do cadastro de empresas).
+
+## [2026-10-16] Unidades próprias de Goiânia: PAC, Marox e BPO Financeiro
+
+- PAC - Goiânia = unidade 9 "Goiânia": sem royalties, só CAC desde 01/09/2026 (mídia zerada).
+- Marox - Construção Civil = unidade 10 "Construção Civil": sem royalties, só mídia R$ 20.000/mês.
+- PNE - BPO Financeiro = unidade 19 "BPO Financeiro" (Pipedrive 1124, Planning Negócios Estruturados): sem royalties, mídia e CAC.
+- `nome_da_praca` não foi renomeado: casa contrato × unidade. `ops.cac_unidade_chave` lê "Matriz"/"Goiânia / Matriz" como Goiânia.
+- Migration `20261016200000_unidades_proprias_goiania.sql`, aplicada no banco único; rollback em `supabase/rollback/`.
+- BPO: mídia R$ 10.000/mês e CAC desde set/26, confirmados no mesmo dia.
+- Pendências: CNPJ da PNE, CNPJ cobrado da Marox.
