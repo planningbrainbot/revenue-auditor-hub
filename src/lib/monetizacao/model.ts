@@ -4,7 +4,17 @@ import { aplicarRegiaoFinance } from "./regiao.ts";
 import { doResponsavel } from "./responsavel.ts";
 import type { FunilCumulativo } from "./funil-cumulativo";
 import { NOMES, NOMES_ENVIO, PRODUTOS } from "./types.ts";
-import type { Conta, Metrica, Negocio, Oferta, Produto, ProdutoEnvio, Revisao } from "./types";
+import type {
+  Conta,
+  Metrica,
+  Negocio,
+  Oferta,
+  Produto,
+  ProdutoDoRecorte,
+  ProdutoEnvio,
+  Revisao,
+} from "./types";
+import { produtosDoRecorte } from "./types.ts";
 
 export const METRICAS: { key: Metrica; label: string }[] = [
   { key: "loaded", label: "Fila carregada" },
@@ -459,7 +469,8 @@ export interface Filtro {
   /** Uma pessoa; `null` com `owners` = a pré-venda inteira (responsavel.ts). */
   owner: number | null;
   owners?: readonly number[];
-  product: Produto | "";
+  /** "" = todos; um produto; ou vários (16/10/2026, `ProdutoDoRecorte`). */
+  product: ProdutoDoRecorte;
 }
 export function operacao(cards: Negocio[], f: Filtro) {
   const period = dias(f.from, f.to),
@@ -591,16 +602,17 @@ const mesLocal = (at: string) =>
  * - `semProduto`: aberto sem produto no campo nem no título; não entra em linha de produto
  *   nenhuma. Os fechados sem produto (a limpeza da API em 27/08–01/09) não pedem ação.
  */
-export function cadastroACorrigir(cards: Negocio[], product: Produto | "sem_produto" | "" = "") {
+export function cadastroACorrigir(cards: Negocio[], product: ProdutoDoRecorte = "") {
+  const ps = produtosDoRecorte(product);
   const doFiltro = (c: Negocio, titulo: Produto | null) =>
-    !product || c.route === product || titulo === product;
+    !ps.length || ps.includes(c.route) || (titulo !== null && ps.includes(titulo));
   const produtoDivergente = cards.filter((c) => {
     const titulo = produtoDoTitulo(c.title);
     return titulo !== null && titulo !== c.route && doFiltro(c, titulo);
   });
   const grupos = new Map<string, Negocio[]>();
   for (const c of cards)
-    if (c.org_id !== null && c.route !== "sem_produto" && (!product || c.route === product))
+    if (c.org_id !== null && c.route !== "sem_produto" && (!ps.length || ps.includes(c.route)))
       grupos.set(`${c.org_id}:${c.route}`, [...(grupos.get(`${c.org_id}:${c.route}`) ?? []), c]);
   const repetidos = [...grupos.values()]
     .map((g) =>

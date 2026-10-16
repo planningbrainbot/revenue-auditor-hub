@@ -91,8 +91,12 @@ export type BuscaMonetizacao = {
   de?: string;
   /** aaaa-mm-dd; padrão hoje (São Paulo). */
   ate?: string;
-  /** Produto do recorte; "caixa" só na aba Abordagens (roteiros do Caixa inteiro). */
-  produto?: ProdutoRoteiroUrl;
+  /**
+   * Produto do recorte. Abordagens: um só, e aceita "caixa" (roteiros do Caixa inteiro). Demais abas, desde
+   * 16/10/2026: um ou mais, separados por vírgula na ordem de `PRODUTOS_URL` ("cella,finance"); ler com
+   * `produtosDaBusca`.
+   */
+  produto?: string;
   /** aaaa-mm da tela Gravações (padrão: todos os meses). */
   mes?: string;
   /** Link antigo de uma tela que saiu do menu: a Operação diária (ou a Pré-venda) abre com o aviso. */
@@ -105,7 +109,10 @@ export type BuscaMonetizacao = {
   q?: string;
   /** Gravações: a reunião aberta na ficha. */
   reuniao?: string;
-  /** Handoff Consultoria: unidade do onboarding (nome em ops.unidades); ausente = todas. */
+  /**
+   * Handoff Consultoria: unidade do onboarding (nome em ops.unidades); ausente = todas. Operação: ids das unidades
+   * separados por vírgula ("9,10", 16/10/2026); ler com `unidadesDaBusca`.
+   */
   unidade?: string;
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
@@ -177,7 +184,9 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     de: ehData(s.de) ? s.de : undefined,
     ate: ehData(s.ate) ? s.ate : undefined,
     produto:
-      aba === "roteiros" ? umDe(PRODUTOS_ROTEIRO_URL, s.produto) : umDe(PRODUTOS_URL, s.produto),
+      aba === "roteiros"
+        ? umDe(PRODUTOS_ROTEIRO_URL, s.produto)
+        : produtosParaBusca(listaDeProdutos(s.produto)),
     mes: typeof s.mes === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.mes) ? s.mes : undefined,
     situacao: umDe(SITUACOES, s.situacao),
     atencao: umDe(FILTROS_ATENCAO, s.atencao),
@@ -185,9 +194,11 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
     q: typeof s.q === "string" && s.q.trim() ? s.q.trim().slice(0, 80) : undefined,
     reuniao: typeof s.reuniao === "string" && REUNIAO.test(s.reuniao) ? s.reuniao : undefined,
     unidade:
-      typeof s.unidade === "string" && s.unidade.trim() && s.unidade.length <= 60
+      typeof s.unidade === "string" && s.unidade.trim() && s.unidade.length <= 200
         ? s.unidade.trim()
-        : undefined,
+        : typeof s.unidade === "number" && Number.isInteger(s.unidade)
+          ? String(s.unidade)
+          : undefined,
     grafico:
       typeof s.grafico === "string" && /^[a-z0-9-]{1,60}$/.test(s.grafico) ? s.grafico : undefined,
     visao,
@@ -220,19 +231,52 @@ export function periodoDaBusca(b: BuscaMonetizacao): { from: string; to: string 
   return { from, to };
 }
 
+/** Lista de produtos da URL: vírgula, texto único ou array; fora de `PRODUTOS_URL` sai; ordem fixa, sem repetição. */
+function listaDeProdutos(v: unknown): ProdutoUrl[] {
+  const bruto = Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : [];
+  const marcados = new Set(bruto.map((x) => String(x).trim()));
+  return PRODUTOS_URL.filter((p) => marcados.has(p));
+}
+
+/** Produtos marcados na barra (16/10/2026). Vazio = todos. Abordagens ("caixa" ou um roteiro) não entra aqui. */
+export function produtosDaBusca(b: Pick<BuscaMonetizacao, "produto">): ProdutoUrl[] {
+  return b.produto === "caixa" ? [] : listaDeProdutos(b.produto);
+}
+
+/** Grava a seleção de produtos na URL: vazio sai da URL; a ordem é a de `PRODUTOS_URL`. */
+export function produtosParaBusca(ps: readonly ProdutoUrl[]): string | undefined {
+  const lista = listaDeProdutos([...ps]);
+  return lista.length ? lista.join(",") : undefined;
+}
+
+/** Unidades marcadas na Operação (ids, 16/10/2026). Vazio = todas. O nome da Consultoria não passa aqui. */
+export function unidadesDaBusca(b: Pick<BuscaMonetizacao, "unidade">): number[] {
+  const ids = (b.unidade ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => /^\d{1,9}$/.test(x))
+    .map(Number);
+  return [...new Set(ids)].sort((a, c) => a - c);
+}
+
+/** Grava as unidades da Operação na URL: vazio sai da URL. */
+export const unidadesParaBusca = (ids: readonly number[]): string | undefined =>
+  ids.length ? [...new Set(ids)].sort((a, c) => a - c).join(",") : undefined;
+
 /**
- * O mesmo `Filtro` que as visões sempre receberam. "sem_produto" passa como está: o model
- * compara `c.route === f.product`, então o recorte "Sem produto" funciona sem mudar cálculo.
+ * O mesmo `Filtro` que as visões sempre receberam. "sem_produto" passa como está: o model compara `c.route` com o
+ * produto, então o recorte "Sem produto" funciona sem mudar cálculo. Um produto passa como texto, como antes;
+ * vários passam como lista (16/10/2026).
  */
 export function filtroDaBusca(b: BuscaMonetizacao): Filtro {
   const { from, to } = periodoDaBusca(b);
+  const produtos = produtosDaBusca(b);
   return {
     from,
     to,
     owner: b.responsavel ?? null,
     owners: b.responsavel ? undefined : PRE_VENDA_IDS,
-    // "caixa" só existe na aba Abordagens, que não usa o filtro: aqui vale como "todos os produtos".
-    product: (b.produto === "caixa" ? "" : (b.produto ?? "")) as Produto | "",
+    product: (produtos.length > 1 ? produtos : (produtos[0] ?? "")) as Filtro["product"],
   };
 }
 

@@ -19,7 +19,8 @@
  * texto ("2026-09-01 10:00:00" < "2026-09-01T03:00:00Z" dava verdadeiro no script de referência).
  */
 import type { Filtro } from "./model";
-import type { Movimento, Negocio, Produto } from "./types";
+import type { Movimento, Negocio, Produto, ProdutoDoRecorte } from "./types";
+import { produtosDoRecorte } from "./types.ts";
 import { doResponsavel } from "./responsavel.ts";
 import {
   chaveDaEtapa,
@@ -326,17 +327,20 @@ export interface FunilCumulativo {
  * está no produto pela rota, por onde a empresa entrou, ou por ter sido ofertado no levantamento (Caixa · Produtos
  * ofertados). Card ofertado em dois produtos aparece nos dois; o total, sem filtro, não repete.
  */
-export const noProduto = (c: Negocio, product: Filtro["product"] | "sem_produto" | undefined) =>
-  !product || c.route === product || (c.offered ?? []).includes(product as Produto);
+export const noProduto = (c: Negocio, product: ProdutoDoRecorte | undefined) => {
+  const ps = produtosDoRecorte(product);
+  return !ps.length || ps.some((p) => c.route === p || (c.offered ?? []).includes(p as Produto));
+};
 
 /**
  * O levantamento ofertou outros produtos e não este: no funil da rota, o card para no levantamento realizado (chegou
- * até lá por este produto e seguiu por outro). Sem Produtos ofertados preenchido, vale a rota inteira, como antes.
+ * até lá por este produto e seguiu por outro). Sem Produtos ofertados preenchido, vale a rota inteira, como antes. Com
+ * vários produtos marcados (16/10/2026), para no levantamento só quando nenhum deles foi ofertado.
  */
-export const paraNoLevantamento = (
-  c: Negocio,
-  product: Filtro["product"] | "sem_produto" | undefined,
-) => !!product && !!c.offered?.length && !c.offered.includes(product as Produto);
+export const paraNoLevantamento = (c: Negocio, product: ProdutoDoRecorte | undefined) => {
+  const ps = produtosDoRecorte(product);
+  return ps.length > 0 && !!c.offered?.length && !ps.some((p) => c.offered!.includes(p as Produto));
+};
 
 const doProduto = (cards: Negocio[], f: Pick<Filtro, "product">) =>
   cards.filter((c) => noProduto(c, f.product));

@@ -19,7 +19,7 @@ import {
 } from "@/lib/monetizacao/fechamentos";
 import { reaisCurto } from "@/lib/monetizacao/model";
 import type { RecorteResponsavel } from "@/lib/monetizacao/responsavel";
-import { NOMES, type Negocio, type Produto } from "@/lib/monetizacao/types";
+import { NOMES, type Negocio, type Produto, type ProdutoDoRecorte } from "@/lib/monetizacao/types";
 
 const INT = new Intl.NumberFormat("pt-BR");
 const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -47,7 +47,7 @@ export function Fechamentos({
   cards: Negocio[];
   stages: Etapa[];
   hoje: string;
-  filtro: RecorteResponsavel & { product: Produto | "" };
+  filtro: RecorteResponsavel & { product: ProdutoDoRecorte };
   /** Previsão do Jev para os cards sem data esperada (vem da carga da Monetização). */
   previsoes?: PrevisaoJev[];
   abrir: Abrir;

@@ -13,7 +13,13 @@
  */
 import { noProduto, reguaDoPipe, type Etapa } from "./funil-cumulativo.ts";
 import { doResponsavel, type RecorteResponsavel } from "./responsavel.ts";
-import { PRODUTOS, type Negocio, type Produto } from "./types.ts";
+import {
+  PRODUTOS,
+  produtosDoRecorte,
+  type Negocio,
+  type Produto,
+  type ProdutoDoRecorte,
+} from "./types.ts";
 
 export type Horizonte = "atrasado" | "hoje" | "semana" | "mes" | "depois" | "semData";
 
@@ -164,7 +170,7 @@ export function forecastDeFechamento(
   cards: Negocio[],
   stages: Etapa[],
   hoje: string,
-  f: RecorteResponsavel & { product: Produto | "" },
+  f: RecorteResponsavel & { product: ProdutoDoRecorte },
   previsoes: PrevisaoJev[] = [],
 ): Forecast {
   const regua = reguaDoPipe(stages);
@@ -212,28 +218,29 @@ export function forecastDeFechamento(
   // que seguem abertos e ainda podem fechar no mês.
   const mes = hoje.slice(0, 7);
   const noMes: Horizonte[] = ["atrasado", "hoje", "semana", "mes"];
-  const receita: LinhaReceita[] = PRODUTOS.filter((p) => !f.product || p === f.product).map(
-    (produto) => {
-      const ganhos = cards.filter(
-        (c) =>
-          c.status === "won" &&
-          c.route === produto &&
-          (c.won_on ?? "").startsWith(mes) &&
-          doResponsavel(f, c.owner_id),
-      );
-      const esperados = itens.filter((i) => i.produto === produto && noMes.includes(i.horizonte));
-      return {
-        produto,
-        ganhos,
-        receitaGanha: ganhos.reduce((s, c) => s + (valorDoCard(c) ?? 0), 0),
-        ganhosSemValor: ganhos.filter((c) => valorDoCard(c) === null).length,
-        esperados,
-        receitaEsperada: esperados.reduce((s, i) => s + (i.valor ?? 0), 0),
-        esperadosSemValor: esperados.filter((i) => i.valor === null).length,
-        ticket: tickets.find((t) => t.produto === produto)!,
-      };
-    },
-  );
+  const marcados = produtosDoRecorte(f.product);
+  const receita: LinhaReceita[] = PRODUTOS.filter(
+    (p) => !marcados.length || marcados.includes(p),
+  ).map((produto) => {
+    const ganhos = cards.filter(
+      (c) =>
+        c.status === "won" &&
+        c.route === produto &&
+        (c.won_on ?? "").startsWith(mes) &&
+        doResponsavel(f, c.owner_id),
+    );
+    const esperados = itens.filter((i) => i.produto === produto && noMes.includes(i.horizonte));
+    return {
+      produto,
+      ganhos,
+      receitaGanha: ganhos.reduce((s, c) => s + (valorDoCard(c) ?? 0), 0),
+      ganhosSemValor: ganhos.filter((c) => valorDoCard(c) === null).length,
+      esperados,
+      receitaEsperada: esperados.reduce((s, i) => s + (i.valor ?? 0), 0),
+      esperadosSemValor: esperados.filter((i) => i.valor === null).length,
+      ticket: tickets.find((t) => t.produto === produto)!,
+    };
+  });
   return {
     hoje,
     fimDaSemana: fimDaSemana(hoje),

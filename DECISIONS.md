@@ -5373,3 +5373,30 @@ de fora: a porta de entrada não tem procedência para mostrar número.
 - telas: Clientes, Confiança (graus + correções) e Painel na lateral da área Base de clientes; Produtos e Listas em `/clientes/produtos` e `/clientes/listas`, só para quem tem a área Monetização; "Base de Contatos" sai do menu.
 
 **Desempenho:** a prova de cliente nova varria `ops.contratos` com `qb_so_digitos` para cada conta, a cada lote de 500 da atualização da carteira; com o banco saturado à tarde, os lotes chegaram a 30 s. Índices parciais e dois caminhos indexados (migration `20261015190000`) trouxeram os lotes para 7 a 15 s, perto do pico normal da tarde (ontem às 14h: 12 s).
+
+## [2026-10-16] Operação diária: um filtro só, com várias opções por filtro (revoga os filtros dentro do funil de 15/10)
+
+**Contexto:** o Pedro, em 16/10: "tem dois filtros redundantes em cima e embaixo no board. Quero um filtro só e quero poder sempre selecionar mais de uma opção [...] Ex: quero selecionar 2 produtos + 1 SDR + 4 unidades + data." Os controles de produto, pré-vendedor e unidade dentro do quadro "Onde a base avança e onde trava?" tinham entrado em 15/10, a pedido do Paulo (entrada "Forecast com previsão do Jev e funil com filtros no próprio quadro").
+
+**Decisão:**
+- **Um filtro só.** Saem os controles de dentro do funil. A barra do topo é o único filtro da tela. O quadro mantém a linha "Recorte:", que diz o que está aplicado.
+- **Várias opções.** Produto, Pré-vendedor e Unidade usam `SelecaoMultipla` (`components/planning/`):
+  - nada marcado vale como todos;
+  - opções do mesmo filtro somam; filtros diferentes se cruzam;
+  - cada linha tem "Só esta"; a lista de unidades tem busca;
+  - cada opção aplicada vira um chip removível abaixo da barra.
+- **URL:**
+  - `produto=finance,cella`, lista separada por vírgula na ordem de `PRODUTOS`; o link com um produto continua valendo;
+  - `unidade=9,10`, ids, só na Operação;
+  - `responsavel` segue um id. Com dois pré-vendedores, os dois marcados equivalem à pré-venda inteira e a chave sai. Com um terceiro, vira lista.
+  - Abordagens mantém um produto só (aceita `caixa`).
+- **Regra com vários produtos** (`noProduto` e `paraNoLevantamento` aceitam lista; tipo `ProdutoDoRecorte`):
+  - o card entra se estiver em qualquer produto marcado, pela rota ou por ter sido ofertado;
+  - para no levantamento só quando nenhum dos marcados foi ofertado;
+  - o total não repete card.
+  - Um produto passa como texto, como antes; só a seleção de dois ou mais passa como lista.
+- **Quadros por produto:** "Qual produto avança na base?" mostra só as linhas marcadas, com o Total quando houver mais de uma. "Em que etapa cada produto trava?" desenha só os marcados, mais o Total.
+
+**Conferido no mesmo dia:** o quadro mostrou 1 card na Qualificação em 15–16/10, e está certo pela régua da coorte. O card é o Groot Motors, da Heloá, abordado e qualificado em 15/10. Outros 4 cards entraram na Qualificação no período (Alagoas Combustíveis, Izapael/Merc Petrópolis, RJ Engenharia e Metropole), mas foram abordados em 13 e 14/10; estão em `avancosAnteriores`, e o quadro hoje só mostra "+N de abordagem anterior" no Ganho. Rodado com `funilCumulativo` sobre os 296 cards de `ops.monetizacao_deals` e conferido no fluxo do Pipedrive.
+
+**Onde:** `src/components/planning/selecao-multipla.tsx`, `src/components/monetizacao/{busca,dashboard,operacao,analysis,fechamentos}.ts(x)`, `src/lib/monetizacao/{types,model,funil-cumulativo,fechamentos}.ts`, vitrine (`SelecaoMultiplaExemplo`), adendo de 16/10 em `docs/design/contratos/monetizacao.md`.

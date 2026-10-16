@@ -41,7 +41,7 @@ import {
 import { abordagensPorDiaUtil, hoje, operacao } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
 import { salvarRegistroMonetizacao } from "@/lib/monetizacao/functions";
-import { NOMES, NOMES_ROTEIRO, PRODUTOS_ROTEIRO } from "@/lib/monetizacao/types";
+import { NOMES, NOMES_ROTEIRO, PRODUTOS_ROTEIRO, produtosDoRecorte } from "@/lib/monetizacao/types";
 import type {
   BaseMonetizacao,
   Metrica,
@@ -129,7 +129,8 @@ const juntarNotas = (...partes: (string | undefined | false | null)[]) =>
 const semHistoricoNoRecorte = (data: BaseMonetizacao, f: Filtro) =>
   data.cards.filter((c) => {
     if (c.history_known) return false;
-    if (f.product && c.route !== f.product) return false;
+    const ps = produtosDoRecorte(f.product);
+    if (ps.length && !ps.includes(c.route)) return false;
     if (f.owner && c.owner_id !== f.owner) return false;
     const carregado =
       c.events.loaded.map((e) => e.date).sort()[0] ?? c.created_at?.slice(0, 10) ?? "";
@@ -220,8 +221,9 @@ function Funnel({ data, filter, openDeals }: Cut) {
     procedencia,
   });
   // Com produto filtrado, só a linha dele (as outras seriam zero por estarem fora do recorte).
-  const produtos = filter.product
-    ? v.products.filter((p) => p.product === filter.product)
+  const marcados = produtosDoRecorte(filter.product);
+  const produtos = marcados.length
+    ? v.products.filter((p) => marcados.includes(p.product))
     : v.products;
   return (
     <div className="space-y-6">
@@ -769,7 +771,10 @@ function Distribution({ data, filter, openDeals }: Cut) {
   const owners = [
     ...new Map(data.cards.filter((c) => c.owner_id).map((c) => [c.owner_id!, c.owner])).entries(),
   ];
-  const produto = filter.product ? NOMES[filter.product] : "Todos os produtos";
+  const marcados = produtosDoRecorte(filter.product);
+  const produto = marcados.length
+    ? marcados.map((p) => (p === "sem_produto" ? "Sem produto" : NOMES[p])).join(", ")
+    : "Todos os produtos";
   const today = hoje();
   const mesCorrente = today.slice(0, 7);
   const linhas = owners

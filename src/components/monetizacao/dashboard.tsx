@@ -35,7 +35,6 @@ import {
 import type { Filtro } from "@/lib/monetizacao/model";
 import { nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
 import { Fechamentos } from "./fechamentos";
-import { Segmentado } from "./pre-venda-comum";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
 import type { BaseMonetizacao, Negocio } from "@/lib/monetizacao/types";
@@ -55,9 +54,12 @@ import {
   DATA_APOSENTADORIA,
   filtroDaBusca,
   periodoParaBusca,
+  produtosDaBusca,
+  produtosParaBusca,
+  unidadesDaBusca,
+  unidadesParaBusca,
   type Aba,
   type BuscaMonetizacao,
-  type ProdutoRoteiroUrl,
   type ProdutoUrl,
 } from "./busca";
 import {
@@ -84,10 +86,12 @@ import {
 import {
   BarraFiltros,
   Carregando,
+  ChipFiltro,
   EstadoErro,
   EstadoSemAcesso,
   EstadoVazio,
   PageHeader,
+  SelecaoMultipla,
   StatusBadge,
   useFocoDeVolta,
 } from "@/components/planning";
@@ -150,8 +154,16 @@ const rotuloPeriodo = (from: string, to: string) =>
   from.slice(0, 4) === to.slice(0, 4)
     ? `${diaMes(from)} a ${diaMes(to)}`
     : `${diaMes(from)}/${from.slice(0, 4)} a ${diaMes(to)}/${to.slice(0, 4)}`;
-const rotuloProduto = (p: ProdutoRoteiroUrl | undefined) =>
-  !p || p === "caixa" ? "Todos os produtos" : p === "sem_produto" ? "Sem produto" : NOMES[p];
+const nomeDoProduto = (p: ProdutoUrl) => (p === "sem_produto" ? "Sem produto" : NOMES[p]);
+/** "Todos os produtos", "Cella", "Cella e Finance", "Cella, Finance e Sem produto". */
+const juntarNomes = (nomes: string[]) =>
+  nomes.length < 2 ? (nomes[0] ?? "") : `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}`;
+const rotuloProdutos = (ps: ProdutoUrl[]) =>
+  ps.length ? juntarNomes(ps.map(nomeDoProduto)) : "Todos os produtos";
+const OPCOES_PRODUTO = [...PRODUTOS, "sem_produto" as const].map((p) => ({
+  valor: p,
+  rotulo: nomeDoProduto(p),
+}));
 
 const MOTIVO_ATUALIZAR_SEM_ESCOPO = "Relê a tela; disparar a carga do CRM exige escopo geral";
 const ACESSO_NEGADO = /^Seu acesso não inclui/;
@@ -309,78 +321,29 @@ export function DashboardMonetizacao({
   // Filtro por unidade, só na Operação (call com o Paulo, 14/10/2026: produto, pré-vendedor e unidade no mesmo
   // funil). O card entra quando a conta dele é da unidade (`unidade_ids`, da carga). A chave `unidade` da URL é a mesma
   // da Consultoria, que guarda o nome; aqui ela guarda o id, e por isso fica fora dos filtros compartilhados.
-  const unidadeId =
-    aba === "operacao" && busca.unidade && /^\d{1,9}$/.test(busca.unidade)
-      ? Number(busca.unidade)
-      : null;
+  // Desde 16/10/2026 a unidade aceita várias (`unidade=9,10`): o card entra se a conta for de qualquer uma delas.
+  const unidadeIds = aba === "operacao" ? unidadesDaBusca(busca) : [];
   const nomeDaUnidade = nomesDasUnidades(data.units);
+  const nomeDaUnidadeId = (id: number) => nomeDaUnidade.get(id) ?? `Unidade ${id}`;
   const unidadesNoPipe = [...new Set(data.cards.flatMap((c) => c.unidade_ids ?? []))]
-    .map((id) => ({ id, nome: nomeDaUnidade.get(id) ?? `Unidade ${id}` }))
+    .map((id) => ({ id, nome: nomeDaUnidadeId(id) }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  const cards =
-    unidadeId === null
-      ? data.cards
-      : data.cards.filter((c) => (c.unidade_ids ?? []).includes(unidadeId));
-  const dadosDoRecorte = unidadeId === null ? data : { ...data, cards };
-  // Filtros no próprio funil (15/10/2026, pedido do Paulo): produto, pré-vendedor e unidade se somam e mudam a
-  // mesma URL da barra de cima, então o funil, os quadros e o gráfico seguem juntos.
-  const filtrosDoFunil = (
-    <>
-      <Segmentado
-        tamanho="sm"
-        rotulo="Produto no funil"
-        opcoes={[
-          { chave: "todos", rotulo: "Todos" },
-          ...(["cella", "finance", "consultoria"] as const).map((p) => ({
-            chave: p,
-            rotulo: NOMES[p],
-          })),
-        ]}
-        valor={busca.produto && busca.produto !== "caixa" ? busca.produto : "todos"}
-        mudar={(v) => mudarFiltros({ produto: v === "todos" ? undefined : (v as ProdutoUrl) })}
-      />
-      <Segmentado
-        tamanho="sm"
-        rotulo="Pré-vendedor no funil"
-        opcoes={[
-          { chave: "0", rotulo: "Os dois" },
-          ...PRE_VENDEDORES.map(([id, nome]) => ({
-            chave: String(id),
-            rotulo: nome.split(" ")[0],
-          })),
-        ]}
-        valor={String(busca.responsavel ?? 0)}
-        mudar={(v) => mudarFiltros({ responsavel: Number(v) || undefined })}
-      />
-      {unidadesNoPipe.length > 0 && (
-        <select
-          aria-label="Unidade no funil"
-          className="h-9 rounded-lg border border-input bg-card px-3 text-[13px] font-medium text-foreground"
-          value={unidadeId ?? ""}
-          onChange={(e) => mudarBusca({ unidade: e.target.value || undefined })}
-        >
-          <option value="">Todas as unidades</option>
-          {unidadesNoPipe.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.nome}
-            </option>
-          ))}
-        </select>
-      )}
-    </>
-  );
+  const cards = !unidadeIds.length
+    ? data.cards
+    : data.cards.filter((c) => (c.unidade_ids ?? []).some((u) => unidadeIds.includes(u)));
+  const dadosDoRecorte = !unidadeIds.length ? data : { ...data, cards };
+  const produtosMarcados = produtosDaBusca(busca);
+  const rotuloUnidades = unidadeIds.length
+    ? juntarNomes(unidadesNoPipe.filter((u) => unidadeIds.includes(u.id)).map((u) => u.nome))
+    : undefined;
+  // Um filtro só (16/10/2026, pedido do Pedro): os controles que o funil ganhou em 15/10 saíram; o quadro diz o
+  // recorte que a barra do topo aplicou.
   const recorteDoFunil = [
-    busca.produto && busca.produto !== "caixa"
-      ? busca.produto === "sem_produto"
-        ? "Sem produto"
-        : NOMES[busca.produto]
-      : "todos os produtos",
+    produtosMarcados.length ? rotuloProdutos(produtosMarcados) : "todos os produtos",
     busca.responsavel
       ? (PRE_VENDEDORES.find(([id]) => id === busca.responsavel)?.[1] ?? "pré-vendedor")
       : "os dois pré-vendedores",
-    unidadeId === null
-      ? "todas as unidades"
-      : (nomeDaUnidade.get(unidadeId) ?? `Unidade ${unidadeId}`),
+    rotuloUnidades ?? "todas as unidades",
   ].join(" · ");
   const view = operacao(cards, filter);
   // Régua cumulativa (01/10/2026): o funil, os quadros e as tabelas por produto contam a mesma coorte.
@@ -404,7 +367,7 @@ export function DashboardMonetizacao({
   // Sem meta desde 09/10/2026: os quadros mostram o realizado do período.
   const quadros = funis ? quadrosDaOperacao(funis.total, filter) : null;
   const responsavel = nomeDoRecorte(filter);
-  const produto = rotuloProduto(busca.produto);
+  const produto = rotuloProdutos(produtosMarcados);
   const periodo = rotuloPeriodo(filter.from, filter.to);
 
   const aplicarPeriodo = (from: string, to: string) => {
@@ -423,8 +386,7 @@ export function DashboardMonetizacao({
     ate: diaMes(filter.to),
     mesGravacoes: busca.mes,
     busca,
-    unidade:
-      unidadeId === null ? undefined : (nomeDaUnidade.get(unidadeId) ?? `Unidade ${unidadeId}`),
+    unidade: rotuloUnidades,
   });
 
   const menosDias = (n: number) =>
@@ -446,7 +408,7 @@ export function DashboardMonetizacao({
         ...(barra.responsavel ? (["responsavel"] as const) : []),
       ] as (keyof Compartilhados)[])
     : [];
-  const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined) || unidadeId !== null;
+  const temFiltro = chavesDaBarra.some((k) => busca[k] !== undefined) || unidadeIds.length > 0;
   const filtros = barra && (
     <BarraFiltros
       className="items-end"
@@ -454,7 +416,7 @@ export function DashboardMonetizacao({
         temFiltro
           ? () => {
               mudarFiltros(Object.fromEntries(chavesDaBarra.map((k) => [k, undefined])));
-              if (unidadeId !== null) mudarBusca({ unidade: undefined });
+              if (unidadeIds.length) mudarBusca({ unidade: undefined });
             }
           : undefined
       }
@@ -505,55 +467,96 @@ export function DashboardMonetizacao({
         </>
       )}
       {barra.responsavel && (
-        <Field label="Pré-vendedor">
-          <select
-            className={inputClass}
-            value={busca.responsavel ?? ""}
-            onChange={(e) => mudarFiltros({ responsavel: Number(e.target.value) || undefined })}
-          >
-            <option value="">Pré-venda (os dois)</option>
-            {PRE_VENDEDORES.map(([id, nome]) => (
-              <option key={id} value={id}>
-                {nome}
-              </option>
-            ))}
-          </select>
-        </Field>
+        // Dois pré-vendedores: os dois marcados (ou nenhum) = a pré-venda inteira, que fica fora da URL; um marcado =
+        // `?responsavel=<id>`. Com um terceiro, `responsavel` vira lista como produto e unidade.
+        <SelecaoMultipla
+          rotulo="Pré-vendedor"
+          todos="Pré-venda (os dois)"
+          plural="pré-vendedores"
+          so="Só este"
+          opcoes={PRE_VENDEDORES.map(([id, nome]) => ({ valor: String(id), rotulo: nome }))}
+          valor={
+            busca.responsavel
+              ? [String(busca.responsavel)]
+              : PRE_VENDEDORES.map(([id]) => String(id))
+          }
+          aoMudar={(v) => mudarFiltros({ responsavel: v.length === 1 ? Number(v[0]) : undefined })}
+        />
       )}
       {barra.produto && (
-        <Field label="Produto">
-          <select
-            className={inputClass}
-            value={busca.produto ?? ""}
-            onChange={(e) => mudarFiltros({ produto: (e.target.value || undefined) as ProdutoUrl })}
-          >
-            <option value="">Todos os produtos</option>
-            {PRODUTOS.map((p) => (
-              <option key={p} value={p}>
-                {NOMES[p]}
-              </option>
-            ))}
-            <option value="sem_produto">Sem produto</option>
-          </select>
-        </Field>
+        <SelecaoMultipla
+          rotulo="Produto"
+          todos="Todos os produtos"
+          plural="produtos"
+          so="Só este"
+          opcoes={OPCOES_PRODUTO}
+          valor={produtosMarcados}
+          aoMudar={(v) => mudarFiltros({ produto: produtosParaBusca(v as ProdutoUrl[]) })}
+        />
       )}
       {aba === "operacao" && unidadesNoPipe.length > 0 && (
-        <Field label="Unidade">
-          <select
-            className={inputClass}
-            value={unidadeId ?? ""}
-            onChange={(e) => mudarBusca({ unidade: e.target.value || undefined })}
-          >
-            <option value="">Todas as unidades</option>
-            {unidadesNoPipe.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nome}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <SelecaoMultipla
+          rotulo="Unidade"
+          todos="Todas as unidades"
+          plural="unidades"
+          opcoes={unidadesNoPipe.map((u) => ({ valor: String(u.id), rotulo: u.nome }))}
+          valor={unidadeIds.map(String)}
+          aoMudar={(v) => mudarBusca({ unidade: unidadesParaBusca(v.map(Number)) })}
+        />
       )}
     </BarraFiltros>
+  );
+  // Cada opção aplicada vira um chip removível logo abaixo da barra (16/10/2026).
+  const chips = barra
+    ? [
+        ...(barra.responsavel && busca.responsavel
+          ? [
+              {
+                chave: `r${busca.responsavel}`,
+                rotulo: "Pré-vendedor",
+                valor:
+                  PRE_VENDEDORES.find(([id]) => id === busca.responsavel)?.[1] ?? "pré-vendedor",
+                remover: () => mudarFiltros({ responsavel: undefined }),
+              },
+            ]
+          : []),
+        ...(barra.produto
+          ? produtosMarcados.map((p) => ({
+              chave: `p${p}`,
+              rotulo: "Produto",
+              valor: nomeDoProduto(p),
+              remover: () =>
+                mudarFiltros({
+                  produto: produtosParaBusca(produtosMarcados.filter((x) => x !== p)),
+                }),
+            }))
+          : []),
+        ...unidadeIds.map((id) => ({
+          chave: `u${id}`,
+          rotulo: "Unidade",
+          valor: nomeDaUnidadeId(id),
+          remover: () =>
+            mudarBusca({ unidade: unidadesParaBusca(unidadeIds.filter((x) => x !== id)) }),
+        })),
+      ]
+    : [];
+  const faixaDeFiltros = filtros && (
+    <div className="space-y-2">
+      {filtros}
+      {chips.length > 0 && (
+        <div
+          role="list"
+          aria-label="Filtros aplicados"
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          {chips.map((c) => (
+            <span role="listitem" key={c.chave}>
+              <ChipFiltro rotulo={c.rotulo} valor={c.valor} aoRemover={c.remover} />
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 
   // O recorte que o detalhe declara no cabeçalho: abas que ignoram um filtro não o repetem.
@@ -576,7 +579,7 @@ export function DashboardMonetizacao({
         acoes={acoes}
       >
         {aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
-        {filtros}
+        {faixaDeFiltros}
       </PageHeader>
       {carga.nuncaSincronizou && (
         <EstadoVazio
@@ -654,12 +657,7 @@ export function DashboardMonetizacao({
             quadros={quadros.quadros}
           />
           <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.3fr)]">
-            <FunilOperacao
-              dados={funis.total}
-              abrir={abrir}
-              filtros={filtrosDoFunil}
-              recorte={recorteDoFunil}
-            />
+            <FunilOperacao dados={funis.total} abrir={abrir} recorte={recorteDoFunil} />
             <SerieDiaria view={view} abrir={abrir} />
           </div>
           <CadastroACorrigir dados={cadastroACorrigir(cards, filter.product)} abrir={abrir} />
@@ -674,8 +672,8 @@ export function DashboardMonetizacao({
               abrir={abrir}
             />
           )}
-          <PorProduto funis={funis} produto={filter.product} abrir={abrir} />
-          <FunilLadoALado funis={funis} produto={filter.product} abrir={abrir} />
+          <PorProduto funis={funis} produtos={produtosMarcados} abrir={abrir} />
+          <FunilLadoALado funis={funis} produtos={produtosMarcados} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">Critérios e campos a preencher</summary>
             <p className="mt-2">
