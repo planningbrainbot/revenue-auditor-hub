@@ -5507,3 +5507,11 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 - Migration `20261016200000_unidades_proprias_goiania.sql`, aplicada no banco único; rollback em `supabase/rollback/`.
 - BPO: mídia R$ 10.000/mês e CAC desde set/26, confirmados no mesmo dia.
 - Pendências: CNPJ da PNE, CNPJ cobrado da Marox.
+
+## [2026-10-16] CS, RH e Compliance editáveis na apuração, fora da nota de débito
+
+**Contexto:** pedido do usuário: o valor de CS, RH e Compliance da apuração precisa ser editável dentro da categoria Serviços contratados. Ele vem do boleto de contas fixas (`royalties_aplicar_contas_fixas`), que já cobra esses serviços; tudo que é item de outras receitas vai para a nota de débito (`royalties-faturamento`).
+
+**Decisão:** linha editável dentro de Serviços contratados, gravando `royalties_apuracao.servicos_fixos_valor`, sem virar item de outras receitas: entra no total da fatura e no demonstrativo, nunca na ND, para não cobrar duas vezes. Editada, a coluna `servicos_fixos_editado` impede a RPC de sobrescrever (ela roda toda vez que a matriz abre uma apuração aberta). Só em apuração aberta.
+
+**Implementação:** migration `20261016210000_servicos_fixos_editavel` (aplicada em 16/10), `updateApuracao` aceita `servicos_fixos_valor`, tela da apuração.

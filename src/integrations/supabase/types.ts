@@ -4017,6 +4017,7 @@ export type Database = {
           receita_base_antiga: number | null
           royalties_percentual: number | null
           royalties_valor: number | null
+          servicos_fixos_editado: boolean
           servicos_fixos_valor: number | null
           status: string
           total_fatura: number | null
@@ -4041,6 +4042,7 @@ export type Database = {
           receita_base_antiga?: number | null
           royalties_percentual?: number | null
           royalties_valor?: number | null
+          servicos_fixos_editado?: boolean
           servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null
@@ -4065,6 +4067,7 @@ export type Database = {
           receita_base_antiga?: number | null
           royalties_percentual?: number | null
           royalties_valor?: number | null
+          servicos_fixos_editado?: boolean
           servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null

@@ -1152,7 +1152,8 @@ function ApuracaoLoaded({
               CSC, mídia e serviços fixos vêm do boleto de contas fixas já faturado no Omie
               {apuracao.contas_fixas?.num_recibo ? ` (ND ${apuracao.contas_fixas.num_recibo}` : " ("}
               {apuracao.contas_fixas?.cod_int_os ? `, ${apuracao.contas_fixas.cod_int_os})` : ")"}.
-              Para mudar, corrija o boleto.
+              Para mudar CSC e mídia, corrija o boleto; CS, RH e Compliance se ajustam em
+              Serviços contratados.
             </div>
           )}
           <div className="border-t pt-3 space-y-2">
@@ -1188,13 +1189,19 @@ function ApuracaoLoaded({
                 }}
               />
             </div>
-            {servicosFixos > 0 && (
-              <ResumoLinha label="CS, RH e Compliance" value={brl(servicosFixos)} bold />
-            )}
             <OutrasReceitasSection
               itens={outrasReceitasItens}
               total={outras}
               readOnly={readOnly}
+              servicosFixos={
+                doBoleto || servicosFixos > 0
+                  ? {
+                      valor: servicosFixos,
+                      editado: Boolean(apuracao.servicos_fixos_editado),
+                      onChange: (v) => updateAp.mutate({ id: apuracaoId, servicos_fixos_valor: v }),
+                    }
+                  : null
+              }
               onAdd={(nome, valor, categoria) =>
                 addOutraReceita.mutate({ apuracao_id: apuracaoId, nome, valor, categoria })
               }
@@ -1244,10 +1251,19 @@ const CATEGORIAS_OUTRAS: { chave: OutraReceitaCategoria; titulo: string; placeho
   { chave: "servicos", titulo: "Serviços contratados", placeholder: "Serviço" },
 ];
 
+// CS, RH e Compliance vêm do boleto de contas fixas e ficam fora da ND: editável
+// dentro de Serviços contratados (16/10/2026), mas fora do total das outras.
+type ServicosFixosLinha = {
+  valor: number;
+  editado: boolean;
+  onChange: (valor: number | null) => void;
+};
+
 function OutrasReceitasSection({
   itens,
   total,
   readOnly,
+  servicosFixos,
   onAdd,
   onUpdateValor,
   onDelete,
@@ -1255,6 +1271,7 @@ function OutrasReceitasSection({
   itens: OutraReceitaItem[];
   total: number;
   readOnly: boolean;
+  servicosFixos: ServicosFixosLinha | null;
   onAdd: (nome: string, valor: number, categoria: OutraReceitaCategoria) => void;
   onUpdateValor: (id: number, valor: number) => void;
   onDelete: (id: number) => void;
@@ -1268,13 +1285,14 @@ function OutrasReceitasSection({
           placeholder={cat.placeholder}
           itens={itens.filter((it) => (it.categoria ?? "ferramentas") === cat.chave)}
           readOnly={readOnly}
+          servicosFixos={cat.chave === "servicos" ? servicosFixos : null}
           onAdd={(nome, valor) => onAdd(nome, valor, cat.chave)}
           onUpdateValor={onUpdateValor}
           onDelete={onDelete}
         />
       ))}
       <div className="flex items-baseline justify-between pt-1 border-t">
-        <span className="text-muted-foreground">Total outras receitas</span>
+        <span className="text-muted-foreground">Total outras receitas (na ND)</span>
         <span className="font-semibold">{brl(total)}</span>
       </div>
     </div>
@@ -1286,6 +1304,7 @@ function OutrasReceitasCategoria({
   placeholder,
   itens,
   readOnly,
+  servicosFixos,
   onAdd,
   onUpdateValor,
   onDelete,
@@ -1294,6 +1313,7 @@ function OutrasReceitasCategoria({
   placeholder: string;
   itens: OutraReceitaItem[];
   readOnly: boolean;
+  servicosFixos: ServicosFixosLinha | null;
   onAdd: (nome: string, valor: number) => void;
   onUpdateValor: (id: number, valor: number) => void;
   onDelete: (id: number) => void;
@@ -1317,7 +1337,33 @@ function OutrasReceitasCategoria({
         <Label className="text-xs text-muted-foreground">{titulo}</Label>
         <span className="text-muted-foreground">{brl(subtotal)}</span>
       </div>
-      {itens.length === 0 && (
+      {servicosFixos && (
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="flex-1 truncate" title="CS, RH e Compliance">
+              CS, RH e Compliance
+            </span>
+            <Input
+              type="number"
+              step="0.01"
+              disabled={readOnly}
+              defaultValue={servicosFixos.valor}
+              key={servicosFixos.valor}
+              className="h-7 w-24 text-xs"
+              onBlur={(e) => {
+                const v = e.target.value === "" ? 0 : Number(e.target.value);
+                if (Number.isFinite(v) && v !== servicosFixos.valor) servicosFixos.onChange(v);
+              }}
+            />
+            {!readOnly && <span className="h-7 w-7 shrink-0" />}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {servicosFixos.editado ? "Editado na apuração" : "Do boleto de contas fixas"}; fora da
+            nota de débito.
+          </div>
+        </div>
+      )}
+      {itens.length === 0 && !servicosFixos && (
         <div className="text-xs text-muted-foreground italic">
           Nenhum item — adicione abaixo.
         </div>
