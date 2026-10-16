@@ -1,7 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions, unitMatches } from "@/hooks/use-permissions";
 import {
@@ -22,17 +21,6 @@ export const Route = createFileRoute("/_authenticated/painel-unidade")({
 
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-// Data pura ("2026-09-01") é o dia local; `new Date` a lia como meia-noite UTC
-// e mostrava o dia anterior no Brasil.
-const fmtData = (d: string | null) => {
-  if (!d) return "—";
-  const soDia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
-  const data = soDia ? new Date(Number(soDia[1]), Number(soDia[2]) - 1, Number(soDia[3])) : new Date(d);
-  return Number.isNaN(data.getTime())
-    ? "—"
-    : data.toLocaleDateString("pt-BR", soDia ? undefined : { timeZone: "America/Sao_Paulo" });
-};
-const onlyDigits = (s: string | null | undefined) => (s ?? "").replace(/\D+/g, "");
 const NUM = new Intl.NumberFormat("pt-BR");
 // N2: o destino não recorta igual (Contratos e churn conta só franquias de
 // unidades regionais), então o card diz que o total pode ser outro.
@@ -43,17 +31,15 @@ const TETO = { empresas: 10000, contratos: 20000, tratativas: 10000, nps: 10000 
 
 type Empresa = { id: number; razao_social: string | null; cnpj: string | null; unidade: string | null; pipedrive_id: string | null; status_financeiro: string | null };
 type Contrato = { pipedrive_deal_id: string | null; mrr_mensal: number | null; status_contrato: string | null; ganho_em: string | null; unidade: string | null };
-type CR = { valor: number | null; status_pagamento: string | null; data_pagamento: string | null; data_vencimento: string | null; cpf_cnpj: string | null; unidade: string | null };
 type Tratativa = { status: string | null; unidade: string | null; update_time: string | null; stage_change_time: string | null };
 type Nps = { nps_recomendacao: string | null; created_at: string | null; unidade: string | null };
 
-type Fonte = "empresas" | "contratos" | "tratativas" | "nps" | "cr";
+type Fonte = "empresas" | "contratos" | "tratativas" | "nps";
 const NOME_FONTE: Record<Fonte, string> = {
   empresas: "empresas",
   contratos: "contratos",
   tratativas: "central de tratativas",
   nps: "pesquisas",
-  cr: "contas a receber",
 };
 
 function PainelUnidadePage() {
@@ -64,7 +50,6 @@ function PainelUnidadePage() {
   const [erros, setErros] = useState<Partial<Record<Fonte, string>>>({});
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [contratos, setContratos] = useState<Contrato[]>([]);
-  const [cr, setCr] = useState<CR[]>([]);
   const [tratativas, setTratativas] = useState<Tratativa[]>([]);
   const [nps, setNps] = useState<Nps[]>([]);
 
@@ -83,38 +68,17 @@ function PainelUnidadePage() {
         supabase.from("central_tratativas").select("status,unidade,update_time,stage_change_time").limit(10000),
         supabase.from("nps_pesquisas").select("nps_recomendacao,created_at,unidade").limit(10000),
       ]);
-      const pageSize = 1000;
-      let from = 0;
-      const allCr: CR[] = [];
-      let erroCr: string | undefined;
-      while (true) {
-        const { data, error } = await supabase
-          .from("contas_receber")
-          .select("valor,status_pagamento,data_pagamento,data_vencimento,cpf_cnpj,unidade")
-          .neq("status_pagamento", "CANCELADO")
-          .range(from, from + pageSize - 1);
-        if (error) {
-          erroCr = error.message;
-          break;
-        }
-        const batch = (data ?? []) as CR[];
-        allCr.push(...batch);
-        if (batch.length < pageSize) break;
-        from += pageSize;
-      }
       if (!alive) return;
       const novosErros: Partial<Record<Fonte, string>> = {};
       if (e.error) novosErros.empresas = e.error.message;
       if (c.error) novosErros.contratos = c.error.message;
       if (t.error) novosErros.tratativas = t.error.message;
       if (n.error) novosErros.nps = n.error.message;
-      if (erroCr) novosErros.cr = erroCr;
       setErros(novosErros);
       setEmpresas((e.data ?? []) as Empresa[]);
       setContratos((c.data ?? []) as Contrato[]);
       setTratativas((t.data ?? []) as Tratativa[]);
       setNps((n.data ?? []) as Nps[]);
-      setCr(erroCr ? [] : allCr);
       setLidoEm(new Date());
       setLoading(false);
     })();
@@ -125,7 +89,6 @@ function PainelUnidadePage() {
     () => empresas.filter((e) => unitMatches(userUnidade, e.unidade)),
     [empresas, userUnidade],
   );
-  const cnpjsUnidade = useMemo(() => new Set(empresasUnidade.map((e) => onlyDigits(e.cnpj))), [empresasUnidade]);
 
   // A unidade vem do próprio contrato. Antes o filtro passava por
   // empresas.pipedrive_id, mas só ~1/4 das empresas tem esse id preenchido,
@@ -162,10 +125,6 @@ function PainelUnidadePage() {
     .filter((v) => Number.isFinite(v));
   const npsMedio = npsScores.length ? npsScores.reduce((a, b) => a + b, 0) / npsScores.length : 0;
 
-  const crUnidade = useMemo(
-    () => cr.filter((r) => unitMatches(userUnidade, r.unidade) || cnpjsUnidade.has(onlyDigits(r.cpf_cnpj))),
-    [cr, userUnidade, cnpjsUnidade],
-  );
   const emRisco = empresasUnidade.filter((e) => ["EM_ATRASO", "INADIMPLENTE"].includes(e.status_financeiro ?? "")).length;
 
   const serie = useMemo(() => {
@@ -197,40 +156,6 @@ function PainelUnidadePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ativosUnidade]);
 
-  const topAlertas = useMemo(() => {
-    const byCnpj = new Map<string, CR[]>();
-    crUnidade.forEach((r) => {
-      const k = onlyDigits(r.cpf_cnpj);
-      if (!k) return;
-      const arr = byCnpj.get(k) ?? [];
-      arr.push(r);
-      byCnpj.set(k, arr);
-    });
-    return empresasUnidade
-      .map((e) => {
-        const rows = byCnpj.get(onlyDigits(e.cnpj)) ?? [];
-        const atraso = rows
-          .filter((r) => ["ATRASADO", "VENCIDO"].includes(r.status_pagamento ?? ""))
-          .reduce((s, r) => s + Number(r.valor ?? 0), 0);
-        const ultimoPag = rows
-          .filter((r) => r.status_pagamento === "RECEBIDO" && r.data_pagamento)
-          .map((r) => r.data_pagamento as string)
-          .sort()
-          .pop();
-        return {
-          id: e.id,
-          empresa: e.razao_social ?? "—",
-          // Busca da Base: CNPJ (≥3 dígitos) acha o cliente exato; sem CNPJ, o nome.
-          busca: onlyDigits(e.cnpj).length >= 3 ? onlyDigits(e.cnpj) : (e.razao_social ?? ""),
-          status: e.status_financeiro ?? "—",
-          ultimoPag: ultimoPag ?? null,
-          atraso,
-        };
-      })
-      .filter((r) => r.atraso > 0)
-      .sort((a, b) => b.atraso - a.atraso)
-      .slice(0, 5);
-  }, [empresasUnidade, crUnidade]);
 
   const carregando = loading || permLoading;
   const destinoContratos = `/clientes?view=contratos&unidade=${encodeURIComponent(userUnidade ?? "")}`;
@@ -248,12 +173,12 @@ function PainelUnidadePage() {
       <PageHeader
         titulo="Painel"
         pergunta="Como a minha unidade está este mês, e o que pede atenção?"
-        descricao={`${userUnidade ?? "Sem unidade vinculada"} · ${mesLabel} · contratos, tratativas e títulos da unidade`}
+        descricao={`${userUnidade ?? "Sem unidade vinculada"} · ${mesLabel} · contratos, tratativas e pesquisas da unidade`}
         procedencia={{
-          fonte: "Base única · contratos, central de tratativas, contas a receber, pesquisas",
+          fonte: "Base única · contratos, central de tratativas, pesquisas",
           // Hora da leitura desta tela: as tabelas não trazem data de sincronização aqui.
           atualizadoEm: lidoEm,
-          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade; atraso = títulos ATRASADO ou VENCIDO",
+          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade",
         }}
       />
 
@@ -349,52 +274,6 @@ function PainelUnidadePage() {
                     <Line dataKey="mrr_acum" name="MRR acumulado" stroke={CORES_SERIE[0]} strokeWidth={2} dot={{ r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            )}
-          </Secao>
-
-          <Secao
-            titulo="Quais clientes têm mais valor em atraso?"
-            descricao="Os 5 maiores valores atrasados ou vencidos; a linha abre o cliente na Base de clientes"
-          >
-            {erros.empresas || erros.cr ? (
-              <EstadoErro
-                titulo={`Não foi possível ler ${[erros.empresas && "empresas", erros.cr && "contas a receber"].filter(Boolean).join(" e ")}`}
-                detalhe={[erros.empresas, erros.cr].filter(Boolean).join(" · ")}
-                tentarNovamente={() => setTentativa((x) => x + 1)}
-              />
-            ) : topAlertas.length === 0 ? (
-              <EstadoVazio titulo="Nenhum cliente com valor em atraso" />
-            ) : (
-              <div className="overflow-hidden rounded-xl border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Empresa</TableHead>
-                      <TableHead>Situação financeira</TableHead>
-                      <TableHead>Último pagamento</TableHead>
-                      <TableHead className="text-right">Em atraso</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topAlertas.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">
-                          <Link
-                            to="/clientes"
-                            search={{ q: r.busca } as never}
-                            className="rounded-sm text-primary-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          >
-                            {r.empresa}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{r.status}</TableCell>
-                        <TableCell className="tabular-nums">{fmtData(r.ultimoPag)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-danger">{fmtBRL(r.atraso)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               </div>
             )}
           </Secao>

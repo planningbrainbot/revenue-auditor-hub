@@ -5491,3 +5491,9 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 **Decisão:** saem `/funil-receita` (abas Funil e Esperado × Recebido), os redirects `/auditoria` e `/auditoria-faturamento`, os dois itens de menu (grupo "Receita da rede" na área Receita e o item no Financeiro da Minha Unidade) e os componentes `funil-content`, `auditoria-faturamento-content` e `funil-gap-clientes-dialog`. Os atalhos para o Funil saem da Visão geral da Receita (cards MRR, Faturado e Recebido e o "Ver o funil" do gráfico), do Realizado da rede (gráficos Recebido e Crescimento) e do Panorama da rede (card Recebido e o "ver detalhe" do gráfico). No Painel da Unidade sai só o card Inadimplência; ficam o card Clientes em risco e a tabela dos 5 clientes com mais valor em atraso.
 
 **Fica de pé:** as chaves `view.funil_receita`, `view.contas_receber` e `view.auditoria` (podem estar em policies de RLS, mesmo cuidado de `view.reconciliacao` em 17/09), a view `v_reconciliacao_mensal` (alimenta a Visão geral da Receita) e a tabela `contas_receber`.
+
+## [2026-10-16] Painel da Unidade sem a tabela de clientes em atraso
+
+**Contexto:** depois de tirar o card Inadimplência, o dono pediu para tirar também a tabela "Quais clientes têm mais valor em atraso?".
+
+**Decisão:** sai a tabela e, com ela, a leitura de `contas_receber` da tela, que não tinha mais outro uso. O painel passa a ler só empresas, contratos, tratativas e pesquisas. O bloco "O que pede atenção?" fica com o card Clientes em risco (situação financeira do cadastro de empresas).
