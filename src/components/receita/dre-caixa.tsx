@@ -142,6 +142,7 @@ function Conteudo({ D, mes }: { D: DreCaixa; mes: string }) {
         />
       </KpiGrade>
 
+      <MidiaSePaga D={D} i={i} />
       {ponte && <PonteCaixa ponte={ponte} />}
       {ant && <PonteEbit D={D} i={i} ant={ant} mes={mes} />}
       <Conferencias itens={D.conferencias[mes] ?? []} mes={mes} />
@@ -166,6 +167,107 @@ function Secao({ titulo, sub, children }: { titulo: string; sub?: ReactNode; chi
 function Abrir({ aberto }: { aberto: boolean }) {
   const I = aberto ? ChevronDown : ChevronRight;
   return <I className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
+}
+
+// ---------------------------------------------------------------- a mídia se paga?
+
+/** Mídia paga (100% do grupo) contra o que volta dela: CAC e reembolsos de mídia. */
+function MidiaSePaga({ D, i }: { D: DreCaixa; i: number }) {
+  const serie = (pref: string) =>
+    D.dre.find((l) => l.nivel === 2 && l.k.startsWith(pref))?.v ?? D.meses.map(() => 0);
+  const midia = serie("Mídia paga");
+  const cac = serie("CAC (apuração)");
+  const ru = serie("Reembolso de mídia das unidades");
+  const ro = serie("Reembolso de mídia das outras");
+  const ebit = D.dre.find((l) => l.k.startsWith("(=) RESULTADO OPERACIONAL"))?.v ?? [];
+  const linhas = D.meses.slice(0, i + 1).map((m, n) => {
+    const retorno = cac[n] + ru[n] + ro[n];
+    const saldo = midia[n] + retorno;
+    return { m, midia: midia[n], cac: cac[n], ru: ru[n], ro: ro[n], retorno, saldo, ebit: ebit[n] ?? 0 };
+  });
+  const tot = linhas.reduce(
+    (a, x) => ({
+      midia: a.midia + x.midia,
+      cac: a.cac + x.cac,
+      ru: a.ru + x.ru,
+      ro: a.ro + x.ro,
+      retorno: a.retorno + x.retorno,
+      saldo: a.saldo + x.saldo,
+      ebit: a.ebit + x.ebit,
+    }),
+    { midia: 0, cac: 0, ru: 0, ro: 0, retorno: 0, saldo: 0, ebit: 0 },
+  );
+  const pct = (r: number, m: number) =>
+    m ? `${Math.round((r / -m) * 100).toLocaleString("pt-BR")}%` : "—";
+  const parteDoPrejuizo =
+    tot.ebit < 0 && tot.saldo < 0 ? Math.round((tot.saldo / tot.ebit) * 100) : null;
+
+  return (
+    <Secao
+      titulo="A mídia se paga?"
+      sub="Mídia paga (Meta e Google, 100% do grupo) contra o que volta dela: CAC e reembolsos de mídia das unidades e das outras empresas. O saldo negativo é mídia que fica com a Partners."
+    >
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="Mídia paga no ano" valor={brlOuTraco(tot.midia)} nota={`até ${rotuloMes(D.meses[i]).toLowerCase()}`} />
+        <KpiCard rotulo="Retorno da mídia" valor={brlOuTraco(tot.retorno)} nota={`${pct(tot.retorno, tot.midia)} da mídia`} />
+        <KpiCard
+          rotulo="Saldo da mídia"
+          valor={brlOuTraco(tot.saldo)}
+          nota={parteDoPrejuizo !== null ? `${parteDoPrejuizo}% do EBIT negativo do ano` : "retorno − mídia"}
+          tom={tot.saldo >= 0 ? "sucesso" : "perigo"}
+        />
+        <KpiCard
+          rotulo="EBIT sem o saldo da mídia"
+          valor={brlOuTraco(tot.ebit - tot.saldo)}
+          nota="o resto da operação"
+          tom={tot.ebit - tot.saldo >= 0 ? "sucesso" : "perigo"}
+        />
+      </KpiGrade>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead className="text-xs text-muted-foreground">
+            <tr className="border-b">
+              <th className="py-2 text-left font-medium">Mês</th>
+              <th className="py-2 text-right font-medium">Mídia paga</th>
+              <th className="py-2 text-right font-medium">CAC</th>
+              <th className="py-2 text-right font-medium">Reembolso unidades</th>
+              <th className="py-2 text-right font-medium">Reembolso outras empresas</th>
+              <th className="py-2 text-right font-medium">Cobertura</th>
+              <th className="py-2 text-right font-medium">Saldo da mídia</th>
+              <th className="py-2 text-right font-medium">EBIT</th>
+              <th className="py-2 text-right font-medium">EBIT sem o saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((x) => (
+              <tr key={x.m} className={cn("border-b", x.m === D.meses[i] && "font-semibold")}>
+                <td className="py-1.5">{rotuloMes(x.m)}</td>
+                <td className="py-1.5 text-right">{brlOuTraco(x.midia)}</td>
+                <td className="py-1.5 text-right">{brlOuTraco(x.cac)}</td>
+                <td className="py-1.5 text-right">{brlOuTraco(x.ru)}</td>
+                <td className="py-1.5 text-right">{brlOuTraco(x.ro)}</td>
+                <td className="py-1.5 text-right">{pct(x.retorno, x.midia)}</td>
+                <td className={cn("py-1.5 text-right", corVariacao(x.saldo))}>{brlSinal(x.saldo)}</td>
+                <td className="py-1.5 text-right">{brlOuTraco(x.ebit)}</td>
+                <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>{brlOuTraco(x.ebit - x.saldo)}</td>
+              </tr>
+            ))}
+            <tr className="font-semibold">
+              <td className="py-2">Acumulado</td>
+              <td className="py-2 text-right">{brlOuTraco(tot.midia)}</td>
+              <td className="py-2 text-right">{brlOuTraco(tot.cac)}</td>
+              <td className="py-2 text-right">{brlOuTraco(tot.ru)}</td>
+              <td className="py-2 text-right">{brlOuTraco(tot.ro)}</td>
+              <td className="py-2 text-right">{pct(tot.retorno, tot.midia)}</td>
+              <td className={cn("py-2 text-right", corVariacao(tot.saldo))}>{brlSinal(tot.saldo)}</td>
+              <td className="py-2 text-right">{brlOuTraco(tot.ebit)}</td>
+              <td className={cn("py-2 text-right", corVariacao(tot.ebit - tot.saldo))}>{brlOuTraco(tot.ebit - tot.saldo)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Secao>
+  );
 }
 
 // ---------------------------------------------------------------- ponte DRE -> caixa
