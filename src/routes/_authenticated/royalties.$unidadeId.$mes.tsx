@@ -543,32 +543,27 @@ function ApuracaoLoaded({
   let cacAdiantamento = 0;
   let cacCaixa = 0;
   let receitaBaseAntiga = 0;
-  // A Base Planning é a soma de tudo que serviu de cálculo; royalties e CAC
-  // mudam só o percentual (16/10/2026). Separada aqui para os cards dizerem
-  // sobre qual parte cada percentual incide.
-  let baseCac = 0;
   let confirmadosCount = 0;
   for (const it of ativos) {
     if (!it.confirmado) continue;
     confirmadosCount += 1;
     const v = valorEfetivo(it);
     if (it.categoria === "royalties") {
-      receitaBase += v;
       const computado = (v * pctEfetivo(it)) / 100;
+      // A Base Planning é só o MRR recebido que entra na apuração de royalties;
+      // o CAC aparece pelo valor cobrado, sem base (16/10/2026).
       if (it.is_cac) {
-        baseCac += v;
         cacValor += computado;
         if (it.cac_parcela === 1) cacAdiantamento += computado;
         else if (it.cac_parcela === 2) cacCaixa += computado;
-      } else royaltiesValor += computado;
+      } else {
+        receitaBase += v;
+        royaltiesValor += computado;
+      }
     } else if (it.categoria === "csc_base_antiga") {
       receitaBaseAntiga += v;
     }
   }
-  const baseRoyalties = receitaBase - baseCac;
-  const pctCac = baseCac > 0 ? (cacValor / baseCac) * 100 : 0;
-  const notaBase =
-    baseCac > 0 ? `${brl(baseRoyalties)} royalties + ${brl(baseCac)} CAC` : undefined;
   const cscPctBaseAntiga = Number(u.csc_percentual_base_antiga ?? 0);
   const cscBaseAntigaValor = (receitaBaseAntiga * cscPctBaseAntiga) / 100;
   // Com boleto de contas fixas faturado, a parte fixa é a do boleto, não a do
@@ -992,13 +987,12 @@ function ApuracaoLoaded({
         <KpiCard
           rotulo="Base Planning"
           valor={brl(receitaBase)}
-          nota={notaBase}
+          nota="MRR recebido que entra nos royalties"
           estado={emAndamento ? "parcial" : "ok"}
         />
         <KpiCard
           rotulo={`Royalties (${pctPadrao}%)`}
           valor={brl(royaltiesValor)}
-          nota={baseCac > 0 ? `sobre ${brl(baseRoyalties)}` : undefined}
           estado={emAndamento ? "parcial" : "ok"}
         />
         <KpiCard
@@ -1011,7 +1005,7 @@ function ApuracaoLoaded({
           <KpiCard
             rotulo="CAC"
             valor={brl(cacValor)}
-            nota={`${fmtPct(pctCac)} sobre ${brl(baseCac)}`}
+            nota="valor cobrado na fatura"
             estado={emAndamento ? "parcial" : "ok"}
           />
         )}
@@ -1165,15 +1159,9 @@ function ApuracaoLoaded({
             value={`${confirmadosCount} / ${ativos.length}`}
           />
           <ResumoLinha label="Base Planning" value={brl(receitaBase)} />
-          {baseCac > 0 && (
-            <div className="space-y-1 pl-3 text-xs">
-              <ResumoLinha label="Base de royalties" value={brl(baseRoyalties)} />
-              <ResumoLinha label="Base de CAC" value={brl(baseCac)} />
-            </div>
-          )}
           <ResumoLinha label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} bold />
           {cacValor > 0 && (
-            <ResumoLinha label={`CAC (${fmtPct(pctCac)})`} value={brl(cacValor)} bold />
+            <ResumoLinha label="CAC" value={brl(cacValor)} bold />
           )}
           {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0) && (
             <div className="space-y-1 pl-3 text-xs">
@@ -1277,10 +1265,6 @@ function ApuracaoLoaded({
       </div>
     </div>
   );
-}
-
-function fmtPct(n: number) {
-  return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }
 
 function ResumoLinha({ label, value, bold }: { label: string; value: string; bold?: boolean }) {

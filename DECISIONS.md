@@ -5529,3 +5529,13 @@ Pedido do RH de Maceió (13/10/2026), aprovado pelo dono com os padrões propost
 **Contexto:** no Omie os três caem na mesma categoria, mas na apuração cada um precisa aparecer e ser editado à parte (pedido do usuário, mesmo dia da entrada anterior).
 
 **Decisão:** `royalties_apuracao.servicos_fixos_itens` (`{"cs","gg","comp"}`, chaves do boleto) com a quebra; `servicos_fixos_valor` continua sendo a soma, então ND, fechamento e Receita não mudam. A tela mostra três linhas editáveis em Serviços contratados e o subtotal da categoria passa a somá-las; o demonstrativo lista um a um. Migration `20261016220000_servicos_fixos_itens` (aplicada em 16/10, com a quebra preenchida a partir do boleto em todas as apurações que já o leram).
+
+## [2026-10-16] Apuração de royalties: Base Planning volta a ser só o MRR dos royalties; CAC aparece pelo valor cobrado (revoga a soma do commit 9848e5e)
+
+**Contexto:** na apuração de Maceió de set/26 o card "Base Planning" mostrava R$ 120.548, que somava a base dos
+royalties com a base do CAC. O dono: "a informação de base planning deveria ser o mrr daquele mês que entrou para
+apuração", e não faz sentido mostrar base de CAC porque "o valor cac é o que está sendo cobrado".
+
+**Decisão:** `receitaBase` acumula só os itens confirmados de royalties que não são CAC. O card CAC mostra o valor
+cobrado, sem percentual nem base; saem as notas "X royalties + Y CAC" e as linhas "Base de royalties / Base de CAC" do
+resumo. O demonstrativo (PDF/Excel) usa o mesmo `receitaBase`, então muda junto. Nenhum cálculo de cobrança mudou.
