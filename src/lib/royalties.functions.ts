@@ -81,6 +81,7 @@ export interface ApuracaoFull {
     csc_valor_fixo: number | null;
     csc_percentual_base_antiga: number | null;
     observacoes_financeiras: string | null;
+    split_ativo_desde: string | null;
     tem_omie: boolean;
   };
 }
@@ -1047,7 +1048,7 @@ export const getApuracao = createServerFn({ method: "GET" })
       const { data: ap, error: apErr } = await supabase
         .from("royalties_apuracao")
         .select(
-          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,servicos_fixos_editado,servicos_fixos_itens,contas_fixas_ciclo_id,total_fatura,confirmado_em,confirmado_por,observacao,contas_fixas:csc_ciclos(num_recibo,cod_int_os,vence_em),unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras)",
+          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,servicos_fixos_editado,servicos_fixos_itens,contas_fixas_ciclo_id,total_fatura,confirmado_em,confirmado_por,observacao,contas_fixas:csc_ciclos(num_recibo,cod_int_os,vence_em),unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras,split_ativo_desde)",
         )
         .eq("id", data.apuracao_id)
         .single();

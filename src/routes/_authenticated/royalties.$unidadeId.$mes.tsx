@@ -538,6 +538,15 @@ function ApuracaoLoaded({
   // totals (live)
   let receitaBase = 0;
   let royaltiesValor = 0;
+  // Unidade com split no Asaas: o royalty de quem pagou pelo boleto com split já
+  // foi retido na fonte, e o item entra com percentual menor (0 quando todo o
+  // recebimento splitou). A diferença para o percentual padrão é o retido; o que
+  // sobra é o royalty fora do split, que é o que vai na fatura (16/10/2026).
+  const temSplit =
+    u.split_ativo_desde != null &&
+    u.split_ativo_desde.slice(0, 7) <= apuracao.mes_referencia.slice(0, 7);
+  let royaltiesSplit = 0;
+  let clientesForaSplit = 0;
   let cacValor = 0;
   // CAC por parcela: adiantamento na assinatura × 2ª metade que segue o caixa.
   let cacAdiantamento = 0;
@@ -559,6 +568,10 @@ function ApuracaoLoaded({
       } else {
         receitaBase += v;
         royaltiesValor += computado;
+        if (temSplit) {
+          royaltiesSplit += Math.max(0, (v * (pctPadrao - pctEfetivo(it))) / 100);
+          if (computado > 0.005) clientesForaSplit += 1;
+        }
       }
     } else if (it.categoria === "csc_base_antiga") {
       receitaBaseAntiga += v;
@@ -990,11 +1003,28 @@ function ApuracaoLoaded({
           nota="MRR recebido que entra nos royalties"
           estado={emAndamento ? "parcial" : "ok"}
         />
-        <KpiCard
-          rotulo={`Royalties (${pctPadrao}%)`}
-          valor={brl(royaltiesValor)}
-          estado={emAndamento ? "parcial" : "ok"}
-        />
+        {temSplit ? (
+          <>
+            <KpiCard
+              rotulo={`Royalties (${pctPadrao}%)`}
+              valor={brl(royaltiesSplit + royaltiesValor)}
+              nota={`${brl(royaltiesSplit)} via split + ${brl(royaltiesValor)} fora do split`}
+              estado={emAndamento ? "parcial" : "ok"}
+            />
+            <KpiCard
+              rotulo="Royalties fora do split"
+              valor={brl(royaltiesValor)}
+              nota={`${clientesForaSplit} ${clientesForaSplit === 1 ? "cliente pagou" : "clientes pagaram"} sem split · vai na fatura`}
+              estado={emAndamento ? "parcial" : "ok"}
+            />
+          </>
+        ) : (
+          <KpiCard
+            rotulo={`Royalties (${pctPadrao}%)`}
+            valor={brl(royaltiesValor)}
+            estado={emAndamento ? "parcial" : "ok"}
+          />
+        )}
         <KpiCard
           rotulo="CSC"
           valor={brl(cscFixo ?? cscBaseAntigaValor)}
@@ -1012,7 +1042,7 @@ function ApuracaoLoaded({
         <KpiCard
           rotulo="Total fatura"
           valor={brl(totalFatura)}
-          nota="CSC + Royalties + CAC + Outras + Mídia (tráfego pago)"
+          nota={`CSC + Royalties${temSplit ? " fora do split" : ""} + CAC + Outras + Mídia (tráfego pago)`}
           estado={emAndamento ? "parcial" : "ok"}
         />
       </KpiGrade>
@@ -1159,7 +1189,20 @@ function ApuracaoLoaded({
             value={`${confirmadosCount} / ${ativos.length}`}
           />
           <ResumoLinha label="Base Planning" value={brl(receitaBase)} />
-          <ResumoLinha label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} bold />
+          {temSplit ? (
+            <>
+              <ResumoLinha
+                label={`Royalties (${pctPadrao}%)`}
+                value={brl(royaltiesSplit + royaltiesValor)}
+              />
+              <div className="space-y-1 pl-3 text-xs">
+                <ResumoLinha label="Retido via split" value={brl(royaltiesSplit)} />
+                <ResumoLinha label="Fora do split · na fatura" value={brl(royaltiesValor)} bold />
+              </div>
+            </>
+          ) : (
+            <ResumoLinha label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} bold />
+          )}
           {cacValor > 0 && (
             <ResumoLinha label="CAC" value={brl(cacValor)} bold />
           )}

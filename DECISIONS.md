@@ -5539,3 +5539,19 @@ apuração", e não faz sentido mostrar base de CAC porque "o valor cac é o que
 **Decisão:** `receitaBase` acumula só os itens confirmados de royalties que não são CAC. O card CAC mostra o valor
 cobrado, sem percentual nem base; saem as notas "X royalties + Y CAC" e as linhas "Base de royalties / Base de CAC" do
 resumo. O demonstrativo (PDF/Excel) usa o mesmo `receitaBase`, então muda junto. Nenhum cálculo de cobrança mudou.
+
+## [2026-10-16] Apuração de royalties: card de royalties abre via split + fora do split, e card novo "Royalties fora do split"
+
+**Contexto:** em unidade com split no Asaas (Maceió desde 28/08/2026), o card de royalties mostrava só o que ia na fatura
+(R$ 2.348 em set/26), sem dizer quanto já tinha sido retido na fonte. O dono pediu o total do mês explicado como
+via split + fora do split, e o fora do split à parte, porque é ele que gera a cobrança.
+
+**Decisão:** quando `unidades.split_ativo_desde` é anterior ou igual ao mês da apuração, o card "Royalties (X%)" mostra
+o total (retido + cobrado) com a nota "R$ A via split + R$ B fora do split", e um card novo "Royalties fora do split"
+mostra o valor cobrado e quantos clientes pagaram sem split. O retido sai da diferença entre o percentual padrão e o
+percentual efetivo de cada item (o split é registrado na apuração como percentual reduzido; 0 quando todo o
+recebimento splitou). Em Maceió set/26: R$ 8.081 retido + R$ 2.348 cobrado = R$ 10.429; o Asaas tem R$ 8.112
+creditados no mês (diferença é a taxa do gateway, que reduz a base do split).
+
+**Limite conhecido:** se uma unidade com split ganhar percentual negociado por cliente, a diferença apareceria como
+split. Hoje nenhuma tem. Total fatura e valores cobrados não mudaram.

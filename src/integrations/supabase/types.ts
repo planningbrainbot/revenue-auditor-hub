@@ -4411,6 +4411,7 @@ export type Database = {
           pipefy_id: string | null
           razao_social: string | null
           royalties_percentual: number | null
+          split_ativo_desde: string | null
           tipo: string | null
           updated_at: string | null
         }
@@ -4435,6 +4436,7 @@ export type Database = {
           pipefy_id?: string | null
           razao_social?: string | null
           royalties_percentual?: number | null
+          split_ativo_desde?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
@@ -4459,6 +4461,7 @@ export type Database = {
           pipefy_id?: string | null
           razao_social?: string | null
           royalties_percentual?: number | null
+          split_ativo_desde?: string | null
           tipo?: string | null
           updated_at?: string | null
         }
