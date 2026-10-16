@@ -393,6 +393,13 @@ export const AREAS: Area[] = [
             icon: Split,
           },
           {
+            // Da venda ao royalty, só unidades com split (16/10/2026).
+            title: "Funil da Rede",
+            url: "/unidades/funil-rede",
+            icon: Target,
+            chave: "view.royalties_split",
+          },
+          {
             // A mesma lista e ficha da Administração (> Rede), para quem confere
             // repasse sem ser super admin (pedido de 16/10/2026). Ver é a chave
             // `view.unidades_rede`, que a Receita já concedia; cadastrar segue

@@ -5576,3 +5576,27 @@ split. Hoje nenhuma tem. Total fatura e valores cobrados não mudaram.
 - **Base antiga protegida:** `monetizacao-crm` bloqueia o envio ao pipe 39 de conta com card no pipe 40 (fora o perdido na etapa 01) e de lista com dono Matheus; o Matheus sai de `CLOSERS` (fica em `PRE_VENDEDORES`, para os filtros e o ritmo).
 
 **Fica para decidir:** pipe 40 no IDU, no ranking e nos Cockpits; avaliação de ligação e gravação da apresentação da Jordana; motivo de perda "Fora do escopo" e motivo obrigatório (só pela tela do Pipedrive).
+
+## [2026-10-16] Funil da Rede: da venda ao royalty, só unidades com split
+
+**Contexto:** o dono quer saber quanto as unidades cobraram, não só o royalty que entra, e onde o dinheiro se perde. Validado antes em planilha (repo AI Projects: `tools/funil_split_planilha.py`, `gap_royalty_planilha.py`, `conciliacao_mrr_split.py`).
+
+**Decisão:**
+- Tela nova `/unidades/funil-rede` (Receita e Repasses > Repasses das unidades), estilo BI, chave `view.royalties_split` (mesmo público do Split do Asaas). Três visões: Funil, Gap de royalty, Conciliação de MRR.
+- **Só unidades com `split_ativo_desde`**, cada uma a partir dessa data. Quem não tem split fica fora, inclusive o faturado do Omie: sem split o royalty não é medido na fonte.
+- Funil = fluxo do mês (não coorte): 1 vendas (`ganho_em`, pipes Sócios = Hunter e Inside Sales), 2 contratos (data de assinatura do Pipedrive ou do Pipefy; sem ela, o primeiro boleto do cliente, porque a venda do pipe Sócios nunca tem data de assinatura), 3 faturado, 4 recebido / a receber, 5 royalty recebido / a receber. Boletos pelo vencimento, como no Split.
+- Filtro de canal Hunter × Inside Sales vale nas cinco etapas: nas etapas 3 a 5 o canal é o da venda mais antiga do cliente, casada por CNPJ; boleto sem venda fica em "Sem venda registrada".
+- Gap de royalty: potencial = MRR das vendas ativas × % da unidade, só meses INTEIROS com split; abre em cadastro (churn não baixado e excesso de venda duplicada), contrato, faturamento, inadimplência e split, mais a vencer, taxa do gateway e extra.
+- Conciliação de MRR cliente a cliente contra o faturado do último mês fechado, tolerância 20%. Churn vem da Central de Tratativas (perdido) ou do card em "Churn no Contrato" no Pipefy. Venda sem boleto e cliente a mais no Omie com nome ≥60% parecido viram uma linha só ("CNPJ não casou").
+- Cálculo em server function (`src/lib/funil-rede.functions.ts`), não em view: precisa agrupar contratos e boletos por CNPJ (union-find) e casar nome.
+
+**Pendente antes de publicar:** a tela lê `contratos`, `contratos_documentos`, `central_tratativas`, `socios`, `contas_receber` direto, cada uma com a própria chave de RLS. Quem tem só `view.royalties_split` pode ver número parcial sem erro. Ou o público da chave também tem as outras, ou a leitura vira uma função do banco com o portão `can('view.royalties_split')`, como `v_split_cliente`.
+
+## [2026-10-16] Funil da Rede: régua safra × fato, conversão e carência no gap
+
+**Contexto:** o dono apontou que a venda do mês 1 não é recebida no mês 1, então o funil por fato compara clientes diferentes. Medido nas unidades com Omie (95 vendas de 2026 com CNPJ): mediana de 39 dias da venda ao primeiro boleto; 27 faturaram no mesmo mês, 28 no mês seguinte, 39 dois meses depois ou mais.
+
+**Decisão:**
+- Filtro `regua` no funil: **safra** (padrão) põe o cliente no mês da primeira venda e soma contrato, boletos e royalty de qualquer mês depois; **fato** mantém cada etapa no mês em que aconteceu. Boleto sem venda não tem safra e só aparece no fato.
+- Conversão ao lado das barras. Na safra é conversão de clientes (os mesmos de uma etapa para a outra): contrato ÷ vendidos, faturado ÷ contratados, pagou ÷ faturados, royalty ÷ pagaram, e a ponta royalty ÷ vendidos. No fato é só a razão de valores e a tela diz que não é conversão.
+- Filtro `carencia` no gap (0, 1 ou 2 meses; padrão 1): nos meses dentro da carência, o que faltou de cadastro, contrato e faturamento vira "Em implantação", não gap. Inadimplência, split e recebido não mudam. A função devolve o gap com a idade da venda (0 a 3+) e a tela reclassifica.

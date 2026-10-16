@@ -68,6 +68,7 @@ import { Route as ApresentacaoListaIdRouteImport } from './routes/apresentacao.l
 import { Route as ApiCockpitCeoConversaRouteImport } from './routes/api/cockpit-ceo/conversa'
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
+import { Route as AuthenticatedUnidadesFunilRedeRouteImport } from './routes/_authenticated/unidades.funil-rede'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
 import { Route as AuthenticatedUnidadesUnidadeIdRouteImport } from './routes/_authenticated/unidades.$unidadeId'
 import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authenticated/royalties.split'
@@ -416,6 +417,12 @@ const AuthenticatedUnidadesRoyaltiesRoute =
     path: '/royalties',
     getParentRoute: () => AuthenticatedUnidadesRoute,
   } as any)
+const AuthenticatedUnidadesFunilRedeRoute =
+  AuthenticatedUnidadesFunilRedeRouteImport.update({
+    id: '/funil-rede',
+    path: '/funil-rede',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
 const AuthenticatedUnidadesFunilCacRoute =
   AuthenticatedUnidadesFunilCacRouteImport.update({
     id: '/funil-cac',
@@ -634,6 +641,7 @@ export interface FileRoutesByFullPath {
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
@@ -716,6 +724,7 @@ export interface FileRoutesByTo {
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
@@ -802,6 +811,7 @@ export interface FileRoutesById {
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/_authenticated/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
   '/api/cockpit-ceo/conversa': typeof ApiCockpitCeoConversaRoute
@@ -888,6 +898,7 @@ export interface FileRouteTypes {
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
+    | '/unidades/funil-rede'
     | '/unidades/royalties'
     | '/unidades/split'
     | '/api/cockpit-ceo/conversa'
@@ -970,6 +981,7 @@ export interface FileRouteTypes {
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
+    | '/unidades/funil-rede'
     | '/unidades/royalties'
     | '/unidades/split'
     | '/api/cockpit-ceo/conversa'
@@ -1055,6 +1067,7 @@ export interface FileRouteTypes {
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/$unidadeId'
     | '/_authenticated/unidades/funil-cac'
+    | '/_authenticated/unidades/funil-rede'
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
     | '/api/cockpit-ceo/conversa'
@@ -1493,6 +1506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUnidadesRoyaltiesRouteImport
       parentRoute: typeof AuthenticatedUnidadesRoute
     }
+    '/_authenticated/unidades/funil-rede': {
+      id: '/_authenticated/unidades/funil-rede'
+      path: '/funil-rede'
+      fullPath: '/unidades/funil-rede'
+      preLoaderRoute: typeof AuthenticatedUnidadesFunilRedeRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
     '/_authenticated/unidades/funil-cac': {
       id: '/_authenticated/unidades/funil-cac'
       path: '/funil-cac'
@@ -1686,6 +1706,7 @@ const AuthenticatedRoyaltiesRouteWithChildren =
 interface AuthenticatedUnidadesRouteChildren {
   AuthenticatedUnidadesUnidadeIdRoute: typeof AuthenticatedUnidadesUnidadeIdRoute
   AuthenticatedUnidadesFunilCacRoute: typeof AuthenticatedUnidadesFunilCacRoute
+  AuthenticatedUnidadesFunilRedeRoute: typeof AuthenticatedUnidadesFunilRedeRoute
   AuthenticatedUnidadesRoyaltiesRoute: typeof AuthenticatedUnidadesRoyaltiesRoute
   AuthenticatedUnidadesSplitRoute: typeof AuthenticatedUnidadesSplitRoute
   AuthenticatedUnidadesIndexRoute: typeof AuthenticatedUnidadesIndexRoute
@@ -1694,6 +1715,7 @@ interface AuthenticatedUnidadesRouteChildren {
 const AuthenticatedUnidadesRouteChildren: AuthenticatedUnidadesRouteChildren = {
   AuthenticatedUnidadesUnidadeIdRoute: AuthenticatedUnidadesUnidadeIdRoute,
   AuthenticatedUnidadesFunilCacRoute: AuthenticatedUnidadesFunilCacRoute,
+  AuthenticatedUnidadesFunilRedeRoute: AuthenticatedUnidadesFunilRedeRoute,
   AuthenticatedUnidadesRoyaltiesRoute: AuthenticatedUnidadesRoyaltiesRoute,
   AuthenticatedUnidadesSplitRoute: AuthenticatedUnidadesSplitRoute,
   AuthenticatedUnidadesIndexRoute: AuthenticatedUnidadesIndexRoute,

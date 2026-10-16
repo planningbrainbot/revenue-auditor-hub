@@ -188,6 +188,10 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
   // Período da análise mês a mês. Vazio = do começo da régua até o mês atual.
   const [de, setDe] = useFiltroNaUrl("de", "");
   const [ate, setAte] = useFiltroNaUrl("ate", "");
+  // Recorte da seção mês a mês: todas as vendas do Inside Sales em MRR, ou só
+  // as que geram CAC, em valor de CAC (`cacEsperado`).
+  const [recorteVendas, setRecorteVendas] = useFiltroNaUrl("vendas", "totais");
+  const soCac = recorteVendas === "cac";
 
   useEffect(() => {
     let vivo = true;
@@ -322,7 +326,9 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
     let assinadasSemData = 0;
     for (const r of daUnidade) {
       if (r.contrato_id == null) continue;
-      const mrr = Number(r.mrr_mensal ?? 0);
+      if (soCac && !r.elegivel) continue;
+      // Nome mantido: em "Vendas CAC" o valor é o CAC da venda, não o MRR.
+      const mrr = soCac ? cacEsperado(r) : Number(r.mrr_mensal ?? 0);
       const v = r.ganho_em ? m.get(r.ganho_em.slice(0, 7)) : undefined;
       if (v) {
         v.vendas += 1;
@@ -348,7 +354,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
       { vendas: 0, mrrVendido: 0, assinadas: 0, mrrAssinado: 0, vendasJaAssinadas: 0 },
     );
     return { meses: linhasMes, total, assinadasSemData };
-  }, [daUnidade, ini, fim]);
+  }, [daUnidade, ini, fim, soCac]);
 
   if (loading) {
     return <Carregando variante="pagina" className="px-4 py-6 md:px-6" />;
@@ -500,9 +506,20 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
 
       <Secao
         titulo="Quanto foi vendido e assinado, mês a mês?"
-        descricao={`Venda no mês em que foi ganha; assinatura no mês em que o contrato foi assinado. Valor é o honorário mensal (MRR) do contrato. ${daRede ? "Respeita o filtro de unidade; o" : "O"} período vale só para esta seção.`}
+        descricao={`Venda no mês em que foi ganha; assinatura no mês em que o contrato foi assinado. ${
+          soCac
+            ? "Só vendas que geram CAC; valor é o CAC da venda (1º honorário do card de cobrança ou, sem card, o honorário mensal)."
+            : "Todas as vendas do Inside Sales; valor é o honorário mensal (MRR) do contrato."
+        } ${daRede ? "Respeita o filtro de unidade; o" : "O"} período vale só para esta seção.`}
         acoes={
           <div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+            <Select value={recorteVendas} onValueChange={setRecorteVendas}>
+              <SelectTrigger className="w-[160px]" aria-label="Vendas"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="totais">Vendas totais</SelectItem>
+                <SelectItem value="cac">Vendas CAC</SelectItem>
+              </SelectContent>
+            </Select>
             <span>De</span>
             <Select value={deEf} onValueChange={(v) => setDe(v === todosOsMeses[0] ? "" : v)}>
               <SelectTrigger className="w-[110px]" aria-label="Mês inicial"><SelectValue /></SelectTrigger>
@@ -526,14 +543,14 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
         <div className="space-y-4">
           <KpiGrade>
             <KpiCard
-              rotulo="Vendido no período"
+              rotulo={soCac ? "CAC vendido no período" : "Vendido no período"}
               valor={fmtBRL(periodo.total.mrrVendido)}
-              nota={`${periodo.total.vendas} vendas · MRR`}
+              nota={`${periodo.total.vendas} vendas · ${soCac ? "CAC" : "MRR"}`}
             />
             <KpiCard
-              rotulo="Assinado no período"
+              rotulo={soCac ? "CAC assinado no período" : "Assinado no período"}
               valor={fmtBRL(periodo.total.mrrAssinado)}
-              nota={`${periodo.total.assinadas} contratos · MRR`}
+              nota={`${periodo.total.assinadas} contratos · ${soCac ? "CAC" : "MRR"}`}
             />
             <KpiCard
               rotulo="Vendas do período já assinadas"
@@ -552,7 +569,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
             <div
               className="h-56 w-full"
               role="img"
-              aria-label={`MRR vendido e assinado por mês, de ${fmtMes(ini)} a ${fmtMes(fim)}`}
+              aria-label={`${soCac ? "CAC" : "MRR"} vendido e assinado por mês, de ${fmtMes(ini)} a ${fmtMes(fim)}`}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -589,9 +606,9 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
                 <TableRow>
                   <TableHead>Mês</TableHead>
                   <TableHead className="text-right">Vendas</TableHead>
-                  <TableHead className="text-right">MRR vendido</TableHead>
+                  <TableHead className="text-right">{soCac ? "CAC vendido" : "MRR vendido"}</TableHead>
                   <TableHead className="text-right">Assinados</TableHead>
-                  <TableHead className="text-right">MRR assinado</TableHead>
+                  <TableHead className="text-right">{soCac ? "CAC assinado" : "MRR assinado"}</TableHead>
                   <TableHead className="text-right">Vendas do mês já assinadas</TableHead>
                 </TableRow>
               </TableHeader>
@@ -624,9 +641,11 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
             </Table>
           </div>
           <p className="text-xs text-muted-foreground">
-            {daRede
-              ? "Entram as vendas do Inside Sales das unidades deste funil (as que cobram CAC ou já abriram card de cobrança), elegíveis ou não."
-              : "Entram as vendas do Inside Sales da unidade, elegíveis ou não."}{" "}
+            {soCac
+              ? "Entram só as vendas que geram CAC: a unidade já cobrava CAC na data da venda e o honorário passa do piso dela."
+              : daRede
+                ? "Entram as vendas do Inside Sales das unidades deste funil (as que cobram CAC ou já abriram card de cobrança), elegíveis ou não."
+                : "Entram as vendas do Inside Sales da unidade, elegíveis ou não."}{" "}
             Contrato assinado sem data de
             assinatura no Pipefy conta como “já assinada”, mas não entra na coluna “Assinados”
             de mês nenhum.
