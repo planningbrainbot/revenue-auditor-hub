@@ -5523,3 +5523,9 @@ Pedido do RH de Maceió (13/10/2026), aprovado pelo dono com os padrões propost
 - E-mail diário ao RH da unidade (conta ativa presa à unidade, com `manage.gente` e chave de remuneração ou saúde): 30 dias antes, 15 dias antes e no dia (ou depois, se venceu sem renovar). Edge Function `gente-vigencia-alertas`, agendada no n8n; `ops.gente_vigencia_avisos` guarda o que saiu para não repetir. Renovar é mudar o fim: os avisos recomeçam.
 - Estágio que passa de 2 anos na mesma empresa (Lei 11.788/2008, art. 11) aparece marcado no quadro e no e-mail; não bloqueia, porque estagiário com deficiência é exceção.
 - Unidade sem RH no Brain (Belém em 16/10) não recebe e-mail; o quadro da tela vale do mesmo jeito.
+
+## [2026-10-16] CS, RH e Compliance separados na apuração
+
+**Contexto:** no Omie os três caem na mesma categoria, mas na apuração cada um precisa aparecer e ser editado à parte (pedido do usuário, mesmo dia da entrada anterior).
+
+**Decisão:** `royalties_apuracao.servicos_fixos_itens` (`{"cs","gg","comp"}`, chaves do boleto) com a quebra; `servicos_fixos_valor` continua sendo a soma, então ND, fechamento e Receita não mudam. A tela mostra três linhas editáveis em Serviços contratados e o subtotal da categoria passa a somá-las; o demonstrativo lista um a um. Migration `20261016220000_servicos_fixos_itens` (aplicada em 16/10, com a quebra preenchida a partir do boleto em todas as apurações que já o leram).

@@ -92,6 +92,8 @@ import {
   MOTIVOS_CHURN,
   type MotivoChurn,
   EDITAR_ROYALTIES,
+  NOME_SERVICO_FIXO,
+  SERVICOS_FIXOS,
 } from "@/lib/royalties.functions";
 import {
   useAddItem,
@@ -117,6 +119,7 @@ import type {
   ApuracaoItem,
   OutraReceitaCategoria,
   OutraReceitaItem,
+  ServicosFixosItens,
 } from "@/lib/royalties.functions";
 import {
   gerarDemonstrativoRoyaltiesPdf,
@@ -540,6 +543,10 @@ function ApuracaoLoaded({
   let cacAdiantamento = 0;
   let cacCaixa = 0;
   let receitaBaseAntiga = 0;
+  // A Base Planning é a soma de tudo que serviu de cálculo; royalties e CAC
+  // mudam só o percentual (16/10/2026). Separada aqui para os cards dizerem
+  // sobre qual parte cada percentual incide.
+  let baseCac = 0;
   let confirmadosCount = 0;
   for (const it of ativos) {
     if (!it.confirmado) continue;
@@ -549,6 +556,7 @@ function ApuracaoLoaded({
       receitaBase += v;
       const computado = (v * pctEfetivo(it)) / 100;
       if (it.is_cac) {
+        baseCac += v;
         cacValor += computado;
         if (it.cac_parcela === 1) cacAdiantamento += computado;
         else if (it.cac_parcela === 2) cacCaixa += computado;
@@ -557,6 +565,10 @@ function ApuracaoLoaded({
       receitaBaseAntiga += v;
     }
   }
+  const baseRoyalties = receitaBase - baseCac;
+  const pctCac = baseCac > 0 ? (cacValor / baseCac) * 100 : 0;
+  const notaBase =
+    baseCac > 0 ? `${brl(baseRoyalties)} royalties + ${brl(baseCac)} CAC` : undefined;
   const cscPctBaseAntiga = Number(u.csc_percentual_base_antiga ?? 0);
   const cscBaseAntigaValor = (receitaBaseAntiga * cscPctBaseAntiga) / 100;
   // Com boleto de contas fixas faturado, a parte fixa é a do boleto, não a do
@@ -671,15 +683,24 @@ function ApuracaoLoaded({
           valor: Number(it.valor),
           categoria: CATEGORIAS_OUTRAS.find((c) => c.chave === it.categoria)?.titulo ?? "",
         })),
-        ...(servicosFixos > 0
-          ? [
-              {
-                nome: "CS, RH e Compliance (boleto de contas fixas)",
-                valor: servicosFixos,
+        // CS, RH e Compliance um a um; sem a quebra (apuração antiga), uma linha só.
+        ...(apuracao.servicos_fixos_itens
+          ? SERVICOS_FIXOS.filter((k) => Number(apuracao.servicos_fixos_itens?.[k] ?? 0) > 0).map(
+              (k) => ({
+                nome: `${NOME_SERVICO_FIXO[k]} (boleto de contas fixas)`,
+                valor: Number(apuracao.servicos_fixos_itens?.[k] ?? 0),
                 categoria: "Boleto de contas fixas",
-              },
-            ]
-          : []),
+              }),
+            )
+          : servicosFixos > 0
+            ? [
+                {
+                  nome: "CS, RH e Compliance (boleto de contas fixas)",
+                  valor: servicosFixos,
+                  categoria: "Boleto de contas fixas",
+                },
+              ]
+            : []),
       ],
       servicosFixos,
       totalFatura,
@@ -968,10 +989,16 @@ function ApuracaoLoaded({
           valor={`${confirmadosCount} / ${ativos.length}`}
           nota={pendentesCount > 0 ? `${pendentesCount} ainda sem confirmação` : "todos confirmados"}
         />
-        <KpiCard rotulo="Base Planning" valor={brl(receitaBase)} estado={emAndamento ? "parcial" : "ok"} />
+        <KpiCard
+          rotulo="Base Planning"
+          valor={brl(receitaBase)}
+          nota={notaBase}
+          estado={emAndamento ? "parcial" : "ok"}
+        />
         <KpiCard
           rotulo={`Royalties (${pctPadrao}%)`}
           valor={brl(royaltiesValor)}
+          nota={baseCac > 0 ? `sobre ${brl(baseRoyalties)}` : undefined}
           estado={emAndamento ? "parcial" : "ok"}
         />
         <KpiCard
@@ -981,7 +1008,12 @@ function ApuracaoLoaded({
           estado={emAndamento ? "parcial" : "ok"}
         />
         {cacValor > 0 && (
-          <KpiCard rotulo="CAC" valor={brl(cacValor)} estado={emAndamento ? "parcial" : "ok"} />
+          <KpiCard
+            rotulo="CAC"
+            valor={brl(cacValor)}
+            nota={`${fmtPct(pctCac)} sobre ${brl(baseCac)}`}
+            estado={emAndamento ? "parcial" : "ok"}
+          />
         )}
         <KpiCard
           rotulo="Total fatura"
@@ -1133,8 +1165,16 @@ function ApuracaoLoaded({
             value={`${confirmadosCount} / ${ativos.length}`}
           />
           <ResumoLinha label="Base Planning" value={brl(receitaBase)} />
+          {baseCac > 0 && (
+            <div className="space-y-1 pl-3 text-xs">
+              <ResumoLinha label="Base de royalties" value={brl(baseRoyalties)} />
+              <ResumoLinha label="Base de CAC" value={brl(baseCac)} />
+            </div>
+          )}
           <ResumoLinha label={`Royalties (${pctPadrao}%)`} value={brl(royaltiesValor)} bold />
-          {cacValor > 0 && <ResumoLinha label="CAC (itens marcados)" value={brl(cacValor)} bold />}
+          {cacValor > 0 && (
+            <ResumoLinha label={`CAC (${fmtPct(pctCac)})`} value={brl(cacValor)} bold />
+          )}
           {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0) && (
             <div className="space-y-1 pl-3 text-xs">
               <ResumoLinha label="1ª parcela · adiantamento" value={brl(cacAdiantamento)} />
@@ -1196,9 +1236,15 @@ function ApuracaoLoaded({
               servicosFixos={
                 doBoleto || servicosFixos > 0
                   ? {
-                      valor: servicosFixos,
+                      // Sem a quebra (apuração antiga), o total fica em CS.
+                      itens: {
+                        cs: Number(apuracao.servicos_fixos_itens?.cs ?? (apuracao.servicos_fixos_itens ? 0 : servicosFixos)),
+                        gg: Number(apuracao.servicos_fixos_itens?.gg ?? 0),
+                        comp: Number(apuracao.servicos_fixos_itens?.comp ?? 0),
+                      },
                       editado: Boolean(apuracao.servicos_fixos_editado),
-                      onChange: (v) => updateAp.mutate({ id: apuracaoId, servicos_fixos_valor: v }),
+                      onChange: (itens) =>
+                        updateAp.mutate({ id: apuracaoId, servicos_fixos_itens: itens }),
                     }
                   : null
               }
@@ -1233,6 +1279,10 @@ function ApuracaoLoaded({
   );
 }
 
+function fmtPct(n: number) {
+  return `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+}
+
 function ResumoLinha({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2 text-xs">
@@ -1251,12 +1301,14 @@ const CATEGORIAS_OUTRAS: { chave: OutraReceitaCategoria; titulo: string; placeho
   { chave: "servicos", titulo: "Serviços contratados", placeholder: "Serviço" },
 ];
 
-// CS, RH e Compliance vêm do boleto de contas fixas e ficam fora da ND: editável
-// dentro de Serviços contratados (16/10/2026), mas fora do total das outras.
+// CS, RH e Compliance vêm do boleto de contas fixas e ficam fora da ND: editáveis
+// um a um dentro de Serviços contratados (16/10/2026). No Omie são a mesma
+// categoria; na apuração, três linhas. Somam no subtotal da categoria e no total
+// da fatura, não no total das outras receitas (que é o que vai para a ND).
 type ServicosFixosLinha = {
-  valor: number;
+  itens: ServicosFixosItens;
   editado: boolean;
-  onChange: (valor: number | null) => void;
+  onChange: (itens: ServicosFixosItens) => void;
 };
 
 function OutrasReceitasSection({
@@ -1320,7 +1372,9 @@ function OutrasReceitasCategoria({
 }) {
   const [novoNome, setNovoNome] = useState("");
   const [novoValor, setNovoValor] = useState("");
-  const subtotal = itens.reduce((soma, it) => soma + Number(it.valor ?? 0), 0);
+  const subtotal =
+    itens.reduce((soma, it) => soma + Number(it.valor ?? 0), 0) +
+    (servicosFixos ? SERVICOS_FIXOS.reduce((soma, k) => soma + servicosFixos.itens[k], 0) : 0);
 
   const handleAdd = () => {
     const nome = novoNome.trim();
@@ -1338,25 +1392,29 @@ function OutrasReceitasCategoria({
         <span className="text-muted-foreground">{brl(subtotal)}</span>
       </div>
       {servicosFixos && (
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5">
-            <span className="flex-1 truncate" title="CS, RH e Compliance">
-              CS, RH e Compliance
-            </span>
-            <Input
-              type="number"
-              step="0.01"
-              disabled={readOnly}
-              defaultValue={servicosFixos.valor}
-              key={servicosFixos.valor}
-              className="h-7 w-24 text-xs"
-              onBlur={(e) => {
-                const v = e.target.value === "" ? 0 : Number(e.target.value);
-                if (Number.isFinite(v) && v !== servicosFixos.valor) servicosFixos.onChange(v);
-              }}
-            />
-            {!readOnly && <span className="h-7 w-7 shrink-0" />}
-          </div>
+        <div className="space-y-1.5">
+          {SERVICOS_FIXOS.map((k) => (
+            <div key={k} className="flex items-center gap-1.5">
+              <span className="flex-1 truncate" title={NOME_SERVICO_FIXO[k]}>
+                {NOME_SERVICO_FIXO[k]}
+              </span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                disabled={readOnly}
+                defaultValue={servicosFixos.itens[k]}
+                key={`${k}-${servicosFixos.itens[k]}`}
+                className="h-7 w-24 text-xs"
+                onBlur={(e) => {
+                  const v = e.target.value === "" ? 0 : Number(e.target.value);
+                  if (Number.isFinite(v) && v >= 0 && v !== servicosFixos.itens[k])
+                    servicosFixos.onChange({ ...servicosFixos.itens, [k]: v });
+                }}
+              />
+              {!readOnly && <span className="h-7 w-7 shrink-0" />}
+            </div>
+          ))}
           <div className="text-[11px] text-muted-foreground">
             {servicosFixos.editado ? "Editado na apuração" : "Do boleto de contas fixas"}; fora da
             nota de débito.

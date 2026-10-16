@@ -38,6 +38,16 @@ export interface ApuracaoSummary {
   confirmado_em: string | null;
 }
 
+/** CS, RH e Compliance da apuração, com as chaves do boleto de contas fixas. */
+export const SERVICOS_FIXOS = ["cs", "gg", "comp"] as const;
+export type ServicoFixo = (typeof SERVICOS_FIXOS)[number];
+export type ServicosFixosItens = Record<ServicoFixo, number>;
+export const NOME_SERVICO_FIXO: Record<ServicoFixo, string> = {
+  cs: "Customer Success",
+  gg: "RH (Gente e Gestão + Recrutamento)",
+  comp: "Compliance",
+};
+
 export interface ApuracaoFull {
   id: number;
   unidade_id: number;
@@ -56,6 +66,7 @@ export interface ApuracaoFull {
   servicos_fixos_valor: number | null;
   /** CS, RH e Compliance editados na tela: o boleto não sobrescreve mais. */
   servicos_fixos_editado: boolean;
+  servicos_fixos_itens: Partial<ServicosFixosItens> | null;
   contas_fixas_ciclo_id: number | null;
   /** Boleto de contas fixas de onde vem a parte fixa; `null` = cadastro, como antes de 09/2026. */
   contas_fixas: { num_recibo: string | null; cod_int_os: string; vence_em: string | null } | null;
@@ -1036,7 +1047,7 @@ export const getApuracao = createServerFn({ method: "GET" })
       const { data: ap, error: apErr } = await supabase
         .from("royalties_apuracao")
         .select(
-          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,servicos_fixos_editado,contas_fixas_ciclo_id,total_fatura,confirmado_em,confirmado_por,observacao,contas_fixas:csc_ciclos(num_recibo,cod_int_os,vence_em),unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras)",
+          "id,unidade_id,mes_referencia,status,receita_base,royalties_percentual,royalties_valor,csc_valor_fixo,receita_base_antiga,csc_percentual_base_antiga,csc_base_antiga_valor,cac_valor,csc_trafego_pago,outras_receitas,servicos_fixos_valor,servicos_fixos_editado,servicos_fixos_itens,contas_fixas_ciclo_id,total_fatura,confirmado_em,confirmado_por,observacao,contas_fixas:csc_ciclos(num_recibo,cod_int_os,vence_em),unidade:unidades!inner(id,nome_da_praca,royalties_percentual,csc_valor_fixo,csc_percentual_base_antiga,observacoes_financeiras)",
         )
         .eq("id", data.apuracao_id)
         .single();
@@ -1389,7 +1400,7 @@ export const updateApuracao = createServerFn({ method: "POST" })
       id: number;
       csc_trafego_pago?: number | null;
       outras_receitas?: number | null;
-      servicos_fixos_valor?: number | null;
+      servicos_fixos_itens?: ServicosFixosItens;
       observacao?: string | null;
       status?: string;
     }) => d,
@@ -1397,9 +1408,9 @@ export const updateApuracao = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
-    // CS, RH e Compliance: editável mesmo vindo do boleto (pedido de 16/10/2026).
-    // Fica fora da ND; a marca impede o boleto de sobrescrever ao reabrir.
-    if ("servicos_fixos_valor" in data) await assertApuracaoAberta(supabase, data.id);
+    // CS, RH e Compliance: editáveis um a um mesmo vindo do boleto (pedido de
+    // 16/10/2026). Ficam fora da ND; a marca impede o boleto de sobrescrever ao reabrir.
+    if ("servicos_fixos_itens" in data) await assertApuracaoAberta(supabase, data.id);
     if ("csc_trafego_pago" in data) {
       const { data: atual, error: atualErr } = await supabase
         .from("royalties_apuracao")
@@ -1414,8 +1425,15 @@ export const updateApuracao = createServerFn({ method: "POST" })
     const patch: any = {};
     if ("csc_trafego_pago" in data) patch.csc_trafego_pago = data.csc_trafego_pago;
     if ("outras_receitas" in data) patch.outras_receitas = data.outras_receitas;
-    if ("servicos_fixos_valor" in data) {
-      patch.servicos_fixos_valor = data.servicos_fixos_valor;
+    if (data.servicos_fixos_itens) {
+      const itens: ServicosFixosItens = { cs: 0, gg: 0, comp: 0 };
+      for (const k of SERVICOS_FIXOS) {
+        const v = Number(data.servicos_fixos_itens[k] ?? 0);
+        if (!Number.isFinite(v) || v < 0) throw new Error("Valor inválido em CS, RH e Compliance.");
+        itens[k] = v;
+      }
+      patch.servicos_fixos_itens = itens;
+      patch.servicos_fixos_valor = itens.cs + itens.gg + itens.comp;
       patch.servicos_fixos_editado = true;
     }
     if ("observacao" in data) patch.observacao = data.observacao;

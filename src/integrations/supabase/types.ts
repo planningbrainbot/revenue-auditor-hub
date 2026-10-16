@@ -4018,6 +4018,7 @@ export type Database = {
           royalties_percentual: number | null
           royalties_valor: number | null
           servicos_fixos_editado: boolean
+          servicos_fixos_itens: Json | null
           servicos_fixos_valor: number | null
           status: string
           total_fatura: number | null
@@ -4043,6 +4044,7 @@ export type Database = {
           royalties_percentual?: number | null
           royalties_valor?: number | null
           servicos_fixos_editado?: boolean
+          servicos_fixos_itens?: Json | null
           servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null
@@ -4068,6 +4070,7 @@ export type Database = {
           royalties_percentual?: number | null
           royalties_valor?: number | null
           servicos_fixos_editado?: boolean
+          servicos_fixos_itens?: Json | null
           servicos_fixos_valor?: number | null
           status?: string
           total_fatura?: number | null
