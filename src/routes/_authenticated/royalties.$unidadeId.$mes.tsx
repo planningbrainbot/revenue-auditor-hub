@@ -56,7 +56,7 @@ import {
 import { EmitirFaturasDialog } from "@/components/royalties/emitir-faturas-dialog";
 import { faturaDaUnidade } from "@/components/royalties/apuracao-royalties-content";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
-import { listarFaturasRoyalties } from "@/lib/royalties-faturamento.functions";
+import { listarFaturasRoyalties, situacaoContasFixas } from "@/lib/royalties-faturamento.functions";
 import { GruposFiliaisDialog } from "@/components/royalties/grupos-filiais-dialog";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -345,6 +345,16 @@ function ApuracaoLoaded({
     queryKey: ["royalties", "faturas", mes],
     queryFn: () => listarFaturas({ data: { competencia: mes } }),
     enabled: !mesEmAndamento(mes),
+    staleTime: 30_000,
+  });
+  // Boleto de contas fixas da apuração: o demonstrativo mostra se a parte fixa
+  // (cobrada no começo do mês) já foi paga.
+  const lerContasFixas = useServerFn(situacaoContasFixas);
+  const cicloContasFixas = data?.apuracao.contas_fixas_ciclo_id ?? null;
+  const { data: contasFixas } = useQuery({
+    queryKey: ["royalties", "contas-fixas", cicloContasFixas],
+    queryFn: () => lerContasFixas({ data: { cicloId: Number(cicloContasFixas) } }),
+    enabled: cicloContasFixas != null,
     staleTime: 30_000,
   });
   const updateItem = useUpdateItem(apuracaoId);
@@ -671,8 +681,30 @@ function ApuracaoLoaded({
             ]
           : []),
       ],
+      servicosFixos,
       totalFatura,
       itens,
+      cobranca: {
+        contasFixas: contasFixas
+          ? {
+              documento: `boleto de contas fixas${contasFixas.num_recibo ? ` nº ${contasFixas.num_recibo}` : ""}`,
+              status: contasFixas.status === "RECEBIDO" ? ("pago" as const) : ("em_aberto" as const),
+              pagoEm: contasFixas.pago_em,
+              vencimento: contasFixas.vence_em,
+            }
+          : null,
+        notaDebito: {
+          documento: `nota de débito${fatura?.num_os ? ` nº ${fatura.num_os}` : ""}`,
+          status:
+            fatura?.recebimento?.status === "RECEBIDO"
+              ? ("pago" as const)
+              : fatura && fatura.status !== "erro"
+                ? ("em_aberto" as const)
+                : ("a_emitir" as const),
+          pagoEm: fatura?.recebimento?.pago_em ?? null,
+          vencimento: fatura?.recebimento?.vencimento ?? fatura?.vence_em ?? null,
+        },
+      },
     };
   };
 

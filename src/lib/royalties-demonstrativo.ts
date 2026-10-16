@@ -97,6 +97,18 @@ export interface DemonstrativoOutraReceita {
   categoria: string; // "Reembolso de ferramentas", "Serviços contratados", ...
 }
 
+/**
+ * Situação de um dos dois títulos que cobram a fatura do mês. A parte fixa (CSC,
+ * mídia, CS/RH/Compliance) vai no boleto de contas fixas, que sai no começo do
+ * mês; royalties, CAC e outras receitas vão na nota de débito, depois do fechamento.
+ */
+export interface SituacaoCobranca {
+  documento: string;
+  status: "pago" | "em_aberto" | "a_emitir";
+  pagoEm?: string | null;
+  vencimento?: string | null;
+}
+
 export interface DemonstrativoData {
   unidadeNome: string;
   mes: string; // AAAA-MM
@@ -111,8 +123,60 @@ export interface DemonstrativoData {
   trafegoPago: number | null;
   outrasReceitas: number;
   outrasReceitasItens: DemonstrativoOutraReceita[];
+  /** CS, RH e Compliance do boleto de contas fixas; já somado em `outrasReceitas`. */
+  servicosFixos: number;
   totalFatura: number;
   itens: DemonstrativoItem[];
+  /**
+   * Por onde cada parte é cobrada. `contasFixas` nulo = mês sem boleto de contas
+   * fixas (antes de 09/2026), e a parte fixa fica sem status.
+   */
+  cobranca: {
+    contasFixas: SituacaoCobranca | null;
+    notaDebito: SituacaoCobranca;
+  };
+}
+
+function statusTexto(s: SituacaoCobranca | null): string {
+  if (!s) return "";
+  if (s.status === "pago")
+    return `Pago${s.pagoEm ? ` em ${formatData(s.pagoEm)}` : ""} (${s.documento})`;
+  if (s.status === "em_aberto")
+    return `Em aberto${s.vencimento ? `, vence ${formatData(s.vencimento)}` : ""} (${s.documento})`;
+  return `A cobrar (${s.documento})`;
+}
+
+type LinhaResumo = { label: string; value: number; cobranca: SituacaoCobranca | null };
+
+/**
+ * As linhas do resumo com o título que cobra cada uma. "Outras receitas" se
+ * divide em duas quando o boleto de contas fixas traz CS/RH/Compliance: essa
+ * parte já foi cobrada, o resto vai na nota de débito.
+ */
+function linhasResumo(data: DemonstrativoData) {
+  const { contasFixas, notaDebito } = data.cobranca;
+  const servicos = contasFixas ? data.servicosFixos : 0;
+  const outrasNd = data.outrasReceitas - servicos;
+  const linhas: LinhaResumo[] = [
+    {
+      label: `Royalties (${data.royaltiesPct}%)`,
+      value: data.royaltiesValor,
+      cobranca: notaDebito,
+    },
+    { label: data.cscLabel, value: data.cscValor, cobranca: contasFixas },
+  ];
+  if (data.cacValor > 0) linhas.push({ label: "CAC", value: data.cacValor, cobranca: notaDebito });
+  if (data.trafegoPago)
+    linhas.push({ label: "Tráfego pago", value: data.trafegoPago, cobranca: contasFixas });
+  if (servicos)
+    linhas.push({ label: "CS, RH e Compliance", value: servicos, cobranca: contasFixas });
+  if (Math.abs(outrasNd) > 0.004)
+    linhas.push({ label: "Outras receitas", value: outrasNd, cobranca: notaDebito });
+
+  const jaPago = linhas
+    .filter((l) => l.cobranca?.status === "pago")
+    .reduce((s, l) => s + l.value, 0);
+  return { linhas, jaPago, aPagar: data.totalFatura - jaPago };
 }
 
 export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
@@ -195,6 +259,38 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
   });
 
   let cursorY = kpiY + kpiRows.length * kpiRowHeight + 26;
+
+  const resumo = linhasResumo(data);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("Situação da cobrança", 40, cursorY);
+  autoTable(doc, {
+    startY: cursorY + 8,
+    head: [["Item", "Valor", "Status"]],
+    body: resumo.linhas.map((l) => [l.label, BRL(l.value), statusTexto(l.cobranca) || "—"]),
+    foot: [
+      ["Total fatura", BRL(data.totalFatura), ""],
+      ["Já pago", BRL(resumo.jaPago), ""],
+      ["Saldo a pagar", BRL(resumo.aPagar), ""],
+    ],
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: BRAND_GREEN, textColor: 255 },
+    footStyles: { fillColor: [236, 253, 245], textColor: BRAND_DARK, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 150 },
+      1: { cellWidth: 90, halign: "right" },
+    },
+    didParseCell: (c) => {
+      if (c.column.index === 1 && c.section === "head") c.cell.styles.halign = "right";
+      if (c.column.index === 1 && c.section === "foot") c.cell.styles.halign = "right";
+      if (c.section === "body" && c.column.index === 2) {
+        const st = resumo.linhas[c.row.index]?.cobranca?.status;
+        if (st === "pago") c.cell.styles.textColor = BRAND_GREEN;
+      }
+    },
+    margin: { left: 40, right: 40 },
+  });
+  cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 24;
 
   const itemTable = (title: string, rows: DemonstrativoItem[], valorLabel: string) => {
     if (rows.length === 0) return;
@@ -331,6 +427,8 @@ const sTotalValue = {
   numFmt: MONEY_FMT,
 };
 
+const sStatusPago = { font: { sz: 10, color: { rgb: GREEN } }, border: thinBorder };
+
 const sCell = { font: { sz: 10, color: { rgb: DARK } }, border: thinBorder };
 const sCellZebra = { ...sCell, fill: { fgColor: { rgb: ZEBRA } } };
 const sCellMoney = { ...sCell, alignment: { horizontal: "right" as const }, numFmt: MONEY_FMT };
@@ -350,41 +448,42 @@ function buildResumoSheet(data: DemonstrativoData): WorkSheet {
     ? new Date(data.confirmadoEm).toLocaleString("pt-BR")
     : "—";
 
-  const kpis: { label: string; value: number }[] = [
-    { label: "Base Planning", value: data.receitaBase },
-    { label: `Royalties (${data.royaltiesPct}%)`, value: data.royaltiesValor },
-    { label: data.cscLabel, value: data.cscValor },
-  ];
-  if (data.cacValor > 0) kpis.push({ label: "CAC", value: data.cacValor });
-  if (data.trafegoPago) kpis.push({ label: "Tráfego pago", value: data.trafegoPago });
-  if (data.outrasReceitas) kpis.push({ label: "Outras receitas", value: data.outrasReceitas });
+  const resumo = linhasResumo(data);
 
-  type RowKind = "title" | "subtitle" | "blank" | "sectionHeader" | "info" | "kv" | "total";
-  const rows: { kind: RowKind; cells: [string, string | number] }[] = [
-    { kind: "title", cells: [`Demonstrativo de royalties — ${data.unidadeNome}`, ""] },
+  type RowKind =
+    "title" | "subtitle" | "blank" | "sectionHeader" | "info" | "kv" | "kvPago" | "total";
+  const rows: { kind: RowKind; cells: [string, string | number, string] }[] = [
+    { kind: "title", cells: [`Demonstrativo de royalties — ${data.unidadeNome}`, "", ""] },
     {
       kind: "subtitle",
       cells: [
         `Referência: ${mesLabel} · Confirmado em ${confirmadoStr}${data.confirmadoPor ? ` por ${data.confirmadoPor}` : ""}`,
         "",
+        "",
       ],
     },
-    { kind: "blank", cells: ["", ""] },
-    { kind: "sectionHeader", cells: ["Item", "Valor"] },
-    { kind: "info", cells: ["Unidade", data.unidadeNome] },
-    { kind: "info", cells: ["Referência", mesLabel] },
-    { kind: "info", cells: ["Confirmado em", confirmadoStr] },
-    { kind: "info", cells: ["Confirmado por", data.confirmadoPor ?? "—"] },
-    ...kpis.map((k) => ({ kind: "kv" as const, cells: [k.label, k.value] as [string, number] })),
-    { kind: "total", cells: ["Total fatura", data.totalFatura] },
+    { kind: "blank", cells: ["", "", ""] },
+    { kind: "sectionHeader", cells: ["Item", "Valor", "Status"] },
+    { kind: "info", cells: ["Unidade", data.unidadeNome, ""] },
+    { kind: "info", cells: ["Referência", mesLabel, ""] },
+    { kind: "info", cells: ["Confirmado em", confirmadoStr, ""] },
+    { kind: "info", cells: ["Confirmado por", data.confirmadoPor ?? "—", ""] },
+    { kind: "kv", cells: ["Base Planning", data.receitaBase, ""] },
+    ...resumo.linhas.map((l) => ({
+      kind: (l.cobranca?.status === "pago" ? "kvPago" : "kv") as RowKind,
+      cells: [l.label, l.value, statusTexto(l.cobranca)] as [string, number, string],
+    })),
+    { kind: "total", cells: ["Total fatura", data.totalFatura, ""] },
+    { kind: "kv", cells: ["Já pago", resumo.jaPago, ""] },
+    { kind: "total", cells: ["Saldo a pagar", resumo.aPagar, ""] },
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(rows.map((r) => r.cells));
-  ws["!cols"] = [{ wch: 34 }, { wch: 26 }];
+  ws["!cols"] = [{ wch: 34 }, { wch: 20 }, { wch: 52 }];
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 2 } },
   ];
 
   rows.forEach((row, i) => {
@@ -400,18 +499,27 @@ function buildResumoSheet(data: DemonstrativoData): WorkSheet {
       case "sectionHeader":
         setCell(ws, i, 0, sSectionHeader);
         setCell(ws, i, 1, sSectionHeaderRight);
+        setCell(ws, i, 2, sSectionHeader);
         break;
       case "info":
         setCell(ws, i, 0, sLabel);
         setCell(ws, i, 1, sValueText);
+        setCell(ws, i, 2, sLabel);
         break;
       case "kv":
         setCell(ws, i, 0, sLabel);
         setCell(ws, i, 1, sMoney);
+        setCell(ws, i, 2, sLabel);
+        break;
+      case "kvPago":
+        setCell(ws, i, 0, sLabel);
+        setCell(ws, i, 1, sMoney);
+        setCell(ws, i, 2, sStatusPago);
         break;
       case "total":
         setCell(ws, i, 0, sTotalLabel);
         setCell(ws, i, 1, sTotalValue);
+        setCell(ws, i, 2, sTotalLabel);
         break;
     }
   });

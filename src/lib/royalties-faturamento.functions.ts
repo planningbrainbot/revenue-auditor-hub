@@ -134,6 +134,59 @@ export const emitirFaturasRoyalties = createServerFn({ method: "POST" })
     });
   });
 
+export type SituacaoContasFixas = {
+  num_recibo: string | null;
+  valor: number;
+  vence_em: string | null;
+  /** Status do título no Omie (RECEBIDO, A VENCER, ATRASADO...); nulo se o sync ainda não trouxe. */
+  status: string | null;
+  pago_em: string | null;
+};
+
+/**
+ * Situação do boleto de contas fixas (CSC + mídia + CS/RH/Compliance) ligado à
+ * apuração. Ele sai no começo do mês, antes da ND de royalties, e o demonstrativo
+ * usa isso para mostrar à unidade o que da fatura já foi pago.
+ */
+export const situacaoContasFixas = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { cicloId: number }) => {
+    const cicloId = Number(input.cicloId);
+    if (!Number.isInteger(cicloId) || cicloId <= 0) throw new Error("Boleto inválido.");
+    return { cicloId };
+  })
+  .handler(async ({ data, context }): Promise<SituacaoContasFixas | null> => {
+    const sb = context.supabase as any;
+    await assertCan(sb, "view.auditoria.royalties", "você não tem acesso às faturas de royalties.");
+
+    const { data: ciclo, error } = await sb
+      .from("csc_ciclos")
+      .select("num_recibo,valor,vence_em,cod_titulo")
+      .eq("id", data.cicloId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!ciclo) return null;
+
+    let titulo: any = null;
+    if (ciclo.cod_titulo != null) {
+      const { data: t, error: tErr } = await sb
+        .from("contas_receber")
+        .select("status_pagamento,data_vencimento,data_pagamento,valor")
+        .eq("codigo_omie", ciclo.cod_titulo)
+        .maybeSingle();
+      if (tErr) throw new Error(tErr.message);
+      titulo = t;
+    }
+
+    return {
+      num_recibo: ciclo.num_recibo ?? null,
+      valor: Number(titulo?.valor ?? ciclo.valor ?? 0),
+      vence_em: titulo?.data_vencimento ?? ciclo.vence_em ?? null,
+      status: titulo?.status_pagamento ?? null,
+      pago_em: titulo?.data_pagamento ?? null,
+    };
+  });
+
 export type FaturaDoMes = {
   unidade_id: number;
   status: string;
