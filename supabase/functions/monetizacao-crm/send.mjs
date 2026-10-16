@@ -54,3 +54,21 @@ export function cardDaEmpresa(deals, product, month) {
   const outro = deals.find((d) => d?.pipeline_id === 39 && d.status === "open");
   return outro ? { deal: outro, sameProduct: false } : null;
 }
+
+// Base nova (16/10/2026, pedido do Pedro): o pipe 39 é só da base antiga. Conta que tem card no diagnóstico (pipe 40,
+// Onboarding | Diagnóstico de Oportunidades) não sobe para o 39; a exceção é o card perdido na etapa 01 (Novo Cliente:
+// fora do escopo do diagnóstico, nunca chegou a ser trabalhado lá).
+export const PIPE_DIAGNOSTICO = 40;
+export const ETAPA_NOVO_CLIENTE_DIAGNOSTICO = 293;
+export function cardDoDiagnostico(deals) {
+  return (
+    (deals || []).find(
+      (d) =>
+        d?.pipeline_id === PIPE_DIAGNOSTICO &&
+        d.status !== "deleted" &&
+        !(d.status === "lost" && d.stage_id === ETAPA_NOVO_CLIENTE_DIAGNOSTICO),
+    ) ?? null
+  );
+}
+// O Matheus passou a gerir o pipe 40 em 16/10/2026: fecha os cards que já tem no 39 e não recebe card novo lá.
+export const FORA_DO_ENVIO_39 = new Set([28381245]);
