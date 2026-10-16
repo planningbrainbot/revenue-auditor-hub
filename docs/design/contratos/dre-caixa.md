@@ -2,7 +2,7 @@
 
 **Dono de produto:** Financeiro da Partners   **Dono do código:** a decidir pelo dono de produto   **Data:** 15/10/2026
 
-**Estado:** rascunho, esperando "contrato ok". A regra de cada número foi validada antes na planilha "Financeiro - Planning Partners", abas `DRE`, `FCX`, `DRE · Variação`, `Base Omie (DRE)`, `Apuração Unidades (Ops)`, `Mídia Paga (faturas)` e `Pool Comercial e Mkt (conferência)`, montadas por `tools/dre_sheets.py` e `tools/fcx_sheets.py` (repo ai-projects-scripts). As decisões de régua são de 15/10/2026 e estão listadas na seção "Réguas".
+**Estado:** aprovado e publicado em 15/10/2026 ("pode publicar" do dono de produto). A regra de cada número foi validada antes na planilha "Financeiro - Planning Partners", abas `DRE`, `FCX`, `DRE · Variação`, `Base Omie (DRE)`, `Apuração Unidades (Ops)`, `Mídia Paga (faturas)`, `Mídia por BU (reembolso)` e `Pool Comercial e Mkt (conferência)`, montadas por `tools/dre_sheets.py` e `tools/fcx_sheets.py` (repo ai-projects-scripts). Permissão da v1: área `receita`, como o Financeiro semanal; a chave própria `view.dre_caixa` fica para quando a tela tiver ação de escrita.
 
 Substitui `/financeiro-partners` (abas DRE projetada, DRE realizada, FCx, contas a receber e pagamentos), que lê `partners_*` com regras anteriores a estas e não está no menu.
 
