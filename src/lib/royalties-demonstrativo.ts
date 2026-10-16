@@ -94,6 +94,7 @@ function gruposCac(cac: DemonstrativoItem[]) {
 export interface DemonstrativoOutraReceita {
   nome: string;
   valor: number;
+  categoria: string; // "Reembolso de ferramentas", "Serviços contratados", ...
 }
 
 export interface DemonstrativoData {
@@ -244,15 +245,15 @@ export async function gerarDemonstrativoRoyaltiesPdf(data: DemonstrativoData) {
     doc.text("Outras receitas — detalhamento", 40, cursorY);
     autoTable(doc, {
       startY: cursorY + 8,
-      head: [["Item", "Valor"]],
-      body: data.outrasReceitasItens.map((it) => [it.nome, BRL(it.valor)]),
+      head: [["Categoria", "Item", "Valor"]],
+      body: data.outrasReceitasItens.map((it) => [it.categoria, it.nome, BRL(it.valor)]),
       styles: { fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: BRAND_GREEN, textColor: 255 },
       columnStyles: {
-        1: { halign: "right" },
+        2: { halign: "right" },
       },
       margin: { left: 40, right: 40 },
-      tableWidth: 260,
+      tableWidth: 400,
     });
     cursorY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 24;
   }
@@ -488,20 +489,22 @@ function buildItemSheet(rows: DemonstrativoItem[], valorLabel: string): WorkShee
 
 function buildOutrasReceitasSheet(itens: DemonstrativoOutraReceita[]): WorkSheet {
   const aoa: (string | number)[][] = [
-    ["Item", "Valor (R$)"],
-    ...itens.map((it) => [it.nome, Number(it.valor ?? 0)]),
+    ["Categoria", "Item", "Valor (R$)"],
+    ...itens.map((it) => [it.categoria, it.nome, Number(it.valor ?? 0)]),
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 38 }, { wch: 16 }];
-  ws["!autofilter"] = { ref: `A1:B${aoa.length}` };
+  ws["!cols"] = [{ wch: 26 }, { wch: 38 }, { wch: 16 }];
+  ws["!autofilter"] = { ref: `A1:C${aoa.length}` };
   ws["!views"] = [{ state: "frozen", ySplit: 1 }];
 
   setCell(ws, 0, 0, sSectionHeader);
-  setCell(ws, 0, 1, sSectionHeaderRight);
+  setCell(ws, 0, 1, sSectionHeader);
+  setCell(ws, 0, 2, sSectionHeaderRight);
   itens.forEach((_, i) => {
     const zebra = i % 2 === 1;
     setCell(ws, i + 1, 0, zebra ? sCellZebra : sCell);
-    setCell(ws, i + 1, 1, zebra ? sCellMoneyZebra : sCellMoney);
+    setCell(ws, i + 1, 1, zebra ? sCellZebra : sCell);
+    setCell(ws, i + 1, 2, zebra ? sCellMoneyZebra : sCellMoney);
   });
 
   return ws;

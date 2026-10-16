@@ -113,7 +113,11 @@ import {
 } from "@/hooks/use-royalties";
 import { useRegerarMatch } from "@/hooks/use-grupos-filiais";
 import { cn } from "@/lib/utils";
-import type { ApuracaoItem, OutraReceitaItem } from "@/lib/royalties.functions";
+import type {
+  ApuracaoItem,
+  OutraReceitaCategoria,
+  OutraReceitaItem,
+} from "@/lib/royalties.functions";
 import {
   gerarDemonstrativoRoyaltiesPdf,
   gerarDemonstrativoRoyaltiesXlsx,
@@ -652,9 +656,19 @@ function ApuracaoLoaded({
       trafegoPago: apuracao.csc_trafego_pago,
       outrasReceitas: outras + servicosFixos,
       outrasReceitasItens: [
-        ...outrasReceitasItens.map((it) => ({ nome: it.nome, valor: Number(it.valor) })),
+        ...outrasReceitasItens.map((it) => ({
+          nome: it.nome,
+          valor: Number(it.valor),
+          categoria: CATEGORIAS_OUTRAS.find((c) => c.chave === it.categoria)?.titulo ?? "",
+        })),
         ...(servicosFixos > 0
-          ? [{ nome: "CS, RH e Compliance (boleto de contas fixas)", valor: servicosFixos }]
+          ? [
+              {
+                nome: "CS, RH e Compliance (boleto de contas fixas)",
+                valor: servicosFixos,
+                categoria: "Boleto de contas fixas",
+              },
+            ]
           : []),
       ],
       totalFatura,
@@ -1149,7 +1163,9 @@ function ApuracaoLoaded({
               itens={outrasReceitasItens}
               total={outras}
               readOnly={readOnly}
-              onAdd={(nome, valor) => addOutraReceita.mutate({ apuracao_id: apuracaoId, nome, valor })}
+              onAdd={(nome, valor, categoria) =>
+                addOutraReceita.mutate({ apuracao_id: apuracaoId, nome, valor, categoria })
+              }
               onUpdateValor={(id, valor) => updateOutraReceita.mutate({ id, valor })}
               onDelete={(id) => deleteOutraReceita.mutate({ id })}
             />
@@ -1190,6 +1206,12 @@ function ResumoLinha({ label, value, bold }: { label: string; value: string; bol
 // Cada unidade paga um conjunto diferente de softwares/serviços (Qulture.rocks,
 // Pipedrive, Panda Pé, etc.) — em vez de um valor único digitado à mão, é uma
 // lista itemizada; o backend soma os itens em outras_receitas automaticamente.
+// Desde 16/10/2026 os itens se dividem em duas categorias, que somam juntas.
+const CATEGORIAS_OUTRAS: { chave: OutraReceitaCategoria; titulo: string; placeholder: string }[] = [
+  { chave: "ferramentas", titulo: "Reembolso de ferramentas", placeholder: "Ferramenta" },
+  { chave: "servicos", titulo: "Serviços contratados", placeholder: "Serviço" },
+];
+
 function OutrasReceitasSection({
   itens,
   total,
@@ -1201,12 +1223,52 @@ function OutrasReceitasSection({
   itens: OutraReceitaItem[];
   total: number;
   readOnly: boolean;
+  onAdd: (nome: string, valor: number, categoria: OutraReceitaCategoria) => void;
+  onUpdateValor: (id: number, valor: number) => void;
+  onDelete: (id: number) => void;
+}) {
+  return (
+    <div className="text-xs space-y-3">
+      {CATEGORIAS_OUTRAS.map((cat) => (
+        <OutrasReceitasCategoria
+          key={cat.chave}
+          titulo={cat.titulo}
+          placeholder={cat.placeholder}
+          itens={itens.filter((it) => (it.categoria ?? "ferramentas") === cat.chave)}
+          readOnly={readOnly}
+          onAdd={(nome, valor) => onAdd(nome, valor, cat.chave)}
+          onUpdateValor={onUpdateValor}
+          onDelete={onDelete}
+        />
+      ))}
+      <div className="flex items-baseline justify-between pt-1 border-t">
+        <span className="text-muted-foreground">Total outras receitas</span>
+        <span className="font-semibold">{brl(total)}</span>
+      </div>
+    </div>
+  );
+}
+
+function OutrasReceitasCategoria({
+  titulo,
+  placeholder,
+  itens,
+  readOnly,
+  onAdd,
+  onUpdateValor,
+  onDelete,
+}: {
+  titulo: string;
+  placeholder: string;
+  itens: OutraReceitaItem[];
+  readOnly: boolean;
   onAdd: (nome: string, valor: number) => void;
   onUpdateValor: (id: number, valor: number) => void;
   onDelete: (id: number) => void;
 }) {
   const [novoNome, setNovoNome] = useState("");
   const [novoValor, setNovoValor] = useState("");
+  const subtotal = itens.reduce((soma, it) => soma + Number(it.valor ?? 0), 0);
 
   const handleAdd = () => {
     const nome = novoNome.trim();
@@ -1218,8 +1280,11 @@ function OutrasReceitasSection({
   };
 
   return (
-    <div className="text-xs space-y-1.5">
-      <Label className="text-xs text-muted-foreground">Outras receitas</Label>
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between">
+        <Label className="text-xs text-muted-foreground">{titulo}</Label>
+        <span className="text-muted-foreground">{brl(subtotal)}</span>
+      </div>
       {itens.length === 0 && (
         <div className="text-xs text-muted-foreground italic">
           Nenhum item — adicione abaixo.
@@ -1256,7 +1321,7 @@ function OutrasReceitasSection({
       {!readOnly && (
         <div className="flex items-center gap-1.5 pt-1">
           <Input
-            placeholder="Software/serviço"
+            placeholder={placeholder}
             value={novoNome}
             onChange={(e) => setNovoNome(e.target.value)}
             className="h-7 flex-1 text-xs"
@@ -1280,10 +1345,6 @@ function OutrasReceitasSection({
           </Button>
         </div>
       )}
-      <div className="flex items-baseline justify-between pt-1 border-t">
-        <span className="text-muted-foreground">Total</span>
-        <span className="font-semibold">{brl(total)}</span>
-      </div>
     </div>
   );
 }

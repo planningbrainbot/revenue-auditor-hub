@@ -4243,6 +4243,7 @@ export type Database = {
       royalties_outras_receitas_itens: {
         Row: {
           apuracao_id: number
+          categoria: string
           created_at: string
           id: number
           nome: string
@@ -4252,6 +4253,7 @@ export type Database = {
         }
         Insert: {
           apuracao_id: number
+          categoria?: string
           created_at?: string
           id?: never
           nome: string
@@ -4261,6 +4263,7 @@ export type Database = {
         }
         Update: {
           apuracao_id?: number
+          categoria?: string
           created_at?: string
           id?: never
           nome?: string

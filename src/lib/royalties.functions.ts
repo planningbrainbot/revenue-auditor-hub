@@ -108,12 +108,15 @@ export interface ApuracaoItem {
   entrada_contrato_assinado_em: string | null; // data de entrada no stage "Contrato Assinado" (pipeline 28), se houver
 }
 
+export type OutraReceitaCategoria = "ferramentas" | "servicos";
+
 export interface OutraReceitaItem {
   id: number;
   apuracao_id: number;
   nome: string;
   valor: number;
   observacao: string | null;
+  categoria: OutraReceitaCategoria;
 }
 
 // ============ listRoyaltiesUnidades ============
@@ -214,7 +217,7 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
     if (anterior) {
       const { data: itensAnteriores } = await supabase
         .from("royalties_outras_receitas_itens")
-        .select("nome,valor,observacao")
+        .select("nome,valor,observacao,categoria")
         .eq("apuracao_id", anterior.id);
       if (itensAnteriores && itensAnteriores.length > 0) {
         await supabase.from("royalties_outras_receitas_itens").insert(
@@ -223,6 +226,7 @@ export const getOrCreateApuracao = createServerFn({ method: "POST" })
             nome: it.nome,
             valor: it.valor,
             observacao: it.observacao,
+            categoria: it.categoria,
           })),
         );
         await recomputeOutrasReceitas(supabase, inserted.id);
@@ -1097,7 +1101,7 @@ export const getApuracao = createServerFn({ method: "GET" })
 
       const { data: outrasReceitasItens, error: orErr } = await supabase
         .from("royalties_outras_receitas_itens")
-        .select("id,apuracao_id,nome,valor,observacao")
+        .select("id,apuracao_id,nome,valor,observacao,categoria")
         .eq("apuracao_id", data.apuracao_id)
         .order("id");
       if (orErr) throw new Error(orErr.message);
@@ -1447,7 +1451,15 @@ async function assertApuracaoAberta(supabase: any, apuracao_id: number) {
 
 export const addOutraReceitaItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { apuracao_id: number; nome: string; valor: number; observacao?: string | null }) => d)
+  .inputValidator(
+    (d: {
+      apuracao_id: number;
+      nome: string;
+      valor: number;
+      observacao?: string | null;
+      categoria?: OutraReceitaCategoria;
+    }) => d,
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
@@ -1458,6 +1470,7 @@ export const addOutraReceitaItem = createServerFn({ method: "POST" })
       nome: data.nome.trim(),
       valor: data.valor,
       observacao: data.observacao ?? null,
+      categoria: data.categoria ?? "ferramentas",
     });
     if (error) throw new Error(error.message);
     await recomputeOutrasReceitas(supabase, data.apuracao_id);
