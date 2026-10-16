@@ -33,8 +33,11 @@ export type Aba = (typeof ABAS)[number];
 /** Visões da Pré-venda. Hoje é o padrão desde 14/10/2026 (a daily roda nela) e não vai para a URL. */
 export const VISOES_PRE_VENDA = ["hoje", "ritmo", "aderencia", "ficha"] as const;
 export type VisaoPreVenda = (typeof VISOES_PRE_VENDA)[number];
-/** Visões da Consultoria (Handoff e repasse é o padrão e não vai para a URL). */
-export const VISOES_CONSULTORIA = ["cruzamento", "empresa"] as const;
+/**
+ * Visões da Consultoria. O Funil é o padrão desde 16/10/2026 e não vai para a URL; o Cruzamento com a call saiu no
+ * mesmo dia (o link antigo abre o Funil).
+ */
+export const VISOES_CONSULTORIA = ["fila", "empresa", "handoff"] as const;
 
 /**
  * Telas que saíram do menu em 09/10/2026 (aprovado pelo dono do produto): Temporal e previsão, Projetado × realizado,
@@ -129,7 +132,7 @@ export type BuscaMonetizacao = {
   unidade?: string;
   /** Gaveta aberta (id do número ou bloco), como o `?grafico=` do Cockpit. */
   grafico?: string;
-  /** Tela Consultoria: a visão aberta. Ausente = Handoff e repasse; "cruzamento" = Cruzamento com a call;
+  /** Tela Consultoria: a visão aberta. Ausente = Funil; "fila" = Fila de cobrança; "handoff" = Handoff e repasse;
    *  "empresa" = Buscar empresa (o texto da busca vai em `q`). Tela Pré-venda: ausente = Ritmo; "aderencia"; "ficha". */
   visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "hoje">;
   /** Pré-venda › Ficha: "reunioes" mostra as reuniões (a antiga Gravações); ausente = ligações. */
@@ -144,6 +147,12 @@ export type BuscaMonetizacao = {
   empresa?: string;
   /** Consultoria, visão Cruzamento: regime tributário da coorte do teste do CEO; ausente = todos. */
   regime?: Regime;
+  /** Consultoria, Funil e Fila: as origens, separadas por vírgula; ausente = o padrão de cada visão. */
+  origem?: string;
+  /** Consultoria, Funil: o clique aberto ("3" = chegaram à etapa 3; "3-real" = pararam na 3 por "Lucro Real"). */
+  passo?: string;
+  /** Consultoria, Fila: só um grupo da fila. */
+  grupo?: "aceitou" | "atraso" | "90" | "30_90" | "recente";
 };
 
 const ehData = (v: unknown): v is string =>
@@ -164,7 +173,8 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
   // O Cruzamento Consultoria nasceu como aba própria (06/10) e virou visão da tela Consultoria no mesmo dia:
   // o link antigo abre a visão certa.
   const cruzamentoAntigo = s.aba === "cruzamento-consultoria";
-  if (cruzamentoAntigo) s = { ...s, aba: "handoff-consultoria", visao: "cruzamento" };
+  // O Cruzamento com a call saiu em 16/10/2026: o link antigo (aba própria ou visão) abre o Funil, que o substituiu.
+  if (cruzamentoAntigo) s = { ...s, aba: "handoff-consultoria", visao: undefined };
   // Gravações e Pessoas e PDI saíram do menu em 09/10/2026 e viraram parte da Pré-venda: o link antigo abre o lugar
   // certo (Ficha › Reuniões; Aderência) e guarda o aviso, como as telas aposentadas na Operação diária.
   const movidas = Object.keys(ABAS_MOVIDAS) as AbaMovida[];
@@ -182,6 +192,7 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
       : aba === "handoff-consultoria"
         ? umDe(VISOES_CONSULTORIA, s.visao)
         : undefined;
+  const consultoria = aba === "handoff-consultoria";
   const ficha = aba === "pre-venda" && visao === "ficha";
   const ligacoes = ficha && s.ficha !== "reunioes";
   const nova = ABAS_COM_BASE.includes(aba) && s.base === "nova";
@@ -230,10 +241,19 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     empresa:
       typeof s.empresa === "string" &&
-      /^(\d{11}|\d{14}|(card|deal):\d{1,15}|cliente:[\w-]{1,40})$/.test(s.empresa)
+      /^(\d{11}|\d{14}|(card|deal):\d{1,15}|cliente:[\w-]{1,40}|(proposta|projeto|tese):[a-z0-9 ]{1,120})$/.test(
+        s.empresa,
+      )
         ? s.empresa
         : undefined,
     regime: umDe(["real", "presumido", "simples", "sem"] as const, s.regime),
+    origem:
+      consultoria && typeof s.origem === "string" && /^(inside_sales|socios|goiania|outra)(,(inside_sales|socios|goiania|outra)){0,3}$/.test(s.origem)
+        ? s.origem
+        : undefined,
+    passo:
+      consultoria && typeof s.passo === "string" && /^[1-8](-[a-z0-9_]{1,20})?$/.test(s.passo) ? s.passo : undefined,
+    grupo: consultoria ? umDe(["aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo) : undefined,
   };
 }
 

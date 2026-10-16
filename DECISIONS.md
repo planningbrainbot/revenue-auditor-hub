@@ -5600,3 +5600,49 @@ split. Hoje nenhuma tem. Total fatura e valores cobrados não mudaram.
 - Filtro `regua` no funil: **safra** (padrão) põe o cliente no mês da primeira venda e soma contrato, boletos e royalty de qualquer mês depois; **fato** mantém cada etapa no mês em que aconteceu. Boleto sem venda não tem safra e só aparece no fato.
 - Conversão ao lado das barras. Na safra é conversão de clientes (os mesmos de uma etapa para a outra): contrato ÷ vendidos, faturado ÷ contratados, pagou ÷ faturados, royalty ÷ pagaram, e a ponta royalty ÷ vendidos. No fato é só a razão de valores e a tela diz que não é conversão.
 - Filtro `carencia` no gap (0, 1 ou 2 meses; padrão 1): nos meses dentro da carência, o que faltou de cadastro, contrato e faturamento vira "Em implantação", não gap. Inadimplência, split e recebido não mudam. A função devolve o gap com a idade da venda (0 a 3+) e a tela reclassifica.
+
+## [2026-10-16] Consultoria: o Funil vira a visão de abertura, nasce a Fila de cobrança e o CNPJ que falta é achado pelo Brain
+
+**Contexto:** na call de 16/10/2026 o CEO pediu o funil do passado (7:45–10:11): "entrou 300 clientes esse ano...
+quantos que a consultoria auditou... quantos tem dinheiro... quanto que ela monetizou... onde que está esse gelo que não
+me pagou?". Também pediu a meta em honorário de verdade ("não pode ser uma perspectiva", 3:56). Na mesma tarde, o Paulo
+pediu o honorário fechado ("sei quanto vou ganhar, só não sei quando") e o mapa do que é nosso na plataforma do Siqueira.
+
+Os números não batiam por dois motivos medidos:
+- 280 dos 533 negócios ganhos em 2026 estavam sem CNPJ no Brain, então não cruzavam com a plataforma (que tem CNPJ em
+  todos os clientes);
+- Goiânia não passa pelo Pipedrive.
+
+O dono pediu para não depender dos closers e para a tela ficar "sexy e didática a ponto do CEO entender".
+
+**Decisões do dono (AskUserQuestion, 16/10):**
+- A meta é o honorário faturado, e o garantido (crédito aprovado × êxito) é a previsão.
+- O universo é o ganho de 2026 no Pipedrive mais a carteira de Goiânia.
+- A origem fica no Brain.
+- A ordem do trabalho é chave → funil → fila.
+- O Paulo ganha o Financeiro com todas as empresas: feito pela tela Acessos do Financeiro, sem e-mail.
+
+**Decisões técnicas:**
+- **CNPJ que falta:** fica em `ops.consultoria_negocio_cnpj`, calculado por `ops.consultoria_resolver_cnpj()` todo dia
+  às 6h40.
+  - Ordem: card do onboarding → nome idêntico com uma raiz → nome parecido (pg_trgm ≥ 0,70 e folga 0,15).
+  - Abaixo de 0,70 o casamento errava ("Arba" ≈ "Ars", "Redeformar" ≈ "Redeforte"), então fica "Sem CNPJ", à vista.
+  - Resultado em 16/10: 141 de 280 (onboarding 20, nome idêntico 108, nome parecido 13).
+  - A busca de empresa também passou a ler essa tabela (migration 20261016191000).
+- **Funil cumulativo**, com o nível da empresa (a etapa mais adiantada) e o motivo de quem parou em cada degrau. Régua em
+  `src/lib/monetizacao/consultoria-funil.ts`.
+- **Garantido:** é linha a linha (saldo × alíquota de cada crédito), R$ 14,5 mi. A tela da plataforma mostra R$ 25,8 mi
+  porque multiplica o saldo total pela alíquota média simples.
+- **Fila de cobrança:** contato registrado em `ops.consultoria_fila_registros`, gravado só pela
+  `ops.consultoria_fila_registrar()`.
+- **Painel:** a view `ops.base_conta_cnpjs` custa segundos, então o painel lê a carteira direto (1,4 s no banco).
+- **Cruzamento com a call:** sai, e o link antigo abre o Funil.
+
+**Medido em 16/10:**
+- **Funil (vendas de 2026 + Goiânia):** 2.014 → 1.757 com CNPJ → 256 na Consultoria → 199 auditadas → 151 com dinheiro
+  (R$ 212 mi) → 109 aceitaram → 71 faturadas → 61 pagaram.
+- **Fila:** 266 empresas, R$ 467 mi em jogo, 238 nunca contatadas.
+
+**Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` passou nas 6 checagens.
+
+**Contrato:** `docs/design/contratos/monetizacao-consultoria-funil.md`.
