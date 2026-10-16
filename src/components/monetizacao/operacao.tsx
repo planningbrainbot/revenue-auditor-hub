@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils";
 import { METRICAS, taxa } from "@/lib/monetizacao/model";
 import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import type { QuadroOperacao, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
-import { chaveDaEtapa, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
+import { chaveDaEtapa, chegaramAoNivel, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
 import type {
   ChaveEtapa,
   ChaveNivel,
@@ -330,23 +330,30 @@ function Linha({
   passo,
   total,
   abrir,
-  anteriores = 0,
+  anteriores = [],
 }: {
   linha: LinhaCumulativa;
   passo: number;
   total: number;
   abrir: Abrir;
-  /** Ganho: contratos do período de cards abordados antes, fora da coorte e da taxa (14/10/2026). */
-  anteriores?: number;
+  /**
+   * Cards abordados antes do período que chegaram a esta etapa no período, fora da coorte e da taxa. Era só o Ganho
+   * (14/10/2026); desde 16/10/2026 vale para toda etapa, a pedido do Pedro (a Qualificação de 15–16/10 mostrava 1 e
+   * outros 4 cards tinham entrado nela vindos de abordagens de 13 e 14/10).
+   */
+  anteriores?: Negocio[];
 }) {
   const inclui = incluiTexto(linha);
   return (
     <div className={cn(GRADE, "h-10")}>
-      <button
-        type="button"
-        onClick={() => abrir(tituloDaLinha(linha), linha.cards)}
-        className="col-span-3 grid grid-cols-subgrid items-center rounded-md text-left outline-none transition-colors duration-[120ms] ease-out hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      {/* A linha inteira abre a coorte (botão esticado); o "+N de abordagem anterior" é um botão próprio por cima. */}
+      <div className="relative col-span-3 grid grid-cols-subgrid items-center rounded-md transition-colors duration-[120ms] ease-out hover:bg-muted/60">
+        <button
+          type="button"
+          onClick={() => abrir(tituloDaLinha(linha), linha.cards)}
+          aria-label={`${tituloDaLinha(linha)}: ${INT.format(linha.contagem)}`}
+          className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
         <Rampa passo={passo} total={total} icone={iconeDa(linha.nome)} />
         <span className="num text-right text-base font-semibold text-foreground">
           {INT.format(linha.contagem)}
@@ -354,13 +361,19 @@ function Linha({
         <span className="truncate text-sm text-foreground">
           {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
           {inclui && <span className="ml-1.5 text-xs text-muted-foreground">{inclui}</span>}
-          {anteriores > 0 && (
-            <span className="ml-1.5 text-xs text-muted-foreground">
-              +{INT.format(anteriores)} de abordagem anterior
-            </span>
+          {anteriores.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                abrir(`${linha.nome} · de abordagem anterior, chegaram no período`, anteriores)
+              }
+              className="relative z-10 ml-1.5 rounded-sm text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              +{INT.format(anteriores.length)} de abordagem anterior
+            </button>
           )}
         </span>
-      </button>
+      </div>
       {linha.hoje ? (
         <button
           type="button"
@@ -390,17 +403,17 @@ function Linha({
 export function FunilOperacao({
   dados,
   abrir,
-  filtros,
   recorte,
 }: {
   dados: FunilCumulativo;
   abrir: Abrir;
-  /** Filtros que se somam no próprio funil (15/10/2026, pedido do Paulo): produto, pré-vendedor e unidade. */
-  filtros?: ReactNode;
-  /** O recorte aplicado, em palavras ("Cella · Heloá · Goiânia"). */
+  /**
+   * O recorte que a barra do topo aplicou, em palavras ("Cella · Heloá · Goiânia"). Os filtros que o funil teve
+   * dentro dele (15/10/2026) saíram em 16/10/2026: a barra é o filtro único da tela.
+   */
   recorte?: string;
 }) {
-  const { linhas, perdidos, abertos, regua, ganhosForaDaCoorte } = dados;
+  const { linhas, perdidos, abertos, regua, ganhosForaDaCoorte, avancosAnteriores } = dados;
   return (
     <section className="flex h-full flex-col rounded-xl border bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -420,8 +433,9 @@ export function FunilOperacao({
       <p className="mt-0.5 text-[13px] text-muted-foreground">
         Cards abordados no período, cada um contado até a etapa mais adiantada a que chegou. Taxa: a
         etapa ÷ a de cima. Hoje: o pipe inteiro agora, {INT.format(abertos)} abertos, fora da taxa.
+        "+N de abordagem anterior": cards abordados antes que chegaram à etapa no período, fora da
+        conta.
       </p>
-      {filtros && <div className="mt-3 flex flex-wrap items-center gap-2">{filtros}</div>}
       {recorte && (
         <p className="mt-2 text-xs font-medium text-foreground">
           Recorte: <span className="text-muted-foreground">{recorte}</span>
@@ -446,7 +460,13 @@ export function FunilOperacao({
             passo={i}
             total={linhas.length}
             abrir={abrir}
-            anteriores={l.chave === "ganho" ? ganhosForaDaCoorte.length : 0}
+            anteriores={
+              l.chave === "ganho"
+                ? ganhosForaDaCoorte
+                : l.nivel > 1
+                  ? chegaramAoNivel(avancosAnteriores, l.nivel)
+                  : []
+            }
           />
         ))}
       </div>
@@ -580,17 +600,20 @@ const PRODUTOS_LINHA = ["cella", "finance", "consultoria"] as const;
  */
 export function PorProduto({
   funis,
-  produto,
+  produtos,
   abrir,
 }: {
   funis: FunisPorProduto;
-  produto: Produto | "sem_produto" | "";
+  /** Produtos marcados na barra; vazio = todos (16/10/2026, seleção múltipla). */
+  produtos: readonly (Produto | "sem_produto")[];
   abrir: Abrir;
 }) {
   const chaves = GRUPOS.flatMap((g) => g.chaves);
   const valor = (fc: FunilCumulativo, k: ColunaProduto) => linhaDa(fc, k);
   const candidatas = [...PRODUTOS_LINHA, "sem_produto" as const].filter((p) =>
-    produto ? p === produto : p !== "sem_produto" || funis.sem_produto.coorte.length > 0,
+    produtos.length
+      ? produtos.includes(p)
+      : p !== "sem_produto" || funis.sem_produto.coorte.length > 0,
   );
   const linhas = candidatas
     .map((p) => ({ p, fc: funis[p] }))
@@ -710,7 +733,7 @@ export function PorProduto({
                 {chaves.map((k, i) => celula(k, i, fc, tituloDe(NOMES[p], k, fc)))}
               </tr>
             ))}
-            {!produto && (
+            {produtos.length !== 1 && (
               <tr className="border-t-2 bg-muted/40">
                 <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
                 {chaves.map((k, i) =>
@@ -766,17 +789,26 @@ function gargaloDe(fc: FunilCumulativo): number {
  */
 export function FunilLadoALado({
   funis,
-  produto,
+  produtos,
   abrir,
 }: {
   funis: FunisPorProduto;
-  produto: Produto | "sem_produto" | "";
+  /** Produtos marcados na barra; vazio = os três (16/10/2026, seleção múltipla). */
+  produtos: readonly (Produto | "sem_produto")[];
   abrir: Abrir;
 }) {
+  // A cor segue o produto, não a posição: com dois produtos marcados, cada um mantém a sua.
   const colunas = [
-    ...PRODUTOS_LINHA.map((p, i) => ({ k: p, nome: NOMES[p], cor: CORES_SERIE[i], fc: funis[p] })),
+    ...PRODUTOS_LINHA.map((p, i) => ({
+      k: p,
+      nome: NOMES[p],
+      cor: CORES_SERIE[i],
+      fc: funis[p],
+    })).filter((c) => !produtos.length || produtos.includes(c.k)),
     { k: "total", nome: "Total", cor: CORES_SERIE[5], fc: funis.total },
   ];
+  // Com menos de dois dos três produtos marcados, não há o que comparar lado a lado.
+  const daLinha = PRODUTOS_LINHA.filter((p) => !produtos.length || produtos.includes(p));
   const etapas = funis.total.linhas;
   const realizada = funis.total.regua.nivelDe.realizada;
   const espera = new Set(
@@ -811,14 +843,19 @@ export function FunilLadoALado({
           total.
         </p>
       </div>
-      {produto ? (
+      {daLinha.length < 2 ? (
         <p className="px-4 pb-4 pt-2 text-sm text-muted-foreground">
-          Com o filtro de {NOMES[produto]}, o funil de cima já é o do produto. Volte para "Todos"
-          para comparar os três.
+          {daLinha.length === 1
+            ? `Com ${NOMES[daLinha[0]]} marcado, o funil de cima já é o desse produto.`
+            : "Sem produto não tem funil próprio aqui."}{" "}
+          Marque dois produtos ou mais no filtro do topo para comparar.
         </p>
       ) : (
         <div className="overflow-x-auto px-3 pb-4 pt-3">
-          <div className="grid min-w-[760px] grid-cols-[10rem_repeat(4,minmax(0,1fr))] gap-x-3">
+          <div
+            className="grid min-w-[760px] gap-x-3"
+            style={{ gridTemplateColumns: `10rem repeat(${colunas.length}, minmax(0, 1fr))` }}
+          >
             <div />
             {colunas.map((c) => {
               const ganhos = c.fc.linhas.at(-1)?.contagem ?? 0;

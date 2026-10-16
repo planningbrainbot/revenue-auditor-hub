@@ -137,3 +137,20 @@ PRD aprovado pelo dono do produto em 09/10 (https://claude.ai/artifact/VVsFAthHk
 ## Adendo de 15/10/2026: Produtos e Listas entram na Monetização
 
 Saíram da Base de clientes ("Base à Prova de Criança", versão 14, aprovada pelo Pedro em 15/10; contrato em `clientes.md`, adendo de 15/10). Dois itens novos no menu, depois do Forecast: **Produtos** (`/monetizacao/produtos`, visões "Por produto" e "Carteira da unidade", `secao=carteira`) e **Listas** (`/monetizacao/listas`). O conteúdo é o mesmo Aquário de antes, com a mesma URL de filtros (`components/clientes/busca.ts`). As ofertas só consideram quem é cliente pela regra do domínio Clientes (`base.situacao`).
+
+## Adendo de 16/10/2026: um filtro só, com várias opções
+
+O Pedro pediu, em 16/10, para a Operação diária: "tem dois filtros redundantes em cima e embaixo no board. Quero um filtro só e quero poder sempre selecionar mais de uma opção [...] Ex: quero selecionar 2 produtos + 1 SDR + 4 unidades + data."
+- **Um filtro só.** Saem os controles de produto, pré-vendedor e unidade de dentro do quadro "Onde a base avança e onde trava?". Eles tinham entrado em 15/10, a pedido do Paulo. O quadro mantém a linha "Recorte:", que diz o que a barra aplicou. A barra do topo é o único lugar de filtro da tela.
+- **Várias opções.** Produto, Pré-vendedor e Unidade viram seleção múltipla (`SelecaoMultipla`, em `components/planning/`).
+  - Nada marcado vale como todos.
+  - As opções do mesmo filtro somam entre si; filtros diferentes se cruzam.
+  - Cada linha tem "Só esta", para trocar a escolha com um clique. A lista de unidades tem busca.
+- **Chips.** Cada opção aplicada aparece como chip removível logo abaixo da barra.
+- **URL (N7):**
+  - `produto=cella,finance`: lista separada por vírgula, em ordem fixa. O link antigo, com um produto só, continua valendo. Abordagens mantém um produto só e aceita `caixa`.
+  - `unidade=9,10`: ids das unidades, só na Operação.
+  - `responsavel`: continua um id. Com os dois pré-vendedores marcados, a chave sai, porque isso é a pré-venda inteira.
+- **Funil com mais de um produto.** O card entra se estiver em qualquer produto marcado, pela rota ou por ter sido ofertado. Ele para no levantamento só quando nenhum dos produtos marcados foi ofertado. O total não repete card.
+- **Onde vale:** Operação (período, produto, pré-vendedor, unidade), Forecast (produto, pré-vendedor), Funil comercial e Distribuição (produto), Pré-venda (pré-vendedor).
+- **"+N de abordagem anterior" em toda etapa** (Pedro, 16/10). Antes aparecia só no Ganho. Agora cada etapa do funil mostra, ao lado do nome, os cards abordados antes do período que chegaram a ela no período. O número abre a lista desses cards e fica fora da contagem e da taxa da coorte.

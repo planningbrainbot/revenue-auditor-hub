@@ -610,3 +610,38 @@ test("Funil por produto com repetição: rota e produtos ofertados; ofertado em 
   // A soma dos produtos passa do total (repete), e cada funil só desce.
   assert.ok(linha(finance, "negociacao") + linha(cella, "negociacao") > linha(total, "negociacao"));
 });
+
+test("Vários produtos marcados somam sem repetir card, e só param no levantamento sem oferta em nenhum (16/10/2026)", () => {
+  const base = mv(274, "2026-08-20 12:00:00");
+  const caminho = [
+    base,
+    mv(276, "2026-09-02 13:00:00"),
+    mv(277, "2026-09-03 13:00:00"),
+    mv(287, "2026-09-04 13:00:00"),
+    mv(279, "2026-09-05 13:00:00"),
+  ];
+  // Rota Finance, ofertado Cella e Finance: entra uma vez e vai até validada.
+  const ambos = card({ route: "finance", moves: caminho });
+  ambos.offered = ["cella", "finance"];
+  // Rota Finance, ofertado só Consultoria: com Cella + Finance marcados, para no levantamento realizado.
+  const outro = card({ route: "finance", moves: caminho });
+  outro.offered = ["consultoria"];
+  // Rota Consultoria, sem oferta: fora de Cella + Finance.
+  const fora = card({ route: "consultoria", moves: caminho });
+  const cards = [ambos, outro, fora];
+  const doisProdutos = funilCumulativo(cards, ST, { ...SET, product: ["cella", "finance"] });
+  const linha = (fc, chave) => fc.linhas.find((l) => l.chave === chave).contagem;
+  assert.equal(linha(doisProdutos, "abordagem"), 2);
+  assert.equal(linha(doisProdutos, "realizada"), 2);
+  assert.equal(linha(doisProdutos, "negociacao"), 1);
+  // Um produto em lista é o mesmo recorte do produto em texto.
+  assert.deepEqual(
+    funilCumulativo(cards, ST, { ...SET, product: ["finance"] }).linhas.map((l) => l.contagem),
+    funilCumulativo(cards, ST, { ...SET, product: "finance" }).linhas.map((l) => l.contagem),
+  );
+  // Lista vazia vale como todos os produtos.
+  assert.deepEqual(
+    funilCumulativo(cards, ST, { ...SET, product: [] }).linhas.map((l) => l.contagem),
+    funilCumulativo(cards, ST, SET).linhas.map((l) => l.contagem),
+  );
+});

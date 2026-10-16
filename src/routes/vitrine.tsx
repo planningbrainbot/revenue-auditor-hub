@@ -87,7 +87,9 @@ import {
   PageHeader,
   Procedencia,
   Secao as SecaoPlanningUi,
+  SelecaoMultipla,
   StatusBadge,
+  type OpcaoSelecao,
 } from "@/components/planning";
 import {
   Sheet,
@@ -1052,6 +1054,13 @@ function SecaoPlanning() {
       </div>
 
       <div className="space-y-3">
+        <Rotulo>SelecaoMultipla · várias opções por filtro, chips do que está aplicado</Rotulo>
+        <Moldura>
+          <SelecaoMultiplaExemplo />
+        </Moldura>
+      </div>
+
+      <div className="space-y-3">
         <Rotulo>Estados de tela · vazio, erro, sem acesso</Rotulo>
         <div className="grid gap-4 lg:grid-cols-3">
           <EstadoVazio
@@ -1134,6 +1143,118 @@ function FiltrosExemplo({ prefixo, comBarra }: { prefixo: string; comBarra?: boo
       <p className="font-mono text-xs text-muted-foreground">
         ?{prefixo}_unidade={unidade}&{prefixo}_periodo={periodo}
       </p>
+    </div>
+  );
+}
+
+const PRODUTOS_EXEMPLO: OpcaoSelecao[] = [
+  { valor: "consultoria", rotulo: "Consultoria" },
+  { valor: "finance", rotulo: "Finance" },
+  { valor: "cella", rotulo: "Cella" },
+  { valor: "sem_produto", rotulo: "Sem produto" },
+];
+const PESSOAS_EXEMPLO: OpcaoSelecao[] = [
+  { valor: "m", rotulo: "Matheus Carvalho" },
+  { valor: "h", rotulo: "Heloá" },
+];
+const UNIDADES_EXEMPLO: OpcaoSelecao[] = [
+  "Belém",
+  "Campo Novo do Parecis",
+  "Construção Civil",
+  "Fortaleza",
+  "Goiânia",
+  "Maceió",
+  "Matriz",
+  "Patos de Minas",
+  "Recife",
+  "Rio de Janeiro",
+  "São Luís",
+  "São Paulo",
+].map((n, i) => ({ valor: String(i + 1), rotulo: n }));
+
+/** Barra da Operação diária (16/10/2026): dois produtos, um pré-vendedor e quatro unidades marcados. */
+function SelecaoMultiplaExemplo() {
+  const [produtos, setProdutos] = useState(["finance", "cella"]),
+    [pessoas, setPessoas] = useState(["h"]),
+    [unidades, setUnidades] = useState(["1", "5", "8", "11"]);
+  const nome = (ops: OpcaoSelecao[], v: string) => ops.find((o) => o.valor === v)?.rotulo ?? v;
+  const chips = [
+    ...pessoas.map((v) => ({
+      r: "Pré-vendedor",
+      v,
+      ops: PESSOAS_EXEMPLO,
+      set: setPessoas,
+      de: pessoas,
+    })),
+    ...produtos.map((v) => ({
+      r: "Produto",
+      v,
+      ops: PRODUTOS_EXEMPLO,
+      set: setProdutos,
+      de: produtos,
+    })),
+    ...unidades.map((v) => ({
+      r: "Unidade",
+      v,
+      ops: UNIDADES_EXEMPLO,
+      set: setUnidades,
+      de: unidades,
+    })),
+  ];
+  const ativo = chips.length > 0;
+  return (
+    <div className="space-y-2">
+      <BarraFiltros
+        className="items-end"
+        aoLimpar={
+          ativo
+            ? () => {
+                setProdutos([]);
+                setPessoas([]);
+                setUnidades([]);
+              }
+            : undefined
+        }
+      >
+        <SelecaoMultipla
+          rotulo="Pré-vendedor"
+          todos="Pré-venda (os dois)"
+          plural="pré-vendedores"
+          so="Só este"
+          opcoes={PESSOAS_EXEMPLO}
+          valor={pessoas}
+          aoMudar={setPessoas}
+        />
+        <SelecaoMultipla
+          rotulo="Produto"
+          todos="Todos os produtos"
+          plural="produtos"
+          so="Só este"
+          opcoes={PRODUTOS_EXEMPLO}
+          valor={produtos}
+          aoMudar={setProdutos}
+        />
+        <SelecaoMultipla
+          rotulo="Unidade"
+          todos="Todas as unidades"
+          plural="unidades"
+          opcoes={UNIDADES_EXEMPLO}
+          valor={unidades}
+          aoMudar={setUnidades}
+        />
+      </BarraFiltros>
+      {ativo && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((c) => (
+            <ChipFiltro
+              key={c.r + c.v}
+              rotulo={c.r}
+              valor={nome(c.ops, c.v)}
+              aoRemover={() => c.set(c.de.filter((x) => x !== c.v))}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

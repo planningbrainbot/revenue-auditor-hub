@@ -32,6 +32,11 @@ import {
 import {
   ABAS,
   avisoDaAposentada,
+  filtroDaBusca,
+  produtosDaBusca,
+  produtosParaBusca,
+  unidadesDaBusca,
+  unidadesParaBusca,
   validarBuscaMonetizacao,
 } from "../src/components/monetizacao/busca.ts";
 import { AREAS } from "../src/lib/areas.ts";
@@ -487,4 +492,39 @@ test("Menu da Base (15/10/2026): as três telas na lateral, Produtos e Listas s�
     itens.filter((i) => i.area === "monetizacao").map((i) => i.url),
     ["/clientes/produtos", "/clientes/listas"],
   );
+});
+
+test("Filtro único da Operação: produto e unidade aceitam vários na URL (16/10/2026)", () => {
+  // Lista separada por vírgula, na ordem de PRODUTOS (Finance antes de Cella), sem repetição e sem valor fora da lista.
+  const b = validarBuscaMonetizacao({ aba: "operacao", produto: "finance,cella,xyz,cella" });
+  assert.equal(b.produto, "finance,cella");
+  assert.deepEqual(produtosDaBusca(b), ["finance", "cella"]);
+  assert.deepEqual(filtroDaBusca(b).product, ["finance", "cella"]);
+  // Link antigo com um produto continua valendo, e o filtro recebe o texto como antes.
+  const um = validarBuscaMonetizacao({ aba: "operacao", produto: "finance" });
+  assert.equal(um.produto, "finance");
+  assert.equal(filtroDaBusca(um).product, "finance");
+  // Array (como a URL serializa uma lista) também entra.
+  assert.equal(
+    validarBuscaMonetizacao({ aba: "operacao", produto: ["sem_produto", "cella"] }).produto,
+    "cella,sem_produto",
+  );
+  // Nada válido = todos, fora da URL.
+  assert.equal(validarBuscaMonetizacao({ aba: "operacao", produto: "xyz" }).produto, undefined);
+  assert.equal(filtroDaBusca(validarBuscaMonetizacao({ aba: "operacao" })).product, "");
+  assert.equal(produtosParaBusca([]), undefined);
+  assert.equal(produtosParaBusca(["cella", "finance"]), "finance,cella");
+  // Abordagens segue com um produto só e aceita "caixa".
+  assert.equal(validarBuscaMonetizacao({ aba: "roteiros", produto: "caixa" }).produto, "caixa");
+  assert.equal(
+    validarBuscaMonetizacao({ aba: "roteiros", produto: "cella,finance" }).produto,
+    undefined,
+  );
+  // Unidades: ids separados por vírgula, em ordem, sem repetição; lixo sai.
+  assert.deepEqual(unidadesDaBusca({ unidade: "10,9,9,abc" }), [9, 10]);
+  assert.deepEqual(unidadesDaBusca({ unidade: undefined }), []);
+  assert.equal(unidadesParaBusca([10, 9]), "9,10");
+  assert.equal(unidadesParaBusca([]), undefined);
+  // O nome da unidade da Consultoria não vira id.
+  assert.deepEqual(unidadesDaBusca({ unidade: "Goiânia" }), []);
 });

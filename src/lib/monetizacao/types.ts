@@ -1,6 +1,14 @@
 import type { BaseEmpresa } from "../clientes-base";
 export const PRODUTOS = ["consultoria", "finance", "cella"] as const;
 export type Produto = (typeof PRODUTOS)[number];
+/**
+ * Produto do recorte da barra: "" = todos; um produto (ou "sem_produto"); ou vários, desde 16/10/2026 (seleção
+ * múltipla, pedido do Pedro). Vários somam: o card entra se estiver em qualquer um deles.
+ */
+export type ProdutoDoRecorte = Produto | "sem_produto" | "" | readonly (Produto | "sem_produto")[];
+/** A lista do recorte: vazia = todos os produtos. */
+export const produtosDoRecorte = (p: ProdutoDoRecorte | undefined): (Produto | "sem_produto")[] =>
+  Array.isArray(p) ? [...p] : p ? [p as Produto | "sem_produto"] : [];
 export type RegistroValor =
   | string
   | number
