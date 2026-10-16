@@ -10,6 +10,7 @@ import {
 } from "../src/lib/monetizacao/funil-cumulativo.ts";
 import {
   conexaoPorUnidade,
+  funisPorUnidade,
   diaUtilAnterior,
   estoqueERitmo,
   eventosDoDia,
@@ -643,5 +644,42 @@ test("Vários produtos marcados somam sem repetir card, e só param no levantame
   assert.deepEqual(
     funilCumulativo(cards, ST, { ...SET, product: [] }).linhas.map((l) => l.contagem),
     funilCumulativo(cards, ST, SET).linhas.map((l) => l.contagem),
+  );
+});
+
+test("Funil por unidade: cada card numa unidade só, linhas somam o total, Sem unidade por último (16/10/2026)", () => {
+  const base = mv(274, "2026-08-20 12:00:00");
+  const caminho = [base, mv(276, "2026-09-02 13:00:00"), mv(290, "2026-09-03 13:00:00")];
+  const belem = [
+    card({ moves: caminho, unidade_ids: [7] }),
+    card({ moves: [base, mv(276, "2026-09-02 13:00:00")], unidade_ids: [7] }),
+  ];
+  const goiania = [card({ moves: caminho, unidade_ids: [9] })];
+  const duas = [card({ moves: caminho, unidade_ids: [9, 7] })];
+  const sem = [card({ moves: caminho }), card({ moves: caminho, unidade_ids: [] })];
+  const cards = [...belem, ...goiania, ...duas, ...sem];
+  const units = [
+    { id: 7, name: "Belém" },
+    { id: 9, name: "Goiânia" },
+  ];
+  const linhas = funisPorUnidade(cards, ST, SET, units);
+  // Mais abordados primeiro; empate pelo nome; Sem unidade sempre por último. Conta em duas unidades é uma linha só.
+  assert.deepEqual(
+    linhas.map((l) => l.unidade),
+    ["Belém", "Belém / Goiânia", "Goiânia", "Sem unidade"],
+  );
+  const linha = (fc, chave) => fc.linhas.find((l) => l.chave === chave).contagem;
+  const total = funilCumulativo(cards, ST, SET);
+  for (const chave of ["abordagem", "conexao"])
+    assert.equal(
+      linhas.reduce((n, l) => n + linha(l.funil, chave), 0),
+      linha(total, chave),
+    );
+  assert.equal(linha(linhas[0].funil, "abordagem"), 2);
+  assert.equal(linha(linhas[0].funil, "conexao"), 1);
+  // Sem unidade em nenhum card da carga: não apurado.
+  assert.equal(
+    funisPorUnidade([{ ...card({ moves: caminho }), unidade_ids: undefined }], ST, SET, units),
+    null,
   );
 });

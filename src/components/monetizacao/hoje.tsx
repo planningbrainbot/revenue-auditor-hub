@@ -36,7 +36,6 @@ import {
   DIAS_UTEIS_ALERTA_ALTO,
   DIAS_UTEIS_SEM_CONEXAO,
   INDICADORES_DIA,
-  conexaoPorUnidade,
   contarPorProduto,
   diaUtilAnterior,
   estoqueERitmo,
@@ -121,7 +120,6 @@ export function VisaoHoje({
       .filter((u) => !data.units.some((x) => x.id === u.id))
       .map((u) => ({ id: u.id, name: u.nome })),
   ];
-  const porUnidade = conexaoPorUnidade(mes, unidades);
   const estoque = estoqueERitmo(data.cards, regua, f, mes.abordados, hoje);
   const lista = listaDeAtencao(data.cards, regua, f, unidades, hoje);
   const altos = lista?.filter((i) => i.diasUteis >= DIAS_UTEIS_ALERTA_ALTO).length ?? 0;
@@ -282,17 +280,15 @@ export function VisaoHoje({
         </ul>
       </section>
 
-      {/* 3 e 4. Qualificação por unidade · Estoque e ritmo */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        <ConexaoPorUnidade porUnidade={porUnidade} abrir={abrir} />
-        <EstoqueRitmo
-          estoque={estoque}
-          abordados={mes.abordados}
-          fim={fim}
-          feriados={feriadosRestantes}
-          abrir={abrir}
-        />
-      </div>
+      {/* 3. Estoque e ritmo. A Qualificação por unidade do mês saiu em 16/10/2026: o funil por unidade, logo abaixo
+          da seção, mostra todas as etapas por unidade no período da barra. */}
+      <EstoqueRitmo
+        estoque={estoque}
+        abordados={mes.abordados}
+        fim={fim}
+        feriados={feriadosRestantes}
+        abrir={abrir}
+      />
 
       <ListaAtencao
         lista={lista}
@@ -357,72 +353,6 @@ function ItemAtencaoLinha({
   );
 }
 
-function ConexaoPorUnidade({
-  porUnidade,
-  abrir,
-}: {
-  porUnidade: ReturnType<typeof conexaoPorUnidade>;
-  abrir: Abrir;
-}) {
-  return (
-    <section className="flex flex-col rounded-xl border bg-card p-4">
-      <h3 className="text-sm font-semibold text-foreground">
-        Em que unidade os abordados do mês respondem?
-      </h3>
-      <p className="mt-0.5 text-[13px] text-muted-foreground">
-        Qualificação de N abordados no mês, pela unidade da conta na Base.
-      </p>
-      {porUnidade === null ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Não apurado: a carga não trouxe a unidade dos cards.
-        </p>
-      ) : porUnidade.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">Nenhum card abordado no mês ainda.</p>
-      ) : (
-        <ul className="mt-3 space-y-1.5">
-          {porUnidade.map((u) => {
-            const pct = u.abordados.length ? (u.conexao.length / u.abordados.length) * 100 : 0;
-            return (
-              <li key={u.unidade}>
-                <button
-                  type="button"
-                  onClick={() => abrir(`${u.unidade} · abordados no mês`, u.abordados)}
-                  className="grid w-full grid-cols-[minmax(0,9rem)_minmax(0,1fr)_4.5rem] items-center gap-3 rounded-md px-1 py-1 text-left outline-none transition-colors duration-[120ms] hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <span
-                    className={cn(
-                      "truncate text-sm",
-                      u.unidade === "Sem unidade" ? "text-muted-foreground" : "text-foreground",
-                    )}
-                  >
-                    {u.unidade}
-                  </span>
-                  <span className="relative block h-2 rounded-full bg-muted" aria-hidden>
-                    <span
-                      className="absolute inset-y-0 left-0 rounded-full bg-primary-text"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </span>
-                  <span className="num text-right text-sm text-foreground">
-                    {INT.format(u.conexao.length)}{" "}
-                    <span className="text-muted-foreground">
-                      de {INT.format(u.abordados.length)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <p className="mt-auto pt-3 text-xs text-muted-foreground">
-        Com 1 ou 2 abordagens, a taxa ainda não diz nada. Card sem unidade na conta entra em “Sem
-        unidade”; a unidade não é deduzida pelo dono do card.
-      </p>
-    </section>
-  );
-}
-
 function EstoqueRitmo({
   estoque,
   abordados,
@@ -452,7 +382,7 @@ function EstoqueRitmo({
       <h3 className="text-sm font-semibold text-foreground">
         Quanto há na Base, e em que ritmo a pré-venda aborda?
       </h3>
-      <ul className="mt-3 space-y-3">
+      <ul className="mt-3 grid gap-3 sm:grid-cols-3">
         {linha(
           estoque.base.length > 0 ? (
             <button

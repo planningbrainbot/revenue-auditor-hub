@@ -154,3 +154,15 @@ O Pedro pediu, em 16/10, para a Operação diária: "tem dois filtros redundante
 - **Funil com mais de um produto.** O card entra se estiver em qualquer produto marcado, pela rota ou por ter sido ofertado. Ele para no levantamento só quando nenhum dos produtos marcados foi ofertado. O total não repete card.
 - **Onde vale:** Operação (período, produto, pré-vendedor, unidade), Forecast (produto, pré-vendedor), Funil comercial e Distribuição (produto), Pré-venda (pré-vendedor).
 - **"+N de abordagem anterior" em toda etapa** (Pedro, 16/10). Antes aparecia só no Ganho. Agora cada etapa do funil mostra, ao lado do nome, os cards abordados antes do período que chegaram a ela no período. O número abre a lista desses cards e fica fora da contagem e da taxa da coorte.
+
+## Adendo de 16/10/2026 (tarde): funil por unidade no lugar da tabela por produto
+
+Pedido do Pedro, em 16/10: "Quero que essa dobra aqui seja um funil por unidade. Pode fazer semelhante ao de produto. Pode eliminar a dobra [Qual produto avança na base?]."
+- **Sai** a tabela "Qual produto avança na base?". O comparativo por produto continua em "Em que etapa cada produto trava?" e no filtro de produto da barra.
+- **Sai** o cartão "Em que unidade os abordados do mês respondem?", da seção do mês. Ele só mostrava a Qualificação.
+- **Entra** "Em que unidade a base avança?", no lugar da tabela de produto e com o mesmo desenho:
+  - uma linha por unidade da conta na Base, com Fila, Abordados, Qualificação, Agendados, Realizados, Validadas e Ganhos;
+  - a barra compara as unidades na coluna; a taxa é a coluna sobre a da esquerda; o número abre os negócios;
+  - a régua e o período são os do funil do topo, e a tabela segue todos os filtros da barra;
+  - cada card conta numa unidade só: conta em duas unidades vira "A / B", e conta sem unidade vai para "Sem unidade". Por isso as linhas somam o Total.
+- "Quanto há na Base, e em que ritmo a pré-venda aborda?" passa a ocupar a linha inteira, com os três números lado a lado.

@@ -220,6 +220,44 @@ export function conexaoPorUnidade(
   );
 }
 
+// ----------------------------------------------------------------------------------------- funil por unidade
+export interface FunilDaUnidade {
+  unidade: string;
+  funil: FunilCumulativo;
+}
+
+/**
+ * Funil por unidade (16/10/2026, pedido do Pedro: "funil por unidade, semelhante ao de produto"; substitui a
+ * Qualificação por unidade do mês e a tabela por produto). Mesma régua cumulativa do funil do topo, no período da
+ * barra. O card entra numa unidade só, pelo rótulo da conta (`rotuloDaUnidade`: conta em duas unidades vira "A / B";
+ * conta sem unidade vai para "Sem unidade", sem deduzir pelo dono); por isso as linhas somam o total. Fica de fora a
+ * unidade sem card na fila nem abordado no período. `null` quando a carga não trouxe a unidade de nenhum card.
+ */
+export function funisPorUnidade(
+  cards: Negocio[],
+  stages: Etapa[],
+  f: Filtro,
+  units: { id: number | null; name: string }[],
+): FunilDaUnidade[] | null {
+  if (cards.length && cards.every((c) => c.unidade_ids === undefined)) return null;
+  const nomeDa = nomesDasUnidades(units);
+  const grupos = new Map<string, Negocio[]>();
+  for (const c of cards) {
+    const unidade = rotuloDaUnidade(c.unidade_ids, nomeDa);
+    grupos.set(unidade, [...(grupos.get(unidade) ?? []), c]);
+  }
+  return [...grupos]
+    .map(([unidade, doGrupo]) => ({ unidade, funil: funilCumulativo(doGrupo, stages, f) }))
+    .filter((u) => u.funil.coorte.length > 0 || u.funil.fila.length > 0)
+    .sort(
+      (a, b) =>
+        Number(a.unidade === SEM_UNIDADE) - Number(b.unidade === SEM_UNIDADE) ||
+        b.funil.coorte.length - a.funil.coorte.length ||
+        b.funil.fila.length - a.funil.fila.length ||
+        a.unidade.localeCompare(b.unidade, "pt-BR"),
+    );
+}
+
 // ----------------------------------------------------------------------------------------------- 4. estoque
 export interface EstoqueERitmo {
   /** Abertos na Base elegível agora, pipe inteiro, no produto do filtro. */

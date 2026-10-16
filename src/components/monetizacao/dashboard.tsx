@@ -33,7 +33,7 @@ import {
   situacaoDoNegocio,
 } from "@/lib/monetizacao/model";
 import type { Filtro } from "@/lib/monetizacao/model";
-import { nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
+import { funisPorUnidade, nomesDasUnidades } from "@/lib/monetizacao/acompanhamento";
 import { Fechamentos } from "./fechamentos";
 import { funilCumulativo } from "@/lib/monetizacao/funil-cumulativo";
 import { NOMES, PRODUTOS } from "@/lib/monetizacao/types";
@@ -78,7 +78,7 @@ import {
   ComoContamos,
   FunilLadoALado,
   FunilOperacao,
-  PorProduto,
+  PorUnidade,
   QuadrosPreVenda,
   SerieDiaria,
   type FunisPorProduto,
@@ -672,7 +672,12 @@ export function DashboardMonetizacao({
               abrir={abrir}
             />
           )}
-          <PorProduto funis={funis} produtos={produtosMarcados} abrir={abrir} />
+          {/* 16/10/2026: o funil por unidade toma o lugar da tabela por produto (pedido do Pedro). */}
+          <PorUnidade
+            unidades={funisPorUnidade(cards, data.stages, filter, data.units)}
+            total={funis.total}
+            abrir={abrir}
+          />
           <FunilLadoALado funis={funis} produtos={produtosMarcados} abrir={abrir} />
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer">Critérios e campos a preencher</summary>
