@@ -53,6 +53,7 @@ import { METRICAS, taxa } from "@/lib/monetizacao/model";
 import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import type { QuadroOperacao, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
 import { chaveDaEtapa, chegaramAoNivel, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
+import { SEM_UNIDADE, type FunilDaUnidade } from "@/lib/monetizacao/acompanhamento";
 import type {
   ChaveEtapa,
   ChaveNivel,
@@ -604,38 +605,29 @@ const CURTO: Record<ColunaProduto, string> = {
 const PRODUTOS_LINHA = ["cella", "finance", "consultoria"] as const;
 
 /**
- * Uma linha por produto, na régua cumulativa: a fila do período e, dos abordados, quantos chegaram a cada etapa ou
- * além. Cada célula traz o número, a barra contra o maior valor da coluna e a taxa sobre a coluna da esquerda, para
- * o olho ler a linha como um funil curto. Zero sai apagado e não abre nada; etapa que o pipe não tem sai "—".
+ * Funil por unidade (16/10/2026, pedido do Pedro: "funil por unidade, semelhante ao de produto"). Substitui a tabela
+ * "Qual produto avança na base?" e a Qualificação por unidade do mês, com o mesmo desenho da tabela de produto: uma
+ * linha por unidade, na régua cumulativa, com a fila do período e, dos abordados, quantos chegaram a cada etapa ou
+ * além. Cada célula traz o número, a barra contra o maior valor da coluna e a taxa sobre a coluna da esquerda. Zero
+ * sai apagado e não abre nada; etapa que o pipe não tem sai "—". Cada card conta numa unidade só: as linhas somam o
+ * Total.
  */
-export function PorProduto({
-  funis,
-  produtos,
+export function PorUnidade({
+  unidades,
+  total,
   abrir,
 }: {
-  funis: FunisPorProduto;
-  /** Produtos marcados na barra; vazio = todos (16/10/2026, seleção múltipla). */
-  produtos: readonly (Produto | "sem_produto")[];
+  /** `funisPorUnidade` no recorte da barra; `null` quando a carga não trouxe a unidade dos cards. */
+  unidades: FunilDaUnidade[] | null;
+  /** O funil do topo (mesmo recorte), para a linha Total. */
+  total: FunilCumulativo;
   abrir: Abrir;
 }) {
   const chaves = GRUPOS.flatMap((g) => g.chaves);
   const valor = (fc: FunilCumulativo, k: ColunaProduto) => linhaDa(fc, k);
-  const candidatas = [...PRODUTOS_LINHA, "sem_produto" as const].filter((p) =>
-    produtos.length
-      ? produtos.includes(p)
-      : p !== "sem_produto" || funis.sem_produto.coorte.length > 0,
-  );
-  const linhas = candidatas
-    .map((p) => ({ p, fc: funis[p] }))
-    .sort((a, b) =>
-      a.p === "sem_produto"
-        ? 1
-        : b.p === "sem_produto"
-          ? -1
-          : b.fc.coorte.length - a.fc.coorte.length,
-    );
+  const linhas = unidades ?? [];
   const maximo = Object.fromEntries(
-    chaves.map((k) => [k, Math.max(1, ...linhas.map((l) => valor(l.fc, k)?.contagem ?? 0))]),
+    chaves.map((k) => [k, Math.max(1, ...linhas.map((l) => valor(l.funil, k)?.contagem ?? 0))]),
   );
   const celula = (
     k: ColunaProduto,
@@ -691,69 +683,80 @@ export function PorProduto({
   };
   return (
     <section className="rounded-xl border bg-card">
-      <div className="flex flex-wrap items-end justify-between gap-2 px-4 pt-4">
-        <div className="space-y-0.5">
-          <h2 className="text-base font-semibold text-foreground">Qual produto avança na base?</h2>
-          <p className="text-[13px] text-muted-foreground">
-            Abordados no período por produto, cada um até a etapa mais adiantada. A barra compara os
-            produtos na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. O card conta no
-            produto da rota e em cada produto ofertado no levantamento. Clique no número para abrir
-            os negócios.
-          </p>
-        </div>
+      <div className="space-y-0.5 px-4 pt-4">
+        <h2 className="text-base font-semibold text-foreground">Em que unidade a base avança?</h2>
+        <p className="text-[13px] text-muted-foreground">
+          Abordados no período pela unidade da conta na Base, cada um até a etapa mais adiantada. A
+          barra compara as unidades na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. Cada
+          card conta numa unidade só, então as linhas somam o Total. Clique no número para abrir os
+          negócios.
+        </p>
       </div>
-      <div className="overflow-x-auto p-2">
-        <table className="w-full min-w-[860px] table-fixed text-left">
-          <colgroup>
-            <col className="w-40" />
-            {chaves.map((k) => (
-              <col key={k} />
-            ))}
-          </colgroup>
-          <thead>
-            <tr className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <th rowSpan={2} className="px-3 pb-2 align-bottom">
-                Produto
-              </th>
-              {GRUPOS.map((g) => (
-                <th key={g.titulo} colSpan={g.chaves.length} className="px-3 pt-1">
-                  <span className="block border-b pb-1 text-center">{g.titulo}</span>
-                </th>
-              ))}
-            </tr>
-            <tr className="text-xs font-medium text-muted-foreground">
+      {unidades === null ? (
+        <p className="px-4 pb-4 pt-3 text-sm text-muted-foreground">
+          Não apurado: a carga não trouxe a unidade dos cards.
+        </p>
+      ) : !linhas.length ? (
+        <p className="px-4 pb-4 pt-3 text-sm text-muted-foreground">
+          Nenhum card na fila nem abordado no período.
+        </p>
+      ) : (
+        <div className="overflow-x-auto p-2">
+          <table className="w-full min-w-[860px] table-fixed text-left">
+            <colgroup>
+              <col className="w-44" />
               {chaves.map((k) => (
-                <th key={k} className="px-3 pb-2 pt-1.5 text-right">
-                  {CURTO[k]}
-                </th>
+                <col key={k} />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map(({ p, fc }) => (
-              <tr key={p} className="border-t">
-                <th
-                  className={cn(
-                    "px-3 py-2.5 align-top text-sm font-semibold",
-                    p === "sem_produto" ? "text-muted-foreground" : "text-foreground",
-                  )}
-                >
-                  {NOMES[p]}
+            </colgroup>
+            <thead>
+              <tr className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <th rowSpan={2} className="px-3 pb-2 align-bottom">
+                  Unidade
                 </th>
-                {chaves.map((k, i) => celula(k, i, fc, tituloDe(NOMES[p], k, fc)))}
+                {GRUPOS.map((g) => (
+                  <th key={g.titulo} colSpan={g.chaves.length} className="px-3 pt-1">
+                    <span className="block border-b pb-1 text-center">{g.titulo}</span>
+                  </th>
+                ))}
               </tr>
-            ))}
-            {produtos.length !== 1 && (
-              <tr className="border-t-2 bg-muted/40">
-                <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
-                {chaves.map((k, i) =>
-                  celula(k, i, funis.total, tituloDe("Total", k, funis.total), true),
-                )}
+              <tr className="text-xs font-medium text-muted-foreground">
+                {chaves.map((k) => (
+                  <th key={k} className="px-3 pb-2 pt-1.5 text-right">
+                    {CURTO[k]}
+                  </th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {linhas.map(({ unidade, funil }) => (
+                <tr key={unidade} className="border-t">
+                  <th
+                    className={cn(
+                      "truncate px-3 py-2.5 align-top text-sm font-semibold",
+                      unidade === SEM_UNIDADE ? "text-muted-foreground" : "text-foreground",
+                    )}
+                    title={unidade}
+                  >
+                    {unidade}
+                  </th>
+                  {chaves.map((k, i) => celula(k, i, funil, tituloDe(unidade, k, funil)))}
+                </tr>
+              ))}
+              {linhas.length > 1 && (
+                <tr className="border-t-2 bg-muted/40">
+                  <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
+                  {chaves.map((k, i) => celula(k, i, total, tituloDe("Total", k, total), true))}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="px-4 pb-4 text-xs text-muted-foreground">
+        Com 1 ou 2 abordagens, a taxa ainda não diz nada. Card sem unidade na conta entra em “Sem
+        unidade”; a unidade não é deduzida pelo dono do card.
+      </p>
     </section>
   );
 }

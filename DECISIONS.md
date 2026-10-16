@@ -5443,3 +5443,15 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 - Se uma tabela mudar, a rodada fica "parcial" no `sync_log` e as outras seguem.
 - Se o login cair, a rodada fica "erro" e a ficha avisa e mostra só o que a API manda.
 - Rollback: `supabase/rollback/20261016120000_consultoria_plataforma_espelho_rollback.sql`.
+
+## [2026-10-16] Operação diária: funil por unidade no lugar da tabela por produto e da Qualificação por unidade do mês
+
+**Contexto:** o Pedro, em 16/10, apontando o cartão "Em que unidade os abordados do mês respondem?": "Quero que essa dobra aqui seja um funil por unidade. Pode fazer semelhante ao de produto. Pode eliminar a dobra" da tabela "Qual produto avança na base?".
+
+**Decisão:**
+- Nasce "Em que unidade a base avança?" (`PorUnidade`, `funisPorUnidade` em `acompanhamento.ts`). Tem o desenho da tabela de produto, que sai, e fica no lugar dela.
+- Período e régua são os do funil do topo, não o mês corrente, como o cartão antigo: assim a tabela vale para qualquer período e segue todos os filtros da barra.
+- Cada card conta numa unidade só, pelo rótulo da conta (`rotuloDaUnidade`): conta em duas unidades vira "A / B"; sem unidade vai para "Sem unidade", sem deduzir pelo dono. Por isso as linhas somam o Total.
+- Saem o cartão de Qualificação por unidade do mês e a tabela por produto. O comparativo por produto fica em "Em que etapa cada produto trava?". O estoque e ritmo passa a ocupar a linha inteira.
+
+**Conferido com a carga real (01 a 16/10, os dois pré-vendedores):** Abordados e Qualificação por unidade batem com o cartão antigo, unidade por unidade (Belém 7 de 24, Maceió 8 de 18, Goiânia 1 de 8…). O Total bate com o da tabela por produto que saiu (143 · 85 · 36 · 18 · 10 · 6 · 1).
