@@ -50,8 +50,10 @@ import {
   VisaoPreVenda,
   visaoDa,
 } from "./pre-venda";
+import { SeletorBase } from "./seletor-base";
 import {
   ABAS,
+  ABAS_COM_BASE,
   avisoDaAposentada,
   DATA_APOSENTADORIA,
   filtroDaBusca,
@@ -597,7 +599,12 @@ export function DashboardMonetizacao({
         procedencia={procedencia}
         acoes={acoes}
       >
-        {aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
+        {ABAS_COM_BASE.includes(aba) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <SeletorBase busca={busca} mudarBusca={mudarBusca} />
+            {aba === "pre-venda" && <SeletorVisaoPreVenda busca={busca} mudarBusca={mudarBusca} />}
+          </div>
+        ) : null}
         {faixaDeFiltros}
       </PageHeader>
       {carga.nuncaSincronizou && (

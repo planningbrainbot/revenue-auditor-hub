@@ -4,6 +4,8 @@ import { summarize, METRIC_VERSION } from "./crm.mjs";
 import { localDate } from "./dates.mjs";
 import {
   cardDaEmpresa,
+  cardDoDiagnostico,
+  FORA_DO_ENVIO_39,
   dealPayload,
   hasCanonicalProduct,
   orgDaHomonima,
@@ -116,9 +118,10 @@ async function collect() {
     db("monetizacao_deals?select=id,payload&limit=1000", ADMIN),
     db("monetizacao_sync?select=stages&id=eq.true", ADMIN),
     // Sem o cadastro a carga segue com o mapa fixo de revenue.mjs, como antes.
-    db("unidades?select=pipedrive_opcao_id,nome_da_praca&pipedrive_opcao_id=not.is.null", ADMIN).catch(
-      () => [],
-    ),
+    db(
+      "unidades?select=pipedrive_opcao_id,nome_da_praca&pipedrive_opcao_id=not.is.null",
+      ADMIN,
+    ).catch(() => []),
   ]);
   registrarUnidades(unidades);
   const cache = new Map(cachedRows.map((r: Row) => [r.id, r.payload]));
@@ -271,6 +274,10 @@ async function send(itemIds: string[], token: string) {
     try {
       if (!users.some((u) => u.id === claim.owner_id && u.active_flag))
         throw new Error("Hunter não está ativo no Pipedrive");
+      if (PIPES[claim.item.product] === 39 && FORA_DO_ENVIO_39.has(Number(claim.owner_id)))
+        throw new Error(
+          "O Matheus passou para o diagnóstico da base nova (pipe 40) em 16/10/2026 e não recebe card novo no pipe 39. Troque o dono da lista.",
+        );
       const account = claim.account,
         product = claim.item.product,
         orgs: number[] = claim.org_ids || [];
@@ -312,6 +319,12 @@ async function send(itemIds: string[], token: string) {
         dealsPorOrg.set(orgId, deals);
         existing.push(...deals);
       }
+      // Base nova (16/10/2026): conta no diagnóstico (pipe 40) não sobe para a base antiga.
+      const diagnostico = pipe === 39 ? cardDoDiagnostico(existing) : null;
+      if (diagnostico)
+        throw new Error(
+          `A conta está no diagnóstico da base nova (pipe 40, card ${diagnostico.id}): não sobe para o pipe 39.`,
+        );
       const vinculo = cardDaEmpresa(existing, product, month);
       const homonima = homonimas.length ? " Organização localizada pelo nome no CRM." : "";
       if (vinculo) {

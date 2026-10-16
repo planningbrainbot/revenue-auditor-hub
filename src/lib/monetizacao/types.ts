@@ -70,8 +70,16 @@ export const PRE_VENDEDORES: [number, string][] = [
   [28381245, "Matheus Carvalho"],
   [28897937, "Heloá"],
 ];
-/** Quem recebe card no envio: os pré-vendedores do Caixa e o Willian, do Recon (Pedro, 29/09). */
-export const CLOSERS: [number, string][] = [...PRE_VENDEDORES, [24813890, "Willian Linhares"]];
+/**
+ * Quem recebe card no envio: os pré-vendedores do Caixa e o Willian, do Recon (Pedro, 29/09). Desde 16/10/2026 o
+ * Matheus gere o diagnóstico da base nova (pipe 40) e não recebe card novo no pipe 39: fica fora do envio, mas continua
+ * em PRE_VENDEDORES (os filtros e o ritmo seguem mostrando os cards que ele fecha no 39).
+ */
+export const FORA_DO_ENVIO: readonly number[] = [28381245];
+export const CLOSERS: [number, string][] = [
+  ...PRE_VENDEDORES.filter(([id]) => !FORA_DO_ENVIO.includes(id)),
+  [24813890, "Willian Linhares"],
+];
 export type Oferta = { status: "elegivel" | "revisar" | "fora_regra"; reason: string };
 export interface DrivaRecord {
   cnpj: string;

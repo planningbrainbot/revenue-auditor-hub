@@ -7,6 +7,7 @@ import { SITUACOES_GRAVACAO } from "../../lib/monetizacao/gravacoes.ts";
 import type { SituacaoGravacao } from "../../lib/monetizacao/gravacoes.ts";
 import { CHAVES_ITEM, type ChaveItem } from "../../lib/monetizacao/pre-venda.ts";
 import type { Regime } from "../../lib/monetizacao/cruzamento-consultoria.ts";
+import { PESSOAS_DIAG } from "../../lib/monetizacao/diagnostico.ts";
 
 /**
  * Estado de tela de `/monetizacao` na URL (contrato da moldura, "Filtros na URL").
@@ -83,8 +84,20 @@ export type Situacao = (typeof SITUACOES)[number];
 /** Chave de uma reunião na tela Gravações: registrada (`pedido-monet-…`) ou do histórico do card (`hist-…`). */
 const REUNIAO = /^(pedido-monet-\d{1,12}-\d{8}T\d{4}|hist-\d{1,12}-(levantamento|proposta))$/;
 
+/**
+ * Base nova (16/10/2026, pedido do Pedro): Operação diária, Pré-venda e Forecast têm duas seções. Ausente = base antiga
+ * (pipe 39, pré-venda com cadência), como sempre foi; "nova" = pipe 40 (Onboarding | Diagnóstico de Oportunidades).
+ */
+export const ABAS_COM_BASE: readonly Aba[] = ["operacao", "pre-venda", "fechamentos"];
+
 export type BuscaMonetizacao = {
   aba: Aba;
+  /** Seção da tela: ausente = base antiga (pipe 39); "nova" = base nova (pipe 40). Só nas três abas de `ABAS_COM_BASE`. */
+  base?: "nova";
+  /** Base nova › Pré-venda: a pessoa do recorte (Matheus ou Jordana, `PESSOAS_DIAG`); ausente = as duas. */
+  pessoa?: number;
+  /** Base nova › Pré-venda › Ficha: o card aberto. */
+  card?: number;
   /** Id do pré-vendedor no Pipedrive (`PRE_VENDEDORES`); ausente = a pré-venda inteira. */
   responsavel?: number;
   /** aaaa-mm-dd; padrão 1º dia do mês corrente (São Paulo). */
@@ -171,8 +184,14 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined;
   const ficha = aba === "pre-venda" && visao === "ficha";
   const ligacoes = ficha && s.ficha !== "reunioes";
+  const nova = ABAS_COM_BASE.includes(aba) && s.base === "nova";
   return {
     aba,
+    base: nova ? "nova" : undefined,
+    pessoa: nova
+      ? PESSOAS_DIAG.map(([id]) => id).find((id) => id === inteiro(s.pessoa))
+      : undefined,
+    card: nova && visao === "ficha" ? inteiro(s.card) : undefined,
     // O aviso fica até a pessoa fechar ou sair da tela (a chave vai para a URL na primeira mudança de filtro).
     aposentada:
       aba === "operacao"

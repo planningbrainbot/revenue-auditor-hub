@@ -70,7 +70,8 @@ const draftFrom = (l: Lista): Draft => ({
 const empty = (): Draft => ({
   nome: "",
   unidade_id: null,
-  owner_id: 28381245,
+  // Lista nova nasce com a Heloá (16/10/2026: o Matheus passou para o diagnóstico da base nova e sai do envio).
+  owner_id: CLOSERS[0][0],
   partner: "",
   origin_confirmed: false,
   scan_confirmed: false,
