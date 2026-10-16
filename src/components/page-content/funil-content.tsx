@@ -248,15 +248,6 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
   const { dataIni, dataFim } = monthBounds(mes);
   const emAndamento = mesEmAndamento(mes);
   const nomeMes = rotuloMes(mes);
-  // O card abre as faturas em Contas a Receber só com UMA unidade no recorte.
-  // Com a rede inteira o total do destino não bate: o Funil conta só franquias
-  // com contrato ativo e exclui fatura CANCELADA, e Contas a Receber não (N2).
-  const recorteDestino: Record<string, string> | null =
-    selected.length === 1 ? { unidade: selected[0] } : null;
-  const hrefFaturas = (extra: Record<string, string> = {}) =>
-    recorteDestino
-      ? `/contas-receber?${new URLSearchParams({ ...recorteDestino, dataIni, dataFim, ...extra }).toString()}`
-      : undefined;
 
   const carregando = permLoading || q.isLoading;
   const semDadosNoMes = !carregando && !q.error && baseRows.length === 0;
@@ -370,7 +361,6 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                 nota={`${NUM.format(totals.faturas)} faturas emitidas · ${pctOuTraco(convMF)} do MRR`}
                 tom={tomKpi(tomMrrFat(convMF))}
                 procedencia={{ fonte: "Omie" }}
-                abrir={hrefFaturas() ? { href: hrefFaturas(), rotulo: "Abrir faturas" } : undefined}
               />
               <KpiCard
                 rotulo="Recebido"
@@ -378,11 +368,6 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                 nota={`${NUM.format(totals.recebidas)} faturas recebidas · ${pctOuTraco(convFR)} do faturado`}
                 tom={tomKpi(tomFatRec(convFR))}
                 procedencia={{ fonte: "Omie" }}
-                abrir={
-                  hrefFaturas({ status: "RECEBIDO" })
-                    ? { href: hrefFaturas({ status: "RECEBIDO" }), rotulo: "Abrir faturas" }
-                    : undefined
-                }
               />
               <KpiCard
                 rotulo="Conversão total"
@@ -442,12 +427,7 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                             </CellLink>
                           </TableCell>
                           <TableCell className="num text-right">
-                            <CellLink
-                              to="/contas-receber"
-                              search={{ unidade: unidadeStr, dataIni, dataFim }}
-                            >
-                              {brlOuTraco(r.faturado)}
-                            </CellLink>
+                            {brlOuTraco(r.faturado)}
                           </TableCell>
                           <TableCell
                             className={cn("num text-right", gapF > 0 && "font-medium text-danger")}
@@ -465,36 +445,16 @@ export function FunilContent({ abas }: { abas?: ReactNode }) {
                                 {brlOuTraco(gapF)}
                               </button>
                             ) : (
-                              <CellLink
-                                to="/contas-receber"
-                                search={{ unidade: unidadeStr, dataIni, dataFim }}
-                              >
-                                {brlOuTraco(gapF)}
-                              </CellLink>
+                              brlOuTraco(gapF)
                             )}
                           </TableCell>
                           <TableCell className="num text-right">
-                            <CellLink
-                              to="/contas-receber"
-                              search={{ unidade: unidadeStr, status: "RECEBIDO", dataIni, dataFim }}
-                            >
-                              {brlOuTraco(r.recebido)}
-                            </CellLink>
+                            {brlOuTraco(r.recebido)}
                           </TableCell>
                           <TableCell
                             className={cn("num text-right", gapC > 0 && "font-medium text-warning")}
                           >
-                            <CellLink
-                              to="/contas-receber"
-                              search={{
-                                unidade: unidadeStr,
-                                status: "NAO_RECEBIDO",
-                                dataIni,
-                                dataFim,
-                              }}
-                            >
-                              {brlOuTraco(gapC)}
-                            </CellLink>
+                            {brlOuTraco(gapC)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Conversao pct={mf} tom={tomMrrFat(mf)} />

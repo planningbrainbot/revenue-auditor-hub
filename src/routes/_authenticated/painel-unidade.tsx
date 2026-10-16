@@ -57,7 +57,7 @@ const NOME_FONTE: Record<Fonte, string> = {
 };
 
 function PainelUnidadePage() {
-  const { unidade: userUnidade, loading: permLoading, temArea } = usePermissions();
+  const { unidade: userUnidade, loading: permLoading } = usePermissions();
   const [lidoEm, setLidoEm] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [tentativa, setTentativa] = useState(0);
@@ -319,8 +319,6 @@ function PainelUnidadePage() {
                 estado={erros.cr ? "indisponivel" : erros.empresas ? "parcial" : "ok"}
                 tom={inadValor > 0 ? "perigo" : undefined}
                 tomRotulo="em atraso"
-                // Contas a Receber é da área Financeiro da unidade: sem ela, o card não abre.
-                abrir={temArea("minha_unidade_financeiro") ? { href: "/contas-receber", rotulo: "Abrir contas a receber" } : undefined}
                 nota={
                   erros.empresas && !erros.cr
                     ? "Só títulos com a unidade no próprio registro: a leitura de empresas falhou"

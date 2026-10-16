@@ -5475,3 +5475,11 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 - **Como ficou:** cada linha do resumo ganhou uma coluna Status, lida do título no Omie (`contas_receber`): a parte fixa pelo boleto de contas fixas (`csc_ciclos.cod_titulo`, nova server fn `situacaoContasFixas`), royalties, CAC e outras pela nota de débito (`listarFaturasRoyalties`, que a tela já carregava). Valores: "Pago em dd/mm/aaaa", "Em aberto, vence dd/mm/aaaa" ou "A cobrar". O resumo fecha com Total fatura, Já pago e Saldo a pagar. No PDF é a tabela "Situação da cobrança" abaixo dos cards.
 - **Outras receitas se divide em duas linhas** quando há boleto: CS, RH e Compliance (cobrado no boleto) e o resto (vai na ND). O total não muda.
 - **Antes de 09/2026** não havia boleto de contas fixas: a parte fixa sai sem status. O recebimento aparece no dia seguinte à baixa (sync diário do Omie).
+
+## [2026-10-16] Tela /contas-receber apagada
+
+**Contexto:** o dono pediu para excluir a página Contas a Receber (planningbrain.com.br/contas-receber).
+
+**Decisão:** saem a rota, os dois itens de menu (área Receita e Minha Unidade, Financeiro) e os componentes que só ela usava (`mensalidades-tab`, `safra-fato-filter`). Os atalhos que levavam para ela também saem: no Funil de Receita os cards Faturado e Recebido perdem o "Abrir faturas" e as células Faturado, Recebido e os gaps da tabela viram valor simples (o gap positivo de faturamento continua abrindo o diálogo de clientes); no Painel da Unidade o card Inadimplência deixa de abrir a tela.
+
+**Fica de pé:** a aba Contas a Receber do Financeiro Partners (`/financeiro-partners?tab=contas-receber`, outro componente), o hook `use-contas-receber` e `contas-receber.functions` (usados pela conciliação de 3 vias e pelo diálogo de gap do Funil), a tabela `contas_receber` e o sync do Omie.
