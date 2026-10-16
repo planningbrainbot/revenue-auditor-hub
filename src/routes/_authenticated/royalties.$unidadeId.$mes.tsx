@@ -1600,10 +1600,9 @@ function FiliaisCell({
   readOnly: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  // O vínculo de filiais é cadastro do contrato e segue só do admin.
-  const { isAdmin } = usePermissions();
-  // Não exibir em itens manuais, sem contrato, sem omie na unidade, ou em apuração fechada
-  if (!isAdmin || !temOmie || readOnly || it.fonte === "manual" || it.contrato_id == null) {
+  // Não exibir em itens manuais, sem contrato, sem omie na unidade, ou em apuração
+  // fechada. Sem a chave de edição a ficha já chega como `readOnly`.
+  if (!temOmie || readOnly || it.fonte === "manual" || it.contrato_id == null) {
     return <span className="text-muted-foreground">—</span>;
   }
   const count = it.filiais_count ?? 0;

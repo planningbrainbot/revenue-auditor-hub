@@ -403,6 +403,16 @@ export const AREAS: Area[] = [
             url: "/unidades/split",
             icon: Split,
           },
+          {
+            // A mesma lista e ficha da Administração (> Rede), para quem confere
+            // repasse sem ser super admin (pedido de 16/10/2026). Ver é a chave
+            // `view.unidades_rede`, que a Receita já concedia; cadastrar segue
+            // com `manage.unidades_rede` e as chaves do Omie, com o super admin.
+            title: "Unidades",
+            url: "/unidades",
+            icon: Landmark,
+            chave: "view.unidades_rede",
+          },
         ],
       },
       {

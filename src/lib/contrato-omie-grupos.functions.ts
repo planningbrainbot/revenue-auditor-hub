@@ -1,7 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin, digits, monthRange } from "@/lib/server-utils";
-import { apagarItensNaoConfirmados, gerarItensApuracaoCore } from "@/lib/royalties.functions";
+import { assertCan, digits, monthRange } from "@/lib/server-utils";
+import {
+  apagarItensNaoConfirmados,
+  EDITAR_ROYALTIES,
+  gerarItensApuracaoCore,
+} from "@/lib/royalties.functions";
+
+// O vínculo de filiais só serve à apuração de royalties: segue a mesma chave de
+// edição dela (área `royalties_edicao`), não mais o super admin.
+const RECADO_EDITAR = "necessário permissão para editar a apuração de royalties.";
 
 
 export interface FilialVinculada {
@@ -42,7 +50,7 @@ export const listGruposByContrato = createServerFn({ method: "GET" })
   .inputValidator((d: { apuracao_id: number; contrato_id: number }) => d)
   .handler(async ({ data, context }): Promise<{ filiais: FilialVinculada[] }> => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const ctx = await loadApuracaoContext(supabase, data.apuracao_id);
 
@@ -88,7 +96,7 @@ export const listFiliaisDisponiveis = createServerFn({ method: "GET" })
   .inputValidator((d: { apuracao_id: number; q?: string }) => d)
   .handler(async ({ data, context }): Promise<{ disponiveis: FilialDisponivel[] }> => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const ctx = await loadApuracaoContext(supabase, data.apuracao_id);
 
@@ -159,7 +167,7 @@ export const addFiliais = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const email = (claims as any)?.email ?? userId;
     const rows = data.filiais
@@ -211,7 +219,7 @@ export const removeFilial = createServerFn({ method: "POST" })
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
     const { error } = await supabase.from("contrato_omie_grupos").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -226,7 +234,7 @@ export const regerarMatchApuracao = createServerFn({ method: "POST" })
   .inputValidator((d: { apuracao_id: number }) => d)
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    await assertAdmin(supabase, userId);
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const { data: ap, error: apErr } = await supabase
       .from("royalties_apuracao")
