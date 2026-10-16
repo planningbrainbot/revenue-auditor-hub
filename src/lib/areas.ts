@@ -392,6 +392,9 @@ export const AREAS: Area[] = [
             title: "Apuração de Royalties",
             url: "/unidades/royalties",
             icon: Coins,
+            // A apuração aberta é /royalties/<unidade>/<mês>, que nenhum item cobre: a lateral
+            // caía na primeira área (Rede) com a tela da apuração na frente (16/10/2026).
+            tambem: /^\/royalties\/[^/]+\/[^/]+$/,
           },
           {
             title: "Funil de CAC",
