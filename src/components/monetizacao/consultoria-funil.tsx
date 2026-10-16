@@ -1,0 +1,583 @@
+import { useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowRight, X } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Carregando,
+  EstadoErro,
+  EstadoSemAcesso,
+  EstadoVazio,
+  KpiCard,
+  KpiGrade,
+  PageHeader,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
+import { useAuth } from "@/hooks/use-auth";
+import { hoje as hojeSP } from "@/lib/monetizacao/model";
+import { carregarFunilConsultoria } from "@/lib/monetizacao/consultoria-funil.functions";
+import {
+  ETAPAS,
+  MOTIVOS,
+  ORIGENS,
+  ORIGENS_FUNIL,
+  dinheiroDe,
+  empresasDoPasso,
+  filtrar,
+  montarFunil,
+  motivoDe,
+  nivelDe,
+  ondeAgir,
+  type EmpresaFunil,
+  type FunilBruto,
+  type Origem,
+  type PassoFunil,
+} from "@/lib/monetizacao/consultoria-funil";
+import { cn } from "@/lib/utils";
+import { inputClass } from "./common";
+import type { BuscaMonetizacao } from "./busca";
+
+// Consultoria › Funil (contrato docs/design/contratos/monetizacao-consultoria-funil.md). A visão de abertura da tela:
+// do que vendemos, quanto chegou à Consultoria, quanto ela auditou, quanto achou de dinheiro e quanto virou honorário.
+// Pedido do CEO na call de 16/10/2026 ("quantos que a consultoria auditou... quantos tem dinheiro... quanto que ela
+// monetizou... onde que está esse gelo que não me pagou?"). Régua em src/lib/monetizacao/consultoria-funil.ts.
+
+const TITULO = "Consultoria";
+const PERGUNTA = "Do que vendemos, quanto já virou dinheiro, e onde está parado?";
+const INT = new Intl.NumberFormat("pt-BR");
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+/** Dinheiro grande em milhões ("R$ 7,4 mi"); abaixo de R$ 1 mi, em mil. */
+export function brlCurto(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  const a = Math.abs(v);
+  if (a >= 1_000_000)
+    return `R$ ${(v / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  if (a >= 10_000) return `R$ ${Math.round(v / 1000).toLocaleString("pt-BR")} mil`;
+  return BRL.format(Math.round(v));
+}
+const num = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const ddmmaa = (d: string | null | undefined) =>
+  d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "—";
+
+export function origensDaBusca(busca: BuscaMonetizacao, padrao: Origem[]): Origem[] {
+  const lista = (busca.origem ?? "").split(",").filter(Boolean) as Origem[];
+  return lista.length ? lista : padrao;
+}
+
+export function useFunilConsultoria() {
+  const { user } = useAuth();
+  const ler = useServerFn(carregarFunilConsultoria);
+  return useQuery({
+    queryKey: ["consultoria-funil", user?.id],
+    queryFn: () => ler(),
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+export function ConsultoriaFunil({
+  busca,
+  mudarBusca,
+  abas,
+}: {
+  busca: BuscaMonetizacao;
+  mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
+  abas?: ReactNode;
+}) {
+  const q = useFunilConsultoria();
+  if (!q.data) {
+    const erro = q.error as Error | null;
+    return (
+      <main className="mx-auto max-w-[1600px] space-y-4 p-4 md:px-6">
+        <PageHeader titulo={TITULO} pergunta={PERGUNTA} />
+        {abas}
+        {!erro ? (
+          <Carregando variante="kpis" />
+        ) : /^Seu acesso não inclui/.test(erro.message) ? (
+          <EstadoSemAcesso oQueFalta="view.monetizacao com todas as unidades" />
+        ) : (
+          <EstadoErro
+            detalhe={`Fonte: plataforma da Consultoria, contratos ganhos e Base. ${erro.message}`}
+            tentarNovamente={() => void q.refetch()}
+          />
+        )}
+      </main>
+    );
+  }
+  return <PainelFunil bruto={q.data} busca={busca} mudarBusca={mudarBusca} abas={abas} />;
+}
+
+export function PainelFunil({
+  bruto,
+  busca,
+  mudarBusca,
+  abas,
+  hoje = hojeSP(),
+}: {
+  bruto: FunilBruto;
+  busca: BuscaMonetizacao;
+  mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
+  abas?: ReactNode;
+  hoje?: string;
+}) {
+  const origens: Origem[] = origensDaBusca(busca, ORIGENS_FUNIL).filter((o) => o !== "outra");
+  const unidade = busca.unidade ?? null;
+  const porta = bruto.porta_financeiro.aberta;
+  const universo = useMemo(
+    () => bruto.empresas.filter((e) => e.origem !== "outra"),
+    [bruto.empresas],
+  );
+  const empresas = useMemo(() => filtrar(universo, { origens, unidade }), [universo, origens, unidade]);
+  const passos = useMemo(() => montarFunil(empresas, hoje, porta), [empresas, hoje, porta]);
+  const dinheiro = useMemo(() => dinheiroDe(empresas, porta), [empresas, porta]);
+  const acoes = useMemo(() => ondeAgir(empresas, hoje), [empresas, hoje]);
+  const unidades = useMemo(
+    () =>
+      [...new Set(universo.filter((e) => origens.includes(e.origem)).map((e) => e.unidade).filter(Boolean))].sort(
+        (a, b) => (a as string).localeCompare(b as string, "pt-BR"),
+      ) as string[],
+    [universo, origens],
+  );
+  const passo = busca.passo ?? null;
+  const lista = useMemo(
+    () => (passo ? empresasDoPasso(empresas, passo, hoje) : []),
+    [empresas, passo, hoje],
+  );
+
+  const alternarOrigem = (o: Origem) => {
+    const nova = origens.includes(o) ? origens.filter((x) => x !== o) : [...origens, o];
+    const ordem = ORIGENS_FUNIL.filter((x) => nova.includes(x));
+    mudarBusca({
+      origem: ordem.length === 0 || ordem.length === ORIGENS_FUNIL.length ? undefined : ordem.join(","),
+      unidade: undefined,
+      passo: undefined,
+    });
+  };
+  const abrirFicha = (e: EmpresaFunil) =>
+    mudarBusca({
+      visao: "empresa",
+      q: e.nome.slice(0, 60),
+      empresa: e.cnpj ?? (e.deal ? `deal:${e.deal}` : undefined),
+      origem: undefined,
+      passo: undefined,
+      unidade: undefined,
+    });
+
+  return (
+    <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6">
+      <PageHeader
+        titulo={TITULO}
+        pergunta={PERGUNTA}
+        descricao="Cada empresa que vendemos em 2026, e cada cliente da carteira de Goiânia, segue um caminho até virar honorário. Aqui está quantas chegaram a cada degrau, quanto dinheiro tem em cada um e onde elas param."
+        procedencia={{
+          fonte: "Plataforma da Consultoria (a cada 15 min) · contratos ganhos no Pipedrive · Base de clientes",
+          atualizadoEm: bruto.frescor.plataforma ?? bruto.lido_em,
+          regua: "uma empresa por CNPJ",
+        }}
+      />
+      {abas}
+
+      <section aria-label="Filtros" className="flex flex-wrap items-center gap-2">
+        <span className="text-[13px] text-muted-foreground">Mostrar:</span>
+        {ORIGENS.filter((o) => o.id !== "outra").map((o) => {
+          const ativo = origens.includes(o.id);
+          const n = universo.filter((e) => e.origem === o.id).length;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              aria-pressed={ativo}
+              onClick={() => alternarOrigem(o.id)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                ativo
+                  ? "border-primary-text/50 bg-primary/10 font-medium text-foreground"
+                  : "text-muted-foreground hover:border-primary-text/40",
+              )}
+            >
+              {o.rotulo} <span className="num text-muted-foreground">{INT.format(n)}</span>
+            </button>
+          );
+        })}
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted-foreground">
+          Unidade
+          <select
+            value={unidade ?? ""}
+            onChange={(ev) => mudarBusca({ unidade: ev.target.value || undefined, passo: undefined })}
+            className={cn(inputClass, "h-8 w-auto py-0")}
+          >
+            <option value="">Todas</option>
+            {unidades.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <Secao
+        titulo="Dinheiro de verdade"
+        descricao="A meta é o faturado. O garantido é o crédito que o cliente já aprovou e ainda vai virar honorário. O achado e parado é crédito que a Consultoria encontrou e ninguém fechou."
+      >
+        <KpiGrade colunas={4}>
+          <KpiCard
+            rotulo="Recebido em 2026"
+            valor={brlCurto(dinheiro.recebido2026)}
+            estado={porta ? "ok" : "sem-acesso"}
+            tom="sucesso"
+            nota="honorário que entrou no caixa"
+          />
+          <KpiCard
+            rotulo="Faturado em 2026 · a meta"
+            valor={brlCurto(dinheiro.faturado2026)}
+            estado={porta ? "ok" : "sem-acesso"}
+            tom="sucesso"
+            nota="honorário emitido pela Consultoria"
+          />
+          <KpiCard
+            rotulo="Garantido a faturar"
+            valor={brlCurto(dinheiro.garantido)}
+            tom="info"
+            nota={`crédito aprovado × êxito, em ${INT.format(dinheiro.empresasGarantido)} empresas`}
+          />
+          <KpiCard
+            rotulo="Achado e parado"
+            valor={brlCurto(dinheiro.parado)}
+            tom="atencao"
+            nota={`crédito encontrado sem aceite, em ${INT.format(dinheiro.empresasParado)} empresas`}
+            abrir={{ onClick: () => mudarBusca({ passo: "5" === passo ? undefined : "5" }), rotulo: "ver as empresas" }}
+          />
+        </KpiGrade>
+      </Secao>
+
+      <Secao
+        titulo="O caminho de cada empresa"
+        descricao="Cada degrau conta quem chegou até ali ou além. A porcentagem é sobre o degrau de cima. Clique num degrau ou num motivo para ver as empresas."
+      >
+        {empresas.length === 0 ? (
+          <EstadoVazio titulo="Nenhuma empresa" descricao="Escolha ao menos uma origem acima." />
+        ) : (
+          <Funil passos={passos} passo={passo} escolher={(p) => mudarBusca({ passo: p === passo ? undefined : p })} />
+        )}
+      </Secao>
+
+      {passo && (
+        <ListaDoPasso
+          passo={passo}
+          empresas={lista}
+          hoje={hoje}
+          porta={porta}
+          fechar={() => mudarBusca({ passo: undefined })}
+          abrirFicha={abrirFicha}
+        />
+      )}
+
+      {acoes.length > 0 && (
+        <Secao titulo="Onde agir agora" descricao="O que destrava mais dinheiro, primeiro.">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {acoes.map((a) => (
+              <article
+                key={a.id}
+                className={cn(
+                  "flex flex-col justify-between gap-3 rounded-xl border bg-card p-4",
+                  a.tom === "perigo" && "border-danger/40",
+                  a.tom === "atencao" && "border-warning/40",
+                )}
+              >
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">{a.titulo}</p>
+                  <p className="num text-2xl font-bold">
+                    {INT.format(a.empresas)} {a.empresas === 1 ? "empresa" : "empresas"}
+                    {a.valor ? (
+                      <span className="ml-2 text-base font-semibold text-muted-foreground">
+                        {brlCurto(a.valor)}
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-[13px] text-muted-foreground">{a.leitura}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    a.grupo
+                      ? mudarBusca({ visao: "fila", grupo: a.grupo, passo: undefined, origem: undefined, unidade: undefined })
+                      : mudarBusca({ passo: a.passo })
+                  }
+                  className="inline-flex items-center gap-1 self-start text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {a.grupo ? "Abrir na fila de cobrança" : "Ver as empresas"}
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </button>
+              </article>
+            ))}
+          </div>
+        </Secao>
+      )}
+    </main>
+  );
+}
+
+// ─── O funil desenhado ───────────────────────────────────────────────────────────────────────────
+
+const TOM_MOTIVO = { perigo: "perigo", atencao: "atencao", neutro: "neutro", info: "info" } as const;
+
+function Funil({
+  passos,
+  passo,
+  escolher,
+}: {
+  passos: PassoFunil[];
+  passo: string | null;
+  escolher: (p: string) => void;
+}) {
+  const topo = Math.max(1, passos[0]?.empresas ?? 1);
+  return (
+    <ol className="space-y-1 rounded-xl border bg-card p-3 md:p-4">
+      {passos.map((p, i) => {
+        const largura = Math.max(2, (100 * p.empresas) / topo);
+        const ativo = passo === String(p.etapa.n);
+        const caixa = p.etapa.n >= 7;
+        return (
+          <li key={p.etapa.n}>
+            <button
+              type="button"
+              onClick={() => escolher(String(p.etapa.n))}
+              aria-pressed={ativo}
+              className={cn(
+                "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_9rem]",
+                ativo && "bg-muted/60",
+              )}
+            >
+              <span className="flex min-w-0 items-start gap-2">
+                <span
+                  className={cn(
+                    "num mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                    caixa ? "bg-success-soft text-success" : "bg-primary/15 text-primary-text",
+                  )}
+                  aria-hidden
+                >
+                  {p.etapa.n}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{p.etapa.titulo}</span>
+                  <span className="block text-xs text-muted-foreground">{p.etapa.explica}</span>
+                </span>
+              </span>
+              <span className="order-3 col-span-2 md:order-none md:col-span-1">
+                <span className="relative block h-7 w-full">
+                  <span
+                    className={cn(
+                      "absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-md",
+                      caixa ? "bg-success" : "bg-primary",
+                    )}
+                    style={{ width: `${largura}%` }}
+                  />
+                  {p.dinheiro !== null && p.dinheiro > 0 && (
+                    <span className="num absolute inset-0 flex items-center justify-center text-xs font-semibold text-foreground">
+                      <span className="rounded bg-card/90 px-1.5 py-0.5">{brlCurto(p.dinheiro)}</span>
+                    </span>
+                  )}
+                </span>
+              </span>
+              <span className="text-right">
+                <span className="num block text-xl font-bold leading-none">{INT.format(p.empresas)}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {p.taxa === null ? "empresas" : `${p.taxa}% do degrau de cima`}
+                </span>
+              </span>
+            </button>
+            {i < passos.length - 1 && p.pararam > 0 && (
+              <div className="ml-10 flex flex-wrap items-center gap-1.5 pb-2 pt-0.5 text-xs text-muted-foreground">
+                <span>
+                  ↳ {INT.format(p.pararam)} {p.pararam === 1 ? "parou" : "pararam"} aqui:
+                </span>
+                {p.parou.map((x) => {
+                  const chave = `${p.etapa.n}-${x.motivo.id}`;
+                  return (
+                    <button
+                      key={x.motivo.id}
+                      type="button"
+                      onClick={() => escolher(chave)}
+                      aria-pressed={passo === chave}
+                      title={x.motivo.leitura}
+                      className={cn(
+                        "rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        passo === chave && "ring-2 ring-ring",
+                      )}
+                    >
+                      <StatusBadge tom={TOM_MOTIVO[x.motivo.tom]} icone={false}>
+                        {x.motivo.rotulo} <span className="num">{INT.format(x.empresas)}</span>
+                      </StatusBadge>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// ─── A lista de um clique ────────────────────────────────────────────────────────────────────────
+
+function tituloDoPasso(passo: string, n: number): { titulo: string; leitura: string | null } {
+  const [e, m] = passo.split("-");
+  const etapa = ETAPAS.find((x) => String(x.n) === e);
+  if (m === "atrasado")
+    return {
+      titulo: `${INT.format(n)} paradas antes do diagnóstico, fora do prazo`,
+      leitura: "Estão na Consultoria e passaram da meta da etapa em que estão.",
+    };
+  if (m) {
+    const motivo = (MOTIVOS[Number(e) + 1] ?? []).find((x) => x.id === m);
+    return {
+      titulo: `${INT.format(n)} pararam em "${etapa?.titulo}": ${motivo?.rotulo ?? m}`,
+      leitura: motivo?.leitura ?? null,
+    };
+  }
+  return { titulo: `${INT.format(n)} chegaram a "${etapa?.titulo}" ou além`, leitura: etapa?.explica ?? null };
+}
+
+const ROTULO_ETAPA: Record<string, string> = {
+  fila_processamento: "Fila de Processamento",
+  fluxo_documentos: "Fluxo de Documentos",
+  operacao: "Operação",
+  qualidade: "Qualidade",
+  saida_entrega: "Saída / Entrega",
+  pos_entrega: "Pós-entrega",
+};
+
+function ondeEsta(e: EmpresaFunil, hoje: string): string {
+  const n = nivelDe(e);
+  const m = motivoDe(e, hoje);
+  const motivo = (MOTIVOS[n + 1] ?? []).find((x) => x.id === m)?.rotulo;
+  if (n === 3 && e.etapa) {
+    const atraso = (e.dias_alem ?? 0) > 0 ? ` · ${INT.format(e.dias_alem ?? 0)} dias além da meta` : "";
+    return `${ROTULO_ETAPA[e.etapa] ?? e.etapa}${atraso}`;
+  }
+  return n === 8 ? "Recebemos" : (motivo ?? ETAPAS[n - 1].titulo);
+}
+
+function ListaDoPasso({
+  passo,
+  empresas,
+  hoje,
+  porta,
+  fechar,
+  abrirFicha,
+}: {
+  passo: string;
+  empresas: EmpresaFunil[];
+  hoje: string;
+  porta: boolean;
+  fechar: () => void;
+  abrirFicha: (e: EmpresaFunil) => void;
+}) {
+  const { titulo, leitura } = tituloDoPasso(passo, empresas.length);
+  const ordenadas = [...empresas].sort(
+    (a, b) =>
+      num(b.aceito) + num(b.identificado) - (num(a.aceito) + num(a.identificado)) ||
+      num(b.mrr) - num(a.mrr) ||
+      a.nome.localeCompare(b.nome, "pt-BR"),
+  );
+  const origem = (o: string) => ORIGENS.find((x) => x.id === o)?.curto ?? o;
+  return (
+    <Secao
+      titulo={titulo}
+      descricao={leitura ?? undefined}
+      acoes={
+        <button
+          type="button"
+          onClick={fechar}
+          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="size-3.5" aria-hidden /> Fechar
+        </button>
+      }
+    >
+      <div className="max-h-[36rem] overflow-auto rounded-xl border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Empresa</TableHead>
+              <TableHead className="text-xs">Origem</TableHead>
+              <TableHead className="text-xs">Onde está</TableHead>
+              <TableHead className="text-right text-xs">Crédito achado</TableHead>
+              <TableHead className="text-right text-xs">Aceito</TableHead>
+              {porta && <TableHead className="text-right text-xs">Faturado</TableHead>}
+              <TableHead className="text-xs">Venda / entrega</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ordenadas.slice(0, 300).map((e) => (
+              <TableRow key={e.chave}>
+                <TableCell className="text-xs">
+                  <button
+                    type="button"
+                    onClick={() => abrirFicha(e)}
+                    className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {e.nome}
+                  </button>
+                  <span className="block text-muted-foreground">
+                    {e.cnpj ?? "sem CNPJ"}
+                    {e.cnpj_fonte === "nome_exato" || e.cnpj_fonte === "nome_parecido"
+                      ? " · CNPJ achado pelo nome"
+                      : e.cnpj_fonte === "onboarding"
+                        ? " · CNPJ do onboarding"
+                        : ""}
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs">
+                  {origem(e.origem)}
+                  <span className="block text-muted-foreground">
+                    {[e.unidade, e.closer].filter(Boolean).join(" · ") || "—"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-xs">{ondeEsta(e, hoje)}</TableCell>
+                <TableCell className="num whitespace-nowrap text-right text-xs">
+                  {num(e.identificado) ? brlCurto(num(e.identificado)) : "—"}
+                </TableCell>
+                <TableCell className="num whitespace-nowrap text-right text-xs">
+                  {num(e.aceito) ? brlCurto(num(e.aceito)) : "—"}
+                </TableCell>
+                {porta && (
+                  <TableCell className="num whitespace-nowrap text-right text-xs">
+                    {num(e.faturado) ? brlCurto(num(e.faturado)) : "—"}
+                  </TableCell>
+                )}
+                <TableCell className="text-xs">
+                  {e.ganho_em ? `venda ${ddmmaa(e.ganho_em)}` : "carteira"}
+                  {e.entregue_em && (
+                    <span className="block text-muted-foreground">entrega {ddmmaa(e.entregue_em)}</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {ordenadas.length > 300 && (
+          <p className="border-t p-3 text-xs text-muted-foreground">
+            Mostrando as 300 primeiras, por valor. Use o filtro de unidade para ver o resto.
+          </p>
+        )}
+      </div>
+    </Secao>
+  );
+}

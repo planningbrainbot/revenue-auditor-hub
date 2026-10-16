@@ -80,3 +80,9 @@ O link antigo `?aba=cruzamento-consultoria` abre esta visão. A moldura comum
 ## Permissões (N8)
 `view.monetizacao` **e** escopo de todas as unidades (a tela agrega a Consultoria inteira). Valores da PAT exigem
 também a porta do Financeiro, como no Handoff Consultoria.
+
+---
+
+**Aposentado em 16/10/2026.** A aba "Cruzamento com a call" saiu da tela Consultoria (PRD de 07/10, D3, e pedido do dono
+em 16/10). O Funil (`monetizacao-consultoria-funil.md`) responde a mesma pergunta ao vivo. O link antigo abre o Funil. O
+componente e o RPC ficam no repositório: a Buscar empresa ainda lê o `ops.cruzamento_consultoria_painel()`.
