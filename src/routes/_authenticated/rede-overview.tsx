@@ -1086,9 +1086,8 @@ function RedeOverviewPage() {
                   recebidoKpi?.nota ??
                   (semTitulosOmie
                     ? "sem títulos do Omie no período"
-                    : `${receitaTotalStats.pct != null ? "" : "sem base de comparação · "}competência · o Funil de Receita usa outro recorte e não bate com este total`)
+                    : `${receitaTotalStats.pct != null ? "" : "sem base de comparação · "}competência`)
                 }
-                abrir={{ href: "/funil-receita", rotulo: "Abrir Funil de Receita" }}
               />
               <KpiCard
                 rotulo="Booking"
@@ -1179,7 +1178,6 @@ function RedeOverviewPage() {
               <Secao
                 titulo="Quanto a rede recebeu por mês? (R$)"
                 descricao="Títulos RECEBIDO do Omie pelo mês de competência; variação contra o mês anterior."
-                acoes={<VerDetalheLink to="/funil-receita" />}
               >
                 {blocoGrafico(
                   ["recon"],

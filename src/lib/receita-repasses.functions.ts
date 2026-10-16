@@ -14,7 +14,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  *   que é caixa e já com os ajustes manuais da apuração.
  * - **Receita da rede** (o que o cliente paga à unidade) vem de
  *   `v_reconciliacao_mensal`, que é competência e valor bruto de nota — a mesma
- *   fonte de /funil-receita, para os dois não discordarem.
+ *   fonte do antigo /funil-receita (apagado em 16/10/2026).
  *
  * Ver `DATA-RULES.md` no repo da wiki: misturar as duas é o erro clássico desta
  * área, e foi a causa de "o recebimento não bate" em julho de 2026.

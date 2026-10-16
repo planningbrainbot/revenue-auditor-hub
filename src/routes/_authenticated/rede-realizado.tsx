@@ -161,7 +161,6 @@ const METRICAS_DEF: DefMetrica[] = [
       "Títulos RECEBIDO do Omie pelo mês de competência. Mês sem título da unidade fica sem ponto, não R$ 0.",
     formatar: (v) => fmtBRL(v),
     eixo: fmtBRLCompacto,
-    destino: { to: "/funil-receita", rotulo: "Abrir Funil de Receita" },
   },
   {
     key: "mrr",
@@ -202,7 +201,6 @@ const METRICAS_DEF: DefMetrica[] = [
     descricao: "Variação do recebido pelo mês de competência contra o mês anterior da série.",
     formatar: (v) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`,
     eixo: (v) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`,
-    destino: { to: "/funil-receita", rotulo: "Abrir Funil de Receita" },
   },
   {
     key: "cac",

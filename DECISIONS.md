@@ -5483,3 +5483,11 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 **Decisão:** saem a rota, os dois itens de menu (área Receita e Minha Unidade, Financeiro) e os componentes que só ela usava (`mensalidades-tab`, `safra-fato-filter`). Os atalhos que levavam para ela também saem: no Funil de Receita os cards Faturado e Recebido perdem o "Abrir faturas" e as células Faturado, Recebido e os gaps da tabela viram valor simples (o gap positivo de faturamento continua abrindo o diálogo de clientes); no Painel da Unidade o card Inadimplência deixa de abrir a tela.
 
 **Fica de pé:** a aba Contas a Receber do Financeiro Partners (`/financeiro-partners?tab=contas-receber`, outro componente), o hook `use-contas-receber` e `contas-receber.functions` (usados pela conciliação de 3 vias e pelo diálogo de gap do Funil), a tabela `contas_receber` e o sync do Omie.
+
+## [2026-10-16] Funil de Receita apagado, e o card Inadimplência sai do Painel da Unidade
+
+**Contexto:** no mesmo pedido da exclusão de /contas-receber, o dono pediu para tirar também o Funil de Receita e o indicador de inadimplência do Painel da Unidade. Perguntado sobre a aba Esperado × Recebido (a antiga Auditoria de Faturamento, que morava dentro do Funil), respondeu para apagar as duas abas.
+
+**Decisão:** saem `/funil-receita` (abas Funil e Esperado × Recebido), os redirects `/auditoria` e `/auditoria-faturamento`, os dois itens de menu (grupo "Receita da rede" na área Receita e o item no Financeiro da Minha Unidade) e os componentes `funil-content`, `auditoria-faturamento-content` e `funil-gap-clientes-dialog`. Os atalhos para o Funil saem da Visão geral da Receita (cards MRR, Faturado e Recebido e o "Ver o funil" do gráfico), do Realizado da rede (gráficos Recebido e Crescimento) e do Panorama da rede (card Recebido e o "ver detalhe" do gráfico). No Painel da Unidade sai só o card Inadimplência; ficam o card Clientes em risco e a tabela dos 5 clientes com mais valor em atraso.
+
+**Fica de pé:** as chaves `view.funil_receita`, `view.contas_receber` e `view.auditoria` (podem estar em policies de RLS, mesmo cuidado de `view.reconciliacao` em 17/09), a view `v_reconciliacao_mensal` (alimenta a Visão geral da Receita) e a tabela `contas_receber`.

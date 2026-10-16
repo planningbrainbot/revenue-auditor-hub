@@ -45,7 +45,6 @@ import { Route as AuthenticatedIndicadoresTrimestreRouteImport } from './routes/
 import { Route as AuthenticatedIduRouteImport } from './routes/_authenticated/idu'
 import { Route as AuthenticatedHunterSocioRouteImport } from './routes/_authenticated/hunter-socio'
 import { Route as AuthenticatedGenteRouteImport } from './routes/_authenticated/gente'
-import { Route as AuthenticatedFunilReceitaRouteImport } from './routes/_authenticated/funil-receita'
 import { Route as AuthenticatedFinanceiroSemanalRouteImport } from './routes/_authenticated/financeiro-semanal'
 import { Route as AuthenticatedFinanceiroPartnersRouteImport } from './routes/_authenticated/financeiro-partners'
 import { Route as AuthenticatedFilaCellaRouteImport } from './routes/_authenticated/fila-cella'
@@ -60,8 +59,6 @@ import { Route as AuthenticatedCockpitCeoRouteImport } from './routes/_authentic
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedBaseContatosRouteImport } from './routes/_authenticated/base-contatos'
 import { Route as AuthenticatedAuditoriaInternaRouteImport } from './routes/_authenticated/auditoria-interna'
-import { Route as AuthenticatedAuditoriaFaturamentoRouteImport } from './routes/_authenticated/auditoria-faturamento'
-import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedAtividadeRouteImport } from './routes/_authenticated/atividade'
 import { Route as AuthenticatedAquarioRouteImport } from './routes/_authenticated/aquario'
 import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
@@ -292,12 +289,6 @@ const AuthenticatedGenteRoute = AuthenticatedGenteRouteImport.update({
   path: '/gente',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedFunilReceitaRoute =
-  AuthenticatedFunilReceitaRouteImport.update({
-    id: '/funil-receita',
-    path: '/funil-receita',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedFinanceiroSemanalRoute =
   AuthenticatedFinanceiroSemanalRouteImport.update({
     id: '/financeiro-semanal',
@@ -375,17 +366,6 @@ const AuthenticatedAuditoriaInternaRoute =
     path: '/auditoria-interna',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAuditoriaFaturamentoRoute =
-  AuthenticatedAuditoriaFaturamentoRouteImport.update({
-    id: '/auditoria-faturamento',
-    path: '/auditoria-faturamento',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
-  id: '/auditoria',
-  path: '/auditoria',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAtividadeRoute = AuthenticatedAtividadeRouteImport.update({
   id: '/atividade',
   path: '/atividade',
@@ -589,8 +569,6 @@ export interface FileRoutesByFullPath {
   '/vitrine': typeof VitrineRoute
   '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
-  '/auditoria': typeof AuthenticatedAuditoriaRoute
-  '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
@@ -605,7 +583,6 @@ export interface FileRoutesByFullPath {
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
-  '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
   '/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/idu': typeof AuthenticatedIduRoute
@@ -675,8 +652,6 @@ export interface FileRoutesByTo {
   '/vitrine': typeof VitrineRoute
   '/aquario': typeof AuthenticatedAquarioRoute
   '/atividade': typeof AuthenticatedAtividadeRoute
-  '/auditoria': typeof AuthenticatedAuditoriaRoute
-  '/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/clientes': typeof AuthenticatedClientesRoute
@@ -691,7 +666,6 @@ export interface FileRoutesByTo {
   '/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
-  '/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/gente': typeof AuthenticatedGenteRoute
   '/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/idu': typeof AuthenticatedIduRoute
@@ -762,8 +736,6 @@ export interface FileRoutesById {
   '/vitrine': typeof VitrineRoute
   '/_authenticated/aquario': typeof AuthenticatedAquarioRoute
   '/_authenticated/atividade': typeof AuthenticatedAtividadeRoute
-  '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
-  '/_authenticated/auditoria-faturamento': typeof AuthenticatedAuditoriaFaturamentoRoute
   '/_authenticated/auditoria-interna': typeof AuthenticatedAuditoriaInternaRoute
   '/_authenticated/base-contatos': typeof AuthenticatedBaseContatosRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
@@ -778,7 +750,6 @@ export interface FileRoutesById {
   '/_authenticated/fila-cella': typeof AuthenticatedFilaCellaRoute
   '/_authenticated/financeiro-partners': typeof AuthenticatedFinanceiroPartnersRoute
   '/_authenticated/financeiro-semanal': typeof AuthenticatedFinanceiroSemanalRoute
-  '/_authenticated/funil-receita': typeof AuthenticatedFunilReceitaRoute
   '/_authenticated/gente': typeof AuthenticatedGenteRoute
   '/_authenticated/hunter-socio': typeof AuthenticatedHunterSocioRoute
   '/_authenticated/idu': typeof AuthenticatedIduRoute
@@ -852,8 +823,6 @@ export interface FileRouteTypes {
     | '/vitrine'
     | '/aquario'
     | '/atividade'
-    | '/auditoria'
-    | '/auditoria-faturamento'
     | '/auditoria-interna'
     | '/base-contatos'
     | '/clientes'
@@ -868,7 +837,6 @@ export interface FileRouteTypes {
     | '/fila-cella'
     | '/financeiro-partners'
     | '/financeiro-semanal'
-    | '/funil-receita'
     | '/gente'
     | '/hunter-socio'
     | '/idu'
@@ -938,8 +906,6 @@ export interface FileRouteTypes {
     | '/vitrine'
     | '/aquario'
     | '/atividade'
-    | '/auditoria'
-    | '/auditoria-faturamento'
     | '/auditoria-interna'
     | '/base-contatos'
     | '/clientes'
@@ -954,7 +920,6 @@ export interface FileRouteTypes {
     | '/fila-cella'
     | '/financeiro-partners'
     | '/financeiro-semanal'
-    | '/funil-receita'
     | '/gente'
     | '/hunter-socio'
     | '/idu'
@@ -1024,8 +989,6 @@ export interface FileRouteTypes {
     | '/vitrine'
     | '/_authenticated/aquario'
     | '/_authenticated/atividade'
-    | '/_authenticated/auditoria'
-    | '/_authenticated/auditoria-faturamento'
     | '/_authenticated/auditoria-interna'
     | '/_authenticated/base-contatos'
     | '/_authenticated/clientes'
@@ -1040,7 +1003,6 @@ export interface FileRouteTypes {
     | '/_authenticated/fila-cella'
     | '/_authenticated/financeiro-partners'
     | '/_authenticated/financeiro-semanal'
-    | '/_authenticated/funil-receita'
     | '/_authenticated/gente'
     | '/_authenticated/hunter-socio'
     | '/_authenticated/idu'
@@ -1370,13 +1332,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGenteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/funil-receita': {
-      id: '/_authenticated/funil-receita'
-      path: '/funil-receita'
-      fullPath: '/funil-receita'
-      preLoaderRoute: typeof AuthenticatedFunilReceitaRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/financeiro-semanal': {
       id: '/_authenticated/financeiro-semanal'
       path: '/financeiro-semanal'
@@ -1473,20 +1428,6 @@ declare module '@tanstack/react-router' {
       path: '/auditoria-interna'
       fullPath: '/auditoria-interna'
       preLoaderRoute: typeof AuthenticatedAuditoriaInternaRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/auditoria-faturamento': {
-      id: '/_authenticated/auditoria-faturamento'
-      path: '/auditoria-faturamento'
-      fullPath: '/auditoria-faturamento'
-      preLoaderRoute: typeof AuthenticatedAuditoriaFaturamentoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/auditoria': {
-      id: '/_authenticated/auditoria'
-      path: '/auditoria'
-      fullPath: '/auditoria'
-      preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/atividade': {
@@ -1766,8 +1707,6 @@ const AuthenticatedUnidadesRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAquarioRoute: typeof AuthenticatedAquarioRoute
   AuthenticatedAtividadeRoute: typeof AuthenticatedAtividadeRoute
-  AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
-  AuthenticatedAuditoriaFaturamentoRoute: typeof AuthenticatedAuditoriaFaturamentoRoute
   AuthenticatedAuditoriaInternaRoute: typeof AuthenticatedAuditoriaInternaRoute
   AuthenticatedBaseContatosRoute: typeof AuthenticatedBaseContatosRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
@@ -1782,7 +1721,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFilaCellaRoute: typeof AuthenticatedFilaCellaRoute
   AuthenticatedFinanceiroPartnersRoute: typeof AuthenticatedFinanceiroPartnersRoute
   AuthenticatedFinanceiroSemanalRoute: typeof AuthenticatedFinanceiroSemanalRoute
-  AuthenticatedFunilReceitaRoute: typeof AuthenticatedFunilReceitaRoute
   AuthenticatedGenteRoute: typeof AuthenticatedGenteRoute
   AuthenticatedHunterSocioRoute: typeof AuthenticatedHunterSocioRoute
   AuthenticatedIduRoute: typeof AuthenticatedIduRoute
@@ -1838,9 +1776,6 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAquarioRoute: AuthenticatedAquarioRoute,
   AuthenticatedAtividadeRoute: AuthenticatedAtividadeRoute,
-  AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
-  AuthenticatedAuditoriaFaturamentoRoute:
-    AuthenticatedAuditoriaFaturamentoRoute,
   AuthenticatedAuditoriaInternaRoute: AuthenticatedAuditoriaInternaRoute,
   AuthenticatedBaseContatosRoute: AuthenticatedBaseContatosRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
@@ -1855,7 +1790,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFilaCellaRoute: AuthenticatedFilaCellaRoute,
   AuthenticatedFinanceiroPartnersRoute: AuthenticatedFinanceiroPartnersRoute,
   AuthenticatedFinanceiroSemanalRoute: AuthenticatedFinanceiroSemanalRoute,
-  AuthenticatedFunilReceitaRoute: AuthenticatedFunilReceitaRoute,
   AuthenticatedGenteRoute: AuthenticatedGenteRoute,
   AuthenticatedHunterSocioRoute: AuthenticatedHunterSocioRoute,
   AuthenticatedIduRoute: AuthenticatedIduRoute,

@@ -166,9 +166,6 @@ function PainelUnidadePage() {
     () => cr.filter((r) => unitMatches(userUnidade, r.unidade) || cnpjsUnidade.has(onlyDigits(r.cpf_cnpj))),
     [cr, userUnidade, cnpjsUnidade],
   );
-  const inadimplentes = crUnidade.filter((r) => ["ATRASADO", "VENCIDO"].includes(r.status_pagamento ?? ""));
-  const inadValor = inadimplentes.reduce((s, r) => s + Number(r.valor ?? 0), 0);
-  const inadClientes = new Set(inadimplentes.map((r) => onlyDigits(r.cpf_cnpj))).size;
   const emRisco = empresasUnidade.filter((e) => ["EM_ATRASO", "INADIMPLENTE"].includes(e.status_financeiro ?? "")).length;
 
   const serie = useMemo(() => {
@@ -256,7 +253,7 @@ function PainelUnidadePage() {
           fonte: "Base única · contratos, central de tratativas, contas a receber, pesquisas",
           // Hora da leitura desta tela: as tabelas não trazem data de sincronização aqui.
           atualizadoEm: lidoEm,
-          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade; inadimplência = títulos ATRASADO ou VENCIDO",
+          regua: "MRR = soma do MRR mensal dos contratos com status Ativo da unidade; atraso = títulos ATRASADO ou VENCIDO",
         }}
       />
 
@@ -311,20 +308,8 @@ function PainelUnidadePage() {
             />
           </KpiGrade>
 
-          <Secao titulo="O que pede atenção?" descricao="Títulos em atraso e clientes com situação financeira de risco">
+          <Secao titulo="O que pede atenção?" descricao="Clientes com situação financeira de risco">
             <KpiGrade colunas={2}>
-              <KpiCard
-                rotulo="Inadimplência"
-                valor={fmtBRL(inadValor)}
-                estado={erros.cr ? "indisponivel" : erros.empresas ? "parcial" : "ok"}
-                tom={inadValor > 0 ? "perigo" : undefined}
-                tomRotulo="em atraso"
-                nota={
-                  erros.empresas && !erros.cr
-                    ? "Só títulos com a unidade no próprio registro: a leitura de empresas falhou"
-                    : `${NUM.format(inadClientes)} cliente(s) com fatura atrasada ou vencida`
-                }
-              />
               <KpiCard
                 rotulo="Clientes em risco"
                 valor={NUM.format(emRisco)}

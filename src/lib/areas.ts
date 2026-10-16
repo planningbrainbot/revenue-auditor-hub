@@ -170,11 +170,11 @@ export function partesDoLink(url: string): { to: string; search: Record<string, 
  * Casa pelo path, ignorando a query, porque o mesmo path serve várias telas
  * ("/gente?visao=..." é tudo Planning People).
  *
- * É lista, e não uma área só, porque **cinco caminhos moram em duas áreas ao
+ * É lista, e não uma área só, porque **quatro caminhos moram em duas áreas ao
  * mesmo tempo**: `/clientes` está em `clientes` e em `minha_unidade`;
- * `/painel-cs`, `/nps` e `/idu` em `rede` e `minha_unidade`; e `/funil-receita`
- * em `receita` e `minha_unidade_financeiro`. (`/contas-receber` foi apagada em
- * 16/10/2026.) (`/broker` saiu
+ * `/painel-cs`, `/nps` e `/idu` em `rede` e `minha_unidade`. (`/contas-receber`
+ * e `/funil-receita`, que moravam em `receita` e `minha_unidade_financeiro`,
+ * foram apagadas em 16/10/2026.) (`/broker` saiu
  * da Minha Unidade em 23/09/2026: o sócio regional já tem a área `broker`.)
  * Isso é de propósito: a mesma tela é o trabalho da
  * matriz e o da unidade, e `ops.area_chaves` concede `view.clientes` pelos dois
@@ -364,16 +364,6 @@ export const AREAS: Area[] = [
         items: [
           { title: "Financeiro semanal", url: "/financeiro-semanal", icon: Wallet },
           { title: "BI Financeiro", url: "/dre-caixa", icon: Scale },
-        ],
-      },
-      {
-        label: "Receita da rede",
-        items: [
-          {
-            title: "Funil de Receita",
-            url: "/funil-receita",
-            icon: Filter,
-          },
         ],
       },
       {
@@ -734,12 +724,6 @@ export const AREAS: Area[] = [
         // financeiro. Desde 16/09/2026 quem concede é `minha_unidade_financeiro`.
         label: "Financeiro",
         items: [
-          {
-            title: "Funil de Receita",
-            url: "/funil-receita",
-            icon: Filter,
-            area: "minha_unidade_financeiro",
-          },
           {
             title: "Meus Royalties",
             url: "/meus-royalties",

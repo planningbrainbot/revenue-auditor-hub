@@ -336,7 +336,6 @@ export function ReceitaOverviewContent() {
   // Os cards abrem a tela dona no mesmo mês (N2). O CSC da apuração é "fixo
   // ou base antiga" e pode não bater com a soma daqui: a explicação diz isso.
   const hrefApuracao = destinoApuracao;
-  const hrefFunil = hrefComMes("/funil-receita", mes);
   const nomeMes = rotuloMes(mes);
 
   return (
@@ -615,7 +614,7 @@ export function ReceitaOverviewContent() {
         {data?.podeReceita && (
           <Secao
             titulo="Quanto a rede faturou e recebeu na competência?"
-            descricao={`fonte: Omie · competência de ${nomeMes} e bruto de nota · a mesma régua do Funil de Receita`}
+            descricao={`fonte: Omie · competência de ${nomeMes} e bruto de nota`}
             acoes={
               <SeloRegua regua="competência">
                 Aqui o mês é o da competência do título no Omie: cada nota conta em {nomeMes} se é a
@@ -630,7 +629,6 @@ export function ReceitaOverviewContent() {
                 valor={brlOuTraco(receitaDoMes?.mrrContratado)}
                 estado={receitaApurada ? "ok" : "nao-apurado"}
                 nota={receitaApurada ? "Contratos ativos hoje (Pipedrive)" : "sem títulos no mês"}
-                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Faturado"
@@ -641,7 +639,6 @@ export function ReceitaOverviewContent() {
                     ? `Competência ${rotuloMesCurto(mes)}, bruto de nota`
                     : "sem títulos no mês"
                 }
-                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Recebido"
@@ -654,7 +651,6 @@ export function ReceitaOverviewContent() {
                       ? `${((receitaDoMes.recebido / receitaDoMes.faturado) * 100).toFixed(0)}% do faturado`
                       : "sem faturado na competência"
                 }
-                abrir={{ href: hrefFunil, rotulo: "Abrir funil" }}
               />
               <KpiCard
                 rotulo="Em atraso"
@@ -669,7 +665,7 @@ export function ReceitaOverviewContent() {
                         ? `A vencer: ${brlOuTraco(receitaDoMes?.aVencer)}`
                         : "sem títulos no mês"
                     }
-                    ajuda={`Títulos de competência ${nomeMes} pelo status atual no Omie, que segue a data de vencimento. Para medir inadimplência, a régua é a safra de vencimento em Contas a Receber: a competência de título antigo no Omie é pouco confiável e joga vencido velho em mês recente.`}
+                    ajuda={`Títulos de competência ${nomeMes} pelo status atual no Omie, que segue a data de vencimento. Para medir inadimplência, a régua é a safra de vencimento dos títulos: a competência de título antigo no Omie é pouco confiável e joga vencido velho em mês recente.`}
                   />
                 }
               />
@@ -685,16 +681,6 @@ export function ReceitaOverviewContent() {
             <CartaoGrafico
               titulo="Quanto do faturado de cada competência já foi recebido? (R$)"
               descricao="Cada nota no mês da sua competência. A diferença entre as duas barras é o que a rede emitiu naquela competência e ainda não entrou. A barra de recebido conta o pagamento em qualquer data, não o caixa do mês."
-              acao={
-                <Button asChild variant="link" size="sm" className="h-auto shrink-0 p-0">
-                  <Link
-                    to={partesDoLink(hrefFunil).to as never}
-                    search={partesDoLink(hrefFunil).search as never}
-                  >
-                    Ver o funil
-                  </Link>
-                </Button>
-              }
             >
               <BarChart data={serieReceita} margin={{ top: 4, right: 4, left: 4 }}>
                 <CartesianGrid {...gradeProps} />
