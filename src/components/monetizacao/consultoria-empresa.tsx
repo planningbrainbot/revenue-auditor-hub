@@ -18,11 +18,17 @@ import {
   KpiCard,
   PageHeader,
   StatusBadge,
+  formatarQuando,
 } from "@/components/planning";
 import { useAuth } from "@/hooks/use-auth";
 import { hoje as hojeSP } from "@/lib/monetizacao/model";
 import { carregarCruzamentoConsultoria } from "@/lib/monetizacao/cruzamento-consultoria.functions";
 import { carregarHandoffConsultoria } from "@/lib/monetizacao/handoff-consultoria.functions";
+import {
+  carregarFichaConsultoria,
+  carregarIndicePlataforma,
+} from "@/lib/monetizacao/consultoria-ficha.functions";
+import { montarFicha, type IndicePlataforma } from "@/lib/monetizacao/consultoria-ficha";
 import type { CruzamentoBruto } from "@/lib/monetizacao/cruzamento-consultoria";
 import type { PainelBruto } from "@/lib/monetizacao/handoff-consultoria";
 import {
@@ -34,11 +40,14 @@ import {
 } from "@/lib/monetizacao/consultoria-empresa";
 import { cn } from "@/lib/utils";
 import { inputClass } from "./common";
+import { Bloco, BlocosPlataforma } from "./consultoria-empresa-detalhe";
 import type { BuscaMonetizacao } from "./busca";
 
 // Consultoria › Buscar empresa (contrato docs/design/contratos/monetizacao-consultoria-empresa.md).
 // Ficha com busca: nome ou CNPJ → o estado da empresa na Consultoria. Lê os mesmos RPCs das outras abas
 // (o cache do react-query é o mesmo) e junta tudo por CNPJ em src/lib/monetizacao/consultoria-empresa.ts.
+// Desde 16/10/2026 a ficha aberta lê também o espelho da plataforma do Pedro Siqueira (teses, gestores,
+// propostas de todos os status, estoque de crédito, faturas, follow-ups e histórico), atualizado a cada 15 min.
 
 const TITULO = "Consultoria";
 const PERGUNTA = "Qual é o estado desta empresa na Consultoria?";
@@ -88,6 +97,12 @@ export function ConsultoriaEmpresa({
     queryFn: () => lerHandoff(),
     ...opcoes,
   });
+  const lerIndice = useServerFn(carregarIndicePlataforma);
+  const plat = useQuery({
+    queryKey: ["consultoria-plataforma-indice", user?.id],
+    queryFn: () => lerIndice(),
+    ...opcoes,
+  });
   if (!cruz.data) {
     const erro = cruz.error as Error | null;
     return (
@@ -111,6 +126,7 @@ export function ConsultoriaEmpresa({
     <PainelConsultoriaEmpresa
       cruzamento={cruz.data}
       handoff={hand.data ?? null}
+      plataforma={plat.data ?? null}
       busca={busca}
       mudarBusca={mudarBusca}
       abas={abas}
@@ -122,6 +138,7 @@ export function ConsultoriaEmpresa({
 export function PainelConsultoriaEmpresa({
   cruzamento,
   handoff,
+  plataforma = null,
   busca,
   mudarBusca,
   abas,
@@ -129,14 +146,15 @@ export function PainelConsultoriaEmpresa({
 }: {
   cruzamento: CruzamentoBruto;
   handoff: PainelBruto | null;
+  plataforma?: IndicePlataforma | null;
   busca: BuscaMonetizacao;
   mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
   abas?: ReactNode;
   hoje?: string;
 }) {
   const indice = useMemo(
-    () => indiceEmpresas(cruzamento, handoff, hoje),
-    [cruzamento, handoff, hoje],
+    () => indiceEmpresas(cruzamento, handoff, hoje, plataforma),
+    [cruzamento, handoff, hoje, plataforma],
   );
   const [texto, setTexto] = useState(busca.q ?? "");
   useEffect(() => {
@@ -160,10 +178,10 @@ export function PainelConsultoriaEmpresa({
       <PageHeader
         titulo={TITULO}
         pergunta={PERGUNTA}
-        descricao={`Busca por nome ou CNPJ em ${INT.format(indice.length)} empresas: ${INT.format(naPlataforma)} na plataforma da Consultoria, o onboarding e os negócios ganhos em 2026`}
+        descricao={`Busca por nome ou CNPJ em ${INT.format(indice.length)} empresas: ${INT.format(naPlataforma)} clientes na plataforma da Consultoria, os projetos e as propostas sem cadastro, o onboarding e os negócios ganhos em 2026`}
         procedencia={{
           fonte:
-            "API da plataforma da Consultoria · onboarding (Pipefy) · contratos ganhos · PAT no Financeiro",
+            "Plataforma da Consultoria (API e leitura direta, a cada 15 min) · onboarding (Pipefy) · contratos ganhos · PAT no Financeiro",
           atualizadoEm: cruzamento.frescor.consultoria ?? cruzamento.lido_em,
           regua: "uma empresa por CNPJ",
         }}
@@ -235,7 +253,13 @@ export function PainelConsultoriaEmpresa({
 
         <div className="min-w-0">
           {aberta ? (
-            <Ficha e={aberta} indice={indice} abrir={abrir} porta={cruzamento.porta_financeiro} />
+            <Ficha
+              e={aberta}
+              indice={indice}
+              abrir={abrir}
+              porta={cruzamento.porta_financeiro}
+              hoje={hoje}
+            />
           ) : (
             <EstadoVazio
               titulo="Escolha uma empresa"
@@ -250,40 +274,61 @@ export function PainelConsultoriaEmpresa({
 
 // ─── A ficha da empresa ──────────────────────────────────────────────────────────────────────────
 
-function Bloco({ titulo, children, nota }: { titulo: string; children: ReactNode; nota?: string }) {
-  return (
-    <section className="min-w-0 rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold">{titulo}</h3>
-        {nota && <span className="text-xs text-muted-foreground">{nota}</span>}
-      </div>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
-}
-
 function Ficha({
   e,
   indice,
   abrir,
   porta,
+  hoje,
 }: {
   e: Empresa;
   indice: Empresa[];
   abrir: (e: Empresa) => void;
   porta: CruzamentoBruto["porta_financeiro"];
+  hoje: string;
 }) {
   const c = e.plataforma?.cliente ?? null;
   const api = e.plataforma?.api ?? null;
+  const { user } = useAuth();
+  const lerFicha = useServerFn(carregarFichaConsultoria);
+  // O espelho da plataforma: só quando a empresa tem algo lá (cliente, projeto, proposta ou tese).
+  const temPlataforma =
+    !!c || e.propostas.length > 0 || e.semCadastro.projetos.length > 0 || e.semCadastro.teses > 0;
+  const detalhe = useQuery({
+    queryKey: ["consultoria-ficha", user?.id, e.chave],
+    queryFn: () =>
+      lerFicha({
+        data: { clienteIds: c ? [String(c.id)] : [], cnpjs: e.cnpjs, nomes: e.nomes },
+      }),
+    enabled: !!user && temPlataforma,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const f = useMemo(() => (detalhe.data ? montarFicha(detalhe.data, hoje) : null), [detalhe.data, hoje]);
+  // Com o espelho lido, os números saem dele, como os blocos abaixo; sem ele, da API. Em aberto = não baixado.
+  const valorIdentificado = f?.projetos.length
+    ? f.projetos.reduce((s, p) => s + p.valor, 0)
+    : c
+      ? c.valor
+      : null;
+  const nProjetos = f ? f.projetos.length : (c?.projetos.length ?? 0);
+  const nAbertos = f
+    ? f.projetos.filter((p) => !p.baixado).length
+    : (c?.projetos.filter((p) => !p.encerrado && !p.entregue).length ?? 0);
+  const comProjetos = !!c || nProjetos > 0;
   const faturado = e.pat?.reduce((s, m) => s + m.faturado, 0) ?? null;
   const recebido = e.pat?.reduce((s, m) => s + m.recebido, 0) ?? null;
-  const abertos = c?.projetos.filter((p) => !p.encerrado && !p.entregue).length ?? 0;
   const grupo = doMesmoGrupo(indice, e);
+  const cad = f?.cadastro ?? null;
   const meta = [
     api?.regime_tributario,
     api?.porte,
     [api?.municipio, api?.uf].filter(Boolean).join("/"),
     api?.cnae_descricao,
+    cad?.natureza,
+    cad?.capital ? `capital ${brl(cad.capital)}` : null,
+    cad?.situacao && cad.situacao !== "ATIVA" ? `Receita: ${cad.situacao}` : null,
+    cad?.grupo ? `grupo ${cad.grupo}` : null,
   ].filter(Boolean);
   const origem = [
     ...new Set(
@@ -296,6 +341,12 @@ function Ficha({
       ),
     ),
     ...(api?.parceiro ? [`Parceiro na plataforma: ${api.parceiro}`] : []),
+    ...[...new Set((f?.projetos ?? []).map((p) => p.canal).filter(Boolean))].map(
+      (x) => `Canal: ${x}`,
+    ),
+    ...(f?.origem?.parceiro && f.origem.parceiro !== api?.parceiro
+      ? [`Origem na Consultoria: ${f.origem.parceiro}`]
+      : []),
   ];
   return (
     <div className="space-y-4">
@@ -338,9 +389,13 @@ function Ficha({
       <section aria-label="Números da empresa" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard
           rotulo="Valor identificado"
-          valor={c ? brl(c.valor) : "—"}
-          estado={c ? "ok" : "nao-apurado"}
-          nota={c ? "soma dos projetos" : "fora da plataforma"}
+          valor={valorIdentificado === null ? "—" : brl(valorIdentificado)}
+          estado={valorIdentificado === null ? "nao-apurado" : "ok"}
+          nota={
+            valorIdentificado === null
+              ? "fora da plataforma"
+              : "teses dos projetos, fora as declinadas e as baixadas"
+          }
         />
         <KpiCard
           rotulo="Crédito recuperado"
@@ -354,19 +409,37 @@ function Ficha({
         />
         <KpiCard
           rotulo="Faturado pela PAT"
-          valor={brl(faturado)}
-          estado={porta.aberta ? "ok" : "sem-acesso"}
-          nota={porta.aberta ? `recebido ${brl(recebido)} · desde jan/25` : (porta.motivo ?? "")}
+          valor={e.cnpj ? brl(faturado) : "—"}
+          estado={!porta.aberta ? "sem-acesso" : e.cnpj ? "ok" : "nao-apurado"}
+          nota={
+            !porta.aberta
+              ? (porta.motivo ?? "")
+              : e.cnpj
+                ? `recebido ${brl(recebido)} · desde jan/25`
+                : "sem CNPJ para casar"
+          }
         />
         <KpiCard
           rotulo="Projetos"
-          valor={INT.format(c?.projetos.length ?? 0)}
-          estado={c ? "ok" : "nao-apurado"}
-          nota={c ? `${INT.format(abertos)} em aberto` : "fora da plataforma"}
+          valor={INT.format(nProjetos)}
+          estado={comProjetos ? "ok" : "nao-apurado"}
+          nota={comProjetos ? `${INT.format(nAbertos)} em aberto` : "fora da plataforma"}
         />
       </section>
 
-      {c && (
+      {temPlataforma && (
+        <p className="text-xs text-muted-foreground">
+          {detalhe.isLoading
+            ? "Lendo a plataforma da Consultoria…"
+            : detalhe.error
+              ? `A leitura completa da plataforma falhou (${(detalhe.error as Error).message}). Abaixo, só o que a API manda.`
+              : `Plataforma da Consultoria lida direto · atualizado ${formatarQuando(f?.sincronizadoEm) ?? "sem data"} · a cada 15 min`}
+        </p>
+      )}
+
+      {f && <BlocosPlataforma f={f} semCnpj={!e.cnpjs.length} />}
+
+      {!f && c && (
         <Bloco
           titulo="Na Consultoria"
           nota={`cadastrada em ${ddmmaa(c.cadastrado)}${api?.credito_ultima_recuperacao_em ? ` · última recuperação ${ddmmaa(api.credito_ultima_recuperacao_em)}` : ""}`}
@@ -410,7 +483,7 @@ function Ficha({
         </Bloco>
       )}
 
-      {e.propostas.length > 0 && (
+      {!f && e.propostas.length > 0 && (
         <Bloco titulo="Propostas">
           <div className="overflow-x-auto">
             <Table>

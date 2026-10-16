@@ -5402,3 +5402,44 @@ de fora: a porta de entrada não tem procedência para mostrar número.
 **Conferido no mesmo dia:** o quadro mostrou 1 card na Qualificação em 15–16/10, e está certo pela régua da coorte. O card é o Groot Motors, da Heloá, abordado e qualificado em 15/10. Outros 4 cards entraram na Qualificação no período (Alagoas Combustíveis, Izapael/Merc Petrópolis, RJ Engenharia e Metropole), mas foram abordados em 13 e 14/10; estão em `avancosAnteriores`, e o quadro hoje só mostra "+N de abordagem anterior" no Ganho. Rodado com `funilCumulativo` sobre os 296 cards de `ops.monetizacao_deals` e conferido no fluxo do Pipedrive.
 
 **Onde:** `src/components/planning/selecao-multipla.tsx`, `src/components/monetizacao/{busca,dashboard,operacao,analysis,fechamentos}.ts(x)`, `src/lib/monetizacao/{types,model,funil-cumulativo,fechamentos}.ts`, vitrine (`SelecaoMultiplaExemplo`), adendo de 16/10 em `docs/design/contratos/monetizacao.md`.
+
+## [2026-10-16] Consultoria › Buscar empresa lê a plataforma do Pedro Siqueira direto (login técnico) e mostra a ficha completa
+
+**Contexto:** o dono pediu, em 16/10/2026: "Eu quero basicamente puxar todas as infos do cliente que eu pesquiso sem
+precisar entrar na plataforma do Pedro. Garanta isso." A investigação mostrou que a busca funcionava e estava em dia.
+A cópia da API rodava de hora em hora sem falha, e os 712 clientes, os projetos, o valor identificado e o crédito
+batiam 1 a 1 com a plataforma. Mas a API `api-comercial` só manda parte do que existe. Ficavam de fora as teses uma a
+uma, gestores, canal, prazos, follow-ups, histórico, propostas aceitas e perdidas (a API manda só as 66 em negociação,
+de 147), estoque de crédito mês a mês, faturas e recebimentos da Consultoria, 77 projetos sem CNPJ e 239 teses sem
+projeto.
+
+**Decisão do dono (AskUserQuestion, 16/10):** um login técnico só de leitura na plataforma, em vez de pedir ao
+Siqueira para ampliar a API; e publicar direto depois de conferir.
+- O login é planning.brain.bot@gmail.com, papel Comercial, unidade PAT. Foi criado pelo `criar-usuario` da
+  plataforma, com a sessão de admin do Pedro.
+- A senha fica em `monetizacao/.consultoria-plataforma.local.env` (600) e nos segredos da função.
+- O papel Comercial vê tudo da PAT. Não vê 4 lançamentos da PAC, que não são clientes da Consultoria.
+
+**Como ficou:**
+- `ops.consultoria_plataforma`: espelho genérico (tabela, id, dados jsonb) de 23 tabelas da plataforma.
+  - Quem lê é a Edge Function `consultoria-plataforma-sync`, a cada 15 min.
+  - Quem grava é só o `ops.consultoria_plataforma_gravar`, que escreve o que mudou (hash) e marca ausente quem sumiu.
+    Leitura vazia ou que perde mais da metade não marca ninguém.
+- A `consultoria-sync` (API) passou de hora em hora para a cada 15 min.
+- Leituras novas:
+  - `ops.consultoria_plataforma_indice()`: projetos sem cliente, teses sem projeto e propostas de todos os status,
+    para a busca;
+  - `ops.consultoria_empresa_ficha(cliente_ids, cnpjs, nomes)`: tudo da empresa aberta.
+  - As duas têm a porta das outras abas. Faturas e recebimentos só saem com a porta do Financeiro.
+- **Valor identificado** = teses fora as "Declinado" e as "Baixada". É a mesma conta da API: 642 de 642 projetos
+  batem. Tese sem projeto aparece, mas não soma.
+- Proposta, projeto ou tese sem CNPJ que não casa com ninguém vira uma ficha própria (`proposta:`, `projeto:`,
+  `tese:`). Assim a busca chega a ela.
+
+**Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-ficha/conferir.py` roda o RPC como o dono e compara com a
+plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
+
+**Risco aceito:** o espelho depende do schema da plataforma do Siqueira.
+- Se uma tabela mudar, a rodada fica "parcial" no `sync_log` e as outras seguem.
+- Se o login cair, a rodada fica "erro" e a ficha avisa e mostra só o que a API manda.
+- Rollback: `supabase/rollback/20261016120000_consultoria_plataforma_espelho_rollback.sql`.
