@@ -45,7 +45,7 @@ function ApuracaoRoyaltiesPage() {
         fonte: "Apurações de royalties (Supabase) · faturas e títulos no Omie da Planning Partners",
         regua: "caixa",
       }}
-      filtros={<SeletorMes mes={mes} aoMudar={setMes} />}
+      filtros={<SeletorMes mes={mes} aoMudar={setMes} comApuracao />}
     >
       <GuardaUnidades permissao="view.unidades_rede" nome="a Apuração de Royalties">
         <ApuracaoRoyaltiesContent mes={mes} />

@@ -814,6 +814,7 @@ function ApuracaoLoaded({
               para a navegação não semear apurações vazias em meses futuros. */}
           <SeletorMes
             mes={mes}
+            comApuracao
             aoMudar={(m) =>
               navigate({ to: "/royalties/$unidadeId/$mes", params: { unidadeId, mes: m } })
             }
