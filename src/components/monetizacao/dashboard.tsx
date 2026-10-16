@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CircleX, Info, Trophy, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAtualizarMonetizacao, useMonetizacao } from "@/hooks/use-monetizacao";
-import { acionarMonetizacao } from "@/lib/monetizacao/functions";
+import { acionarMonetizacao, carregarApoioAcompanhamento } from "@/lib/monetizacao/functions";
 import { nomeDoRecorte } from "@/lib/monetizacao/responsavel";
 import { PRE_VENDEDORES } from "@/lib/monetizacao/types";
 import {
@@ -194,6 +196,17 @@ export function DashboardMonetizacao({
 }) {
   const aba = busca.aba;
   // Operação, Pré-venda e Forecast não usam a carteira da Base: abrem com os cards, sem esperar as ~10 mil contas.
+  // Nome das unidades: o de `monetizacao_unidades` manda e o cadastro da rede completa as que faltam (Construção
+  // Civil não está na tabela da Monetização). A mesma consulta da visão Hoje (mesma chave, uma ida ao banco).
+  const { user } = useAuth();
+  const apoioFn = useServerFn(carregarApoioAcompanhamento);
+  const apoio = useQuery({
+    queryKey: ["monetizacao-apoio-hoje", user?.id],
+    queryFn: () => apoioFn(),
+    enabled: !!user && aba === "operacao",
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
   const q = useMonetizacao({
       esperarCarteira: aba !== "operacao" && aba !== "pre-venda" && aba !== "fechamentos",
     }),
@@ -323,7 +336,13 @@ export function DashboardMonetizacao({
   // da Consultoria, que guarda o nome; aqui ela guarda o id, e por isso fica fora dos filtros compartilhados.
   // Desde 16/10/2026 a unidade aceita várias (`unidade=9,10`): o card entra se a conta for de qualquer uma delas.
   const unidadeIds = aba === "operacao" ? unidadesDaBusca(busca) : [];
-  const nomeDaUnidade = nomesDasUnidades(data.units);
+  const unidadesComNome = [
+    ...data.units,
+    ...(apoio.data?.unidades ?? [])
+      .filter((u) => !data.units.some((x) => x.id === u.id))
+      .map((u) => ({ id: u.id, name: u.nome })),
+  ];
+  const nomeDaUnidade = nomesDasUnidades(unidadesComNome);
   const nomeDaUnidadeId = (id: number) => nomeDaUnidade.get(id) ?? `Unidade ${id}`;
   const unidadesNoPipe = [...new Set(data.cards.flatMap((c) => c.unidade_ids ?? []))]
     .map((id) => ({ id, nome: nomeDaUnidadeId(id) }))
@@ -674,7 +693,7 @@ export function DashboardMonetizacao({
           )}
           {/* 16/10/2026: o funil por unidade toma o lugar da tabela por produto (pedido do Pedro). */}
           <PorUnidade
-            unidades={funisPorUnidade(cards, data.stages, filter, data.units)}
+            unidades={funisPorUnidade(cards, data.stages, filter, unidadesComNome)}
             total={funis.total}
             abrir={abrir}
           />
