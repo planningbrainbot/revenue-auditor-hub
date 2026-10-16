@@ -5515,3 +5515,11 @@ plataforma ao vivo. Em 16/10: 713 clientes, 7.133 checagens, 0 falhas.
 **Decisão:** linha editável dentro de Serviços contratados, gravando `royalties_apuracao.servicos_fixos_valor`, sem virar item de outras receitas: entra no total da fatura e no demonstrativo, nunca na ND, para não cobrar duas vezes. Editada, a coluna `servicos_fixos_editado` impede a RPC de sobrescrever (ela roda toda vez que a matriz abre uma apuração aberta). Só em apuração aberta.
 
 **Implementação:** migration `20261016210000_servicos_fixos_editavel` (aplicada em 16/10), `updateApuracao` aceita `servicos_fixos_valor`, tela da apuração.
+## [2026-10-16] Planning People: vigência do contrato de estágio e terceiro
+
+Pedido do RH de Maceió (13/10/2026), aprovado pelo dono com os padrões propostos.
+- Duas datas no cadastro (`ops.gente_pessoas.vigencia_inicio` e `vigencia_fim`), só para estágio (TCE) e terceiro, obrigatórias ao cadastrar, editar e importar alguém novo nesses vínculos. Quem já estava cadastrado (17 pessoas em 13/10: 8 em Maceió, 9 em Belém) fica como "sem vigência informada" até o RH completar, sem travar nada. Mudar o vínculo para outro tipo apaga as datas. As duas datas têm histórico.
+- Tela: quadro "Contratos de estágio e terceiro" no Cadastro (vence em até 30 dias, vencido, sem vigência), filtro "Vigência do contrato" e selo na coluna Vínculo. A planilha aceita "Início da vigência" e "Fim da vigência" e completa as datas vazias de quem já existe.
+- E-mail diário ao RH da unidade (conta ativa presa à unidade, com `manage.gente` e chave de remuneração ou saúde): 30 dias antes, 15 dias antes e no dia (ou depois, se venceu sem renovar). Edge Function `gente-vigencia-alertas`, agendada no n8n; `ops.gente_vigencia_avisos` guarda o que saiu para não repetir. Renovar é mudar o fim: os avisos recomeçam.
+- Estágio que passa de 2 anos na mesma empresa (Lei 11.788/2008, art. 11) aparece marcado no quadro e no e-mail; não bloqueia, porque estagiário com deficiência é exceção.
+- Unidade sem RH no Brain (Belém em 16/10) não recebe e-mail; o quadro da tela vale do mesmo jeito.

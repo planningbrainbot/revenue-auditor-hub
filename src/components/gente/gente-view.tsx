@@ -40,6 +40,8 @@ import { DarAcessoDialog, EditarPessoaDialog, NovaPessoaDialog } from "./nova-pe
 import { ImportarPessoasDialog } from "./importar-pessoas-dialog";
 import { GestorEmLoteDialog } from "./gestor-em-lote-dialog";
 import { AfastamentosCard } from "./afastamentos-card";
+import { VigenciasCard } from "./vigencias-card";
+import { exigeVigencia, faixaVigencia, situacaoVigencia } from "./vigencia";
 import { aniversarioDeEmpresaNoMes, diasDeCasa, fmtTempoDeCasa } from "./tempo-de-casa";
 
 // Cadastro (`/gente?tela=cadastro`), arquétipo Lista (contrato
@@ -60,7 +62,20 @@ const CHAVES_FILTRO = [
   "admissao_de",
   "admissao_ate",
   "empresa",
+  "vigencia",
 ];
+
+// Vigência do contrato de estágio e terceiro (13/10/2026). "vence30" é o link do
+// e-mail diário ao RH: quem vence em até 30 dias e quem já venceu.
+const FAIXAS_VIGENCIA: Record<string, { rotulo: string; cabe: (p: GentePessoaRow) => boolean }> = {
+  vence30: {
+    rotulo: "Vence em até 30 dias ou venceu",
+    cabe: (p) => ["vence30", "vencido"].includes(faixaVigencia(p) ?? ""),
+  },
+  vencido: { rotulo: "Contrato vencido", cabe: (p) => faixaVigencia(p) === "vencido" },
+  sem: { rotulo: "Sem vigência informada", cabe: (p) => faixaVigencia(p) === "sem" },
+  todos: { rotulo: "Estágio e terceiro", cabe: (p) => faixaVigencia(p) != null },
+};
 
 // Faixas pensadas para a avaliação de experiência (45 e 90 dias): o RH filtra
 // quem está na janela antes de mandar a pesquisa. Pedido do RH de Maceió,
@@ -126,6 +141,7 @@ export function GenteView() {
   const [casa, setCasa] = useFiltroNaUrl("casa", "");
   const [admissaoDe, setAdmissaoDe] = useFiltroNaUrl("admissao_de", "");
   const [admissaoAte, setAdmissaoAte] = useFiltroNaUrl("admissao_ate", "");
+  const [vigencia, setVigencia] = useFiltroNaUrl("vigencia", "");
   const limpar = useLimparFiltrosNaUrl(CHAVES_FILTRO);
   // Seleção para ações em lote (Definir gestor). Não mora na URL: é rascunho.
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
@@ -167,6 +183,9 @@ export function GenteView() {
       if (casa && FAIXAS_CASA[casa] && !FAIXAS_CASA[casa].cabe(p)) {
         return false;
       }
+      if (vigencia && FAIXAS_VIGENCIA[vigencia] && !FAIXAS_VIGENCIA[vigencia].cabe(p)) {
+        return false;
+      }
       const adm = p.dataAdmissao?.slice(0, 10) ?? null;
       if (admissaoDe && (!adm || adm < admissaoDe)) return false;
       if (admissaoAte && (!adm || adm > admissaoAte)) return false;
@@ -175,7 +194,7 @@ export function GenteView() {
         .filter(Boolean)
         .some((c) => (c as string).toLowerCase().includes(termo));
     });
-  }, [doStatus, busca, unidade, departamento, empresa, casa, admissaoDe, admissaoAte]);
+  }, [doStatus, busca, unidade, departamento, empresa, casa, admissaoDe, admissaoAte, vigencia]);
 
   const totais = useMemo(() => {
     const pessoasTotal = unidades.reduce((s, u) => s + u.pessoas, 0);
@@ -234,7 +253,8 @@ export function GenteView() {
     !!casa ||
     !!admissaoDe ||
     !!admissaoAte ||
-    !!empresa;
+    !!empresa ||
+    !!vigencia;
 
   return (
     <div className="space-y-6">
@@ -414,6 +434,28 @@ export function GenteView() {
                 ))}
               </SelectContent>
             </Select>
+            {pessoas.some((p) => exigeVigencia(p.tipoVinculo)) ? (
+              <Select
+                value={vigencia || TODOS}
+                onValueChange={(v) => setVigencia(v === TODOS ? "" : v)}
+              >
+                <SelectTrigger
+                  className="h-8 w-52"
+                  id="gente-vigencia"
+                  aria-label="Vigência do contrato"
+                >
+                  <SelectValue placeholder="Vigência do contrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Vigência do contrato</SelectItem>
+                  {Object.entries(FAIXAS_VIGENCIA).map(([v, f]) => (
+                    <SelectItem key={v} value={v}>
+                      {f.rotulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
               <label htmlFor="gente-admissao-de">Admissão de</label>
               <Input
@@ -474,6 +516,13 @@ export function GenteView() {
                   aoRemover={() => setCasa("")}
                 />
               ) : null}
+              {vigencia && FAIXAS_VIGENCIA[vigencia] ? (
+                <ChipFiltro
+                  rotulo="Vigência"
+                  valor={FAIXAS_VIGENCIA[vigencia].rotulo}
+                  aoRemover={() => setVigencia("")}
+                />
+              ) : null}
               {admissaoDe || admissaoAte ? (
                 <ChipFiltro
                   rotulo="Admissão"
@@ -488,6 +537,7 @@ export function GenteView() {
           ) : null}
 
           <AfastamentosCard pessoas={pessoas} />
+          <VigenciasCard pessoas={pessoas} aoVerTodos={() => setVigencia("vence30")} />
 
           {podeCadastrar && selecionadas.size ? (
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -581,6 +631,13 @@ export function GenteView() {
                         </TableCell>
                         <TableCell>
                           {p.tipoVinculo ? (VINCULO_LABEL[p.tipoVinculo] ?? p.tipoVinculo) : NA}
+                          {exigeVigencia(p.tipoVinculo) && p.status !== "desligado" ? (
+                            <div className="mt-0.5">
+                              <StatusBadge tom={situacaoVigencia(p.vigenciaFim).tom}>
+                                {situacaoVigencia(p.vigenciaFim).texto}
+                              </StatusBadge>
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="num">{fmtData(p.dataAdmissao)}</TableCell>
                         <TableCell className="num">

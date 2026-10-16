@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { KeyRound, Pencil, UserPlus } from "lucide-react";
 import { mesmoNome } from "./nomes";
+import { exigeVigencia } from "./vigencia";
+import { CamposVigencia } from "./vigencia-campos";
 import {
   criarPessoa,
   darAcessoPessoa,
@@ -126,6 +128,8 @@ type Vazio = {
   cnpjEmpregador: string;
   gestorId: string;
   acesso: string;
+  vigenciaInicio: string;
+  vigenciaFim: string;
 };
 
 const VAZIO: Vazio = {
@@ -140,6 +144,8 @@ const VAZIO: Vazio = {
   cnpjEmpregador: "",
   gestorId: SEM_GESTOR,
   acesso: "colaborador",
+  vigenciaInicio: "",
+  vigenciaFim: "",
 };
 
 export function NovaPessoaDialog({
@@ -189,6 +195,8 @@ export function NovaPessoaDialog({
           salario: podeRemuneracao && f.salario.trim() ? lerSalario(f.salario) : null,
           cnpjEmpregador: f.cnpjEmpregador || null,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
+          vigenciaInicio: f.vigenciaInicio,
+          vigenciaFim: f.vigenciaFim,
           acesso: f.acesso === SEM_LOGIN ? null : (f.acesso as "colaborador" | "gestao"),
         },
       }),
@@ -334,6 +342,14 @@ export function NovaPessoaDialog({
                 onChange={(e) => set("dataAdmissao")(e.target.value)}
               />
             </div>
+            <CamposVigencia
+              prefixo="np"
+              vinculo={f.tipoVinculo}
+              inicio={f.vigenciaInicio}
+              fim={f.vigenciaFim}
+              aoMudarInicio={set("vigenciaInicio")}
+              aoMudarFim={set("vigenciaFim")}
+            />
             <div className="grid gap-1.5">
               <Label htmlFor="np-nascimento">
                 Nascimento
@@ -442,7 +458,14 @@ export function NovaPessoaDialog({
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={criar.isPending || !unidadeId}>
+            <Button
+              type="submit"
+              disabled={
+                criar.isPending ||
+                !unidadeId ||
+                (exigeVigencia(f.tipoVinculo) && (!f.vigenciaInicio || !f.vigenciaFim))
+              }
+            >
               {criar.isPending
                 ? "Salvando…"
                 : homonimo && confirmouHomonimo
@@ -955,6 +978,8 @@ export function EditarPessoaDialog({
     dataNascimento: pessoa.dataNascimento?.slice(0, 10) ?? "",
     cnpjEmpregador: pessoa.cnpjEmpregador ?? "",
     gestorId: pessoa.gestorId != null ? String(pessoa.gestorId) : SEM_GESTOR,
+    vigenciaInicio: pessoa.vigenciaInicio?.slice(0, 10) ?? "",
+    vigenciaFim: pessoa.vigenciaFim?.slice(0, 10) ?? "",
   });
   const [f, setF] = useState(inicial);
   const set = (k: keyof ReturnType<typeof inicial>) => (v: string) =>
@@ -981,6 +1006,8 @@ export function EditarPessoaDialog({
           dataNascimento: f.dataNascimento,
           cnpjEmpregador: f.cnpjEmpregador || null,
           gestorId: f.gestorId === SEM_GESTOR ? null : Number(f.gestorId),
+          vigenciaInicio: f.vigenciaInicio,
+          vigenciaFim: f.vigenciaFim,
         },
       }),
     onSuccess: () => {
@@ -1089,6 +1116,14 @@ export function EditarPessoaDialog({
                 onChange={(e) => set("dataAdmissao")(e.target.value)}
               />
             </div>
+            <CamposVigencia
+              prefixo="ep"
+              vinculo={f.tipoVinculo}
+              inicio={f.vigenciaInicio}
+              fim={f.vigenciaFim}
+              aoMudarInicio={set("vigenciaInicio")}
+              aoMudarFim={set("vigenciaFim")}
+            />
             <div className="grid gap-1.5">
               <Label htmlFor="ep-nascimento">
                 Nascimento
@@ -1157,7 +1192,13 @@ export function EditarPessoaDialog({
             <Button type="button" variant="outline" onClick={() => setAberto(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={salvar.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                salvar.isPending ||
+                (exigeVigencia(f.tipoVinculo) && (!f.vigenciaInicio || !f.vigenciaFim))
+              }
+            >
               {salvar.isPending ? "Salvando…" : "Salvar"}
             </Button>
           </DialogFooter>

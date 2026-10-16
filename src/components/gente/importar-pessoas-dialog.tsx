@@ -43,6 +43,8 @@ const COLUNAS_MODELO = [
   "E-mail do gestor",
   "Salário",
   "CNPJ da empresa",
+  "Início da vigência",
+  "Fim da vigência",
 ];
 
 const semAcento = (s: string) =>
@@ -55,6 +57,11 @@ const semAcento = (s: string) =>
 /** Cabeçalho da planilha → campo. Aceita as variações mais comuns de escrita. */
 function campoDoCabecalho(h: string): keyof Omit<LinhaImportacao, "linha"> | null {
   const k = semAcento(h);
+  // Vigência do contrato de estágio (TCE) e de terceiro, antes de "início" (admissão)
+  // e de "contrato" (vínculo) pegarem o cabeçalho.
+  if (/vigen|tce/.test(k) || /(inicio|fim|termino) do contrato/.test(k)) {
+    return /fim|termino|final|venc/.test(k) ? "vigenciaFim" : "vigenciaInicio";
+  }
   if (/gestor|lider|superior/.test(k)) return "emailGestor";
   if (/nasc|aniversario/.test(k)) return "dataNascimento";
   if (/e-?mail/.test(k)) return "email";
@@ -130,14 +137,24 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
   return bruto
     .map((r, i) => {
       const l: LinhaLida = { linha: i + 2, nomeCompleto: "", email: "", problemas: [] };
-      const datasBrutas: Record<"dataAdmissao" | "dataNascimento", unknown> = {
+      const datasBrutas: Record<
+        "dataAdmissao" | "dataNascimento" | "vigenciaInicio" | "vigenciaFim",
+        unknown
+      > = {
         dataAdmissao: "",
         dataNascimento: "",
+        vigenciaInicio: "",
+        vigenciaFim: "",
       };
       for (const [h, v] of Object.entries(r)) {
         const campo = campoDoCabecalho(h);
         if (!campo) continue;
-        if (campo === "dataAdmissao" || campo === "dataNascimento") {
+        if (
+          campo === "dataAdmissao" ||
+          campo === "dataNascimento" ||
+          campo === "vigenciaInicio" ||
+          campo === "vigenciaFim"
+        ) {
           datasBrutas[campo] = v;
           continue;
         }
@@ -174,12 +191,17 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
       for (const [campo, rotulo] of [
         ["dataAdmissao", "data de admissão"],
         ["dataNascimento", "data de nascimento"],
+        ["vigenciaInicio", "início da vigência"],
+        ["vigenciaFim", "fim da vigência"],
       ] as const) {
         const data = normalizarData(datasBrutas[campo]);
         if (data === null) l.problemas.push(rotulo);
         else if (data) l[campo] = data;
       }
       if (l.emailGestor && l.emailGestor === l.email) l.problemas.push("gestor é a própria pessoa");
+      if (l.vigenciaInicio && l.vigenciaFim && l.vigenciaFim < l.vigenciaInicio) {
+        l.problemas.push("fim da vigência antes do início");
+      }
       return l;
     })
     .filter((l) => l.nomeCompleto || l.email);
@@ -211,9 +233,25 @@ function baixarModelo() {
       "maria.souza@planning.com.br",
       2800,
       "66.438.610/0001-80",
+      "",
+      "",
+    ],
+    [
+      "Ana Costa",
+      "ana.costa@planning.com.br",
+      "Estagiária",
+      "Fiscal",
+      "Estágio",
+      "01/08/2026",
+      "20/02/2005",
+      "maria.souza@planning.com.br",
+      "",
+      "66.438.610/0001-80",
+      "01/08/2026",
+      "31/07/2027",
     ],
   ]);
-  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32, 12, 22].map((wch) => ({ wch }));
+  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32, 12, 22, 18, 18].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pessoas");
   XLSX.writeFile(wb, "modelo-importacao-pessoas.xlsx");
@@ -357,8 +395,9 @@ export function ImportarPessoasDialog({
           <DialogDescription>
             Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo,
             admissão, nascimento, e-mail do gestor, salário e CNPJ da empresa são opcionais (salário
-            só grava para o RH). Quem já está no cadastro só tem completado o que estiver vazio:
-            admissão, nascimento, empresa e salário (se ainda não tiver nenhum).
+            só grava para o RH). Estágio e terceiro precisam do início e do fim da vigência do
+            contrato. Quem já está no cadastro só tem completado o que estiver vazio: admissão,
+            nascimento, empresa, vigência e salário (se ainda não tiver nenhum).
           </DialogDescription>
         </DialogHeader>
 
