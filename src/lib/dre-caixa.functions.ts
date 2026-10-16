@@ -63,6 +63,15 @@ export interface DreCaixa {
   fcx: { meses: string[]; resumo: LinhaFcx[]; entradas: LinhaFcx[]; saidas: LinhaFcx[] };
   ponte: Record<string, { resultado_dre: number; resultado_caixa: number; degraus: Degrau[] }>;
   conferencias: Record<string, Conferencia[]>;
+  /**
+   * CAC que as vendas de cada mês (`YYYY-MM` da venda) geraram: 1 honorário por venda
+   * elegível sem churn. `estimado` usa o MRR quando o card ainda não tem honorário.
+   * Ausente nos retratos anteriores a 16/10/2026.
+   */
+  cac?: Record<
+    string,
+    { vendas: number; cobrado: number; a_cobrar: number; estimado: number; churn: number }
+  >;
 }
 
 export const carregarDreCaixa = createServerFn({ method: "GET" })

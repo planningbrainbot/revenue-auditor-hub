@@ -46,7 +46,7 @@ import {
   type LinhaDre,
 } from "@/lib/dre-caixa.functions";
 
-// DRE e Caixa da Partners, em formato de BI. Contrato: docs/design/contratos/dre-caixa.md.
+// BI Financeiro da Partners (rota /dre-caixa). Contrato: docs/design/contratos/dre-caixa.md.
 // Tudo vem pronto do retrato `ops.dre_caixa` (séries mensais); a tela soma pelo período
 // escolhido (?de=&ate=) e compara com o período anterior de mesma duração.
 // Na DRE despesa é negativa: variação > 0 sempre melhora o resultado, < 0 sempre piora.
@@ -70,7 +70,7 @@ export function DreCaixaPagina() {
 
   return (
     <MolduraReceita
-      titulo="DRE e Caixa"
+      titulo="BI Financeiro"
       pergunta="Como está o resultado da Partners, por que ele é diferente do caixa e o que mudou?"
       descricao="Planning Partners · competência da Partners · DRE pelas réguas de 15/10/2026, caixa pelo extrato de conta corrente do Omie."
       procedencia={
@@ -164,6 +164,8 @@ function Bi({ D }: { D: DreCaixa }) {
           <TabsTrigger value="ponte">DRE × Caixa</TabsTrigger>
           <TabsTrigger value="variacao">Variação</TabsTrigger>
           <TabsTrigger value="midia">Mídia</TabsTrigger>
+          <TabsTrigger value="midia-cac">Mídia × CAC</TabsTrigger>
+          <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
           <TabsTrigger value="caixa">Caixa</TabsTrigger>
           <TabsTrigger value="conferencias">Conferências</TabsTrigger>
         </TabsList>
@@ -188,6 +190,12 @@ function Bi({ D }: { D: DreCaixa }) {
         </TabsContent>
         <TabsContent value="midia" className="mt-4 flex flex-col gap-5">
           <Midia D={D} idx={idx} />
+        </TabsContent>
+        <TabsContent value="midia-cac" className="mt-4 flex flex-col gap-5">
+          <MidiaCac D={D} idx={idx} />
+        </TabsContent>
+        <TabsContent value="eficiencia" className="mt-4 flex flex-col gap-5">
+          <Eficiencia D={D} idx={idx} />
         </TabsContent>
         <TabsContent value="caixa" className="mt-4 flex flex-col gap-5">
           <Caixa D={D} idx={idx} />
@@ -984,6 +992,432 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
             </tbody>
           </table>
         </Secao>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- mídia × CAC
+
+/**
+ * Resultado ou exposição de caixa? A mídia própria da Expansão (mídia paga − reembolsos de
+ * mídia das unidades e das outras empresas) contra o CAC que as vendas do mesmo mês geraram.
+ * Na DRE o CAC só entra quando é cobrado, meses depois da mídia; o que já foi gerado e ainda
+ * não foi cobrado é descasamento de prazo, não ineficiência.
+ */
+function MidiaCac({ D, idx }: { D: DreCaixa; idx: number[] }) {
+  const S = useSeries(D);
+  if (!D.cac)
+    return (
+      <EstadoVazio
+        titulo="O retrato ainda não tem o CAC por venda"
+        descricao="Ele entra na próxima rodada de tools/dre_caixa_payload.py."
+      />
+    );
+  let exposicao = 0;
+  const linhas = idx.map((i) => {
+    const m = D.meses[i];
+    const c = D.cac?.[m] ?? { vendas: 0, cobrado: 0, a_cobrar: 0, estimado: 0, churn: 0 };
+    const propria = -(S.midia[i] + S.reembUnid[i] + S.reembOutras[i]);
+    const gerado = c.cobrado + c.a_cobrar + c.estimado;
+    exposicao += propria - c.cobrado;
+    return { m, r: rot(m), propria, ...c, gerado, exposicao };
+  });
+  const T = linhas.reduce(
+    (a, x) => ({
+      propria: a.propria + x.propria,
+      vendas: a.vendas + x.vendas,
+      cobrado: a.cobrado + x.cobrado,
+      a_cobrar: a.a_cobrar + x.a_cobrar,
+      estimado: a.estimado + x.estimado,
+      gerado: a.gerado + x.gerado,
+    }),
+    { propria: 0, vendas: 0, cobrado: 0, a_cobrar: 0, estimado: 0, gerado: 0 },
+  );
+  const cobertura = T.propria > 0 ? Math.round((T.gerado / T.propria) * 100) : null;
+  const aReceber = T.a_cobrar + T.estimado;
+  // Decomposição do EBIT do período: saldo da mídia (DRE) e o resto da operação.
+  const ebit = somaIdx(S.ebit, idx);
+  const saldoMidia =
+    somaIdx(S.midia, idx) + somaIdx(S.cac, idx) + somaIdx(S.reembUnid, idx) + somaIdx(S.reembOutras, idx);
+  const prazo = saldoMidia < 0 ? Math.min(-saldoMidia, aReceber) : 0;
+  const midiaSemCobertura = saldoMidia < 0 ? -saldoMidia - prazo : 0;
+  const estrutura = ebit - saldoMidia;
+  const grafico = linhas.map((x) => ({
+    r: x.r,
+    propria: Math.round(x.propria),
+    cobrado: Math.round(x.cobrado),
+    a_cobrar: Math.round(x.a_cobrar),
+    estimado: Math.round(x.estimado),
+    exposicao: Math.round(x.exposicao),
+  }));
+
+  return (
+    <>
+      <KpiGrade colunas={3}>
+        <KpiCard
+          rotulo="Mídia própria da Expansão"
+          valor={brlOuTraco(T.propria)}
+          nota="mídia paga − reembolsos de mídia das unidades e das outras empresas"
+        />
+        <KpiCard
+          rotulo="CAC gerado pelas vendas"
+          valor={brlOuTraco(T.gerado)}
+          nota={`${T.vendas} vendas · ${cobertura !== null ? `${cobertura}% da mídia própria` : "—"}`}
+          tom={cobertura !== null && cobertura >= 100 ? "sucesso" : "atencao"}
+        />
+        <KpiCard
+          rotulo="CAC a receber"
+          valor={brlOuTraco(aReceber)}
+          nota={`${brlOuTraco(T.a_cobrar)} com card · ${brlOuTraco(T.estimado)} estimado pelo MRR`}
+        />
+      </KpiGrade>
+
+      <Secao
+        titulo="O problema é de resultado ou de caixa?"
+        sub="O EBIT do período separado em três partes. A mídia que o CAC a receber ainda vai cobrir é prazo, e pesa no caixa. O resto pesa no resultado."
+      >
+        <table className="w-full text-sm tabular-nums">
+          <tbody>
+            <tr className="border-b">
+              <td className="py-2">Saldo da mídia que o CAC a receber cobre</td>
+              <td className="py-2 text-muted-foreground">exposição de caixa: o dinheiro sai antes e volta com a cobrança do CAC</td>
+              <td className="py-2 text-right font-medium text-warning">{brlOuTraco(-prazo)}</td>
+            </tr>
+            <tr className="border-b">
+              <td className="py-2">Saldo da mídia sem CAC para cobrir</td>
+              <td className="py-2 text-muted-foreground">resultado: mídia que não volta</td>
+              <td className={cn("py-2 text-right font-medium", corVariacao(-midiaSemCobertura))}>
+                {brlOuTraco(-midiaSemCobertura)}
+              </td>
+            </tr>
+            <tr className="border-b">
+              <td className="py-2">Resto da operação</td>
+              <td className="py-2 text-muted-foreground">resultado: CSC, pessoal e administrativas contra royalties e CSC das unidades</td>
+              <td className={cn("py-2 text-right font-medium", corVariacao(estrutura))}>{brlOuTraco(estrutura)}</td>
+            </tr>
+            <tr className="font-semibold">
+              <td className="py-2">EBIT do período</td>
+              <td />
+              <td className="py-2 text-right">{brlOuTraco(ebit)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-muted-foreground">
+          O CAC a receber depende de o cliente pagar o 1º honorário (a 2ª parcela só é cobrada depois) e de não
+          haver churn antes dele. O estimado usa o MRR da venda até o card ter o honorário.
+        </p>
+      </Secao>
+
+      <Secao
+        titulo="Mídia própria × CAC gerado, por mês"
+        sub="Barras: a mídia do mês e o CAC das vendas do mês (cobrado, a cobrar e estimado). Linha: exposição de caixa acumulada (mídia própria − CAC já cobrado)."
+      >
+        <div className="h-80">
+          <ResponsiveContainer>
+            <ComposedChart data={grafico} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+              <CartesianGrid {...gradeProps} />
+              <XAxis dataKey="r" {...eixoProps} />
+              <YAxis {...eixoProps} tickFormatter={mil} width={64} />
+              <Tooltip {...tooltipProps} formatter={(v: number, n: string) => [brlOuTraco(v), n]} />
+              <Legend {...legendaProps} />
+              <ReferenceLine y={0} stroke="var(--border)" />
+              <Bar dataKey="propria" name="Mídia própria" fill={CORES_SERIE[3]} radius={3} isAnimationActive={false} />
+              <Bar dataKey="cobrado" name="CAC cobrado" stackId="cac" fill={CORES_SERIE[0]} isAnimationActive={false} />
+              <Bar dataKey="a_cobrar" name="CAC a cobrar" stackId="cac" fill={CORES_SERIE[1]} isAnimationActive={false} />
+              <Bar dataKey="estimado" name="CAC estimado" stackId="cac" fill={CORES_SERIE[2]} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Line dataKey="exposicao" name="Exposição acumulada" stroke="var(--danger)" strokeWidth={2} dot isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Mês</th>
+                <th className="py-2 text-right font-medium">Mídia própria</th>
+                <th className="py-2 text-right font-medium">Vendas</th>
+                <th className="py-2 text-right font-medium">CAC cobrado</th>
+                <th className="py-2 text-right font-medium">A cobrar</th>
+                <th className="py-2 text-right font-medium">Estimado</th>
+                <th className="py-2 text-right font-medium">CAC gerado</th>
+                <th className="py-2 text-right font-medium">Cobertura</th>
+                <th className="py-2 text-right font-medium">Exposição acumulada</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((x) => (
+                <tr key={x.m} className="border-b">
+                  <td className="py-1.5">{x.r}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(x.propria)}</td>
+                  <td className="py-1.5 text-right">{x.vendas}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(x.cobrado)}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(x.a_cobrar)}</td>
+                  <td className="py-1.5 text-right">{brlOuTraco(x.estimado)}</td>
+                  <td className="py-1.5 text-right font-medium">{brlOuTraco(x.gerado)}</td>
+                  <td className="py-1.5 text-right">
+                    {x.propria > 0 ? `${Math.round((x.gerado / x.propria) * 100)}%` : "—"}
+                  </td>
+                  <td className="py-1.5 text-right">{brlOuTraco(x.exposicao)}</td>
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <td className="py-2">Período</td>
+                <td className="py-2 text-right">{brlOuTraco(T.propria)}</td>
+                <td className="py-2 text-right">{T.vendas}</td>
+                <td className="py-2 text-right">{brlOuTraco(T.cobrado)}</td>
+                <td className="py-2 text-right">{brlOuTraco(T.a_cobrar)}</td>
+                <td className="py-2 text-right">{brlOuTraco(T.estimado)}</td>
+                <td className="py-2 text-right">{brlOuTraco(T.gerado)}</td>
+                <td className="py-2 text-right">{cobertura !== null ? `${cobertura}%` : "—"}</td>
+                <td className="py-2 text-right">{brlOuTraco(linhas[linhas.length - 1]?.exposicao)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Secao>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- eficiência
+
+/**
+ * Onde está a ineficiência fora da mídia. Duas leituras:
+ * 1. Receita recorrente (royalties, CSC fixo, outras) contra a estrutura que ela sustenta, em %.
+ * 2. Custo pleno de aquisição (mídia própria + parte da Partners no CSC Comercial e nas
+ *    comissões) contra o CAC que as vendas geram: o CAC é 1 honorário e cobre só a mídia;
+ *    o time comercial fica na conta da receita recorrente.
+ */
+function Eficiencia({ D, idx }: { D: DreCaixa; idx: number[] }) {
+  const S = useSeries(D);
+  const zero = D.meses.map(() => 0);
+  const n2 = (pref: string) =>
+    D.dre
+      .filter((l) => l.nivel === 2 && l.k.startsWith(pref))
+      .reduce((a, l) => a.map((x, i) => x + l.v[i]), zero);
+  const soma = (...vs: number[][]) => zero.map((_, i) => vs.reduce((s, v) => s + v[i], 0));
+  const royalties = n2("Royalties (ap");
+  const cscFixo = n2("CSC das unidades");
+  const outras = soma(n2("Outras receitas das unidades"), S.outrasReceitas, S.deducoes);
+  const recorrente = soma(royalties, cscFixo, outras);
+  const cscParte = soma(n2("CSC Comercial · custo total"), n2("Rateio CSC Comercial"));
+  const comParte = soma(n2("Comissões · total"), n2("Rateio Comissões"));
+  const vbd = soma(S.viagens, S.financeiras, S.diretas);
+  const linhas: { k: string; v: number[]; grupo: "receita" | "aquisicao" | "operacao" }[] = [
+    { k: "Royalties", v: royalties, grupo: "receita" },
+    { k: "CSC fixo das unidades", v: cscFixo, grupo: "receita" },
+    { k: "Outras receitas e deduções", v: outras, grupo: "receita" },
+    { k: "CSC Comercial · parte da Partners", v: cscParte, grupo: "aquisicao" },
+    { k: "Comissões · parte da Partners", v: comParte, grupo: "aquisicao" },
+    { k: "Outras despesas comerciais", v: S.outrasComerciais, grupo: "aquisicao" },
+    { k: "Pessoal", v: S.pessoal, grupo: "operacao" },
+    { k: "Administrativas", v: S.adm, grupo: "operacao" },
+    { k: "Viagens, bancos e diretas", v: vbd, grupo: "operacao" },
+  ];
+  const t = (v: number[]) => somaIdx(v, idx);
+  const R = t(recorrente);
+  const pct = (v: number) => (R ? `${Math.round((v / R) * 100)}%` : "—");
+  const aquisicao = soma(cscParte, comParte, S.outrasComerciais);
+  const operacao = soma(S.pessoal, S.adm, vbd);
+  const semMidia = soma(recorrente, aquisicao, operacao);
+
+  // Custo pleno de aquisição × CAC gerado
+  const midiaPropria = zero.map((_, i) => -(S.midia[i] + S.reembUnid[i] + S.reembOutras[i]));
+  const custoPleno = t(midiaPropria) - t(cscParte) - t(comParte) - t(S.outrasComerciais);
+  const cac = idx.reduce(
+    (a, i) => {
+      const c = D.cac?.[D.meses[i]];
+      return c ? { vendas: a.vendas + c.vendas, gerado: a.gerado + c.cobrado + c.a_cobrar + c.estimado } : a;
+    },
+    { vendas: 0, gerado: 0 },
+  );
+  const porVenda = (v: number) => (cac.vendas ? brlOuTraco(v / cac.vendas) : "—");
+
+  const grafico = idx.map((i) => ({
+    r: rot(D.meses[i]),
+    recorrente: Math.round(recorrente[i]),
+    aquisicao: Math.round(-aquisicao[i]),
+    operacao: Math.round(-operacao[i]),
+    resultado: Math.round(semMidia[i]),
+  }));
+
+  return (
+    <>
+      <KpiGrade colunas={3}>
+        <KpiCard rotulo="Receita recorrente" valor={brlOuTraco(R)} nota="royalties, CSC fixo e outras" />
+        <KpiCard
+          rotulo="Máquina comercial paga pela Partners"
+          valor={brlOuTraco(t(aquisicao))}
+          nota={`${pct(-t(aquisicao))} da receita recorrente · CSC, comissões e outras comerciais`}
+          tom="perigo"
+        />
+        <KpiCard
+          rotulo="Operação da Partners"
+          valor={brlOuTraco(t(operacao))}
+          nota={`${pct(-t(operacao))} da receita recorrente · pessoal, administrativas e viagens`}
+        />
+      </KpiGrade>
+
+      <Secao
+        titulo="A receita recorrente sustenta a estrutura?"
+        sub="Sem a mídia: o que entra de royalties e CSC fixo contra o que a Partners gasta com a máquina comercial (sua parte no CSC e nas comissões) e com a própria operação. % sobre a receita recorrente."
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="text-xs text-muted-foreground">
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Linha</th>
+                {idx.map((i) => (
+                  <th key={i} className="px-2 py-2 text-right font-medium">
+                    {rot(D.meses[i])}
+                  </th>
+                ))}
+                <th className="px-2 py-2 text-right font-medium">Período</th>
+                <th className="px-2 py-2 text-right font-medium">% da receita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l, n) => (
+                <FragmentoEficiencia
+                  key={l.k}
+                  l={l}
+                  idx={idx}
+                  pct={pct(t(l.v))}
+                  total={
+                    n === 2
+                      ? { k: "= Receita recorrente", v: recorrente, pct: "100%" }
+                      : n === 5
+                        ? { k: "= Máquina comercial", v: aquisicao, pct: pct(t(aquisicao)) }
+                        : n === 8
+                          ? { k: "= Operação", v: operacao, pct: pct(t(operacao)) }
+                          : null
+                  }
+                />
+              ))}
+              <tr className="font-semibold">
+                <td className="py-2">EBIT sem a mídia</td>
+                {idx.map((i) => (
+                  <td key={i} className={cn("whitespace-nowrap px-2 py-2 text-right", corVariacao(semMidia[i]))}>
+                    {brlOuTraco(semMidia[i])}
+                  </td>
+                ))}
+                <td className={cn("px-2 py-2 text-right", corVariacao(t(semMidia)))}>{brlOuTraco(t(semMidia))}</td>
+                <td className="px-2 py-2 text-right">{pct(t(semMidia))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <ComposedChart data={grafico} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+              <CartesianGrid {...gradeProps} />
+              <XAxis dataKey="r" {...eixoProps} />
+              <YAxis {...eixoProps} tickFormatter={mil} width={64} />
+              <Tooltip {...tooltipProps} formatter={(v: number, n: string) => [brlOuTraco(v), n]} />
+              <Legend {...legendaProps} />
+              <ReferenceLine y={0} stroke="var(--border)" />
+              <Bar dataKey="recorrente" name="Receita recorrente" fill={CORES_SERIE[0]} radius={3} isAnimationActive={false} />
+              <Bar dataKey="aquisicao" name="Máquina comercial" stackId="c" fill={CORES_SERIE[3]} isAnimationActive={false} />
+              <Bar dataKey="operacao" name="Operação" stackId="c" fill={CORES_SERIE[2]} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              <Line dataKey="resultado" name="EBIT sem a mídia" stroke="var(--danger)" strokeWidth={2} dot isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Secao>
+
+      <Secao
+        titulo="Quanto custa vender um cliente, e quanto o CAC devolve?"
+        sub="Custo pleno de aquisição = mídia própria da Expansão + a parte da Partners no CSC Comercial e nas comissões. O CAC cobrado das unidades é 1 honorário por venda."
+      >
+        <table className="w-full text-sm tabular-nums">
+          <thead className="text-xs text-muted-foreground">
+            <tr className="border-b">
+              <th className="py-2 text-left font-medium" />
+              <th className="py-2 text-right font-medium">Período</th>
+              <th className="py-2 text-right font-medium">Por venda ({cac.vendas} vendas)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b">
+              <td className="py-2">Mídia própria da Expansão</td>
+              <td className="py-2 text-right">{brlOuTraco(t(midiaPropria))}</td>
+              <td className="py-2 text-right">{porVenda(t(midiaPropria))}</td>
+            </tr>
+            <tr className="border-b">
+              <td className="py-2">CSC Comercial · parte da Partners</td>
+              <td className="py-2 text-right">{brlOuTraco(-t(cscParte))}</td>
+              <td className="py-2 text-right">{porVenda(-t(cscParte))}</td>
+            </tr>
+            <tr className="border-b">
+              <td className="py-2">Comissões e outras comerciais · parte da Partners</td>
+              <td className="py-2 text-right">{brlOuTraco(-t(comParte) - t(S.outrasComerciais))}</td>
+              <td className="py-2 text-right">{porVenda(-t(comParte) - t(S.outrasComerciais))}</td>
+            </tr>
+            <tr className="border-b font-semibold">
+              <td className="py-2">Custo pleno de aquisição</td>
+              <td className="py-2 text-right">{brlOuTraco(custoPleno)}</td>
+              <td className="py-2 text-right">{porVenda(custoPleno)}</td>
+            </tr>
+            <tr className="border-b">
+              <td className="py-2">CAC gerado pelas vendas (cobrado + a cobrar + estimado)</td>
+              <td className="py-2 text-right">{brlOuTraco(cac.gerado)}</td>
+              <td className="py-2 text-right">{porVenda(cac.gerado)}</td>
+            </tr>
+            <tr className="font-semibold">
+              <td className="py-2">O CAC devolve</td>
+              <td className="py-2 text-right">
+                {custoPleno > 0 ? `${Math.round((cac.gerado / custoPleno) * 100)}% do custo pleno` : "—"}
+              </td>
+              <td className={cn("py-2 text-right", corVariacao(cac.gerado - custoPleno))}>
+                {porVenda(cac.gerado - custoPleno)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="text-xs text-muted-foreground">
+          O CAC de 1 honorário cobre a mídia, mas não o time comercial. A diferença sai da receita recorrente. As vendas
+          do período são as do funil de CAC (inside sales elegíveis, sem churn).
+        </p>
+      </Secao>
+    </>
+  );
+}
+
+function FragmentoEficiencia({
+  l,
+  idx,
+  pct,
+  total,
+}: {
+  l: { k: string; v: number[] };
+  idx: number[];
+  pct: string;
+  total: { k: string; v: number[]; pct: string } | null;
+}) {
+  return (
+    <>
+      <tr className="border-b">
+        <td className="py-1.5 pl-4">{l.k}</td>
+        {idx.map((i) => (
+          <td key={i} className="whitespace-nowrap px-2 py-1.5 text-right">
+            {brlOuTraco(l.v[i])}
+          </td>
+        ))}
+        <td className="whitespace-nowrap px-2 py-1.5 text-right">{brlOuTraco(somaIdx(l.v, idx))}</td>
+        <td className="px-2 py-1.5 text-right text-muted-foreground">{pct}</td>
+      </tr>
+      {total && (
+        <tr className="border-b bg-muted/30 font-medium">
+          <td className="py-1.5">{total.k}</td>
+          {idx.map((i) => (
+            <td key={i} className="whitespace-nowrap px-2 py-1.5 text-right">
+              {brlOuTraco(total.v[i])}
+            </td>
+          ))}
+          <td className="whitespace-nowrap px-2 py-1.5 text-right">{brlOuTraco(somaIdx(total.v, idx))}</td>
+          <td className="px-2 py-1.5 text-right">{total.pct}</td>
+        </tr>
       )}
     </>
   );

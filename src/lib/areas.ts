@@ -358,11 +358,11 @@ export const AREAS: Area[] = [
         // O reporte semanal do CEO (06/10/2026): caixa da Partners na semana e no mês, lido de
         // `ops.reporte_ceo`, que a Edge Function reporte-ceo grava às 12h e às 18h.
         label: "Caixa da Partners",
-        // DRE e Caixa (15/10/2026): a ponte entre o resultado da DRE e o caixa do mês, o que
+        // BI Financeiro (15/10/2026, rota /dre-caixa): a ponte entre o resultado da DRE e o caixa do mês, o que
         // mudou contra o mês anterior e o que falta conferir. Lê `ops.dre_caixa`.
         items: [
           { title: "Financeiro semanal", url: "/financeiro-semanal", icon: Wallet },
-          { title: "DRE e Caixa", url: "/dre-caixa", icon: Scale },
+          { title: "BI Financeiro", url: "/dre-caixa", icon: Scale },
         ],
       },
       {

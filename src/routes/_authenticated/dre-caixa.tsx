@@ -8,7 +8,7 @@ import { Carregando } from "@/components/planning";
 export const Route = createFileRoute("/_authenticated/dre-caixa")({
   head: () => ({
     meta: [
-      { title: "DRE e Caixa – Planning" },
+      { title: "BI Financeiro – Planning" },
       {
         name: "description",
         content:
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/dre-caixa")({
   component: DreCaixaRota,
 });
 
-/** DRE e Caixa da Partners. Contrato: docs/design/contratos/dre-caixa.md. */
+/** BI Financeiro da Partners. Contrato: docs/design/contratos/dre-caixa.md. */
 function DreCaixaRota() {
   useAuth();
   const { temArea, loading } = usePermissions();
