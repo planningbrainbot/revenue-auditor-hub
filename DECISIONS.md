@@ -5555,3 +5555,24 @@ creditados no mês (diferença é a taxa do gateway, que reduz a base do split).
 
 **Limite conhecido:** se uma unidade com split ganhar percentual negociado por cliente, a diferença apareceria como
 split. Hoje nenhuma tem. Total fatura e valores cobrados não mudaram.
+
+## [2026-10-16] Monetização: base nova (pipe 40, Diagnóstico de Oportunidades) com processo próprio, separada da base antiga (pipe 39)
+
+**Contexto:** o Pedro, em 16/10: "Vamos fazer 2 processos inteiros completamente diferentes para base nova e para base antiga [...] Os novos clientes todos já passam para a consultoria direto do onboarding. Não faz sentido eu fazer trabalho de cadência pra eles." O processo de origem é a página "Diagnóstico de Oportunidades e Riscos" (v1.0, 15/10/2026), e o pipe 40 "Onboarding | Diagnóstico de Oportunidades" foi criado no Pipedrive em 16/10. PRD: https://claude.ai/artifact/9SapRMdQ3ydy8srToQ7NSn. Guia: https://claude.ai/artifact/LLGuTGe3hpNSmuZNS4pVBC.
+
+**Decisões do Pedro (16/10, AskUserQuestion):**
+- Entram no pipe 40 as vendas ganhas no pipe 2 (Inside Sales) desde 01/10/2026, de Lucro Real ou Presumido com faixa de R$ 10 mi para cima. O desenho dizia "Presumido acima de R$ 20 mi", mas a faixa do formulário de R$ 10 a 25 mi atravessa os R$ 20 mi; o Matheus confere o faturamento na etapa 01. Simples e Presumido abaixo de R$ 10 mi ficam fora.
+- O Matheus é dono e gestor de todo card do pipe 40 ("ele vai ser responsável pra gerir o pipe e garantir que cada responsável execute suas tarefas"). Ele fecha os cards que já tem no pipe 39 e não recebe card novo lá. A Heloá fica na base antiga.
+- A Jordana faz a call de apresentação dos três negócios (Consultoria, Finance, Teses Jurídicas).
+- A largada e o aviso de 3 dias às áreas viram tarefa do Matheus, não e-mail automático.
+- Os cards de base nova que já estão no pipe 39 terminam lá.
+- Telas e guia: publicar direto depois de conferir. Entrada automática e tarefas: construídas com a chave desligada até o "pode ativar".
+
+**Como ficou:**
+- **Pipedrive (E0, pela API):** probabilidade 10/10/10/15/25/35/50/70% e estagnação 2/3/7/20/5/7/5/7 dias nas 8 etapas; 9 campos "Diagnóstico · …" (faturamento conferido, link da pasta, D0, prazo prometido, status das três áreas, produto não vendido e motivo, venda de origem), visíveis só no pipe 40; 3 produtos (Diagnóstico · Consultoria, Finance, Teses Jurídicas). Regime, faixa, sub-origem, segmento e CNPJ passaram a aparecer no pipe 40; a Origem a API recusa (ERR_PIPELINE_DOESNT_EXIST_OR_INACTIVE até regravando a lista atual) e fica para a tela.
+- **Carga separada:** Edge Function `monetizacao-diagnostico` (cron `monetizacao-diagnostico-5min`, dois minutos depois dos outros) grava `ops.monetizacao_diagnostico_deals` e `_sync`. Não entra em `ops.monetizacao_deals`, porque IDU, ranking das unidades e Cockpits leem essa tabela sem filtro de pipe; pôr o pipe 40 lá exige decisão.
+- **Entrada automática (`MONET_DIAG_ENTRADA_ATIVA`) e tarefas por etapa (`MONET_DIAG_TAREFAS_ATIVA`, `MONET_DIAG_INICIO`):** desligadas; a rodada grava a prévia. Em 16/10 a prévia deu as mesmas 16 contas medidas à mão (18 vendas; Rocca e Santana Global Trading têm duas cada). Régua em `regua.ts` (versão `diag-v1-2026-10-16`, 21 itens: 18 tarefas por card no Real, 19 no Presumido, mais a cobrança semanal da pasta e uma por produto no Ganho). Dia corrido a partir da entrada, jogado para o dia útil seguinte; a entrada na 04 é o D0 e grava D0 e prazo no card.
+- **Telas:** seletor "Base antiga · pipe 39 | Base nova · pipe 40" (`base=nova`) na Operação diária, na Pré-venda e no Forecast. A base nova lê só `ops.monetizacao_diagnostico_painel()` (mesma porta e recorte de unidade da carga do 39). Contrato `docs/design/contratos/monetizacao-base-nova.md`.
+- **Base antiga protegida:** `monetizacao-crm` bloqueia o envio ao pipe 39 de conta com card no pipe 40 (fora o perdido na etapa 01) e de lista com dono Matheus; o Matheus sai de `CLOSERS` (fica em `PRE_VENDEDORES`, para os filtros e o ritmo).
+
+**Fica para decidir:** pipe 40 no IDU, no ranking e nos Cockpits; avaliação de ligação e gravação da apresentação da Jordana; motivo de perda "Fora do escopo" e motivo obrigatório (só pela tela do Pipedrive).
