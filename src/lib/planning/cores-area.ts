@@ -17,6 +17,7 @@ export const SLUGS_AREA = [
   "rede",
   "clientes",
   "receita",
+  "bi_financeiro",
   "people",
   "monetizacao",
   "broker",

@@ -125,6 +125,7 @@
   --color-area-broker: var(--area-broker);
   --color-area-clientes: var(--area-clientes);
   --color-area-receita: var(--area-receita);
+  --color-area-bi_financeiro: var(--area-bi_financeiro);
   --color-area-monetizacao: var(--area-monetizacao);
   --color-area-people: var(--area-people);
   --color-area-estrategia: var(--area-estrategia);
@@ -199,6 +200,8 @@
   --area-broker: #009bcb;
   --area-clientes: #00a454; /* verde, 3,3:1 */
   --area-receita: #7d9b00; /* lima, 3,2:1 */
+  /* BI Financeiro (19/10/2026): a mesma cor de Receita, é o mesmo assunto (dinheiro). */
+  --area-bi_financeiro: var(--area-receita);
   --area-monetizacao: #f36201; /* laranja, 3,2:1 */
   --area-people: #962dff; /* roxo já passa: 5,1:1 */
   --area-estrategia: #00a454;
@@ -278,6 +281,7 @@
   --area-broker: #14c8fa;
   --area-clientes: #0ae18c;
   --area-receita: #c3e61e;
+  --area-bi_financeiro: var(--area-receita);
   --area-monetizacao: #fa6914;
   --area-people: #962dff; /* 3,6:1, o mais baixo do escuro */
   --area-estrategia: #0ae18c;

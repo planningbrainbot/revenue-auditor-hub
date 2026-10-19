@@ -18,7 +18,6 @@ import {
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -46,8 +45,17 @@ import {
   type DreCaixa,
   type LinhaDre,
 } from "@/lib/dre-caixa.functions";
+import {
+  AquisicaoRetencao,
+  DeveriaRecebeu,
+  Folego,
+  ForecastRealizado,
+  VisaoExecutiva,
+} from "@/components/bi-financeiro/visoes";
 
-// BI Financeiro da Partners (rota /dre-caixa). Contrato: docs/design/contratos/dre-caixa.md.
+// BI Financeiro da Partners (rota /bi-financeiro; até 19/10/2026 era /dre-caixa). Contratos:
+// docs/design/contratos/bi-financeiro.md (a área) e dre-caixa.md (as visões que já existiam).
+// O assunto vem de `?aba=`, escolhido na lateral: a página não desenha abas (N6).
 // Tudo vem pronto do retrato `ops.dre_caixa` (séries mensais); a tela soma pelo período
 // escolhido (?de=&ate=) e compara com o período anterior de mesma duração.
 // Na DRE despesa é negativa: variação > 0 sempre melhora o resultado, < 0 sempre piora.
@@ -61,8 +69,35 @@ const corVariacao = (v: number) =>
   Math.abs(v) < 1 ? "text-muted-foreground" : v > 0 ? "text-success" : "text-danger";
 const somaIdx = (v: number[], idx: number[]) => idx.reduce((s, i) => s + (v[i] ?? 0), 0);
 
+/** Título (= item da lateral, N1) e pergunta de cada assunto. */
+const ASSUNTOS: Record<string, { titulo: string; pergunta: string }> = {
+  executiva: { titulo: "Visão executiva", pergunta: "O mês fecha no plano?" },
+  forecast: { titulo: "Forecast × Realizado", pergunta: "Onde o realizado se afasta do Forecast Oficial?" },
+  geral: {
+    titulo: "Resultado do período",
+    pergunta: "Como está o resultado da Partners e por que ele é diferente do caixa?",
+  },
+  dre: { titulo: "DRE", pergunta: "De onde vem cada real do resultado?" },
+  "aquisicao-retencao": {
+    titulo: "Aquisição × Retenção",
+    pergunta: "A máquina de vender se paga, e a carteira cobre a estrutura?",
+  },
+  variacao: { titulo: "Variação", pergunta: "O que mudou contra o período anterior?" },
+  folego: { titulo: "Fôlego", pergunta: "Quanto queimamos sem o investidor, e até quando o caixa aguenta?" },
+  ponte: { titulo: "Competência × Caixa", pergunta: "Por que o resultado é diferente do caixa?" },
+  caixa: { titulo: "Entradas e saídas", pergunta: "O que entrou e o que saiu da conta?" },
+  inadimplencia: { titulo: "Inadimplência", pergunta: "Quem deve à Partners e às unidades?" },
+  midia: { titulo: "Mídia", pergunta: "A mídia se paga?" },
+  "midia-cac": { titulo: "Mídia × CAC", pergunta: "A mídia própria volta como CAC?" },
+  vendas: { titulo: "Vendas e ROAS", pergunta: "Quanto a rede vendeu, a mídia se paga e quando o CAC entra no caixa?" },
+  eficiencia: { titulo: "Eficiência", pergunta: "Quanto custa vender um cliente, e quanto ele devolve?" },
+  conferencias: { titulo: "Conferências", pergunta: "O que falta para fechar o mês?" },
+};
+
 export function DreCaixaPagina() {
   const fn = useServerFn(carregarDreCaixa);
+  const [abaUrl] = useFiltroNaUrl("aba", "executiva");
+  const aba = abaUrl in ASSUNTOS ? abaUrl : "executiva";
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["dre-caixa"],
     queryFn: () => fn(),
@@ -71,9 +106,9 @@ export function DreCaixaPagina() {
 
   return (
     <MolduraReceita
-      titulo="BI Financeiro"
-      pergunta="Como está o resultado da Partners, por que ele é diferente do caixa e o que mudou?"
-      descricao="Planning Partners · competência da Partners · DRE pelas réguas de 15/10/2026, caixa pelo extrato de conta corrente do Omie."
+      titulo={ASSUNTOS[aba].titulo}
+      pergunta={ASSUNTOS[aba].pergunta}
+      descricao="Planning Partners · DRE por competência (réguas de 15/10/2026), caixa pelo extrato do Omie, previsto pela aba Forecast Oficial."
       procedencia={
         data
           ? {
@@ -94,23 +129,43 @@ export function DreCaixaPagina() {
             descricao="Ele é gravado por tools/dre_caixa_payload.py depois de montar as abas DRE e FCX."
           />
         ) : (
-          <Bi D={data.payload} />
+          <>
+            <AvisoRetratoVelho gravadoEm={data.gravadoEm} />
+            {aba === "executiva" ? <VisaoExecutiva D={data.payload} /> : <Bi D={data.payload} aba={aba} />}
+          </>
         )}
       </div>
     </MolduraReceita>
   );
 }
 
+/** O CEO lê todo dia: retrato com mais de 26 horas avisa no topo, sem esconder os números. */
+function AvisoRetratoVelho({ gravadoEm }: { gravadoEm: string }) {
+  const horas = (Date.now() - new Date(gravadoEm).getTime()) / 3_600_000;
+  if (!(horas > 26)) return null;
+  const quando = new Date(gravadoEm).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return (
+    <Card className="flex items-center gap-2 border-warning/40 p-3 text-sm">
+      <StatusBadge tom="atencao">Desatualizado</StatusBadge>
+      Os números são do retrato de {quando}. A atualização automática não rodou desde então.
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------- período e abas
 
-function Bi({ D }: { D: DreCaixa }) {
+function Bi({ D, aba }: { D: DreCaixa; aba: string }) {
   const meses = D.meses;
   const ultimoFechado =
     [...meses].reverse().find((m) => !(D.situacao[m] ?? "").includes("andamento")) ??
     meses[meses.length - 1];
   const [deUrl, setDe] = useFiltroNaUrl("de", meses[0]);
   const [ateUrl, setAte] = useFiltroNaUrl("ate", ultimoFechado);
-  const [aba, setAba] = useFiltroNaUrl("aba", "geral");
   let de = meses.includes(deUrl) ? deUrl : meses[0];
   let ate = meses.includes(ateUrl) ? ateUrl : ultimoFechado;
   if (de > ate) [de, ate] = [ate, de];
@@ -158,61 +213,33 @@ function Bi({ D }: { D: DreCaixa }) {
         )}
       </Card>
 
-      <Tabs value={aba} onValueChange={(v) => setAba(v)}>
-        <TabsList className="flex h-auto flex-wrap justify-start">
-          <TabsTrigger value="geral">Visão geral</TabsTrigger>
-          <TabsTrigger value="dre">DRE</TabsTrigger>
-          <TabsTrigger value="ponte">DRE × Caixa</TabsTrigger>
-          <TabsTrigger value="variacao">Variação</TabsTrigger>
-          <TabsTrigger value="midia">Mídia</TabsTrigger>
-          <TabsTrigger value="midia-cac">Mídia × CAC</TabsTrigger>
-          <TabsTrigger value="vendas">Vendas e ROAS</TabsTrigger>
-          <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
-          <TabsTrigger value="inadimplencia">Inadimplência</TabsTrigger>
-          <TabsTrigger value="caixa">Caixa</TabsTrigger>
-          <TabsTrigger value="conferencias">Conferências</TabsTrigger>
-        </TabsList>
-        <TabsContent value="geral" className="mt-4 flex flex-col gap-5">
-          <VisaoGeral D={D} idx={idx} idxAnt={temAnterior ? idxAnt : null} />
-        </TabsContent>
-        <TabsContent value="dre" className="mt-4">
-          <TabelaDre D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="ponte" className="mt-4 flex flex-col gap-5">
+      {aba === "geral" && <VisaoGeral D={D} idx={idx} idxAnt={temAnterior ? idxAnt : null} />}
+      {aba === "forecast" && <ForecastRealizado D={D} idx={idx} />}
+      {aba === "dre" && <TabelaDre D={D} idx={idx} />}
+      {aba === "aquisicao-retencao" && <AquisicaoRetencao D={D} idx={idx} />}
+      {aba === "variacao" &&
+        (temAnterior ? (
+          <Variacao D={D} idx={idx} idxAnt={idxAnt} />
+        ) : (
+          <EstadoVazio
+            titulo="Sem período anterior para comparar"
+            descricao="Escolha um período que tenha a mesma quantidade de meses antes dele."
+          />
+        ))}
+      {aba === "folego" && <Folego D={D} idx={idx} />}
+      {aba === "ponte" && (
+        <>
           <PonteCaixa D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="variacao" className="mt-4">
-          {temAnterior ? (
-            <Variacao D={D} idx={idx} idxAnt={idxAnt} />
-          ) : (
-            <EstadoVazio
-              titulo="Sem período anterior para comparar"
-              descricao="Escolha um período que tenha a mesma quantidade de meses antes dele."
-            />
-          )}
-        </TabsContent>
-        <TabsContent value="midia" className="mt-4 flex flex-col gap-5">
-          <Midia D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="midia-cac" className="mt-4 flex flex-col gap-5">
-          <MidiaCac D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="vendas" className="mt-4 flex flex-col gap-5">
-          <VendasRoas D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="eficiencia" className="mt-4 flex flex-col gap-5">
-          <Eficiencia D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="inadimplencia" className="mt-4 flex flex-col gap-5">
-          <Inadimplencia D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="caixa" className="mt-4 flex flex-col gap-5">
-          <Caixa D={D} idx={idx} />
-        </TabsContent>
-        <TabsContent value="conferencias" className="mt-4">
-          <Conferencias D={D} idx={idx} />
-        </TabsContent>
-      </Tabs>
+          <DeveriaRecebeu D={D} idx={idx} />
+        </>
+      )}
+      {aba === "caixa" && <Caixa D={D} idx={idx} />}
+      {aba === "inadimplencia" && <Inadimplencia D={D} idx={idx} />}
+      {aba === "midia" && <Midia D={D} idx={idx} />}
+      {aba === "midia-cac" && <MidiaCac D={D} idx={idx} />}
+      {aba === "vendas" && <VendasRoas D={D} idx={idx} />}
+      {aba === "eficiencia" && <Eficiencia D={D} idx={idx} />}
+      {aba === "conferencias" && <Conferencias D={D} idx={idx} />}
     </>
   );
 }

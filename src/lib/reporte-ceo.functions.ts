@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { AREA_BI_FINANCEIRO } from "@/lib/bi-financeiro-acesso";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
@@ -86,8 +87,8 @@ export const carregarReporteCeo = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ payload: ReporteCeo; gravadoEm: string } | null> => {
     const acesso = await acessoDoUsuario(context.supabase, context.userId);
-    if (!acesso.areas.includes("receita"))
-      throw new Error("Acesso negado: sua conta não tem a área Receita e Repasses.");
+    if (!acesso.areas.includes(AREA_BI_FINANCEIRO))
+      throw new Error("Acesso negado: sua conta não tem a área BI Financeiro.");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any;
     const { data, error } = await db

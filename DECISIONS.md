@@ -5661,3 +5661,26 @@ quando o CAC das vendas entra no caixa. Dado em `ops.dre_caixa.payload.vendas`, 
 - **Agenda do CAC:** regras da aba CAC Agenda (`caixa_sheets.py`): 1ª parcela assinatura + 1 mês, 2ª competência + 2
   meses, Recife as duas na competência; cobrada vencida vira atrasada no mês atual; termo sem contrato ponderado pela
   conversão (recente) ou pela chance de 2+ meses (quase sempre quebra).
+
+## [2026-10-19] BI Financeiro vira área própria, com o Forecast Oficial como meta
+
+**Contexto:** pedido do dono: criar a área "BI Financeiro", mover para ela o Financeiro
+semanal e o BI Financeiro (`/dre-caixa`), que moravam em Receita e Repasses, e deixar o BI
+"igual ao de Growth" com as análises da planilha "Financeiro - Planning Partners", para o CEO
+acompanhar todo dia.
+
+**Decisão (do dono):** área nova `bi_financeiro`; as duas telas saem de Receita e Repasses.
+
+**Proposta, aguardando "contrato ok"** (`docs/design/contratos/bi-financeiro.md`): Visão
+executiva nova no padrão do Executivo do Growth ("O mês fecha no plano?", Forecast Oficial ×
+realizado), visões novas Forecast × Realizado, Aquisição × Retenção e Fôlego; as abas do
+`/dre-caixa` viram itens da lateral (N6). Em aberto: quem recebe a área na estreia.
+
+**Achado:** os dois retratos estavam parados em 19/10 (`ops.dre_caixa` de 16/10,
+`ops.reporte_ceo` de 13/10). Página diária depende de o workflow na nuvem rodar.
+
+**Atualização 19/10/2026 (prévia local, não publicada):** uma rota só, `/bi-financeiro?aba=`, com
+`/dre-caixa` redirecionando. Forecast × Realizado passou a ser calculado no retrato
+(`tools/bi_financeiro_payload.py`), porque a aba da planilha usava os rótulos da DRE anterior a 15/10
+e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicada
+(`20261019120000_bi_financeiro_area.sql`); em dev, `receita` vale como `bi_financeiro`.

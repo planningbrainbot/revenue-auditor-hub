@@ -2,13 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { acessoDoUsuario } from "@/lib/permissions.functions";
+import { AREA_BI_FINANCEIRO } from "@/lib/bi-financeiro-acesso";
 
 // DRE e Caixa da Partners (/dre-caixa). Contrato: docs/design/contratos/dre-caixa.md.
 //
 // Quem calcula é tools/dre_caixa_payload.py (repo ai-projects-scripts), depois de montar as abas
 // DRE e FCX da planilha "Financeiro - Planning Partners": grava o retrato pronto em
 // `ops.dre_caixa` (uma linha, id=1). Mesmo desenho do Financeiro semanal: RLS ligada sem policy,
-// leitura pelo service_role depois de conferir a área `receita`.
+// leitura pelo service_role depois de conferir a área `bi_financeiro` (era `receita` até 19/10/2026).
+//
+// Prévia local: com `DRE_CAIXA_ARQUIVO` apontando para o JSON do `--dry-run`, o servidor de
+// desenvolvimento lê o arquivo em vez da tabela. Só em dev; o build ignora a variável.
 
 /** Uma linha da DRE. `v` segue a ordem de `meses`. Despesa é negativa. */
 export interface LinhaDre {
@@ -87,6 +91,8 @@ export interface DreCaixa {
   };
   /** Ausente nos retratos anteriores a 19/10/2026. */
   vendas?: VendasRetrato;
+  /** Abas de análise da planilha (área BI Financeiro). Ausente nos retratos anteriores a 19/10/2026. */
+  bi?: BiPlanilha;
   cac?: Record<
     string,
     { vendas: number; cobrado: number; a_cobrar: number; estimado: number; churn: number }
@@ -123,12 +129,55 @@ export interface VendasRetrato {
   premissas: { conv: number; chance_m2: number; lag_p1: number; lag_p2: number; lag_comp: number };
 }
 
+/** Uma linha do Forecast Oficial × DRE. `p` e `v` seguem `meses`; custo é positivo dos dois lados. */
+export interface LinhaForecast {
+  r: string;
+  /** r: receita ou resultado (subir é bom) · c: custo (subir é ruim) · t: título de bloco. */
+  tipo: "r" | "c" | "t";
+  total?: boolean;
+  nota?: string;
+  p?: number[];
+  v?: number[];
+}
+
+/** Linha de uma aba mês a mês da planilha (DRE Aquisição, DRE Retenção, Burn Rate, Competência × Caixa). */
+export interface LinhaAba {
+  k: string;
+  nivel: 0 | 1;
+  titulo?: boolean;
+  v?: number[];
+}
+
+export interface AbaMensal {
+  meses: string[];
+  linhas: LinhaAba[];
+}
+
+export interface BiPlanilha {
+  forecast: { meses: string[]; parcial: string | null; atualizado: string; linhas: LinhaForecast[] };
+  aquisicao: AbaMensal;
+  retencao: AbaMensal;
+  burn: AbaMensal;
+  competencia_caixa: AbaMensal;
+  /** Parcelas de CAC de contratos assinados, pelo mês em que devem entrar no caixa. */
+  cac_agenda: {
+    por_mes: Record<string, { valor: number; parcelas: number }>;
+    atrasado: { valor: number; parcelas: number };
+  };
+}
+
 export const carregarDreCaixa = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ payload: DreCaixa; gravadoEm: string } | null> => {
     const acesso = await acessoDoUsuario(context.supabase, context.userId);
-    if (!acesso.areas.includes("receita"))
-      throw new Error("Acesso negado: sua conta não tem a área Receita e Repasses.");
+    if (!acesso.areas.includes(AREA_BI_FINANCEIRO))
+      throw new Error("Acesso negado: sua conta não tem a área BI Financeiro.");
+    const arquivo = import.meta.env.DEV ? process.env.DRE_CAIXA_ARQUIVO : undefined;
+    if (arquivo) {
+      const { readFile } = await import("node:fs/promises");
+      const payload = JSON.parse(await readFile(arquivo, "utf8")) as DreCaixa;
+      return { payload, gravadoEm: payload.gerado_em };
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabaseAdmin as any;
     const { data, error } = await db

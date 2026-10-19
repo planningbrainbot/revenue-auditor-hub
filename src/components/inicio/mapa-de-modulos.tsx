@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BarChart3,
   Activity,
   Brain,
   Briefcase,
@@ -221,6 +222,14 @@ export const GESTAO: Peca[] = [
     area: "cockpit_ceo",
     icone: LayoutDashboard,
     destino: { tipo: "interno", href: "/cockpit-ceo" },
+  },
+  {
+    id: "bi_financeiro",
+    nome: "BI Financeiro",
+    resumo: "Resultado contra o forecast, caixa e fôlego da Partners.",
+    area: "bi_financeiro",
+    icone: BarChart3,
+    destino: { tipo: "interno", href: "/bi-financeiro" },
   },
   {
     id: "cockpit_coo",

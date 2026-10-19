@@ -4,6 +4,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { SemAcessoArea } from "@/components/sem-acesso-area";
 import { FinanceiroSemanal } from "@/components/receita/financeiro-semanal";
 import { Carregando } from "@/components/planning";
+import { AREA_BI_FINANCEIRO } from "@/lib/bi-financeiro-acesso";
 
 export const Route = createFileRoute("/_authenticated/financeiro-semanal")({
   head: () => ({
@@ -33,7 +34,7 @@ function FinanceiroSemanalPage() {
         <Carregando variante="kpis" />
       </div>
     );
-  if (!temArea("receita")) return <SemAcessoArea area="Receita e Repasses" />;
+  if (!temArea(AREA_BI_FINANCEIRO)) return <SemAcessoArea area="BI Financeiro" />;
 
   return <FinanceiroSemanal />;
 }

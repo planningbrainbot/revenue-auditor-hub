@@ -355,17 +355,8 @@ export const AREAS: Area[] = [
         label: "Visão geral",
         items: [{ title: "Visão geral", url: "/receita-overview", icon: LayoutDashboard }],
       },
-      {
-        // O reporte semanal do CEO (06/10/2026): caixa da Partners na semana e no mês, lido de
-        // `ops.reporte_ceo`, que a Edge Function reporte-ceo grava às 12h e às 18h.
-        label: "Caixa da Partners",
-        // BI Financeiro (15/10/2026, rota /dre-caixa): a ponte entre o resultado da DRE e o caixa do mês, o que
-        // mudou contra o mês anterior e o que falta conferir. Lê `ops.dre_caixa`.
-        items: [
-          { title: "Financeiro semanal", url: "/financeiro-semanal", icon: Wallet },
-          { title: "BI Financeiro", url: "/dre-caixa", icon: Scale },
-        ],
-      },
+      // O grupo "Caixa da Partners" (Financeiro semanal e BI Financeiro) foi para a área
+      // BI Financeiro em 19/10/2026.
       {
         // Eram cinco abas dentro de "Receitas Partners". A aba escondia tela
         // dentro de tela: quem não abrisse a página não sabia que Split e
@@ -423,6 +414,57 @@ export const AREAS: Area[] = [
             icon: Scale,
           },
         ],
+      },
+    ],
+  },
+  {
+    // BI Financeiro (19/10/2026, contrato docs/design/contratos/bi-financeiro.md): o resultado da
+    // Partners contra o Forecast Oficial, o caixa e o fôlego, para o CEO acompanhar todo dia. Juntou
+    // o Financeiro semanal e o BI que moravam em Receita e Repasses. Cada assunto é um item da
+    // lateral (`?aba=`), como as frentes do Cockpit do CEO: a página não desenha abas (N6).
+    slug: "bi_financeiro",
+    nome: "BI Financeiro",
+    descricao: "Resultado contra o plano, caixa e fôlego da Partners, todo dia.",
+    icone: BarChart3,
+    grupos: [
+      {
+        label: "Visão geral",
+        items: [{ title: "Visão executiva", url: "/bi-financeiro", icon: LayoutDashboard }],
+      },
+      {
+        label: "Resultado",
+        items: [
+          { title: "Forecast × Realizado", url: "/bi-financeiro?aba=forecast", icon: Target },
+          { title: "Resultado do período", url: "/bi-financeiro?aba=geral", icon: TrendingUp },
+          { title: "DRE", url: "/bi-financeiro?aba=dre", icon: ScrollText },
+          { title: "Aquisição × Retenção", url: "/bi-financeiro?aba=aquisicao-retencao", icon: Split },
+          { title: "Variação", url: "/bi-financeiro?aba=variacao", icon: ArrowRightLeft },
+        ],
+      },
+      {
+        label: "Caixa",
+        items: [
+          // O reporte semanal do CEO (06/10/2026), lido de `ops.reporte_ceo`.
+          { title: "Caixa da semana", url: "/financeiro-semanal", icon: Wallet },
+          { title: "Fôlego", url: "/bi-financeiro?aba=folego", icon: Gauge },
+          { title: "Competência × Caixa", url: "/bi-financeiro?aba=ponte", icon: Scale },
+          { title: "Entradas e saídas", url: "/bi-financeiro?aba=caixa", icon: Landmark },
+          { title: "Inadimplência", url: "/bi-financeiro?aba=inadimplencia", icon: Receipt },
+        ],
+      },
+      {
+        label: "Aquisição",
+        items: [
+          { title: "Mídia", url: "/bi-financeiro?aba=midia", icon: Coins },
+          { title: "Mídia × CAC", url: "/bi-financeiro?aba=midia-cac", icon: Filter },
+          // Aba Vendas e ROAS (19/10/2026): vendas da rede toda, ROAS fato × safra e agenda do CAC.
+          { title: "Vendas e ROAS", url: "/bi-financeiro?aba=vendas", icon: TrendingUp },
+          { title: "Eficiência", url: "/bi-financeiro?aba=eficiencia", icon: Percent },
+        ],
+      },
+      {
+        label: "Fechamento",
+        items: [{ title: "Conferências", url: "/bi-financeiro?aba=conferencias", icon: ClipboardCheck }],
       },
     ],
   },

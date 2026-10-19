@@ -65,7 +65,7 @@ export function FinanceiroSemanal() {
 
   return (
     <MolduraReceita
-      titulo="Financeiro semanal"
+      titulo="Caixa da semana"
       pergunta="O caixa da Partners paga a semana e o mês?"
       descricao="Caixa pelo extrato de conta corrente. Despesas e recebíveis pelos títulos do Omie da Planning Partners, cortados pela data de vencimento."
       procedencia={
