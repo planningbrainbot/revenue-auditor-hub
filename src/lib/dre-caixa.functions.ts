@@ -182,6 +182,8 @@ export interface BiPlanilha {
   };
   /** Projeção da Burn Rate (meses depois do realizado) e as premissas que ficam acima dela. */
   burn_proj?: { meses: string[]; linhas: LinhaAba[]; premissas: PremissaPlanilha[] };
+  /** Projeção da DRE Aquisição (mesmas linhas da DRE, meses depois do realizado). */
+  aquisicao_proj?: { meses: string[]; linhas: LinhaAba[]; premissas: PremissaPlanilha[] };
   /** Bloco "Funil do CAC" da DRE Aquisição: premissas e linhas com realizado e projeção. */
   funil_cac?: {
     meses: string[];
