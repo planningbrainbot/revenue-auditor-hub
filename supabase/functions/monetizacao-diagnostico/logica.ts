@@ -572,6 +572,16 @@ export type StoreDiagnostico = {
     { venda_id: number; org_id: number | null; deal_id: number | null; status: string }[]
   >;
   inserirEntrada(linha: Record<string, unknown>): Promise<void>;
+  /**
+   * Contratos com data de assinatura em ops.contratos_documentos (cópia do pipe de contratos do Pipefy), pelo negócio
+   * da venda ou pela organização. Sem este método, nenhuma venda conta como assinada.
+   */
+  assinaturas?(
+    vendas: number[],
+    orgs: number[],
+  ): Promise<
+    { pipedrive_deal_id: string | null; org_id_pipedrive: string | null; data_assinatura: string }[]
+  >;
   tarefas(): Promise<LinhaTarefa[]>;
   inserirTarefa(linha: LinhaTarefa): Promise<boolean>;
   atualizarTarefa(
@@ -591,8 +601,40 @@ export type OpcoesDiagnostico = {
   inicio: string | null;
   /** Vendas ganhas a partir deste dia (data de São Paulo) entram no pipe 40 (MONET_DIAG_VENDAS_DESDE). */
   vendasDesde: string;
+  /**
+   * Só vira card a venda com contrato assinado (MONET_DIAG_EXIGE_ASSINATURA, ligada salvo "nao"). O Inside Sales marca
+   * ganho antes da assinatura: em 19/10/2026, 15 dos 16 primeiros cards do pipe 40 eram de cliente que não tinha
+   * assinado, e um deles respondeu "BPO ainda não tenho aprovação". A venda sem assinatura não é gravada e é relida a
+   * cada rodada, até assinar.
+   */
+  exigirAssinatura?: boolean;
   orcamentoMs?: number;
 };
+
+/**
+ * As vendas com contrato assinado: pelo negócio da venda, ou pela organização com assinatura a partir de
+ * `vendasDesde` (contrato antigo da mesma empresa não vale para a venda nova).
+ */
+export async function vendasAssinadas(
+  store: StoreDiagnostico,
+  vendas: { id: number; org: number | null }[],
+  vendasDesde: string,
+): Promise<Set<number>> {
+  const ids = [...new Set(vendas.map((v) => v.id))];
+  const orgs = [...new Set(vendas.map((v) => v.org).filter(Boolean) as number[])];
+  if (!store.assinaturas || (!ids.length && !orgs.length)) return new Set();
+  const linhas = await store.assinaturas(ids, orgs);
+  const porVenda = new Set(linhas.map((l) => Number(l.pipedrive_deal_id)).filter(Boolean));
+  const porOrg = new Set(
+    linhas
+      .filter((l) => String(l.data_assinatura).slice(0, 10) >= vendasDesde)
+      .map((l) => Number(l.org_id_pipedrive))
+      .filter(Boolean),
+  );
+  return new Set(
+    vendas.filter((v) => porVenda.has(v.id) || (v.org && porOrg.has(v.org))).map((v) => v.id),
+  );
+}
 
 type Rotulos = Map<string, Map<string, string>>;
 export function rotuladorDe(campos: any[]): (chave: string, valor: any) => string | null {
@@ -708,6 +750,22 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   const candidatas = vendas
     .filter((v) => (ganhoEm(v) ?? "") >= op.vendasDesde && !vendasVistas.has(Number(v.id)))
     .sort((a, b) => String(a.won_time).localeCompare(String(b.won_time)));
+  // Assinatura: das vendas candidatas e das que já viraram card, para saber quem entrou antes de assinar.
+  const criadosAntes = entradas.filter((e) => e.status === "criado" && e.deal_id);
+  const assinadas = op.exigirAssinatura
+    ? await vendasAssinadas(
+        store,
+        [
+          ...candidatas.map((v) => ({ id: Number(v.id), org: id(v.org_id) })),
+          ...criadosAntes.map((e) => ({
+            id: Number(e.venda_id),
+            org: e.org_id ? Number(e.org_id) : null,
+          })),
+        ],
+        op.vendasDesde,
+      )
+    : null;
+  const aguardando: any[] = [];
   for (const venda of candidatas) {
     const el = elegibilidade(venda);
     const org = id(venda.org_id);
@@ -726,6 +784,15 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
           motivo: "um card por conta",
           ganho_em: ganhoEm(venda),
         });
+      continue;
+    }
+    if (assinadas && !assinadas.has(Number(venda.id))) {
+      aguardando.push({
+        venda_id: Number(venda.id),
+        org_id: org,
+        venda: texto(venda.title),
+        ganho_em: ganhoEm(venda),
+      });
       continue;
     }
     if (Date.now() - comeco > orcamento) break;
@@ -902,6 +969,13 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       a_criar_ou_criadas: previaEntradas.length,
       criadas: criadas.length,
       fora_da_regra: foraDaRegra,
+      exige_assinatura: !!op.exigirAssinatura,
+      aguardando_assinatura: aguardando.length,
+      cards_sem_assinatura: assinadas
+        ? criadosAntes
+            .filter((e) => !assinadas.has(Number(e.venda_id)))
+            .map((e) => Number(e.deal_id))
+        : [],
     },
     tarefas: {
       ligada: op.tarefasAtiva,
@@ -921,6 +995,7 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     previa: {
       gerada_em: agora.toISOString(),
       entradas: op.entradaAtiva ? [] : previaEntradas,
+      aguardando_assinatura: aguardando,
       tarefas: op.tarefasAtiva ? [] : previaTarefas,
     },
     resumo,

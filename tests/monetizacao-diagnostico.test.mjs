@@ -465,3 +465,94 @@ test("base antiga protegida: conta no pipe 40 não sobe para o 39, fora o perdid
   );
   assert.ok(FORA_DO_ENVIO_39.has(MATHEUS));
 });
+
+// ---------------------------------------------------------------------------- assinatura (19/10/2026)
+
+test("assinatura: venda sem contrato assinado espera, não vira card e é relida; assinada entra", async () => {
+  const f = fakes({ vendas: VENDAS, deals: [] });
+  const assinaturas = [];
+  f.store.assinaturas = async (vendas, orgs) =>
+    assinaturas.filter(
+      (a) =>
+        vendas.includes(Number(a.pipedrive_deal_id)) || orgs.includes(Number(a.org_id_pipedrive)),
+    );
+  const op = {
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    vendasDesde: "2026-10-01",
+    exigirAssinatura: true,
+  };
+  const r1 = await rodarDiagnostico(op);
+  assert.equal(r1.entrada.criadas, 0);
+  assert.equal(r1.entrada.aguardando_assinatura, 2, "venda 1 e a 3, da mesma conta, esperam");
+  assert.equal(
+    f.estado.entradas.length,
+    0,
+    "quem espera não é gravado: é relido na próxima rodada",
+  );
+  assert.equal(f.chamadas.filter((c) => c[0] === "post").length, 0);
+  assert.equal(f.estado.retrato.previa.aguardando_assinatura.length, 2);
+
+  // Contrato antigo da mesma empresa (antes de vendasDesde) não vale; o da própria venda vale.
+  assinaturas.push({
+    pipedrive_deal_id: null,
+    org_id_pipedrive: "11",
+    data_assinatura: "2025-03-01",
+  });
+  assert.equal((await rodarDiagnostico(op)).entrada.criadas, 0);
+  assinaturas.push({
+    pipedrive_deal_id: "1",
+    org_id_pipedrive: "11",
+    data_assinatura: "2026-10-16",
+  });
+  const r3 = await rodarDiagnostico(op);
+  assert.equal(r3.entrada.criadas, 1);
+  assert.deepEqual(
+    f.estado.entradas.map((e) => [e.venda_id, e.status]),
+    [
+      [1, "criado"],
+      [3, "conta_ja_no_pipe"],
+    ],
+  );
+  assert.deepEqual(r3.entrada.cards_sem_assinatura, []);
+});
+
+test("assinatura: card criado antes da trava sem contrato assinado aparece no resumo", async () => {
+  const f = fakes({
+    vendas: VENDAS,
+    deals: [],
+    entradas: [{ venda_id: 1, org_id: 11, deal_id: 900, status: "criado" }],
+  });
+  f.store.assinaturas = async () => [];
+  const r = await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    vendasDesde: "2026-10-01",
+    exigirAssinatura: true,
+  });
+  assert.deepEqual(r.entrada.cards_sem_assinatura, [900]);
+  assert.equal(r.entrada.exige_assinatura, true);
+});
+
+test("assinatura: sem a trava, a regra antiga (só o ganho) continua", async () => {
+  const f = fakes({ vendas: VENDAS, deals: [] });
+  const r = await rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: true,
+    tarefasAtiva: false,
+    inicio: null,
+    vendasDesde: "2026-10-01",
+  });
+  assert.equal(r.entrada.criadas, 1);
+  assert.equal(r.entrada.aguardando_assinatura, 0);
+});
