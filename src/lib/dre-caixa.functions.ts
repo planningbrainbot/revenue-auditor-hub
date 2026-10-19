@@ -164,6 +164,15 @@ export interface BiPlanilha {
     por_mes: Record<string, { valor: number; parcelas: number }>;
     atrasado: { valor: number; parcelas: number };
   };
+  /** Funil do CAC da DRE Aquisição, meses realizados: base do ROAS de vendas, contratos e caixa. */
+  roas_cac?: {
+    meses: string[];
+    midia_cac: number[];
+    termos: number[];
+    contratos: number[];
+    cac_recebido: number[];
+    midia_paga: number[];
+  };
 }
 
 export const carregarDreCaixa = createServerFn({ method: "GET" })

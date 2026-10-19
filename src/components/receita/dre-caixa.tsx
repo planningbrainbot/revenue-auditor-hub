@@ -9,6 +9,7 @@ import {
   ComposedChart,
   Legend,
   Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -36,7 +37,7 @@ import {
 } from "@/components/planning";
 import { cn } from "@/lib/utils";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
-import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
 import { MolduraReceita, brlOuTraco } from "@/components/receita/moldura";
 import { VendasRoas } from "@/components/receita/vendas-roas";
 import {
@@ -877,8 +878,15 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
     for (let n = i0 + 1; n < D.dre.length && D.dre[n].nivel === 3; n++) out.push(D.dre[n]);
     return out;
   }, [D]);
+  // ROAS do funil do CAC (DRE Aquisição): vendas e contratos sobre a mídia de CAC do mês
+  // (mídia paga − reembolsos); caixa = CAC recebido sobre a mídia de CAC paga no mês, a
+  // investida no mês anterior (pagamento em 30 dias).
+  const R = D.bi?.roas_cac;
+  const razao = (n: number | undefined, d: number | undefined) =>
+    n !== undefined && d ? n / d : null;
   const linhas = idx.map((i) => {
     const retorno = S.cac[i] + S.reembUnid[i] + S.reembOutras[i];
+    const j = R ? R.meses.indexOf(D.meses[i]) : -1;
     return {
       i,
       r: rot(D.meses[i]),
@@ -889,8 +897,23 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
       retorno,
       saldo: S.midia[i] + retorno,
       ebit: S.ebit[i],
+      roasVendas: j >= 0 ? razao(R!.termos[j], R!.midia_cac[j]) : null,
+      roasContratos: j >= 0 ? razao(R!.contratos[j], R!.midia_cac[j]) : null,
+      roasCaixa: j >= 0 ? razao(R!.cac_recebido[j], R!.midia_paga[j]) : null,
     };
   });
+  const roasFmt = (v: number | null) => (v === null ? "—" : v.toFixed(2).replace(".", ","));
+  const somaR = (k: "midia_cac" | "termos" | "contratos" | "cac_recebido" | "midia_paga") =>
+    idx.reduce((s, i) => {
+      const j = R ? R.meses.indexOf(D.meses[i]) : -1;
+      return s + (j >= 0 ? (R![k][j] ?? 0) : 0);
+    }, 0);
+  const roasPeriodo = {
+    vendas: razao(somaR("termos"), somaR("midia_cac")),
+    contratos: razao(somaR("contratos"), somaR("midia_cac")),
+    caixa: razao(somaR("cac_recebido"), somaR("midia_paga")),
+  };
+  const temRoas = linhas.some((x) => x.roasVendas !== null || x.roasCaixa !== null);
   const T = linhas.reduce(
     (a, x) => ({
       midia: a.midia + x.midia,
@@ -949,6 +972,57 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+        {temRoas && (
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              ROAS por mês: vendas e contratos sobre a mídia de CAC do mês (mídia paga menos os
+              reembolsos); caixa é o CAC recebido sobre a mídia de CAC paga no mês. A linha
+              tracejada é o ROAS 1.
+            </p>
+            <div className="h-56">
+              <ResponsiveContainer>
+                <LineChart data={linhas} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+                  <CartesianGrid {...gradeProps} />
+                  <XAxis dataKey="r" {...eixoProps} />
+                  <YAxis {...eixoProps} width={64} tickFormatter={(v: number) => roasFmt(v)} />
+                  <Tooltip
+                    {...tooltipProps}
+                    formatter={(v: number, n: string) => [roasFmt(v), n]}
+                  />
+                  <Legend {...legendaProps} />
+                  <ReferenceLine y={1} {...linhaMetaProps} />
+                  <Line
+                    dataKey="roasVendas"
+                    name="ROAS de vendas"
+                    stroke={CORES_SERIE[0]}
+                    strokeWidth={2}
+                    dot
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    dataKey="roasContratos"
+                    name="ROAS de contratos"
+                    stroke={CORES_SERIE[1]}
+                    strokeWidth={2}
+                    dot
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    dataKey="roasCaixa"
+                    name="ROAS de caixa"
+                    stroke={CORES_SERIE[2]}
+                    strokeWidth={2}
+                    dot
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
             <thead className="text-xs text-muted-foreground">
@@ -962,6 +1036,9 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
                 <th className="py-2 text-right font-medium">Saldo da mídia</th>
                 <th className="py-2 text-right font-medium">EBIT</th>
                 <th className="py-2 text-right font-medium">EBIT sem o saldo</th>
+                {temRoas && <th className="py-2 text-right font-medium">ROAS vendas</th>}
+                {temRoas && <th className="py-2 text-right font-medium">ROAS contratos</th>}
+                {temRoas && <th className="py-2 text-right font-medium">ROAS caixa</th>}
               </tr>
             </thead>
             <tbody>
@@ -978,6 +1055,9 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
                   <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>
                     {brlOuTraco(x.ebit - x.saldo)}
                   </td>
+                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasVendas)}</td>}
+                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasContratos)}</td>}
+                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasCaixa)}</td>}
                 </tr>
               ))}
               <tr className="font-semibold">
@@ -992,6 +1072,9 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
                 <td className={cn("py-2 text-right", corVariacao(T.ebit - T.saldo))}>
                   {brlOuTraco(T.ebit - T.saldo)}
                 </td>
+                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.vendas)}</td>}
+                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.contratos)}</td>}
+                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.caixa)}</td>}
               </tr>
             </tbody>
           </table>
