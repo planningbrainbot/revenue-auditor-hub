@@ -184,7 +184,6 @@ export function TratativasTab() {
   const perms = usePermissions();
   const [rows, setRows] = useState<Tratativa[]>([]);
   const [contratoPorDeal, setContratoPorDeal] = useState<Map<string, ContratoDeal>>(new Map());
-  const [empresasBaseNova, setEmpresasBaseNova] = useState<{ pipedrive_id: string | null; unidade: string | null }[]>([]);
   // null = a view não respondeu: o card fica "indisponível", não zero.
   const [pagamentoPorTratativa, setPagamentoPorTratativa] = useState<Map<number, SituacaoPagamento> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,17 +197,12 @@ export function TratativasTab() {
   const limparFiltros = useLimparFiltrosNaUrl(CHAVES_FILTRO);
 
   const carregar = useCallback(async () => {
-    const [tratativasRes, contratosRes, empresasRes, pagamentoRes] = await Promise.all([
+    const [tratativasRes, contratosRes, pagamentoRes] = await Promise.all([
       supabase
         .from("central_tratativas")
         .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id,pipefy_card_id")
         .limit(5000),
       lerContratos(),
-      supabase
-        .from("empresas")
-        .select("pipedrive_id,unidade")
-        .eq("tipo_unidade", "franquia")
-        .limit(5000),
       // Pagou algum honorário antes de sair? Resolvido no banco (Omie por CNPJ
       // ou nome + pipe Cobrança CAC): ver ops.v_tratativas_primeiro_pagamento.
       // A view ainda não está nos tipos gerados.
@@ -220,7 +214,6 @@ export function TratativasTab() {
     const falhas: string[] = [];
     if (tratativasRes.error) falhas.push(`central_tratativas (Central de Tratativas): ${tratativasRes.error.message}`);
     if (contratosRes.error) falhas.push(`contratos (data do ganho e MRR): ${contratosRes.error.message}`);
-    if (empresasRes.error) falhas.push(`empresas (base para o churn blended): ${empresasRes.error.message}`);
     setErros(falhas);
     // Falha aqui não derruba a aba: só o card de 1º pagamento fica indisponível.
     if (pagamentoRes.error) {
@@ -247,9 +240,6 @@ export function TratativasTab() {
         }
       }
       setContratoPorDeal(map);
-    }
-    if (empresasRes.data) {
-      setEmpresasBaseNova(empresasRes.data as { pipedrive_id: string | null; unidade: string | null }[]);
     }
     setLoading(false);
   }, []);
@@ -293,12 +283,13 @@ export function TratativasTab() {
     return contratoPorDeal.get(String(r.pipedrive_deal_id))?.ganhoEm ?? null;
   }
 
-  // MRR do contrato no Pipedrive (fonte de verdade de MRR), não o `mrr_r` do
-  // card: o sync do Pipefy lê "3.300" como 3,3 e "700,00" como 70.000.
-  // Sem contrato casado pelo deal, o MRR fica sem dado em vez de errado.
+  // MRR do contrato no Pipedrive (fonte de verdade de MRR). Sem contrato casado
+  // pelo deal, vale o `mrr_r` do card, lido certo pelo sync desde 19/10/2026
+  // (antes "3.300,00" virava 3,3 e "700,00" virava 70.000).
   function mrrDe(r: Tratativa): number | null {
-    if (r.pipedrive_deal_id == null) return null;
-    return contratoPorDeal.get(String(r.pipedrive_deal_id))?.mrr ?? null;
+    const doContrato =
+      r.pipedrive_deal_id == null ? undefined : contratoPorDeal.get(String(r.pipedrive_deal_id))?.mrr;
+    return doContrato ?? r.mrr;
   }
 
   function fmtTenure(dias: number | null): string {
@@ -361,17 +352,21 @@ export function TratativasTab() {
     return new Set(perdidosEscopo.map((r) => String(r.pipedrive_deal_id)).filter((id) => id !== "null"));
   }, [visiveis, unidadeFilter]);
 
+  // Base nova = deals da rede com contrato ganho no Pipedrive, a mesma base do
+  // churn mês a mês. Antes vinha de `empresas`, que traz a carteira antiga das
+  // unidades e passava do corte de 1000 linhas: o denominador era quem coubesse.
   const baseNovaStats = useMemo(() => {
-    const escopo = empresasBaseNova.filter((e) => {
-      if (perms.scopedToOwnUnit && perms.unidade && !unitMatches(perms.unidade, e.unidade ?? "")) return false;
-      if (unidadeFilter !== TODOS && (e.unidade ?? NA) !== unidadeFilter) return false;
-      return true;
-    });
-    const ativos = escopo.filter(
-      (e) => !e.pipedrive_id || !churnedIdsEscopo.has(String(e.pipedrive_id)),
-    ).length;
-    return { total: escopo.length, ativos };
-  }, [empresasBaseNova, perms.scopedToOwnUnit, perms.unidade, unidadeFilter, churnedIdsEscopo]);
+    let total = 0;
+    let ativos = 0;
+    for (const [deal, c] of contratoPorDeal) {
+      if (!c.daRede) continue;
+      if (perms.scopedToOwnUnit && perms.unidade && !unitMatches(perms.unidade, c.unidade ?? "")) continue;
+      if (unidadeFilter !== TODOS && (c.unidade ?? NA) !== unidadeFilter) continue;
+      total += 1;
+      if (!churnedIdsEscopo.has(deal)) ativos += 1;
+    }
+    return { total, ativos };
+  }, [contratoPorDeal, perms.scopedToOwnUnit, perms.unidade, unidadeFilter, churnedIdsEscopo]);
 
   const kpis = useMemo(() => {
     let perdidos = 0;
@@ -501,7 +496,7 @@ export function TratativasTab() {
       mrrBase: number;
       perdidos: number;
       mrrPerdido: number;
-      semContrato: number;
+      semMrr: number;
       logo: number | null;
       receita: number | null;
     }[] = [];
@@ -518,12 +513,12 @@ export function TratativasTab() {
       }
       let nPerdidos = 0;
       let mrrPerdido = 0;
-      let semContrato = 0;
+      let semMrr = 0;
       for (const r of perdidos) {
         if (mesDaData(r.data_churn!) !== m) continue;
         nPerdidos += 1;
         const mrr = mrrDe(r);
-        if (mrr == null) semContrato += 1;
+        if (mrr == null) semMrr += 1;
         else mrrPerdido += mrr;
       }
       meses.push({
@@ -532,7 +527,7 @@ export function TratativasTab() {
         mrrBase,
         perdidos: nPerdidos,
         mrrPerdido,
-        semContrato,
+        semMrr,
         logo: nBase > 0 ? (nPerdidos / nBase) * 100 : null,
         receita: mrrBase > 0 ? (mrrPerdido / mrrBase) * 100 : null,
       });
@@ -540,7 +535,7 @@ export function TratativasTab() {
     return meses;
   }, [visiveis, contratoPorDeal, unidadeFilter, perms.scopedToOwnUnit, perms.unidade, dateFrom, dateTo]);
 
-  const semContratoNoMensal = churnMensal.reduce((a, m) => a + m.semContrato, 0);
+  const semMrrNoMensal = churnMensal.reduce((a, m) => a + m.semMrr, 0);
 
   const tabela = useMemo(
     () =>
@@ -614,7 +609,7 @@ export function TratativasTab() {
           valor={fmtPct(kpis.taxaChurnBlended)}
           estado={kpis.taxaChurnBlended == null ? "nao-apurado" : "ok"}
           tom="perigo"
-          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} ativos (base nova) · ignora busca, status e período`}
+          nota={`${kpis.churnBlendedNum} churn / ${kpis.churnBlendedDenom} clientes ativos com contrato na rede · ignora busca, status e período`}
         />
         <KpiCard
           rotulo="Tempo médio até churn"
@@ -766,8 +761,8 @@ export function TratativasTab() {
       <Secao
         titulo="Como o churn evolui mês a mês?"
         descricao={
-          "Base = contratos da rede ganhos no Pipedrive antes do dia 1 e sem churn registrado antes · MRR do contrato · segue unidade e período, ignora busca e status" +
-          (semContratoNoMensal > 0 ? ` · ${semContratoNoMensal} perdido(s) sem contrato casado, fora do MRR` : "")
+          "Base = contratos da rede ganhos no Pipedrive antes do dia 1 e sem churn registrado antes · MRR do contrato (do card quando não há contrato) · segue unidade e período, ignora busca e status" +
+          (semMrrNoMensal > 0 ? ` · ${semMrrNoMensal} perdido(s) sem MRR no contrato nem no card` : "")
         }
       >
       {churnMensal.length === 0 ? (

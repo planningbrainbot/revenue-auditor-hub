@@ -369,8 +369,8 @@ export function ContratosClientes({
         supabase
           .from("central_tratativas")
           .select("pipedrive_deal_id")
-          // status="lost" é derivado do id da fase no Pipefy (ver PHASE_STATUS em
-          // tratativas.functions.ts), não do nome — resiliente a rename de fase.
+          // status="lost" é derivado do id da fase no Pipefy (ver FASE_ESTADO em
+          // supabase/functions/pipefy-tratativas-sync/domain.mjs), não do nome — resiliente a rename de fase.
           // A fase "Perdido" virou "Churn Confirmado (Perdido)" em ago/2026 e um
           // filtro por nome (.eq("estagio","Perdido")) zerava o churn aqui.
           .eq("status", "lost")
