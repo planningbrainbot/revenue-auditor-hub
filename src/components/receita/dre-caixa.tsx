@@ -40,6 +40,7 @@ import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, linhaMetaProps, tooltipProps } from "@/lib/planning/grafico";
 import { MolduraReceita, brlOuTraco } from "@/components/receita/moldura";
 import { VendasRoas } from "@/components/receita/vendas-roas";
+import { FunilCacContent } from "@/components/cac/funil-cac-content";
 import {
   carregarDreCaixa,
   type Conferencia,
@@ -90,6 +91,7 @@ const ASSUNTOS: Record<string, { titulo: string; pergunta: string }> = {
   inadimplencia: { titulo: "Inadimplência", pergunta: "Quem deve à Partners e às unidades?" },
   midia: { titulo: "Mídia", pergunta: "A mídia se paga?" },
   "midia-cac": { titulo: "Mídia × CAC", pergunta: "A mídia própria volta como CAC?" },
+  "funil-cac": { titulo: "Funil de CAC", pergunta: "Onde a venda deixa de virar cobrança e caixa?" },
   vendas: { titulo: "Vendas e ROAS", pergunta: "Quanto a rede vendeu, a mídia se paga e quando o CAC entra no caixa?" },
   eficiencia: { titulo: "Eficiência", pergunta: "Quanto custa vender um cliente, e quanto ele devolve?" },
   conferencias: { titulo: "Conferências", pergunta: "O que falta para fechar o mês?" },
@@ -132,7 +134,14 @@ export function DreCaixaPagina() {
         ) : (
           <>
             <AvisoRetratoVelho gravadoEm={data.gravadoEm} />
-            {aba === "executiva" ? <VisaoExecutiva D={data.payload} /> : <Bi D={data.payload} aba={aba} />}
+            {aba === "executiva" ? (
+              <VisaoExecutiva D={data.payload} />
+            ) : aba === "funil-cac" ? (
+              // o funil lê ops.v_cac_funil direto, com filtros próprios (unidade, etapa, período)
+              <FunilCacContent escopo="rede" />
+            ) : (
+              <Bi D={data.payload} aba={aba} />
+            )}
           </>
         )}
       </div>

@@ -71,7 +71,23 @@ type Linha = {
   churn_origem: string | null;
   etapa: string;
   a_cobrar: number | null;
+  // parcelas lançadas no card de cobrança e a resposta "Recebemos?" (Sim/Não) de cada uma
+  lancado_p1?: number | null;
+  lancado_p2?: number | null;
+  recebido_p1?: boolean | null;
+  recebido_p2?: boolean | null;
 };
+
+/** CAC que a Partners recebeu da unidade: parcela lançada com "Recebemos? Sim" no card.
+ * Card em "Cobrança Concluída" sem resposta conta como recebido (regra de 16/10/2026). */
+function recebidoDe(r: Linha): number {
+  const concluida = r.fase_cac === "Cobrança Concluída";
+  const ok = (flag: boolean | null | undefined) => flag ?? concluida;
+  return (
+    (ok(r.recebido_p1) ? Number(r.lancado_p1 ?? 0) : 0) +
+    (ok(r.recebido_p2) ? Number(r.lancado_p2 ?? 0) : 0)
+  );
+}
 
 type Resumo = {
   unidade_id: number;
@@ -251,6 +267,10 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
   // crédito e abate o saldo de CAC (estorno no extrato do broker, regra de
   // 16/10/2026). O "Cobrado" mostra o líquido para não contar esse dinheiro.
   const cobradoLiquido = cobrado - churnCobrado;
+  const recebidoTotal = useMemo(
+    () => daUnidade.filter((r) => !r.churn).reduce((a, r) => a + recebidoDe(r), 0),
+    [daUnidade],
+  );
 
   // O funil anda em cima das vendas ELEGÍVEIS: unidade que cobra CAC e venda
   // depois de `cac_desde`. Sem esse recorte, São Bernardo (não cobra) e as
@@ -263,6 +283,7 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
       (r) => r.cac_card_id != null && r.etapa !== "card_em_outra_unidade",
     );
     const cobradas = comCard.filter((r) => !r.churn && Number(r.cobrado ?? 0) > 0);
+    const recebidas = cobradas.filter((r) => recebidoDe(r) > 0);
     const passo = (rotulo: string, rs: Linha[], valor?: number) => ({
       rotulo,
       n: rs.length,
@@ -278,6 +299,12 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
         "Cobrado (unidade do card)",
         cobradas,
         cobradas.reduce((a, r) => a + Number(r.cobrado ?? 0), 0),
+      ),
+      // Recebido: o que a unidade já pagou do que foi cobrado (resposta do card), 19/10/2026
+      passo(
+        "Recebido (confirmado no card)",
+        recebidas,
+        recebidas.reduce((a, r) => a + recebidoDe(r), 0),
       ),
     ];
   }, [daUnidade]);
@@ -695,6 +722,10 @@ export function FunilCacContent({ escopo = "rede" }: { escopo?: "rede" | "unidad
                 <div>
                   <span className="text-muted-foreground">Cobrado: </span>
                   <span className="font-semibold">{fmtBRL(cobradoLiquido)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Recebido: </span>
+                  <span className="font-semibold">{fmtBRL(recebidoTotal)}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">A cobrar: </span>

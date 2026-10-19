@@ -457,6 +457,8 @@ export const AREAS: Area[] = [
         items: [
           { title: "Mídia", url: "/bi-financeiro?aba=midia", icon: Coins },
           { title: "Mídia × CAC", url: "/bi-financeiro?aba=midia-cac", icon: Filter },
+          // Funil de CAC (19/10/2026): o mesmo de /unidades/funil-cac, com o degrau Recebido.
+          { title: "Funil de CAC", url: "/bi-financeiro?aba=funil-cac", icon: Target },
           // Aba Vendas e ROAS (19/10/2026): vendas da rede toda, ROAS fato × safra e agenda do CAC.
           { title: "Vendas e ROAS", url: "/bi-financeiro?aba=vendas", icon: TrendingUp },
           { title: "Eficiência", url: "/bi-financeiro?aba=eficiencia", icon: Percent },
