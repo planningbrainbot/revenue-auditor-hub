@@ -5646,3 +5646,18 @@ O dono pediu para não depender dos closers e para a tela ficar "sexy e didátic
 **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` passou nas 6 checagens.
 
 **Contrato:** `docs/design/contratos/monetizacao-consultoria-funil.md`.
+
+## 2026-10-19 · BI Financeiro: aba Vendas e ROAS
+
+`/dre-caixa?aba=vendas`. Responde por que o Funil de CAC mostra menos que o BI do Pipedrive, se a mídia se paga e
+quando o CAC das vendas entra no caixa. Dado em `ops.dre_caixa.payload.vendas`, gravado por
+`tools/vendas_roas_planilha.py --gravar` (repo ai-projects-scripts) e pela rodada de `dre_caixa_payload.py`.
+
+- **Venda:** deal ganho no pipeline Inside Sales do Pipedrive (`growth.deals`), rede toda, valor = `mrr_efetivo`. O Funil
+  de CAC vê só as unidades que pagam CAC ou têm card (jun–set/26: R$ 784 mil de R$ 1,0 mi).
+- **ROAS:** MRR ÷ mídia da finalidade `inside_sales` do mesmo mês. Fato = mês do ganho; safra = mês da criação do deal,
+  ganho até hoje. Safra com menos de 3 meses aparece "em maturação" e fica fora do ROAS safra do topo. Régua 0,70 do
+  Forecast Oficial. Com filtro de unidade a mídia continua a da rede (não há mídia por unidade).
+- **Agenda do CAC:** regras da aba CAC Agenda (`caixa_sheets.py`): 1ª parcela assinatura + 1 mês, 2ª competência + 2
+  meses, Recife as duas na competência; cobrada vencida vira atrasada no mês atual; termo sem contrato ponderado pela
+  conversão (recente) ou pela chance de 2+ meses (quase sempre quebra).

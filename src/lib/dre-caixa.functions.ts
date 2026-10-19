@@ -85,10 +85,42 @@ export interface DreCaixa {
     rede_por_mes: Record<string, { faturado: number; pago: number; vencido: number; royalty: number }>;
     sem_dado: string[];
   };
+  /** Ausente nos retratos anteriores a 19/10/2026. */
+  vendas?: VendasRetrato;
   cac?: Record<
     string,
     { vendas: number; cobrado: number; a_cobrar: number; estimado: number; churn: number }
   >;
+}
+
+/**
+ * Aba Vendas e ROAS (19/10/2026), gravada por tools/vendas_roas_planilha.py. Linhas cruas: a
+ * tela soma pelo período e pela unidade.
+ */
+export interface VendasRetrato {
+  gerado_em: string;
+  /** `YYYY-MM`, de jan/26 até o mês corrente. */
+  meses: string[];
+  /** Deals ganhos no pipeline Inside Sales, rede toda. `funil_cac`: unidade aparece no Funil de CAC. */
+  vendas: { titulo: string; unidade: string; criado: string; ganho: string; mrr: number; funil_cac: boolean }[];
+  /** Mídia da finalidade inside_sales por mês. */
+  midia: Record<string, number>;
+  /** Deals criados no mês (safra), rede toda: ganhos até hoje, abertos e MRR ganho. */
+  safra: Record<string, { criados: number; ganhos: number; abertos: number; mrr: number }>;
+  /** Parcelas de CAC. `mes_caixa` é `YYYY-MM` ou "sem data"; esperado = valor × peso. */
+  agenda: {
+    unidade: string;
+    cliente: string;
+    parcela: string;
+    valor: number;
+    peso: number;
+    situacao: "recebida" | "atrasada" | "cobrada" | "a cobrar" | "termo sem contrato";
+    termo: string;
+    assinatura: string;
+    competencia: string;
+    mes_caixa: string;
+  }[];
+  premissas: { conv: number; chance_m2: number; lag_p1: number; lag_p2: number; lag_comp: number };
 }
 
 export const carregarDreCaixa = createServerFn({ method: "GET" })

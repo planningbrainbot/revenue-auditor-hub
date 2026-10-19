@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
 import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
 import { MolduraReceita, brlOuTraco } from "@/components/receita/moldura";
+import { VendasRoas } from "@/components/receita/vendas-roas";
 import {
   carregarDreCaixa,
   type Conferencia,
@@ -165,6 +166,7 @@ function Bi({ D }: { D: DreCaixa }) {
           <TabsTrigger value="variacao">Variação</TabsTrigger>
           <TabsTrigger value="midia">Mídia</TabsTrigger>
           <TabsTrigger value="midia-cac">Mídia × CAC</TabsTrigger>
+          <TabsTrigger value="vendas">Vendas e ROAS</TabsTrigger>
           <TabsTrigger value="eficiencia">Eficiência</TabsTrigger>
           <TabsTrigger value="inadimplencia">Inadimplência</TabsTrigger>
           <TabsTrigger value="caixa">Caixa</TabsTrigger>
@@ -194,6 +196,9 @@ function Bi({ D }: { D: DreCaixa }) {
         </TabsContent>
         <TabsContent value="midia-cac" className="mt-4 flex flex-col gap-5">
           <MidiaCac D={D} idx={idx} />
+        </TabsContent>
+        <TabsContent value="vendas" className="mt-4 flex flex-col gap-5">
+          <VendasRoas D={D} idx={idx} />
         </TabsContent>
         <TabsContent value="eficiencia" className="mt-4 flex flex-col gap-5">
           <Eficiencia D={D} idx={idx} />
