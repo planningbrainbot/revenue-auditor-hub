@@ -8,6 +8,8 @@ import { syncTratativas } from "@/lib/tratativas.functions";
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -70,6 +72,56 @@ type Tratativa = {
 
 type SituacaoPagamento = "pagou" | "nao_pagou" | "sem_dado";
 
+type ContratoLinha = {
+  pipedrive_deal_id: string | null;
+  ganho_em: string | null;
+  mrr: number | null;
+  mrr_mensal: number | null;
+  mrr_override: number | null;
+  unidade: string | null;
+  tipo_unidade: string | null;
+};
+
+// Um deal pode ter várias linhas (uma por produto): ganho é a primeira data,
+// MRR é a soma. Mesma régua do funil da rede: override vence mrr_mensal.
+type ContratoDeal = { ganhoEm: string; mrr: number; unidade: string | null; daRede: boolean };
+
+function mrrDaLinha(c: ContratoLinha): number {
+  if (c.mrr_override != null && Number(c.mrr_override) > 0) return Number(c.mrr_override);
+  if (c.mrr_mensal != null) return Number(c.mrr_mensal);
+  return c.mrr != null ? Number(c.mrr) / 12 : 0;
+}
+
+// O PostgREST corta em 1000 linhas mesmo com `.limit()` maior: paginar.
+async function lerContratos(): Promise<{ data: ContratoLinha[] | null; error: { message: string } | null }> {
+  const PAGINA = 1000;
+  const todos: ContratoLinha[] = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await supabase
+      .from("contratos")
+      .select("pipedrive_deal_id,ganho_em,mrr,mrr_mensal,mrr_override,unidade,tipo_unidade")
+      .not("pipedrive_deal_id", "is", null)
+      .not("ganho_em", "is", null)
+      .order("id")
+      .range(de, de + PAGINA - 1);
+    if (error) return { data: null, error };
+    // mrr_override ainda não está nos tipos gerados.
+    todos.push(...((data ?? []) as unknown as ContratoLinha[]));
+    if (!data || data.length < PAGINA) break;
+  }
+  return { data: todos, error: null };
+}
+
+function mesAtual(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function proximoMes(mesKey: string): string {
+  const [a, m] = mesKey.split("-").map(Number);
+  return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, "0")}`;
+}
+
 const NA = "—";
 const TODOS = "__all__";
 const CHAVES_FILTRO = ["q", "unidade", "status", "de", "ate"];
@@ -131,7 +183,7 @@ function statusBadge(status: string | null) {
 export function TratativasTab() {
   const perms = usePermissions();
   const [rows, setRows] = useState<Tratativa[]>([]);
-  const [ganhoEmPorDealId, setGanhoEmPorDealId] = useState<Map<string, string>>(new Map());
+  const [contratoPorDeal, setContratoPorDeal] = useState<Map<string, ContratoDeal>>(new Map());
   const [empresasBaseNova, setEmpresasBaseNova] = useState<{ pipedrive_id: string | null; unidade: string | null }[]>([]);
   // null = a view não respondeu: o card fica "indisponível", não zero.
   const [pagamentoPorTratativa, setPagamentoPorTratativa] = useState<Map<number, SituacaoPagamento> | null>(null);
@@ -151,12 +203,7 @@ export function TratativasTab() {
         .from("central_tratativas")
         .select("id,titulo,estagio,status,unidade,mrr,update_time,stage_change_time,motivo,observacao,data_churn,pipedrive_deal_id,pipefy_card_id")
         .limit(5000),
-      supabase
-        .from("contratos")
-        .select("pipedrive_deal_id,ganho_em")
-        .not("pipedrive_deal_id", "is", null)
-        .not("ganho_em", "is", null)
-        .limit(10000),
+      lerContratos(),
       supabase
         .from("empresas")
         .select("pipedrive_id,unidade")
@@ -172,7 +219,7 @@ export function TratativasTab() {
     // que falhou é nomeada no EstadoErro.
     const falhas: string[] = [];
     if (tratativasRes.error) falhas.push(`central_tratativas (Central de Tratativas): ${tratativasRes.error.message}`);
-    if (contratosRes.error) falhas.push(`contratos (data do ganho): ${contratosRes.error.message}`);
+    if (contratosRes.error) falhas.push(`contratos (data do ganho e MRR): ${contratosRes.error.message}`);
     if (empresasRes.error) falhas.push(`empresas (base para o churn blended): ${empresasRes.error.message}`);
     setErros(falhas);
     // Falha aqui não derruba a aba: só o card de 1º pagamento fica indisponível.
@@ -185,11 +232,21 @@ export function TratativasTab() {
     }
     if (tratativasRes.data) setRows(tratativasRes.data as Tratativa[]);
     if (contratosRes.data) {
-      const map = new Map<string, string>();
-      for (const c of contratosRes.data as { pipedrive_deal_id: string | null; ganho_em: string | null }[]) {
-        if (c.pipedrive_deal_id && c.ganho_em) map.set(String(c.pipedrive_deal_id), c.ganho_em);
+      const map = new Map<string, ContratoDeal>();
+      for (const c of contratosRes.data) {
+        if (!c.pipedrive_deal_id || !c.ganho_em) continue;
+        const k = String(c.pipedrive_deal_id);
+        const atual = map.get(k);
+        const daRede = c.tipo_unidade === "franquia" && isUnidadeDaRede(c.unidade);
+        if (!atual) {
+          map.set(k, { ganhoEm: c.ganho_em, mrr: mrrDaLinha(c), unidade: c.unidade, daRede });
+        } else {
+          atual.mrr += mrrDaLinha(c);
+          if (c.ganho_em < atual.ganhoEm) atual.ganhoEm = c.ganho_em;
+          atual.daRede = atual.daRede || daRede;
+        }
       }
-      setGanhoEmPorDealId(map);
+      setContratoPorDeal(map);
     }
     if (empresasRes.data) {
       setEmpresasBaseNova(empresasRes.data as { pipedrive_id: string | null; unidade: string | null }[]);
@@ -223,7 +280,7 @@ export function TratativasTab() {
 
   function tenureDias(r: Tratativa): number | null {
     if (r.pipedrive_deal_id == null || !r.data_churn) return null;
-    const ganhoEm = ganhoEmPorDealId.get(String(r.pipedrive_deal_id));
+    const ganhoEm = contratoPorDeal.get(String(r.pipedrive_deal_id))?.ganhoEm;
     if (!ganhoEm) return null;
     const inicio = new Date(ganhoEm).getTime();
     const fim = new Date(r.data_churn).getTime();
@@ -233,7 +290,15 @@ export function TratativasTab() {
 
   function ganhoEmDe(r: Tratativa): string | null {
     if (r.pipedrive_deal_id == null) return null;
-    return ganhoEmPorDealId.get(String(r.pipedrive_deal_id)) ?? null;
+    return contratoPorDeal.get(String(r.pipedrive_deal_id))?.ganhoEm ?? null;
+  }
+
+  // MRR do contrato no Pipedrive (fonte de verdade de MRR), não o `mrr_r` do
+  // card: o sync do Pipefy lê "3.300" como 3,3 e "700,00" como 70.000.
+  // Sem contrato casado pelo deal, o MRR fica sem dado em vez de errado.
+  function mrrDe(r: Tratativa): number | null {
+    if (r.pipedrive_deal_id == null) return null;
+    return contratoPorDeal.get(String(r.pipedrive_deal_id))?.mrr ?? null;
   }
 
   function fmtTenure(dias: number | null): string {
@@ -320,11 +385,11 @@ export function TratativasTab() {
     let perdidosSemDadoPagamento = 0;
     for (const r of filtered) {
       const s = (r.status ?? "").toLowerCase();
-      const mrr = r.mrr ?? 0;
+      const mrr = mrrDe(r) ?? 0;
       if (s === "lost") {
         perdidos += 1;
         mrrPerdido += mrr;
-        if (r.mrr == null) perdidosSemMrr += 1;
+        if (mrrDe(r) == null) perdidosSemMrr += 1;
         const t = tenureDias(r);
         if (t != null) tenures.push(t);
         const pg = pagamentoPorTratativa?.get(r.id);
@@ -361,7 +426,7 @@ export function TratativasTab() {
       tetoChurnAntesPagamento:
         perdidos > 0 ? ((churnAntesPagamento + perdidosSemDadoPagamento) / perdidos) * 100 : null,
     };
-  }, [filtered, ganhoEmPorDealId, baseNovaStats, churnedIdsEscopo, pagamentoPorTratativa]);
+  }, [filtered, contratoPorDeal, baseNovaStats, churnedIdsEscopo, pagamentoPorTratativa]);
 
   const motivosPerda = useMemo(() => {
     const map = new Map<string, { motivo: string; count: number; mrr: number }>();
@@ -371,11 +436,11 @@ export function TratativasTab() {
       if (!motivo) continue;
       const g = map.get(motivo) ?? { motivo, count: 0, mrr: 0 };
       g.count += 1;
-      g.mrr += r.mrr ?? 0;
+      g.mrr += mrrDe(r) ?? 0;
       map.set(motivo, g);
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [filtered]);
+  }, [filtered, contratoPorDeal]);
 
   const perdidosSemMotivo = useMemo(
     () => filtered.filter((r) => (r.status ?? "").toLowerCase() === "lost" && !(r.motivo ?? "").trim()).length,
@@ -391,28 +456,91 @@ export function TratativasTab() {
       const s = (r.status ?? "").toLowerCase();
       if (s === "lost") {
         g.perdidos += 1;
-        g.mrrPerdido += r.mrr ?? 0;
+        g.mrrPerdido += mrrDe(r) ?? 0;
       } else if (s === "won") {
         g.recuperados += 1;
       }
       map.set(u, g);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [filtered, contratoPorDeal]);
 
-  const mrrPerdidoPorMes = useMemo(() => {
-    const map = new Map<string, { mes: string; mrr: number; qtd: number }>();
-    for (const r of filtered) {
-      if ((r.status ?? "").toLowerCase() !== "lost" || !r.data_churn) continue;
-      const key = mesDaData(r.data_churn);
-      if (!key) continue;
-      const g = map.get(key) ?? { mes: key, mrr: 0, qtd: 0 };
-      g.mrr += r.mrr ?? 0;
-      g.qtd += 1;
-      map.set(key, g);
+  // Churn mês a mês. Base do mês = contratos da rede ganhos antes do dia 1 e
+  // sem churn registrado antes dele. Logo churn = perdidos no mês ÷ base;
+  // churn de receita = MRR (contrato) dos perdidos ÷ MRR da base. Segue unidade
+  // e período; ignora busca e status, porque o universo é sempre os perdidos.
+  const churnMensal = useMemo(() => {
+    const perdidos = visiveis.filter(
+      (r) =>
+        (unidadeFilter === TODOS || (r.unidade ?? NA) === unidadeFilter) &&
+        (r.status ?? "").toLowerCase() === "lost" &&
+        r.data_churn,
+    );
+    const mesChurnPorDeal = new Map<string, string>();
+    for (const r of perdidos) {
+      if (r.pipedrive_deal_id == null) continue;
+      const m = mesDaData(r.data_churn!);
+      const k = String(r.pipedrive_deal_id);
+      if (m && (!mesChurnPorDeal.has(k) || m < mesChurnPorDeal.get(k)!)) mesChurnPorDeal.set(k, m);
     }
-    return Array.from(map.values()).sort((a, b) => a.mes.localeCompare(b.mes));
-  }, [filtered]);
+    const base: { ganhoMes: string; mrr: number; churnMes: string | null }[] = [];
+    for (const [deal, c] of contratoPorDeal) {
+      if (!c.daRede) continue;
+      if (perms.scopedToOwnUnit && perms.unidade && !unitMatches(perms.unidade, c.unidade ?? "")) continue;
+      if (unidadeFilter !== TODOS && (c.unidade ?? NA) !== unidadeFilter) continue;
+      const ganhoMes = mesDaData(c.ganhoEm);
+      if (ganhoMes) base.push({ ganhoMes, mrr: c.mrr, churnMes: mesChurnPorDeal.get(deal) ?? null });
+    }
+    if (base.length === 0) return [];
+    const primeiro = base.reduce((min, b) => (b.ganhoMes < min ? b.ganhoMes : min), base[0].ganhoMes);
+    const de = dateFrom ? dateFrom.slice(0, 7) : "";
+    const ate = dateTo ? dateTo.slice(0, 7) : mesAtual();
+    const meses: {
+      mes: string;
+      base: number;
+      mrrBase: number;
+      perdidos: number;
+      mrrPerdido: number;
+      semContrato: number;
+      logo: number | null;
+      receita: number | null;
+    }[] = [];
+    // Começa no mês seguinte ao primeiro ganho: antes disso a base é zero.
+    for (let m = proximoMes(primeiro); m <= ate; m = proximoMes(m)) {
+      if (de && m < de) continue;
+      let nBase = 0;
+      let mrrBase = 0;
+      for (const b of base) {
+        if (b.ganhoMes < m && (b.churnMes == null || b.churnMes >= m)) {
+          nBase += 1;
+          mrrBase += b.mrr;
+        }
+      }
+      let nPerdidos = 0;
+      let mrrPerdido = 0;
+      let semContrato = 0;
+      for (const r of perdidos) {
+        if (mesDaData(r.data_churn!) !== m) continue;
+        nPerdidos += 1;
+        const mrr = mrrDe(r);
+        if (mrr == null) semContrato += 1;
+        else mrrPerdido += mrr;
+      }
+      meses.push({
+        mes: m,
+        base: nBase,
+        mrrBase,
+        perdidos: nPerdidos,
+        mrrPerdido,
+        semContrato,
+        logo: nBase > 0 ? (nPerdidos / nBase) * 100 : null,
+        receita: mrrBase > 0 ? (mrrPerdido / mrrBase) * 100 : null,
+      });
+    }
+    return meses;
+  }, [visiveis, contratoPorDeal, unidadeFilter, perms.scopedToOwnUnit, perms.unidade, dateFrom, dateTo]);
+
+  const semContratoNoMensal = churnMensal.reduce((a, m) => a + m.semContrato, 0);
 
   const tabela = useMemo(
     () =>
@@ -594,36 +722,89 @@ export function TratativasTab() {
         </Card>
         )}
         </Secao>
-        <Secao titulo="Quanto MRR perdemos em cada mês?" descricao="Perdidos com data de churn, em R$ por mês">
-        {mrrPerdidoPorMes.length === 0 ? (
+        <Secao
+          titulo="Quanto da base perdemos em cada mês?"
+          descricao="Logo churn (clientes) e churn de receita (MRR), em % da base no início do mês"
+        >
+        {churnMensal.length === 0 ? (
           <EstadoVazio
-            titulo="Nenhum churn com data registrada"
+            titulo="Sem base de contratos no recorte"
             total={filtroAtivo ? visiveis.length : undefined}
           />
         ) : (
         <Card className="p-4">
           <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mrrPerdidoPorMes}>
+                <LineChart data={churnMensal}>
                   <CartesianGrid {...gradeProps} />
                   <XAxis {...eixoProps} dataKey="mes" tickFormatter={fmtMesLabel} />
-                  <YAxis {...eixoProps} tickFormatter={(v) => fmtMoney(v)} width={90} />
+                  <YAxis {...eixoProps} tickFormatter={(v) => fmtPct(Number(v))} width={56} />
                   <Tooltip
                     {...tooltipProps}
                     labelFormatter={(v) => fmtMesLabel(String(v))}
-                    formatter={(value: number, name, item) => [
-                      fmtMoney(value),
-                      `MRR perdido (${item?.payload?.qtd ?? 0} caso(s))`,
-                    ]}
+                    formatter={(value: number, name, item) => {
+                      const p = item?.payload;
+                      const detalhe =
+                        name === "Logo churn"
+                          ? `${p?.perdidos ?? 0} de ${p?.base ?? 0} clientes`
+                          : `${fmtMoney(p?.mrrPerdido)} de ${fmtMoney(p?.mrrBase)}`;
+                      return [`${fmtPct(value)} (${detalhe})`, name];
+                    }}
                   />
-                  <Bar dataKey="mrr" fill={COR_NEGATIVO} name="MRR perdido" />
-                </BarChart>
+                  <Legend {...legendaProps} />
+                  <Line type="monotone" dataKey="logo" name="Logo churn" stroke={CORES_SERIE[0]} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line type="monotone" dataKey="receita" name="Churn de receita" stroke={CORES_SERIE[3]} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </LineChart>
               </ResponsiveContainer>
           </div>
         </Card>
         )}
         </Secao>
       </div>
+
+      {/* Churn mês a mês */}
+      <Secao
+        titulo="Como o churn evolui mês a mês?"
+        descricao={
+          "Base = contratos da rede ganhos no Pipedrive antes do dia 1 e sem churn registrado antes · MRR do contrato · segue unidade e período, ignora busca e status" +
+          (semContratoNoMensal > 0 ? ` · ${semContratoNoMensal} perdido(s) sem contrato casado, fora do MRR` : "")
+        }
+      >
+      {churnMensal.length === 0 ? (
+        <EstadoVazio titulo="Sem base de contratos no recorte" total={filtroAtivo ? visiveis.length : undefined} />
+      ) : (
+      <Card className="p-0 overflow-hidden">
+        <div className="overflow-auto max-h-[420px]">
+          <table className="w-full text-sm">
+            <TableHeader className="sticky top-0 z-10">
+              <TableRow>
+                <TableHead className="bg-background">Mês</TableHead>
+                <TableHead className="bg-background text-right">Clientes no início</TableHead>
+                <TableHead className="bg-background text-right">Perdidos</TableHead>
+                <TableHead className="bg-background text-right">Logo churn</TableHead>
+                <TableHead className="bg-background text-right">MRR no início</TableHead>
+                <TableHead className="bg-background text-right">MRR perdido</TableHead>
+                <TableHead className="bg-background text-right">Churn de receita</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...churnMensal].reverse().map((m) => (
+                <TableRow key={m.mes}>
+                  <TableCell className="font-medium">{fmtMesLabel(m.mes)}</TableCell>
+                  <TableCell className="num text-right">{m.base}</TableCell>
+                  <TableCell className="num text-right">{m.perdidos > 0 ? <span className="text-danger">{m.perdidos}</span> : 0}</TableCell>
+                  <TableCell className="num text-right">{fmtPct(m.logo)}</TableCell>
+                  <TableCell className="num text-right">{fmtMoney(m.mrrBase)}</TableCell>
+                  <TableCell className="num text-right">{m.mrrPerdido > 0 ? fmtMoney(m.mrrPerdido) : NA}</TableCell>
+                  <TableCell className="num text-right">{fmtPct(m.receita)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </table>
+        </div>
+      </Card>
+      )}
+      </Secao>
 
       {/* Motivos de perda */}
       <Secao
@@ -736,7 +917,7 @@ export function TratativasTab() {
                   <TableCell className="font-medium">{r.titulo ?? NA}</TableCell>
                   <TableCell>{r.unidade ?? NA}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="num text-right">{fmtMoney(r.mrr)}</TableCell>
+                  <TableCell className="num text-right">{fmtMoney(mrrDe(r))}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={r.motivo ?? undefined}>
                     {r.motivo ?? NA}
                   </TableCell>
