@@ -135,6 +135,8 @@ export type BuscaMonetizacao = {
   /** Tela Consultoria: a visão aberta. Ausente = Funil; "fila" = Fila de cobrança; "handoff" = Handoff e repasse;
    *  "empresa" = Buscar empresa (o texto da busca vai em `q`). Tela Pré-venda: ausente = Ritmo; "aderencia"; "ficha". */
   visao?: (typeof VISOES_CONSULTORIA)[number] | Exclude<VisaoPreVenda, "hoje">;
+  /** Forecast: o número que filtra a fila do dia (19/10/2026). Ausente = "Fazer hoje". */
+  fila?: "semana" | "mes" | "semdata" | "consultoria";
   /** Pré-venda › Ficha: "reunioes" mostra as reuniões (a antiga Gravações); ausente = ligações. */
   ficha?: "reunioes";
   /** Pré-venda › Ficha › Ligações: o card cuja ligação está aberta na ficha. */
@@ -248,12 +250,24 @@ export function validarBuscaMonetizacao(s: Record<string, unknown>): BuscaMoneti
         : undefined,
     regime: umDe(["real", "presumido", "simples", "sem"] as const, s.regime),
     origem:
-      consultoria && typeof s.origem === "string" && /^(inside_sales|socios|goiania|outra)(,(inside_sales|socios|goiania|outra)){0,3}$/.test(s.origem)
+      consultoria &&
+      typeof s.origem === "string" &&
+      /^(inside_sales|socios|goiania|outra)(,(inside_sales|socios|goiania|outra)){0,3}$/.test(
+        s.origem,
+      )
         ? s.origem
         : undefined,
     passo:
-      consultoria && typeof s.passo === "string" && /^[1-8](-[a-z0-9_]{1,20})?$/.test(s.passo) ? s.passo : undefined,
-    grupo: consultoria ? umDe(["aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo) : undefined,
+      consultoria && typeof s.passo === "string" && /^[1-8](-[a-z0-9_]{1,20})?$/.test(s.passo)
+        ? s.passo
+        : undefined,
+    grupo: consultoria
+      ? umDe(["aceitou", "atraso", "90", "30_90", "recente"] as const, s.grupo)
+      : undefined,
+    fila:
+      aba === "fechamentos"
+        ? umDe(["semana", "mes", "semdata", "consultoria"] as const, s.fila)
+        : undefined,
   };
 }
 

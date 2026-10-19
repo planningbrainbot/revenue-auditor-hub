@@ -106,6 +106,13 @@ Deno.serve(async (req) => {
           prefer: "resolution=merge-duplicates,return=minimal",
         });
       },
+      // Fila do Forecast (19/10/2026): a última nota do dono de cada card da reta final.
+      gravarNotas: async (linhas) => {
+        await rest("monetizacao_ultima_nota?on_conflict=deal_id", {
+          body: linhas,
+          prefer: "resolution=merge-duplicates,return=minimal",
+        });
+      },
       gravar: async (linha) => {
         await rest(`${TABELA}?on_conflict=deal_id`, {
           body: linha,

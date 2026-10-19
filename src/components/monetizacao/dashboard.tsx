@@ -116,7 +116,7 @@ const TITULOS: Record<Aba, string> = {
 };
 const PERGUNTAS: Record<Exclude<Aba, "pre-venda">, string> = {
   operacao: "A pré-venda está no ritmo, e onde a base trava?",
-  fechamentos: "O que deve fechar hoje, na semana e no mês?",
+  fechamentos: "O que fazer hoje para o mês fechar?",
   "handoff-consultoria": "Quanto a Consultoria deve à Expansão pelos clientes do onboarding?",
   funil: "Quantas reuniões marcadas acontecem, e quantas validadas viram contrato?",
   roteiros: "O que eu digo para este produto e este segmento?",
@@ -740,6 +740,9 @@ export function DashboardMonetizacao({
           hoje={today}
           filtro={filter}
           previsoes={data.previsoes_jev ?? []}
+          fila={data.fila_jev ?? null}
+          filtroFila={busca.fila ?? "hoje"}
+          mudarFiltroFila={(f) => mudarBusca({ fila: f === "hoje" ? undefined : f })}
           abrir={abrir}
         />
       )}

@@ -12,6 +12,11 @@
  *   Nenhuma premissa de forecast entra aqui (a de Finance foi recusada pelo Pedro em 06/10).
  */
 import { noProduto, reguaDoPipe, type Etapa } from "./funil-cumulativo.ts";
+import {
+  PASSOS,
+  ROTULO_PASSO,
+  URGENCIAS,
+} from "../../../supabase/functions/monetizacao-proximo-passo/logica.ts";
 import { doResponsavel, type RecorteResponsavel } from "./responsavel.ts";
 import {
   PRODUTOS,
@@ -106,6 +111,8 @@ export interface Forecast {
   total: number;
   receita: LinhaReceita[];
   tickets: TicketMedido[];
+  /** Os cards do universo, com horizonte e valor (a fila do dia parte deles). */
+  itens: CardForecast[];
 }
 
 const DIA_SP = new Intl.DateTimeFormat("en-CA", {
@@ -249,5 +256,148 @@ export function forecastDeFechamento(
     total: universo.length,
     receita,
     tickets,
+    itens,
   };
 }
+
+// ---------------------------------------------------------------------------- fila do dia (19/10/2026)
+
+/**
+ * `ops.monetizacao_forecast_fila()`: o próximo passo do Jev, a última nota do dono e o bloqueio da Consultoria de cada
+ * card da reta final. Pedido do Pedro em 19/10/2026: a tela abre pelo que fazer hoje (protótipo
+ * https://claude.ai/artifact/C2zwdHXMixW8ZdWJd5VfEH; contrato docs/design/contratos/monetizacao-fechamentos.md).
+ */
+export interface LinhaFilaJev {
+  deal_id: number;
+  passo: string | null;
+  confianca: number | null;
+  /** 0 = pode esperar até a semana que vem, 1 = nesta semana, 2 = hoje. */
+  urgencia: number | null;
+  gerado_em: string | null;
+  nota: string | null;
+  nota_em: string | null;
+  /** Motivo do bloqueio da Consultoria (já é cliente, contrato ou proposta aberta); null = não está na Consultoria. */
+  consultoria: string | null;
+}
+
+const objeto = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+const textoOuNulo = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const numeroOuNulo = (v: unknown) => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+export const normalizarFila = (linhas: unknown): LinhaFilaJev[] =>
+  (Array.isArray(linhas) ? linhas : [])
+    .map(objeto)
+    .map((l) => {
+      const passo = textoOuNulo(l.passo);
+      return {
+        deal_id: numeroOuNulo(l.deal_id) ?? 0,
+        passo: passo && passo in ROTULO_PASSO ? passo : null,
+        confianca: numeroOuNulo(l.confianca),
+        urgencia: numeroOuNulo(l.urgencia),
+        gerado_em: textoOuNulo(l.gerado_em),
+        nota: textoOuNulo(l.nota),
+        nota_em: textoOuNulo(l.nota_em),
+        consultoria: textoOuNulo(l.consultoria),
+      };
+    })
+    .filter((l) => l.deal_id > 0);
+
+export type FiltroFila = "hoje" | "semana" | "mes" | "semdata" | "consultoria";
+export const FILTROS_FILA: { chave: FiltroFila; rotulo: string }[] = [
+  { chave: "hoje", rotulo: "Fazer hoje" },
+  { chave: "semana", rotulo: "Nesta semana" },
+  { chave: "mes", rotulo: "Fecha no mês" },
+  { chave: "semdata", rotulo: "Sem data esperada nem valor" },
+  { chave: "consultoria", rotulo: "Também na Consultoria" },
+];
+/** Ordem dos grupos da fila: do passo que mais move o card ao que encerra. */
+export const ORDEM_PASSOS = [
+  "ligar_hoje",
+  "cobrar_retorno",
+  "marcar_especialista",
+  "enviar_proposta",
+  "agendar_retomada",
+  "perder_com_motivo",
+] as const;
+
+export interface LinhaFila {
+  item: CardForecast;
+  jev: LinhaFilaJev | null;
+  /** Sem data esperada no card e sem receita prevista. */
+  semDataNemValor: boolean;
+}
+export interface GrupoFila {
+  /** O passo do Jev; null = sem sugestão. */
+  passo: string | null;
+  rotulo: string;
+  /** Explicação do passo (o porquê da sugestão), a mesma que o Jev recebe. */
+  porque: string;
+  linhas: LinhaFila[];
+}
+export interface FilaDoDia {
+  contagem: Record<FiltroFila, number>;
+  total: number;
+  grupos: GrupoFila[];
+  /** Linhas do filtro escolhido. */
+  filtradas: number;
+  /** A fila do Jev não veio (função ausente ou erro): os cards aparecem sem passo. */
+  semJev: boolean;
+}
+
+const NO_MES: Horizonte[] = ["atrasado", "hoje", "semana", "mes"];
+const PASSA: Record<FiltroFila, (l: LinhaFila) => boolean> = {
+  hoje: (l) => l.jev?.urgencia === 2,
+  semana: (l) => l.jev?.urgencia === 1,
+  mes: (l) => NO_MES.includes(l.item.horizonte),
+  semdata: (l) => l.semDataNemValor,
+  consultoria: (l) => !!l.jev?.consultoria,
+};
+
+/** A fila do dia: os cards do universo do Forecast com o passo do Jev, agrupados pelo passo, no filtro escolhido. */
+export function filaDoDia(
+  fc: Forecast,
+  fila: LinhaFilaJev[] | null,
+  filtro: FiltroFila = "hoje",
+): FilaDoDia {
+  const doJev = new Map((fila ?? []).map((l) => [l.deal_id, l]));
+  const linhas: LinhaFila[] = fc.itens.map((item) => ({
+    item,
+    jev: doJev.get(item.card.id) ?? null,
+    semDataNemValor: !diaSP(item.card.expected_close) && valorDoCard(item.card) === null,
+  }));
+  const contagem = Object.fromEntries(
+    FILTROS_FILA.map((f) => [f.chave, linhas.filter(PASSA[f.chave]).length]),
+  ) as Record<FiltroFila, number>;
+  const escolhidas = linhas.filter(PASSA[filtro]);
+  const porPasso = new Map<string | null, LinhaFila[]>();
+  for (const l of escolhidas) {
+    const k = l.jev?.passo ?? null;
+    porPasso.set(k, [...(porPasso.get(k) ?? []), l]);
+  }
+  const ordem = (l: LinhaFila) => [-(l.jev?.urgencia ?? -1), -(l.jev?.confianca ?? 0)];
+  const grupos: GrupoFila[] = [...ORDEM_PASSOS, null]
+    .filter((p) => porPasso.has(p))
+    .map((p) => ({
+      passo: p,
+      rotulo: p ? ROTULO_PASSO[p] : "Sem sugestão do Jev",
+      porque: p ? PASSOS[p] : "O Jev ainda não sugeriu um passo para este card.",
+      linhas: porPasso.get(p)!.sort((a, b) => {
+        const [ua, ca] = ordem(a);
+        const [ub, cb] = ordem(b);
+        return ua - ub || ca - cb;
+      }),
+    }));
+  return {
+    contagem,
+    total: linhas.length,
+    grupos,
+    filtradas: escolhidas.length,
+    semJev: fila === null,
+  };
+}
+
+export const rotuloUrgencia = (u: number | null) => (u === null ? "" : (URGENCIAS[u] ?? ""));

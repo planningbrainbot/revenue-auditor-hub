@@ -5684,3 +5684,27 @@ realizado), visões novas Forecast × Realizado, Aquisição × Retenção e Fô
 (`tools/bi_financeiro_payload.py`), porque a aba da planilha usava os rótulos da DRE anterior a 15/10
 e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicada
 (`20261019120000_bi_financeiro_area.sql`); em dev, `receita` vale como `bi_financeiro`.
+
+## [2026-10-19] Forecast da Monetização abre pela fila do dia
+
+**Contexto:** o Pedro disse que a tela de Forecast "não está me mostrando com clareza o que deveria ser feito hoje". Medido em 19/10:
+- Os 14 cards da reta final (Reunião de proposta em diante, sem o Stand by) estavam sem data esperada e sem valor.
+- O cartão "Hoje" mostrava 0, e 11 cards caíam em "Sem data nem previsão".
+- O Jev pedia 7 ações para o dia (urgência 2), que só apareciam dentro de cada card.
+- Protótipo com os cards reais: https://claude.ai/artifact/C2zwdHXMixW8ZdWJd5VfEH. O Pedro aprovou com "o resto tá top, pode implementar". Pediu uma troca: o cartão "Sem sugestão do Jev" virou "Fecha no mês". Também pediu publicação direta.
+
+**Como ficou:**
+- **Pergunta (N1):** "O que fazer hoje para o mês fechar?". O arquétipo é Fila de trabalho no topo e Visão geral embaixo. Contrato em `docs/design/contratos/monetizacao-fechamentos.md`.
+- **Cinco números que filtram a fila (`?fila=`):**
+  - Fazer hoje (urgência 2 do Jev);
+  - Nesta semana (urgência 1);
+  - Fecha no mês: o mesmo conjunto do "Esperado até o fim do mês" da receita, ou seja, data no mês ou atrasada e, sem data, a previsão do Jev;
+  - Sem data esperada nem valor;
+  - Também na Consultoria: `ops.base_consultoria_bloqueio` sobre `ops.base_conta_sinais`, a régua das ofertas.
+- **A fila:** agrupada pelo passo do Jev, com o porquê do passo no cabeçalho do grupo. Cada linha mostra a última nota do dono, a próxima atividade, os dias sem atividade e os selos. Card sem sugestão vai para o grupo "Sem sugestão do Jev", no fim.
+- **Banco** (migration `20261019230000`):
+  - `ops.monetizacao_ultima_nota` guarda a última nota do dono de cada card da reta final. Quem grava é a `monetizacao-proximo-passo`, a cada rodada, com as mesmas notas que o Jev lê (sem dossiê e sem nota automática).
+  - `ops.monetizacao_forecast_fila()` junta passo, urgência, confiança, nota e Consultoria, com o recorte de unidade de `monetizacao_deals_leitura`.
+- **O que continua igual:** os horizontes ("Quando deve fechar") e a receita do mês, abaixo da fila.
+
+**Diferença registrada:** em 19/10 o sinal da Base marcou como Consultoria Coopdiesel, Sementes Oliveira, Parágrafo Denim e Alfa Peças. A Jordana tinha citado no grupo RKS, BBCE e Toyo Sen, que o sinal não pega, provavelmente por falta de CNPJ para casar.
