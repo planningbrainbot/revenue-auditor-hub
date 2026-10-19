@@ -153,6 +153,22 @@ export interface AbaMensal {
   linhas: LinhaAba[];
 }
 
+export interface PremissaPlanilha {
+  k: string;
+  /** valor como a planilha exibe ("11,0%", "nov./26", "100.000,00") */
+  valor: string;
+  fonte: string;
+}
+
+export interface LinhaFunil {
+  k: string;
+  titulo?: boolean;
+  nivel?: number;
+  tipo?: "brl" | "roas" | "pct";
+  real?: (number | null)[];
+  proj?: (number | null)[];
+}
+
 export interface BiPlanilha {
   forecast: { meses: string[]; parcial: string | null; atualizado: string; linhas: LinhaForecast[] };
   aquisicao: AbaMensal;
@@ -163,6 +179,15 @@ export interface BiPlanilha {
   cac_agenda: {
     por_mes: Record<string, { valor: number; parcelas: number }>;
     atrasado: { valor: number; parcelas: number };
+  };
+  /** Projeção da Burn Rate (meses depois do realizado) e as premissas que ficam acima dela. */
+  burn_proj?: { meses: string[]; linhas: LinhaAba[]; premissas: PremissaPlanilha[] };
+  /** Bloco "Funil do CAC" da DRE Aquisição: premissas e linhas com realizado e projeção. */
+  funil_cac?: {
+    meses: string[];
+    meses_proj: string[];
+    premissas: PremissaPlanilha[];
+    linhas: LinhaFunil[];
   };
   /** Funil do CAC da DRE Aquisição, meses realizados: base do ROAS de vendas, contratos e caixa. */
   roas_cac?: {

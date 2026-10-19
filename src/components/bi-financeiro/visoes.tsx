@@ -7,6 +7,7 @@ import {
   ComposedChart,
   Legend,
   Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -24,9 +25,23 @@ import {
 import { EstadoVazio, KpiCard, KpiGrade, StatusBadge } from "@/components/planning";
 import { cn } from "@/lib/utils";
 import { useFiltroNaUrl } from "@/lib/planning/filtro-url";
-import { CORES_SERIE, eixoProps, gradeProps, legendaProps, tooltipProps } from "@/lib/planning/grafico";
+import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  linhaMetaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
 import { brlOuTraco } from "@/components/receita/moldura";
-import type { AbaMensal, DreCaixa, LinhaForecast } from "@/lib/dre-caixa.functions";
+import type {
+  AbaMensal,
+  DreCaixa,
+  LinhaAba,
+  LinhaForecast,
+  LinhaFunil,
+  PremissaPlanilha,
+} from "@/lib/dre-caixa.functions";
 
 // As visões da área BI Financeiro que vêm das abas de análise da planilha (contrato
 // docs/design/contratos/bi-financeiro.md): Visão executiva, Forecast × Realizado,
@@ -495,6 +510,200 @@ function TabelaAba({ aba, meses, destaque }: { aba: AbaMensal; meses: string[]; 
   );
 }
 
+// ---------------------------------------------------------------- projeção e premissas
+
+const roasFmt = (v: number | null | undefined) =>
+  v === null || v === undefined ? "—" : v.toFixed(2).replace(".", ",");
+
+function Premissas({ itens }: { itens: PremissaPlanilha[] }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      {itens.map((p) => (
+        <div key={p.k} className="flex items-baseline justify-between gap-3 border-b py-1.5">
+          <dt className="min-w-0">
+            <div>{p.k}</div>
+            {p.fonte && <div className="text-xs text-muted-foreground">{p.fonte}</div>}
+          </dt>
+          <dd className="shrink-0 font-medium tabular-nums">{p.valor}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function TabelaProjecao({
+  meses,
+  linhas,
+  destaque,
+}: {
+  meses: string[];
+  linhas: LinhaAba[];
+  destaque?: (k: string) => boolean;
+}) {
+  const ehPct = (k: string) => k.toLowerCase().includes("inadimplência");
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm tabular-nums">
+        <thead>
+          <tr className="border-b text-xs text-muted-foreground">
+            <th className="sticky left-0 bg-card py-2 pr-3 text-left font-medium">Linha</th>
+            {meses.map((m) => (
+              <th key={m} className="px-2 py-2 text-right font-medium">
+                {rot(m)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l, i) => (
+            <tr
+              key={i}
+              className={cn("border-b last:border-0", l.nivel === 0 && "font-semibold", destaque?.(l.k) && "bg-muted/50")}
+            >
+              <td className={cn("sticky left-0 max-w-[340px] bg-card py-1.5 pr-3", l.nivel === 1 && "pl-4 font-normal")}>
+                {l.k}
+              </td>
+              {meses.map((_, j) => (
+                <td key={j} className={cn("px-2 py-1.5 text-right", (l.v?.[j] ?? 0) < -0.5 && "text-danger")}>
+                  {ehPct(l.k) ? pct(l.v?.[j] ?? null) : brlOuTraco(l.v?.[j])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FunilCac({ D, meses }: { D: DreCaixa; meses: string[] }) {
+  const F = D.bi?.funil_cac;
+  if (!F) return null;
+  const cols = meses.map((m) => F.meses.indexOf(m)).filter((j) => j >= 0);
+  const fmt = (l: LinhaFunil, v: number | null | undefined) =>
+    l.tipo === "roas" ? roasFmt(v) : l.tipo === "pct" ? pct(v ?? null) : brlOuTraco(v ?? undefined);
+  const serie = (prefixo: string) => F.linhas.find((l) => !l.titulo && l.k.startsWith(prefixo));
+  const caixa = serie("(=) ROAS de caixa do mês");
+  const termos = serie("ROAS sobre termos");
+  const contratos = serie("ROAS sobre contratos");
+  const grafico = [
+    ...cols.map((j) => ({
+      r: rot(F.meses[j]),
+      caixa: caixa?.real?.[j] ?? null,
+      vendas: termos?.real?.[j] ?? null,
+      contratos: contratos?.real?.[j] ?? null,
+    })),
+    ...F.meses_proj.map((m, j) => ({
+      r: `${rot(m)} (proj.)`,
+      caixa: caixa?.proj?.[j] ?? null,
+      vendas: termos?.proj?.[j] ?? null,
+      contratos: contratos?.proj?.[j] ?? null,
+    })),
+  ];
+  return (
+    <Secao
+      titulo="Funil do CAC: da mídia ao caixa"
+      sub="Bloco embaixo da DRE Aquisição na planilha. Realizado nos meses do filtro e a projeção dos próximos meses com as premissas abaixo."
+    >
+      <Premissas itens={F.premissas} />
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">
+          ROAS de vendas e de contratos por safra (sobre a mídia de CAC do mês); ROAS de caixa é o CAC recebido sobre
+          a mídia de CAC paga no mês. A linha tracejada é o ROAS 1.
+        </p>
+        <div className="h-64">
+          <ResponsiveContainer>
+            <LineChart data={grafico} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+              <CartesianGrid {...gradeProps} />
+              <XAxis dataKey="r" {...eixoProps} />
+              <YAxis {...eixoProps} width={56} tickFormatter={(v: number) => roasFmt(v)} />
+              <Tooltip {...tooltipProps} formatter={(v: number, n: string) => [roasFmt(v), n]} />
+              <Legend {...legendaProps} />
+              <ReferenceLine y={1} {...linhaMetaProps} />
+              <Line
+                dataKey="vendas"
+                name="ROAS de vendas"
+                stroke={CORES_SERIE[0]}
+                strokeWidth={2}
+                dot
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Line
+                dataKey="contratos"
+                name="ROAS de contratos"
+                stroke={CORES_SERIE[1]}
+                strokeWidth={2}
+                dot
+                connectNulls
+                isAnimationActive={false}
+              />
+              <Line
+                dataKey="caixa"
+                name="ROAS de caixa"
+                stroke={CORES_SERIE[2]}
+                strokeWidth={2}
+                dot
+                connectNulls
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="border-b text-xs text-muted-foreground">
+              <th className="sticky left-0 bg-card py-2 pr-3 text-left font-medium">Linha</th>
+              {cols.map((j) => (
+                <th key={j} className="px-2 py-2 text-right font-medium">
+                  {rot(F.meses[j])}
+                </th>
+              ))}
+              {F.meses_proj.map((m, j) => (
+                <th key={m} className={cn("px-2 py-2 text-right font-medium", j === 0 && "border-l")}>
+                  {rot(m)} (proj.)
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {F.linhas.map((l, i) =>
+              l.titulo ? (
+                <tr key={i}>
+                  <td
+                    colSpan={cols.length + F.meses_proj.length + 1}
+                    className="sticky left-0 bg-card pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {l.k}
+                  </td>
+                </tr>
+              ) : (
+                <tr key={i} className={cn("border-b last:border-0", l.nivel === 0 && "font-semibold")}>
+                  <td className={cn("sticky left-0 max-w-[340px] bg-card py-1.5 pr-3", l.nivel === 1 && "pl-4 font-normal")}>
+                    {l.k}
+                  </td>
+                  {cols.map((j) => (
+                    <td key={j} className="px-2 py-1.5 text-right">
+                      {fmt(l, l.real?.[j])}
+                    </td>
+                  ))}
+                  {F.meses_proj.map((m, j) => (
+                    <td key={m} className={cn("px-2 py-1.5 text-right", j === 0 && "border-l")}>
+                      {fmt(l, l.proj?.[j])}
+                    </td>
+                  ))}
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Secao>
+  );
+}
+
 export function AquisicaoRetencao({ D, idx }: { D: DreCaixa; idx: number[] }) {
   const bi = D.bi;
   const meses = idx.map((i) => D.meses[i]);
@@ -557,6 +766,7 @@ export function AquisicaoRetencao({ D, idx }: { D: DreCaixa; idx: number[] }) {
       <Secao titulo="Retenção" sub="Royalties e receitas recorrentes contra a estrutura: pessoal, administrativo, bancos, viagens e impostos.">
         <TabelaAba aba={bi.retencao} meses={meses} />
       </Secao>
+      <FunilCac D={D} meses={meses} />
     </>
   );
 }
@@ -587,9 +797,19 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
       <KpiGrade colunas={4}>
         <KpiCard
           rotulo="Meses de caixa sem o investidor"
-          valor={f.meses === null ? "—" : f.meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+          valor={
+            f.meses === null ? "—" : f.meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+          }
           nota={`saldo de ${rot(ultimo)} ÷ queima média de ${f.fech.map(rot).join(", ")}`}
-          tom={f.meses === null ? undefined : f.meses < 3 ? "perigo" : f.meses < 6 ? "atencao" : "sucesso"}
+          tom={
+            f.meses === null
+              ? undefined
+              : f.meses < 3
+                ? "perigo"
+                : f.meses < 6
+                  ? "atencao"
+                  : "sucesso"
+          }
         />
         <KpiCard
           rotulo="Queima média sem o investidor"
@@ -597,7 +817,11 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
           nota="por mês, competência, últimos 3 meses fechados"
           tom={f.media >= 0 ? "sucesso" : "perigo"}
         />
-        <KpiCard rotulo="Saldo em conta" valor={brlOuTraco(f.saldo)} nota={`fim de ${rot(ultimo)}, extrato do Omie`} />
+        <KpiCard
+          rotulo="Saldo em conta"
+          valor={brlOuTraco(f.saldo)}
+          nota={`fim de ${rot(ultimo)}, extrato do Omie`}
+        />
         <KpiCard
           rotulo="CAC atrasado"
           valor={brlOuTraco(bi.cac_agenda.atrasado.valor)}
@@ -618,9 +842,28 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
               <Tooltip {...tooltipProps} formatter={(x: number, n: string) => [brlOuTraco(x), n]} />
               <Legend {...legendaProps} />
               <ReferenceLine y={0} stroke="var(--border)" />
-              <Bar dataKey="aquisicao" name="Aquisição" fill={CORES_SERIE[1]} radius={3} isAnimationActive={false} />
-              <Bar dataKey="retencao" name="Retenção" fill={CORES_SERIE[0]} radius={3} isAnimationActive={false} />
-              <Line dataKey="queima" name="Queima (competência)" stroke="var(--foreground)" strokeWidth={2} dot isAnimationActive={false} />
+              <Bar
+                dataKey="aquisicao"
+                name="Aquisição"
+                fill={CORES_SERIE[1]}
+                radius={3}
+                isAnimationActive={false}
+              />
+              <Bar
+                dataKey="retencao"
+                name="Retenção"
+                fill={CORES_SERIE[0]}
+                radius={3}
+                isAnimationActive={false}
+              />
+              <Line
+                dataKey="queima"
+                name="Queima (competência)"
+                stroke="var(--foreground)"
+                strokeWidth={2}
+                dot
+                isAnimationActive={false}
+              />
               <Line
                 dataKey="caixa"
                 name="Queima (caixa)"
@@ -654,13 +897,32 @@ export function Folego({ D, idx }: { D: DreCaixa; idx: number[] }) {
               ))}
               <tr className="font-semibold">
                 <td className="py-1.5">Atrasado</td>
-                <td className="py-1.5 text-right text-muted-foreground">{bi.cac_agenda.atrasado.parcelas} parcelas</td>
-                <td className="py-1.5 text-right text-danger">{brlOuTraco(bi.cac_agenda.atrasado.valor)}</td>
+                <td className="py-1.5 text-right text-muted-foreground">
+                  {bi.cac_agenda.atrasado.parcelas} parcelas
+                </td>
+                <td className="py-1.5 text-right text-danger">
+                  {brlOuTraco(bi.cac_agenda.atrasado.valor)}
+                </td>
               </tr>
             </tbody>
           </table>
         )}
       </Secao>
+      {bi.burn_proj && bi.burn_proj.meses.length > 0 && (
+        <Secao
+          titulo="Projeção: os próximos meses"
+          sub="Burn Rate da planilha: aquisição e retenção projetadas (funil do CAC, Forecast Oficial e premissas abaixo), impostos e o caixa com o aporte do investidor."
+        >
+          <Premissas itens={bi.burn_proj.premissas} />
+          <TabelaProjecao
+            meses={bi.burn_proj.meses}
+            linhas={bi.burn_proj.linhas}
+            destaque={(k) =>
+              k.startsWith("(=) QUEIMA") || k.startsWith("(=) Saldo em conta no fim")
+            }
+          />
+        </Secao>
+      )}
     </>
   );
 }
