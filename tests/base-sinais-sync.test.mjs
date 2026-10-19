@@ -6,6 +6,7 @@ import {
   cardsQueSairam,
   estadoDaFase,
   linhaDoCard,
+  numeroOuNulo,
   resolverEmpresa,
 } from "../supabase/functions/pipefy-tratativas-sync/domain.mjs";
 import {
@@ -70,6 +71,26 @@ test("Card concluído vira linha com status compatível, data brasileira em ISO 
   assert.equal(l.stage_change_time, "2026-08-01T09:00:00-03:00");
   assert.equal(l.sincronizado_em, AGORA);
   assert.equal(l.empresa_id, null);
+});
+
+test("MRR do Pipefy em formato brasileiro, como o campo mrr_r devolve (lido em 19/10/2026)", () => {
+  // A versão anterior só tirava a vírgula: "700,00" virava 70000 e "3.300,00" virava 3,3.
+  assert.equal(numeroOuNulo("700,00"), 700);
+  assert.equal(numeroOuNulo("3.300,00"), 3300);
+  assert.equal(numeroOuNulo("27.000,00"), 27000);
+  assert.equal(numeroOuNulo("16.305,83"), 16305.83);
+  assert.equal(numeroOuNulo("2.026,25"), 2026.25);
+  assert.equal(numeroOuNulo("R$ 1.518,00"), 1518);
+  assert.equal(numeroOuNulo("3.300"), 3300);
+  assert.equal(numeroOuNulo("975,5"), 975.5);
+  // Formato americano e número puro seguem funcionando.
+  assert.equal(numeroOuNulo("3,500.00"), 3500);
+  assert.equal(numeroOuNulo("1,500"), 1500);
+  assert.equal(numeroOuNulo("1500.5"), 1500.5);
+  assert.equal(numeroOuNulo(4000), 4000);
+  assert.equal(numeroOuNulo(""), null);
+  assert.equal(numeroOuNulo(null), null);
+  assert.equal(numeroOuNulo("abc"), null);
 });
 
 test("Card sem campos (rascunho) não quebra: tudo nulo, estado pela fase", () => {

@@ -40,9 +40,29 @@ export const CAMPOS = {
   cliente: "cliente",
 };
 
+/**
+ * Valor de moeda do Pipefy. O campo `mrr_r` chega em formato brasileiro ("27.000,00", "975,00"),
+ * e a versão anterior só tirava a vírgula: "700,00" virava 70000 e "3.300,00" virava 3,3.
+ * O separador decimal é o último que aparece; um separador só, seguido de grupos de
+ * exatamente 3 dígitos, é de milhar.
+ */
 export function numeroOuNulo(raw) {
-  if (raw === null || raw === undefined || String(raw).trim() === "") return null;
-  const n = Number(String(raw).replace(/,/g, ""));
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  let s = String(raw).replace(/R\$|\s/g, "");
+  if (s === "") return null;
+  const ultimaVirgula = s.lastIndexOf(",");
+  const ultimoPonto = s.lastIndexOf(".");
+  if (ultimaVirgula >= 0 && ultimoPonto >= 0) {
+    s = ultimaVirgula > ultimoPonto
+      ? s.replace(/\./g, "").replace(",", ".")
+      : s.replace(/,/g, "");
+  } else if (ultimaVirgula >= 0) {
+    s = /^-?\d{1,3}(,\d{3})+$/.test(s) ? s.replace(/,/g, "") : s.replace(",", ".");
+  } else if (ultimoPonto >= 0 && /^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
