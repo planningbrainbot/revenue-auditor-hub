@@ -1,5 +1,5 @@
 import { aplicarBase, type BaseEmpresa } from "../clientes-base";
-import { normalizarPrevisoes } from "./fechamentos";
+import { normalizarFila, normalizarPrevisoes } from "./fechamentos";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -105,6 +105,7 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     forecasts,
     manifesto,
     previsao,
+    filaJev,
   ] = await Promise.all([
     opcional(
       "unidades",
@@ -139,6 +140,8 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     (db as DB).schema("ops").rpc("base_carteira_manifesto"),
     // Previsão de fechamento do Jev para o Forecast (15/10/2026). Sem a função no banco ou sem acesso, segue vazia.
     (db as DB).schema("ops").rpc("monetizacao_previsao_fechamento"),
+    // Fila do dia do Forecast (19/10/2026): passo do Jev, última nota do dono e Consultoria. Sem a função, `null`.
+    (db as DB).schema("ops").rpc("monetizacao_forecast_fila"),
   ]);
   const { data: catalog, error: catalogError } = manifesto;
   // Banco carregado (15/10/2026): o manifesto da carteira passava do limite de 8 s da sessão e derrubava a Monetização
@@ -192,6 +195,7 @@ export async function lerMonetizacao(context: { supabase: unknown }): Promise<Ba
     sync_error: sync?.error || null,
     stages: sync?.stages || [],
     previsoes_jev: previsao.error ? [] : normalizarPrevisoes(previsao.data),
+    fila_jev: filaJev.error ? null : normalizarFila(filaJev.data),
     permissions: { view: operation, manage, send, all_units: scope.data === true },
   };
 }

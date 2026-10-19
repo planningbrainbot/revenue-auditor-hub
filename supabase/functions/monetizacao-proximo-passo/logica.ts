@@ -128,6 +128,34 @@ export function notasParaJev(notas: any[], dono: number | null): string {
   return texto.trim() || "sem notas do responsável";
 }
 
+/** Teto da última nota guardada para a fila do Forecast. */
+export const LIMITE_NOTA_FILA = 600;
+
+/**
+ * A última nota escrita pelo dono do card, sem HTML, com o instante em ISO (19/10/2026, fila do Forecast). As mesmas
+ * notas que o Jev lê: o dossiê e as notas automáticas entram pelo usuário de integração e ficam fora. null sem nota.
+ */
+export function ultimaNotaDoDono(
+  notas: any[],
+  dono: number | null,
+): { nota: string; nota_em: string | null } | null {
+  const ultima = (notas ?? [])
+    .filter((n) => n && n.active_flag !== false && dono && Number(n.user_id) === dono)
+    .sort((a, b) => String(b.add_time).localeCompare(String(a.add_time)))
+    .find((n) => semHtml(String(n.content ?? "")).trim());
+  if (!ultima) return null;
+  const quando = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(String(ultima.add_time))
+    ? String(ultima.add_time).replace(" ", "T") + "Z"
+    : null;
+  return {
+    nota: semHtml(String(ultima.content ?? ""))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, LIMITE_NOTA_FILA),
+    nota_em: quando && Number.isFinite(Date.parse(quando)) ? new Date(quando).toISOString() : null,
+  };
+}
+
 export function pedidoJev(c: any, etapa: string, notas: string, agora: Date) {
   const dias = diasNaEtapa(c, agora);
   const hoje = diaSP(agora);
@@ -266,6 +294,8 @@ export interface DepsProximoPasso {
     Map<number, { base: string; gerado_em: string; versao: string }>
   >;
   gravarPrevisao?: (linha: Record<string, unknown>) => Promise<void>;
+  /** Última nota do dono de cada card da reta final, para a fila do Forecast (19/10/2026). */
+  gravarNotas?: (linhas: Record<string, unknown>[]) => Promise<void>;
   agora: Date;
   ativo: boolean;
   limite: number;
@@ -368,5 +398,30 @@ export async function rodarProximoPasso(d: DepsProximoPasso) {
       }
     }
   }
-  return { ...resumo, previsao };
+  // Fila do Forecast (19/10/2026): a última nota do dono de toda a reta final, da Reunião de proposta em diante (o
+  // Stand by entra). As notas já lidas nesta rodada vêm do cache; o resto é lido agora.
+  const notasFila = { cards: 0, gravadas: 0 };
+  if (d.gravarNotas && proposta) {
+    const ordem = new Map(etapas.map((e) => [e.id, e.order]));
+    const reta = cards.filter(
+      (c) => c.status === "open" && (ordem.get(Number(c.stage_id)) ?? -1) >= proposta.order,
+    );
+    notasFila.cards = reta.length;
+    const linhas: Record<string, unknown>[] = [];
+    for (const c of reta) {
+      if (Date.now() - comeco > d.orcamentoMs) break;
+      try {
+        const u = ultimaNotaDoDono(await notasDe(Number(c.id)), Number(c.owner_id) || null);
+        if (u) linhas.push({ deal_id: Number(c.id), ...u, atualizado_em: d.agora.toISOString() });
+      } catch (e) {
+        resumo.erros.push({
+          deal: Number(c.id),
+          erro: "nota: " + (e as Error).message.slice(0, 180),
+        });
+      }
+    }
+    if (d.ativo && linhas.length) await d.gravarNotas(linhas);
+    notasFila.gravadas = d.ativo ? linhas.length : 0;
+  }
+  return { ...resumo, previsao, notas_fila: notasFila };
 }

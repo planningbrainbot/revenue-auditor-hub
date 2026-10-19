@@ -344,6 +344,22 @@ export interface BaseMonetizacao {
     horizonte: "esta_semana" | "este_mes" | "proximo_mes" | "sem_previsao";
     confianca: number | null;
   }[];
+  /**
+   * Fila do dia do Forecast (19/10/2026): `ops.monetizacao_forecast_fila()`. `null` = a leitura falhou ou a função não
+   * existe; a fila mostra os cards sem o passo do Jev.
+   */
+  fila_jev?:
+    | {
+        deal_id: number;
+        passo: string | null;
+        confianca: number | null;
+        urgencia: number | null;
+        gerado_em: string | null;
+        nota: string | null;
+        nota_em: string | null;
+        consultoria: string | null;
+      }[]
+    | null;
   permissions: { view: boolean; manage: boolean; send: boolean; all_units: boolean };
 }
 

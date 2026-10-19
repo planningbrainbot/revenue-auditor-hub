@@ -2,8 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  filaDoDia,
   fimDaSemana,
   forecastDeFechamento,
+  normalizarFila,
   horizonteDe,
   ticketsMedidos,
 } from "../src/lib/monetizacao/fechamentos.ts";
@@ -20,10 +22,23 @@ const ST = [
   { id: 288, name: "9 · Stand by", order: 10 },
 ];
 let n = 1;
-const receita = (v) => ({ total: { amount: v, currency: "BRL" }, partners: { amount: null }, unit: { amount: null }, sum: null });
+const receita = (v) => ({
+  total: { amount: v, currency: "BRL" },
+  partners: { amount: null },
+  unit: { amount: null },
+  sum: null,
+});
 const card = (o = {}) => ({
-  id: n++, title: "Card", route: "cella", status: "open", owner_id: 28381245, stage_id: 278,
-  expected_close: null, revenue: receita(null), events: { signed: [] }, ...o,
+  id: n++,
+  title: "Card",
+  route: "cella",
+  status: "open",
+  owner_id: 28381245,
+  stage_id: 278,
+  expected_close: null,
+  revenue: receita(null),
+  events: { signed: [] },
+  ...o,
 });
 const HOJE = "2026-10-14"; // quarta
 const TODOS = { owner: null, product: "" };
@@ -89,9 +104,90 @@ test("Sem data esperada, vale a previsão do Jev; com data, a data manda (15/10/
   ];
   const fc = forecastDeFechamento([comData, semData, semNada], ST, HOJE, TODOS, prev);
   const g = Object.fromEntries(fc.grupos.map((x) => [x.chave, x]));
-  assert.deepEqual(g.mes.itens.map((i) => i.card.id), [comData.id]);
-  assert.deepEqual(g.semana.itens.map((i) => i.card.id), [semData.id]);
+  assert.deepEqual(
+    g.mes.itens.map((i) => i.card.id),
+    [comData.id],
+  );
+  assert.deepEqual(
+    g.semana.itens.map((i) => i.card.id),
+    [semData.id],
+  );
   assert.equal(g.semana.estimados, 1);
   assert.equal(g.semData.itens.length, 1);
   assert.equal(g.semData.estimados, 0);
+});
+
+// ---------------------------------------------------------------------------- fila do dia (19/10/2026)
+
+test("Fila do dia: números pelo Jev, pelo horizonte e pelo card; grupos pelo passo, o mais urgente primeiro", () => {
+  const c1 = card({ id: 501, stage_id: 291 }); // hoje, ligar
+  const c2 = card({
+    id: 502,
+    stage_id: 278,
+    expected_close: "2026-10-30",
+    revenue: receita(40000),
+  }); // mês, com valor
+  const c3 = card({ id: 503, stage_id: 279 }); // semana, cobrar, na Consultoria
+  const c4 = card({ id: 504, stage_id: 278 }); // sem sugestão
+  const c5 = card({ id: 505, stage_id: 288 }); // Stand by: fora do universo
+  const c6 = card({ id: 506, stage_id: 278 }); // hoje, cobrar, confiança menor
+  const fila = normalizarFila([
+    {
+      deal_id: 501,
+      passo: "ligar_hoje",
+      urgencia: 2,
+      confianca: 0.9,
+      nota: "cliente sumiu",
+      nota_em: "2026-10-15T14:00:00Z",
+    },
+    {
+      deal_id: 503,
+      passo: "cobrar_retorno",
+      urgencia: 1,
+      confianca: "0.5",
+      consultoria: "Já é cliente da Consultoria; não oferecer Consultoria",
+    },
+    { deal_id: 506, passo: "cobrar_retorno", urgencia: 2, confianca: 0.3 },
+    { deal_id: 505, passo: "ligar_hoje", urgencia: 2 },
+    { deal_id: 507, passo: "inventado", urgencia: 2 },
+  ]);
+  assert.equal(
+    fila.find((l) => l.deal_id === 507).passo,
+    null,
+    "passo fora das opções vira sem sugestão",
+  );
+  const fc = forecastDeFechamento([c1, c2, c3, c4, c5, c6], ST, HOJE, TODOS, [
+    { deal_id: 503, horizonte: "esta_semana", confianca: 0.7 },
+  ]);
+  const hoje = filaDoDia(fc, fila);
+  assert.deepEqual(hoje.contagem, { hoje: 2, semana: 1, mes: 2, semdata: 4, consultoria: 1 });
+  assert.equal(hoje.total, 5);
+  assert.deepEqual(
+    hoje.grupos.map((g) => [g.passo, g.linhas.map((l) => l.item.card.id)]),
+    [
+      ["ligar_hoje", [501]],
+      ["cobrar_retorno", [506]],
+    ],
+  );
+  assert.equal(hoje.grupos[0].rotulo, "Ligar e retomar");
+  // "Fecha no mês": data no mês (502) e a semana pela previsão do Jev (503).
+  assert.deepEqual(
+    filaDoDia(fc, fila, "mes")
+      .grupos.flatMap((g) => g.linhas.map((l) => l.item.card.id))
+      .sort(),
+    [502, 503],
+  );
+  // Sem data nem valor: o card com data e valor (502) fica fora; o sem sugestão vai para o fim.
+  const semdata = filaDoDia(fc, fila, "semdata");
+  assert.equal(semdata.filtradas, 4);
+  assert.equal(semdata.grupos.at(-1).passo, null);
+  assert.equal(semdata.grupos.at(-1).rotulo, "Sem sugestão do Jev");
+});
+
+test("Fila do dia sem a leitura do Jev: os cards seguem, sem passo, e a tela sabe", () => {
+  const fc = forecastDeFechamento([card({ id: 601, stage_id: 278 })], ST, HOJE, TODOS);
+  const d = filaDoDia(fc, null, "semdata");
+  assert.equal(d.semJev, true);
+  assert.equal(d.contagem.hoje, 0);
+  assert.equal(d.grupos[0].passo, null);
 });
