@@ -955,7 +955,11 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
     }),
     { midia: 0, cac: 0, ru: 0, ro: 0, retorno: 0, saldo: 0, ebit: 0 },
   );
-  const comProj = [...linhas, ...proj];
+  // filtro da aba: realizado e projeção, só realizado ou só projeção (fica na URL)
+  const [visao, setVisao] = useFiltroNaUrl("visao", "tudo");
+  const verReal = visao !== "proj" || proj.length === 0;
+  const verProj = visao !== "real" && proj.length > 0;
+  const comProj = [...(verReal ? linhas : []), ...(verProj ? proj : [])];
   const temRoas = comProj.some((x) => x.roasVendas !== null || x.roasCaixa !== null);
   const T = linhas.reduce(
     (a, x) => ({
@@ -978,30 +982,69 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
     saldo: Math.round(x.saldo),
   }));
 
+  // os cartões somam o que está à vista: realizado, projeção ou os dois
+  const K =
+    verReal && verProj
+      ? (Object.fromEntries(
+          Object.keys(T).map((k) => [k, T[k as keyof typeof T] + TP[k as keyof typeof TP]]),
+        ) as typeof T)
+      : verProj
+        ? TP
+        : T;
+  const parteK = K.ebit < 0 && K.saldo < 0 ? Math.round((K.saldo / K.ebit) * 100) : null;
+  const opcoes = [
+    { v: "tudo", rotulo: "Realizado e projeção" },
+    { v: "real", rotulo: "Só realizado" },
+    { v: "proj", rotulo: "Só projeção" },
+  ];
+
   return (
     <>
+      {proj.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Mostrar</span>
+          {opcoes.map((o) => (
+            <Button
+              key={o.v}
+              size="sm"
+              variant={visao === o.v ? "default" : "outline"}
+              onClick={() => setVisao(o.v === "tudo" ? undefined : o.v)}
+            >
+              {o.rotulo}
+            </Button>
+          ))}
+          {verProj && (
+            <span className="text-xs text-muted-foreground">
+              projeção de {proj[0].r.replace(" (proj.)", "")} a{" "}
+              {proj[proj.length - 1].r.replace(" (proj.)", "")}, da planilha
+            </span>
+          )}
+        </div>
+      )}
       <KpiGrade colunas={4}>
         <KpiCard
           rotulo="Mídia paga"
-          valor={brlOuTraco(T.midia)}
-          nota="Meta e Google, 100% do grupo"
+          valor={brlOuTraco(K.midia)}
+          nota={
+            verProj && !verReal ? "projeção pela Forecast Oficial" : "Meta e Google, 100% do grupo"
+          }
         />
         <KpiCard
           rotulo="Retorno da mídia"
-          valor={brlOuTraco(T.retorno)}
-          nota={`${pct(T.retorno, T.midia)} da mídia`}
+          valor={brlOuTraco(K.retorno)}
+          nota={`${pct(K.retorno, K.midia)} da mídia`}
         />
         <KpiCard
           rotulo="Saldo da mídia"
-          valor={brlOuTraco(T.saldo)}
-          nota={parte !== null ? `${parte}% do EBIT negativo do período` : "retorno − mídia"}
-          tom={T.saldo >= 0 ? "sucesso" : "perigo"}
+          valor={brlOuTraco(K.saldo)}
+          nota={parteK !== null ? `${parteK}% do EBIT negativo do período` : "retorno − mídia"}
+          tom={K.saldo >= 0 ? "sucesso" : "perigo"}
         />
         <KpiCard
           rotulo="EBIT sem o saldo da mídia"
-          valor={brlOuTraco(T.ebit - T.saldo)}
+          valor={brlOuTraco(K.ebit - K.saldo)}
           nota="o resto da operação"
-          tom={T.ebit - T.saldo >= 0 ? "sucesso" : "perigo"}
+          tom={K.ebit - K.saldo >= 0 ? "sucesso" : "perigo"}
         />
       </KpiGrade>
       <Secao
@@ -1112,43 +1155,48 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
               </tr>
             </thead>
             <tbody>
-              {linhas.map((x) => (
-                <tr key={x.r} className="border-b">
-                  <td className="py-1.5">{x.r}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.midia)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.cac)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ru)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ro)}</td>
-                  <td className="py-1.5 text-right">{pct(x.retorno, x.midia)}</td>
-                  <td className={cn("py-1.5 text-right", corVariacao(x.saldo))}>
-                    {brlSinal(x.saldo)}
+              {verReal &&
+                linhas.map((x) => (
+                  <tr key={x.r} className="border-b">
+                    <td className="py-1.5">{x.r}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.midia)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.cac)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ru)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ro)}</td>
+                    <td className="py-1.5 text-right">{pct(x.retorno, x.midia)}</td>
+                    <td className={cn("py-1.5 text-right", corVariacao(x.saldo))}>
+                      {brlSinal(x.saldo)}
+                    </td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ebit)}</td>
+                    <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>
+                      {brlOuTraco(x.ebit - x.saldo)}
+                    </td>
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasVendas)}</td>}
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasContratos)}</td>}
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasCaixa)}</td>}
+                  </tr>
+                ))}
+              {verReal && (
+                <tr className="font-semibold">
+                  <td className="py-2">Período</td>
+                  <td className="py-2 text-right">{brlOuTraco(T.midia)}</td>
+                  <td className="py-2 text-right">{brlOuTraco(T.cac)}</td>
+                  <td className="py-2 text-right">{brlOuTraco(T.ru)}</td>
+                  <td className="py-2 text-right">{brlOuTraco(T.ro)}</td>
+                  <td className="py-2 text-right">{pct(T.retorno, T.midia)}</td>
+                  <td className={cn("py-2 text-right", corVariacao(T.saldo))}>
+                    {brlSinal(T.saldo)}
                   </td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ebit)}</td>
-                  <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>
-                    {brlOuTraco(x.ebit - x.saldo)}
+                  <td className="py-2 text-right">{brlOuTraco(T.ebit)}</td>
+                  <td className={cn("py-2 text-right", corVariacao(T.ebit - T.saldo))}>
+                    {brlOuTraco(T.ebit - T.saldo)}
                   </td>
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasVendas)}</td>}
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasContratos)}</td>}
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasCaixa)}</td>}
+                  {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.vendas)}</td>}
+                  {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.contratos)}</td>}
+                  {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.caixa)}</td>}
                 </tr>
-              ))}
-              <tr className="font-semibold">
-                <td className="py-2">Período</td>
-                <td className="py-2 text-right">{brlOuTraco(T.midia)}</td>
-                <td className="py-2 text-right">{brlOuTraco(T.cac)}</td>
-                <td className="py-2 text-right">{brlOuTraco(T.ru)}</td>
-                <td className="py-2 text-right">{brlOuTraco(T.ro)}</td>
-                <td className="py-2 text-right">{pct(T.retorno, T.midia)}</td>
-                <td className={cn("py-2 text-right", corVariacao(T.saldo))}>{brlSinal(T.saldo)}</td>
-                <td className="py-2 text-right">{brlOuTraco(T.ebit)}</td>
-                <td className={cn("py-2 text-right", corVariacao(T.ebit - T.saldo))}>
-                  {brlOuTraco(T.ebit - T.saldo)}
-                </td>
-                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.vendas)}</td>}
-                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.contratos)}</td>}
-                {temRoas && <td className="py-2 text-right">{roasFmt(roasPeriodo.caixa)}</td>}
-              </tr>
-              {proj.length > 0 && (
+              )}
+              {verProj && (
                 <tr>
                   <td
                     colSpan={temRoas ? 12 : 9}
@@ -1158,27 +1206,28 @@ function Midia({ D, idx }: { D: DreCaixa; idx: number[] }) {
                   </td>
                 </tr>
               )}
-              {proj.map((x) => (
-                <tr key={x.r} className="border-b text-muted-foreground">
-                  <td className="py-1.5">{x.r}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.midia)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.cac)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ru)}</td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ro)}</td>
-                  <td className="py-1.5 text-right">{pct(x.retorno, x.midia)}</td>
-                  <td className={cn("py-1.5 text-right", corVariacao(x.saldo))}>
-                    {brlSinal(x.saldo)}
-                  </td>
-                  <td className="py-1.5 text-right">{brlOuTraco(x.ebit)}</td>
-                  <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>
-                    {brlOuTraco(x.ebit - x.saldo)}
-                  </td>
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasVendas)}</td>}
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasContratos)}</td>}
-                  {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasCaixa)}</td>}
-                </tr>
-              ))}
-              {proj.length > 0 && (
+              {verProj &&
+                proj.map((x) => (
+                  <tr key={x.r} className="border-b text-muted-foreground">
+                    <td className="py-1.5">{x.r}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.midia)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.cac)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ru)}</td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ro)}</td>
+                    <td className="py-1.5 text-right">{pct(x.retorno, x.midia)}</td>
+                    <td className={cn("py-1.5 text-right", corVariacao(x.saldo))}>
+                      {brlSinal(x.saldo)}
+                    </td>
+                    <td className="py-1.5 text-right">{brlOuTraco(x.ebit)}</td>
+                    <td className={cn("py-1.5 text-right", corVariacao(x.ebit - x.saldo))}>
+                      {brlOuTraco(x.ebit - x.saldo)}
+                    </td>
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasVendas)}</td>}
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasContratos)}</td>}
+                    {temRoas && <td className="py-1.5 text-right">{roasFmt(x.roasCaixa)}</td>}
+                  </tr>
+                ))}
+              {verProj && (
                 <tr className="font-semibold">
                   <td className="py-2">Projeção</td>
                   <td className="py-2 text-right">{brlOuTraco(TP.midia)}</td>
