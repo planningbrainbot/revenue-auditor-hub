@@ -285,6 +285,8 @@ Deno.serve(async (req: Request) => {
       statusAplicar: (pedido, status) =>
         rpc("status_aplicar", { p_pedido: pedido, p_status: status }),
       receitaCnpj: (cnpj) => rpc("receita_cnpj", { p_cnpj: cnpj }),
+      contratosAplicar: (emissora, contratos) =>
+        rpc("contratos_aplicar", { p_emissora: emissora, p_contratos: contratos }),
       servicosAplicar: (emissora, catalogo) =>
         rpc("servicos_aplicar", { p_emissora: emissora, p_catalogo: catalogo }),
       transporte,

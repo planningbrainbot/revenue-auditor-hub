@@ -21,7 +21,11 @@ Pedro de gestor, os dois só durante o teste → enviar (Aguardando OK: e-mail a
 (e-mail ao autor) → o Pedro descarta. Confere que as notificações ficaram `simulado` com o e-mail pronto e que nada foi
 enviado. No fim, os dois papéis de teste são desativados (sem apagar).
 
-Uso: python3 -I scripts/faturamento/conector-simular-integracao.py [--verificar | --notificacoes]
+Contratos (CA-04), com --contratos: enfileira a leitura dos contratos de todas as emissoras ativas (a não ser com
+--sem-enfileirar), espera a fila esvaziar, compara os vigentes de cada emissora com o E0 (e0/levantamento.json, lido
+em 15/10) e confere o caso do CA-04 com um CNPJ real (mascarado): contrato vigente na PAC, pedido pela PRJ → aviso.
+
+Uso: python3 -I scripts/faturamento/conector-simular-integracao.py [--verificar | --notificacoes | --contratos [--sem-enfileirar]]
 """
 import datetime as dt
 import json
@@ -48,7 +52,7 @@ PASSAGEM = ["fat_conector_credencial", "fat_conector_envio_proximos", "fat_conec
             "fat_conector_status_aplicar", "fat_conector_status_enfileirar", "fat_conector_servicos_aplicar",
             "fat_conector_receita_cnpj", "fat_conector_pipefy_proximos", "fat_conector_pipefy_resultado",
             "fat_conector_pipefy_contexto", "fat_conector_notificacoes_proximos",
-            "fat_conector_notificacoes_resultado", "fat_conector_emissora_bloquear"]
+            "fat_conector_notificacoes_resultado", "fat_conector_emissora_bloquear", "fat_conector_contratos_aplicar"]
 
 
 def token() -> str:
@@ -316,6 +320,51 @@ def notificacoes(doc_id: str):
                          ensure_ascii=False))
 
 
+E0 = pathlib.Path(__file__).resolve().parents[3] / "portal-faturamento-prd-20261013" / "e0" / "levantamento.json"
+SIGLA_E0 = {"PMC_MAROX": "PMC", "MAROX_SERVICOS": "MAROX", "SP": "PAC SP", "RJ": "PRJ"}
+
+
+def contratos():
+    if "--sem-enfileirar" not in sys.argv:
+        print(json.dumps({"enfileirar": sql("select integracoes.fat_contratos_enfileirar() r")[0]["r"]}, ensure_ascii=False))
+    fim = time.time() + 1500
+    while True:
+        r = sql("select count(*) filter (where status in ('pendente', 'processando'))::int abertos "
+                "from integracoes.omie_envios where operacao = 'sincronizar_contratos'")[0]
+        if r["abertos"] == 0 or time.time() > fim:
+            break
+        time.sleep(30)
+    linhas = sql("""
+      select g.apelido, e.status, e.erro_legivel, e.resposta->>'vigentes' lidos_vigentes, e.resposta->>'sem_documento' sem_doc,
+             e.resposta->>'lidos' lidos, (select count(*) from integracoes.omie_contratos_vigentes c where c.emissora_id = g.id)::int na_tabela
+        from organizacao.empresas_grupo g
+        left join integracoes.omie_envios e on e.operacao = 'sincronizar_contratos' and e.origem_id = g.id
+       where g.ativa and g.omie_credencial_ref is not null order by g.apelido""")
+    e0 = {}
+    for x in json.loads(E0.read_text())["empresas"]:
+        c = x.get("contratos") or {}
+        if "ativos_vigentes" in c:
+            e0[SIGLA_E0.get(x["sigla"], x["sigla"])] = c["ativos_vigentes"]
+    tabela = [{**l, "e0_vigentes_15_10": e0.get(l["apelido"])} for l in linhas]
+    print(json.dumps({"contratos": tabela}, ensure_ascii=False, indent=1))
+    # CA-04 com dado real: um CNPJ com contrato vigente na PAC e nenhum na PRJ, pedido pela PRJ.
+    caso = sql("""
+      select c.documento from integracoes.omie_contratos_vigentes c join organizacao.empresas_grupo g on g.id = c.emissora_id
+       where g.apelido = 'PAC' and length(c.documento) = 14
+         and not exists (select 1 from integracoes.omie_contratos_vigentes x join organizacao.empresas_grupo h on h.id = x.emissora_id
+                          where h.apelido = 'PRJ' and x.documento = c.documento)
+       order by c.codigo_contrato limit 1""")
+    if caso:
+        doc = caso[0]["documento"]
+        prj = sql("select id::text from organizacao.empresas_grupo where apelido = 'PRJ'")[0]["id"]
+        r = como_pedro(f"ops.fat_tomador({lit(doc)}, {lit(prj)}::uuid)")
+        aviso = r.get("contratos_outra_emissora") or []
+        print(json.dumps({"ca04": {"cnpj": mascara(doc), "pedido_pela": "PRJ",
+                                   "aviso": [a["emissora"]["apelido"] for a in aviso],
+                                   "sem_numero_nem_valor": all(a.get("numero") is None and a.get("valor_mensal") is None for a in aviso),
+                                   "passou": "PAC" in [a["emissora"]["apelido"] for a in aviso]}}, ensure_ascii=False))
+
+
 def main():
     pre = verificar()
     print(json.dumps({"pre_requisitos": {k: v for k, v in pre.items() if k != "doc_id"}}, ensure_ascii=False))
@@ -326,6 +375,8 @@ def main():
     doc_id = pre["doc_id"]
     if "--notificacoes" in sys.argv:
         return notificacoes(doc_id)
+    if "--contratos" in sys.argv:
+        return contratos()
 
     omie = OmieLeitura(doc_id)
     cnpj, razao = cnpj_real_da_doc(omie)
