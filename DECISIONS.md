@@ -5812,3 +5812,10 @@ O que a medição de 20/10 mostrou:
   - O card em Abordagem com atividade criada à mão sai de "sem cadência" e vai para a nota.
 
 **Fica de fora.** Os 2 cards de Belém pausados que estão na reta final do pipe 39 (H. C. Barbosa e Forma Divisórias) continuam em "sem atividade". A carga do 39 (`monetizacao-crm`) não lê notas, e levar a pausa até ela é outra mudança.
+
+## [2026-10-20] Planning People: uma data de início, valor por vínculo e registro dos períodos do contrato
+
+Ajuste pedido pelo RH de Maceió (19/10/2026) e aprovado pelo dono, que pediu também o registro das datas.
+- Uma data de início só: a admissão, com o nome conforme o vínculo ("Admissão", "Início do estágio", "Início do contrato", "Início na sociedade"). Sai o campo "Início da vigência"; estágio e terceiro pedem a data de início e o fim da vigência. A coluna `vigencia_inicio` fica no banco, sem uso pelo app.
+- O valor continua um campo só (`ops.gente_remuneracao`, só o RH), com o nome conforme o vínculo: Salário (CLT), Valor da bolsa (estágio), Valor do contrato (terceiro e PJ), Pró-labore (sócio e pró-labore).
+- `ops.gente_vigencia_periodos` (migration `20261020100000`): todo fim de vigência gravado vira um período, pelo gatilho do banco. Primeiro fim: da admissão ao fim. Prorrogação: do dia seguinte ao fim anterior ao novo fim (renovação). Fim antecipado: corrige o último período. O Editar mostra os períodos.

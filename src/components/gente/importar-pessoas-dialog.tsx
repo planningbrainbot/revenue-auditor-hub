@@ -38,12 +38,11 @@ const COLUNAS_MODELO = [
   "Cargo",
   "Departamento",
   "Vínculo",
-  "Admissão",
+  "Data de início",
   "Nascimento",
   "E-mail do gestor",
-  "Salário",
+  "Salário, bolsa ou valor do contrato",
   "CNPJ da empresa",
-  "Início da vigência",
   "Fim da vigência",
 ];
 
@@ -60,12 +59,12 @@ function campoDoCabecalho(h: string): keyof Omit<LinhaImportacao, "linha"> | nul
   // Vigência do contrato de estágio (TCE) e de terceiro, antes de "início" (admissão)
   // e de "contrato" (vínculo) pegarem o cabeçalho.
   if (/vigen|tce/.test(k) || /(inicio|fim|termino) do contrato/.test(k)) {
-    return /fim|termino|final|venc/.test(k) ? "vigenciaFim" : "vigenciaInicio";
+    return /fim|termino|final|venc/.test(k) ? "vigenciaFim" : "dataAdmissao";
   }
   if (/gestor|lider|superior/.test(k)) return "emailGestor";
   if (/nasc|aniversario/.test(k)) return "dataNascimento";
   if (/e-?mail/.test(k)) return "email";
-  if (/salario|remuneracao/.test(k)) return "salario";
+  if (/salario|remuneracao|bolsa|valor/.test(k)) return "salario";
   if (/cnpj|empresa|empregador/.test(k)) return "cnpjEmpregador";
   if (/nome/.test(k)) return "nomeCompleto";
   if (/cargo|funcao/.test(k)) return "cargo";
@@ -137,24 +136,15 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
   return bruto
     .map((r, i) => {
       const l: LinhaLida = { linha: i + 2, nomeCompleto: "", email: "", problemas: [] };
-      const datasBrutas: Record<
-        "dataAdmissao" | "dataNascimento" | "vigenciaInicio" | "vigenciaFim",
-        unknown
-      > = {
+      const datasBrutas: Record<"dataAdmissao" | "dataNascimento" | "vigenciaFim", unknown> = {
         dataAdmissao: "",
         dataNascimento: "",
-        vigenciaInicio: "",
         vigenciaFim: "",
       };
       for (const [h, v] of Object.entries(r)) {
         const campo = campoDoCabecalho(h);
         if (!campo) continue;
-        if (
-          campo === "dataAdmissao" ||
-          campo === "dataNascimento" ||
-          campo === "vigenciaInicio" ||
-          campo === "vigenciaFim"
-        ) {
+        if (campo === "dataAdmissao" || campo === "dataNascimento" || campo === "vigenciaFim") {
           datasBrutas[campo] = v;
           continue;
         }
@@ -191,7 +181,6 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
       for (const [campo, rotulo] of [
         ["dataAdmissao", "data de admissão"],
         ["dataNascimento", "data de nascimento"],
-        ["vigenciaInicio", "início da vigência"],
         ["vigenciaFim", "fim da vigência"],
       ] as const) {
         const data = normalizarData(datasBrutas[campo]);
@@ -199,7 +188,7 @@ function lerPlanilha(buf: ArrayBuffer, csv: boolean): LinhaLida[] {
         else if (data) l[campo] = data;
       }
       if (l.emailGestor && l.emailGestor === l.email) l.problemas.push("gestor é a própria pessoa");
-      if (l.vigenciaInicio && l.vigenciaFim && l.vigenciaFim < l.vigenciaInicio) {
+      if (l.dataAdmissao && l.vigenciaFim && l.vigenciaFim < l.dataAdmissao) {
         l.problemas.push("fim da vigência antes do início");
       }
       return l;
@@ -245,13 +234,12 @@ function baixarModelo() {
       "01/08/2026",
       "20/02/2005",
       "maria.souza@planning.com.br",
-      "",
+      1200,
       "66.438.610/0001-80",
-      "01/08/2026",
       "31/07/2027",
     ],
   ]);
-  ws["!cols"] = [28, 32, 20, 16, 12, 12, 12, 32, 12, 22, 18, 18].map((wch) => ({ wch }));
+  ws["!cols"] = [28, 32, 20, 16, 12, 14, 12, 32, 20, 22, 18].map((wch) => ({ wch }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pessoas");
   XLSX.writeFile(wb, "modelo-importacao-pessoas.xlsx");
@@ -393,11 +381,12 @@ export function ImportarPessoasDialog({
         <DialogHeader>
           <DialogTitle>Importar pessoas por planilha</DialogTitle>
           <DialogDescription>
-            Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo,
-            admissão, nascimento, e-mail do gestor, salário e CNPJ da empresa são opcionais (salário
-            só grava para o RH). Estágio e terceiro precisam do início e do fim da vigência do
-            contrato. Quem já está no cadastro só tem completado o que estiver vazio: admissão,
-            nascimento, empresa, vigência e salário (se ainda não tiver nenhum).
+            Uma pessoa por linha, com nome completo e e-mail. Cargo, departamento, vínculo, data de
+            início (admissão, início do estágio ou do contrato), nascimento, e-mail do gestor,
+            salário (ou bolsa, ou valor do contrato) e CNPJ da empresa são opcionais; o valor só
+            grava para o RH. Estágio e terceiro precisam da data de início e do fim da vigência.
+            Quem já está no cadastro só tem completado o que estiver vazio: data de início,
+            nascimento, empresa, fim da vigência e valor (se ainda não tiver nenhum).
           </DialogDescription>
         </DialogHeader>
 
