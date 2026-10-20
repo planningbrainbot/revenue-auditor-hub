@@ -256,15 +256,40 @@ export function montarFunil(empresas: EmpresaFunil[], hoje: string, portaAberta:
   });
 }
 
-/** As empresas de um clique no funil: "3" = chegaram à etapa 3 ou além; "3-real" = pararam na 3 pelo motivo "real". */
+/**
+ * As empresas de um clique no funil: "3" = chegaram à etapa 3 ou além; "3-real" = pararam na 3 pelo motivo "real".
+ * Três chaves não são motivo: "3-atrasado" (paradas na 3 além da meta da etapa), "5-parado" (pararam na 5, qualquer
+ * motivo: o "Achado e parado") e "6-garantido" (têm crédito aprovado ainda a faturar: o "Garantido a faturar").
+ */
 export function empresasDoPasso(empresas: EmpresaFunil[], passo: string, hoje: string): EmpresaFunil[] {
   const [n, motivo] = passo.split("-") as [string, string | undefined];
   const etapa = Number(n);
-  // "3-atrasado": paradas antes do diagnóstico e além da meta da etapa, qualquer que seja a etapa.
   if (motivo === "atrasado") return empresas.filter((e) => nivelDe(e) === etapa && (e.dias_alem ?? 0) > 0);
+  if (motivo === "parado") return empresas.filter((e) => nivelDe(e) === etapa);
+  if (motivo === "garantido") return empresas.filter((e) => num(e.garantido) > 0);
   return empresas.filter((e) =>
     motivo ? nivelDe(e) === etapa && motivoDe(e, hoje) === motivo : nivelDe(e) >= etapa,
   );
+}
+
+/** O grupo da Fila de cobrança que corresponde a um clique no funil, quando há um: a gaveta oferece "cobrar na fila". */
+export function grupoDoPasso(passo: string): GrupoFila | null {
+  const mapa: Record<string, GrupoFila> = {
+    "6-aceitou": "aceitou",
+    "6-parado": "aceitou",
+    "7-em_atraso": "atraso",
+    "5-mais_90": "90",
+    "5-30_90": "30_90",
+  };
+  return mapa[passo] ?? null;
+}
+
+/** A chave da ficha da empresa na URL (`empresa`): o CNPJ, ou o negócio, ou o cliente da plataforma. */
+export function chaveDaFicha(e: Pick<EmpresaFunil, "cnpj" | "deal" | "cliente_id">): string | null {
+  if (e.cnpj && /^(\d{11}|\d{14})$/.test(e.cnpj)) return e.cnpj;
+  if (e.deal && /^\d{1,15}$/.test(e.deal)) return `deal:${e.deal}`;
+  if (e.cliente_id && /^[\w-]{1,40}$/.test(e.cliente_id)) return `cliente:${e.cliente_id}`;
+  return null;
 }
 
 // ─── Dinheiro de verdade ─────────────────────────────────────────────────────────────────────────
@@ -301,9 +326,8 @@ export interface Acao {
   valor: number | null;
   leitura: string;
   tom: TomMotivo;
-  /** Para onde o botão leva: um passo do funil ou um grupo da fila. */
-  passo?: string;
-  grupo?: GrupoFila;
+  /** A lista que o cartão abre na gaveta (desde 20/10/2026 todo cartão abre a gaveta; a fila vem de dentro dela). */
+  passo: string;
 }
 
 export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
@@ -321,7 +345,7 @@ export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
       valor: aceitou.reduce((s, e) => s + num(e.aceito), 0),
       leitura: "Aceitaram teses e o honorário não foi faturado. É o dinheiro mais perto do caixa.",
       tom: "perigo",
-      grupo: "aceitou",
+      passo: "6-aceitou",
     },
     {
       id: "parado90",
@@ -330,7 +354,7 @@ export function ondeAgir(empresas: EmpresaFunil[], hoje: string): Acao[] {
       valor: parado90.reduce((s, e) => s + num(e.identificado), 0),
       leitura: "A Consultoria achou crédito e ninguém fechou com o cliente.",
       tom: "perigo",
-      grupo: "90",
+      passo: "5-mais_90",
     },
     {
       id: "atrasados",

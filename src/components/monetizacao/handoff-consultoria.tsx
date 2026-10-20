@@ -60,6 +60,7 @@ import {
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
 import { Field, inputClass } from "./common";
+import { GavetaFicha } from "./consultoria-empresa";
 import type { BuscaMonetizacao } from "./busca";
 
 // Handoff Consultoria (contrato docs/design/contratos/monetizacao-handoff-consultoria.md).
@@ -185,7 +186,7 @@ export function PainelHandoffConsultoria({
   useEffect(() => setDatas({ de, ate }), [de, ate]);
 
   const p = montarPainel(bruto, { de: busca.de, ate: busca.ate, unidade: busca.unidade }, hoje);
-  const abrir = (id: string) => mudarBusca({ grafico: id });
+  const abrir = (id: string) => mudarBusca({ grafico: id, empresa: undefined });
   const temFiltro = !!(busca.de || busca.ate || busca.unidade);
   const aplicar = () =>
     datas.de <= datas.ate &&
@@ -368,7 +369,13 @@ export function PainelHandoffConsultoria({
         </>
       )}
 
-      <Gaveta id={busca.grafico ?? null} p={p} fechar={() => mudarBusca({ grafico: undefined })} />
+      <Gaveta
+        id={busca.grafico ?? null}
+        p={p}
+        fechar={() => mudarBusca({ grafico: undefined, empresa: undefined })}
+        ficha={busca.empresa ?? null}
+        abrirFicha={(chave) => mudarBusca({ empresa: chave ?? undefined })}
+      />
     </main>
   );
 }
@@ -976,10 +983,15 @@ function ListaClientes({
   clientes,
   meses,
   modo = "recebido",
+  aberta = null,
+  abrirFicha,
 }: {
   clientes: Cliente[];
   meses?: string[];
   modo?: ConteudoGaveta["modo"];
+  /** A chave do cliente com a ficha aberta por cima da gaveta. */
+  aberta?: string | null;
+  abrirFicha?: (c: Cliente) => void;
 }) {
   if (!clientes.length)
     return <p className="text-sm text-muted-foreground">Nenhum cliente neste recorte.</p>;
@@ -1025,17 +1037,42 @@ function ListaClientes({
         </TableHeader>
         <TableBody>
           {ordem.map((c) => (
-            <TableRow key={c.chave}>
+            <TableRow
+              key={c.chave}
+              aria-current={aberta === c.chave ? "true" : undefined}
+              className={cn(aberta === c.chave && "bg-muted/60")}
+            >
               <TableCell className="text-xs">
-                <a
-                  href={`https://app.pipefy.com/open-cards/${c.card}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-primary-text hover:underline"
-                >
-                  {c.titulo}
-                  <ExternalLink className="size-3" aria-hidden />
-                </a>
+                {abrirFicha ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => abrirFicha(c)}
+                      className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {c.titulo}
+                    </button>
+                    <a
+                      href={`https://app.pipefy.com/open-cards/${c.card}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Card de onboarding de ${c.titulo} no Pipefy`}
+                      className="text-muted-foreground hover:text-primary-text"
+                    >
+                      <ExternalLink className="size-3" aria-hidden />
+                    </a>
+                  </span>
+                ) : (
+                  <a
+                    href={`https://app.pipefy.com/open-cards/${c.card}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
+                  >
+                    {c.titulo}
+                    <ExternalLink className="size-3" aria-hidden />
+                  </a>
+                )}
                 <span className="block text-muted-foreground">{faixaCurta(c.faixa)}</span>
               </TableCell>
               <TableCell className="text-xs">{c.unidade}</TableCell>
@@ -1277,9 +1314,33 @@ function conteudo(id: string, p: Painel): ConteudoGaveta | null {
   return null;
 }
 
-function Gaveta({ id, p, fechar }: { id: string | null; p: Painel; fechar: () => void }) {
+/**
+ * A gaveta de cada número. Desde 20/10/2026 é navegável: o cliente da lista abre a ficha da empresa por cima
+ * (`empresa` na URL), com "Voltar" para a gaveta, como no Funil. A chave do cliente é a mesma da Buscar empresa
+ * (CNPJ ou `card:<id>`).
+ */
+function Gaveta({
+  id,
+  p,
+  fechar,
+  ficha,
+  abrirFicha,
+}: {
+  id: string | null;
+  p: Painel;
+  fechar: () => void;
+  ficha: string | null;
+  abrirFicha: (chave: string | null) => void;
+}) {
   const c = id ? conteudo(id, p) : null;
   const meses = id?.startsWith("mes-") ? [id.slice(4)] : undefined;
+  const aberta = ficha ? (p.todos.find((x) => x.chave === ficha) ?? null) : null;
+  // A última ficha aberta continua marcada na lista depois do "Voltar" (mesma regra do Funil).
+  const [ultima, setUltima] = useState<string | null>(null);
+  useEffect(() => {
+    if (ficha) setUltima(ficha);
+  }, [ficha]);
+  useEffect(() => setUltima(null), [id]);
   return (
     <Sheet open={!!c} onOpenChange={(v) => (!v ? fechar() : undefined)}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
@@ -1306,12 +1367,33 @@ function Gaveta({ id, p, fechar }: { id: string | null; p: Painel; fechar: () =>
               {c.extra}
               {c.clientes && (
                 <Parte titulo={`Os clientes (${INT.format(c.clientes.length)})`}>
-                  <ListaClientes clientes={c.clientes} meses={meses} modo={c.modo} />
+                  <ListaClientes
+                    clientes={c.clientes}
+                    meses={meses}
+                    modo={c.modo}
+                    aberta={ficha ?? ultima}
+                    abrirFicha={(x) => abrirFicha(x.chave)}
+                  />
                 </Parte>
               )}
             </div>
           </>
         )}
+        <GavetaFicha
+          chave={c ? ficha : null}
+          resumo={
+            aberta
+              ? {
+                  nome: aberta.titulo,
+                  cnpj: aberta.cnpj,
+                  linhas: [[aberta.unidade, aberta.fase].filter(Boolean).join(" · ")].filter(Boolean),
+                }
+              : null
+          }
+          voltar={c ? { rotulo: c.titulo, onClick: () => abrirFicha(null) } : undefined}
+          fechar={() => abrirFicha(null)}
+          abrir={(chave) => abrirFicha(chave)}
+        />
       </SheetContent>
     </Sheet>
   );

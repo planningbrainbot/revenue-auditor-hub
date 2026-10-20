@@ -1,7 +1,14 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -29,26 +36,32 @@ import {
   MOTIVOS,
   ORIGENS,
   ORIGENS_FUNIL,
+  chaveDaFicha,
   dinheiroDe,
   empresasDoPasso,
   filtrar,
+  grupoDoPasso,
   montarFunil,
   motivoDe,
   nivelDe,
   ondeAgir,
   type EmpresaFunil,
   type FunilBruto,
+  type GrupoFila,
   type Origem,
   type PassoFunil,
 } from "@/lib/monetizacao/consultoria-funil";
 import { cn } from "@/lib/utils";
 import { inputClass } from "./common";
+import { GavetaFicha, type ResumoFicha } from "./consultoria-empresa";
 import type { BuscaMonetizacao } from "./busca";
 
 // Consultoria › Funil (contrato docs/design/contratos/monetizacao-consultoria-funil.md). A visão de abertura da tela:
 // do que vendemos, quanto chegou à Consultoria, quanto ela auditou, quanto achou de dinheiro e quanto virou honorário.
 // Pedido do CEO na call de 16/10/2026 ("quantos que a consultoria auditou... quantos tem dinheiro... quanto que ela
 // monetizou... onde que está esse gelo que não me pagou?"). Régua em src/lib/monetizacao/consultoria-funil.ts.
+// Desde 20/10/2026 (pedido do dono) todo número clicável abre a lista numa gaveta à direita (`passo`), e a empresa
+// clicada na lista abre a ficha por cima dela (`empresa`), com "Voltar" para a lista. Antes a lista abria embaixo.
 
 const TITULO = "Consultoria";
 const PERGUNTA = "Do que vendemos, quanto já virou dinheiro, e onde está parado?";
@@ -164,17 +177,10 @@ export function PainelFunil({
       origem: ordem.length === 0 || ordem.length === ORIGENS_FUNIL.length ? undefined : ordem.join(","),
       unidade: undefined,
       passo: undefined,
+      empresa: undefined,
     });
   };
-  const abrirFicha = (e: EmpresaFunil) =>
-    mudarBusca({
-      visao: "empresa",
-      q: e.nome.slice(0, 60),
-      empresa: e.cnpj ?? (e.deal ? `deal:${e.deal}` : undefined),
-      origem: undefined,
-      passo: undefined,
-      unidade: undefined,
-    });
+  const abrirPasso = (p: string | undefined) => mudarBusca({ passo: p, empresa: undefined });
 
   return (
     <main className="mx-auto max-w-[1600px] space-y-6 p-4 md:px-6">
@@ -216,7 +222,9 @@ export function PainelFunil({
           Unidade
           <select
             value={unidade ?? ""}
-            onChange={(ev) => mudarBusca({ unidade: ev.target.value || undefined, passo: undefined })}
+            onChange={(ev) =>
+              mudarBusca({ unidade: ev.target.value || undefined, passo: undefined, empresa: undefined })
+            }
             className={cn(inputClass, "h-8 w-auto py-0")}
           >
             <option value="">Todas</option>
@@ -240,6 +248,7 @@ export function PainelFunil({
             estado={porta ? "ok" : "sem-acesso"}
             tom="sucesso"
             nota="honorário que entrou no caixa"
+            abrir={porta ? { onClick: () => abrirPasso("8"), rotulo: "ver as empresas" } : undefined}
           />
           <KpiCard
             rotulo="Faturado em 2026 · a meta"
@@ -247,19 +256,21 @@ export function PainelFunil({
             estado={porta ? "ok" : "sem-acesso"}
             tom="sucesso"
             nota="honorário emitido pela Consultoria"
+            abrir={porta ? { onClick: () => abrirPasso("7"), rotulo: "ver as empresas" } : undefined}
           />
           <KpiCard
             rotulo="Garantido a faturar"
             valor={brlCurto(dinheiro.garantido)}
             tom="info"
             nota={`crédito aprovado × êxito, em ${INT.format(dinheiro.empresasGarantido)} empresas`}
+            abrir={{ onClick: () => abrirPasso("6-garantido"), rotulo: "ver as empresas" }}
           />
           <KpiCard
             rotulo="Achado e parado"
             valor={brlCurto(dinheiro.parado)}
             tom="atencao"
             nota={`crédito encontrado sem aceite, em ${INT.format(dinheiro.empresasParado)} empresas`}
-            abrir={{ onClick: () => mudarBusca({ passo: "5" === passo ? undefined : "5" }), rotulo: "ver as empresas" }}
+            abrir={{ onClick: () => abrirPasso("5-parado"), rotulo: "ver as empresas" }}
           />
         </KpiGrade>
       </Secao>
@@ -271,20 +282,29 @@ export function PainelFunil({
         {empresas.length === 0 ? (
           <EstadoVazio titulo="Nenhuma empresa" descricao="Escolha ao menos uma origem acima." />
         ) : (
-          <Funil passos={passos} passo={passo} escolher={(p) => mudarBusca({ passo: p === passo ? undefined : p })} />
+          <Funil passos={passos} passo={passo} escolher={(p) => abrirPasso(p)} />
         )}
       </Secao>
 
-      {passo && (
-        <ListaDoPasso
-          passo={passo}
-          empresas={lista}
-          hoje={hoje}
-          porta={porta}
-          fechar={() => mudarBusca({ passo: undefined })}
-          abrirFicha={abrirFicha}
-        />
-      )}
+      <GavetaDoPasso
+        passo={passo}
+        empresas={lista}
+        hoje={hoje}
+        porta={porta}
+        ficha={busca.empresa ?? null}
+        fechar={() => abrirPasso(undefined)}
+        abrirFicha={(chave) => mudarBusca({ empresa: chave ?? undefined })}
+        irParaFila={(grupo) =>
+          mudarBusca({
+            visao: "fila",
+            grupo,
+            passo: undefined,
+            empresa: undefined,
+            origem: undefined,
+            unidade: undefined,
+          })
+        }
+      />
 
       {acoes.length > 0 && (
         <Secao titulo="Onde agir agora" descricao="O que destrava mais dinheiro, primeiro.">
@@ -312,14 +332,10 @@ export function PainelFunil({
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    a.grupo
-                      ? mudarBusca({ visao: "fila", grupo: a.grupo, passo: undefined, origem: undefined, unidade: undefined })
-                      : mudarBusca({ passo: a.passo })
-                  }
+                  onClick={() => abrirPasso(a.passo)}
                   className="inline-flex items-center gap-1 self-start text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {a.grupo ? "Abrir na fila de cobrança" : "Ver as empresas"}
+                  Ver as empresas
                   <ArrowRight className="size-3.5" aria-hidden />
                 </button>
               </article>
@@ -434,24 +450,45 @@ function Funil({
   );
 }
 
-// ─── A lista de um clique ────────────────────────────────────────────────────────────────────────
+// ─── A lista de um clique, na gaveta ─────────────────────────────────────────────────────────────
 
-function tituloDoPasso(passo: string, n: number): { titulo: string; leitura: string | null } {
+/** `curto` é o nome da lista no botão "Voltar para…" da ficha. */
+function tituloDoPasso(passo: string, n: number): { titulo: string; curto: string; leitura: string | null } {
   const [e, m] = passo.split("-");
   const etapa = ETAPAS.find((x) => String(x.n) === e);
   if (m === "atrasado")
     return {
       titulo: `${INT.format(n)} paradas antes do diagnóstico, fora do prazo`,
+      curto: "fora do prazo",
       leitura: "Estão na Consultoria e passaram da meta da etapa em que estão.",
+    };
+  if (m === "parado")
+    return {
+      titulo: `${INT.format(n)} com dinheiro achado e sem aceite`,
+      curto: "achado e parado",
+      leitura:
+        "A Consultoria achou crédito e o cliente ainda não disse sim a nenhuma tese. A soma do crédito achado delas é o “Achado e parado”.",
+    };
+  if (m === "garantido")
+    return {
+      titulo: `${INT.format(n)} com crédito aprovado a faturar`,
+      curto: "garantido a faturar",
+      leitura:
+        "O cliente aprovou o crédito e ele está no estoque. Cada real compensado vira honorário pela alíquota de êxito: é o “Garantido a faturar”.",
     };
   if (m) {
     const motivo = (MOTIVOS[Number(e) + 1] ?? []).find((x) => x.id === m);
     return {
       titulo: `${INT.format(n)} pararam em "${etapa?.titulo}": ${motivo?.rotulo ?? m}`,
+      curto: motivo?.rotulo.toLowerCase() ?? m,
       leitura: motivo?.leitura ?? null,
     };
   }
-  return { titulo: `${INT.format(n)} chegaram a "${etapa?.titulo}" ou além`, leitura: etapa?.explica ?? null };
+  return {
+    titulo: `${INT.format(n)} chegaram a "${etapa?.titulo}" ou além`,
+    curto: `"${etapa?.titulo}"`,
+    leitura: etapa?.explica ? `${etapa.explica} Conta quem chegou até aqui ou foi além.` : null,
+  };
 }
 
 const ROTULO_ETAPA: Record<string, string> = {
@@ -474,67 +511,181 @@ function ondeEsta(e: EmpresaFunil, hoje: string): string {
   return n === 8 ? "Recebemos" : (motivo ?? ETAPAS[n - 1].titulo);
 }
 
-function ListaDoPasso({
+function GavetaDoPasso({
   passo,
   empresas,
   hoje,
   porta,
+  ficha,
   fechar,
   abrirFicha,
+  irParaFila,
 }: {
-  passo: string;
+  passo: string | null;
   empresas: EmpresaFunil[];
   hoje: string;
   porta: boolean;
+  /** A chave da ficha aberta por cima da lista (`empresa` na URL). */
+  ficha: string | null;
   fechar: () => void;
+  abrirFicha: (chave: string | null) => void;
+  irParaFila: (grupo: GrupoFila) => void;
+}) {
+  const { titulo, curto, leitura } = passo
+    ? tituloDoPasso(passo, empresas.length)
+    : { titulo: "", curto: "", leitura: null };
+  const garantido = passo?.endsWith("-garantido") ?? false;
+  const grupo = passo ? grupoDoPasso(passo) : null;
+  const ordenadas = useMemo(
+    () =>
+      [...empresas].sort(
+        (a, b) =>
+          (garantido ? num(b.garantido) - num(a.garantido) : 0) ||
+          num(b.aceito) + num(b.identificado) - (num(a.aceito) + num(a.identificado)) ||
+          num(b.mrr) - num(a.mrr) ||
+          a.nome.localeCompare(b.nome, "pt-BR"),
+      ),
+    [empresas, garantido],
+  );
+  const soma = (k: "identificado" | "aceito" | "garantido" | "faturado") =>
+    empresas.reduce((s, e) => s + num(e[k]), 0);
+  const aberta = ficha ? (empresas.find((e) => chaveDaFicha(e) === ficha) ?? null) : null;
+  // A última ficha aberta continua marcada na lista depois do "Voltar": a pessoa vê onde parou.
+  const [ultima, setUltima] = useState<string | null>(null);
+  useEffect(() => {
+    if (ficha) setUltima(ficha);
+  }, [ficha]);
+  useEffect(() => setUltima(null), [passo]);
+  const origem = (o: string) => ORIGENS.find((x) => x.id === o)?.curto ?? o;
+  const resumo: ResumoFicha | null = aberta
+    ? {
+        nome: aberta.nome,
+        cnpj: aberta.cnpj,
+        linhas: [
+          [origem(aberta.origem), aberta.unidade, aberta.closer].filter(Boolean).join(" · "),
+          `No funil: ${ondeEsta(aberta, hoje)}`,
+          aberta.regime ? `Regime: ${aberta.regime}` : "",
+        ].filter(Boolean),
+      }
+    : null;
+  return (
+    <Sheet open={!!passo} onOpenChange={(o) => !o && fechar()}>
+      <SheetContent className="flex w-full flex-col gap-4 overflow-y-auto sm:max-w-4xl">
+        {passo && (
+          <>
+            <SheetHeader className="pr-8">
+              <SheetTitle>{titulo}</SheetTitle>
+              <SheetDescription>{leitura ?? "As empresas deste número."}</SheetDescription>
+            </SheetHeader>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Somado rotulo="Crédito achado" valor={soma("identificado")} />
+              <Somado rotulo={garantido ? "Garantido a faturar" : "Aceito pelo cliente"} valor={soma(garantido ? "garantido" : "aceito")} />
+              <Somado rotulo="Faturado" valor={porta ? soma("faturado") : null} />
+              <div className="rounded-lg border bg-card px-3 py-2">
+                <dt className="text-xs text-muted-foreground">Empresas</dt>
+                <dd className="num text-lg font-semibold">{INT.format(empresas.length)}</dd>
+              </div>
+            </dl>
+            {grupo && (
+              <button
+                type="button"
+                onClick={() => irParaFila(grupo)}
+                className="inline-flex items-center gap-1 self-start text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Cobrar na Fila de cobrança
+                <ArrowRight className="size-3.5" aria-hidden />
+              </button>
+            )}
+            {empresas.length === 0 ? (
+              <EstadoVazio titulo="Nenhuma empresa" descricao="Nenhuma empresa neste número com os filtros de agora." />
+            ) : (
+              <ListaDoPasso
+                empresas={ordenadas}
+                hoje={hoje}
+                porta={porta}
+                garantido={garantido}
+                aberta={ficha ?? ultima}
+                abrirFicha={(e) => abrirFicha(chaveDaFicha(e))}
+              />
+            )}
+          </>
+        )}
+        <GavetaFicha
+          chave={passo ? ficha : null}
+          resumo={resumo}
+          voltar={{ rotulo: `${curto} · ${INT.format(empresas.length)} empresas`, onClick: () => abrirFicha(null) }}
+          fechar={() => abrirFicha(null)}
+          abrir={(chave) => abrirFicha(chave)}
+        />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Somado({ rotulo, valor }: { rotulo: string; valor: number | null }) {
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2">
+      <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+      <dd className="num text-lg font-semibold">{valor === null ? "sem acesso" : brlCurto(valor)}</dd>
+    </div>
+  );
+}
+
+function ListaDoPasso({
+  empresas,
+  hoje,
+  porta,
+  garantido,
+  aberta,
+  abrirFicha,
+}: {
+  empresas: EmpresaFunil[];
+  hoje: string;
+  porta: boolean;
+  garantido: boolean;
+  aberta: string | null;
   abrirFicha: (e: EmpresaFunil) => void;
 }) {
-  const { titulo, leitura } = tituloDoPasso(passo, empresas.length);
-  const ordenadas = [...empresas].sort(
-    (a, b) =>
-      num(b.aceito) + num(b.identificado) - (num(a.aceito) + num(a.identificado)) ||
-      num(b.mrr) - num(a.mrr) ||
-      a.nome.localeCompare(b.nome, "pt-BR"),
-  );
   const origem = (o: string) => ORIGENS.find((x) => x.id === o)?.curto ?? o;
   return (
-    <Secao
-      titulo={titulo}
-      descricao={leitura ?? undefined}
-      acoes={
-        <button
-          type="button"
-          onClick={fechar}
-          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="size-3.5" aria-hidden /> Fechar
-        </button>
-      }
-    >
-      <div className="max-h-[36rem] overflow-auto rounded-xl border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Empresa</TableHead>
-              <TableHead className="text-xs">Origem</TableHead>
-              <TableHead className="text-xs">Onde está</TableHead>
-              <TableHead className="text-right text-xs">Crédito achado</TableHead>
-              <TableHead className="text-right text-xs">Aceito</TableHead>
-              {porta && <TableHead className="text-right text-xs">Faturado</TableHead>}
-              <TableHead className="text-xs">Venda / entrega</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ordenadas.slice(0, 300).map((e) => (
-              <TableRow key={e.chave}>
+    <div className="rounded-xl border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs">Empresa</TableHead>
+            <TableHead className="text-xs">Origem</TableHead>
+            <TableHead className="text-xs">Onde está</TableHead>
+            <TableHead className="text-right text-xs">Crédito achado</TableHead>
+            <TableHead className="text-right text-xs">{garantido ? "Garantido" : "Aceito"}</TableHead>
+            {porta && <TableHead className="text-right text-xs">Faturado</TableHead>}
+            <TableHead className="text-xs">Venda / entrega</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {empresas.slice(0, 300).map((e) => {
+            const chave = chaveDaFicha(e);
+            return (
+              <TableRow
+                key={e.chave}
+                onClick={chave ? () => abrirFicha(e) : undefined}
+                aria-current={chave !== null && chave === aberta ? "true" : undefined}
+                className={cn(chave && "cursor-pointer", chave !== null && chave === aberta && "bg-muted/60")}
+              >
                 <TableCell className="text-xs">
-                  <button
-                    type="button"
-                    onClick={() => abrirFicha(e)}
-                    className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {e.nome}
-                  </button>
+                  {chave ? (
+                    <button
+                      type="button"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        abrirFicha(e);
+                      }}
+                      className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {e.nome}
+                    </button>
+                  ) : (
+                    <span className="font-medium">{e.nome}</span>
+                  )}
                   <span className="block text-muted-foreground">
                     {e.cnpj ?? "sem CNPJ"}
                     {e.cnpj_fonte === "nome_exato" || e.cnpj_fonte === "nome_parecido"
@@ -555,7 +706,11 @@ function ListaDoPasso({
                   {num(e.identificado) ? brlCurto(num(e.identificado)) : "—"}
                 </TableCell>
                 <TableCell className="num whitespace-nowrap text-right text-xs">
-                  {num(e.aceito) ? brlCurto(num(e.aceito)) : "—"}
+                  {garantido
+                    ? brlCurto(num(e.garantido))
+                    : num(e.aceito)
+                      ? brlCurto(num(e.aceito))
+                      : "—"}
                 </TableCell>
                 {porta && (
                   <TableCell className="num whitespace-nowrap text-right text-xs">
@@ -569,15 +724,15 @@ function ListaDoPasso({
                   )}
                 </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {ordenadas.length > 300 && (
-          <p className="border-t p-3 text-xs text-muted-foreground">
-            Mostrando as 300 primeiras, por valor. Use o filtro de unidade para ver o resto.
-          </p>
-        )}
-      </div>
-    </Secao>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {empresas.length > 300 && (
+        <p className="border-t p-3 text-xs text-muted-foreground">
+          Mostrando as 300 primeiras, por valor. Feche a gaveta e escolha uma unidade para ver o resto.
+        </p>
+      )}
+    </div>
   );
 }

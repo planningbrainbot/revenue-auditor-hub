@@ -3,8 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  chaveDaFicha,
   dinheiroDe,
   empresasDoPasso,
+  grupoDoPasso,
   montarFila,
   montarFunil,
   motivoDe,
@@ -129,6 +131,29 @@ test("clique no funil: o degrau, o motivo e os fora do prazo", () => {
     empresasDoPasso(EMPRESAS, "3-atrasado", HOJE).map((x) => x.chave),
     ["docs"],
   );
+});
+
+test("gaveta: cada número abre as empresas que ele soma, e a ficha tem chave na URL", () => {
+  // "Achado e parado" soma quem parou no degrau 5; a lista é a mesma, e não o degrau 5 ou além.
+  const parado = empresasDoPasso(EMPRESAS, "5-parado", HOJE);
+  assert.deepEqual(parado.map((x) => x.chave), ["parado", "novo"]);
+  assert.equal(parado.length, dinheiroDe(EMPRESAS, true).empresasParado);
+  // "Garantido a faturar" soma quem tem garantido.
+  const garantido = empresasDoPasso(EMPRESAS, "6-garantido", HOJE);
+  assert.deepEqual(garantido.map((x) => x.chave), ["aceitou"]);
+  assert.equal(garantido.length, dinheiroDe(EMPRESAS, true).empresasGarantido);
+  // Cada cartão de "Onde agir agora" abre a lista do mesmo tamanho do número do cartão.
+  for (const a of ondeAgir(EMPRESAS, HOJE)) assert.equal(empresasDoPasso(EMPRESAS, a.passo, HOJE).length, a.empresas, a.id);
+  assert.equal(grupoDoPasso("6-aceitou"), "aceitou");
+  assert.equal(grupoDoPasso("5-mais_90"), "90");
+  assert.equal(grupoDoPasso("3"), null);
+  assert.equal(chaveDaFicha({ cnpj: C, deal: "9", cliente_id: "c1" }), C);
+  assert.equal(chaveDaFicha({ cnpj: null, deal: "9", cliente_id: "c1" }), "deal:9");
+  assert.equal(chaveDaFicha({ cnpj: null, deal: null, cliente_id: "c1" }), "cliente:c1");
+  assert.equal(chaveDaFicha({ cnpj: null, deal: null, cliente_id: null }), null);
+  for (const k of [C, "deal:9", "cliente:c1"])
+    assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", empresa: k }).empresa, k);
+  assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", passo: "6-garantido" }).passo, "6-garantido");
 });
 
 test("dinheiro de verdade e onde agir", () => {

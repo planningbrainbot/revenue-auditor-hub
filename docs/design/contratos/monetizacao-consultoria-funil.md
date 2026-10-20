@@ -93,8 +93,29 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
 | `visao` | fila, empresa, handoff | — (Funil) | a visão aberta |
 | `origem` | inside_sales, socios, goiania, outra (vírgula) | Funil: as três primeiras; Fila: todas | o recorte |
 | `unidade` | nome da unidade | — (todas) | Funil |
-| `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`) | — | a lista aberta embaixo do Funil |
+| `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`, `5-parado`, `6-garantido`) | — | a gaveta aberta à direita do Funil |
 | `grupo` | aceitou, atraso, 90, 30_90, recente | — | Fila |
+| `empresa` | CNPJ, `deal:<id>`, `cliente:<id>` ou `card:<id>` | — | a ficha aberta por cima da gaveta (Funil, Handoff) ou sozinha (Fila) |
+
+## Gaveta navegável (pedido do dono em 20/10/2026)
+- **Pedido:** "quando eu clico nos indicadores, ele rola a tela pra mostrar uma lista embaixo. Quero que siga o padrão de
+  abrir numa aba lateral à direita que é navegável" e que, dentro dela, o clique no cliente abra "sobreposta uma segunda
+  aba que me permita retornar para a anterior sem perder o fluxo".
+- **Funil:** todo número clicável abre a lista numa gaveta à direita (`Sheet`): os quatro cartões de "Dinheiro de
+  verdade" (Recebido → `8`, Faturado → `7`, Garantido → `6-garantido`, Achado e parado → `5-parado`), cada degrau, cada
+  motivo e cada cartão de "Onde agir agora". A lista embaixo do funil saiu.
+  - O topo da gaveta soma a lista (crédito achado, aceito ou garantido, faturado e empresas). Quando a lista tem grupo na
+    Fila, a gaveta oferece "Cobrar na Fila de cobrança".
+  - "Achado e parado" abre as 42 empresas que ele soma (`5-parado`, quem parou no degrau 5); antes abria o degrau 5 ou
+    além (151), um número diferente do cartão.
+- **Ficha por cima:** a empresa clicada abre a ficha da Buscar empresa numa segunda gaveta, um pouco mais estreita, por
+  cima da lista. "Voltar para…", Esc ou o clique na lista escurecida fecham só a ficha. A lista guarda a rolagem e marca
+  a última empresa aberta.
+- **Fila:** o nome da empresa abre a ficha na gaveta, sem trocar de aba.
+- **Handoff e repasse:** a gaveta que já existia ganha o mesmo comportamento: o cliente da lista abre a ficha por cima
+  (o ícone ao lado do nome continua abrindo o card no Pipefy).
+- **Sem chave:** empresa sem CNPJ, sem negócio e sem cliente da plataforma (118 da carteira de Goiânia em 20/10) aparece
+  sem link.
 
 ## Permissões (N8)
 - **Leitura:** a mesma das outras abas, `view.monetizacao` **e** todas as unidades

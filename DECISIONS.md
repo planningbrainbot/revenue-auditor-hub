@@ -5819,3 +5819,12 @@ Ajuste pedido pelo RH de Maceió (19/10/2026) e aprovado pelo dono, que pediu ta
 - Uma data de início só: a admissão, com o nome conforme o vínculo ("Admissão", "Início do estágio", "Início do contrato", "Início na sociedade"). Sai o campo "Início da vigência"; estágio e terceiro pedem a data de início e o fim da vigência. A coluna `vigencia_inicio` fica no banco, sem uso pelo app.
 - O valor continua um campo só (`ops.gente_remuneracao`, só o RH), com o nome conforme o vínculo: Salário (CLT), Valor da bolsa (estágio), Valor do contrato (terceiro e PJ), Pró-labore (sócio e pró-labore).
 - `ops.gente_vigencia_periodos` (migration `20261020100000`): todo fim de vigência gravado vira um período, pelo gatilho do banco. Primeiro fim: da admissão ao fim. Prorrogação: do dia seguinte ao fim anterior ao novo fim (renovação). Fim antecipado: corrige o último período. O Editar mostra os períodos.
+
+## [2026-10-20] Consultoria: os números abrem uma gaveta à direita, e a ficha da empresa abre por cima dela
+
+Pedido do dono em 20/10/2026: "quando eu clico nos indicadores, ele rola a tela pra mostrar uma lista embaixo. Quero que siga o padrão de abrir numa aba lateral à direita que é navegável", com o cliente abrindo "sobreposta uma segunda aba que me permita retornar para a anterior sem perder o fluxo". Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Gaveta navegável".
+- **Funil:** os quatro cartões de "Dinheiro de verdade", os degraus, os motivos e os cartões de "Onde agir agora" abrem a lista numa gaveta (`passo`). A lista embaixo do funil saiu. Os cartões de "Onde agir agora" não levam mais direto à Fila: a gaveta oferece "Cobrar na Fila de cobrança" quando a lista tem grupo na Fila.
+- **Ficha por cima:** a empresa da lista abre a ficha da Buscar empresa (`GavetaFicha`, em `consultoria-empresa.tsx`) numa segunda gaveta, dentro da primeira, com "Voltar para…". Esc e o clique fora fecham só a de cima. A chave fica em `empresa` na URL.
+- **Fila e Handoff:** o nome da empresa abre a mesma ficha na gaveta, sem trocar de aba. No Handoff, o ícone ao lado do nome continua levando ao card do Pipefy.
+- **Corrige:** o cartão "Achado e parado" (42 empresas em 20/10) abria o degrau 5 ou além (151). Agora abre as 42 que ele soma (`5-parado`). O "Garantido a faturar" abre `6-garantido`.
+- **Não muda:** nenhuma régua de contagem. O defeito aberto em 17/10 continua: filiais de Goiânia que caem no mesmo cliente da plataforma somam várias vezes. Em 20/10 a tela mostra R$ 7,58 mi faturados em 2026; por cliente são R$ 6,31 mi.
