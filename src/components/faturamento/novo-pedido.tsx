@@ -88,6 +88,7 @@ import {
   juntarEmails,
   lerValor,
   mascararDocumento,
+  buscaAindaVale,
   normalizarDocumento,
   normalizarProjeto,
   parcelasDoFormulario,
@@ -346,8 +347,7 @@ function Formulario({
   // A resposta só vale se ainda é do documento e da empresa do formulário: a consulta à Receita pode levar
   // segundos, e uma resposta velha não pode trocar o bloqueio nem o aviso de contrato do cliente novo.
   const daBuscaAtual = (args: { documento: string; emissora: string }) =>
-    args.documento === normalizarDocumento(formRef.current.tomador_documento) &&
-    args.emissora === formRef.current.emissora_id;
+    buscaAindaVale(args, formRef.current);
   const buscarTomador = useMutation({
     mutationFn: async (args: { documento: string; emissora: string }) =>
       desembrulhar(await tomadorFn({ data: args })),

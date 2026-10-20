@@ -13,7 +13,7 @@ import type {
   SituacaoFiltro,
   TipoRecorte,
 } from "./tipos.ts";
-import { diaMes, diaSP, diaEHora, horaSP, listaNomes, primeiroNome } from "./formato.ts";
+import { diaMes, diaSP, diaEHora, horaSP, listaNomes, primeiroNome, rotuloMes } from "./formato.ts";
 
 /** Os cinco tons do `StatusBadge` (DESIGN.md §4). */
 export type TomSituacao = "sucesso" | "atencao" | "perigo" | "info" | "neutro";
@@ -408,6 +408,46 @@ export function linhasDeAtencao(ctx: Pick<Contexto, "papeis" | "pendencias">): L
     });
   }
   return linhas.filter((l) => l.quantidade > 0);
+}
+
+// ------------------------------------------------------------------ o que virou nota e o que atrasou (RF-P12)
+
+export interface LinhaNovidade {
+  chave: "faturados" | "em_atraso";
+  titulo: string;
+  /** Vai inteiro para `fat_pedidos` (o `total` de lá é a contagem) e vira a URL de Pedidos (o destino bate). */
+  filtro: FiltroPedidos;
+  acao: string;
+  tom: "sucesso" | "perigo";
+}
+
+/**
+ * RF-P12 na tela: além do e-mail, quem pede vê em Meu faturamento o que virou nota e o que está em atraso.
+ *
+ * "Faturados" é o mês corrente (`regua: "nota"`), não "desde a última visita" nem "últimos 7 dias": a lista
+ * não tem filtro por data da nota nem a data por linha, e a última visita pediria tabela nova. Para ser
+ * "desde a última visita", falta `fat_pedidos` aceitar a data da nota (`nota_desde`) ou uma RPC de tela que
+ * leia `integracoes.notificacoes` de quem está olhando. Os dois ficam sem simulados (nota simulada não é
+ * nota) e com as empresas do filtro da tela.
+ */
+export function linhasDeNovidades(mesCorrente: string, emissoras: string[] = []): LinhaNovidade[] {
+  const recorte: Pick<FiltroPedidos, "emissoras"> = emissoras.length ? { emissoras } : {};
+  return [
+    {
+      chave: "faturados",
+      titulo: `Viraram nota em ${rotuloMes(mesCorrente) ?? mesCorrente}`,
+      filtro: { regua: "nota", mes: mesCorrente, simulacao: false, ...recorte },
+      acao: "Ver as notas",
+      tom: "sucesso",
+    },
+    {
+      chave: "em_atraso",
+      titulo: "Com parcela em atraso",
+      filtro: { regua: "atraso", simulacao: false, ...recorte },
+      acao: "Ver os atrasados",
+      tom: "perigo",
+    },
+  ];
 }
 
 // ------------------------------------------------------------------ procedência e papel
