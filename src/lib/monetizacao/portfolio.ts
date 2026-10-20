@@ -1,6 +1,7 @@
 import {
   baseRetroativaConsultoria,
   consultoriaForaDeOferta,
+  consultoriaSemTributoProprio,
   disponibilidade,
   distratoForaDeOferta,
   fornecedorForaDeOferta,
@@ -72,6 +73,7 @@ export type MotivoConsultoria =
   | "distrato"
   | "fornecedor"
   | "cliente"
+  | "sem_tributo"
   | "simples"
   | "confirmar";
 export function motivoConsultoria(a: Conta): MotivoConsultoria {
@@ -83,6 +85,8 @@ export function motivoConsultoria(a: Conta): MotivoConsultoria {
   // como o outro.
   if (fornecedorForaDeOferta(a)) return "fornecedor";
   if (o.status === "fora_regra" && o.reason === consultoriaForaDeOferta(a)) return "cliente";
+  // Holding sem operação ou aberta há menos de 1 ano (19/10): não é Simples, não pode ser contada como tal.
+  if (o.status === "fora_regra" && o.reason === consultoriaSemTributoProprio(a)) return "sem_tributo";
   return o.status === "fora_regra" ? "simples" : "confirmar";
 }
 // A conta retroativa sem regime continua visível para qualificação; não vira apta para envio.

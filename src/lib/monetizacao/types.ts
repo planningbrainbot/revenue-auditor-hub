@@ -124,6 +124,9 @@ export interface Conta {
   // Teto legal de faturamento anual pelo porte na Receita (R$ mi): ME 0,36 · EPP 4,8. Não é faixa declarada.
   faturamento_teto?: number | null;
   faturamento_teto_fonte?: string | null;
+  // Início de atividade (o mais antigo dos CNPJs) e CNAE principal de cada CNPJ, da consulta em lote da Receita
+  // (18/09), copiados da ficha pela migration 20261019240000. Ausente = conta fora da consulta.
+  cadastro_receita?: { inicio_atividade: string | null; cnaes: string[]; fonte: string } | null;
   regime_conflict?: boolean;
   old_base: boolean;
   matrix: boolean;

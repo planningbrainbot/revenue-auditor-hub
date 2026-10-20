@@ -5754,3 +5754,17 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Testes: `tests/monetizacao-cadencia.test.mjs`, 40 de 40.
 
 **Fica pendente:** a validação dos textos pelo Paulo e pela Jordana (regra de 08/10) antes de publicar a função e rodar o script. Depois disso: corrigir o documento 01 e o guia da pré-venda, e trocar no dossiê a linha "Demanda / tese" por "Por que esta conta".
+## [2026-10-19] Consultoria retroativa: holding sem operação e empresa aberta há menos de 1 ano saem da oferta
+
+**Contexto:** o sócio de Belém reclamou que a pré-venda insistia em agenda com a ARCANJO PARTICIPACOES, holding do grupo da QDR Engenharia aberta em 10/03/2026 com capital de R$ 10 mil. A conta saiu como "Consultoria retroativa prioritária" só por ser Base Antiga no Pipefy e não Simples (Driva), entrou no pipe 39 em 29/09 e ganhou a cadência. A régua não olhava data de abertura nem CNAE, que já estavam na ficha desde a consulta em lote da Receita de 18/09 (`ops.monetizacao_detalhes.fields`), mas não no perfil que a oferta lê. Pedido do Pedro: "Corrigir a régua".
+
+**Decisão — a regra:** sai da Consultoria (fora da regra, nos dois lados) a conta que:
+1. abriu há menos de 1 ano (início de atividade na Receita, o mais antigo dos CNPJs, comparado com a data de São Paulo); ou
+2. é holding pura, com todo CNAE principal em 64.62 ou 64.63, e não tem faixa de faturamento própria (declarada ou revisada na lista). A estimativa da Driva é do grupo e não conta.
+A retroativa recupera tributo pago nos últimos anos; nenhum dos dois casos tem esse histórico. Cella, Finance e Recon não mudam. Conta fora da consulta da Receita segue a régua de antes.
+
+**Decisão — onde mora:** `perfil.cadastro_receita` {inicio_atividade, cnaes, fonte}, copiado da ficha pela migration `20261019240000` (função `ops.receita_cadastro_da_ficha`). Regra em `consultoriaSemTributoProprio()` (model.ts) e `ops.monetizacao_consultoria_sem_historico()`, na mesma posição: depois da origem retroativa e de "já é cliente", antes do Simples. `ops.monetizacao_offer_issue_pre_base_unica` passa de IMMUTABLE para STABLE porque lê a data de hoje. `motivoConsultoria` ganha o motivo `sem_tributo`, para o cartão de "excluídas por Simples/MEI" não contar essas contas (regra de 19/09: um motivo não vira outro).
+
+**Efeito medido em 19/10 (régua da tela, só leitura):** aptas de Consultoria 1.567 → 1.471; prontas 1.476 → 1.382 (saem 94: 61 holdings e 33 recentes). Ensaio da migration em produção (bloco desfeito por exceção): 96 contas passam de apta a fora da regra no servidor, as mesmas 96 do cliente; 9.093 perfis recebem `cadastro_receita`; 16 casos SQL ok. Dois cards abertos do pipe 39 estão em contas atingidas: 97978 (BZ Gestão Patrimonial, Maceió) e 97926 (C E C D Imóveis, Belém), ambos por abertura recente. A própria Arcanjo já estava fora no servidor por outro motivo (o card do pipe 39 virou "registro no Pipedrive", origem Base Nova).
+
+**Pendências:** a próxima consulta em lote da Receita precisa gravar `cadastro_receita` também (o script de 18/09 vive fora do repo). A linha própria em "Entenda os números" ficou de fora, para não mexer em tela sem contrato.
