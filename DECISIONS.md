@@ -5813,3 +5813,56 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Ninguém dá o OK no próprio pedido: o OK vem do dono, do gestor ou do substituto, e nunca de quem enviou, nem que seja gestor.
 - Pode tirar o obrigatório de CPF e CNPJ do formulário público do pipe 307098392 e passar a exigência para a fase seguinte, para o portal conseguir criar card pela API.
 - Rascunho descartado não é apagado: vira `cancelado` com o motivo "descartado pelo autor".
+
+## [2026-10-20] Portal de Faturamento, T1b: API das telas e do conector aplicada no banco único
+
+**Contexto:** plano E1 (`PM Work/execution/portal-faturamento-prd-20261013/e1/PLANO-E1.md`, linha T1b). O contrato da API foi escrito antes do SQL, em `e1/API.md`, porque telas (T4) e conector (T2/T3) estão sendo escritos em paralelo contra ele. Ele só muda pela seção "Mudanças".
+
+**Decisões:**
+- **Máquina de estados num lugar só.** `receita.fat_transicao` é a única função que muda `fat_pedidos.status`: um gatilho recusa qualquer outra escrita na coluna, até do postgres. Ela confere a tabela de transições, exige motivo em devolvido e cancelamento pedido, grava `fat_eventos` com diff e autor e enfileira o Pipefy.
+  - O Pipefy recebe `criar_card` na primeira chegada à fila e `mover_fase` depois. Sempre gravado; o `pipefy_sync` decide no conector.
+- **Quem pode cada ação** sai de uma função só (`receita.fat_acoes`): a ficha mostra, e as RPCs de ação conferem de novo.
+  - Ninguém dá o OK no próprio pedido. A regra vale para o autor e para quem enviou, mesmo gestor.
+  - Antes do OK, devolve o dono, o substituto ou o gestor. Depois do Omie, só a tesouraria.
+  - O dono (ou o substituto, ou o gestor) pede o cancelamento, e a tesouraria efetiva.
+  - Rascunho descartado vira cancelado com "descartado pelo autor".
+- **Visibilidade (CA-09):**
+  - tesouraria e controladoria veem o recorte inteiro;
+  - o gestor vê a emissora;
+  - dono, substituto, autor e quem enviou veem os seus;
+  - pedido nunca enviado só o autor vê.
+- **Fila do Omie:**
+  - `garantir_cliente` e, dependendo dele, `incluir_os`, os dois com o número do pedido como código de integração.
+  - Reenvio depois de devolução com OS já criada vira `alterar_os`.
+  - Reenviar reaproveita a mesma linha (CA-06).
+  - O `modo` (simular/gravar) é congelado quando o envio entra na fila.
+  - Bloqueio e indisponibilidade por emissora ficam em `integracoes.omie_emissora_estado`, e as outras emissoras seguem (CA-12).
+- **O payload da fila é a foto dos dados do portal** (versão 1), e não o param do Omie. Quem monta o param é o conector (T2), que devolve o que montou em `resposta`.
+- **Simulação é atributo do pedido** (`simulacao`). O pedido simulado passa por conferir e "faturar em simulação" até faturado e fica fora dos números de Meu faturamento.
+- **CNPJ inapto (CA-05):**
+  - O banco único não tinha situação cadastral: `ops.base_enriquecimento_cnpj` só tem regime e segmento.
+  - Entrou o cache `integracoes.receita_cnpj`, que só o service_role grava, por `integracoes.receita_cnpj_gravar`. Quem consulta a CNPJá e grava é o servidor das telas ou o conector.
+  - Sem consulta no banco, o envio não bloqueia (proposta pendente da Ana).
+- **Aviso de outra empresa (RF-P03/CA-04)** usa `ops.omie_contratos_servico`, com contrato `situacao = '10'` e vigência em dia.
+  - A empresa do contrato sai do CNPJ da unidade do Omie (hoje só Rio de Janeiro = PRJ) e de Planning Partners (Matriz) = PARTNERS.
+  - Contrato de unidade franqueada não gera aviso. Os contratos das emissoras chegam na E2.
+- **Departamentos** em `receita.fat_departamentos`: as 19 opções do pipe. A tabela `fat_eventos` passou a aceitar as entidades `emissora` e `servico`, e ligar a gravação no Omie (só admin) vira evento.
+- **Fora do pedido de origem, acrescentados:**
+  - `ops.fat_servico_padroes`: categoria e conta corrente, pedidos pelo contrato da Configuração;
+  - `integracoes.fat_status_enfileirar`: para o cron de 4 em 4 h da T2;
+  - `integracoes.receita_cnpj_gravar`.
+- **Achado para o conector:** o schema `integracoes` não está exposto no PostgREST (`db_schema` = public, graphql_public, ops, growth, financeiro). O conector chama por conexão direta com `set local role service_role`, ou alguém expõe o schema (configuração do projeto, não migration). Registrado em `API.md`, "Mudanças".
+- **Risco anotado:** o documento só aceita dígitos (check da T1a). O CNPJ alfanumérico, emitido desde julho de 2026, ainda não entra.
+
+**Onde:**
+- Migration: `supabase/migrations/20261020120000_portal_faturamento_t1b.sql`.
+- Rollback: `supabase/rollback/20261020120000_portal_faturamento_t1b_rollback.sql`.
+- Gate: `supabase/gates/20261020_portal_faturamento_t1b.sql`. Pessoas de teste criadas dentro da transação; número de pedido de uma sequence de ensaio, sem gastar a de produção.
+- Medição: `e1/medir_t1b.py`.
+
+**Status:**
+- **Aplicado em 20/10** (versão 20261020120000, registrada em `schema_migrations`).
+- O gate deu `[]` antes de aplicar (com a migration e o rollback) e depois de aplicar.
+- Tempos com 0 pedidos: até 26 ms nas listas; `fat_config` ~100 ms.
+- Tempos com 2.000 pedidos simulados: `fat_pedidos` ~150 ms, `fat_fila_tesouraria` ~90 ms, `fat_resumo` ~300 ms.
+- O gate da T1a no modo "depois de aplicar" deixou de valer: os blocos B11 e E3 mudam a situação direto, e agora a guarda recusa. Para a T1a, vale o histórico do gate.
