@@ -6351,3 +6351,47 @@ Três decisões do dono por opções, depois da explicação dos números da tel
 - **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
 - **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
 - **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.
+
+## [2026-10-20] Portal de Faturamento, CA-04: contratos vigentes das emissoras no aviso de "contrato em outra empresa"
+
+**Contexto:** a auditoria do Jev deu "não atende" no CA-04 ("tomador com contrato vigente na PAC, pedido pela PRJ → o portal avisa"). O aviso só lia `ops.omie_contratos_servico`, que tem os contratos das unidades, não os das emissoras.
+
+**Decisões:**
+- **`integracoes.omie_contratos_vigentes`** guarda, por emissora, só os contratos **ativos (`cCodSit` 10) e de vigência em dia** (E0 §3.1: o vencido não fatura). O documento do cliente vem do cadastro do Omie.
+  - O conjunto é substituído pela passagem `ops.fat_conector_contratos_aplicar`.
+  - `receita.fat_contratos_vigentes`, a fonte de `contratos_outra_emissora`, junta essa tabela. Por isso `fat_tomador`, o salvar, a ficha e a trava do envio (`confirmou_emissora`) passaram a ver o contrato da emissora sem mudar de contrato: o retorno continua só com a empresa, sem número nem valor.
+- **Leitura pela fila do Omie:** a operação `sincronizar_contratos`, só de leitura, vale em simular e em gravar.
+  - Lê todas as páginas de 100 do `ListarContratos` e casa nCodCli → documento em lotes de 50 pelo `ListarClientesResumido` (`clientesPorCodigo`). O que faltar sai por `ConsultarCliente`, até 20.
+  - Uma chamada por vez. O banco não reserva emissora bloqueada.
+  - Só começa com 70 s de folga na rodada: a PAC, a maior, leva uns 40 s.
+- **Enfileiramento:** `integracoes.fat_contratos_enfileirar()` põe uma leitura por emissora ativa com Omie, sem duplicar. O job `faturamento-omie-contratos` roda todo dia às 6h de São Paulo.
+- **Fora do aviso:** contrato vigente cujo cliente não tem CPF/CNPJ válido no cadastro do Omie não entra no aviso. Ele é contado (`sem_documento`) e há aviso na resposta do envio.
+
+**Onde:**
+- Banco: migration, rollback e gate `20261020230000_portal_faturamento_contratos_vigentes`. O gate tem o caso literal do CA-04 (aviso; envio recusado sem "confirmo a empresa" e aceito com ela).
+- Código: `supabase/functions/faturamento-omie/logica.ts`.
+- Testes: `tests/faturamento-contratos.test.mjs`.
+- Integração: `scripts/faturamento/conector-simular-integracao.py --contratos`.
+
+**Status:**
+- Aplicado, com o gate passando antes e depois.
+- Edge publicada.
+- **Sincronização rodada para as 17 emissoras ativas em 20/10**, em quatro rodadas do cron, sem erro. Contra o E0 de 15/10:
+
+  | Emissora | Vigentes | E0 |
+  |---|---|---|
+  | PAC | 357 | 357 |
+  | PRJ | 74 | 74 |
+  | PMC | 283 + 1 sem documento | 286 |
+  | MAROX | 68 | 67 |
+  | BPO | 74 | 73 |
+  | DOC | 48 | 48 |
+  | PAT | 26 | 26 |
+  | PCC | 29 + 1 sem documento | 31 |
+  | PGE | 28 | 29 |
+  | PIS | 6 | 6 |
+  | NEO | 23 | 18 |
+  | PAC SP | 21 | 21 |
+
+  As emissoras novas: PNE 50, ASCENDIA 7, FINANCE 2.
+- **CA-04 com dado real:** um CNPJ com contrato vigente na PAC, consultado para um pedido pela PRJ, recebe o aviso "PAC", sem número nem valor.

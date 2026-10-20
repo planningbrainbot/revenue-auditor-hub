@@ -47,6 +47,13 @@ export const ETAPA_OS = "50";
 export const ESPERA_POS_FATURAR_MS = 4000;
 /** Teto de páginas do catálogo (50 por página; a maior emissora tem 42 serviços). */
 export const MAX_PAGINAS_CATALOGO = 20;
+/** Leitura dos contratos (CA-04): páginas de 100 (a PAC tem 13), lotes de 50 clientes por código, teto de consultas
+ * avulsas, e a folga mínima da rodada para começar (a PAC leva ~50 s; sem a folga, volta para a próxima rodada). */
+export const POR_PAGINA_CONTRATOS = 100;
+export const MAX_PAGINAS_CONTRATOS = 40;
+export const LOTE_CLIENTES = 50;
+export const MAX_CONSULTAS_AVULSAS = 20;
+export const FOLGA_CONTRATOS_MS = 70_000;
 
 /** Métodos que só leem. Em simulação, só estes passam. */
 export const LEITURAS: ReadonlySet<string> = new Set([
@@ -63,6 +70,8 @@ export const LEITURAS: ReadonlySet<string> = new Set([
   "ConsultarContaReceber",
   "ListarContasReceber",
   "ListarNFSEs",
+  "ListarContratos",
+  "ConsultarContrato",
 ]);
 /** Escritas que o conector faz em gravação. Qualquer outro método é recusado nos dois modos. */
 export const ESCRITAS: ReadonlySet<string> = new Set([
@@ -79,6 +88,7 @@ export const OPERACOES = [
   "faturar_os",
   "consultar_status",
   "sincronizar_servicos",
+  "sincronizar_contratos",
 ] as const;
 
 const ACAO: Record<string, string> = {
@@ -88,6 +98,7 @@ const ACAO: Record<string, string> = {
   faturar_os: "o faturamento",
   consultar_status: "a leitura da situação da OS",
   sincronizar_servicos: "a leitura do catálogo de serviços",
+  sincronizar_contratos: "a leitura dos contratos",
 };
 
 export type Modo = "simular" | "gravar";
@@ -418,7 +429,9 @@ export function criarOmie(o: {
   const chamadas: Array<{ metodo: string; http: number | null; ms: number; classe?: string }> = [];
   const limpar = (t: string) => {
     let s = String(t ?? "");
-    for (const segredo of [app_key, app_secret]) if (segredo) s = s.split(segredo).join("«chave»");
+    // Só segredo com cara de chave (8+ caracteres): um valor curto trocaria letras soltas da própria resposta.
+    for (const segredo of [app_key, app_secret])
+      if (segredo && segredo.length >= 8) s = s.split(segredo).join("«chave»");
     return s;
   };
 
@@ -777,6 +790,10 @@ export type Contexto = {
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
   /** Consulta da Receita em cache para o CNPJ (ops.fat_conector_receita_cnpj); nulo sem consulta. */
   receitaCnpj?: (cnpj: string) => Promise<any | null>;
+  /** ops.fat_conector_contratos_aplicar: substitui os contratos vigentes da emissora. */
+  contratosAplicar?: (emissora: string, contratos: any[]) => Promise<any>;
+  /** Quanto falta para o fim da rodada (ms). */
+  restaMs?: () => number;
 };
 
 const fim = (ctx: Contexto, resposta: any, codigos: Record<string, any> = {}): Resultado => ({
@@ -1319,6 +1336,135 @@ async function sincronizarServicos(envio: any, ctx: Contexto): Promise<Resultado
   });
 }
 
+/** Um contrato do ListarContratos (servicos/contrato) → o que a tabela de contratos vigentes guarda. */
+export function contratoDoOmie(c: any) {
+  const cab = c?.cabecalho ?? {};
+  const valor = Number(cab.nValTotMes);
+  return {
+    codigo_contrato: num(cab.nCodCtr),
+    numero: texto(cab.cNumCtr) || null,
+    codigo_cliente_omie: num(cab.nCodCli),
+    situacao: texto(cab.cCodSit),
+    vigencia_inicial: isoDeBr(cab.dVigInicial),
+    vigencia_final: isoDeBr(cab.dVigFinal),
+    valor_mensal: Number.isFinite(valor) ? centavos(valor) : null,
+  };
+}
+
+/** Vigente = ativo (cCodSit 10) e vigência final vazia ou a partir de hoje (E0 §3.1: o vencido não fatura). */
+export function contratoVigente(
+  c: { situacao: string; vigencia_final: string | null },
+  hoje: string,
+) {
+  return c.situacao === "10" && (!c.vigencia_final || c.vigencia_final >= hoje);
+}
+
+export function emLotes<T>(lista: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < lista.length; i += n) out.push(lista.slice(i, i + n));
+  return out;
+}
+
+const docValido = (d: string) => /^([0-9]{11}|[0-9A-Z]{12}[0-9]{2})$/.test(d);
+
+/**
+ * sincronizar_contratos (CA-04): lê todos os contratos da emissora, fica com os vigentes, casa nCodCli → documento
+ * pelo cadastro de clientes e substitui o conjunto no banco. Só leitura no Omie: vale em simular e em gravar.
+ * Uma chamada por vez (o ritmo da emissora), respeitando o bloqueio (o banco não reserva emissora bloqueada) e o prazo
+ * da rodada (só começa com FOLGA_CONTRATOS_MS; cada chamada para antes do fim).
+ */
+async function sincronizarContratos(envio: any, ctx: Contexto): Promise<Resultado> {
+  const emissora = String(envio?.origem_id ?? emissoraId(envio));
+  if (ctx.restaMs && ctx.restaMs() < FOLGA_CONTRATOS_MS) {
+    return {
+      status: "pendente",
+      resposta: {
+        metodo: "ListarContratos",
+        liberado: "sem folga na rodada para ler os contratos",
+      },
+      erro_legivel: null,
+      codigos: { tentar_em: ctx.agora().toISOString() },
+    };
+  }
+  // 1. Contratos, página a página.
+  const lidos: Array<ReturnType<typeof contratoDoOmie>> = [];
+  let pagina = 1;
+  let total = 1;
+  while (pagina <= total && pagina <= MAX_PAGINAS_CONTRATOS) {
+    const r = await ctx.omie.consultar("servicos/contrato", "ListarContratos", {
+      pagina,
+      registros_por_pagina: POR_PAGINA_CONTRATOS,
+      apenas_importado_api: "N",
+      cExibeObs: "N",
+      cExibirProdutos: "N",
+      cExibirInfoCadastro: "N",
+    });
+    if (!r) break;
+    total = Number(r.total_de_paginas ?? 1) || 1;
+    for (const c of Array.isArray(r.contratoCadastro) ? r.contratoCadastro : [])
+      lidos.push(contratoDoOmie(c));
+    pagina++;
+  }
+  if (total > MAX_PAGINAS_CONTRATOS) {
+    return erro(
+      { metodo: "ListarContratos", paginas: pagina - 1 },
+      `A ${nomeEmissora(envio)} passou de ${MAX_PAGINAS_CONTRATOS * POR_PAGINA_CONTRATOS} contratos: nada mudou no portal; avise o time do Brain.`,
+    );
+  }
+  const hoje = hojeSP(ctx.agora());
+  const vigentes = lidos.filter((c) => c.codigo_contrato && contratoVigente(c, hoje));
+
+  // 2. Documento de cada cliente: em lotes pelo código (ListarClientesResumido), e o que faltar, um a um.
+  const codigos = [
+    ...new Set(vigentes.map((c) => c.codigo_cliente_omie).filter((x): x is number => !!x)),
+  ];
+  const doc = new Map<number, string>();
+  for (const lote of emLotes(codigos, LOTE_CLIENTES)) {
+    const r = await ctx.omie.consultar("geral/clientes", "ListarClientesResumido", {
+      pagina: 1,
+      registros_por_pagina: LOTE_CLIENTES,
+      apenas_importado_api: "N",
+      clientesPorCodigo: lote.map((c) => ({ codigo_cliente_omie: c })),
+    });
+    for (const x of Array.isArray(r?.clientes_cadastro_resumido)
+      ? r.clientes_cadastro_resumido
+      : []) {
+      const d = documento(x?.cnpj_cpf);
+      if (num(x?.codigo_cliente) && docValido(d)) doc.set(Number(x.codigo_cliente), d);
+    }
+  }
+  const faltam = codigos.filter((c) => !doc.has(c));
+  for (const c of faltam.slice(0, MAX_CONSULTAS_AVULSAS)) {
+    const x = await ctx.omie.consultar("geral/clientes", "ConsultarCliente", {
+      codigo_cliente_omie: c,
+    });
+    const d = documento(x?.cnpj_cpf);
+    if (docValido(d)) doc.set(c, d);
+  }
+
+  const contratos = vigentes
+    .filter((c) => c.codigo_cliente_omie && doc.has(c.codigo_cliente_omie))
+    .map((c) => ({ ...c, documento: doc.get(c.codigo_cliente_omie!)! }));
+  const semDocumento = vigentes.length - contratos.length;
+  // Leitura não escreve no Omie: o banco é atualizado nos dois modos.
+  const aplicado = ctx.contratosAplicar ? await ctx.contratosAplicar(emissora, contratos) : null;
+  return fim(ctx, {
+    metodo: "ListarContratos",
+    paginas: pagina - 1,
+    lidos: lidos.length,
+    ativos: lidos.filter((c) => c.situacao === "10").length,
+    vigentes: vigentes.length,
+    clientes: codigos.length,
+    sem_documento: semDocumento,
+    aplicado,
+    avisos: semDocumento
+      ? [
+          `${semDocumento} contrato(s) vigente(s) sem CPF/CNPJ válido no cadastro do cliente ficaram de fora do aviso.`,
+        ]
+      : [],
+  });
+}
+
 const OPERACAO: Record<string, (envio: any, ctx: Contexto) => Promise<Resultado>> = {
   garantir_cliente: garantirCliente,
   incluir_os: incluirOS,
@@ -1326,6 +1472,7 @@ const OPERACAO: Record<string, (envio: any, ctx: Contexto) => Promise<Resultado>
   faturar_os: faturarOS,
   consultar_status: consultarStatus,
   sincronizar_servicos: sincronizarServicos,
+  sincronizar_contratos: sincronizarContratos,
 };
 
 /** Modo que vale para o envio: só "gravar" literal grava. Gravar com a emissora já de volta em simulação = conflito. */
@@ -1396,6 +1543,7 @@ export type Dependencias = {
   statusAplicar: (pedido: string, status: any) => Promise<any>;
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
   receitaCnpj?: (cnpj: string) => Promise<any | null>;
+  contratosAplicar?: (emissora: string, contratos: any[]) => Promise<any>;
   transporte: Transporte;
   dormir: (ms: number) => Promise<void>;
   agora?: () => Date;
@@ -1569,6 +1717,8 @@ export async function rodarFila(d: Dependencias) {
               statusAplicar: d.statusAplicar,
               servicosAplicar: d.servicosAplicar,
               receitaCnpj: d.receitaCnpj,
+              contratosAplicar: d.contratosAplicar,
+              restaMs: d.prazo != null ? () => (d.prazo as number) - relogio() : undefined,
             });
           }
         }
