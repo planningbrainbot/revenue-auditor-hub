@@ -301,7 +301,15 @@ test("CNPJá aberta → p_dados de fat_receita_cnpj_gravar", () => {
         company: { name: "PLANNING DOC ASSESSORIA PARALEGAL LTDA" },
         status: { id: 2, text: "Ativa" },
         statusDate: "2023-02-27",
-        address: { city: "Goiânia", state: "go" },
+        address: {
+          street: "Rua Mario Bitar",
+          number: "81",
+          details: "Quadra H21 Lote 16 Sala 26",
+          district: "Set Marista",
+          zip: "74150-260",
+          city: "Goiânia",
+          state: "go",
+        },
         emails: [
           { address: "Fin@Planning.com.br" },
           { address: "fin@planning.com.br" },
@@ -316,6 +324,11 @@ test("CNPJá aberta → p_dados de fat_receita_cnpj_gravar", () => {
       nome_fantasia: "Planning",
       situacao: "ATIVA",
       situacao_desde: "2023-02-27",
+      logradouro: "Rua Mario Bitar",
+      numero: "81",
+      complemento: "Quadra H21 Lote 16 Sala 26",
+      bairro: "Set Marista",
+      cep: "74150260",
       municipio: "Goiânia",
       uf: "GO",
       emails: ["fin@planning.com.br"],
@@ -325,6 +338,14 @@ test("CNPJá aberta → p_dados de fat_receita_cnpj_gravar", () => {
   assert.equal(
     dadosDaCnpja({ company: { name: "X" }, status: { text: "Baixada" } }, agora).situacao,
     "BAIXADA",
+  );
+  // CEP fora de 8 dígitos sai nulo (o banco recusaria a gravação inteira).
+  assert.equal(
+    dadosDaCnpja(
+      { company: { name: "X" }, status: { text: "Ativa" }, address: { zip: "7415" } },
+      agora,
+    ).cep,
+    null,
   );
   assert.equal(
     dadosDaCnpja({ company: { name: "X" }, status: { id: 4 } }, agora).situacao,

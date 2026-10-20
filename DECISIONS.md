@@ -5909,3 +5909,32 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou gravada no cache da Receita (ATIVA).
 
 **Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy.
+
+## [2026-10-20] Portal de Faturamento, T5: o Jev no Novo pedido (sugerir serviço e conferir a descrição)
+
+**Contexto:** plano E1, linha T5. Os dois lugares já estavam prontos no Novo pedido, atrás da prop `assistente`.
+
+**Decisões:**
+- **Duas server functions** em `src/lib/faturamento/jev.functions.ts`, ligadas só com `FATURAMENTO_JEV=1` e `OPENROUTER_API_KEY`. Sem a variável, o botão e o aviso não aparecem.
+  - **`sugerirServico`:** uma pergunta `choice` com os serviços liberados da empresa e mais a opção `nenhum`. Acima de 25 serviços, os 25 mais prováveis pelas palavras da descrição. Devolve o serviço, a confiança e as três opções mais prováveis.
+  - **`conferirDescricao`:** uma pergunta `noul`, "a descrição é do mesmo tipo de trabalho do serviço?".
+  - Antes de chamar o Jev, as duas leem `ops.fat_servicos` com a sessão da pessoa, que confere a porta do portal e o papel na empresa. A sugestão só escolhe dentro do catálogo.
+  - Corte de 3 s. Estourou, a tela segue sem sugestão.
+- **O que vai ao Jev:** só empresa, serviço, descrição, projeto e valor. `limparTexto` troca por marcador o CPF, o CNPJ (inclusive o alfanumérico), o e-mail, o telefone, o link e o nome do cliente; o nome chega à server function só para ser tirado.
+- **Limiares** (teste de 20/10, `e1/jev-no-produto.md`):
+  - a sugestão só aparece com confiança de 0,5 ou mais (`LIMIAR_SUGESTAO`);
+  - o aviso de descrição só aparece com "não combina" e confiança de 0,7 ou mais (`LIMIAR_AVISO`).
+  Resultado do teste: 9 de 10 sugestões iguais ao E0; nenhuma sugestão errada aparece com o piso; nenhum aviso falso nos 3 pares que combinam; 1 aviso nos 3 pares que não combinam.
+- **Aviso conferido ao sair do campo** Descrição (e quando o serviço muda), não a cada tecla.
+- **Ledger:** `ops.cockpit_ia_consumo` com `cockpit = 'faturamento'`, gravado com a sessão da pessoa, como o Cockpit do COO.
+  - A migration `20261020210000_portal_faturamento_jev_ledger.sql` amplia a constraint e a policy de inserção, que passa a exigir `view.faturamento`. Ela foi ensaiada em transação desfeita (a migration e o rollback) e depois **aplicada** e registrada.
+  - Teto por pessoa e por mês: 3.000 chamadas e US$ 2,00.
+- **Desvio do adaptador:** chamada sem custo informado (o corte de 3 s abortou antes da resposta) entra no teto por US$ 0,001, 20× o custo medido, em vez de travar o Jev até o mês virar.
+- **Endereço da Receita.** A consulta da CNPJá passou a gravar logradouro, número, complemento, bairro e CEP (8 dígitos; outro tamanho fica nulo) em `ops.fat_receita_cnpj_gravar`, como pede a entrada do conector no `API.md`. Conferido com a DOC: `ops.fat_conector_receita_cnpj` devolve o endereço.
+
+**Onde:**
+- Código: `src/lib/faturamento/jev.ts`, `jev.functions.ts`, `receita.ts` e `src/hooks/use-jev-faturamento.ts`.
+- Testes: `tests/faturamento-jev.test.mjs`.
+- Teste real: `PM Work/execution/portal-faturamento-prd-20261013/e1/jev_no_produto.mjs`, com o relatório em `e1/jev-no-produto.md`.
+
+**Custo do teste real:** 16 chamadas, US$ 0,000619, de 331 a 865 ms; mais 18 chamadas para comparar as redações da instrução, cerca de US$ 0,0004.

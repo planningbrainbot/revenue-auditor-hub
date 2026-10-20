@@ -19,6 +19,16 @@ export interface DadosReceita {
   /** ATIVA, BAIXADA, INAPTA, SUSPENSA ou NULA. */
   situacao: string | null;
   situacao_desde: string | null;
+  /**
+   * Endereço do tomador, que o conector manda ao Omie quando cadastra o cliente (API.md, Mudanças, entrada
+   * do conector, item 1). Sem ele, o cliente novo entra no Omie só com município e UF.
+   */
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  /** 8 dígitos, sem máscara (outro tamanho o banco recusa com 22023, então sai nulo). */
+  cep: string | null;
   municipio: string | null;
   uf: string | null;
   emails: string[];
@@ -66,7 +76,15 @@ export function dadosDaCnpja(json: unknown, agora: Date = new Date()): DadosRece
     company?: { name?: unknown } | null;
     status?: { id?: unknown; text?: unknown } | null;
     statusDate?: unknown;
-    address?: { city?: unknown; state?: unknown } | null;
+    address?: {
+      street?: unknown;
+      number?: unknown;
+      details?: unknown;
+      district?: unknown;
+      zip?: unknown;
+      city?: unknown;
+      state?: unknown;
+    } | null;
     emails?: { address?: unknown }[] | null;
   };
   const statusTexto = texto(d.status?.text);
@@ -85,12 +103,18 @@ export function dadosDaCnpja(json: unknown, agora: Date = new Date()): DadosRece
       ]
     : [];
   const uf = texto(d.address?.state);
+  const cep = (texto(d.address?.zip) ?? "").replace(/\D/g, "");
   return {
     fonte: "CNPJá aberta",
     razao_social: razao,
     nome_fantasia: texto(d.alias),
     situacao,
     situacao_desde: desde && DATA.test(desde) ? desde.slice(0, 10) : null,
+    logradouro: texto(d.address?.street),
+    numero: texto(d.address?.number),
+    complemento: texto(d.address?.details),
+    bairro: texto(d.address?.district),
+    cep: cep.length === 8 ? cep : null,
     municipio: texto(d.address?.city),
     uf: uf ? uf.toUpperCase() : null,
     emails,

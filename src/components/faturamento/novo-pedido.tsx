@@ -83,6 +83,7 @@ import {
   valorParaDigitar,
   type FormPedido,
 } from "@/lib/faturamento/formulario";
+import { LIMIAR_SUGESTAO, TEMPO_JEV_MS } from "@/lib/faturamento/jev";
 import { fraseSimulacao } from "@/lib/faturamento/rotulos";
 import type {
   Contexto,
@@ -110,20 +111,27 @@ import { AREA_FATURAMENTO, ErroDaArea, PaginaFaturamento, SeloSituacao } from ".
 
 const PERGUNTA = "O que precisa ser faturado, para quem e como?";
 
+/**
+ * O que o assistente recebe da tela. `nomeCliente` só serve para o servidor tirar o nome do texto antes de ir
+ * ao Jev; nunca é enviado a ele.
+ */
+export interface EntradaAssistente {
+  emissoraId: string;
+  projeto: string;
+  descricao: string;
+  valor: number | null;
+  nomeCliente: string | null;
+}
+
 /** A sugestão de serviço e a conferência da descrição (T5). Desligada enquanto ninguém passa isto. */
 export interface AssistenteServico {
   /** Escolhe, dentro do catálogo da empresa, o serviço que combina com o projeto e a descrição. */
-  sugerir: (entrada: {
-    emissoraId: string;
-    projeto: string;
-    descricao: string;
-  }) => Promise<{ servicoId: string } | null>;
+  /** `servicoId` nulo: nenhum serviço do catálogo combina. A confiança decide se a tela mostra. */
+  sugerir: (
+    entrada: EntradaAssistente,
+  ) => Promise<{ servicoId: string | null; confianca: number | null }>;
   /** `false` quando a descrição não parece ser do serviço escolhido. */
-  conferirDescricao: (entrada: {
-    emissoraId: string;
-    servicoId: string;
-    descricao: string;
-  }) => Promise<boolean>;
+  conferirDescricao: (entrada: EntradaAssistente & { servicoId: string }) => Promise<boolean>;
 }
 
 type Busca = { pedido?: string; emissora?: string };
@@ -248,6 +256,9 @@ function Formulario({
   const [errosServidor, setErrosServidor] = useState<ErroCampo[]>([]);
   const [tomador, setTomador] = useState<TomadorConferido | null>(null);
   const [descartar, setDescartar] = useState(false);
+  // A descrição que o aviso do Jev confere: muda ao sair do campo (o contrato pede "ao sair do campo
+  // Descrição"), não a cada tecla.
+  const [descricaoConferida, setDescricaoConferida] = useState(ficha?.pedido.descricao_nf ?? "");
   const saindo = useRef(false);
 
   const podem = ctx.emissoras.filter((e) => e.pode_pedir || e.id === form.emissora_id);
@@ -341,6 +352,8 @@ function Formulario({
   // ---------- serviço
   const servicoEscolhido = servicos.data?.servicos.find((s) => s.id === form.servico_id) ?? null;
   const escolherServico = (s: ServicoCatalogo) => {
+    // Com a descrição já escrita, o aviso de "não combina" (T5) confere o par novo.
+    if (form.descricao_nf.trim()) setDescricaoConferida(form.descricao_nf);
     mudar({
       servico_id: s.id,
       descricao_nf: form.descricao_nf.trim()
@@ -722,6 +735,8 @@ function Formulario({
                 apelido={emissora.apelido}
                 projeto={form.projeto}
                 descricao={form.descricao_nf}
+                valor={valorNum}
+                nomeCliente={form.tomador_nome || null}
                 servicos={servicos.data?.servicos ?? []}
                 aoUsar={escolherServico}
               />
@@ -741,6 +756,7 @@ function Formulario({
               rows={3}
               maxLength={2000}
               onChange={(e) => mudar({ descricao_nf: e.target.value })}
+              onBlur={() => setDescricaoConferida(form.descricao_nf)}
             />
             {assistente && emissora && form.servico_id && (
               <AvisoDescricao
@@ -748,7 +764,9 @@ function Formulario({
                 emissoraId={emissora.id}
                 servicoId={form.servico_id}
                 servico={servicoEscolhido?.descricao ?? "o serviço"}
-                descricao={form.descricao_nf}
+                descricao={descricaoConferida}
+                valor={valorNum}
+                nomeCliente={form.tomador_nome || null}
               />
             )}
           </Campo>
@@ -1317,6 +1335,8 @@ function SugestaoServico({
   apelido,
   projeto,
   descricao,
+  valor,
+  nomeCliente,
   servicos,
   aoUsar,
 }: {
@@ -1325,6 +1345,8 @@ function SugestaoServico({
   apelido: string;
   projeto: string;
   descricao: string;
+  valor: number | null;
+  nomeCliente: string | null;
   servicos: ServicoCatalogo[];
   aoUsar: (s: ServicoCatalogo) => void;
 }) {
@@ -1333,6 +1355,7 @@ function SugestaoServico({
     | { tipo: "procurando" }
     | { tipo: "achou"; servico: ServicoCatalogo }
     | { tipo: "nenhum" }
+    | { tipo: "incerto" }
     | { tipo: "falhou" }
   >({ tipo: "nada" });
   const semTexto = !projeto.trim() && !descricao.trim();
@@ -1340,11 +1363,16 @@ function SugestaoServico({
     setEstado({ tipo: "procurando" });
     try {
       const r = await Promise.race([
-        assistente.sugerir({ emissoraId, projeto, descricao }),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("tempo")), 5_000)),
+        assistente.sugerir({ emissoraId, projeto, descricao, valor, nomeCliente }),
+        // O servidor corta o Jev em 3 s; a tela espera um pouco mais pela ida e volta.
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error("tempo")), TEMPO_JEV_MS + 1_000),
+        ),
       ]);
-      const s = r ? servicos.find((x) => x.id === r.servicoId) : undefined;
-      setEstado(s ? { tipo: "achou", servico: s } : { tipo: "nenhum" });
+      const s = r.servicoId ? servicos.find((x) => x.id === r.servicoId) : undefined;
+      if (!s) setEstado({ tipo: "nenhum" });
+      else if ((r.confianca ?? 0) < LIMIAR_SUGESTAO) setEstado({ tipo: "incerto" });
+      else setEstado({ tipo: "achou", servico: s });
     } catch {
       setEstado({ tipo: "falhou" });
     }
@@ -1397,6 +1425,11 @@ function SugestaoServico({
           Nenhum serviço da {apelido} combina. Escolha na lista ou peça à controladoria.
         </p>
       )}
+      {estado.tipo === "incerto" && (
+        <p className="text-[13px] text-muted-foreground">
+          Não há um serviço claro para esta descrição. Escolha na lista.
+        </p>
+      )}
       {estado.tipo === "falhou" && (
         <p className="text-[13px] text-muted-foreground">
           Não deu para sugerir agora. Escolha na lista.
@@ -1413,12 +1446,16 @@ function AvisoDescricao({
   servicoId,
   servico,
   descricao,
+  valor,
+  nomeCliente,
 }: {
   assistente: AssistenteServico;
   emissoraId: string;
   servicoId: string;
   servico: string;
   descricao: string;
+  valor: number | null;
+  nomeCliente: string | null;
 }) {
   const [naoCombina, setNaoCombina] = useState(false);
   useEffect(() => {
@@ -1426,14 +1463,16 @@ function AvisoDescricao({
     let vivo = true;
     const t = setTimeout(() => {
       assistente
-        .conferirDescricao({ emissoraId, servicoId, descricao })
+        .conferirDescricao({ emissoraId, servicoId, descricao, valor, nomeCliente, projeto: "" })
         .then((ok) => vivo && setNaoCombina(!ok))
         .catch(() => vivo && setNaoCombina(false));
-    }, 800);
+    }, 300);
     return () => {
       vivo = false;
       clearTimeout(t);
     };
+    // valor e nome entram na conferência, mas não disparam outra: o gatilho é a descrição e o serviço.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assistente, emissoraId, servicoId, descricao]);
   if (!naoCombina) return null;
   return (
