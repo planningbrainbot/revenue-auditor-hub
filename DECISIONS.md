@@ -5813,3 +5813,48 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Ninguém dá o OK no próprio pedido: o OK vem do dono, do gestor ou do substituto, e nunca de quem enviou, nem que seja gestor.
 - Pode tirar o obrigatório de CPF e CNPJ do formulário público do pipe 307098392 e passar a exigência para a fase seguinte, para o portal conseguir criar card pela API.
 - Rascunho descartado não é apagado: vira `cancelado` com o motivo "descartado pelo autor".
+
+## [2026-10-20] Portal de Faturamento, T2: conector do Omie (edge `faturamento-omie`) em simulação
+
+**Contexto:** plano E1 (`PM Work/execution/portal-faturamento-prd-20261013/e1/PLANO-E1.md`, linha T2), API da T1b (`e1/API.md` §0.6, §0.7, §2 e "Mudanças"), spec §5.2 e §8, achados do E0 §3. Campos do Omie conferidos na documentação oficial e em leituras reais da DOC em 20/10, que deram as mensagens de "não cadastrado" (Client-103 e 5004), a busca de cliente por CNPJ com e sem máscara, o StatusOS com `ListaRpsNfse` e os títulos por `nCodOS`. Gabarito de campos: a fonte publicada da `royalties-faturamento` e da `csc-faturamento-mensal`, baixada do banco único.
+
+**Decisões:**
+- **Banco pelas funções de passagem `ops.fat_conector_*`** (decisão do coordenador): `integracoes` não é exposto no PostgREST e não vai ser. A edge chama pelo PostgREST com o perfil `ops`, como as outras edges.
+- **Simulação é lista do que pode, não do que não pode.** O cliente do Omie, em modo diferente de `gravar` literal, só deixa passar Listar, Consultar, Status e Pesquisar. Escrita é recusada antes de qualquer rede. Em gravação, só passam IncluirCliente, IncluirOS, AlterarOS e FaturarOS.
+  - O modo é o do envio, congelado quando ele entrou na fila.
+  - Envio de gravação com a emissora de volta em simulação vira erro e não grava nada.
+- **Leitura atualiza o nosso cache nos dois modos:** `consultar_status` aplica o status (o banco ignora pedido simulado) e `sincronizar_servicos` aplica o catálogo. A trava vale para escrita no Omie.
+- **Cliente, nunca Upsert.** A ordem é: vínculo conhecido, depois código de integração (= documento), depois o CNPJ, porque há cadastro feito à mão sem código. Só então IncluirCliente. O `UpsertClienteCpfCnpj` reescreveria o e-mail e a razão social de cadastros existentes, por isso não é usado.
+  - O cliente novo leva a tag "Cliente" e um e-mail. Todos os e-mails vão na OS.
+- **OS:**
+  - Nasce na etapa 50, com `cCodParc` 999 e o bloco Parcelas (vencimentos do portal; tipo BOL ou PIX; meio 15 ou 17; pix sem boleto).
+  - Recibo e nota de débito saem por OS com `Email.cEnvRecibo = "S"` (Ana, 15/10), como royalties e CSC fazem.
+  - A descrição vai no item. No recibo, também em `cDadosAdicNF`, porque lá a linha impressa vem do cadastro do serviço.
+  - `cCodCategItem` repete a categoria (lição da CSC de 08/2026).
+  - Imposto nenhum no payload: vem do cadastro do serviço.
+  - O departamento é casado pelo nome com o `ListarDepartamentos` da emissora. Sem par, a OS vai sem departamento e com aviso.
+  - Projeto, competência e observações vão em `cObsOS`, que não sai na nota.
+- **Idempotência:** antes de incluir, o conector consulta pelo cCodIntOS. "Já existe" é sucesso, e escrita nunca se repete na mesma tentativa: a próxima começa pela consulta (CA-06).
+  - Antes de faturar, o conector lê o StatusOS. OS já faturada é sucesso.
+- **Gravar exige** cliente, serviço ativo no Omie, categoria e conta corrente. Hoje nenhuma emissora tem conta corrente padrão. Em simulação, as faltas viram `avisos` e o envio sai `simulado`.
+- **Faturar com boleto de vencimento passado é barrado antes do FaturarOS:** o Omie não fatura e a OS fica presa na 50 (royalties, São Luís, 15/09). A nota vem do StatusOS e os títulos do `PesquisarLancamentos` filtrado por `nCodOS`.
+- **Erros:**
+  - 425 MISUSE: `pendente` para depois do bloqueio + 30 s, com `bloquear_emissora_ate`. O resto da emissora na rodada volta sem chamar o Omie.
+  - 403 ou aplicativo suspenso: `erro` com `emissora_indisponivel`.
+  - REDUNDANT: na leitura, espera e repete; na escrita, volta para a fila.
+  - `SOAP-ENV:Client-*`: erro na hora, com a frase do Omie limpa.
+  - Rede e 5xx: pendente até 6 tentativas.
+  - A chave sai de todo texto de erro.
+- **Ritmo:** uma chamada por vez, pausa de 1,1 s por chave, no máximo 12 envios e 80 s por rodada, em lotes de 4. O que sobra no fim do tempo volta para a fila na hora.
+- **Cron** (`20261020160000`):
+  - `faturamento-omie-fila`, a cada 2 minutos. Só chama a edge com envio vencido na fila.
+  - `faturamento-omie-status`, às 8h, 12h e 16h de São Paulo, de segunda a sexta. Só chama com OS real em aberto.
+  - Os dois usam o cabeçalho `x-faturamento-cron` com o segredo `faturamento_cron_secret` do Vault, cujo mesmo valor está em `FATURAMENTO_CRON_SECRET` na edge.
+  - `ops.sync_log` (fonte `omie-faturamento`) só recebe rodada com trabalho ou erro.
+
+**Onde:** `supabase/functions/faturamento-omie/` (`index.ts`, `logica.ts`), `tests/faturamento-omie.test.mjs` (28 testes, `node --test`), migration, rollback e gate do cron, e o teste de integração `scripts/faturamento/conector-simular-integracao.py` (`--verificar` só confere).
+**Status:**
+- Edge publicada (`--no-verify-jwt`).
+- Cron aplicado e conferido pelo gate antes e depois.
+- Todas as emissoras em `simular`.
+- Teste de integração esperando as funções `ops.fat_conector_*`.
