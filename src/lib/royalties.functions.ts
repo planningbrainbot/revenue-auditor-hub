@@ -1197,6 +1197,78 @@ export const updateItem = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ============ cobrarCacIntegral ============
+// CAC integral: quando o 1º honorário já foi recebido, as duas parcelas entram na
+// mesma apuração (pedido de 20/10/2026). O resto do sistema (broker, demonstrativo,
+// funil do CAC) só entende parcela 1 e 2, então "integral" não é um terceiro tipo:
+// o item vira a 1ª parcela a 50% e ganha uma cópia como 2ª parcela a 50%, como as
+// migrations 102 e 104 já faziam à mão. A cópia é fonte "manual" para a
+// regeneração dos itens não apagá-la.
+export const cobrarCacIntegral = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: number }) => d)
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
+
+    const { data: item, error: e1 } = await supabase
+      .from("royalties_itens")
+      .select("*, apuracao:royalties_apuracao!inner(status)")
+      .eq("id", data.id)
+      .single();
+    if (e1) throw new Error(e1.message);
+    const status = (item as any).apuracao.status;
+    if (status === "confirmado" || status === "faturado") {
+      throw new Error("Apuração fechada — reabra antes de editar.");
+    }
+
+    const result = await supabase
+      .from("royalties_itens")
+      .update({ is_cac: true, cac_parcela: 1, royalties_percentual_override: 50 })
+      .eq("id", data.id)
+      .select("id");
+    assertAffected(result, `Item de royalties ${data.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
+
+    if (item.contrato_id != null) {
+      const { data: jaTem, error: e2 } = await supabase
+        .from("royalties_itens")
+        .select("id")
+        .eq("apuracao_id", item.apuracao_id)
+        .eq("contrato_id", item.contrato_id)
+        .eq("is_cac", true)
+        .eq("cac_parcela", 2)
+        .is("excluido_em", null)
+        .neq("id", data.id);
+      if (e2) throw new Error(e2.message);
+      if ((jaTem ?? []).length > 0) return { ok: true, segunda_parcela_criada: false };
+    }
+
+    const { error: e3 } = await supabase.from("royalties_itens").insert({
+      apuracao_id: item.apuracao_id,
+      cnpj: item.cnpj,
+      razao_social: item.razao_social,
+      contrato_id: item.contrato_id,
+      categoria: item.categoria,
+      mrr_contratado: item.mrr_contratado,
+      mrr_override: item.mrr_override,
+      valor_omie: item.valor_omie,
+      valor_confirmado: item.valor_confirmado,
+      royalties_percentual_override: 50,
+      fonte: "manual",
+      status_match: item.status_match,
+      confirmado: item.confirmado,
+      is_cac: true,
+      cac_parcela: 2,
+      data_ganho: item.data_ganho,
+      data_pagamento_omie: item.data_pagamento_omie,
+      data_competencia_omie: item.data_competencia_omie,
+      venda_socios: false,
+      observacao: "CAC 2a parcela (50%), cobrada junto com a 1a (CAC integral).",
+    });
+    if (e3) throw new Error(e3.message);
+    return { ok: true, segunda_parcela_criada: true };
+  });
+
 // ============ atualizarCnpjContrato ============
 // Preenche/corrige o CNPJ de um contrato direto na tela de apuração (item "Só
 // no Pipedrive" sem CNPJ cadastrado). O CNPJ é o campo que gerarItensApuracao

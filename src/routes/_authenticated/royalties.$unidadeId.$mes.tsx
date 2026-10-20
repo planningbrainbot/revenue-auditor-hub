@@ -111,6 +111,7 @@ import {
   useReincluirItem,
   useUpdateApuracao,
   useUpdateItem,
+  useCobrarCacIntegral,
   useUpdateOutraReceita,
 } from "@/hooks/use-royalties";
 import { useRegerarMatch } from "@/hooks/use-grupos-filiais";
@@ -361,6 +362,7 @@ function ApuracaoLoaded({
     staleTime: 30_000,
   });
   const updateItem = useUpdateItem(apuracaoId);
+  const cobrarCacIntegral = useCobrarCacIntegral(apuracaoId);
   const updateAp = useUpdateApuracao(apuracaoId);
   const fechar = useFecharApuracao(apuracaoId);
   const reabrir = useReabrirApuracao(apuracaoId);
@@ -638,7 +640,12 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
-  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | null) => {
+  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | "integral" | null) => {
+    // Integral = 1ª + 2ª parcela na mesma apuração: o item vira a 1ª e ganha a 2ª.
+    if (parcela === "integral") {
+      cobrarCacIntegral.mutate({ id: it.id });
+      return;
+    }
     updateItem.mutate({ id: it.id, cac_parcela: parcela });
   };
 
@@ -1535,7 +1542,7 @@ interface GrupoProps {
   flushPct: (it: ApuracaoItem) => void;
   toggleConfirm: (it: ApuracaoItem, c: boolean) => void;
   toggleCac?: (it: ApuracaoItem, c: boolean) => void;
-  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | null) => void;
+  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | "integral" | null) => void;
   toggleVendaSocios?: (it: ApuracaoItem, c: boolean) => void;
   onDelete: (it: ApuracaoItem) => void;
   extraHeader?: React.ReactNode;
@@ -2450,20 +2457,23 @@ function SecaoGrupo({
                               <Select
                                 value={it.cac_parcela ? String(it.cac_parcela) : ""}
                                 disabled={readOnly}
-                                onValueChange={(v) => setCacParcela(it, v === "1" ? 1 : 2)}
+                                onValueChange={(v) =>
+                                  setCacParcela(it, v === "integral" ? "integral" : v === "1" ? 1 : 2)
+                                }
                               >
                                 <SelectTrigger
                                   className={cn(
                                     "mt-1 h-7 w-28 text-xs",
                                     !it.cac_parcela && "border-warning",
                                   )}
-                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário."
+                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário. Integral: as duas parcelas nesta apuração (cria a linha da 2ª)."
                                 >
                                   <SelectValue placeholder="Parcela?" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="1">1ª · adiantamento</SelectItem>
                                   <SelectItem value="2">2ª · após receb.</SelectItem>
+                                  <SelectItem value="integral">Integral · 1ª + 2ª</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}

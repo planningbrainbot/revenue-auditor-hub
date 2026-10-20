@@ -6,6 +6,7 @@ import {
   addItemManual,
   addOutraReceitaItem,
   atualizarCnpjContrato,
+  cobrarCacIntegral,
   deleteItem,
   deleteOutraReceitaItem,
   excluirItemMes,
@@ -97,6 +98,16 @@ export function useUpdateItem(apuracaoId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: Parameters<typeof updateItem>[0]["data"]) => fn({ data: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["royalties", "apuracao", apuracaoId] }),
+    onError: defaultOnError,
+  });
+}
+
+export function useCobrarCacIntegral(apuracaoId: number) {
+  const fn = useServerFn(cobrarCacIntegral);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: number }) => fn({ data: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["royalties", "apuracao", apuracaoId] }),
     onError: defaultOnError,
   });
