@@ -77,3 +77,39 @@ PRD: https://claude.ai/artifact/9SapRMdQ3ydy8srToQ7NSn (aprovado em 16/10/2026: 
 ## Checagem
 - [x] Régua testada (`tests/monetizacao-diagnostico-tela.test.mjs`, `tests/monetizacao-diagnostico.test.mjs`)
 - [ ] Conferência com dado real: só depois de o pipe 40 ter cards (entrada automática desligada até o "pode ativar")
+
+## Adendo · 20/10/2026 · O mesmo desenho da base antiga
+
+Pedido do Pedro: "A tela do pipe 40 tem que ter o mesmo design da tela do 39. Os ícones do funil, a estrutura, etc."
+Os números, as réguas e os filtros não mudam. Muda o desenho, que passa a usar as mesmas peças da base antiga
+(`src/components/monetizacao/funil-desenho.tsx`, compartilhado pelos dois pipes):
+
+- **Cabeçalho:** a assinatura da Caixa de Oportunidade ao lado do Atualizar, como na base antiga.
+- **Operação:**
+  - quadros em `KpiCard`;
+  - ao lado, o funil "Onde o diagnóstico avança e onde trava?", com a mesma grade do funil do pipe 39:
+    - ícone em rampa por etapa (01 Building2, 02 BadgeCheck, 03 FolderOpen, 04 ScanSearch, 05 ClipboardCheck,
+      06 CalendarClock, 07 Presentation, 08 Scale, Ganho Trophy);
+    - colunas Cards, Etapa, Hoje e Taxa, com a taxa na passagem;
+    - a linha "Recorte";
+  - o relógio fica ao lado do funil, no lugar da série diária;
+  - "De que unidade vêm" (quatro colunas soltas) virou "Em que unidade o diagnóstico avança?", o funil em pílulas do
+    pipe 39:
+    - uma linha por unidade e uma coluna por etapa (01 a 08 e Ganhos);
+    - pílula centrada contra os que entraram da unidade, com a taxa em cima e o gargalo em vermelho (3 cards ou mais na
+      etapa da esquerda);
+    - linha Total.
+    A régua é `funisPorUnidadeDiag`: a mesma coorte de `funilDiagnostico`, uma linha por unidade. Ela substitui
+    `unidadesDiagnostico`.
+  - Áreas e cadastro ficam lado a lado.
+- **Pré-venda:**
+  - Hoje: uma `Secao` por pessoa, com os cinco números em `KpiCard` (tom só com número acima de zero) e a tabela "O que
+    fazer hoje" (vencidas, de hoje e prazo). Os botões soltos e as listas de oito saíram.
+  - Ritmo: o gráfico feito com `div` virou o `BarChart` do pipe 39 (tokens de `@/lib/planning/grafico`).
+  - Aderência: os quadros em `KpiGrade`.
+- **Forecast:** no molde do pipe 39.
+  - "Quanto o diagnóstico deve fechar?": quatro `KpiCard`.
+  - "Quando deve fechar?": um `KpiCard` por horizonte, e a "Data passou" em perigo. Antes era uma tabela com barra.
+  - Lado a lado:
+    - "Em que etapa está a receita?", com o ícone em rampa da Operação;
+    - "Quanto cada área converte, e por quanto?".

@@ -8,6 +8,7 @@ import {
   cadastroDiagnostico,
   forecastDiagnostico,
   funilDiagnostico,
+  funisPorUnidadeDiag,
   hojeDiagnostico,
   horizonteDe,
   normalizarPainelDiagnostico,
@@ -172,6 +173,29 @@ test("funil da coorte: só desce, conta até a etapa mais adiantada, ganho no fi
     f.linhas[3].hoje.map((c) => c.id),
     [2],
     "Hoje = o pipe inteiro agora",
+  );
+});
+
+test("funil por unidade: a mesma régua por unidade, as linhas somam o funil e Sem unidade vai por último", () => {
+  const cards = painel.cards.map((c) =>
+    c.id === 3 ? { ...c, unidade: "Recife" } : c.id === 4 ? { ...c, unidade: null } : c,
+  );
+  const u = funisPorUnidadeDiag(cards, F, ETAPAS);
+  assert.deepEqual(
+    u.map((x) => x.unidade),
+    ["Belém", "Recife", "Sem unidade"],
+  );
+  const total = funilDiagnostico(cards, F, ETAPAS);
+  total.linhas.forEach((l, i) =>
+    assert.equal(
+      u.reduce((t, x) => t + x.funil.linhas[i].cards.length, 0),
+      l.cards.length,
+      `etapa ${l.rotulo}`,
+    ),
+  );
+  assert.ok(
+    u.every((x) => x.funil.coorte.length > 0),
+    "unidade sem card na coorte fica de fora",
   );
 });
 

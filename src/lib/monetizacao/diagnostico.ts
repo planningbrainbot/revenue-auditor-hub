@@ -533,38 +533,34 @@ export function cadastroDiagnostico(cards: CardDiag[]): FaltaCadastro[] {
   ];
 }
 
-export type LinhaUnidadeDiag = {
-  unidade: string;
-  entraram: CardDiag[];
-  execucao: CardDiag[];
-  apresentados: CardDiag[];
-  ganhos: CardDiag[];
-};
-/** Coorte do funil por unidade de origem da venda; cada card numa unidade só. */
-export function unidadesDiagnostico(coorte: CardDiag[]): LinhaUnidadeDiag[] {
+export const SEM_UNIDADE_DIAG = "Sem unidade";
+export type FunilDaUnidadeDiag = { unidade: string; funil: ReturnType<typeof funilDiagnostico> };
+/**
+ * O funil da Operação por unidade de origem da venda (20/10/2026, o mesmo desenho do funil por unidade do pipe 39): a
+ * mesma coorte e a mesma régua de `funilDiagnostico`, uma linha por unidade. Cada card numa unidade só, então as linhas
+ * somam o funil inteiro. Sem unidade no card vai para "Sem unidade", por último. Fica de fora a unidade sem card na
+ * coorte.
+ */
+export function funisPorUnidadeDiag(
+  todos: CardDiag[],
+  f: FiltroDiag,
+  etapas: EtapaDiag[],
+): FunilDaUnidadeDiag[] {
   const grupos = new Map<string, CardDiag[]>();
-  for (const c of coorte) {
-    const u = c.unidade ?? "Sem unidade";
+  for (const c of todos) {
+    const u = c.unidade ?? SEM_UNIDADE_DIAG;
     grupos.set(u, [...(grupos.get(u) ?? []), c]);
   }
   return [...grupos.entries()]
-    .map(([unidade, cs]) => ({
-      unidade,
-      entraram: cs,
-      execucao: cs.filter(
-        (c) => etapaAlcancada(c) >= ordem(ETAPA_DIAG.execucao) || c.status === "won",
-      ),
-      apresentados: cs.filter(
-        (c) => etapaAlcancada(c) >= ordem(ETAPA_DIAG.apresentado) || c.status === "won",
-      ),
-      ganhos: cs.filter((c) => c.status === "won"),
-    }))
+    .map(([unidade, cs]) => ({ unidade, funil: funilDiagnostico(cs, f, etapas) }))
+    .filter((u) => u.funil.coorte.length > 0)
     .sort(
       (x, y) =>
-        y.entraram.length - x.entraram.length || x.unidade.localeCompare(y.unidade, "pt-BR"),
+        Number(x.unidade === SEM_UNIDADE_DIAG) - Number(y.unidade === SEM_UNIDADE_DIAG) ||
+        y.funil.coorte.length - x.funil.coorte.length ||
+        x.unidade.localeCompare(y.unidade, "pt-BR"),
     );
 }
-
 export type QuadroDiag = {
   chave: string;
   rotulo: string;

@@ -12,7 +12,27 @@ import {
   OctagonAlert,
   TriangleAlert,
 } from "lucide-react";
-import { EstadoVazio, KpiCard, Secao, StatusBadge } from "@/components/planning";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { EstadoVazio, KpiCard, KpiGrade, Secao, StatusBadge } from "@/components/planning";
+import {
+  COR_NEUTRA,
+  CORES_SERIE,
+  RAIO_BARRA,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
+import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import {
   Table,
   TableBody,
@@ -112,27 +132,53 @@ export function PreVendaDiagnostico({
 
 // ---------------------------------------------------------------------------- Hoje
 
+// O tom do KpiCard só acende com número acima de zero; Tarefas de hoje e Sem tarefa aberta são neutros.
 const BLOCOS: {
   chave: keyof Omit<HojePessoa, "pessoa" | "nome">;
   titulo: string;
+  nota: string;
   icone: typeof Clock;
-  tom: "perigo" | "atencao" | "info" | "neutro";
+  tom: "perigo" | "atencao" | "info";
+  tomKpi?: "perigo" | "atencao";
 }[] = [
-  { chave: "vencidas", titulo: "Tarefas vencidas", icone: OctagonAlert, tom: "perigo" },
-  { chave: "hoje", titulo: "Tarefas de hoje", icone: Clock, tom: "info" },
+  {
+    chave: "vencidas",
+    titulo: "Tarefas vencidas",
+    nota: "atividades da pessoa no card, abertas, com vencimento antes de hoje",
+    icone: OctagonAlert,
+    tom: "perigo",
+    tomKpi: "perigo",
+  },
+  {
+    chave: "hoje",
+    titulo: "Tarefas de hoje",
+    nota: "atividades da pessoa no card com vencimento hoje",
+    icone: Clock,
+    tom: "info",
+  },
   {
     chave: "prazo",
     titulo: "Prazo do cliente em 5 dias ou vencido",
+    nota: "antes da apresentação, pelo prazo prometido no card",
     icone: TriangleAlert,
     tom: "atencao",
+    tomKpi: "atencao",
   },
   {
     chave: "parados",
     titulo: "Parados além da estagnação da etapa",
+    nota: "mais dias na etapa do que o limite dela no pipe 40",
     icone: TriangleAlert,
     tom: "atencao",
+    tomKpi: "atencao",
   },
-  { chave: "semProximo", titulo: "Sem tarefa aberta no card", icone: CircleX, tom: "neutro" },
+  {
+    chave: "semProximo",
+    titulo: "Sem tarefa aberta no card",
+    nota: "card aberto das etapas da pessoa sem nenhuma atividade aberta",
+    icone: CircleX,
+    tom: "info",
+  },
 ];
 
 function Hoje({
@@ -154,92 +200,116 @@ function Hoje({
     (p) => !pessoa || p.pessoa === pessoa,
   );
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      {pessoas.map((p) => (
-        <section
-          key={p.pessoa}
-          className="space-y-3 rounded-xl border bg-card p-4"
-          aria-label={p.nome}
-        >
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{p.nome}</h2>
-            <p className="text-[13px] text-muted-foreground">
-              {p.pessoa === 24067177
-                ? "Etapas 05 a 08 (concluir, apresentar e negociar) e os follow-ups do D+15 e D+40"
-                : "Gestor do pipe: etapas 01 a 04 (entrada, apresentação da Jordana, pasta e cobrança das áreas)"}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {BLOCOS.map((b) => {
-              const itens = p[b.chave] as ItemHoje[];
-              return (
-                <button
-                  key={b.chave}
-                  type="button"
-                  onClick={() =>
-                    abrir(`${p.nome} · ${b.titulo}`, uniq(itens.map((i) => i.card)), (c) =>
-                      itens
-                        .filter((i) => i.card.id === c.id)
-                        .map((i) => i.motivo)
-                        .join(" · "),
-                    )
-                  }
-                  disabled={!itens.length}
-                  className="rounded-lg border px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
-                >
-                  <span className="num block text-xl font-semibold text-foreground">
-                    {INT.format(itens.length)}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">{b.titulo}</span>
-                </button>
-              );
-            })}
-          </div>
-          {BLOCOS.slice(0, 3).map((b) => {
-            const itens = p[b.chave] as ItemHoje[];
-            if (!itens.length) return null;
-            return (
-              <div key={b.chave} className="space-y-1.5">
-                <StatusBadge tom={b.tom} icone={b.icone}>
-                  {b.titulo}
-                </StatusBadge>
-                <ul className="divide-y rounded-lg border">
-                  {itens.slice(0, 8).map((i, k) => (
-                    <li
-                      key={`${i.card.id}-${k}`}
-                      className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => abrirCard(i.card.id)}
-                        className="min-w-0 truncate rounded-sm text-left font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {nomeDoCard(i.card)}
-                      </button>
-                      <span className="min-w-0 truncate text-muted-foreground" title={i.motivo}>
-                        {i.atividade
-                          ? `${ddmm(i.atividade.due_date)} · ${i.motivo.replace(/^Diagnóstico · /, "")}`
-                          : i.motivo}
-                      </span>
-                    </li>
-                  ))}
-                  {itens.length > 8 && (
-                    <li className="px-3 py-2 text-[13px] text-muted-foreground">
-                      e mais {INT.format(itens.length - 8)} no número acima
-                    </li>
-                  )}
-                </ul>
+    <div className={cn("grid gap-6", pessoas.length > 1 && "xl:grid-cols-2")}>
+      {pessoas.map((p) => {
+        // A lista do que fazer: vencidas, de hoje e prazo, nessa ordem (o resto fica no número).
+        const lista = BLOCOS.slice(0, 3).flatMap((b) =>
+          (p[b.chave] as ItemHoje[]).map((i) => ({ ...i, bloco: b })),
+        );
+        return (
+          <Secao
+            key={p.pessoa}
+            titulo={p.nome}
+            descricao={`Hoje, ${ddmm(hoje)} · ${
+              p.pessoa === 24067177
+                ? "etapas 05 a 08 (concluir, apresentar e negociar) e os follow-ups do D+15 e D+40"
+                : "gestor do pipe: etapas 01 a 04 (entrada, apresentação da Jordana, pasta e cobrança das áreas)"
+            }`}
+          >
+            <KpiGrade colunas={2}>
+              {BLOCOS.map((b) => {
+                const itens = p[b.chave] as ItemHoje[];
+                return (
+                  <KpiCard
+                    key={b.chave}
+                    rotulo={b.titulo}
+                    valor={INT.format(itens.length)}
+                    nota={b.nota}
+                    tom={itens.length ? b.tomKpi : undefined}
+                    abrir={
+                      itens.length
+                        ? {
+                            onClick: () =>
+                              abrir(
+                                `${primeiroNome(p.nome)} · ${b.titulo}`,
+                                uniq(itens.map((i) => i.card)),
+                                (c) =>
+                                  itens
+                                    .filter((i) => i.card.id === c.id)
+                                    .map((i) => i.motivo)
+                                    .join(" · "),
+                              ),
+                            rotulo: "Ver os cards",
+                          }
+                        : undefined
+                    }
+                  />
+                );
+              })}
+            </KpiGrade>
+            {lista.length > 0 ? (
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="space-y-0.5 px-4 pt-3">
+                  <h3 className="text-sm font-semibold text-foreground">O que fazer hoje</h3>
+                  <p className="text-[13px] text-muted-foreground">
+                    Tarefas vencidas, tarefas de hoje e prazos perto do fim. Clique na empresa para
+                    abrir a ficha do card.
+                  </p>
+                </div>
+                <div className="max-h-[420px] overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Card</TableHead>
+                        <TableHead>Etapa</TableHead>
+                        <TableHead>O quê</TableHead>
+                        <TableHead>Situação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lista.map((i, k) => (
+                        <TableRow key={`${i.card.id}-${k}`}>
+                          <TableCell className="max-w-[220px] overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => abrirCard(i.card.id)}
+                              className="block max-w-full truncate rounded-sm text-left font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              {nomeDoCard(i.card)}
+                            </button>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            {rotuloEtapa(i.card)}
+                          </TableCell>
+                          <TableCell className="max-w-[260px] truncate text-sm" title={i.motivo}>
+                            {i.atividade
+                              ? `${ddmm(i.atividade.due_date)} · ${i.motivo.replace(/^Diagnóstico · /, "")}`
+                              : i.motivo}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge tom={i.bloco.tom} icone={i.bloco.icone}>
+                              {i.bloco.chave === "vencidas"
+                                ? "Vencida"
+                                : i.bloco.chave === "hoje"
+                                  ? "Hoje"
+                                  : "Prazo"}
+                            </StatusBadge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            );
-          })}
-          {BLOCOS.every((b) => !(p[b.chave] as ItemHoje[]).length) && (
-            <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <CircleCheck className="size-4 text-success" strokeWidth={1.75} aria-hidden />
-              Nada pendente hoje.
-            </p>
-          )}
-        </section>
-      ))}
+            ) : (
+              <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <CircleCheck className="size-4 text-success" strokeWidth={1.75} aria-hidden />
+                Nenhuma tarefa vencida, de hoje ou prazo perto do fim.
+              </p>
+            )}
+          </Secao>
+        );
+      })}
     </div>
   );
 }
@@ -252,7 +322,6 @@ function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag;
   return (
     <div className="space-y-6">
       {pessoas.map((p) => {
-        const maximo = Math.max(1, ...p.dias.map((d) => Math.max(d.previstas, d.feitas)));
         const util = p.dias.filter((d) => d.previstas || d.feitas || d.avancos);
         return (
           <Secao
@@ -260,7 +329,7 @@ function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag;
             titulo={`${p.nome}: as tarefas estão saindo?`}
             descricao={`${ddmm(filtro.de)} a ${ddmm(filtro.ate)} · tarefa = atividade do card no Pipedrive (da régua ou criada à mão)`}
           >
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <KpiGrade>
               <KpiCard
                 rotulo="Previstas"
                 valor={INT.format(p.previstas)}
@@ -282,45 +351,42 @@ function Ritmo({ cards, filtro, hoje }: { cards: CardDiag[]; filtro: FiltroDiag;
                 valor={INT.format(p.avancos)}
                 nota="cards que a pessoa moveu para a frente"
               />
-            </div>
+            </KpiGrade>
             {util.length ? (
               <div className="rounded-xl border bg-card p-4">
-                <div className="mb-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block size-3 rounded-sm bg-chart-6" aria-hidden />
-                    Previstas
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block size-3 rounded-sm bg-chart-1" aria-hidden />
-                    Feitas
-                  </span>
-                </div>
-                <div
-                  className="flex h-36 items-end gap-1 overflow-x-auto"
-                  role="img"
-                  aria-label={`Tarefas por dia de ${p.nome}`}
-                >
-                  {p.dias.map((d) => (
-                    <div
-                      key={d.dia}
-                      className="flex min-w-6 flex-1 flex-col items-center gap-1"
-                      title={`${ddmm(d.dia)}: ${d.previstas} previstas, ${d.feitas} feitas, ${d.vencidas} vencidas, ${d.avancos} avanços`}
+                <div className="h-[220px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={p.dias.map((d) => ({ ...d, rotulo: ddmm(d.dia) }))}
+                      margin={{ top: 16, right: 12, bottom: 0, left: -20 }}
+                      role="img"
+                      aria-label={`Tarefas por dia de ${p.nome}`}
                     >
-                      <div className="flex h-28 w-full items-end justify-center gap-0.5">
-                        <span
-                          className="w-2 rounded-t-sm bg-chart-6"
-                          style={{ height: `${(d.previstas / maximo) * 100}%` }}
-                        />
-                        <span
-                          className="w-2 rounded-t-sm bg-chart-1"
-                          style={{ height: `${(d.feitas / maximo) * 100}%` }}
-                        />
-                      </div>
-                      <span className="num text-xs text-muted-foreground">
-                        {d.dia.slice(8, 10)}
-                      </span>
-                    </div>
-                  ))}
+                      <CartesianGrid {...gradeProps} />
+                      <XAxis {...eixoProps} dataKey="rotulo" minTickGap={8} />
+                      <YAxis {...eixoProps} allowDecimals={false} />
+                      <Tooltip
+                        {...tooltipProps}
+                        cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+                        formatter={(v, nome) => [INT.format(Number(v)), nome]}
+                      />
+                      <Legend {...legendaProps} />
+                      <Bar
+                        dataKey="previstas"
+                        name="Previstas"
+                        fill={COR_NEUTRA}
+                        radius={RAIO_BARRA}
+                        maxBarSize={22}
+                      />
+                      <Bar
+                        dataKey="feitas"
+                        name="Feitas"
+                        fill={CORES_SERIE[0]}
+                        radius={RAIO_BARRA}
+                        maxBarSize={22}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             ) : (
@@ -358,7 +424,7 @@ function Aderencia({
   const certas = conferidas.filter((p) => p.ok);
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <KpiGrade>
         <KpiCard
           rotulo="Aderência ao processo"
           valor={conferidas.length ? pctDiag(certas.length / conferidas.length) : "—"}
@@ -405,7 +471,7 @@ function Aderencia({
           valor={INT.format(passagens.length - conferidas.length)}
           nota="régua desligada: sem tarefa da etapa"
         />
-      </div>
+      </KpiGrade>
       <Secao
         titulo="Em que regra o processo escapa?"
         descricao='Cada regra é o "para avançar" da etapa no desenho do processo, conferida com o dado do card de agora.'
