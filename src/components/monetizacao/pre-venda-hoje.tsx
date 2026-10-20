@@ -130,6 +130,7 @@ function ProximoPasso({
               <TableHead>Card</TableHead>
               <TableHead>Etapa</TableHead>
               <TableHead className="text-right">Dias parado</TableHead>
+              <TableHead>Próxima atividade</TableHead>
               <TableHead>Sugestão</TableHead>
               <TableHead>Urgência</TableHead>
             </TableRow>
@@ -153,6 +154,13 @@ function ProximoPasso({
                 </TableCell>
                 <TableCell className="num text-right">
                   {dias === null ? "—" : INT.format(dias)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-sm">
+                  {card.next_activity ? (
+                    <StatusBadge tom="perigo">vencida em {ddmm(card.next_activity)}</StatusBadge>
+                  ) : (
+                    <span className="text-muted-foreground">nenhuma</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm">
                   {sugestao ? rotuloDoPasso(sugestao.passo) : "ainda não avaliado"}

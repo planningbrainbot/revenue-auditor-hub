@@ -111,6 +111,7 @@ import {
   useReincluirItem,
   useUpdateApuracao,
   useUpdateItem,
+  useCobrarCacIntegral,
   useUpdateOutraReceita,
 } from "@/hooks/use-royalties";
 import { useRegerarMatch } from "@/hooks/use-grupos-filiais";
@@ -361,6 +362,7 @@ function ApuracaoLoaded({
     staleTime: 30_000,
   });
   const updateItem = useUpdateItem(apuracaoId);
+  const cobrarCacIntegral = useCobrarCacIntegral(apuracaoId);
   const updateAp = useUpdateApuracao(apuracaoId);
   const fechar = useFecharApuracao(apuracaoId);
   const reabrir = useReabrirApuracao(apuracaoId);
@@ -551,6 +553,7 @@ function ApuracaoLoaded({
   // CAC por parcela: adiantamento na assinatura × 2ª metade que segue o caixa.
   let cacAdiantamento = 0;
   let cacCaixa = 0;
+  let cacIntegral = 0;
   let receitaBaseAntiga = 0;
   let confirmadosCount = 0;
   for (const it of ativos) {
@@ -565,6 +568,7 @@ function ApuracaoLoaded({
         cacValor += computado;
         if (it.cac_parcela === 1) cacAdiantamento += computado;
         else if (it.cac_parcela === 2) cacCaixa += computado;
+        else if (it.cac_parcela === 3) cacIntegral += computado;
       } else {
         receitaBase += v;
         royaltiesValor += computado;
@@ -638,7 +642,12 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
-  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | null) => {
+  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | 3 | null) => {
+    // Integral = 1ª + 2ª parcela na mesma apuração, numa linha só a 100%.
+    if (parcela === 3) {
+      cobrarCacIntegral.mutate({ id: it.id });
+      return;
+    }
     updateItem.mutate({ id: it.id, cac_parcela: parcela });
   };
 
@@ -1206,14 +1215,17 @@ function ApuracaoLoaded({
           {cacValor > 0 && (
             <ResumoLinha label="CAC" value={brl(cacValor)} bold />
           )}
-          {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0) && (
+          {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0 || cacIntegral > 0) && (
             <div className="space-y-1 pl-3 text-xs">
               <ResumoLinha label="1ª parcela · adiantamento" value={brl(cacAdiantamento)} />
               <ResumoLinha label="2ª parcela · após recebimento" value={brl(cacCaixa)} />
-              {cacValor - cacAdiantamento - cacCaixa > 0.005 && (
+              {cacIntegral > 0 && (
+                <ResumoLinha label="Integral · 1ª + 2ª" value={brl(cacIntegral)} />
+              )}
+              {cacValor - cacAdiantamento - cacCaixa - cacIntegral > 0.005 && (
                 <ResumoLinha
                   label="Sem parcela definida"
-                  value={brl(cacValor - cacAdiantamento - cacCaixa)}
+                  value={brl(cacValor - cacAdiantamento - cacCaixa - cacIntegral)}
                 />
               )}
             </div>
@@ -1535,7 +1547,7 @@ interface GrupoProps {
   flushPct: (it: ApuracaoItem) => void;
   toggleConfirm: (it: ApuracaoItem, c: boolean) => void;
   toggleCac?: (it: ApuracaoItem, c: boolean) => void;
-  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | null) => void;
+  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | 3 | null) => void;
   toggleVendaSocios?: (it: ApuracaoItem, c: boolean) => void;
   onDelete: (it: ApuracaoItem) => void;
   extraHeader?: React.ReactNode;
@@ -2010,6 +2022,7 @@ function SecaoGrupo({
   const [open, setOpen] = useState(true);
   const [situacaoFiltro, setSituacaoFiltro] = useState<string>("todos");
   const [checkFiltro, setCheckFiltro] = useState<"todos" | "pendentes" | "confirmados">("todos");
+  const [soCac, setSoCac] = useState(false);
   const { key: sortKey, dir: sortDir, onSort } = useSort<ItemSortKey>();
 
   const situacaoCounts = useMemo(() => {
@@ -2023,10 +2036,18 @@ function SecaoGrupo({
 
   // Filtro de situação (Matched/Só Pipedrive/Só Omie) combina com o toggle de
   // pendentes — permite isolar, por exemplo, "Só Omie" que ainda não teve check.
-  const itensPorSituacao = useMemo(() => {
+  const itensSituacao = useMemo(() => {
     if (!showSituacao || situacaoFiltro === "todos") return itens;
     return itens.filter((it) => it.status_match === situacaoFiltro);
   }, [itens, showSituacao, situacaoFiltro]);
+
+  // "Só CAC" também combina com os dois filtros — ex.: Matched + CAC + Pendentes.
+  const cacCount = useMemo(() => itensSituacao.filter((it) => it.is_cac).length, [itensSituacao]);
+
+  const itensPorSituacao = useMemo(
+    () => (soCac ? itensSituacao.filter((it) => it.is_cac) : itensSituacao),
+    [itensSituacao, soCac],
+  );
 
   const pendentesCount = useMemo(
     () => itensPorSituacao.filter((it) => !it.confirmado).length,
@@ -2142,6 +2163,26 @@ function SecaoGrupo({
                 </button>
               );
             })}
+            {toggleCac && (cacCount > 0 || soCac) && (
+              <>
+                <span className="mx-1 h-4 w-px bg-border" />
+                <button
+                  type="button"
+                  onClick={() => setSoCac((v) => !v)}
+                  title="Mostra só os itens marcados como CAC. Combina com os outros filtros"
+                  aria-pressed={soCac}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-xs transition-colors",
+                    FOCO,
+                    soCac
+                      ? "bg-warning-soft text-warning ring-1 ring-inset ring-warning/40"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                >
+                  Só CAC ({cacCount})
+                </button>
+              </>
+            )}
             {(pendentesCount > 0 || confirmadosCount > 0) && (
               <>
                 <span className="mx-1 h-4 w-px bg-border" />
@@ -2450,20 +2491,23 @@ function SecaoGrupo({
                               <Select
                                 value={it.cac_parcela ? String(it.cac_parcela) : ""}
                                 disabled={readOnly}
-                                onValueChange={(v) => setCacParcela(it, v === "1" ? 1 : 2)}
+                                onValueChange={(v) =>
+                                  setCacParcela(it, v === "3" ? 3 : v === "1" ? 1 : 2)
+                                }
                               >
                                 <SelectTrigger
                                   className={cn(
                                     "mt-1 h-7 w-28 text-xs",
                                     !it.cac_parcela && "border-warning",
                                   )}
-                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário."
+                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário. Integral: as duas parcelas nesta apuração, 100% numa linha só."
                                 >
                                   <SelectValue placeholder="Parcela?" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="1">1ª · adiantamento</SelectItem>
                                   <SelectItem value="2">2ª · após receb.</SelectItem>
+                                  <SelectItem value="3">Integral · 1ª + 2ª</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}

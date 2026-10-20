@@ -573,8 +573,7 @@ export interface NovaPessoaInput {
   salario?: number | null;
   cnpjEmpregador?: string | null;
   gestorId?: number | null;
-  /** Obrigatórias para estágio e terceiro. */
-  vigenciaInicio?: string;
+  /** Fim da vigência, obrigatório para estágio e terceiro (o início é a admissão). */
   vigenciaFim?: string;
   /** `null` cadastra sem login (quem não vai usar o Brain). */
   acesso: PerfilGente | null;
@@ -586,26 +585,27 @@ const VINCULOS = ["socio", "clt", "pj", "estagio", "prolabore", "terceiro"];
 export const VINCULOS_COM_VIGENCIA = ["estagio", "terceiro"];
 
 /**
- * Vigência do contrato. Estágio e terceiro exigem início e fim; os outros vínculos
- * ficam sem (o que vier é descartado, para não sobrar data de um vínculo antigo).
+ * Vigência do contrato. Estágio e terceiro exigem a data de início (a própria admissão:
+ * "Início do estágio", "Início do contrato", ajuste do RH de Maceió de 19/10/2026) e o
+ * fim. Os outros vínculos ficam sem fim. O início de cada renovação fica em
+ * `ops.gente_vigencia_periodos`, gravado pelo banco quando o fim muda.
  */
 export function validarVigencia(
   tipoVinculo: string | null,
   inicio: string | null | undefined,
   fim: string | null | undefined,
-): { vigenciaInicio: string | null; vigenciaFim: string | null } {
+): { vigenciaInicio: null; vigenciaFim: string | null } {
   if (!tipoVinculo || !VINCULOS_COM_VIGENCIA.includes(tipoVinculo)) {
     return { vigenciaInicio: null, vigenciaFim: null };
   }
   const nome = tipoVinculo === "estagio" ? "do estágio (TCE)" : "do contrato do terceiro";
   const i = inicio || null;
   const f = fim || null;
-  if (!i || !f) throw new Error(`Informe o início e o fim da vigência ${nome}.`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(i) || !/^\d{4}-\d{2}-\d{2}$/.test(f)) {
-    throw new Error("Data de vigência inválida.");
-  }
+  if (!i) throw new Error(`Informe a data de início ${nome}.`);
+  if (!f) throw new Error(`Informe o fim da vigência ${nome}.`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) throw new Error("Data de fim da vigência inválida.");
   if (f < i) throw new Error("O fim da vigência não pode ser antes do início.");
-  return { vigenciaInicio: i, vigenciaFim: f };
+  return { vigenciaInicio: null, vigenciaFim: f };
 }
 
 /** O CNPJ tem de ser uma das empresas da unidade; vazio fica vazio. */
@@ -680,7 +680,7 @@ export const criarPessoa = createServerFn({ method: "POST" })
       throw new Error("Salário inválido.");
     }
     const cnpjEmpregador = (input.cnpjEmpregador ?? "").replace(/\D/g, "") || null;
-    const vigencia = validarVigencia(tipoVinculo, input.vigenciaInicio, input.vigenciaFim);
+    const vigencia = validarVigencia(tipoVinculo, dataAdmissao, input.vigenciaFim);
     return {
       ...vigencia,
       nomeCompleto,
@@ -805,8 +805,7 @@ export interface EditarPessoaInput {
   /** "" ou null tira a empresa; ausente não mexe. */
   cnpjEmpregador?: string | null;
   gestorId?: number | null;
-  /** Obrigatórias para estágio e terceiro; renovar é mudar o fim. */
-  vigenciaInicio?: string;
+  /** Obrigatório para estágio e terceiro; renovar é mudar o fim. */
   vigenciaFim?: string;
 }
 
@@ -838,7 +837,7 @@ export const editarPessoa = createServerFn({ method: "POST" })
     if (gestorId != null && !Number.isInteger(gestorId)) throw new Error("Gestor inválido.");
     if (gestorId === input.pessoaId) throw new Error("A pessoa não pode ser gestora de si mesma.");
     return {
-      ...validarVigencia(tipoVinculo, input.vigenciaInicio, input.vigenciaFim),
+      ...validarVigencia(tipoVinculo, dataAdmissao, input.vigenciaFim),
       pessoaId: input.pessoaId,
       nomeCompleto,
       cargo: input.cargo?.trim() || null,
@@ -1040,7 +1039,6 @@ async function completarDatas(
     dataAdmissao: string | null;
     cnpjEmpregador?: string | null;
     salario?: number | null;
-    vigenciaInicio?: string | null;
     vigenciaFim?: string | null;
   },
 ): Promise<string[]> {
@@ -1051,7 +1049,6 @@ async function completarDatas(
     ["data_nascimento", l.dataNascimento, "nascimento"],
     ["data_admissao", l.dataAdmissao, "admissão"],
     ["cnpj_empregador", l.cnpjEmpregador ?? null, "empresa"],
-    ["vigencia_inicio", l.vigenciaInicio ?? null, "início da vigência"],
     ["vigencia_fim", l.vigenciaFim ?? null, "fim da vigência"],
   ] as const) {
     if (!valor) continue;
@@ -1099,8 +1096,7 @@ export interface LinhaImportacao {
   /** Só grava para o RH (`manage.gente.remuneracao`); vale desde a admissão. */
   salario?: number;
   cnpjEmpregador?: string;
-  /** Vigência do contrato (estágio e terceiro). */
-  vigenciaInicio?: string;
+  /** Fim da vigência do contrato (estágio e terceiro); o início é a admissão. */
   vigenciaFim?: string;
   /** E-mail do gestor: alguém já no cadastro ou outra linha da mesma planilha. */
   emailGestor?: string;
@@ -1160,7 +1156,6 @@ export const importarPessoas = createServerFn({ method: "POST" })
               ? Math.round(Number(l.salario) * 100) / 100
               : null,
           cnpjEmpregador: String(l.cnpjEmpregador ?? "").replace(/\D/g, "") || null,
-          vigenciaInicio: l.vigenciaInicio || null,
           vigenciaFim: l.vigenciaFim || null,
           emailGestor: l.emailGestor?.trim().toLowerCase() || null,
         })),
@@ -1226,19 +1221,16 @@ export const importarPessoas = createServerFn({ method: "POST" })
       }
       // Vigência: formato sempre; a exigência de estágio e terceiro vale só para quem é
       // novo (quem já existe só tem as datas completadas, se estiverem vazias).
-      if (
-        (l.vigenciaInicio && !/^\d{4}-\d{2}-\d{2}$/.test(l.vigenciaInicio)) ||
-        (l.vigenciaFim && !/^\d{4}-\d{2}-\d{2}$/.test(l.vigenciaFim))
-      ) {
-        resultados.push(erro(l, "Data de vigência inválida."));
+      if (l.vigenciaFim && !/^\d{4}-\d{2}-\d{2}$/.test(l.vigenciaFim)) {
+        resultados.push(erro(l, "Data de fim da vigência inválida."));
         continue;
       }
-      if (l.vigenciaInicio && l.vigenciaFim && l.vigenciaFim < l.vigenciaInicio) {
+      if (l.dataAdmissao && l.vigenciaFim && l.vigenciaFim < l.dataAdmissao) {
         resultados.push(erro(l, "O fim da vigência não pode ser antes do início."));
         continue;
       }
       const exigeVigencia = !!l.tipoVinculo && VINCULOS_COM_VIGENCIA.includes(l.tipoVinculo);
-      if (exigeVigencia && (!l.vigenciaInicio || !l.vigenciaFim)) {
+      if (exigeVigencia && (!l.dataAdmissao || !l.vigenciaFim)) {
         const { data: existente } = await supabase
           .from("gente_pessoas")
           .select("id")
@@ -1249,7 +1241,10 @@ export const importarPessoas = createServerFn({ method: "POST" })
           .maybeSingle();
         if (!existente) {
           resultados.push(
-            erro(l, "Estágio e terceiro precisam do início e do fim da vigência do contrato."),
+            erro(
+              l,
+              "Estágio e terceiro precisam da data de início e do fim da vigência do contrato.",
+            ),
           );
           continue;
         }
@@ -1267,7 +1262,6 @@ export const importarPessoas = createServerFn({ method: "POST" })
           data_admissao: l.dataAdmissao,
           data_nascimento: l.dataNascimento,
           cnpj_empregador: l.cnpjEmpregador,
-          vigencia_inicio: exigeVigencia ? l.vigenciaInicio : null,
           vigencia_fim: exigeVigencia ? l.vigenciaFim : null,
           status: "ativo",
           origem: "planilha",
@@ -1723,4 +1717,41 @@ export const darAcessoPessoa = createServerFn({ method: "POST" })
     const supabase = context.supabase as Cliente;
     const acesso = await acessoDoUsuario(supabase, context.userId);
     return darAcesso(supabase, context.userId, acesso.permissions, data.pessoaId, data.perfil);
+  });
+
+export interface PeriodoVigencia {
+  inicio: string | null;
+  fim: string;
+  tipo: "inicial" | "renovacao" | "correcao";
+  registradoEm: string;
+}
+
+/**
+ * Períodos do contrato de estágio ou de terceiro (20/10/2026): cada fim gravado vira
+ * uma linha em `ops.gente_vigencia_periodos`, pelo gatilho do banco. Lê como o
+ * usuário: a RLS só mostra períodos de quem ele enxerga no cadastro.
+ */
+export const listPeriodosVigencia = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pessoaId: number }) => {
+    if (!Number.isInteger(input?.pessoaId)) throw new Error("Pessoa inválida.");
+    return { pessoaId: input.pessoaId };
+  })
+  .handler(async ({ data, context }): Promise<PeriodoVigencia[]> => {
+    const supabase = context.supabase as Cliente;
+    const { data: linhas, error } = await supabase
+      .from("gente_vigencia_periodos")
+      .select("inicio,fim,tipo,registrado_em")
+      .eq("pessoa_id", data.pessoaId)
+      .order("registrado_em", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (
+      (linhas ?? []) as {
+        inicio: string | null;
+        fim: string;
+        tipo: PeriodoVigencia["tipo"];
+        registrado_em: string;
+      }[]
+    ).map((l) => ({ inicio: l.inicio, fim: l.fim, tipo: l.tipo, registradoEm: l.registrado_em }));
   });

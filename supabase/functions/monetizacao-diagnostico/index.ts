@@ -123,7 +123,7 @@ const store: StoreDiagnostico = {
   },
   tarefas: () =>
     rest(
-      `monetizacao_diagnostico_tarefas?or=${encodeURIComponent('(status.eq.aberta,criado_em.gte."' + new Date(Date.now() - 90 * 86400000).toISOString() + '")')}&select=*&limit=20000`,
+      `monetizacao_diagnostico_tarefas?or=${encodeURIComponent('(status.in.(aberta,pausada),criado_em.gte."' + new Date(Date.now() - 90 * 86400000).toISOString() + '")')}&select=*&limit=20000`,
     ),
   inserirTarefa: async (linha) => {
     const r = await rest("monetizacao_diagnostico_tarefas?on_conflict=deal_id,entrou_em,chave", {

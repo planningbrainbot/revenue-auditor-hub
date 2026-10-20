@@ -92,6 +92,7 @@ import { Route as AuthenticatedRoyaltiesSplitRouteImport } from './routes/_authe
 import { Route as AuthenticatedUnidadesIndexRouteImport } from './routes/_authenticated/unidades.index'
 import { Route as AuthenticatedUnidadesUnidadeIdRouteImport } from './routes/_authenticated/unidades.$unidadeId'
 import { Route as AuthenticatedUnidadesFunilCacRouteImport } from './routes/_authenticated/unidades.funil-cac'
+import { Route as AuthenticatedUnidadesFunilRecebidoRouteImport } from './routes/_authenticated/unidades.funil-recebido'
 import { Route as AuthenticatedUnidadesFunilRedeRouteImport } from './routes/_authenticated/unidades.funil-rede'
 import { Route as AuthenticatedUnidadesRoyaltiesRouteImport } from './routes/_authenticated/unidades.royalties'
 import { Route as AuthenticatedUnidadesSplitRouteImport } from './routes/_authenticated/unidades.split'
@@ -569,6 +570,12 @@ const AuthenticatedUnidadesFunilCacRoute =
     path: '/funil-cac',
     getParentRoute: () => AuthenticatedUnidadesRoute,
   } as any)
+const AuthenticatedUnidadesFunilRecebidoRoute =
+  AuthenticatedUnidadesFunilRecebidoRouteImport.update({
+    id: '/funil-recebido',
+    path: '/funil-recebido',
+    getParentRoute: () => AuthenticatedUnidadesRoute,
+  } as any)
 const AuthenticatedUnidadesFunilRedeRoute =
   AuthenticatedUnidadesFunilRedeRouteImport.update({
     id: '/funil-rede',
@@ -695,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/unidades/funil-recebido': typeof AuthenticatedUnidadesFunilRecebidoRoute
   '/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -785,6 +793,7 @@ export interface FileRoutesByTo {
   '/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/unidades/funil-recebido': typeof AuthenticatedUnidadesFunilRecebidoRoute
   '/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -879,6 +888,7 @@ export interface FileRoutesById {
   '/_authenticated/royalties/split': typeof AuthenticatedRoyaltiesSplitRoute
   '/_authenticated/unidades/$unidadeId': typeof AuthenticatedUnidadesUnidadeIdRoute
   '/_authenticated/unidades/funil-cac': typeof AuthenticatedUnidadesFunilCacRoute
+  '/_authenticated/unidades/funil-recebido': typeof AuthenticatedUnidadesFunilRecebidoRoute
   '/_authenticated/unidades/funil-rede': typeof AuthenticatedUnidadesFunilRedeRoute
   '/_authenticated/unidades/royalties': typeof AuthenticatedUnidadesRoyaltiesRoute
   '/_authenticated/unidades/split': typeof AuthenticatedUnidadesSplitRoute
@@ -973,6 +983,7 @@ export interface FileRouteTypes {
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
+    | '/unidades/funil-recebido'
     | '/unidades/funil-rede'
     | '/unidades/royalties'
     | '/unidades/split'
@@ -1063,6 +1074,7 @@ export interface FileRouteTypes {
     | '/royalties/split'
     | '/unidades/$unidadeId'
     | '/unidades/funil-cac'
+    | '/unidades/funil-recebido'
     | '/unidades/funil-rede'
     | '/unidades/royalties'
     | '/unidades/split'
@@ -1156,6 +1168,7 @@ export interface FileRouteTypes {
     | '/_authenticated/royalties/split'
     | '/_authenticated/unidades/$unidadeId'
     | '/_authenticated/unidades/funil-cac'
+    | '/_authenticated/unidades/funil-recebido'
     | '/_authenticated/unidades/funil-rede'
     | '/_authenticated/unidades/royalties'
     | '/_authenticated/unidades/split'
@@ -1765,6 +1778,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUnidadesFunilCacRouteImport
       parentRoute: typeof AuthenticatedUnidadesRoute
     }
+    '/_authenticated/unidades/funil-recebido': {
+      id: '/_authenticated/unidades/funil-recebido'
+      path: '/funil-recebido'
+      fullPath: '/unidades/funil-recebido'
+      preLoaderRoute: typeof AuthenticatedUnidadesFunilRecebidoRouteImport
+      parentRoute: typeof AuthenticatedUnidadesRoute
+    }
     '/_authenticated/unidades/funil-rede': {
       id: '/_authenticated/unidades/funil-rede'
       path: '/funil-rede'
@@ -1846,6 +1866,7 @@ const AuthenticatedRoyaltiesRouteWithChildren =
 interface AuthenticatedUnidadesRouteChildren {
   AuthenticatedUnidadesUnidadeIdRoute: typeof AuthenticatedUnidadesUnidadeIdRoute
   AuthenticatedUnidadesFunilCacRoute: typeof AuthenticatedUnidadesFunilCacRoute
+  AuthenticatedUnidadesFunilRecebidoRoute: typeof AuthenticatedUnidadesFunilRecebidoRoute
   AuthenticatedUnidadesFunilRedeRoute: typeof AuthenticatedUnidadesFunilRedeRoute
   AuthenticatedUnidadesRoyaltiesRoute: typeof AuthenticatedUnidadesRoyaltiesRoute
   AuthenticatedUnidadesSplitRoute: typeof AuthenticatedUnidadesSplitRoute
@@ -1855,6 +1876,8 @@ interface AuthenticatedUnidadesRouteChildren {
 const AuthenticatedUnidadesRouteChildren: AuthenticatedUnidadesRouteChildren = {
   AuthenticatedUnidadesUnidadeIdRoute: AuthenticatedUnidadesUnidadeIdRoute,
   AuthenticatedUnidadesFunilCacRoute: AuthenticatedUnidadesFunilCacRoute,
+  AuthenticatedUnidadesFunilRecebidoRoute:
+    AuthenticatedUnidadesFunilRecebidoRoute,
   AuthenticatedUnidadesFunilRedeRoute: AuthenticatedUnidadesFunilRedeRoute,
   AuthenticatedUnidadesRoyaltiesRoute: AuthenticatedUnidadesRoyaltiesRoute,
   AuthenticatedUnidadesSplitRoute: AuthenticatedUnidadesSplitRoute,

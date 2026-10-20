@@ -6269,3 +6269,85 @@ No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou 
   - Omie `simulado` (a OS não existe no Omie) e Pipefy `simulado`, com a validação ok;
   - no descarte, o movimento da devolução e a notificação viraram `cancelado`, e o arquivamento do card saiu `simulado`;
   - `integracoes.fat_tem_trabalho()` ficou falso, sem nada que acorde o cron.
+
+## [2026-10-20] Base nova (pipe 40) com o mesmo desenho da base antiga, e o funil por unidade em pílulas
+
+**Contexto:** o Pedro viu as telas da base nova lado a lado com as da base antiga e pediu: "A tela do pipe 40 tem que ter o mesmo design da tela do 39. Os ícones do funil, a estrutura, etc. Não é pra ser uma tela com design diferente, corrige isso." Sobre o "Em que unidade a base avança?" do pipe 39, disse que "o design do funil dessa dobra aqui tá muito ruim de ler", e pediu: "tenta deixar mais próximo do funil da dobra de baixo que está mais sexy".
+
+**Decisão: um desenho de funil só, compartilhado pelos dois pipes.** O arquivo novo `src/components/monetizacao/funil-desenho.tsx` guarda só o desenho. Quem chama conta os cards e diz o que cada clique abre.
+- `LinhaFunil`, `CabecalhoFunil` e `Rampa` saíram do funil do topo do pipe 39, sem mudança visual. Com elas, o pipe 40 desenha o "Onde o diagnóstico avança e onde trava?" com a mesma grade:
+  - um ícone por etapa: 01 Building2, 02 BadgeCheck, 03 FolderOpen, 04 ScanSearch, 05 ClipboardCheck, 06 CalendarClock, 07 Presentation, 08 Scale, Ganho Trophy;
+  - as colunas Cards, Etapa, Hoje e Taxa, com a taxa na passagem.
+- `FunilEmPilulas` é o desenho do "Em que etapa cada produto trava?" deitado: uma linha por unidade e uma coluna por etapa.
+  - A pílula fica centrada, mede contra a primeira coluna da própria linha e traz o número dentro.
+  - A taxa fica em cima.
+  - O gargalo fica em vermelho. Ele conta só com 3 cards ou mais na etapa da esquerda; no pipe 39, da Qualificação em diante, e no 40, da 02 em diante.
+  - O Total fecha a grade, em cinza.
+  - Zero sai sem pílula.
+
+  Esse desenho substitui a tabela de grupos com barra fina e "x% da anterior" no pipe 39 e as quatro colunas soltas do "De que unidade vêm" no 40. A régua do 40 é `funisPorUnidadeDiag`, a mesma coorte de `funilDiagnostico` por unidade, e ela substitui `unidadesDiagnostico`.
+- **Demais telas do 40:**
+  - Pré-venda › Hoje: uma `Secao` por pessoa com `KpiCard` e a tabela "O que fazer hoje".
+  - Ritmo: o `BarChart` do 39.
+  - Aderência: `KpiGrade`.
+  - Forecast, no molde do 39: um `KpiCard` por horizonte em "Quando deve fechar?" e as etapas com o ícone em rampa.
+  - Cabeçalho: a assinatura da Caixa de Oportunidade.
+- Os números, as réguas e os filtros das duas bases não mudam. Os contratos `monetizacao-base-nova.md` e `monetizacao-operacao.md` ganharam adendos de 20/10.
+- **Correção junto:** o gargalo em zero desenhava o anel vermelho numa pílula de largura zero, que virava um risco solto. Isso também acontecia no "Em que etapa cada produto trava?". Agora zero não tem pílula, e o gargalo fica na taxa vermelha.
+
+## [2026-10-20] Pipe 40: fila do dia no Forecast pela régua do processo, cards pausados lidos da nota; pipe 39: atividade vencida e manual separadas no Hoje
+
+**Contexto.** O Pedro trouxe três pontos.
+1. "Aqui no forecasting do pipe 40 eu não deveria ter a mesma visão do 39 de fazer hoje > semana > mes?"
+2. "Tem card com atividade que tá sendo registrado como sem atividade."
+3. "Fui ver o forecasting da Heloá e tá parado."
+
+O que a medição de 20/10 mostrou:
+- **A carga bate com o Pipedrive.** A próxima atividade confere em 136 de 136 cards abertos do Matheus e da Heloá no pipe 39, e as atividades abertas conferem em 14 de 14 no pipe 40.
+- **O "sem atividade" vinha de três regras:**
+  - no pipe 40, os 5 "Sem tarefa aberta" são os 5 cards de Belém pausados em 19/10 (caso Arcanjo). A pausa apagou as tarefas 01 do Posto Porto Alegre e da Rocon Tintas, e a régua as tinha como "aberta";
+  - no pipe 39, a "Reta final sem próximo passo" contava a atividade vencida como ausência de atividade (exemplo: interior designer);
+  - no pipe 39, a "Abordagem sem cadência" não enxergava atividade criada à mão (exemplos: E.m.a e Chiasa).
+- **O Forecast da Heloá não está quebrado.** Os 112 cards abertos dela estão antes do Agendado (48 Base elegível, 49 Abordagem, 15 Qualificação). Em outubro ela abordou 52, qualificou 14 e agendou 0 levantamentos, e 10 dos 15 em Qualificação estão sem atividade. O gargalo dela é Qualificação → Agendado.
+
+**Decisões do Pedro (AskUserQuestion, 20/10).**
+- **Forecast do 40: "Régua do processo, já".** A urgência vem da tarefa da régua e do prazo prometido, não do Jev.
+  - Fazer hoje: tarefa vencida ou de hoje, prazo vencendo ou card sem tarefa.
+  - Nesta semana: tarefa ou prazo até domingo.
+  - Fecha no mês: prazo + 7 dias até o fim do mês.
+  - Sem data nem valor: antes do D0 ou sem produto.
+  - Entram todos os cards abertos, fora os pausados, agrupados pela etapa, com a última nota do dono, do Matheus ou da Jordana. A régua está em `filaDiagnostico`.
+- **Pausa: "Mostrar Pausado nos 5 de Belém".**
+  - A carga do pipe 40 lê as notas do card. A nota fixada que começa com "Pausado em" vira `pausa`.
+  - Enquanto a nota estiver fixada, o card não recebe tarefa, e a tarefa tirada fica `pausada`. A migration `20261020140000` acrescenta esse status.
+  - Quando a nota é desafixada ou apagada, a tarefa volta ao Pipedrive. Se o card mudou de etapa durante a pausa, a tarefa sai.
+  - O Hoje ganha o quadro "Pausados".
+- **"Separar vencida de sem atividade" e "Contar atividade manual na Abordagem"** (pipe 39, `hoje-pre-venda.ts`).
+  - A nota da reta final passa a dizer "N sem atividade · M com atividade vencida", e a tabela ganha a coluna "Próxima atividade".
+  - O card em Abordagem com atividade criada à mão sai de "sem cadência" e vai para a nota.
+
+**Fica de fora.** Os 2 cards de Belém pausados que estão na reta final do pipe 39 (H. C. Barbosa e Forma Divisórias) continuam em "sem atividade". A carga do 39 (`monetizacao-crm`) não lê notas, e levar a pausa até ela é outra mudança.
+
+## [2026-10-20] Planning People: uma data de início, valor por vínculo e registro dos períodos do contrato
+
+Ajuste pedido pelo RH de Maceió (19/10/2026) e aprovado pelo dono, que pediu também o registro das datas.
+- Uma data de início só: a admissão, com o nome conforme o vínculo ("Admissão", "Início do estágio", "Início do contrato", "Início na sociedade"). Sai o campo "Início da vigência"; estágio e terceiro pedem a data de início e o fim da vigência. A coluna `vigencia_inicio` fica no banco, sem uso pelo app.
+- O valor continua um campo só (`ops.gente_remuneracao`, só o RH), com o nome conforme o vínculo: Salário (CLT), Valor da bolsa (estágio), Valor do contrato (terceiro e PJ), Pró-labore (sócio e pró-labore).
+- `ops.gente_vigencia_periodos` (migration `20261020100000`): todo fim de vigência gravado vira um período, pelo gatilho do banco. Primeiro fim: da admissão ao fim. Prorrogação: do dia seguinte ao fim anterior ao novo fim (renovação). Fim antecipado: corrige o último período. O Editar mostra os períodos.
+
+## [2026-10-20] Consultoria: os números abrem uma gaveta à direita, e a ficha da empresa abre por cima dela
+
+Pedido do dono em 20/10/2026: "quando eu clico nos indicadores, ele rola a tela pra mostrar uma lista embaixo. Quero que siga o padrão de abrir numa aba lateral à direita que é navegável", com o cliente abrindo "sobreposta uma segunda aba que me permita retornar para a anterior sem perder o fluxo". Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Gaveta navegável".
+- **Funil:** os quatro cartões de "Dinheiro de verdade", os degraus, os motivos e os cartões de "Onde agir agora" abrem a lista numa gaveta (`passo`). A lista embaixo do funil saiu. Os cartões de "Onde agir agora" não levam mais direto à Fila: a gaveta oferece "Cobrar na Fila de cobrança" quando a lista tem grupo na Fila.
+- **Ficha por cima:** a empresa da lista abre a ficha da Buscar empresa (`GavetaFicha`, em `consultoria-empresa.tsx`) numa segunda gaveta, dentro da primeira, com "Voltar para…". Esc e o clique fora fecham só a de cima. A chave fica em `empresa` na URL.
+- **Fila e Handoff:** o nome da empresa abre a mesma ficha na gaveta, sem trocar de aba. No Handoff, o ícone ao lado do nome continua levando ao card do Pipefy.
+- **Corrige:** o cartão "Achado e parado" (42 empresas em 20/10) abria o degrau 5 ou além (151). Agora abre as 42 que ele soma (`5-parado`). O "Garantido a faturar" abre `6-garantido`.
+- **Não muda:** nenhuma régua de contagem. O defeito aberto em 17/10 continua: filiais de Goiânia que caem no mesmo cliente da plataforma somam várias vezes. Em 20/10 a tela mostra R$ 7,58 mi faturados em 2026; por cliente são R$ 6,31 mi.
+
+## [2026-10-20] Consultoria: um cliente por linha, "a meta" sai do faturado e o em análise sai do "Achado e parado"
+
+Três decisões do dono por opções, depois da explicação dos números da tela (20/10/2026). Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Réguas mudadas em 20/10/2026".
+- **Um cliente por linha (`porCliente`):** Funil e Fila juntam as linhas do mesmo cliente da plataforma. Fica a matriz, ou o menor CNPJ, com a origem dela, e o MRR e os negócios somados. Em 20/10, nas 13 repetições, todo número do cliente era igual entre as filiais e a origem era sempre Goiânia. Fecha o defeito de 17/10. A Buscar empresa já juntava pela raiz e não muda.
+- **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
+- **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
+- **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.

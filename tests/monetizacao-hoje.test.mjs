@@ -37,6 +37,34 @@ const card = (o = {}) => ({
 });
 const HOJE = "2026-10-14";
 
+test("Reta final: a atividade vencida conta como sem próximo passo, separada na nota; atividade manual sai de sem cadência", () => {
+  const vencida = card({ stage_id: 279, next_activity: "2026-10-10" });
+  const semNada = card({ stage_id: 278 });
+  const manual = card({ stage_id: 276, next_activity: "2026-10-16" });
+  const semCadencia = card({ stage_id: 276 });
+  const [m] = hojeDaPreVenda({
+    cards: [vencida, semNada, manual, semCadencia],
+    stages: ST,
+    units: [],
+    atividades: [],
+    hoje: HOJE,
+    pessoa: M,
+  });
+  const b = (k) => m.blocos.find((x) => x.chave === k);
+  assert.deepEqual(
+    b("reta")
+      .cards.map((c) => c.id)
+      .sort(),
+    [vencida.id, semNada.id].sort(),
+  );
+  assert.match(b("reta").nota, /^1 sem atividade · 1 com atividade vencida, de 2 cards/);
+  assert.deepEqual(
+    b("semCadencia").cards.map((c) => c.id),
+    [semCadencia.id],
+  );
+  assert.match(b("semCadencia").nota, /1 com atividade manual, fora da conta/);
+});
+
 test("Próximo dia útil pula fim de semana e feriado", () => {
   assert.equal(proximoDiaUtil("2026-10-14"), "2026-10-15");
   assert.equal(proximoDiaUtil("2026-10-16"), "2026-10-19");
@@ -47,11 +75,23 @@ test("Blocos por pessoa: cadência, vencidas, reta final, data esperada, sem cad
   const abordagemComCadencia = card({ stage_id: 276 });
   const abordagemSemCadencia = card({ stage_id: 276 });
   const retaSemProximo = card({ stage_id: 278, expected_close: null });
-  const retaComProximo = card({ stage_id: 279, next_activity: "2026-10-16", expected_close: "2026-10-30" });
+  const retaComProximo = card({
+    stage_id: 279,
+    next_activity: "2026-10-16",
+    expected_close: "2026-10-30",
+  });
   const standBy = card({ stage_id: 288 });
   const fila = Array.from({ length: 9 }, () => card({ stage_id: 274 }));
   const daHeloa = card({ stage_id: 276, owner_id: H });
-  const cards = [abordagemComCadencia, abordagemSemCadencia, retaSemProximo, retaComProximo, standBy, ...fila, daHeloa];
+  const cards = [
+    abordagemComCadencia,
+    abordagemSemCadencia,
+    retaSemProximo,
+    retaComProximo,
+    standBy,
+    ...fila,
+    daHeloa,
+  ];
   const atividades = normalizarCadencias([
     // hoje 12:00 UTC = 9h em São Paulo, aberta; outra hoje, feita
     { deal_id: abordagemComCadencia.id, user_id: M, vence: "2026-10-14T12:00:00Z", feita: false },
@@ -71,10 +111,21 @@ test("Blocos por pessoa: cadência, vencidas, reta final, data esperada, sem cad
   assert.equal(b(m, "vencidas").valor, 1);
   assert.equal(b(m, "vencidas").tom, "perigo");
   // reta final: Proposta enviada sem próxima, Negociação com próxima, Stand by sem próxima
-  assert.deepEqual(b(m, "reta").cards.map((c) => c.id).sort(), [retaSemProximo.id, standBy.id].sort());
+  assert.deepEqual(
+    b(m, "reta")
+      .cards.map((c) => c.id)
+      .sort(),
+    [retaSemProximo.id, standBy.id].sort(),
+  );
   // data esperada: Proposta enviada sem data; Negociação tem data; Stand by fica fora
-  assert.deepEqual(b(m, "semData").cards.map((c) => c.id), [retaSemProximo.id]);
-  assert.deepEqual(b(m, "semCadencia").cards.map((c) => c.id), [abordagemSemCadencia.id]);
+  assert.deepEqual(
+    b(m, "semData").cards.map((c) => c.id),
+    [retaSemProximo.id],
+  );
+  assert.deepEqual(
+    b(m, "semCadencia").cards.map((c) => c.id),
+    [abordagemSemCadencia.id],
+  );
   assert.equal(b(m, "fila").valor, 9);
   assert.match(b(m, "fila").nota, /2 dias úteis a 8 por dia/);
   assert.equal(b(m, "amanha").valor, 1);
@@ -84,7 +135,9 @@ test("Blocos por pessoa: cadência, vencidas, reta final, data esperada, sem cad
   assert.equal(b(h, "semCadencia").valor, 0);
   // filtro de pessoa
   assert.deepEqual(
-    hojeDaPreVenda({ cards, stages: ST, units: [], atividades, hoje: HOJE, pessoa: H }).map((p) => p.id),
+    hojeDaPreVenda({ cards, stages: ST, units: [], atividades, hoje: HOJE, pessoa: H }).map(
+      (p) => p.id,
+    ),
     [H],
   );
 });

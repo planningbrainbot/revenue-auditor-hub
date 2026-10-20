@@ -61,3 +61,22 @@ export function situacaoVigencia(fim: string | null): {
   if (d <= 30) return { tom: "info", texto: `vence em ${d} dias`, ordem: d };
   return { tom: "sucesso", texto: `até ${fmt(fim)}`, ordem: d };
 }
+
+/**
+ * Nome da data de início conforme o vínculo (ajuste do RH de Maceió, 19/10/2026):
+ * uma data só, a admissão, chamada pelo que ela é em cada contrato.
+ */
+export function rotuloInicio(vinculo: string | null | undefined): string {
+  if (vinculo === "estagio") return "Início do estágio";
+  if (vinculo === "terceiro" || vinculo === "pj") return "Início do contrato";
+  if (vinculo === "socio") return "Início na sociedade";
+  return "Admissão";
+}
+
+/** Nome do valor conforme o vínculo: o dado é o mesmo (remuneração), muda o rótulo. */
+export function rotuloValor(vinculo: string | null | undefined): string {
+  if (vinculo === "estagio") return "Valor da bolsa";
+  if (vinculo === "terceiro" || vinculo === "pj") return "Valor do contrato";
+  if (vinculo === "socio" || vinculo === "prolabore") return "Pró-labore";
+  return "Salário";
+}

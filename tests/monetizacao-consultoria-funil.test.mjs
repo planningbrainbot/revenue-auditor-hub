@@ -3,13 +3,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  chaveDaFicha,
   dinheiroDe,
   empresasDoPasso,
+  grupoDoPasso,
   montarFila,
   montarFunil,
   motivoDe,
   nivelDe,
   ondeAgir,
+  porCliente,
   resumoFila,
 } from "../src/lib/monetizacao/consultoria-funil.ts";
 import { validarBuscaMonetizacao } from "../src/components/monetizacao/busca.ts";
@@ -131,6 +134,29 @@ test("clique no funil: o degrau, o motivo e os fora do prazo", () => {
   );
 });
 
+test("gaveta: cada número abre as empresas que ele soma, e a ficha tem chave na URL", () => {
+  // "Achado e parado" soma quem parou no degrau 5; a lista é a mesma, e não o degrau 5 ou além.
+  const parado = empresasDoPasso(EMPRESAS, "5-parado", HOJE);
+  assert.deepEqual(parado.map((x) => x.chave), ["parado", "novo"]);
+  assert.equal(parado.length, dinheiroDe(EMPRESAS, true).empresasParado);
+  // "Garantido a faturar" soma quem tem garantido.
+  const garantido = empresasDoPasso(EMPRESAS, "6-garantido", HOJE);
+  assert.deepEqual(garantido.map((x) => x.chave), ["aceitou"]);
+  assert.equal(garantido.length, dinheiroDe(EMPRESAS, true).empresasGarantido);
+  // Cada cartão de "Onde agir agora" abre a lista do mesmo tamanho do número do cartão.
+  for (const a of ondeAgir(EMPRESAS, HOJE)) assert.equal(empresasDoPasso(EMPRESAS, a.passo, HOJE).length, a.empresas, a.id);
+  assert.equal(grupoDoPasso("6-aceitou"), "aceitou");
+  assert.equal(grupoDoPasso("5-mais_90"), "90");
+  assert.equal(grupoDoPasso("3"), null);
+  assert.equal(chaveDaFicha({ cnpj: C, deal: "9", cliente_id: "c1" }), C);
+  assert.equal(chaveDaFicha({ cnpj: null, deal: "9", cliente_id: "c1" }), "deal:9");
+  assert.equal(chaveDaFicha({ cnpj: null, deal: null, cliente_id: "c1" }), "cliente:c1");
+  assert.equal(chaveDaFicha({ cnpj: null, deal: null, cliente_id: null }), null);
+  for (const k of [C, "deal:9", "cliente:c1"])
+    assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", empresa: k }).empresa, k);
+  assert.equal(validarBuscaMonetizacao({ aba: "handoff-consultoria", passo: "6-garantido" }).passo, "6-garantido");
+});
+
 test("dinheiro de verdade e onde agir", () => {
   const d = dinheiroDe(EMPRESAS, true);
   assert.equal(d.recebido2026, 40);
@@ -206,4 +232,33 @@ test("URL da Consultoria: o Funil é o padrão, o Cruzamento antigo abre o Funil
     validarBuscaMonetizacao({ aba: "handoff-consultoria", visao: "empresa", empresa: "proposta:gradiente" }).empresa,
     "proposta:gradiente",
   );
+});
+
+test("um cliente por linha: filiais do mesmo cliente da plataforma não repetem o dinheiro", () => {
+  const f = (cnpj, mrr) =>
+    e({ chave: cnpj, cnpj, origem: "goiania", cliente_id: "g1", auditado: true, identificado: 500, aceito: 500, tem_fatura: true, faturado: 90, faturado_2026: 90, mrr });
+  const lista = [f("22222222000290", 100), f("22222222000109", 50), f("22222222000370", null), ...EMPRESAS];
+  const juntas = porCliente(lista);
+  assert.equal(juntas.length, EMPRESAS.length + 1);
+  const g = juntas.find((x) => x.cliente_id === "g1");
+  assert.equal(g.cnpj, "22222222000109", "fica a matriz");
+  assert.deepEqual(g.filiais, ["22222222000290", "22222222000370"]);
+  assert.equal(g.mrr, 150);
+  assert.equal(dinheiroDe(juntas, true).faturado2026, dinheiroDe(EMPRESAS, true).faturado2026 + 90);
+  // Sem cliente da plataforma, segue por CNPJ.
+  assert.equal(porCliente(EMPRESAS).length, EMPRESAS.length);
+});
+
+test("em análise fica à parte do achado e parado e fora da fila", () => {
+  const analise = e({ chave: "analise", cnpj: C, cliente_id: "c9", etapa: "operacao", identificado: 700 });
+  const lista = [...EMPRESAS, analise];
+  assert.equal(motivoDe(analise, HOJE), "em_analise");
+  const d = dinheiroDe(lista, true);
+  assert.equal(d.parado, 1000);
+  assert.equal(d.empresasParado, 2);
+  assert.equal(d.emAnalise, 700);
+  assert.equal(d.empresasEmAnalise, 1);
+  assert.deepEqual(empresasDoPasso(lista, "5-parado", HOJE).map((x) => x.chave), ["parado", "novo"]);
+  assert.deepEqual(empresasDoPasso(lista, "5-em_analise", HOJE).map((x) => x.chave), ["analise"]);
+  assert.equal(montarFila(lista, HOJE).some((x) => x.e.chave === "analise"), false);
 });

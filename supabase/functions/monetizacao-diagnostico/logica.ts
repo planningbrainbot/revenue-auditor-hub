@@ -4,7 +4,8 @@
 //   1. carga: lê o pipe 40 inteiro (cards, histórico de etapas, produtos e atividades) e grava o retrato no banco;
 //   2. entrada: venda ganha no Inside Sales (pipe 2) desde MONET_DIAG_VENDAS_DESDE, de Lucro Real ou Presumido de
 //      R$ 10 mi para cima, vira card no pipe 40, um por conta, no nome do Matheus;
-//   3. tarefas: cada etapa cria as tarefas dela (regua.ts) e, quando o card sai, apaga as que não foram feitas.
+//   3. tarefas: cada etapa cria as tarefas dela (regua.ts) e, quando o card sai, apaga as que não foram feitas. Card com
+//      nota fixada "Pausado em" não recebe tarefa; a que a pausa tirou do Pipedrive volta quando a nota sair.
 // A carga só lê o Pipedrive. A entrada e as tarefas escrevem, e cada uma tem a própria chave: desligada, a rodada
 // calcula o que faria e grava como prévia (a tela mostra), sem escrever no Pipedrive nem nas tabelas de estado.
 //
@@ -274,9 +275,54 @@ export type CardDiagnostico = {
     add_time: string | null;
   }[];
   next_activity_date: string | null;
+  /**
+   * Nota fixada que começa com "Pausado em" (pausa de Belém, 19/10/2026): enquanto ela estiver fixada, o card não
+   * recebe tarefa e a tarefa que a pausa tirou do Pipedrive fica guardada para voltar quando a nota sair.
+   */
+  pausa: NotaDoCard | null;
+  /** Última nota de quem trabalha o card (o dono, o Matheus ou a Jordana): a fila do Forecast mostra. */
+  ultima_nota: NotaDoCard | null;
   url: string;
   refreshed_at: string;
 };
+export type NotaDoCard = { em: string; autor_id: number | null; texto: string };
+
+/** Texto corrido de uma nota do Pipedrive (HTML), cortado para caber numa linha da tela. */
+export function textoDaNota(html: unknown, limite = 280): string {
+  const t = String(html ?? "")
+    .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  return t.length > limite ? `${t.slice(0, limite - 1)}…` : t;
+}
+
+/** A pausa e a última nota de quem trabalha o card, lidas das notas do card (a mais nova primeiro). */
+export function notasDoCard(
+  notas: any[] | null,
+  dono: number | null,
+): { pausa: NotaDoCard | null; ultima_nota: NotaDoCard | null } {
+  const lista = [...(notas || [])]
+    .filter((n) => n && n.active_flag !== false)
+    .sort((a, b) => String(b.add_time).localeCompare(String(a.add_time)));
+  const nota = (n: any, limite?: number): NotaDoCard => ({
+    em: String(n.add_time ?? ""),
+    autor_id: id(n.user_id),
+    texto: textoDaNota(n.content, limite),
+  });
+  const pausa = lista.find(
+    (n) => n.pinned_to_deal_flag === true && /^pausado em/i.test(textoDaNota(n.content, 40)),
+  );
+  const quem = new Set([dono, MATHEUS, JORDANA].filter(Boolean) as number[]);
+  const ultima = lista.find((n) => quem.has(id(n.user_id) as number) && textoDaNota(n.content));
+  return { pausa: pausa ? nota(pausa, 600) : null, ultima_nota: ultima ? nota(ultima) : null };
+}
 
 /** Um card do pipe 40 no formato que a tela lê (sem token, sem campo que a tela não usa). */
 export function montarCard(
@@ -286,6 +332,7 @@ export function montarCard(
   atividades: any[] | null,
   rotulo: (chave: string, valor: any) => string | null,
   agora: Date,
+  notas: any[] | null = null,
 ): CardDiagnostico {
   const mudancas = (flow || [])
     .filter((e) => e?.object === "dealChange" && e.data)
@@ -364,6 +411,7 @@ export function montarCard(
       add_time: a.add_time ?? null,
     })),
     next_activity_date: deal.next_activity_date ?? null,
+    ...notasDoCard(notas, id(deal.user_id)),
     url: `${URL_CARD}${deal.id}`,
     refreshed_at: agora.toISOString(),
   };
@@ -380,7 +428,8 @@ export type LinhaTarefa = {
   assunto: string;
   due_date: string;
   activity_id: number | null;
-  status: "aberta" | "feita" | "apagada";
+  /** "pausada": a pausa do card tirou a atividade do Pipedrive; volta quando a nota de pausa sair. */
+  status: "aberta" | "feita" | "apagada" | "pausada";
   versao: string;
   criado_em?: string;
   encerrado_em?: string | null;
@@ -533,6 +582,19 @@ export function planejarGanho(
       nota: preencher(item.nota, ctx),
     };
   });
+}
+
+/** O tipo e a nota de uma tarefa guardada (a linha do banco não guarda os dois), pela régua da etapa. */
+function tipoENota(
+  l: LinhaTarefa,
+  card: CardDiagnostico,
+): { tipo: ItemDiagnostico["tipo"]; nota: string } {
+  const plano = [...planejarEntrada(card), ...planejarGanho(card)].find((t) => t.chave === l.chave);
+  if (plano) return { tipo: plano.tipo, nota: plano.nota };
+  const item = REGUA.find((i) => String(i.etapa) === l.etapa && l.chave.startsWith(`${i.chave}-`));
+  return item
+    ? { tipo: item.tipo, nota: preencher(item.nota, contexto(card, card.d0, card.prazo)) }
+    : { tipo: "task", nota: "" };
 }
 
 /** Linha aberta que já não vale: o card saiu da etapa, foi perdido, ganho (fora as de ganho) ou sumiu do pipe. */
@@ -709,14 +771,21 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
         moves: velho.moves,
         produtos: velho.produtos,
         atividades: velho.atividades,
+        pausa: velho.pausa ?? null,
+        ultima_nota: velho.ultima_nota ?? null,
         refreshed_at: velho.refreshed_at,
       };
-    const [flow, produtos, atividades] = await Promise.all([
+    const [flow, produtos, atividades, notas] = await Promise.all([
       pd.pages(`deals/${d.id}/flow`, { items: "dealChange" }),
       Number(d.products_count) > 0 ? pd.pages(`deals/${d.id}/products`) : Promise.resolve([]),
       pd.pages(`deals/${d.id}/activities`),
+      Number(d.notes_count) > 0
+        ? pd
+            .get("notes", { deal_id: d.id, limit: 50, sort: "add_time DESC" })
+            .then((b) => b?.data || [])
+        : Promise.resolve([]),
     ]);
-    return montarCard(d, flow, produtos, atividades, rotulo, agora);
+    return montarCard(d, flow, produtos, atividades, rotulo, agora, notas);
   });
   const porId = new Map(cards.map((c) => [c.id, c]));
 
@@ -838,6 +907,8 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
   let criadasTarefas = 0,
     encerradas = 0,
     feitas = 0,
+    pausadas = 0,
+    retomadas = 0,
     camposGravados = 0;
   const tiposBody = op.tarefasAtiva ? await pd.get("activityTypes") : null;
   const { usar: tipos } = escolherTipos(tiposBody?.data || [], REGUA as any);
@@ -860,6 +931,26 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       continue;
     }
     const motivo = motivoDeEncerrar(l, card);
+    // Card pausado e a atividade fora do retrato: confere no Pipedrive e, se a pausa a tirou, guarda para a liberação.
+    if (!motivo && card?.pausa && !atividade) {
+      if (!op.tarefasAtiva) continue;
+      try {
+        const viva = l.activity_id ? await atividadeAtual(pd, l.activity_id) : null;
+        if (viva?.done) {
+          feitas++;
+          await store.atualizarTarefa(l, {
+            status: "feita",
+            encerrado_em: viva.marked_as_done_time || agora.toISOString(),
+          });
+        } else if (!viva || viva.active_flag === false) {
+          pausadas++;
+          await store.atualizarTarefa(l, { status: "pausada", motivo: "card pausado" });
+        }
+      } catch (e) {
+        erros.push(`pausar ${l.deal_id}/${l.chave}: ${(e as Error).message}`);
+      }
+      continue;
+    }
     if (!motivo) continue;
     encerradas++;
     if (!op.tarefasAtiva) continue;
@@ -884,12 +975,65 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
     }
   }
 
-  // 3b. novas
+  // 3b. pausa liberada: a nota "Pausado em" saiu (ou foi desafixada) e o card segue na mesma entrada da etapa. A tarefa
+  // guardada volta ao Pipedrive com o mesmo assunto; vencida, ela vence no dia útil de hoje.
+  for (const l of linhas.filter((x) => x.status === "pausada")) {
+    const card = porId.get(l.deal_id);
+    if (card?.pausa) continue;
+    const motivo = motivoDeEncerrar(l, card);
+    const vence = l.due_date >= hoje ? l.due_date : vencimentoDiagnostico(hoje, 0);
+    if (!op.tarefasAtiva) {
+      if (!motivo)
+        previaTarefas.push({
+          deal_id: l.deal_id,
+          empresa: card ? card.org || card.title : null,
+          assunto: l.assunto,
+          user_id: l.user_id,
+          due_date: vence,
+          retomada: true,
+        });
+      continue;
+    }
+    if (motivo) {
+      await store.atualizarTarefa(l, {
+        status: "apagada",
+        encerrado_em: agora.toISOString(),
+        motivo,
+      });
+      continue;
+    }
+    try {
+      const { tipo, nota } = tipoENota(l, card as CardDiagnostico);
+      const criada = (
+        await pd.post("activities", {
+          subject: l.assunto,
+          type: tipos.get(tipo) || "task",
+          ...vencimentoUtc(vence, HORA_TAREFA),
+          duration: "00:15",
+          deal_id: l.deal_id,
+          user_id: l.user_id,
+          note: notaHtml(nota),
+        })
+      )?.data;
+      if (!criada?.id) throw new Error("Pipedrive não devolveu a atividade");
+      await store.atualizarTarefa(l, {
+        status: "aberta",
+        activity_id: Number(criada.id),
+        due_date: vence,
+        motivo: null,
+      });
+      retomadas++;
+    } catch (e) {
+      erros.push(`retomar ${l.deal_id}/${l.chave}: ${(e as Error).message}`);
+    }
+  }
+
+  // 3c. novas
   for (const card of cards) {
     if (Date.now() - comeco > orcamento) break;
     const planos: TarefaPlanejada[] = [];
     const entrada = instante(card.stage_since);
-    if (card.status === "open" && entrada && temInicio && entrada >= temInicio) {
+    if (card.status === "open" && !card.pausa && entrada && temInicio && entrada >= temInicio) {
       const daEntrada = planejarEntrada(card);
       if (!daEntrada.some((t) => existentes.has(conta(t)))) planos.push(...daEntrada);
       const cobranca = proximaCobranca(card, linhas, hoje);
@@ -983,6 +1127,8 @@ export async function rodarDiagnostico(op: OpcoesDiagnostico) {
       criadas: criadasTarefas,
       feitas,
       encerradas,
+      pausadas,
+      retomadas,
       campos_gravados: camposGravados,
       previstas: previaTarefas.length,
     },

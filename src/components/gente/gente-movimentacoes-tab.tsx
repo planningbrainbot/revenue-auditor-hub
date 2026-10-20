@@ -550,7 +550,8 @@ function NovaMovimentacaoDialog({ pessoas }: { pessoas: PessoaRemuneracao[] }) {
           <div className="grid gap-2 rounded-md border p-3">
             <span className="text-sm font-medium">O que muda</span>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={muda.salario} onChange={marcar("salario")} /> Salário
+              <input type="checkbox" checked={muda.salario} onChange={marcar("salario")} /> Salário,
+              bolsa ou valor do contrato
             </label>
             {muda.salario ? (
               <div className="grid gap-1 pl-6">
@@ -957,7 +958,10 @@ export function GenteMovimentacoesTab() {
       <Card className="p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Wallet className="h-4 w-4 text-primary-text" />
-          <h3 className="font-semibold">Salário atual</h3>
+          <h3 className="font-semibold">Remuneração atual</h3>
+          <span className="text-[13px] text-muted-foreground">
+            salário, bolsa ou valor do contrato
+          </span>
           {semSalario ? (
             <span className="text-[13px] text-muted-foreground">
               {semSalario} pessoa(s) ativa(s) sem salário carregado
@@ -979,7 +983,7 @@ export function GenteMovimentacoesTab() {
               <TableHead>Pessoa</TableHead>
               <TableHead>Cargo</TableHead>
               <TableHead>Setor</TableHead>
-              <TableHead className="text-right">Salário</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
               <TableHead>Desde</TableHead>
             </TableRow>
           </TableHeader>

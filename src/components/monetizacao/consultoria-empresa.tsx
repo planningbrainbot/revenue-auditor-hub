@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ExternalLink, Search } from "lucide-react";
+import { ArrowLeft, ExternalLink, Search } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -74,18 +81,12 @@ function fCnpj(c: string | null) {
     : c;
 }
 
-export function ConsultoriaEmpresa({
-  busca,
-  mudarBusca,
-  abas,
-}: {
-  busca: BuscaMonetizacao;
-  mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
-  abas?: ReactNode;
-}) {
+/** As três leituras do índice da busca. A gaveta da ficha usa as mesmas chaves: o cache do react-query é um só. */
+function useLeiturasDaBusca() {
   const { user } = useAuth();
   const lerCruzamento = useServerFn(carregarCruzamentoConsultoria);
   const lerHandoff = useServerFn(carregarHandoffConsultoria);
+  const lerIndice = useServerFn(carregarIndicePlataforma);
   const opcoes = { enabled: !!user, staleTime: 60_000, refetchInterval: 5 * 60_000, retry: 1 };
   const cruz = useQuery({
     queryKey: ["cruzamento-consultoria", user?.id],
@@ -97,12 +98,38 @@ export function ConsultoriaEmpresa({
     queryFn: () => lerHandoff(),
     ...opcoes,
   });
-  const lerIndice = useServerFn(carregarIndicePlataforma);
   const plat = useQuery({
     queryKey: ["consultoria-plataforma-indice", user?.id],
     queryFn: () => lerIndice(),
     ...opcoes,
   });
+  return { cruz, hand, plat };
+}
+
+/** A empresa de uma chave da URL: a chave do índice, o CNPJ de uma filial, o negócio ou o cliente da plataforma. */
+function acharNaBusca(indice: Empresa[], chave: string): Empresa | null {
+  const id = chave.replace(/^(deal|cliente):/, "");
+  return (
+    indice.find((e) => e.chave === chave) ??
+    indice.find((e) => e.cnpjs.includes(chave)) ??
+    (chave.startsWith("deal:") ? indice.find((e) => e.negocios.some((n) => String(n.deal) === id)) : undefined) ??
+    (chave.startsWith("cliente:")
+      ? indice.find((e) => String(e.plataforma?.cliente?.id ?? "") === id)
+      : undefined) ??
+    null
+  );
+}
+
+export function ConsultoriaEmpresa({
+  busca,
+  mudarBusca,
+  abas,
+}: {
+  busca: BuscaMonetizacao;
+  mudarBusca: (patch: Partial<BuscaMonetizacao>) => void;
+  abas?: ReactNode;
+}) {
+  const { cruz, hand, plat } = useLeiturasDaBusca();
   if (!cruz.data) {
     const erro = cruz.error as Error | null;
     return (
@@ -165,11 +192,7 @@ export function PainelConsultoriaEmpresa({
   }, [texto, busca.q, mudarBusca]);
   const resultados = useMemo(() => buscarEmpresas(indice, busca.q ?? ""), [indice, busca.q]);
   // Link com o CNPJ de uma filial abre a ficha em que ela caiu pela raiz.
-  const aberta = busca.empresa
-    ? (indice.find((e) => e.chave === busca.empresa) ??
-      indice.find((e) => e.cnpjs.includes(busca.empresa!)) ??
-      null)
-    : null;
+  const aberta = busca.empresa ? acharNaBusca(indice, busca.empresa) : null;
   const abrir = (e: Empresa) => mudarBusca({ empresa: e.chave });
   const naPlataforma = indice.filter((e) => e.plataforma).length;
 
@@ -272,6 +295,118 @@ export function PainelConsultoriaEmpresa({
   );
 }
 
+// ─── A ficha numa gaveta ─────────────────────────────────────────────────────────────────────────
+
+/** O que a lista de origem já sabe da empresa: o cabeçalho da gaveta quando ela não está no índice da busca. */
+export interface ResumoFicha {
+  nome: string;
+  cnpj: string | null;
+  linhas: string[];
+}
+
+/**
+ * A ficha da empresa numa gaveta à direita (pedido do dono em 20/10/2026). Abre por cima da gaveta de uma lista (Funil,
+ * Handoff) ou sozinha (Fila de cobrança); `voltar` devolve à lista sem perder o recorte. A chave fica na URL
+ * (`empresa`), então o link reabre a mesma ficha. Quem chama a coloca DENTRO do SheetContent da lista: como irmã, o
+ * clique fora da ficha caía no fundo da lista e fechava as duas.
+ */
+export function GavetaFicha({
+  chave,
+  resumo = null,
+  voltar,
+  fechar,
+  abrir,
+}: {
+  chave: string | null;
+  resumo?: ResumoFicha | null;
+  voltar?: { rotulo: string; onClick: () => void };
+  fechar: () => void;
+  abrir: (chave: string) => void;
+}) {
+  return (
+    <Sheet open={!!chave} onOpenChange={(o) => !o && fechar()}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
+        <SheetHeader className="space-y-1 pr-8">
+          {voltar && (
+            <button
+              type="button"
+              onClick={voltar.onClick}
+              className="inline-flex max-w-full items-center gap-1.5 self-start rounded-md py-1 text-[13px] font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ArrowLeft className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">Voltar para {voltar.rotulo}</span>
+            </button>
+          )}
+          <SheetTitle className="sr-only">{resumo?.nome ?? "Ficha da empresa"}</SheetTitle>
+          <SheetDescription className="sr-only">O estado da empresa na Consultoria</SheetDescription>
+        </SheetHeader>
+        {chave && (
+          <div className="mt-3">
+            <FichaDaChave chave={chave} resumo={resumo} abrir={abrir} />
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function FichaDaChave({
+  chave,
+  resumo,
+  abrir,
+  hoje = hojeSP(),
+}: {
+  chave: string;
+  resumo: ResumoFicha | null;
+  abrir: (chave: string) => void;
+  hoje?: string;
+}) {
+  const { cruz, hand, plat } = useLeiturasDaBusca();
+  const indice = useMemo(
+    () => (cruz.data ? indiceEmpresas(cruz.data, hand.data ?? null, hoje, plat.data ?? null) : []),
+    [cruz.data, hand.data, plat.data, hoje],
+  );
+  if (!cruz.data) {
+    const erro = cruz.error as Error | null;
+    return erro ? (
+      <EstadoErro
+        detalhe={`Fonte: plataforma da Consultoria, contratos e PAT. ${erro.message}`}
+        tentarNovamente={() => void cruz.refetch()}
+      />
+    ) : (
+      <Carregando variante="kpis" />
+    );
+  }
+  const e = acharNaBusca(indice, chave);
+  if (e)
+    return (
+      <Ficha
+        e={e}
+        indice={indice}
+        abrir={(g) => abrir(g.chave)}
+        porta={cruz.data.porta_financeiro}
+        hoje={hoje}
+      />
+    );
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border bg-card p-4">
+        <h2 className="text-xl font-semibold leading-tight">{resumo?.nome ?? chave}</h2>
+        <p className="num text-sm text-muted-foreground">{fCnpj(resumo?.cnpj ?? null)}</p>
+        {resumo?.linhas.map((l) => (
+          <p key={l} className="text-[13px] text-muted-foreground">
+            {l}
+          </p>
+        ))}
+      </section>
+      <EstadoVazio
+        titulo="Ainda não está na Consultoria"
+        descricao="Não tem cadastro, projeto, proposta nem tese na plataforma do Pedro Siqueira, nem onboarding ou negócio de 2026 com este CNPJ."
+      />
+    </div>
+  );
+}
+
 // ─── A ficha da empresa ──────────────────────────────────────────────────────────────────────────
 
 function Ficha({
@@ -348,8 +483,9 @@ function Ficha({
       ? [`Origem na Consultoria: ${f.origem.parceiro}`]
       : []),
   ];
+  // A grade dos números segue a largura da ficha, não a da tela: na gaveta ela tem metade da largura da aba.
   return (
-    <div className="space-y-4">
+    <div className="@container space-y-4">
       <section className="rounded-xl border bg-card p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-1">
@@ -386,7 +522,7 @@ function Ficha({
         )}
       </section>
 
-      <section aria-label="Números da empresa" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section aria-label="Números da empresa" className="grid grid-cols-1 gap-3 @md:grid-cols-2 @3xl:grid-cols-4">
         <KpiCard
           rotulo="Valor identificado"
           valor={valorIdentificado === null ? "—" : brl(valorIdentificado)}

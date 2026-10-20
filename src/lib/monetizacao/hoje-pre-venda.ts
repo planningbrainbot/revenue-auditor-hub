@@ -113,14 +113,7 @@ export function proximoDiaUtil(dia: string): string {
 export const ABORDAGENS_POR_DIA = 8;
 
 export type ChaveBlocoHoje =
-  | "cadencia"
-  | "vencidas"
-  | "reta"
-  | "semData"
-  | "semCadencia"
-  | "parados"
-  | "fila"
-  | "amanha";
+  "cadencia" | "vencidas" | "reta" | "semData" | "semCadencia" | "parados" | "fila" | "amanha";
 
 export interface BlocoHoje {
   chave: ChaveBlocoHoje;
@@ -204,6 +197,9 @@ export function hojeDaPreVenda({
         ? []
         : meus.filter((c) => (nivelDe(c) ?? -1) >= nAgendada || regua.standby.has(c.stage_id));
     const semProximo = naReta.filter((c) => !c.next_activity || c.next_activity < hoje);
+    // 20/10/2026: a atividade vencida conta como sem próximo passo, mas a nota separa as duas para não parecer que o
+    // card não tem atividade nenhuma.
+    const retaVencida = semProximo.filter((c) => !!c.next_activity);
     const daProposta = meus.filter(
       (c) => !regua.standby.has(c.stage_id) && (nivelDe(c) ?? -1) >= desdeProposta,
     );
@@ -212,7 +208,10 @@ export function hojeDaPreVenda({
       nAbordagem === undefined
         ? []
         : meus.filter((c) => regua.niveis[nAbordagem].stage_ids.includes(c.stage_id));
-    const semCadencia = naAbordagem.filter((c) => !comCadencia.has(c.id));
+    // 20/10/2026: card fora da cadência mas com atividade criada à mão não é "sem cadência"; vai para a nota.
+    const foraDaCadencia = naAbordagem.filter((c) => !comCadencia.has(c.id));
+    const comManual = foraDaCadencia.filter((c) => !!c.next_activity);
+    const semCadencia = foraDaCadencia.filter((c) => !c.next_activity);
     const parados =
       listaDeAtencao(cards, regua, { owner: id, product: "" }, units, hoje)?.map((i) => i.card) ??
       [];
@@ -242,7 +241,9 @@ export function hojeDaPreVenda({
         chave: "reta",
         rotulo: "Reta final sem próximo passo",
         valor: semProximo.length,
-        nota: `de ${plural(naReta.length, "card", "cards")} do Agendado em diante, sem atividade futura`,
+        nota: retaVencida.length
+          ? `${semProximo.length - retaVencida.length} sem atividade · ${retaVencida.length} com atividade vencida, de ${plural(naReta.length, "card", "cards")} do Agendado em diante`
+          : `de ${plural(naReta.length, "card", "cards")} do Agendado em diante, sem atividade futura`,
         tom: semProximo.length ? "perigo" : naReta.length ? "sucesso" : undefined,
         cards: semProximo,
       },
@@ -258,7 +259,7 @@ export function hojeDaPreVenda({
         chave: "semCadencia",
         rotulo: "Abordagem sem cadência",
         valor: semCadencia.length,
-        nota: `de ${plural(naAbordagem.length, "card", "cards")} em Abordagem iniciada; passe pela Base e volte`,
+        nota: `de ${plural(naAbordagem.length, "card", "cards")} em Abordagem iniciada${comManual.length ? ` · ${comManual.length} com atividade manual, fora da conta` : ""}; passe pela Base e volte`,
         tom: semCadencia.length ? "atencao" : naAbordagem.length ? "sucesso" : undefined,
         cards: semCadencia,
       },
