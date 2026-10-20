@@ -5828,3 +5828,11 @@ Pedido do dono em 20/10/2026: "quando eu clico nos indicadores, ele rola a tela 
 - **Fila e Handoff:** o nome da empresa abre a mesma ficha na gaveta, sem trocar de aba. No Handoff, o ícone ao lado do nome continua levando ao card do Pipefy.
 - **Corrige:** o cartão "Achado e parado" (42 empresas em 20/10) abria o degrau 5 ou além (151). Agora abre as 42 que ele soma (`5-parado`). O "Garantido a faturar" abre `6-garantido`.
 - **Não muda:** nenhuma régua de contagem. O defeito aberto em 17/10 continua: filiais de Goiânia que caem no mesmo cliente da plataforma somam várias vezes. Em 20/10 a tela mostra R$ 7,58 mi faturados em 2026; por cliente são R$ 6,31 mi.
+
+## [2026-10-20] Consultoria: um cliente por linha, "a meta" sai do faturado e o em análise sai do "Achado e parado"
+
+Três decisões do dono por opções, depois da explicação dos números da tela (20/10/2026). Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Réguas mudadas em 20/10/2026".
+- **Um cliente por linha (`porCliente`):** Funil e Fila juntam as linhas do mesmo cliente da plataforma. Fica a matriz, ou o menor CNPJ, com a origem dela, e o MRR e os negócios somados. Em 20/10, nas 13 repetições, todo número do cliente era igual entre as filiais e a origem era sempre Goiânia. Fecha o defeito de 17/10. A Buscar empresa já juntava pela raiz e não muda.
+- **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
+- **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
+- **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.

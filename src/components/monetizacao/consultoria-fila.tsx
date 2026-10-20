@@ -41,6 +41,7 @@ import {
   ROTULO_RESULTADO,
   chaveDaFicha,
   montarFila,
+  porCliente,
   resumoFila,
   type FunilBruto,
   type GrupoFila,
@@ -112,7 +113,8 @@ export function PainelFila({
   hoje?: string;
 }) {
   const origens = origensDaBusca(busca, TODAS);
-  const todos = useMemo(() => montarFila(bruto.empresas, hoje), [bruto.empresas, hoje]);
+  // Uma linha por cliente da plataforma, como no Funil (20/10/2026).
+  const todos = useMemo(() => montarFila(porCliente(bruto.empresas), hoje), [bruto.empresas, hoje]);
   const daOrigem = useMemo(() => todos.filter((x) => origens.includes(x.e.origem)), [todos, origens]);
   const grupo = busca.grupo ?? null;
   const itens = useMemo(() => (grupo ? daOrigem.filter((x) => x.grupo === grupo) : daOrigem), [daOrigem, grupo]);

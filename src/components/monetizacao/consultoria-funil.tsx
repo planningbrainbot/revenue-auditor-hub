@@ -45,6 +45,7 @@ import {
   motivoDe,
   nivelDe,
   ondeAgir,
+  porCliente,
   type EmpresaFunil,
   type FunilBruto,
   type GrupoFila,
@@ -149,8 +150,9 @@ export function PainelFunil({
   const origens: Origem[] = origensDaBusca(busca, ORIGENS_FUNIL).filter((o) => o !== "outra");
   const unidade = busca.unidade ?? null;
   const porta = bruto.porta_financeiro.aberta;
+  // Uma linha por cliente da plataforma: as filiais de Goiânia não repetem o dinheiro do cliente (20/10/2026).
   const universo = useMemo(
-    () => bruto.empresas.filter((e) => e.origem !== "outra"),
+    () => porCliente(bruto.empresas).filter((e) => e.origem !== "outra"),
     [bruto.empresas],
   );
   const empresas = useMemo(() => filtrar(universo, { origens, unidade }), [universo, origens, unidade]);
@@ -191,7 +193,7 @@ export function PainelFunil({
         procedencia={{
           fonte: "Plataforma da Consultoria (a cada 15 min) · contratos ganhos no Pipedrive · Base de clientes",
           atualizadoEm: bruto.frescor.plataforma ?? bruto.lido_em,
-          regua: "uma empresa por CNPJ",
+          regua: "um cliente da plataforma por linha; fora dela, uma empresa por CNPJ",
         }}
       />
       {abas}
@@ -239,7 +241,7 @@ export function PainelFunil({
 
       <Secao
         titulo="Dinheiro de verdade"
-        descricao="A meta é o faturado. O garantido é o crédito que o cliente já aprovou e ainda vai virar honorário. O achado e parado é crédito que a Consultoria encontrou e ninguém fechou."
+        descricao="O recebido e o faturado são honorário que já saiu. O garantido é o crédito que o cliente aprovou e ainda vai virar honorário. O achado e parado é crédito de diagnóstico entregue que o cliente ainda não aceitou."
       >
         <KpiGrade colunas={4}>
           <KpiCard
@@ -251,7 +253,7 @@ export function PainelFunil({
             abrir={porta ? { onClick: () => abrirPasso("8"), rotulo: "ver as empresas" } : undefined}
           />
           <KpiCard
-            rotulo="Faturado em 2026 · a meta"
+            rotulo="Faturado em 2026"
             valor={brlCurto(dinheiro.faturado2026)}
             estado={porta ? "ok" : "sem-acesso"}
             tom="sucesso"
@@ -269,7 +271,11 @@ export function PainelFunil({
             rotulo="Achado e parado"
             valor={brlCurto(dinheiro.parado)}
             tom="atencao"
-            nota={`crédito encontrado sem aceite, em ${INT.format(dinheiro.empresasParado)} empresas`}
+            nota={`diagnóstico entregue, sem aceite, em ${INT.format(dinheiro.empresasParado)} empresas${
+              dinheiro.empresasEmAnalise
+                ? ` · à parte, ${brlCurto(dinheiro.emAnalise)} ainda em análise (${INT.format(dinheiro.empresasEmAnalise)})`
+                : ""
+            }`}
             abrir={{ onClick: () => abrirPasso("5-parado"), rotulo: "ver as empresas" }}
           />
         </KpiGrade>
@@ -467,7 +473,7 @@ function tituloDoPasso(passo: string, n: number): { titulo: string; curto: strin
       titulo: `${INT.format(n)} com dinheiro achado e sem aceite`,
       curto: "achado e parado",
       leitura:
-        "A Consultoria achou crédito e o cliente ainda não disse sim a nenhuma tese. A soma do crédito achado delas é o “Achado e parado”.",
+        "A Consultoria entregou o diagnóstico, achou crédito e o cliente ainda não disse sim a nenhuma tese. A soma do crédito achado delas é o “Achado e parado”. As que ainda estão em análise ficam no motivo “Ainda em análise”, no degrau 5.",
     };
   if (m === "garantido")
     return {
@@ -693,6 +699,9 @@ function ListaDoPasso({
                       : e.cnpj_fonte === "onboarding"
                         ? " · CNPJ do onboarding"
                         : ""}
+                    {e.filiais?.length
+                      ? ` · mais ${INT.format(e.filiais.length)} ${e.filiais.length === 1 ? "CNPJ" : "CNPJs"} do mesmo cliente`
+                      : ""}
                   </span>
                 </TableCell>
                 <TableCell className="text-xs">

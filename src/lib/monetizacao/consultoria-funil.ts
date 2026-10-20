@@ -60,6 +60,8 @@ export interface EmpresaFunil {
     em: string;
     total: number;
   } | null;
+  /** Os outros CNPJs do mesmo cliente da plataforma, juntados nesta linha por `porCliente`. */
+  filiais?: string[];
 }
 
 export interface FunilBruto {
@@ -84,6 +86,44 @@ const num = (v: unknown) => {
 };
 const dias = (de: string | null, ate: string) =>
   de ? Math.floor((Date.parse(ate.slice(0, 10)) - Date.parse(de.slice(0, 10))) / 86_400_000) : null;
+
+/**
+ * Uma linha por cliente da plataforma (decisão do dono em 20/10/2026, defeito aberto em 17/10). O RPC devolve uma linha
+ * por CNPJ, e as filiais de Goiânia que caem no mesmo cliente repetiam o faturado, o garantido e o crédito do cliente
+ * inteiro (Melotintas 8 vezes; em 20/10, R$ 7,58 mi faturados onde são R$ 6,31 mi). Os números do cliente são os mesmos
+ * em todas as linhas; fica a matriz (ou o menor CNPJ), com a origem dela, e o MRR e os negócios somados. Sem cliente da
+ * plataforma, a linha segue por CNPJ.
+ */
+export function porCliente(empresas: EmpresaFunil[]): EmpresaFunil[] {
+  const grupos = new Map<string, EmpresaFunil[]>();
+  for (const e of empresas) {
+    if (!e.cliente_id) continue;
+    const g = grupos.get(e.cliente_id);
+    if (g) g.push(e);
+    else grupos.set(e.cliente_id, [e]);
+  }
+  const matriz = (e: EmpresaFunil) => (e.cnpj?.length === 14 && e.cnpj.slice(8, 12) === "0001" ? 1 : 0);
+  const saida: EmpresaFunil[] = [];
+  for (const e of empresas) {
+    const g = e.cliente_id ? grupos.get(e.cliente_id) : undefined;
+    if (!g || g.length === 1) {
+      saida.push(e);
+      continue;
+    }
+    if (g[0] !== e) continue;
+    const [base, ...resto] = [...g].sort(
+      (a, b) => matriz(b) - matriz(a) || (a.cnpj ?? "").localeCompare(b.cnpj ?? ""),
+    );
+    const mrrs = g.map((x) => x.mrr).filter((x) => x !== null && x !== undefined);
+    saida.push({
+      ...base,
+      mrr: mrrs.length ? mrrs.reduce<number>((s, x) => s + num(x), 0) : base.mrr,
+      negocios: g.reduce((s, x) => s + x.negocios, 0),
+      filiais: resto.map((x) => x.cnpj).filter((x): x is string => !!x),
+    });
+  }
+  return saida;
+}
 
 // ─── As etapas ───────────────────────────────────────────────────────────────────────────────────
 
@@ -164,6 +204,8 @@ export const MOTIVOS: Record<number, Motivo[]> = {
   ],
   5: [M("sem_oportunidade", "Sem oportunidade", "O diagnóstico não achou crédito.", "neutro")],
   6: [
+    // Separado do "Achado e parado" em 20/10/2026 (decisão do dono): a tese ganha valor durante a análise.
+    M("em_analise", "Ainda em análise", "O diagnóstico não foi entregue; o valor é das teses em andamento.", "info"),
     M("ate_30", "Entregue há menos de 30 dias", "Ainda em conversa com o cliente.", "info"),
     M("30_90", "Entregue há 30 a 90 dias", "Cobrar a decisão do cliente.", "atencao"),
     M("mais_90", "Entregue há mais de 90 dias", "Dinheiro parado: ninguém fechou.", "perigo"),
@@ -198,6 +240,7 @@ export function motivoDe(e: EmpresaFunil, hoje: string): string {
   }
   if (n === 4) return "sem_oportunidade";
   if (n === 5) {
+    if (!e.auditado) return "em_analise";
     const d = dias(e.entregue_em, hoje);
     if (d === null) return "sem_data";
     return d > 90 ? "mais_90" : d >= 30 ? "30_90" : "ate_30";
@@ -258,14 +301,16 @@ export function montarFunil(empresas: EmpresaFunil[], hoje: string, portaAberta:
 
 /**
  * As empresas de um clique no funil: "3" = chegaram à etapa 3 ou além; "3-real" = pararam na 3 pelo motivo "real".
- * Três chaves não são motivo: "3-atrasado" (paradas na 3 além da meta da etapa), "5-parado" (pararam na 5, qualquer
- * motivo: o "Achado e parado") e "6-garantido" (têm crédito aprovado ainda a faturar: o "Garantido a faturar").
+ * Três chaves não são motivo: "3-atrasado" (paradas na 3 além da meta da etapa), "5-parado" (pararam na 5 com o
+ * diagnóstico entregue: o "Achado e parado"; as em análise ficam no motivo "em_analise") e "6-garantido" (têm crédito
+ * aprovado ainda a faturar: o "Garantido a faturar").
  */
 export function empresasDoPasso(empresas: EmpresaFunil[], passo: string, hoje: string): EmpresaFunil[] {
   const [n, motivo] = passo.split("-") as [string, string | undefined];
   const etapa = Number(n);
   if (motivo === "atrasado") return empresas.filter((e) => nivelDe(e) === etapa && (e.dias_alem ?? 0) > 0);
-  if (motivo === "parado") return empresas.filter((e) => nivelDe(e) === etapa);
+  if (motivo === "parado")
+    return empresas.filter((e) => nivelDe(e) === etapa && motivoDe(e, hoje) !== "em_analise");
   if (motivo === "garantido") return empresas.filter((e) => num(e.garantido) > 0);
   return empresas.filter((e) =>
     motivo ? nivelDe(e) === etapa && motivoDe(e, hoje) === motivo : nivelDe(e) >= etapa,
@@ -301,11 +346,19 @@ export interface Dinheiro {
   empresasGarantido: number;
   parado: number;
   empresasParado: number;
+  /** Crédito das teses de quem ainda não teve o diagnóstico entregue: à parte do parado desde 20/10/2026. */
+  emAnalise: number;
+  empresasEmAnalise: number;
 }
 
-/** Os três níveis de certeza do honorário (decisão de 16/10: a meta é o faturado) e o dinheiro identificado parado. */
+/**
+ * Os três níveis de certeza do honorário (recebido, faturado, garantido) e o crédito achado sem aceite. Desde 19/10/2026
+ * a meta das OKRs é o aprovado, e a tela não chama nenhum destes de "a meta" (decisão do dono em 20/10).
+ */
 export function dinheiroDe(empresas: EmpresaFunil[], portaAberta: boolean): Dinheiro {
-  const parados = empresas.filter((e) => nivelDe(e) === 5);
+  const noCinco = empresas.filter((e) => nivelDe(e) === 5);
+  const parados = noCinco.filter((e) => e.auditado);
+  const emAnalise = noCinco.filter((e) => !e.auditado);
   const garantidos = empresas.filter((e) => num(e.garantido) > 0);
   return {
     recebido2026: portaAberta ? empresas.reduce((s, e) => s + num(e.recebido_2026), 0) : null,
@@ -314,6 +367,8 @@ export function dinheiroDe(empresas: EmpresaFunil[], portaAberta: boolean): Dinh
     empresasGarantido: garantidos.length,
     parado: parados.reduce((s, e) => s + num(e.identificado), 0),
     empresasParado: parados.length,
+    emAnalise: emAnalise.reduce((s, e) => s + num(e.identificado), 0),
+    empresasEmAnalise: emAnalise.length,
   };
 }
 
@@ -438,6 +493,8 @@ export function montarFila(empresas: EmpresaFunil[], hoje: string): ItemFila[] {
       valor = atraso;
     } else if (n === 5) {
       const m = motivoDe(e, hoje);
+      // Em análise não tem o que cobrar: o diagnóstico nem foi entregue (20/10/2026).
+      if (m === "em_analise") continue;
       grupo = m === "mais_90" ? "90" : m === "30_90" ? "30_90" : "recente";
       valor = num(e.identificado);
     }

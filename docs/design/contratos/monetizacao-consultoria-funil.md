@@ -60,15 +60,17 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
     - regime desconhecido.
   - **Antes do diagnóstico:** esperando documentos, em diagnóstico ou sem projeto aberto.
   - **Depois do diagnóstico:** sem oportunidade.
-  - **Com dinheiro sem aceite:** pela idade da entrega (menos de 30, 30 a 90, mais de 90 dias, sem data).
+  - **Com dinheiro sem aceite:** ainda em análise (diagnóstico não entregue, desde 20/10) ou pela idade da entrega
+    (menos de 30, 30 a 90, mais de 90 dias, sem data).
   - **Aceitou:** não faturamos.
   - **Faturado:** em atraso ou a vencer.
 - **Dinheiro de verdade:**
   - recebido em 2026;
-  - faturado em 2026 (é a meta);
+  - faturado em 2026 (até 19/10 era a meta; desde então a meta é o aprovado e a tela não marca meta);
   - garantido a faturar: saldo de estoque ativo × a alíquota de êxito de cada crédito, linha a linha. O painel da
     plataforma mostra R$ 25,8 mi porque usa a alíquota média simples; linha a linha são R$ 14,5 mi;
-  - achado e parado: valor identificado de quem está no degrau 5.
+  - achado e parado: valor identificado de quem parou no degrau 5 com o diagnóstico entregue; o de quem está em análise
+    fica à parte.
 - **Ordem da Fila:**
   1. disse sim e não faturamos;
   2. faturado em atraso;
@@ -116,6 +118,16 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
   (o ícone ao lado do nome continua abrindo o card no Pipefy).
 - **Sem chave:** empresa sem CNPJ, sem negócio e sem cliente da plataforma (118 da carteira de Goiânia em 20/10) aparece
   sem link.
+
+## Réguas mudadas em 20/10/2026 (decisões do dono, por opções)
+- **Um cliente por linha.** Funil e Fila juntam as linhas do mesmo cliente da plataforma (`porCliente`): fica a matriz,
+  com os outros CNPJs anotados na lista. Resolve o defeito de 17/10 (filiais de Goiânia repetindo o dinheiro do cliente).
+  Em 20/10: faturado de 2026 de R$ 7,58 mi para R$ 6,31 mi; chegaram de 258 para 231; recebemos de 61 para 51.
+- **"Faturado em 2026", sem "a meta".** Desde o 101 com o Torres (19/10) a meta das OKRs é o aprovado; a tela não chama
+  nenhum cartão de meta.
+- **"Achado e parado" só com diagnóstico entregue.** Quem tem crédito nas teses e ainda não teve o diagnóstico entregue
+  vira o motivo "Ainda em análise" no degrau 5, fica à parte na nota do cartão e sai da Fila (não há o que cobrar). Em
+  20/10: de R$ 100,4 mi em 42 empresas para R$ 29,1 mi em 23, com R$ 64,9 mi em 13 ainda em análise.
 
 ## Permissões (N8)
 - **Leitura:** a mesma das outras abas, `view.monetizacao` **e** todas as unidades
