@@ -6,7 +6,9 @@ import assert from "node:assert/strict";
 import {
   aplicarFeitas,
   assunto,
+  camposDoCard,
   chavesDaRegua,
+  empresaParaMensagem,
   diaUtilApos,
   diaZero,
   escolherTipos,
@@ -15,7 +17,11 @@ import {
   notaHtml,
   origemDaEntrada,
   planejar,
+  preencher,
+  primeiroNome,
   rodarCadencia,
+  rotulosDosCampos,
+  socioDoCampo,
   vencimentoUtc,
 } from "../supabase/functions/monetizacao-cadencia/logica.ts";
 import { HORARIO, REGUA, VERSAO_REGUA } from "../supabase/functions/monetizacao-cadencia/regua.ts";
@@ -286,22 +292,32 @@ test("e-mail do D0 automático: nasce feito, com a nota de conferência; o resto
   assert.equal(posts[0].type, "email");
   assert.equal(posts[0].done, 1);
   assert.ok(posts[0].note.startsWith("Enviado pela automação do Pipedrive"));
-  assert.ok(posts[0].note.endsWith("Olá, [NOME]"));
-  assert.deepEqual(posts.slice(1).map((p) => p.done), [0, 0]);
+  // O nome da pessoa do card entra no lugar do [NOME] (19/10/2026).
+  assert.ok(posts[0].note.endsWith("Olá, João"));
+  assert.deepEqual(
+    posts.slice(1).map((p) => p.done),
+    [0, 0],
+  );
   // Sem a chave, nada muda.
   const pd2 = fakePipedrive({
     abertos: [deal(102, "2026-10-09 15:00:00", COM_SOCIO)],
     flows: { 102: [mudanca(274, 276, "2026-10-09 15:00:00")] },
   });
   await rodar(pd2, fakeStore());
-  assert.deepEqual(pd2.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p.done), [0, 0, 0]);
+  assert.deepEqual(
+    pd2.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p.done),
+    [0, 0, 0],
+  );
 });
 
 test("e-mail do D0 automático: sem sócio no e-mail ou sem e-mail na pessoa, a automação não manda e o D0 nasce a fazer", async () => {
   const semSocio = { ...COM_SOCIO, "73bd1e4b5cecc29824871f097f18e6757e17a9ac": "  " };
   const semEmail = { ...COM_SOCIO, person_id: { value: 9, name: "João", email: [{ value: "" }] } };
   const pd = fakePipedrive({
-    abertos: [deal(103, "2026-10-09 15:00:00", semSocio), deal(104, "2026-10-09 15:00:00", semEmail)],
+    abertos: [
+      deal(103, "2026-10-09 15:00:00", semSocio),
+      deal(104, "2026-10-09 15:00:00", semEmail),
+    ],
     flows: {
       103: [mudanca(274, 276, "2026-10-09 15:00:00")],
       104: [mudanca(274, 276, "2026-10-09 15:00:00")],
@@ -656,7 +672,7 @@ test("orçamento: sem tempo, o card fica para a próxima rodada", async () => {
 // ---------------------------------------------------------------------------- a régua real
 
 test("régua real: 19 atividades, chaves únicas, D4 e D9 sem atividade", () => {
-  assert.equal(VERSAO_REGUA, "v2-2026-10-09");
+  assert.equal(VERSAO_REGUA, "v3-2026-10-19");
   assert.deepEqual(HORARIO, { manha: "09:00", tarde: "14:00" });
   assert.equal(REGUA.length, 19);
   const chaves = chavesDaRegua(REGUA);
@@ -683,7 +699,8 @@ test("régua real: assunto e nota prontos para o Pipedrive", () => {
   assert.equal(d2.subject, "Caixa · D2 · WhatsApp retomada · tarde");
   assert.match(d2.note, /<br>/);
   assert.match(d2.note, /\[NOME\]/);
-  assert.match(d2.note, /\[MOTIVO DO DOSSIÊ\]/);
+  // Sem campos, os colchetes ficam; o motivo do dossiê saiu da régua em 19/10/2026.
+  assert.ok(!REGUA.some((r) => r.nota.includes("MOTIVO")));
   assert.ok(!d2.note.includes("\n"));
   assert.equal(plano[0].subject, "Caixa · D0 · E-mail de apresentação · manhã");
   assert.equal(plano.at(-1).subject, "Caixa · D10 · Descartar se não respondeu · manhã");
@@ -897,4 +914,179 @@ test("marcarFeitas: erro de um card não para os outros; sem tempo, o resto fica
   });
   assert.equal(r2.adiados, 2);
   assert.equal(pd2.chamadas.length, 0);
+});
+
+// ---------------------------------------------------------------------------- campos que o Brain preenche (19/10/2026)
+
+const DEAL_FIELDS = [
+  {
+    key: "0646513ee16829605c0af8b15b415ebf05beb6c5",
+    options: [
+      { id: 1128, label: "Cella" },
+      { id: 1129, label: "Consultoria" },
+      { id: 1130, label: "Finance" },
+    ],
+  },
+  {
+    key: "093e25bbb3aff5d379b996da8fcec39667c6ae4e",
+    options: [
+      { id: 351, label: "Lucro Presumido" },
+      { id: 352, label: "Lucro Real" },
+    ],
+  },
+  {
+    key: "b92a608454a6648327f24c5cc3bf87a95bb7fbcd",
+    options: [
+      { id: 775, label: "R$ 2 milhões até R$ 4,8 milhões" },
+      { id: 440, label: "Entre R$ 78 milhões e R$ 300 milhões" },
+      { id: 781, label: "Sem movimentação" },
+    ],
+  },
+];
+const CARD = {
+  org_name: "AFBM Engenharia",
+  person_id: { value: 9, name: "ANDERSON RODRIGO DE OLIVEIRA" },
+  user_id: { id: 28897937, name: "Heloá Jesus" },
+  "73bd1e4b5cecc29824871f097f18e6757e17a9ac": "a Jordana",
+  "0646513ee16829605c0af8b15b415ebf05beb6c5": "1129",
+  "093e25bbb3aff5d379b996da8fcec39667c6ae4e": "352",
+  b92a608454a6648327f24c5cc3bf87a95bb7fbcd: "440",
+};
+
+test("socioDoCampo: artigo do campo, gênero pelo nome quando falta, dois sócios ficam para o pré-vendedor", () => {
+  assert.deepEqual(socioDoCampo("o José Felix"), { nome: "José Felix", artigo: "o" });
+  assert.deepEqual(socioDoCampo("ao José Felix"), { nome: "José Felix", artigo: "o" });
+  assert.deepEqual(socioDoCampo("a Jordana"), { nome: "Jordana", artigo: "a" });
+  assert.deepEqual(socioDoCampo("Jordana"), { nome: "Jordana", artigo: "a" });
+  assert.deepEqual(socioDoCampo("Lando"), { nome: "Lando", artigo: "o" });
+  assert.equal(socioDoCampo("o Márcio e o João"), null);
+  assert.equal(socioDoCampo("  "), null);
+  assert.equal(socioDoCampo(null), null);
+});
+
+test("primeiroNome: primeira palavra, caixa alta vira nome próprio", () => {
+  assert.equal(primeiroNome("ANDERSON RODRIGO"), "Anderson");
+  assert.equal(primeiroNome("JOSÉ"), "José");
+  assert.equal(primeiroNome("Katia"), "Katia");
+  assert.equal(primeiroNome(""), "");
+});
+
+test("preencher: troca só o que tem valor, sócio com artigo e contração, vocativo só com o nome", () => {
+  const c = { NOME: "Anderson", SÓCIO: "Jordana", SÓCIO_ARTIGO: "a" };
+  assert.equal(
+    preencher(
+      "[SÓCIO], tentei falar com [NOME]. Da equipe do [SÓCIO]; o [SÓCIO] comentou. [HORÁRIO]",
+      c,
+    ),
+    "Jordana, tentei falar com Anderson. Da equipe da Jordana; a Jordana comentou. [HORÁRIO]",
+  );
+  assert.equal(
+    preencher("da equipe do [SÓCIO], [NOME]", { NOME: "" }),
+    "da equipe do [SÓCIO], [NOME]",
+  );
+  assert.equal(preencher("[SÓCIO_ARTIGO]", c), "[SÓCIO_ARTIGO]");
+});
+
+test("régua real com o card: D1, D3 e D5 saem preenchidos; horário fica para o pré-vendedor", () => {
+  const campos = camposDoCard(CARD, rotulosDosCampos(DEAL_FIELDS));
+  const plano = planejar(instante("2026-10-09 15:00:00"), REGUA, HORARIO, campos);
+  const nota = (dia, turno) =>
+    plano.find((p) => p.dia === dia && p.turno === turno && p.tipo === "whatsapp").note;
+  assert.equal(
+    nota(1, "manha"),
+    "Bom dia, Anderson! Sou Heloá, da equipe da Jordana, e cuido da Inteligência Financeira aqui na Planning.<br><br>" +
+      "Como já estamos à frente da contabilidade da AFBM Engenharia e conhecemos de perto os números de vocês, " +
+      "queremos avaliar oportunidades financeiras que vão além da rotina contábil. Te mandei um e-mail ontem com " +
+      "o resumo.<br><br>Consegue 10 minutos por telefone hoje, às [HORÁRIO 1] ou às [HORÁRIO 2]?",
+  );
+  assert.equal(
+    nota(3, "manha"),
+    "Jordana, tentei falar com Anderson, da AFBM Engenharia, desde 09/10 por e-mail, WhatsApp e ligação, e ainda " +
+      "não tive retorno.<br>A conta entrou pela Consultoria: Lucro Real, faturamento entre R$ 78 milhões e R$ 300 " +
+      "milhões.<br>Você consegue avisar que vou procurar e que valem os 10 minutos?<br>A unidade fica com 40% da " +
+      "nossa parte no que fechar.",
+  );
+  assert.match(nota(5, "tarde"), /Anderson, a Jordana comentou contigo/);
+  assert.match(nota(2, "tarde"), /Consegue amanhã às \[HORÁRIO\]\?$/);
+});
+
+test("régua real com o card: sem regime nem faixa, a regra é a da frente; sem frente, [FRENTE] e [REGRA] ficam", () => {
+  const semFaixa = {
+    ...CARD,
+    "093e25bbb3aff5d379b996da8fcec39667c6ae4e": null,
+    b92a608454a6648327f24c5cc3bf87a95bb7fbcd: "781",
+  };
+  assert.equal(
+    camposDoCard(semFaixa, rotulosDosCampos(DEAL_FIELDS)).REGRA,
+    "Lucro Real, ou Lucro Presumido acima de R$ 20 milhões",
+  );
+  const presumido = {
+    ...CARD,
+    "093e25bbb3aff5d379b996da8fcec39667c6ae4e": "351",
+    b92a608454a6648327f24c5cc3bf87a95bb7fbcd: "775",
+  };
+  assert.equal(
+    camposDoCard(presumido, rotulosDosCampos(DEAL_FIELDS)).REGRA,
+    "Lucro Presumido, faturamento de R$ 2 milhões até R$ 4,8 milhões",
+  );
+  const semFrente = { ...CARD, "0646513ee16829605c0af8b15b415ebf05beb6c5": null };
+  const plano = planejar(instante("2026-10-09 15:00:00"), REGUA, HORARIO, camposDoCard(semFrente));
+  assert.match(
+    plano.find((p) => p.dia === 3 && p.tipo === "whatsapp").note,
+    /A conta entrou pela \[FRENTE\]: \[REGRA\]\./,
+  );
+});
+
+test("rodarCadencia: a nota nasce com o card preenchido; sem dealFields, a regra cai na da frente", async () => {
+  const pd = fakePipedrive({
+    abertos: [
+      deal(111, "2026-10-09 15:00:00", {
+        ...CARD,
+        user_id: { id: 7001, name: "Matheus Pereira de Carvalho" },
+      }),
+    ],
+    flows: { 111: [mudanca(274, 276, "2026-10-09 15:00:00")] },
+  });
+  await rodar(pd, fakeStore());
+  const posts = pd.chamadas.filter(([m]) => m === "POST").map(([, , p]) => p);
+  assert.equal(posts[0].note, "Olá, Anderson");
+  assert.equal(posts[2].note, "Oi<br>Anderson");
+});
+
+test("empresaParaMensagem: tira o sufixo societário; razão social crua fica para o pré-vendedor", () => {
+  assert.equal(
+    empresaParaMensagem("Construtora Brasil Infraestrutura LTDA"),
+    "Construtora Brasil Infraestrutura",
+  );
+  assert.equal(empresaParaMensagem("Sestari e Prado Ltda"), "Sestari e Prado");
+  assert.equal(empresaParaMensagem("B3 S.A. - BRASIL, BOLSA, BALCAO"), "");
+  assert.equal(empresaParaMensagem("RKS MATERIAIS RECICLADOS"), "");
+  assert.equal(
+    empresaParaMensagem("ASICS BRASIL DISTRIBUICAO E COMERCIO DE ARTIGOS ESPORTIVOS L"),
+    "",
+  );
+  assert.equal(empresaParaMensagem("ITAPOÇOS"), "ITAPOÇOS");
+  assert.equal(empresaParaMensagem("Coopdiesel"), "Coopdiesel");
+  assert.equal(empresaParaMensagem(null), "");
+});
+
+test("camposDoCard: nome da Heloá com acento; Consultoria sem regime usa a régua da frente", () => {
+  const rot = rotulosDosCampos(DEAL_FIELDS);
+  assert.equal(
+    camposDoCard({ ...CARD, user_id: { id: 28897937, name: "Heloa Jesus" } }, rot)["SEU NOME"],
+    "Heloá",
+  );
+  const semRegime = { ...CARD, "093e25bbb3aff5d379b996da8fcec39667c6ae4e": null };
+  assert.equal(
+    camposDoCard(semRegime, rot).REGRA,
+    "Lucro Real, ou Lucro Presumido acima de R$ 20 milhões",
+  );
+  const cella = { ...semRegime, "0646513ee16829605c0af8b15b415ebf05beb6c5": "1128" };
+  assert.equal(camposDoCard(cella, rot).REGRA, "faturamento entre R$ 78 milhões e R$ 300 milhões");
+  const cru = { ...CARD, org_name: "RKS MATERIAIS RECICLADOS LTDA" };
+  const plano = planejar(instante("2026-10-09 15:00:00"), REGUA, HORARIO, camposDoCard(cru, rot));
+  assert.match(
+    plano.find((p) => p.dia === 3 && p.tipo === "whatsapp").note,
+    /da \[EMPRESA\], desde 09\/10/,
+  );
 });

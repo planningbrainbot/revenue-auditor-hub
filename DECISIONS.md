@@ -5726,3 +5726,31 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - **Testes:** `tests/monetizacao-diagnostico.test.mjs`, 26 de 26 junto com o da tela, 3 novos.
 
 **Risco conhecido:** contrato assinado cujo card no Pipefy não saiu de "Nova Solicitação" fica esperando. Desde setembro, 153 cards de contrato estão nessa fase e 45 foram para "Enviar para Onboarding".
+
+## [2026-10-19] Cadência do pipe 39: o "motivo do dossiê" sai da mensagem ao cliente e o Brain preenche os campos que o card já sabe
+
+**Contexto:** o Matheus perguntou se continuava preenchendo o [MOTIVO DO DOSSIÊ] da régua (D1 versão B, D2 retomada, D3 aos sócios). O documento 01 da pré-venda (09/10) diz que ele é "a linha 'motivo para abrir a conversa' da ficha fixada no card", e essa linha nunca existiu: o dossiê ("Preparação comercial", `dossierNote` em `monetizacao-crm/handoff.mjs`) está em 138 dos 139 cards abertos, mas a "Demanda / tese" saiu "Não informado" nos 97 que têm a linha, e os 41 de setembro só têm "Produtos candidatos" (critério interno). O pré-vendedor inventava o motivo. O script também proíbe dizer ao cliente qual é a frente.
+
+**Decisões do Pedro (AskUserQuestion, 19/10):**
+- O motivo sai das mensagens ao cliente: a versão B do D1 sai, e o D2 vira "são 10 minutos para eu te contar o que pensamos para a [EMPRESA]".
+- No D3, que vai ao sócio, entra um fato: "A conta entrou pela [FRENTE]: [REGRA]."
+- O Brain preenche, na criação da atividade, o que o card já sabe. As cadências em curso são atualizadas por script.
+
+**Como ficou (régua `v3-2026-10-19`, `preencher` e `camposDoCard` em `monetizacao-cadencia/logica.ts`):**
+- **Campos preenchidos:**
+  - [EMPRESA]: nome da organização sem sufixo societário. Razão social crua (caixa alta com mais de duas palavras, ou mais de 40 caracteres) fica entre colchetes, pela decisão de 14/10 de o time corrigir o nome antes de mover.
+  - [NOME]: primeiro nome da pessoa do card.
+  - [SEU NOME]: primeiro nome do dono. A Heloá, que no Pipedrive está "Heloa Jesus", sai com acento.
+  - [SÓCIO]: vem do campo 323, com artigo e contração ("da equipe da Jordana"). O campo chega com artigo ou sem; sem artigo, o gênero sai do nome. Dois sócios ficam para o pré-vendedor.
+  - [DIA DO D0].
+  - [FRENTE]: vem do Caixa · Produto do cluster.
+  - [REGRA]: regime e faixa do card. Na Consultoria sem regime, e quando falta tudo, usa a régua da frente.
+- [HORÁRIO] e [DIA] continuam com o pré-vendedor.
+- "Sou o [SEU NOME]" virou "Sou [SEU NOME]" e "com o [NOME]" virou "com [NOME]": o artigo fixo errava o gênero ("Sou o Heloá").
+- Os rótulos de regime e faixa são lidos em `dealFields` uma vez por rodada; sem eles, vale a régua da frente.
+- **Em curso:** `monetizacao/outputs/2026-10-19-cadencia-campos/atualizar_em_curso.mts`.
+  - Troca só a nota de atividade não feita que ainda é igual à da v2. Nota editada pelo time fica.
+  - Medido em 19/10: 54 cadências, 375 notas a trocar, 1 editada pelo time.
+- Testes: `tests/monetizacao-cadencia.test.mjs`, 40 de 40.
+
+**Fica pendente:** a validação dos textos pelo Paulo e pela Jordana (regra de 08/10) antes de publicar a função e rodar o script. Depois disso: corrigir o documento 01 e o guia da pré-venda, e trocar no dossiê a linha "Demanda / tese" por "Por que esta conta".
