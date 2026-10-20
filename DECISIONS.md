@@ -5819,3 +5819,20 @@ Ajuste pedido pelo RH de Maceió (19/10/2026) e aprovado pelo dono, que pediu ta
 - Uma data de início só: a admissão, com o nome conforme o vínculo ("Admissão", "Início do estágio", "Início do contrato", "Início na sociedade"). Sai o campo "Início da vigência"; estágio e terceiro pedem a data de início e o fim da vigência. A coluna `vigencia_inicio` fica no banco, sem uso pelo app.
 - O valor continua um campo só (`ops.gente_remuneracao`, só o RH), com o nome conforme o vínculo: Salário (CLT), Valor da bolsa (estágio), Valor do contrato (terceiro e PJ), Pró-labore (sócio e pró-labore).
 - `ops.gente_vigencia_periodos` (migration `20261020100000`): todo fim de vigência gravado vira um período, pelo gatilho do banco. Primeiro fim: da admissão ao fim. Prorrogação: do dia seguinte ao fim anterior ao novo fim (renovação). Fim antecipado: corrige o último período. O Editar mostra os períodos.
+
+## [2026-10-20] Consultoria: os números abrem uma gaveta à direita, e a ficha da empresa abre por cima dela
+
+Pedido do dono em 20/10/2026: "quando eu clico nos indicadores, ele rola a tela pra mostrar uma lista embaixo. Quero que siga o padrão de abrir numa aba lateral à direita que é navegável", com o cliente abrindo "sobreposta uma segunda aba que me permita retornar para a anterior sem perder o fluxo". Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Gaveta navegável".
+- **Funil:** os quatro cartões de "Dinheiro de verdade", os degraus, os motivos e os cartões de "Onde agir agora" abrem a lista numa gaveta (`passo`). A lista embaixo do funil saiu. Os cartões de "Onde agir agora" não levam mais direto à Fila: a gaveta oferece "Cobrar na Fila de cobrança" quando a lista tem grupo na Fila.
+- **Ficha por cima:** a empresa da lista abre a ficha da Buscar empresa (`GavetaFicha`, em `consultoria-empresa.tsx`) numa segunda gaveta, dentro da primeira, com "Voltar para…". Esc e o clique fora fecham só a de cima. A chave fica em `empresa` na URL.
+- **Fila e Handoff:** o nome da empresa abre a mesma ficha na gaveta, sem trocar de aba. No Handoff, o ícone ao lado do nome continua levando ao card do Pipefy.
+- **Corrige:** o cartão "Achado e parado" (42 empresas em 20/10) abria o degrau 5 ou além (151). Agora abre as 42 que ele soma (`5-parado`). O "Garantido a faturar" abre `6-garantido`.
+- **Não muda:** nenhuma régua de contagem. O defeito aberto em 17/10 continua: filiais de Goiânia que caem no mesmo cliente da plataforma somam várias vezes. Em 20/10 a tela mostra R$ 7,58 mi faturados em 2026; por cliente são R$ 6,31 mi.
+
+## [2026-10-20] Consultoria: um cliente por linha, "a meta" sai do faturado e o em análise sai do "Achado e parado"
+
+Três decisões do dono por opções, depois da explicação dos números da tela (20/10/2026). Contrato: `docs/design/contratos/monetizacao-consultoria-funil.md`, seção "Réguas mudadas em 20/10/2026".
+- **Um cliente por linha (`porCliente`):** Funil e Fila juntam as linhas do mesmo cliente da plataforma. Fica a matriz, ou o menor CNPJ, com a origem dela, e o MRR e os negócios somados. Em 20/10, nas 13 repetições, todo número do cliente era igual entre as filiais e a origem era sempre Goiânia. Fecha o defeito de 17/10. A Buscar empresa já juntava pela raiz e não muda.
+- **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
+- **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
+- **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.

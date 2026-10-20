@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -39,7 +39,9 @@ import {
   RESULTADOS,
   ROTULO_GRUPO,
   ROTULO_RESULTADO,
+  chaveDaFicha,
   montarFila,
+  porCliente,
   resumoFila,
   type FunilBruto,
   type GrupoFila,
@@ -49,6 +51,7 @@ import {
 } from "@/lib/monetizacao/consultoria-funil";
 import { cn } from "@/lib/utils";
 import { inputClass } from "./common";
+import { GavetaFicha } from "./consultoria-empresa";
 import { brlCurto, origensDaBusca, useFunilConsultoria } from "./consultoria-funil";
 import type { BuscaMonetizacao } from "./busca";
 
@@ -110,12 +113,19 @@ export function PainelFila({
   hoje?: string;
 }) {
   const origens = origensDaBusca(busca, TODAS);
-  const todos = useMemo(() => montarFila(bruto.empresas, hoje), [bruto.empresas, hoje]);
+  // Uma linha por cliente da plataforma, como no Funil (20/10/2026).
+  const todos = useMemo(() => montarFila(porCliente(bruto.empresas), hoje), [bruto.empresas, hoje]);
   const daOrigem = useMemo(() => todos.filter((x) => origens.includes(x.e.origem)), [todos, origens]);
   const grupo = busca.grupo ?? null;
   const itens = useMemo(() => (grupo ? daOrigem.filter((x) => x.grupo === grupo) : daOrigem), [daOrigem, grupo]);
   const resumo = resumoFila(daOrigem);
   const [registrando, setRegistrando] = useState<ItemFila | null>(null);
+  const fichaAberta = busca.empresa ? (todos.find((x) => chaveDaFicha(x.e) === busca.empresa) ?? null) : null;
+  // A última ficha aberta continua marcada na fila depois de fechada: a pessoa vê onde parou.
+  const [ultima, setUltima] = useState<string | null>(null);
+  useEffect(() => {
+    if (busca.empresa) setUltima(busca.empresa);
+  }, [busca.empresa]);
 
   const alternarOrigem = (o: Origem) => {
     const nova = origens.includes(o) ? origens.filter((x) => x !== o) : [...origens, o];
@@ -202,22 +212,18 @@ export function PainelFila({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {itens.slice(0, 400).map((x) => (
-                  <LinhaFila
-                    key={x.e.chave}
-                    x={x}
-                    registrar={() => setRegistrando(x)}
-                    abrirFicha={() =>
-                      mudarBusca({
-                        visao: "empresa",
-                        q: x.e.nome.slice(0, 60),
-                        empresa: x.e.cnpj ?? undefined,
-                        grupo: undefined,
-                        origem: undefined,
-                      })
-                    }
-                  />
-                ))}
+                {itens.slice(0, 400).map((x) => {
+                  const chave = chaveDaFicha(x.e);
+                  return (
+                    <LinhaFila
+                      key={x.e.chave}
+                      x={x}
+                      aberta={chave !== null && chave === (busca.empresa ?? ultima)}
+                      registrar={() => setRegistrando(x)}
+                      abrirFicha={chave ? () => mudarBusca({ empresa: chave }) : undefined}
+                    />
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -225,6 +231,12 @@ export function PainelFila({
       </Secao>
 
       {registrando && <RegistrarContato item={registrando} fechar={() => setRegistrando(null)} />}
+      <GavetaFicha
+        chave={busca.empresa ?? null}
+        resumo={fichaAberta ? { nome: fichaAberta.e.nome, cnpj: fichaAberta.e.cnpj, linhas: [ROTULO_GRUPO[fichaAberta.grupo].titulo] } : null}
+        fechar={() => mudarBusca({ empresa: undefined })}
+        abrir={(chave) => mudarBusca({ empresa: chave })}
+      />
     </main>
   );
 }
@@ -247,26 +259,40 @@ function Chip({ ativo, onClick, children }: { ativo: boolean; onClick: () => voi
   );
 }
 
-function LinhaFila({ x, registrar, abrirFicha }: { x: ItemFila; registrar: () => void; abrirFicha: () => void }) {
+function LinhaFila({
+  x,
+  aberta,
+  registrar,
+  abrirFicha,
+}: {
+  x: ItemFila;
+  aberta: boolean;
+  registrar: () => void;
+  abrirFicha?: () => void;
+}) {
   const g = ROTULO_GRUPO[x.grupo];
   const r = x.e.registro;
   const semContato = x.diasSemContato === null || x.diasSemContato > 7;
   const origem = ORIGENS.find((o) => o.id === x.e.origem)?.curto ?? x.e.origem;
   return (
-    <TableRow>
+    <TableRow aria-current={aberta ? "true" : undefined} className={cn(aberta && "bg-muted/60")}>
       <TableCell className="text-xs">
         <StatusBadge tom={g.tom} icone={false}>
           {g.titulo}
         </StatusBadge>
       </TableCell>
       <TableCell className="text-xs">
-        <button
-          type="button"
-          onClick={abrirFicha}
-          className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {x.e.nome}
-        </button>
+        {abrirFicha ? (
+          <button
+            type="button"
+            onClick={abrirFicha}
+            className="text-left font-medium text-primary-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {x.e.nome}
+          </button>
+        ) : (
+          <span className="font-medium">{x.e.nome}</span>
+        )}
         <span className="block text-muted-foreground">
           {[origem, x.e.unidade, x.e.canais[0]].filter(Boolean).join(" · ")}
         </span>

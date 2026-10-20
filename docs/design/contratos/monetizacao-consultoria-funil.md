@@ -60,15 +60,17 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
     - regime desconhecido.
   - **Antes do diagnóstico:** esperando documentos, em diagnóstico ou sem projeto aberto.
   - **Depois do diagnóstico:** sem oportunidade.
-  - **Com dinheiro sem aceite:** pela idade da entrega (menos de 30, 30 a 90, mais de 90 dias, sem data).
+  - **Com dinheiro sem aceite:** ainda em análise (diagnóstico não entregue, desde 20/10) ou pela idade da entrega
+    (menos de 30, 30 a 90, mais de 90 dias, sem data).
   - **Aceitou:** não faturamos.
   - **Faturado:** em atraso ou a vencer.
 - **Dinheiro de verdade:**
   - recebido em 2026;
-  - faturado em 2026 (é a meta);
+  - faturado em 2026 (até 19/10 era a meta; desde então a meta é o aprovado e a tela não marca meta);
   - garantido a faturar: saldo de estoque ativo × a alíquota de êxito de cada crédito, linha a linha. O painel da
     plataforma mostra R$ 25,8 mi porque usa a alíquota média simples; linha a linha são R$ 14,5 mi;
-  - achado e parado: valor identificado de quem está no degrau 5.
+  - achado e parado: valor identificado de quem parou no degrau 5 com o diagnóstico entregue; o de quem está em análise
+    fica à parte.
 - **Ordem da Fila:**
   1. disse sim e não faturamos;
   2. faturado em atraso;
@@ -93,8 +95,39 @@ sexy e didática a ponto do Pedro CEO entender o que ele quer e todo mundo enten
 | `visao` | fila, empresa, handoff | — (Funil) | a visão aberta |
 | `origem` | inside_sales, socios, goiania, outra (vírgula) | Funil: as três primeiras; Fila: todas | o recorte |
 | `unidade` | nome da unidade | — (todas) | Funil |
-| `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`) | — | a lista aberta embaixo do Funil |
+| `passo` | `1`–`8` ou `<n>-<motivo>` (inclui `3-atrasado`, `5-parado`, `6-garantido`) | — | a gaveta aberta à direita do Funil |
 | `grupo` | aceitou, atraso, 90, 30_90, recente | — | Fila |
+| `empresa` | CNPJ, `deal:<id>`, `cliente:<id>` ou `card:<id>` | — | a ficha aberta por cima da gaveta (Funil, Handoff) ou sozinha (Fila) |
+
+## Gaveta navegável (pedido do dono em 20/10/2026)
+- **Pedido:** "quando eu clico nos indicadores, ele rola a tela pra mostrar uma lista embaixo. Quero que siga o padrão de
+  abrir numa aba lateral à direita que é navegável" e que, dentro dela, o clique no cliente abra "sobreposta uma segunda
+  aba que me permita retornar para a anterior sem perder o fluxo".
+- **Funil:** todo número clicável abre a lista numa gaveta à direita (`Sheet`): os quatro cartões de "Dinheiro de
+  verdade" (Recebido → `8`, Faturado → `7`, Garantido → `6-garantido`, Achado e parado → `5-parado`), cada degrau, cada
+  motivo e cada cartão de "Onde agir agora". A lista embaixo do funil saiu.
+  - O topo da gaveta soma a lista (crédito achado, aceito ou garantido, faturado e empresas). Quando a lista tem grupo na
+    Fila, a gaveta oferece "Cobrar na Fila de cobrança".
+  - "Achado e parado" abre as 42 empresas que ele soma (`5-parado`, quem parou no degrau 5); antes abria o degrau 5 ou
+    além (151), um número diferente do cartão.
+- **Ficha por cima:** a empresa clicada abre a ficha da Buscar empresa numa segunda gaveta, um pouco mais estreita, por
+  cima da lista. "Voltar para…", Esc ou o clique na lista escurecida fecham só a ficha. A lista guarda a rolagem e marca
+  a última empresa aberta.
+- **Fila:** o nome da empresa abre a ficha na gaveta, sem trocar de aba.
+- **Handoff e repasse:** a gaveta que já existia ganha o mesmo comportamento: o cliente da lista abre a ficha por cima
+  (o ícone ao lado do nome continua abrindo o card no Pipefy).
+- **Sem chave:** empresa sem CNPJ, sem negócio e sem cliente da plataforma (118 da carteira de Goiânia em 20/10) aparece
+  sem link.
+
+## Réguas mudadas em 20/10/2026 (decisões do dono, por opções)
+- **Um cliente por linha.** Funil e Fila juntam as linhas do mesmo cliente da plataforma (`porCliente`): fica a matriz,
+  com os outros CNPJs anotados na lista. Resolve o defeito de 17/10 (filiais de Goiânia repetindo o dinheiro do cliente).
+  Em 20/10: faturado de 2026 de R$ 7,58 mi para R$ 6,31 mi; chegaram de 258 para 231; recebemos de 61 para 51.
+- **"Faturado em 2026", sem "a meta".** Desde o 101 com o Torres (19/10) a meta das OKRs é o aprovado; a tela não chama
+  nenhum cartão de meta.
+- **"Achado e parado" só com diagnóstico entregue.** Quem tem crédito nas teses e ainda não teve o diagnóstico entregue
+  vira o motivo "Ainda em análise" no degrau 5, fica à parte na nota do cartão e sai da Fila (não há o que cobrar). Em
+  20/10: de R$ 100,4 mi em 42 empresas para R$ 29,1 mi em 23, com R$ 64,9 mi em 13 ainda em análise.
 
 ## Permissões (N8)
 - **Leitura:** a mesma das outras abas, `view.monetizacao` **e** todas as unidades
