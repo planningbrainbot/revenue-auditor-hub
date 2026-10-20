@@ -5917,3 +5917,38 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
   - o Pedro e os solicitantes, donos e pessoas da tesouraria cadastrados na Table Colaboradores;
   - opção no select para FINANCE, ASCENDIA, PNE e CONCILIADOR (esta só como "fora da v1");
   - o teste numa cópia do pipe (mapa §8.8).
+
+## [2026-10-20] Portal de Faturamento, T6: notificações por e-mail (RF-P12) em fila e em simulação
+
+**Contexto:** RF-P12 (OK pendente, devolução, faturado, em atraso e, pelo plano, erro no Omie). Trava do plano E1: e-mail desligado por variável.
+
+**Decisões:**
+- **Fila e quem recebe:**
+  - A fila é `integracoes.notificacoes`, alimentada por um **gatilho AFTER INSERT em `receita.fat_eventos`**. Nenhuma RPC muda de contrato e `receita.fat_transicao` não é tocada. Um erro ao notificar vira warning e nunca desfaz a transição.
+  - OK pendente vai para o dono e o substituto. Sem linha ativa de dono, vai para os gestores.
+  - Devolvido vai para o autor, com o motivo.
+  - Faturado vai para o dono e o solicitante, com número e link da nota. A volta de "em atraso" ou "recebido" para faturado não notifica.
+  - Em atraso vai para o dono.
+  - Erro no Omie vai para o autor e a tesouraria da emissora (`ops.can_user` com `edit.faturamento_tesouraria` e a emissora no recorte).
+  - O unique (evento, pedido, destinatário, transição) impede que a mesma pessoa receba duas vezes a mesma transição.
+- **Envio:** a edge `faturamento-omie` processa as notificações depois do Omie e do Pipefy, na mesma rodada.
+  - O envio é pelo SendGrid (o `SENDGRID_API_KEY` que já estava nos segredos), com remetente `noreply@planningbrain.com.br`.
+  - **Só `FATURAMENTO_EMAIL=sim` liga o envio, e a variável não foi criada.** Sem ela, a linha fica `simulado` com assunto e corpo prontos.
+  - Pedido simulado no Omie nunca gera e-mail de verdade.
+- **Texto:**
+  - O e-mail é curto, no layout dos e-mails do Brain (`src/lib/email-templates.ts`, rótulo "PORTAL DE FATURAMENTO"), com o botão para `https://planningbrain.com.br/faturamento/pedido/<id>`.
+  - CPF e CNPJ não vão nos dados da notificação. O que vier no motivo é mascarado: os 2 primeiros caracteres e os 2 dígitos verificadores.
+
+**Onde:**
+- Edge: `supabase/functions/faturamento-omie/notificacoes.ts` e `index.ts`.
+- Testes: `tests/faturamento-notificacoes.test.mjs` (8).
+- Banco: migration, rollback e gate `20261020200000_portal_faturamento_notificacoes`.
+- Integração: `scripts/faturamento/conector-simular-integracao.py --notificacoes`.
+
+**Status:**
+- Aplicado, com o gate passando antes e depois e a edge publicada.
+- **A integração passou** com o FAT-2026-000005 da DOC, que foi para Aguardando OK, devolvido e descartado:
+  - o OK pendente foi para a conta "Teste", que só no teste era dona;
+  - a devolução foi para o Pedro, autor e gestor no teste;
+  - as duas ficaram `simulado` e nada foi enviado;
+  - os dois papéis de teste foram desativados.

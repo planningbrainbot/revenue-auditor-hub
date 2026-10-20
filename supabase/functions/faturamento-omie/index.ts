@@ -5,6 +5,9 @@
 // 2. Depois, na mesma rodada, a fila integracoes.pipefy_envios: criar o card no pipe 307098392 e movê-lo a cada
 //    situação (lógica em pipefy.ts, testes em tests/faturamento-pipefy.test.mjs). Com pipefy_sync = false (todas hoje),
 //    as mutations ficam montadas e validadas, e nenhuma sai.
+// 3. Por fim, a fila integracoes.notificacoes (e-mails do RF-P12, lógica em notificacoes.ts). Sem FATURAMENTO_EMAIL=sim
+//    na env da edge, nada sai: a notificação fica `simulado` com o e-mail pronto. Envio pelo SendGrid
+//    (SENDGRID_API_KEY), remetente noreply@planningbrain.com.br.
 // Aqui só se liga a lógica ao banco e ao fetch.
 //
 // Banco: as RPCs do conector (API.md §2) vivem em `integracoes`, que não é exposto no PostgREST. A edge chama as
@@ -27,14 +30,19 @@
 // resposta, log, ops.sync_log ou erro.
 import { autorizado, criarOmie, cortar, MAX_POR_RODADA, rodarFila, VERSAO } from "./logica.ts";
 import { PIPEFY_URL, rodarFilaPipefy } from "./pipefy.ts";
+import { corpoSendgrid, type Email, rodarFilaNotificacoes } from "./notificacoes.ts";
 
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON = Deno.env.get("FATURAMENTO_CRON_SECRET") ?? null;
 const PIPEFY_TOKEN = Deno.env.get("PIPEFY_TOKEN") ?? null;
 /** Tempo de cada fila na rodada: as duas cabem antes do próximo cron (2 min) e do limite da edge (150 s). */
-const ORCAMENTO_OMIE_MS = 60_000;
-const ORCAMENTO_PIPEFY_MS = 25_000;
+const ORCAMENTO_OMIE_MS = 55_000;
+const ORCAMENTO_PIPEFY_MS = 20_000;
+const ORCAMENTO_NOTIFICACOES_MS = 10_000;
+const SENDGRID = Deno.env.get("SENDGRID_API_KEY") ?? null;
+/** Trava do e-mail: só "sim" literal liga o envio. */
+const EMAIL_LIGADO = Deno.env.get("FATURAMENTO_EMAIL") === "sim";
 const FONTE_LOG = "omie-faturamento";
 
 const json = (body: unknown, status = 200) =>
@@ -176,6 +184,19 @@ async function pdfDaNota(envio: any, contexto: any) {
   return { nome: `NFSe-${numero}.pdf`, bytes };
 }
 
+/** SendGrid v3, como a gente-vigencia-alertas. A chave fica aqui; a lógica só recebe a função. */
+const enviarEmail = SENDGRID
+  ? async (e: Email) => {
+      const r = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SENDGRID}`, "Content-Type": "application/json" },
+        body: JSON.stringify(corpoSendgrid(e)),
+        signal: AbortSignal.timeout(20000),
+      });
+      return { status: r.status, texto: await r.text() };
+    }
+  : null;
+
 async function subir(url: string, bytes: Uint8Array) {
   const r = await fetch(url, {
     method: "PUT",
@@ -208,6 +229,7 @@ Deno.serve(async (req: Request) => {
   let enfileirados: unknown = null;
   let omie: Awaited<ReturnType<typeof rodarFila>> | null = null;
   let pipefy: Awaited<ReturnType<typeof rodarFilaPipefy>> | null = null;
+  let notificacoes: Awaited<ReturnType<typeof rodarFilaNotificacoes>> | null = null;
   const falhas: string[] = [];
 
   // 1. Omie.
@@ -260,8 +282,35 @@ Deno.serve(async (req: Request) => {
     falhas.push(`pipefy: ${cortar((e as Error)?.message ?? e, 300)}`);
   }
 
-  const errosBanco = [...(omie?.erros_banco ?? []), ...(pipefy?.erros_banco ?? [])];
-  const trabalho = (omie?.reservados ?? 0) + (pipefy?.reservados ?? 0);
+  // 3. Notificações (e-mail). Desligado, tudo fica simulado.
+  try {
+    notificacoes = await rodarFilaNotificacoes({
+      reservar: async (n) => (await rpc("notificacoes_proximos", { p_limite: n })) ?? [],
+      responder: (id, r) =>
+        rpc("notificacoes_resultado", {
+          p_id: id,
+          p_status: r.status,
+          p_email: r.email,
+          p_assunto: r.assunto,
+          p_corpo: r.corpo,
+          p_erro_legivel: r.erro_legivel,
+          p_resposta: r.resposta,
+        }),
+      ligado: EMAIL_LIGADO,
+      enviar: enviarEmail,
+      orcamentoMs: ORCAMENTO_NOTIFICACOES_MS,
+    });
+  } catch (e) {
+    falhas.push(`notificacoes: ${cortar((e as Error)?.message ?? e, 300)}`);
+  }
+
+  const errosBanco = [
+    ...(omie?.erros_banco ?? []),
+    ...(pipefy?.erros_banco ?? []),
+    ...(notificacoes?.erros_banco ?? []),
+  ];
+  const trabalho =
+    (omie?.reservados ?? 0) + (pipefy?.reservados ?? 0) + (notificacoes?.reservados ?? 0);
   // Rodada vazia não vai para o log (o cron roda 720 vezes por dia).
   if (trabalho > 0 || enfileirados != null || errosBanco.length || falhas.length) {
     await registrar(inicio, errosBanco.length || falhas.length ? "erro" : "sucesso", trabalho, {
@@ -279,6 +328,7 @@ Deno.serve(async (req: Request) => {
         envios: pipefy.envios,
         token: !!PIPEFY_TOKEN,
       },
+      notificacoes: notificacoes && { por_status: notificacoes.por_status, ligado: EMAIL_LIGADO },
       erros_banco: errosBanco,
       falhas,
     });
@@ -290,11 +340,21 @@ Deno.serve(async (req: Request) => {
       acao,
       omie: omie?.por_status ?? null,
       pipefy: pipefy?.por_status ?? null,
+      notificacoes: notificacoes?.por_status ?? null,
       falhas,
     }),
   );
   return json(
-    { ok: !falhas.length, versao: VERSAO, acao, enfileirados, resumo: omie, pipefy, falhas },
+    {
+      ok: !falhas.length,
+      versao: VERSAO,
+      acao,
+      enfileirados,
+      resumo: omie,
+      pipefy,
+      notificacoes,
+      falhas,
+    },
     falhas.length ? 500 : 200,
   );
 });

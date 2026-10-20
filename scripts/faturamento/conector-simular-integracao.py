@@ -16,7 +16,12 @@ não pelo authenticated, e a edge publicada sem verify_jwt. `--verificar` só co
 Token da Management API: SUPABASE_ACCESS_TOKEN do ambiente ou a linha SUPABASE_ACCESS_TOKEN= de
 PM Work/execution/brain-financeiro-planning/.deploy.local.env (lida na hora, nunca impressa).
 
-Uso: python3 -I scripts/faturamento/conector-simular-integracao.py [--verificar]
+Notificações (T6), com --notificacoes: pedido de teste da DOC com a conta "Teste" (teste@planning.com.br) de dona e o
+Pedro de gestor, os dois só durante o teste → enviar (Aguardando OK: e-mail ao dono) → o Pedro, gestor, devolve
+(e-mail ao autor) → o Pedro descarta. Confere que as notificações ficaram `simulado` com o e-mail pronto e que nada foi
+enviado. No fim, os dois papéis de teste são desativados (sem apagar).
+
+Uso: python3 -I scripts/faturamento/conector-simular-integracao.py [--verificar | --notificacoes]
 """
 import datetime as dt
 import json
@@ -31,6 +36,7 @@ import urllib.request
 REF = "npknehhyyzelmrbbxvtu"
 EDGE = f"https://{REF}.supabase.co/functions/v1/faturamento-omie"
 PEDRO = "5c4d0e46-fc33-4132-bcca-47c05ad001c7"  # admin do Brain (a única pessoa com papel na E1)
+TESTE = "55c21a76-52ca-47b4-b541-54e867aacbea"  # conta "Teste" (teste@planning.com.br), dona só no teste de notificações
 ENV = pathlib.Path(__file__).resolve().parents[3] / "brain-financeiro-planning" / ".deploy.local.env"
 FUNCOES = {
     "integracoes": ["omie_credencial", "fat_envio_proximos", "fat_envio_resultado", "fat_status_aplicar",
@@ -41,7 +47,8 @@ FUNCOES = {
 PASSAGEM = ["fat_conector_credencial", "fat_conector_envio_proximos", "fat_conector_envio_resultado",
             "fat_conector_status_aplicar", "fat_conector_status_enfileirar", "fat_conector_servicos_aplicar",
             "fat_conector_receita_cnpj", "fat_conector_pipefy_proximos", "fat_conector_pipefy_resultado",
-            "fat_conector_pipefy_contexto"]
+            "fat_conector_pipefy_contexto", "fat_conector_notificacoes_proximos",
+            "fat_conector_notificacoes_resultado"]
 
 
 def token() -> str:
@@ -212,6 +219,103 @@ def esperar_pipefy(pid: str, minimo: int, limite_s: int = 300):
         time.sleep(20)
 
 
+def papel_de_teste(doc_id: str, user_id: str, papel: str):
+    """Ativa (ou reativa) um papel de teste na DOC; devolve o id da linha se ele não estava ativo antes."""
+    tem = sql("select id::text from receita.fat_donos where emissora_id = "
+              f"{lit(doc_id)}::uuid and user_id = {lit(user_id)}::uuid and papel = {lit(papel)} and ativo")
+    if tem:
+        return None
+    r = como_pedro(f"ops.fat_dono_salvar({lit(json.dumps({'emissora_id': doc_id, 'user_id': user_id, 'papel': papel}))}::jsonb)")
+    return r["id"]
+
+
+def notificacoes(doc_id: str):
+    omie = OmieLeitura(doc_id)
+    cnpj, razao = cnpj_real_da_doc(omie)
+    servico = sql("select id::text from receita.fat_servicos where emissora_id = "
+                  f"{lit(doc_id)}::uuid and ativo and tem_tributacao and coalesce(no_omie, true) order by codigo limit 1")
+    criados = []
+    pid = None
+    falhas = []
+    try:
+        for user_id, papel in ((TESTE, "dono"), (PEDRO, "gestor")):
+            c = papel_de_teste(doc_id, user_id, papel)
+            if c:
+                criados.append(c)
+        venc = (dt.date.today() + dt.timedelta(days=30)).isoformat()
+        dados = {
+            "emissora_id": doc_id, "dono_id": TESTE, "tomador_tipo": "pj", "tomador_documento": cnpj, "tomador_nome": razao,
+            "emails_envio": ["faturamento.teste@planning.com.br"], "projeto": "Teste das notificações (T6)",
+            "servico_id": servico[0]["id"], "descricao_nf": "Teste das notificações do portal: não faturar",
+            "valor": 1.00, "forma": "avulso", "parcelas": 1, "primeiro_vencimento": venc, "documento": "nf",
+            "meio": "boleto", "observacoes": "Pedido de teste da T6; descartado ao fim do teste.", "confirmou_emissora": True,
+        }
+        salvo = como_pedro(f"ops.fat_pedido_salvar(null, {lit(json.dumps(dados, ensure_ascii=False))}::jsonb)")
+        pid, numero = salvo["id"], salvo["numero"]
+        enviado = como_pedro(f"ops.fat_pedido_enviar({lit(pid)}::uuid)")
+        print(json.dumps({"pedido": numero, "enviado": enviado.get("status")}, ensure_ascii=False))
+        if enviado.get("status") != "aguardando_ok":
+            falhas.append(f"esperava aguardando_ok, veio {enviado.get('status')}")
+        motivo = "Teste das notificações (T6): falta conferir o projeto"
+        dev = como_pedro(f"ops.fat_pedido_devolver({lit(pid)}::uuid, {lit(motivo)})")
+        print(json.dumps({"devolvido": dev.get("status")}, ensure_ascii=False))
+        # O cron (2 min) processa a fila de notificações na mesma edge.
+        fim = time.time() + 300
+        while True:
+            r = sql("select count(*) filter (where status in ('pendente', 'processando'))::int abertas, count(*)::int total "
+                    f"from integracoes.notificacoes where pedido_id = {lit(pid)}::uuid")[0]
+            if (r["total"] >= 2 and r["abertas"] == 0) or time.time() > fim:
+                break
+            time.sleep(20)
+        linhas = sql("select evento, papel, status, destinatario_id::text dest, email, assunto, corpo, erro_legivel, "
+                     "resposta->>'simulado' simulado, enviado_em from integracoes.notificacoes "
+                     f"where pedido_id = {lit(pid)}::uuid order by created_at")
+        resumo = []
+        for n in linhas:
+            corpo = n["corpo"] or ""
+            resumo.append({
+                "evento": n["evento"], "papel": n["papel"], "status": n["status"],
+                "destinatario": "teste" if n["dest"] == TESTE else "pedro" if n["dest"] == PEDRO else "outro",
+                "email": re.sub(r"^(.{3}).*(@.*)$", r"\1***\2", n["email"] or ""), "assunto": n["assunto"],
+                "simulado": n["simulado"], "erro": n["erro_legivel"], "enviado_em": n["enviado_em"],
+                "link_do_pedido": f"/faturamento/pedido/{pid}" in corpo, "tem_motivo": "falta conferir o projeto" in corpo,
+                "documento_completo_no_corpo": cnpj in re.sub(r"\D", "", corpo) or cnpj in corpo,
+            })
+        print(json.dumps({"notificacoes": resumo}, ensure_ascii=False, indent=1))
+        ok = next((x for x in resumo if x["evento"] == "ok_pendente"), None)
+        dv = next((x for x in resumo if x["evento"] == "devolvido"), None)
+        if not ok or ok["destinatario"] != "teste" or ok["papel"] != "dono" or ok["status"] != "simulado":
+            falhas.append(f"OK pendente: {ok}")
+        if not dv or dv["destinatario"] != "pedro" or dv["papel"] != "autor" or dv["status"] != "simulado" or not dv["tem_motivo"]:
+            falhas.append(f"devolvido: {dv}")
+        if any(x["status"] == "enviado" or x["enviado_em"] for x in resumo):
+            falhas.append("e-mail enviado com FATURAMENTO_EMAIL desligado")
+        if any(not x["link_do_pedido"] for x in resumo):
+            falhas.append("e-mail sem o link do pedido")
+        if any(x["documento_completo_no_corpo"] for x in resumo):
+            falhas.append("CNPJ completo no corpo")
+        if len(resumo) != 2:
+            falhas.append(f"{len(resumo)} notificações (esperava 2)")
+        print(json.dumps({"resultado": "passou" if not falhas else "falhou", "falhas": falhas}, ensure_ascii=False))
+    finally:
+        tropecos = []
+        if pid:
+            try:
+                como_pedro(f"ops.fat_pedido_descartar({lit(pid)}::uuid)")
+            except SystemExit as e:
+                tropecos.append(f"descartar: {str(e)[:200]}")
+            final = sql(f"select status, motivo_status from receita.fat_pedidos where id = {lit(pid)}::uuid")[0]
+        else:
+            final = None
+        for c in criados:
+            try:
+                como_pedro(f"ops.fat_dono_remover({lit(c)}::uuid)")
+            except SystemExit as e:
+                tropecos.append(f"remover papel: {str(e)[:200]}")
+        print(json.dumps({"descarte": final, "papeis_de_teste_desativados": len(criados), "tropecos": tropecos},
+                         ensure_ascii=False))
+
+
 def main():
     pre = verificar()
     print(json.dumps({"pre_requisitos": {k: v for k, v in pre.items() if k != "doc_id"}}, ensure_ascii=False))
@@ -220,6 +324,8 @@ def main():
     if not pre["pronto"]:
         raise SystemExit("Pré-requisitos faltando: nada foi gravado.")
     doc_id = pre["doc_id"]
+    if "--notificacoes" in sys.argv:
+        return notificacoes(doc_id)
 
     omie = OmieLeitura(doc_id)
     cnpj, razao = cnpj_real_da_doc(omie)
