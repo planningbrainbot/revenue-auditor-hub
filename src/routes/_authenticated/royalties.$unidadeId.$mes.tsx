@@ -2017,6 +2017,7 @@ function SecaoGrupo({
   const [open, setOpen] = useState(true);
   const [situacaoFiltro, setSituacaoFiltro] = useState<string>("todos");
   const [checkFiltro, setCheckFiltro] = useState<"todos" | "pendentes" | "confirmados">("todos");
+  const [soCac, setSoCac] = useState(false);
   const { key: sortKey, dir: sortDir, onSort } = useSort<ItemSortKey>();
 
   const situacaoCounts = useMemo(() => {
@@ -2030,10 +2031,18 @@ function SecaoGrupo({
 
   // Filtro de situação (Matched/Só Pipedrive/Só Omie) combina com o toggle de
   // pendentes — permite isolar, por exemplo, "Só Omie" que ainda não teve check.
-  const itensPorSituacao = useMemo(() => {
+  const itensSituacao = useMemo(() => {
     if (!showSituacao || situacaoFiltro === "todos") return itens;
     return itens.filter((it) => it.status_match === situacaoFiltro);
   }, [itens, showSituacao, situacaoFiltro]);
+
+  // "Só CAC" também combina com os dois filtros — ex.: Matched + CAC + Pendentes.
+  const cacCount = useMemo(() => itensSituacao.filter((it) => it.is_cac).length, [itensSituacao]);
+
+  const itensPorSituacao = useMemo(
+    () => (soCac ? itensSituacao.filter((it) => it.is_cac) : itensSituacao),
+    [itensSituacao, soCac],
+  );
 
   const pendentesCount = useMemo(
     () => itensPorSituacao.filter((it) => !it.confirmado).length,
@@ -2149,6 +2158,26 @@ function SecaoGrupo({
                 </button>
               );
             })}
+            {toggleCac && (cacCount > 0 || soCac) && (
+              <>
+                <span className="mx-1 h-4 w-px bg-border" />
+                <button
+                  type="button"
+                  onClick={() => setSoCac((v) => !v)}
+                  title="Mostra só os itens marcados como CAC. Combina com os outros filtros"
+                  aria-pressed={soCac}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-xs transition-colors",
+                    FOCO,
+                    soCac
+                      ? "bg-warning-soft text-warning ring-1 ring-inset ring-warning/40"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  )}
+                >
+                  Só CAC ({cacCount})
+                </button>
+              </>
+            )}
             {(pendentesCount > 0 || confirmadosCount > 0) && (
               <>
                 <span className="mx-1 h-4 w-px bg-border" />
