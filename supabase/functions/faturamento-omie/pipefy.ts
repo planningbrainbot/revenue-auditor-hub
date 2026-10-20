@@ -659,7 +659,29 @@ export class MutacaoBloqueada extends Error {
   }
 }
 
-export type TransportePipefy = (corpo: string) => Promise<{ status: number; texto: string }>;
+/** POST ao GraphQL do Pipefy. `limiteMs` = o tempo que a chamada pode levar (preso ao que sobra da rodada). */
+export type TransportePipefy = (
+  corpo: string,
+  limiteMs?: number,
+) => Promise<{ status: number; texto: string }>;
+/** Tempo mínimo para começar uma chamada ao Pipefy antes do fim da rodada, e o teto de uma chamada. */
+export const MIN_CHAMADA_PIPEFY_MS = 5_000;
+export const MAX_CHAMADA_PIPEFY_MS = 30_000;
+
+/**
+ * Modo do Pipefy para um envio: grava só com o pipefy_sync EFETIVO da reserva (pipefy_sync ligado, emissora em gravar e
+ * pedido não simulado, calculado pelo banco), a emissora em "gravar" e, conferido aqui também, o pedido não simulado.
+ */
+export function modoPipefy(
+  envio: any,
+  pedidoSimulado: boolean | null | undefined,
+): "simular" | "gravar" {
+  return envio?.pipefy_sync === true &&
+    envio?.emissora?.modo_omie === "gravar" &&
+    pedidoSimulado !== true
+    ? "gravar"
+    : "simular";
+}
 
 /**
  * Cliente GraphQL do Pipefy para um envio. Em modo diferente de "gravar", toda `mutation` é recusada antes da rede.
@@ -669,6 +691,8 @@ export function criarPipefy(o: {
   transporte: TransportePipefy | null;
   modo: "simular" | "gravar";
   relogio?: () => number;
+  /** Momento (ms) em que a rodada precisa ter terminado. */
+  prazo?: number;
 }) {
   const relogio = o.relogio ?? (() => Date.now());
   const chamadas: Array<{ operacao: string; http: number | null; ms: number; erro?: string }> = [];
@@ -677,11 +701,19 @@ export function criarPipefy(o: {
     const mutacao = /^\s*mutation\b/.test(query);
     if (mutacao && o.modo !== "gravar") throw new MutacaoBloqueada(nome);
     if (!o.transporte) throw new ErroPipefy("sem_token", null, "PIPEFY_TOKEN ausente no servidor");
+    const resta = o.prazo != null ? o.prazo - relogio() : MAX_CHAMADA_PIPEFY_MS;
+    if (resta < MIN_CHAMADA_PIPEFY_MS) {
+      chamadas.push({ operacao: nome, http: null, ms: 0, erro: "tempo" });
+      throw new ErroPipefy("tempo", null, "fim do tempo da rodada");
+    }
     const t0 = relogio();
     let http: number | null = null;
     let corpo: any = null;
     try {
-      const r = await o.transporte(JSON.stringify({ query, variables }));
+      const r = await o.transporte(
+        JSON.stringify({ query, variables }),
+        Math.min(MAX_CHAMADA_PIPEFY_MS, resta - 1_000),
+      );
       http = r.status;
       try {
         corpo = JSON.parse(r.texto);
@@ -1081,6 +1113,9 @@ async function moverFase(envio: any, ctx: ContextoPipefy): Promise<ResultadoPipe
 /** O que fazer com um erro do Pipefy. */
 export function decidirPipefy(e: ErroPipefy, envio: any): ResultadoPipefy {
   const resposta = { erro: { classe: e.classe, http: e.http, pipefy: cortar(e.message, 300) } };
+  if (e.classe === "tempo") {
+    return { status: "pendente", resposta, erro_legivel: null, card_id: null };
+  }
   if (e.classe === "passageiro") {
     const t = Number(envio?.tentativas ?? 1);
     if (t >= MAX_TENTATIVAS_PIPEFY) {
@@ -1143,7 +1178,10 @@ export async function processarPipefy(envio: any, ctx: ContextoPipefy): Promise<
 
 export type DependenciasPipefy = {
   reservar: (limite: number) => Promise<any[]>;
-  responder: (envio: string, r: ResultadoPipefy) => Promise<any>;
+  /** fat_conector_pipefy_resultado com a ficha da reserva (envio.reserva). */
+  responder: (envio: any, r: ResultadoPipefy) => Promise<any>;
+  /** Momento (ms) em que a rodada precisa ter terminado. */
+  prazo?: number;
   contexto: (pedido: string) => Promise<any>;
   transporte: TransportePipefy | null;
   pdfDaNota?: ContextoPipefy["pdfDaNota"];
@@ -1168,20 +1206,28 @@ export async function rodarFilaPipefy(d: DependenciasPipefy) {
     erros_banco: [] as Array<Record<string, any>>,
   };
   let colabs: Promise<Map<string, string> | null> | null = null;
-  const leitor = criarPipefy({ transporte: d.transporte, modo: "simular", relogio });
+  const leitor = criarPipefy({
+    transporte: d.transporte,
+    modo: "simular",
+    relogio,
+    prazo: d.prazo,
+  });
   const colaboradores = () => {
     if (!d.transporte) return Promise.resolve(null);
     colabs ??= lerColaboradores(leitor);
     return colabs;
   };
-  while (resumo.reservados < max && relogio() - inicio < d.orcamentoMs) {
+  const temTempo = () =>
+    relogio() - inicio < d.orcamentoMs &&
+    (d.prazo == null || d.prazo - relogio() > 2 * MIN_CHAMADA_PIPEFY_MS);
+  while (resumo.reservados < max && temTempo()) {
     const lista = await d.reservar(Math.min(5, max - resumo.reservados));
     if (!Array.isArray(lista) || !lista.length) break;
     resumo.reservados += lista.length;
     for (const envio of lista) {
       const t0 = relogio();
       let r: ResultadoPipefy;
-      if (relogio() - inicio >= d.orcamentoMs) {
+      if (!temTempo()) {
         r = {
           status: "pendente",
           resposta: { liberado: "fim do tempo da rodada" },
@@ -1189,19 +1235,38 @@ export async function rodarFilaPipefy(d: DependenciasPipefy) {
           card_id: null,
         };
       } else {
-        const modo = envio?.pipefy_sync === true ? "gravar" : "simular";
-        r = await processarPipefy(envio, {
-          pipefy: criarPipefy({ transporte: d.transporte, modo, relogio }),
-          modo,
-          agora,
-          colaboradores,
-          contexto: d.contexto,
-          pdfDaNota: d.pdfDaNota,
-          subir: d.subir,
-        });
+        // Pedido simulado no Omie nunca vira card de verdade: o banco já entrega o pipefy_sync efetivo, e a edge confere
+        // o pedido antes de qualquer mutation.
+        let modo = modoPipefy(envio, null);
+        let semContexto = false;
+        if (modo === "gravar" && envio?.origem_id) {
+          try {
+            const c = await d.contexto(String(envio.origem_id));
+            modo = modoPipefy(envio, c?.pedido?.simulacao === true);
+          } catch {
+            semContexto = true;
+          }
+        }
+        r = semContexto
+          ? {
+              status: "pendente",
+              resposta: { versao: VERSAO_PIPEFY, liberado: "pedido não lido" },
+              erro_legivel:
+                "Não consegui ler o pedido agora; o envio do Pipefy volta para a fila sozinho.",
+              card_id: null,
+            }
+          : await processarPipefy(envio, {
+              pipefy: criarPipefy({ transporte: d.transporte, modo, relogio, prazo: d.prazo }),
+              modo,
+              agora,
+              colaboradores,
+              contexto: d.contexto,
+              pdfDaNota: d.pdfDaNota,
+              subir: d.subir,
+            });
       }
       try {
-        await d.responder(String(envio?.id), r);
+        await d.responder(envio, r);
       } catch (e) {
         resumo.erros_banco.push({
           envio: envio?.id ?? null,
