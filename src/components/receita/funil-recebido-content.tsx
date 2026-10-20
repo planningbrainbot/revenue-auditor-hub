@@ -12,6 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -35,9 +45,18 @@ import {
 import { ErroDaConsulta, rotuloMesCurto } from "@/components/receita/moldura";
 import { useFiltroNaUrl, useLimparFiltrosNaUrl } from "@/lib/planning/filtro-url";
 import {
+  CORES_SERIE,
+  eixoProps,
+  gradeProps,
+  legendaProps,
+  tooltipProps,
+} from "@/lib/planning/grafico";
+import {
   carregarFunilRecebido,
   type ClienteCac,
   type ClienteFunil,
+  type CacPartners,
+  type FaturadoMes,
   type FunilRecebido,
   type LinhaMes,
   type UnidadeFunil,
@@ -235,6 +254,7 @@ export function FunilRecebidoContent() {
           clientes={base.cac.filter((c) => unidade === "todas" || c.unidade === unidade)}
           unidades={base.unidades}
           meses={base.meses}
+          partners={base.cacPartners.filter((c) => unidade === "todas" || c.unidade === unidade)}
         />
       )}
     </div>
@@ -273,27 +293,18 @@ function VisaoUnidades({
         titulo="Quanto cada unidade vendeu, contratou e já recebeu?"
         descricao="Fluxo do mês: cada etapa conta o que aconteceu no mês, não os mesmos clientes. O recebido inclui clientes vendidos antes do período e fica sem a base antiga (carteira de antes da rede). Sem split, o recebido vem das apurações de royalties; com split, depois da última apuração, dos boletos pagos no Omie da unidade."
       >
-        <KpiGrade colunas={3}>
-          <KpiCard
-            rotulo="1. Vendas"
-            valor={String(t.vendas)}
-            nota={`${brl(t.mrrVendido)} de MRR vendido`}
-          />
-          <KpiCard
-            rotulo="2. Contratos"
-            valor={String(t.contratos)}
-            nota={`${brl(t.mrrContratado)} de MRR · ${pct(t.contratos, t.vendas)} das vendas`}
-          />
-          <KpiCard
-            rotulo="3. Recebido pela unidade"
-            valor={t.temRecebido ? brl(t.recebido) : "—"}
-            nota={
-              sel
-                ? `${sel.clientesPagaram} clientes pagaram${sel.baseAntiga ? ` · base antiga ${brl(sel.baseAntiga)} fora` : ""}`
-                : "pago pelos clientes, sem royalty"
-            }
-          />
-        </KpiGrade>
+        <FunilHorizontal
+          t={t}
+          faturado={base.faturado.filter(
+            (f) => (unidade === "todas" || f.unidade === unidade) && noPeriodo(f.mes),
+          )}
+          semOmie={base.unidades
+            .filter((u) => unidade === "todas" || u.nome === unidade)
+            .filter((u) => !base.comOmie.includes(u.nome))
+            .map((u) => u.nome)}
+          clientesPagaram={sel?.clientesPagaram ?? null}
+        />
+        <GraficoMensal linhas={linhas} />
       </Secao>
 
       {!sel && (
@@ -416,6 +427,251 @@ function MesAMes({ unidade, linhas }: { unidade: UnidadeFunil; linhas: LinhaMes[
         </Table>
       </div>
     </Secao>
+  );
+}
+
+// ---------------------------------------------------------------- CAC na Partners
+
+/** O que a apuração cobrou de CAC da unidade e o que ela já pagou à Partners. */
+function CacNaPartners({ partners }: { partners: CacPartners[] }) {
+  if (partners.length === 0) return null;
+  const t = partners.reduce(
+    (a, x) => ({
+      cobrado: a.cobrado + x.cobrado,
+      pago: a.pago + x.pago,
+      emAberto: a.emAberto + x.emAberto,
+      semTitulo: a.semTitulo + x.semTitulo,
+    }),
+    { cobrado: 0, pago: 0, emAberto: 0, semTitulo: 0 },
+  );
+  return (
+    <Secao
+      titulo="Quanto a unidade já pagou de CAC à Partners?"
+      descricao="Cobrado é o CAC das apurações de royalties fechadas. Pago e em aberto saem do Omie da Partners: títulos da categoria de CAC (1.01.92) e, nas faturas emitidas num título só, a parte de CAC da fatura, casada pelo CNPJ da unidade e pelo valor total. Sem título é o cobrado que ainda não aparece no Omie da Partners."
+    >
+      <KpiGrade colunas={4}>
+        <KpiCard rotulo="CAC cobrado" valor={brl(t.cobrado)} nota="nas apurações" />
+        <KpiCard
+          rotulo="Pago à Partners"
+          valor={brl(t.pago)}
+          nota={`${pct(t.pago, t.cobrado)} do cobrado`}
+        />
+        <KpiCard
+          rotulo="Em aberto"
+          valor={brl(t.emAberto)}
+          tom={t.emAberto > 0 ? "atencao" : undefined}
+          tomRotulo={t.emAberto > 0 ? "título não pago" : undefined}
+          nota="título emitido, ainda não pago"
+        />
+        <KpiCard
+          rotulo="Sem título"
+          valor={brl(t.semTitulo)}
+          tom={t.semTitulo > 0 ? "perigo" : undefined}
+          tomRotulo={t.semTitulo > 0 ? "não emitido" : undefined}
+          nota="cobrado sem título no Omie"
+        />
+      </KpiGrade>
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Unidade</TableHead>
+              <TableHead className="text-right">CAC cobrado</TableHead>
+              <TableHead className="text-right">Pago à Partners</TableHead>
+              <TableHead className="text-right">Em aberto</TableHead>
+              <TableHead className="text-right">Sem título</TableHead>
+              <TableHead className="text-right">% pago</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {partners.map((x) => (
+              <TableRow key={x.unidade}>
+                <TableCell className="font-medium">{x.unidade}</TableCell>
+                <TableCell className="num text-right">{brl(x.cobrado)}</TableCell>
+                <TableCell className="num text-right">{brl(x.pago)}</TableCell>
+                <TableCell className="num text-right">{brl(x.emAberto || null)}</TableCell>
+                <TableCell className="num text-right">{brl(x.semTitulo || null)}</TableCell>
+                <TableCell className="num text-right font-semibold">
+                  {pct(x.pago, x.cobrado)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Secao>
+  );
+}
+
+// ---------------------------------------------------------------- funil e gráfico
+
+/** Da unidade para os clientes dela, em barras horizontais (mesmo desenho do Funil de CAC). */
+function FunilHorizontal({
+  t,
+  faturado,
+  semOmie,
+  clientesPagaram,
+}: {
+  t: Totais;
+  faturado: FaturadoMes[];
+  semOmie: string[];
+  clientesPagaram: number | null;
+}) {
+  const fat = faturado.reduce((a, f) => a + f.faturado, 0);
+  const recOmie = faturado.reduce((a, f) => a + f.recebidoOmie, 0);
+  const temOmie = faturado.length > 0;
+  type Degrau = {
+    rotulo: string;
+    valor: number | null;
+    qtd: string;
+    pct: string;
+    opacidade: number;
+  };
+  const degraus: Degrau[] = [
+    {
+      rotulo: "Vendido",
+      valor: t.mrrVendido,
+      qtd: `${t.vendas} vendas`,
+      pct: "100%",
+      opacidade: 0.4,
+    },
+    {
+      rotulo: "Contrato assinado",
+      valor: t.mrrContratado,
+      qtd: `${t.contratos} contratos`,
+      pct: pct(t.contratos, t.vendas),
+      opacidade: 0.55,
+    },
+    {
+      rotulo: "Faturado pela unidade",
+      valor: temOmie ? fat : null,
+      qtd: temOmie ? "boletos no Omie" : "sem Omie",
+      pct: "",
+      opacidade: 0.75,
+    },
+    {
+      rotulo: "Recebido pela unidade",
+      valor: t.temRecebido ? t.recebido : null,
+      qtd: clientesPagaram != null ? `${clientesPagaram} clientes` : "dos clientes",
+      pct: "",
+      opacidade: 1,
+    },
+  ];
+  const maximo = Math.max(...degraus.map((d) => d.valor ?? 0), 1);
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-4">
+      {degraus.map((d) => (
+        <div
+          key={d.rotulo}
+          className="grid grid-cols-[170px_1fr_150px_120px] items-center gap-3 text-[13px]"
+        >
+          <span className="text-muted-foreground">{d.rotulo}</span>
+          <div className="h-7 w-full rounded-md bg-muted">
+            <div
+              className="h-7 rounded-md bg-primary"
+              style={{
+                width: `${d.valor == null ? 0 : Math.max(1, (d.valor / maximo) * 100)}%`,
+                opacity: d.opacidade,
+              }}
+            />
+          </div>
+          <span className="num text-right text-muted-foreground">
+            {d.qtd}
+            {d.pct && <span className="font-semibold text-foreground"> · {d.pct}</span>}
+          </span>
+          <span className="num text-right font-semibold">{brl(d.valor)}</span>
+        </div>
+      ))}
+      {temOmie && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-[13px]">
+          <span className="text-muted-foreground">No Omie da unidade</span>
+          <span>
+            Faturado: <span className="num font-semibold">{brl(fat)}</span>
+          </span>
+          <span>
+            Recebido: <span className="num font-semibold">{brl(recOmie)}</span>
+          </span>
+          <span>
+            Em aberto: <span className="num font-semibold">{brl(fat - recOmie)}</span>
+          </span>
+          <span className="text-muted-foreground">{pct(recOmie, fat)} do faturado</span>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Vendido e assinado em MRR (honorário mensal da venda). Faturado são os boletos da unidade
+        aos clientes no Omie dela, por vencimento até hoje; recebido pela unidade segue a régua da
+        página (apuração, ou boleto pago depois do split), e por isso pode passar do faturado.
+        {semOmie.length > 0 &&
+          ` Sem Omie sincronizado, faturado fica de fora: ${semOmie.join(", ")}.`}
+      </p>
+    </div>
+  );
+}
+
+const brlCurto = (v: number) =>
+  Math.abs(v) >= 1_000_000
+    ? `R$ ${(v / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`
+    : Math.abs(v) >= 1_000
+      ? `R$ ${Math.round(v / 1_000)} mil`
+      : brl(v);
+
+/** Vendido, assinado e recebido pela unidade, mês a mês. */
+function GraficoMensal({ linhas }: { linhas: LinhaMes[] }) {
+  const dados = useMemo(() => {
+    const m = new Map<
+      string,
+      { mes: string; vendido: number; assinado: number; recebido: number }
+    >();
+    for (const l of linhas) {
+      const x = m.get(l.mes) ?? { mes: l.mes, vendido: 0, assinado: 0, recebido: 0 };
+      x.vendido += l.mrrVendido;
+      x.assinado += l.mrrContratado;
+      x.recebido += l.recebido ?? 0;
+      m.set(l.mes, x);
+    }
+    return [...m.values()]
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .map((x) => ({ ...x, rotulo: rotuloMesCurto(x.mes) }));
+  }, [linhas]);
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div
+        className="h-64 w-full"
+        role="img"
+        aria-label="Vendido, assinado e recebido pela unidade, por mês"
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={dados} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <CartesianGrid {...gradeProps} />
+            <XAxis dataKey="rotulo" {...eixoProps} />
+            <YAxis {...eixoProps} width={84} tickFormatter={(v: number) => brlCurto(v)} />
+            <Tooltip {...tooltipProps} formatter={(v, nome) => [brl(Number(v)), nome]} />
+            <Legend {...legendaProps} />
+            <Bar
+              dataKey="vendido"
+              name="Vendido (MRR)"
+              fill={CORES_SERIE[0]}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="assinado"
+              name="Assinado (MRR)"
+              fill={CORES_SERIE[1]}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="recebido"
+              name="Recebido pela unidade"
+              fill={CORES_SERIE[2]}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
@@ -574,21 +830,44 @@ function VisaoCac({
   clientes,
   unidades,
   meses,
+  partners,
 }: {
   clientes: ClienteCac[];
   unidades: UnidadeFunil[];
   meses: LinhaMes[];
+  partners: CacPartners[];
 }) {
   const porUnidade = useMemo(() => {
     const m = new Map<
       string,
-      { clientes: number; cac: number; adiantado: number; recebido: number; pagaram: number }
+      {
+        clientes: number;
+        cac: number;
+        adiantado: number;
+        segunda: number;
+        integral: number;
+        semParcela: number;
+        recebido: number;
+        pagaram: number;
+      }
     >();
     for (const c of clientes) {
-      const s = m.get(c.unidade) ?? { clientes: 0, cac: 0, adiantado: 0, recebido: 0, pagaram: 0 };
+      const s = m.get(c.unidade) ?? {
+        clientes: 0,
+        cac: 0,
+        adiantado: 0,
+        segunda: 0,
+        integral: 0,
+        semParcela: 0,
+        recebido: 0,
+        pagaram: 0,
+      };
       s.clientes += 1;
       s.cac += c.cacTotal;
       s.adiantado += c.cacAdiantado;
+      s.segunda += c.cacSegunda;
+      s.integral += c.cacIntegral;
+      s.semParcela += c.cacSemParcela;
       s.recebido += c.recebido;
       if (c.recebido > 0) s.pagaram += 1;
       m.set(c.unidade, s);
@@ -604,8 +883,11 @@ function VisaoCac({
       />
     );
 
+  // Só as unidades que têm CAC: as internas sem CAC não entram no aviso.
+  const comCac = new Set(clientes.map((c) => c.unidade));
   const semFonte = new Set(
     unidades
+      .filter((u) => comCac.has(u.nome))
       .filter((u) => !meses.some((l) => l.unidade === u.nome && l.recebido != null))
       .map((u) => u.nome),
   );
@@ -614,15 +896,20 @@ function VisaoCac({
   const recComFonte = comFonte.reduce((a, c) => a + c.recebido, 0);
   const cacTotal = clientes.reduce((a, c) => a + c.cacTotal, 0);
   const adiantado = clientes.reduce((a, c) => a + c.cacAdiantado, 0);
+  const segunda = clientes.reduce((a, c) => a + c.cacSegunda, 0);
+  const integral = clientes.reduce((a, c) => a + c.cacIntegral, 0);
+  const semParcela = clientes.reduce((a, c) => a + c.cacSemParcela, 0);
   const ordenados = [...clientes].sort(
     (a, b) => a.unidade.localeCompare(b.unidade) || b.cacTotal - a.cacTotal,
   );
 
   return (
     <>
+      <CacNaPartners partners={partners} />
+
       <Secao
-        titulo="Quanto a unidade já pagou de CAC e quanto recebeu desses clientes?"
-        descricao="CAC cobrado é o que entrou na apuração da unidade (parcela 1 é o adiantamento na assinatura, 2 depois do 1º honorário, integral numa linha só). O recebido é o que esses mesmos clientes já pagaram à unidade, casado por CNPJ e, sem CNPJ, pelo nome. Cobertura 1,0 = a unidade já recebeu desses clientes o mesmo que pagou de CAC."
+        titulo="Quanto a unidade já pagou de CAC e quanto esses clientes já pagaram de honorário a ela?"
+        descricao="CAC cobrado é o que entrou na apuração da unidade: 1ª parcela (adiantada na assinatura) + 2ª parcela (depois do 1º honorário) + integral (numa linha só) + sem parcela marcada (apurações até ago/26, antes de a apuração marcar a parcela). Honorários são o que esses mesmos clientes pagaram à unidade, não CAC; casados por CNPJ e, sem CNPJ, pelo nome. Cobertura 1,0 = os honorários desses clientes já igualam o CAC pago por eles."
       >
         <KpiGrade colunas={4}>
           <KpiCard
@@ -631,21 +918,32 @@ function VisaoCac({
             nota={`${clientes.length} clientes`}
           />
           <KpiCard
-            rotulo="Dos quais adiantado"
+            rotulo="Adiantado (1ª parcela)"
             valor={brl(adiantado)}
-            nota="parcela 1, na assinatura"
+            nota={[
+              segunda ? `+ 2ª parcela ${brl(segunda)}` : null,
+              integral ? `+ integral ${brl(integral)}` : null,
+              semParcela ? `+ sem parcela marcada ${brl(semParcela)}` : null,
+              "= CAC cobrado",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
           <KpiCard
-            rotulo="Recebido desses clientes"
+            rotulo="Honorários desses clientes"
             valor={brl(recComFonte)}
-            nota={semFonte.size ? `sem ${[...semFonte].join(", ")} (sem fonte)` : "pago à unidade"}
+            nota={
+              semFonte.size
+                ? `pagos à unidade, não é CAC · sem fonte: ${[...semFonte].join(", ")}`
+                : "pagos à unidade, não é CAC"
+            }
           />
           <KpiCard
             rotulo="Cobertura"
             valor={razao(recComFonte, cacComFonte)}
             tom={cacComFonte > 0 && recComFonte < cacComFonte ? "atencao" : "sucesso"}
             tomRotulo={recComFonte < cacComFonte ? "abaixo do CAC" : "cobre o CAC"}
-            nota="recebido ÷ CAC, nas unidades com fonte"
+            nota="honorários ÷ CAC, nas unidades com fonte"
           />
         </KpiGrade>
         <div className="overflow-x-auto rounded-xl border bg-card">
@@ -655,8 +953,11 @@ function VisaoCac({
                 <TableHead>Unidade</TableHead>
                 <TableHead className="text-right">Clientes com CAC</TableHead>
                 <TableHead className="text-right">CAC cobrado</TableHead>
-                <TableHead className="text-right">Adiantado</TableHead>
-                <TableHead className="text-right">Recebido desses clientes</TableHead>
+                <TableHead className="text-right">1ª parcela</TableHead>
+                <TableHead className="text-right">2ª parcela</TableHead>
+                <TableHead className="text-right">Integral</TableHead>
+                <TableHead className="text-right">Sem parcela marcada</TableHead>
+                <TableHead className="text-right">Honorários desses clientes</TableHead>
                 <TableHead className="text-right">Já pagaram</TableHead>
                 <TableHead className="text-right">Cobertura</TableHead>
               </TableRow>
@@ -667,7 +968,10 @@ function VisaoCac({
                   <TableCell className="font-medium">{un}</TableCell>
                   <TableCell className="num text-right">{s.clientes}</TableCell>
                   <TableCell className="num text-right">{brl(s.cac)}</TableCell>
-                  <TableCell className="num text-right">{brl(s.adiantado)}</TableCell>
+                  <TableCell className="num text-right">{brl(s.adiantado || null)}</TableCell>
+                  <TableCell className="num text-right">{brl(s.segunda || null)}</TableCell>
+                  <TableCell className="num text-right">{brl(s.integral || null)}</TableCell>
+                  <TableCell className="num text-right">{brl(s.semParcela || null)}</TableCell>
                   <TableCell className="num text-right">
                     {semFonte.has(un) ? "sem fonte" : brl(s.recebido)}
                   </TableCell>
@@ -692,12 +996,12 @@ function VisaoCac({
                 <TableHead>Unidade</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>1º CAC</TableHead>
-                <TableHead className="text-right">Adiantado</TableHead>
+                <TableHead className="text-right">1ª parcela</TableHead>
                 <TableHead className="text-right">2ª parcela</TableHead>
                 <TableHead className="text-right">Integral</TableHead>
                 <TableHead className="text-right">Sem parcela</TableHead>
                 <TableHead className="text-right">CAC total</TableHead>
-                <TableHead className="text-right">Recebido</TableHead>
+                <TableHead className="text-right">Honorários</TableHead>
                 <TableHead className="text-right">Cobertura</TableHead>
                 <TableHead>Situação</TableHead>
               </TableRow>

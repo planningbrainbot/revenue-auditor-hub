@@ -84,11 +84,44 @@ export interface ClienteFunil {
   recebido: Record<string, number>;
 }
 
+/**
+ * Visão Partners do CAC: o que a apuração cobrou da unidade e o que a unidade já
+ * pagou à Partners. Pago = títulos da categoria de CAC (1.01.92) recebidos no
+ * Omie da Partners + a parte de CAC das faturas únicas (royalties_faturas)
+ * cujo título, casado pelo CNPJ da unidade e pelo valor total, está recebido.
+ */
+export interface CacPartners {
+  unidade: string;
+  cobrado: number;
+  pago: number;
+  emAberto: number;
+  /** Cobrado na apuração sem título pago nem em aberto no Omie da Partners. */
+  semTitulo: number;
+}
+
+/**
+ * Da unidade para os clientes dela: o que faturou (boletos não cancelados no
+ * Omie da unidade, por vencimento) e o que recebeu. Só existe para quem tem o
+ * Omie sincronizado em contas_receber.
+ */
+export interface FaturadoMes {
+  unidade: string;
+  mes: string;
+  faturado: number;
+  recebidoOmie: number;
+  clientesFaturados: number;
+  clientesPagaram: number;
+}
+
 export interface FunilRecebido {
   unidades: UnidadeFunil[];
   meses: LinhaMes[];
   clientes: ClienteFunil[];
   cac: ClienteCac[];
+  cacPartners: CacPartners[];
+  faturado: FaturadoMes[];
+  /** Unidades com Omie sincronizado (têm faturado). */
+  comOmie: string[];
   inicio: string;
   geradoEm: string;
 }
@@ -132,7 +165,7 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
 
   const { data: us, error: eu } = await sb
     .from("unidades")
-    .select("id,nome_da_praca,tipo,split_ativo_desde,paga_cac")
+    .select("id,nome_da_praca,tipo,split_ativo_desde,paga_cac,cnpj")
     .order("nome_da_praca");
   if (eu) throw new Error(`Unidades: ${eu.message}`);
   const cadastro = (us ?? []) as any[];
@@ -145,40 +178,79 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
 
   const COLS_CT =
     "id,unidade,titulo,cnpj,origem_pipeline,ganho_em,entrada_contrato_assinado_em,mrr_mensal,mrr_override,pipedrive_owner_email";
-  const [contratos, socios, itens, titulos] = await Promise.all([
-    todasAsPaginas((i, f) =>
-      sb
-        .from("contratos")
-        .select(COLS_CT)
-        .or(`ganho_em.gte.${INICIO},entrada_contrato_assinado_em.gte.${INICIO}`)
-        .order("id")
-        .range(i, f),
-    ),
-    todasAsPaginas((i, f) =>
-      sb.from("socios").select("id,email,unidade_id").order("id").range(i, f),
-    ),
-    todasAsPaginas((i, f) =>
-      sb
-        .from("royalties_itens")
-        .select(
-          "id,cnpj,razao_social,is_cac,cac_parcela,categoria,valor_confirmado,apuracao:royalties_apuracao!inner(unidade_id,mes_referencia)",
-        )
-        .is("excluido_em", null)
-        .order("id")
-        .range(i, f),
-    ),
-    splitMin
-      ? todasAsPaginas((i, f) =>
-          sb
-            .from("contas_receber")
-            .select("id,unidade,cpf_cnpj,cliente,data_vencimento,valor")
-            .eq("status_pagamento", "RECEBIDO")
-            .gte("data_vencimento", splitMin)
-            .order("id")
-            .range(i, f),
-        )
-      : Promise.resolve([]),
-  ]);
+  const [contratos, socios, itens, titulos, apuracoes, faturas, titulosPartners, omieUnidades] =
+    await Promise.all([
+      todasAsPaginas((i, f) =>
+        sb
+          .from("contratos")
+          .select(COLS_CT)
+          .or(`ganho_em.gte.${INICIO},entrada_contrato_assinado_em.gte.${INICIO}`)
+          .order("id")
+          .range(i, f),
+      ),
+      todasAsPaginas((i, f) =>
+        sb.from("socios").select("id,email,unidade_id").order("id").range(i, f),
+      ),
+      todasAsPaginas((i, f) =>
+        sb
+          .from("royalties_itens")
+          .select(
+            "id,cnpj,razao_social,is_cac,cac_parcela,categoria,valor_confirmado,royalties_item,apuracao:royalties_apuracao!inner(unidade_id,mes_referencia)",
+          )
+          .is("excluido_em", null)
+          .order("id")
+          .range(i, f),
+      ),
+      splitMin
+        ? todasAsPaginas((i, f) =>
+            sb
+              .from("contas_receber")
+              .select("id,unidade,cpf_cnpj,cliente,data_vencimento,valor")
+              .eq("status_pagamento", "RECEBIDO")
+              .gte("data_vencimento", splitMin)
+              .order("id")
+              .range(i, f),
+          )
+        : Promise.resolve([]),
+      todasAsPaginas((i, f) =>
+        sb
+          .from("royalties_apuracao")
+          .select("id,unidade_id,mes_referencia,cac_valor")
+          .gte("mes_referencia", INICIO)
+          .order("id")
+          .range(i, f),
+      ),
+      todasAsPaginas((i, f) =>
+        sb
+          .from("royalties_faturas")
+          .select("id,unidade_id,competencia,valor_cac,valor_total")
+          .gt("valor_cac", 0)
+          .order("id")
+          .range(i, f),
+      ),
+      todasAsPaginas((i, f) =>
+        sb
+          .from("contas_receber")
+          .select("id,cpf_cnpj,codigo_categoria,status_pagamento,valor,data_vencimento")
+          .eq("unidade", "Partners")
+          .or("codigo_categoria.eq.1.01.92,codigo_categoria.is.null")
+          .neq("status_pagamento", "CANCELADO")
+          .order("id")
+          .range(i, f),
+      ),
+      // Faturado pela unidade aos clientes: Omie da unidade, desde o recorte.
+      todasAsPaginas((i, f) =>
+        sb
+          .from("contas_receber")
+          .select("id,unidade,cpf_cnpj,cliente,status_pagamento,valor,data_vencimento")
+          .neq("unidade", "Partners")
+          .neq("status_pagamento", "CANCELADO")
+          .gte("data_vencimento", INICIO)
+          .lte("data_vencimento", new Date().toISOString().slice(0, 10))
+          .order("id")
+          .range(i, f),
+      ),
+    ]);
 
   // ---- vendas e contratos por unidade × mês
   const socioUnid = new Map<string, number>(
@@ -312,6 +384,11 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     const v = N(it.valor_confirmado);
     const cnpj = digitos(it.cnpj);
     if (it.is_cac) {
+      // O valor do item é a base do CAC; o cobrado é o que o fechamento gravou em
+      // royalties_item (base × percentual do item: 50% numa parcela, 100% no
+      // integral), a mesma soma de royalties_apuracao.cac_valor. Item não
+      // confirmado fica com zero e não entra.
+      const cobrado = N(it.royalties_item);
       const k = `${un}|${cnpj ?? ""}|${chaveNome(it.razao_social)}`;
       const c =
         cacs.get(k) ??
@@ -327,11 +404,11 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
           cacSemParcela: 0,
           cacTotal: 0,
         } as Cac);
-      if (it.cac_parcela === 1) c.cacAdiantado += v;
-      else if (it.cac_parcela === 2) c.cacSegunda += v;
-      else if (it.cac_parcela === 3) c.cacIntegral += v;
-      else c.cacSemParcela += v;
-      c.cacTotal += v;
+      if (it.cac_parcela === 1) c.cacAdiantado += cobrado;
+      else if (it.cac_parcela === 2) c.cacSegunda += cobrado;
+      else if (it.cac_parcela === 3) c.cacIntegral += cobrado;
+      else c.cacSemParcela += cobrado;
+      c.cacTotal += cobrado;
       if (mes < c.primeiroCac) c.primeiroCac = mes;
       cacs.set(k, c);
       continue;
@@ -373,6 +450,91 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     };
   });
 
+  // ---- visão Partners do CAC
+  const cnpjsUnid = new Map<string, string>(); // cnpj → unidade (Maceió tem dois, um por linha)
+  for (const u of cadastro)
+    for (const c of String(u.cnpj ?? "").split(/[\n,;]+/)) {
+      const d = digitos(c);
+      if (d) cnpjsUnid.set(d, u.nome_da_praca);
+    }
+  const partners = new Map<string, CacPartners>();
+  const p = (un: string) => {
+    let x = partners.get(un);
+    if (!x) {
+      x = { unidade: un, cobrado: 0, pago: 0, emAberto: 0, semTitulo: 0 };
+      partners.set(un, x);
+    }
+    return x;
+  };
+  for (const a of apuracoes as any[]) {
+    const u = porId.get(a.unidade_id);
+    if (u && N(a.cac_valor) > 0) p(u.nome_da_praca).cobrado += N(a.cac_valor);
+  }
+  const tituloUsado = new Set<number>();
+  for (const t of titulosPartners as any[]) {
+    const un = cnpjsUnid.get(digitos(t.cpf_cnpj) ?? "");
+    if (!un || t.codigo_categoria !== "1.01.92" || !t.data_vencimento) continue;
+    if (t.data_vencimento < INICIO) continue;
+    if (t.status_pagamento === "RECEBIDO") p(un).pago += N(t.valor);
+    else p(un).emAberto += N(t.valor);
+    tituloUsado.add(t.id);
+  }
+  // Fatura única (sem categoria): casa pelo CNPJ da unidade e pelo valor total.
+  for (const f of faturas as any[]) {
+    const u = porId.get(f.unidade_id);
+    if (!u) continue;
+    const t = (titulosPartners as any[])
+      .filter(
+        (x) =>
+          !x.codigo_categoria &&
+          !tituloUsado.has(x.id) &&
+          cnpjsUnid.get(digitos(x.cpf_cnpj) ?? "") === u.nome_da_praca &&
+          Math.abs(N(x.valor) - N(f.valor_total)) < 1,
+      )
+      .sort((a, b) => String(a.data_vencimento).localeCompare(String(b.data_vencimento)))[0];
+    if (!t) continue;
+    tituloUsado.add(t.id);
+    if (t.status_pagamento === "RECEBIDO") p(u.nome_da_praca).pago += N(f.valor_cac);
+    else p(u.nome_da_praca).emAberto += N(f.valor_cac);
+  }
+  for (const x of partners.values()) x.semTitulo = Math.max(0, x.cobrado - x.pago - x.emAberto);
+  const cacPartners = [...partners.values()]
+    .filter((x) => x.cobrado > 0 || x.pago > 0)
+    .sort((a, b) => b.cobrado - a.cobrado);
+
+  // ---- faturado pela unidade aos clientes (Omie da unidade)
+  const fat = new Map<string, FaturadoMes & { fc: Set<string>; pc: Set<string> }>();
+  for (const t of omieUnidades as any[]) {
+    const u = porChave.get(chaveNome(t.unidade));
+    if (!u || !t.data_vencimento) continue;
+    const mes = mesDe(t.data_vencimento);
+    const k = `${u.nome_da_praca}|${mes}`;
+    const x = fat.get(k) ?? {
+      unidade: u.nome_da_praca,
+      mes,
+      faturado: 0,
+      recebidoOmie: 0,
+      clientesFaturados: 0,
+      clientesPagaram: 0,
+      fc: new Set<string>(),
+      pc: new Set<string>(),
+    };
+    const cli = digitos(t.cpf_cnpj) ?? chaveNome(t.cliente);
+    x.faturado += N(t.valor);
+    x.fc.add(cli);
+    if (t.status_pagamento === "RECEBIDO") {
+      x.recebidoOmie += N(t.valor);
+      x.pc.add(cli);
+    }
+    fat.set(k, x);
+  }
+  const faturado: FaturadoMes[] = [...fat.values()].map(({ fc, pc, ...x }) => ({
+    ...x,
+    clientesFaturados: fc.size,
+    clientesPagaram: pc.size,
+  }));
+  const comOmie = [...new Set(faturado.map((x) => x.unidade))].sort();
+
   const meses = [...linhas.values()].sort(
     (a, b) => a.unidade.localeCompare(b.unidade) || a.mes.localeCompare(b.mes),
   );
@@ -402,6 +564,9 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     meses,
     clientes,
     cac,
+    cacPartners,
+    faturado,
+    comOmie,
     inicio: mesDe(INICIO),
     geradoEm: new Date().toISOString(),
   };
