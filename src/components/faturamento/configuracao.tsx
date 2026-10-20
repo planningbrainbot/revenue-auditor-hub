@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Search, UserPlus } from "lucide-react";
@@ -60,7 +60,7 @@ import {
   StatusBadge,
 } from "@/components/planning";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
-import { useConfigFaturamento, useReler } from "@/hooks/use-faturamento";
+import { useConfigFaturamento, usePedidosFaturamento, useReler } from "@/hooks/use-faturamento";
 import {
   AJUDA_PAPEL,
   filtrarEmpresas,
@@ -315,7 +315,11 @@ function FichaDaEmpresa({ e, config }: { e: EmissoraConfig; config: ConfigFatura
       </SheetHeader>
       <Pessoas e={e} config={config} />
       <Servicos e={e} />
-      <OmieEPipefy e={e} podeGravar={config.pode_gravar_omie} />
+      <OmieEPipefy
+        e={e}
+        podeGravar={config.pode_gravar_omie}
+        podeLigarPipefy={config.pode_ligar_pipefy ?? true}
+      />
     </div>
   );
 }
@@ -410,6 +414,18 @@ function Pessoas({ e, config }: { e: EmissoraConfig; config: ConfigFaturamento }
               papel, desative e adicione de novo.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {desativar?.papel === "dono" && (desativar.aguardando_ok ?? 0) > 0 && (
+            // Pedidos que esperam o OK desta pessoa: Aguardando OK com ela de dona. `pendencia=ok` não serve,
+            // porque conta os que esperam o OK de quem está olhando (API §1.1).
+            <Link
+              to="/faturamento/pedidos"
+              search={{ situacao: "aguardando_ok", emissora: e.apelido, dono: desativar.pessoa.id }}
+              className="text-sm text-primary-text underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Ver {desativar.aguardando_ok === 1 ? "o pedido que espera" : "os pedidos que esperam"}{" "}
+              o OK de {desativar.pessoa.nome}
+            </Link>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction
@@ -437,7 +453,8 @@ function DialogAdicionar({
   const [busca, setBusca] = useState("");
   const [pessoaId, setPessoaId] = useState<string | null>(null);
   const [papel, setPapel] = useState<PapelEmissora>("solicitante");
-  const [substituto, setSubstituto] = useState<string | null>(null);
+  // `undefined` = ainda não escolhido (vale o padrão, o gestor); `null` = "Sem substituto", escolhido de propósito.
+  const [substituto, setSubstituto] = useState<string | null | undefined>(undefined);
   const semAcento = (s: string) =>
     s
       .normalize("NFD")
@@ -450,7 +467,12 @@ function DialogAdicionar({
     )
     .slice(0, 8);
   const pessoa = config.pessoas_ativas.find((p) => p.id === pessoaId) ?? null;
-  const subst = papel === "dono" ? (substituto ?? substitutoPadrao(e, pessoaId)) : null;
+  const subst =
+    papel === "dono"
+      ? substituto === undefined
+        ? substitutoPadrao(e, pessoaId)
+        : substituto
+      : null;
 
   const salvar = useMudanca(
     async () =>
@@ -861,7 +883,17 @@ function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   );
 }
 
-function OmieEPipefy({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean }) {
+const SO_ATIVADORES = "Só quem está na lista de ativadores do portal (hoje, o Pedro)";
+
+function OmieEPipefy({
+  e,
+  podeGravar,
+  podeLigarPipefy,
+}: {
+  e: EmissoraConfig;
+  podeGravar: boolean;
+  podeLigarPipefy: boolean;
+}) {
   const configurarFn = useServerFn(configurarEmissoraFaturamento);
   const [confirmar, setConfirmar] = useState<null | "gravar" | "simular" | "pipefy">(null);
   const mudarEmissora = useMudanca(
@@ -873,6 +905,21 @@ function OmieEPipefy({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean
     (r) =>
       `${r.apelido}: Omie ${r.modo_omie === "gravar" ? "gravando" : "em simulação"} · Pipefy ${r.pipefy_sync ? "ligado" : "desligado"}.`,
   );
+  // "Os {n} pedidos simulados continuam simulados" (contrato): o total de `fat_pedidos` com simulação, só
+  // quando o diálogo de gravar abre.
+  const simulados = usePedidosFaturamento(
+    { simulacao: true, emissoras: [e.id], por_pagina: 1, pagina: 1 },
+    confirmar === "gravar",
+  );
+  const nSimulados = simulados.isPlaceholderData ? undefined : simulados.data?.total;
+  const fraseSimulados =
+    nSimulados === undefined
+      ? "Os pedidos já simulados continuam simulados e não vão ao Omie."
+      : nSimulados === 0
+        ? "Não há pedido simulado na empresa."
+        : nSimulados === 1
+          ? "O pedido simulado continua simulado e não vai ao Omie."
+          : `Os ${nSimulados} pedidos simulados continuam simulados e não vão ao Omie.`;
   const semChave = `A ${e.apelido} não tem chave do Omie no cofre`;
   const omie = e.omie;
   const leitura =
@@ -924,7 +971,7 @@ function OmieEPipefy({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean
           ) : e.modo_omie === "simular" && !podeGravar ? (
             <BotaoComMotivo
               rotulo="Simulação"
-              motivo="Só o administrador do Brain liga a gravação no Omie (trava da E1)"
+              motivo={`${SO_ATIVADORES} liga a gravação no Omie (trava da E1)`}
               variant="outline"
               size="sm"
             />
@@ -945,6 +992,14 @@ function OmieEPipefy({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean
             <BotaoComMotivo
               rotulo={e.pipefy_sync ? "Ligado" : "Desligado"}
               motivo={semChave}
+              variant="outline"
+              size="sm"
+            />
+          ) : !e.pipefy_sync && !podeLigarPipefy ? (
+            // Desligar continua com a controladoria; ligar é só dos ativadores.
+            <BotaoComMotivo
+              rotulo="Desligado"
+              motivo={`${SO_ATIVADORES} liga o Pipefy (trava da E1)`}
               variant="outline"
               size="sm"
             />
@@ -976,7 +1031,7 @@ function OmieEPipefy({ e, podeGravar }: { e: EmissoraConfig; podeGravar: boolean
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmar === "gravar"
-                ? `A partir de agora, todo pedido da ${e.apelido} que receber o OK cria cliente e OS de verdade no Omie da ${e.apelido}, e o Faturar da tesouraria emite nota. Os pedidos já simulados continuam simulados e não vão ao Omie.`
+                ? `A partir de agora, todo pedido da ${e.apelido} que receber o OK cria cliente e OS de verdade no Omie da ${e.apelido}, e o Faturar da tesouraria emite nota. ${fraseSimulados}`
                 : confirmar === "simular"
                   ? `Os próximos envios da ${e.apelido} voltam a ser simulados. O que já foi ao Omie fica lá.`
                   : `Cada pedido novo da ${e.apelido} passa a criar um card no pipe Contas a Receber e a mover a fase a cada mudança (OS criada, faturado, recebido). Os pedidos já enviados não ganham card.`}

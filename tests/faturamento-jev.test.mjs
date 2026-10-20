@@ -14,6 +14,7 @@ import {
   lerConferencia,
   lerSugestao,
   limparTexto,
+  pedacosDoNome,
   pedidoConferencia,
   pedidoSugestao,
   preFiltrar,
@@ -94,6 +95,54 @@ test("limparTexto tira documento, e-mail, telefone, link e o nome do cliente", (
   );
   // Palavra comum não vira documento.
   assert.equal(limparTexto("Reprocessamento contábil de 2025"), "Reprocessamento contábil de 2025");
+});
+
+test("pedaços do nome: palavras de 3 letras ou mais, sem acento, da mais longa para a mais curta", () => {
+  assert.deepEqual(
+    pedacosDoNome([
+      "FORTALEZA EMPREENDIMENTOS IMOBILIARIOS LTDA",
+      "Fortaleza Empreendimentos",
+      null,
+    ]),
+    ["empreendimentos", "imobiliarios", "fortaleza"],
+  );
+  // Preposição, artigo e tipo de sociedade não identificam; palavra de 1 ou 2 letras também não.
+  assert.deepEqual(pedacosDoNome(["Casa das Artes do Sul S.A. EIRELI"]), ["artes", "casa", "sul"]);
+  assert.deepEqual(pedacosDoNome(["João Lúcio"]), ["lucio", "joao"]);
+  assert.deepEqual(pedacosDoNome([undefined, ""]), []);
+});
+
+test("o nome do cliente sai aos pedaços: Grupo Fortaleza com o tomador FORTALEZA EMPREENDIMENTOS (M6)", () => {
+  const nomes = ["FORTALEZA EMPREENDIMENTOS IMOBILIARIOS LTDA"];
+  const projeto = limparTexto("Grupo Fortaleza · reestruturação societária", nomes);
+  assert.ok(!/fortaleza/i.test(projeto), projeto);
+  assert.equal(projeto, "Grupo [cliente] · reestruturação societária");
+  // Acento e caixa não salvam o nome; palavras seguidas viram um marcador só.
+  assert.equal(
+    limparTexto("Consultoria para a Fortaléza Empreendimentos Imobiliários, 2026", nomes),
+    "Consultoria para a [cliente], 2026",
+  );
+  // Pedaço dentro de outra palavra fica (não é o nome): "Fortalezas" não é "Fortaleza".
+  assert.equal(limparTexto("Fortalezas do Norte", nomes), "Fortalezas do Norte");
+  // O que vai ao Jev (sugestão e conferência) já sai sem o nome.
+  const servicos = [servico(1, "Assessoria societária")];
+  const sug = pedidoSugestao({
+    descricao: "Reestruturação da Fortaleza Empreendimentos",
+    projeto: "Grupo Fortaleza",
+    servicos,
+    nomesParaTirar: nomes,
+  });
+  assert.ok(
+    !/fortaleza|empreendimentos/i.test(JSON.stringify(sug.pedido)),
+    JSON.stringify(sug.pedido),
+  );
+  const conf = pedidoConferencia({
+    descricao: "Reestruturação da Fortaleza Empreendimentos",
+    servico: servicos[0],
+    valor: 1000,
+    nomesParaTirar: nomes,
+  });
+  assert.ok(!/fortaleza|empreendimentos/i.test(JSON.stringify(conf)), JSON.stringify(conf));
 });
 
 test("até 25 serviços, todos viram opção, mais `nenhum`; a chave é o código do serviço", () => {

@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** tesouraria (a pessoa do contas a receber indicada pela Ana), Ana Carvalhais (controladoria)   **Dono do código:** Pedro Luca; merge do Eliezek   **Data:** 20/10/2026
 
-**Estado:** rascunho. Aguarda o "contrato ok" do dono (`PROCESSO.md` §4). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
+**Estado:** aprovado pelo Pedro em 20/10/2026 (commit `d1ffd28`). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
 
 ## Propósito
 - **Pergunta (`<h1>`):** "Qual pedido eu confiro e faturo agora?"
@@ -126,6 +126,14 @@ Faturamento feito direto no Omie (RF-P08): a leitura de status detecta, o pedido
 2. **Devolver depois da OS criada:** ver `faturamento-pedido.md`, lacuna 3. Decidir na T2 se o reenvio corrigido altera a OS ou se a tesouraria a exclui antes.
 3. **Empresa com o Omie indisponível:** a fila precisa saber, por empresa, se o conector a marcou como indisponível (spec §8: 403 ou "aplicativo suspenso" param a fila dela), para a ficha da empresa mostrar.
 4. **Atualizar a situação sob demanda (RF-P09):** o mesmo da Ficha (`faturamento-pedido.md`, lacuna 1), aqui por empresa: "Atualizar agora" na `procedencia`.
+
+## Divergências registradas na implementação (20/10/2026)
+1. **"Abrir no Omie" virou "Copiar número da OS"**, como na Ficha (`faturamento-pedido.md`, Divergências 1): o conector não devolve link estável da OS. O painel do pedido mostra as mesmas linhas da Ficha para o Omie: cliente (já existia ou cadastrado pelo portal), OS e nota.
+2. **"Todas" com contagem:** a ficha "Todas" soma o trabalho de cada empresa (as contagens por empresa não se sobrepõem, cada pedido é de uma empresa).
+3. **Grupo "Em conferência":** com `?situacao=para_faturar&incluir=em_conferencia` (o destino do "Para faturar" de Meu faturamento), a Fila mostra também um grupo "Em conferência" depois dos dias, e o resumo diz "N pedidos para faturar e M em conferência". Tirar o chip limpa os dois.
+4. **Releitura:** a Fila relê sozinha a cada 15 s enquanto houver pedido faturando ou na fila do Omie. Enquanto a lista do filtro novo não chega, a tabela dá lugar ao carregando e "Reenviar os erros" some, para não agir sobre a contagem do filtro anterior.
+5. **Card do Pipefy em erro (banco da revisão de 20/10/2026):** a coluna "Onde parou" ganha "Pipefy recusou o card: '{erro}'" (`itens[].pipefy_erro`). Sem outro botão na linha, o botão é "Reenviar o card" e a próxima ação diz "Reenviar o card do Pipefy"; com outro botão, o reenvio do card fica no painel do pedido, na linha do Pipefy (que só entra no painel quando está em erro).
+6. **Pedir cancelamento recusado durante o faturamento:** como na Ficha (`faturamento-pedido.md`, Divergências 5): o diálogo fecha e o `toast` mostra a frase do banco.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

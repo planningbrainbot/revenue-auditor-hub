@@ -91,6 +91,7 @@ import { procedenciaFaturamento } from "@/lib/faturamento/rotulos";
 import type { FilaTesouraria as Fila, ItemFila } from "@/lib/faturamento/tipos";
 import { useAcaoPedido } from "@/hooks/use-acao-pedido";
 import { BotoesDoPedido, DialogosDoPedido } from "./acoes-pedido";
+import { LinhasDoOmie } from "./omie-linhas";
 import { AREA_FATURAMENTO, ErroDaArea, PaginaFaturamento, SeloSituacao } from "./moldura";
 
 /**
@@ -132,6 +133,17 @@ export function FilaDaTesouraria({ busca }: { busca: BuscaFila }) {
   const foraDoRecorte = !!busca.emissora && busca.emissora !== "todas" && !!ctx && !escolhida;
   const filtro = useMemo(() => filtroDaFila(busca), [busca]);
   const fila = useFilaTesouraria(escolhida?.id ?? null, filtro, !!ctx && !foraDoRecorte);
+  // O "Para faturar" de Meu faturamento conta também Em conferência: com `incluir`, a fila traz esse grupo à
+  // parte, para os pedidos mostrados serem os mesmos do número clicado.
+  const filtroConferencia = useMemo(
+    () => ({ ...filtroDaFila({ ...busca, situacao: "em_conferencia" as const }) }),
+    [busca],
+  );
+  const conferencia = useFilaTesouraria(
+    escolhida?.id ?? null,
+    filtroConferencia,
+    !!ctx && !foraDoRecorte && busca.incluir === "em_conferencia",
+  );
 
   const mudar = (parcial: Partial<BuscaFila>) =>
     void navigate({
@@ -147,6 +159,16 @@ export function FilaDaTesouraria({ busca }: { busca: BuscaFila }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca.emissora, fila.data]);
 
+  // A procedência fala das empresas da fila escolhida (contrato: "Omie da DOC lido às 14:00; próxima
+  // leitura às 18:00 · DOC em simulação").
+  const daFila = escolhida ? [escolhida] : recorte;
+  const procedenciaDaFila = ctx
+    ? procedenciaFaturamento({
+        ...ctx,
+        emissoras: daFila,
+        simulacao: daFila.filter((e) => e.modo_omie === "simular").map((e) => e.apelido),
+      })
+    : procedenciaFaturamento(undefined);
   const descricao = `Pedidos que chegaram à tesouraria · ${escolhida ? escolhida.apelido : "todas as empresas do seu recorte"} · por dia de chegada · pedido`;
   const cabecalho = (acoes?: ReactNode) => (
     <PageHeader
@@ -154,7 +176,7 @@ export function FilaDaTesouraria({ busca }: { busca: BuscaFila }) {
       titulo={TITULO}
       pergunta={PERGUNTA}
       descricao={ctx ? descricao : undefined}
-      procedencia={procedenciaFaturamento(ctx)}
+      procedencia={procedenciaDaFila}
       acoes={acoes}
     />
   );
@@ -193,11 +215,13 @@ export function FilaDaTesouraria({ busca }: { busca: BuscaFila }) {
     );
 
   const f = fila.data;
-  const procedencia = procedenciaFaturamento(ctx);
+  // Troca de filtro com a resposta do filtro anterior na mão: a tabela, os totais e as ações esperam.
+  const atualizando =
+    fila.isPlaceholderData || (busca.incluir === "em_conferencia" && conferencia.isPending);
   return (
     <PaginaFaturamento>
       {cabecalho(
-        escolhida && f.higiene.erro > 0 ? (
+        escolhida && f.higiene.erro > 0 && !fila.isPlaceholderData ? (
           <ReenviarErros emissoraId={escolhida.id} apelido={escolhida.apelido} n={f.higiene.erro} />
         ) : undefined,
       )}
@@ -208,17 +232,36 @@ export function FilaDaTesouraria({ busca }: { busca: BuscaFila }) {
       />
       <Ritmo fila={f} busca={busca} mudar={mudar} />
       <Higiene fila={f} busca={busca} mudar={mudar} />
-      <Filtros busca={busca} mudar={mudar} total={f.total} totalFila={f.total_fila} />
-      <Tabela
-        fila={f}
+      <Filtros
         busca={busca}
-        mostraEmpresa={!escolhida}
-        abrir={(id) => mudar({ pedido: id })}
-        limpar={() =>
-          mudar({ situacao: undefined, higiene: undefined, dia: undefined, busca: undefined })
+        mudar={mudar}
+        total={atualizando ? null : f.total}
+        totalFila={f.total_fila}
+        emConferencia={
+          busca.incluir === "em_conferencia" ? (conferencia.data?.total ?? null) : null
         }
       />
-      <Procedencia fonte={procedencia.fonte} atualizadoEm={f.lido_em} />
+      {atualizando ? (
+        <Carregando variante="tabela" />
+      ) : (
+        <Tabela
+          fila={f}
+          extra={busca.incluir === "em_conferencia" ? (conferencia.data?.itens ?? []) : undefined}
+          busca={busca}
+          mostraEmpresa={!escolhida}
+          abrir={(id) => mudar({ pedido: id })}
+          limpar={() =>
+            mudar({
+              situacao: undefined,
+              incluir: undefined,
+              higiene: undefined,
+              dia: undefined,
+              busca: undefined,
+            })
+          }
+        />
+      )}
+      <Procedencia fonte={procedenciaDaFila.fonte} atualizadoEm={f.lido_em} />
       <SheetDoPedido
         id={busca.pedido ?? null}
         volta={hrefFila(busca)}
@@ -271,7 +314,14 @@ function SeletorEmpresa({
           atual === e.apelido,
         ),
       )}
-      {ficha("todas", "Todas", atual === "todas")}
+      {/* "Todas" com a contagem (contrato): a soma das contagens do banco por empresa, que não se sobrepõem. */}
+      {ficha(
+        "todas",
+        <>
+          Todas <span className="num">{fila.emissoras.reduce((n, e) => n + e.trabalho, 0)}</span>
+        </>,
+        atual === "todas",
+      )}
     </div>
   );
 }
@@ -370,11 +420,15 @@ function Filtros({
   mudar,
   total,
   totalFila,
+  emConferencia,
 }: {
   busca: BuscaFila;
   mudar: (p: Partial<BuscaFila>) => void;
-  total: number;
+  /** `null` enquanto a resposta ainda é do filtro anterior. */
+  total: number | null;
   totalFila: number;
+  /** Com o grupo "Em conferência" (o "Para faturar" de Meu faturamento), a contagem dele. */
+  emConferencia: number | null;
 }) {
   const situacao = SITUACOES_FILA.find((s) => s.valor === busca.situacao);
   const higiene = HIGIENES.find((h) => h.valor === busca.higiene);
@@ -447,8 +501,12 @@ function Filtros({
         {situacao && (
           <ChipFiltro
             rotulo="Situação"
-            valor={situacao.rotulo}
-            aoRemover={() => mudar({ situacao: undefined })}
+            valor={
+              busca.incluir === "em_conferencia"
+                ? `${situacao.rotulo} + Em conferência`
+                : situacao.rotulo
+            }
+            aoRemover={() => mudar({ situacao: undefined, incluir: undefined })}
           />
         )}
         {higiene && (
@@ -472,9 +530,13 @@ function Filtros({
             aoRemover={() => mudar({ busca: undefined })}
           />
         )}
-        <span className="num ml-auto text-[13px] text-muted-foreground">
-          {contagem(total, "pedido")} de {totalFila} na fila
-        </span>
+        {total !== null && (
+          <span className="num ml-auto text-[13px] text-muted-foreground">
+            {busca.incluir === "em_conferencia" && emConferencia !== null
+              ? `${contagem(total, "pedido")} para faturar e ${emConferencia} em conferência, de ${totalFila} na fila`
+              : `${contagem(total, "pedido")} de ${totalFila} na fila`}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -484,12 +546,15 @@ function Filtros({
 
 function Tabela({
   fila,
+  extra,
   busca,
   mostraEmpresa,
   abrir,
   limpar,
 }: {
   fila: Fila;
+  /** O grupo "Em conferência" que vai junto do "Para faturar" de Meu faturamento. */
+  extra?: ItemFila[];
   busca: BuscaFila;
   mostraEmpresa: boolean;
   abrir: (id: string) => void;
@@ -502,8 +567,12 @@ function Tabela({
     alvo: AlvoPedido;
   } | null>(null);
   const [focar, setFocar] = useState<string | null>(null);
-  const ordem = fila.itens.map((i) => i.id);
-  const acao = useAcaoPedido(() => setPendente(null));
+  const todos = [...fila.itens, ...(extra ?? [])];
+  const ordem = todos.map((i) => i.id);
+  const acao = useAcaoPedido(
+    () => setPendente(null),
+    () => setPendente(null),
+  );
 
   // "Depois de agir numa linha, o foco vai para a seguinte" (onde parei).
   useEffect(() => {
@@ -527,7 +596,7 @@ function Tabela({
         descricao={`Faturados hoje: ${fila.ritmo.faturados_hoje.quantidade}.`}
       />
     );
-  if (fila.itens.length === 0)
+  if (todos.length === 0)
     return (
       <EstadoVazio
         titulo="Nenhum pedido encontrado"
@@ -540,7 +609,10 @@ function Tabela({
       />
     );
 
-  const grupos = gruposPorDia(fila.itens, hoje);
+  const grupos = [
+    ...gruposPorDia(fila.itens, hoje),
+    ...(extra?.length ? [{ dia: "em-conferencia", rotulo: "Em conferência", itens: extra }] : []),
+  ];
   const colunas = mostraEmpresa ? 11 : 10;
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
@@ -615,14 +687,17 @@ function Tabela({
                     <span className="flex flex-wrap items-center gap-1">
                       <SeloSituacao situacao={i.status} />
                       {i.simulacao && i.status !== "simulado" && (
-                        <StatusBadge tom="info" icone={false}>
-                          em simulação
-                        </StatusBadge>
+                        <StatusBadge tom="info">em simulação</StatusBadge>
                       )}
                     </span>
                   </TableCell>
                   <TableCell className="min-w-[12rem] text-[13px]">
                     {textoOndeParou(i, hoje)}
+                    {i.pipefy_erro && (
+                      <span className="block text-danger">
+                        Pipefy recusou o card: &lsquo;{i.pipefy_erro}&rsquo;
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="min-w-[10rem] text-[13px]">
                     {textoProximaAcao(i, hoje, agora)}
@@ -640,7 +715,7 @@ function Tabela({
                             : undefined
                         }
                       >
-                        {ocupado ? "Enviando…" : ROTULO_BOTAO[b]}
+                        {ocupado ? (b === "faturar" ? "Faturando…" : "Enviando…") : ROTULO_BOTAO[b]}
                       </Button>
                     )}
                   </TableCell>
@@ -878,11 +953,11 @@ function ResumoParaConferir({ f }: { f: NonNullable<ReturnType<typeof useFichaPe
               ))}
             </dl>
           </>
-        ) : p.omie.os_codigo ? (
-          `OS ${p.omie.os_codigo}${p.omie.os_etapa ? ` · etapa ${p.omie.os_etapa}` : ""}`
-        ) : (
-          "Ainda não há OS no Omie."
-        )}
+        ) : null}
+        {/* O cliente no Omie (já existia ou cadastrado pelo portal), a OS e a nota: as linhas da Ficha. */}
+        <div className="mt-2">
+          <LinhasDoOmie ficha={f} compacto soOmie />
+        </div>
       </Bloco>
     </div>
   );

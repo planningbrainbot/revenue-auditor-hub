@@ -4,8 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  avisoDoVencimento,
   competenciaDoFormulario,
   dadosParaSalvar,
+  dataValida,
   descricaoPadrao,
   documentoValido,
   emailValido,
@@ -19,8 +21,10 @@ import {
   mascararDocumento,
   normalizarDocumento,
   normalizarProjeto,
+  opcoesDeCompetencia,
   parcelasDoFormulario,
   pendenciasLocais,
+  previaPronta,
   resumoParcelas,
   rotuloEnviar,
   tipoDoDocumento,
@@ -364,4 +368,68 @@ test("limite de chamadas à CNPJá: janela deslizante", () => {
   assert.equal(l.tentar(3_000), false);
   assert.equal(l.tentar(60_001), true); // a primeira saiu da janela
   assert.equal(l.tentar(60_002), false);
+});
+
+test("parcelas fora de 1 a 36 vão como null: o rascunho se salva e a pendência fica no campo (T-B2)", () => {
+  for (const ruim of ["", " ", "0", "37", "-1", "2,5", "abc"])
+    assert.equal(parcelasDoFormulario({ forma: "parcelado", parcelas: ruim }), null, `"${ruim}"`);
+  assert.equal(parcelasDoFormulario({ forma: "parcelado", parcelas: "36" }), 36);
+  const salvar = dadosParaSalvar(completo({ forma: "parcelado", parcelas: "" }));
+  assert.equal(salvar.parcelas, null);
+  assert.deepEqual(
+    errosDoCampo(pendenciasLocais(completo({ forma: "parcelado", parcelas: "" }), {}), "parcelas"),
+    ["Parcelado vai de 2 a 36 parcelas."],
+  );
+});
+
+test("datas: ano de 2000 a 2100 e dia que existe; a data ruim não vai ao banco", () => {
+  assert.equal(dataValida("2026-10-21"), true);
+  assert.equal(dataValida("2028-02-29"), true);
+  for (const ruim of [
+    "0026-10-21",
+    "2026-02-30",
+    "2027-02-29",
+    "2026-13-01",
+    "2026-10-00",
+    "2101-01-01",
+    "",
+    null,
+  ])
+    assert.equal(dataValida(ruim), false, String(ruim));
+  assert.equal(
+    dadosParaSalvar(completo({ primeiro_vencimento: "0026-10-21" })).primeiro_vencimento ?? null,
+    null,
+  );
+  assert.deepEqual(
+    errosDoCampo(
+      pendenciasLocais(completo({ primeiro_vencimento: "0026-10-21" }), {}),
+      "primeiro_vencimento",
+    ),
+    ["Data inválida: confira o dia, o mês e o ano."],
+  );
+});
+
+test("prévia pronta: a mesma regra do hook (valor > 0, 1 a 36 parcelas, 1º vencimento válido)", () => {
+  assert.equal(previaPronta(1500, 3, "2026-11-13"), true);
+  assert.equal(previaPronta(0, 3, "2026-11-13"), false);
+  assert.equal(previaPronta(null, 3, "2026-11-13"), false);
+  assert.equal(previaPronta(1500, null, "2026-11-13"), false);
+  assert.equal(previaPronta(1500, 37, "2026-11-13"), false);
+  assert.equal(previaPronta(1500, 3, "0026-11-13"), false);
+  assert.equal(previaPronta(1500, 3, null), false);
+});
+
+test("1º vencimento no passado só avisa; competência com 12 meses para trás e 24 para a frente", () => {
+  assert.equal(avisoDoVencimento("2026-10-19", "2026-10-20"), "O 1º vencimento já passou.");
+  assert.equal(avisoDoVencimento("2026-10-20", "2026-10-20"), null);
+  assert.equal(avisoDoVencimento("0026-10-19", "2026-10-20"), null);
+  const meses = opcoesDeCompetencia("2026-10");
+  assert.equal(meses.length, 37);
+  assert.deepEqual(meses[0], { valor: "2025-10", rotulo: "out/2025" });
+  assert.deepEqual(meses[12], { valor: "2026-10", rotulo: "out/2026" });
+  assert.deepEqual(meses.at(-1), { valor: "2028-10", rotulo: "out/2028" });
+  // A competência do pedido fora da faixa entra, em ordem.
+  const comVelha = opcoesDeCompetencia("2026-10", "2024-03");
+  assert.equal(comVelha.length, 38);
+  assert.deepEqual(comVelha[0], { valor: "2024-03", rotulo: "mar/2024" });
 });

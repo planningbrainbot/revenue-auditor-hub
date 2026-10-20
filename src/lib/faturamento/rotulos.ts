@@ -255,6 +255,42 @@ export function fraseSimulacao(apelidos: string[]): string | null {
 
 const OITO_HORAS = 8 * 60 * 60 * 1000;
 
+/** Os horários da leitura de situação do Omie (cron do conector: 8h, 12h e 16h de São Paulo, de segunda a sexta). */
+export const HORARIOS_LEITURA = [8, 12, 16];
+
+/**
+ * A próxima leitura de situação do Omie depois de `agora`, como "às 16:00" (hoje) ou "em 23/10 às 08:00".
+ * Feriado ainda conta como dia útil (o calendário é da E3).
+ */
+export function proximaLeitura(agora: Date): string {
+  const sp = (d: Date) => {
+    const p = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(d);
+    const v = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+    return { semana: v("weekday"), hora: Number(v("hour")), minuto: Number(v("minute")) };
+  };
+  const agoraSP = sp(agora);
+  const util = (s: string) => s !== "Sat" && s !== "Sun";
+  // Procura dia a dia (até 4 dias à frente basta para atravessar um fim de semana).
+  for (let dia = 0; dia < 5; dia++) {
+    const d = new Date(agora.getTime() + dia * 24 * 60 * 60 * 1000);
+    const s = sp(d);
+    if (!util(s.semana)) continue;
+    const hora = HORARIOS_LEITURA.find(
+      (h) => dia > 0 || h * 60 > agoraSP.hora * 60 + agoraSP.minuto,
+    );
+    if (hora === undefined) continue;
+    const hh = `${String(hora).padStart(2, "0")}:00`;
+    return dia === 0 ? `às ${hh}` : `em ${diaMes(d)} às ${hh}`;
+  }
+  return "no próximo dia útil";
+}
+
 function maisRecente(datas: (string | null | undefined)[]): string | null {
   let melhor: string | null = null;
   let melhorMs = -Infinity;
@@ -314,10 +350,16 @@ export interface LinhaAtencao {
   /**
    * Quando o destino é a Fila da tesouraria e não Pedidos. Só o "Erro no Omie" de quem é só tesouraria: a
    * contagem de `fat_contexto` para ela é todo erro do recorte, a mesma da higiene "Erro no Omie" da fila em
-   * "Todas". "Para faturar" fica em Pedidos: o número de `fat_contexto` inclui Em conferência, e a ficha
-   * "Para faturar" da fila não (o total não bateria, N2).
+   * "Todas". O "Para faturar" de quem é só tesouraria abre a Fila em "Para faturar" com o grupo "Em
+   * conferência" junto: o número de `fat_contexto` conta OS criada, Simulado e Em conferência, e assim a fila
+   * mostra os mesmos pedidos (decisão do coordenador de 20/10/2026).
    */
-  fila?: { emissora: "todas"; higiene: "erro" };
+  fila?: {
+    emissora: string;
+    higiene?: "erro";
+    situacao?: "para_faturar";
+    incluir?: "em_conferencia";
+  };
 }
 
 /**
@@ -361,7 +403,8 @@ export function linhasDeAtencao(ctx: Pick<Contexto, "papeis" | "pendencias">): L
       titulo: "Para faturar",
       quantidade: p.para_faturar.quantidade,
       filtro: p.para_faturar.filtro,
-      acao: "Ver os pedidos",
+      acao: "Abrir a fila",
+      fila: { emissora: "todas", situacao: "para_faturar", incluir: "em_conferencia" },
     });
   }
   return linhas.filter((l) => l.quantidade > 0);
@@ -380,7 +423,7 @@ export function procedenciaFaturamento(
 ): { fonte: string; atualizadoEm?: string } {
   if (!ctx) return { fonte: "Portal de Faturamento" };
   const partes = [
-    `Portal de Faturamento · ${fraseLeituraOmie(ctx.emissoras, agora)} (a cada 4 h em dia útil)`,
+    `Portal de Faturamento · ${fraseLeituraOmie(ctx.emissoras, agora)}; a próxima leitura é ${proximaLeitura(agora)} (a cada 4 h em dia útil)`,
     fraseSimulacao(ctx.simulacao),
   ].filter(Boolean);
   return { fonte: partes.join(" · "), atualizadoEm: ctx.lido_em };

@@ -260,8 +260,12 @@ export type SituacaoParcela = "a_vencer" | "pago" | "em_atraso" | "cancelado";
 export interface ContratoOutraEmissora {
   emissora: EmissoraRef;
   unidade?: string | null;
-  numero: string | null;
-  valor_mensal: number | null;
+  /**
+   * O número e o valor do contrato só vêm quando a pessoa tem papel na outra empresa também; sem isso o banco
+   * diz só que existe contrato vigente lá (revisão da E1, M5).
+   */
+  numero?: string | null;
+  valor_mensal?: number | null;
   vigencia_inicial?: string | null;
   vigencia_final: string | null;
 }
@@ -348,7 +352,9 @@ export type AcaoFicha =
   | "confirmar_cancelamento"
   | "conferir"
   | "faturar"
-  | "atualizar_status";
+  | "atualizar_status"
+  /** Tesouraria: o envio do card ao Pipefy deu erro e volta para a fila (`fat_tesouraria_acao`). */
+  | "reenviar_pipefy";
 
 export interface FichaPedido {
   pedido: {
@@ -474,6 +480,8 @@ export interface ItemFila {
   faturando: boolean;
   conferido_por: Pessoa | null;
   erro_legivel: string | null;
+  /** O erro legível do último envio do Pipefy em erro; `null` sem erro (revisão de 20/10/2026). */
+  pipefy_erro?: string | null;
   onde_parou: { evento: string; em: string; autor: Pessoa | null; motivo: string | null } | null;
   proxima_acao: {
     acao: AcaoProximoPasso | null;
@@ -544,6 +552,7 @@ export interface Tomador {
   bloqueio: { motivo: string } | null;
   contratos_outra_emissora: ContratoOutraEmissora[];
   contratos_lidos_em: string | null;
+  /** Desde a revisão de 20/10/2026 vem sempre `null` (o cadastro da base não sai do banco por aqui). */
   base: { empresa_id: number; razao_social: string | null; uf: string | null } | null;
 }
 
@@ -618,7 +627,7 @@ export interface PedidoMudou {
   simulacao_emissora?: boolean;
   /** `fat_pedido_devolver`. */
   devolvido_a?: Pessoa | null;
-  /** `fat_pedido_reenviar`. */
+  /** `fat_pedido_reenviar` e `fat_tesouraria_acao('reenviar_pipefy')`. */
   reenfileirados?: number;
   /** `fat_tesouraria_acao`. */
   faturando?: boolean;
@@ -682,7 +691,13 @@ export interface EmissoraConfig {
 }
 
 export interface ConfigFaturamento {
+  /**
+   * Ligar "Gravar no Omie" e ligar o Pipefy: só quem está em `receita.fat_ativadores` (hoje, o Pedro), nem outro
+   * admin do Brain. Desligar continua com a controladoria (revisão de 20/10/2026).
+   */
   pode_gravar_omie: boolean;
+  /** Sem o campo (banco anterior à revisão), a tela deixa ligar e mostra o erro do banco. */
+  pode_ligar_pipefy?: boolean;
   emissoras: EmissoraConfig[];
   pessoas_ativas: (Pessoa & { email: string | null; abre_faturamento: boolean })[];
 }

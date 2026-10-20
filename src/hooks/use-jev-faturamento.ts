@@ -38,6 +38,7 @@ export function useAssistenteServico(): AssistenteServico | undefined {
             descricao: e.descricao,
             valor: e.valor,
             nomeCliente: e.nomeCliente,
+            documento: e.documento,
           },
         });
         // Tempo esgotado, falha ou desligado: a tela diz "Não deu para sugerir agora" e segue.
@@ -53,6 +54,7 @@ export function useAssistenteServico(): AssistenteServico | undefined {
             descricao: e.descricao,
             valor: e.valor,
             nomeCliente: e.nomeCliente,
+            documento: e.documento,
           },
         });
         // Só avisa com "não combina" e confiança ≥ 0,7; qualquer falha não mostra nada.

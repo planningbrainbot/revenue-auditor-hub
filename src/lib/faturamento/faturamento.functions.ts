@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { traduzirErroBanco, type Resultado } from "./erros";
+import { fraseDaValidacao, traduzirErroBanco, type Resultado } from "./erros";
 import { dadosDaCnpja, LimiteDeChamadas, URL_CNPJA, USER_AGENT_CNPJA } from "./receita";
 import type {
   CatalogoServicos,
@@ -26,6 +26,18 @@ import type {
   Tomador,
   TomadorConferido,
 } from "./tipos";
+
+/**
+ * O validador zod de cada server function, com a recusa traduzida: sem isto o navegador recebe o JSON cru do
+ * zod (achado B3 da revisão de 20/10/2026). O tipo de entrada continua o do schema.
+ */
+function entrada<T extends z.ZodTypeAny>(schema: T) {
+  return (d: z.input<T>): z.output<T> => {
+    const r = schema.safeParse(d);
+    if (!r.success) throw new Error(fraseDaValidacao(r.error.issues.map((i) => i.path)));
+    return r.data;
+  };
+}
 
 // Server functions do Portal de Faturamento: uma por RPC de tela do contrato da API
 // (`PM Work/execution/portal-faturamento-prd-20261013/e1/API.md` §1), todas com a sessão da pessoa.
@@ -191,12 +203,14 @@ export const carregarContextoFaturamento = createServerFn({ method: "GET" })
 export const carregarResumoFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z
-      .object({
-        periodo: dia.nullable().optional(),
-        emissoras: z.array(uuid).max(50).nullable().optional(),
-      })
-      .strict(),
+    entrada(
+      z
+        .object({
+          periodo: dia.nullable().optional(),
+          emissoras: z.array(uuid).max(50).nullable().optional(),
+        })
+        .strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<Resumo>(
@@ -213,7 +227,7 @@ export const carregarResumoFaturamento = createServerFn({ method: "GET" })
 /** §1.3 · A lista de Pedidos, paginada no servidor. */
 export const carregarPedidosFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ filtro: filtroPedidos }).strict())
+  .inputValidator(entrada(z.object({ filtro: filtroPedidos }).strict()))
   .handler(({ context, data }) =>
     chamar<ListaPedidos>(
       context.supabase,
@@ -226,7 +240,7 @@ export const carregarPedidosFaturamento = createServerFn({ method: "GET" })
 /** §1.4 · A ficha de um pedido. Fora do escopo: `sem_acesso`, sem nenhum dado. */
 export const carregarPedidoFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<FichaPedido>(context.supabase, "fat_pedido", { p_id: data.id }, "A leitura do pedido"),
   );
@@ -235,7 +249,9 @@ export const carregarPedidoFaturamento = createServerFn({ method: "GET" })
 export const carregarFilaTesouraria = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z.object({ emissora: uuid.nullable().optional(), filtro: filtroFila.optional() }).strict(),
+    entrada(
+      z.object({ emissora: uuid.nullable().optional(), filtro: filtroFila.optional() }).strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<FilaTesouraria>(
@@ -249,7 +265,7 @@ export const carregarFilaTesouraria = createServerFn({ method: "GET" })
 /** §1.6 · O catálogo de serviços da emissora (só liberados, no Omie e com tributação). */
 export const carregarServicosFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ emissora: uuid }).strict())
+  .inputValidator(entrada(z.object({ emissora: uuid }).strict()))
   .handler(({ context, data }) =>
     chamar<CatalogoServicos>(
       context.supabase,
@@ -329,13 +345,13 @@ async function consultarEGravarReceita(cnpj: string): Promise<"feita" | "adiada"
  */
 export const conferirTomadorFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
+  // A empresa é obrigatória: o banco confere o papel nela e não abre o cadastro a quem não pede por ela
+  // (achado M5 da revisão de 20/10/2026).
   .inputValidator(
-    z
-      .object({ documento: z.string().trim().min(1).max(30), emissora: uuid.nullable().optional() })
-      .strict(),
+    entrada(z.object({ documento: z.string().trim().min(1).max(30), emissora: uuid }).strict()),
   )
   .handler(async ({ context, data }): Promise<Resultado<TomadorConferido>> => {
-    const args = { p_documento: data.documento, p_emissora: data.emissora ?? null };
+    const args = { p_documento: data.documento, p_emissora: data.emissora };
     const primeira = await chamar<Tomador>(
       context.supabase,
       "fat_tomador",
@@ -364,13 +380,15 @@ export const conferirTomadorFaturamento = createServerFn({ method: "GET" })
 export const previaParcelasFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z
-      .object({
-        valor: z.number().finite().positive(),
-        parcelas: z.number().int().min(1).max(36),
-        primeiroVencimento: dia,
-      })
-      .strict(),
+    entrada(
+      z
+        .object({
+          valor: z.number().finite().positive(),
+          parcelas: z.number().int().min(1).max(36),
+          primeiroVencimento: dia,
+        })
+        .strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<PreviaParcelas>(
@@ -402,7 +420,7 @@ export const carregarConfigFaturamento = createServerFn({ method: "GET" })
 /** §1.10 · Cria (`id` nulo) ou altera um rascunho ou devolvido. Devolve as pendências que barram o envio. */
 export const salvarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: uuid.nullable(), dados: dadosPedido }).strict())
+  .inputValidator(entrada(z.object({ id: uuid.nullable(), dados: dadosPedido }).strict()))
   .handler(({ context, data }) =>
     chamar<PedidoSalvo>(
       context.supabase,
@@ -415,7 +433,7 @@ export const salvarPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.11 · Envia: dono → fila do Omie; outro → OK do dono. Enviar de novo não gera segundo envio (CA-06). */
 export const enviarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<PedidoEnviado>(
       context.supabase,
@@ -428,7 +446,7 @@ export const enviarPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.12 · Dá o OK (dono, substituto ou gestor; nunca quem enviou nem o autor). */
 export const aprovarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
       context.supabase,
@@ -441,7 +459,7 @@ export const aprovarPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.13 · Devolve ao autor. Motivo obrigatório: quem recusa vazio é o banco (CA-10). */
 export const devolverPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: uuid, motivo }).strict())
+  .inputValidator(entrada(z.object({ id: uuid, motivo }).strict()))
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
       context.supabase,
@@ -454,7 +472,7 @@ export const devolverPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.14 · Erro no Omie → fila de novo, na mesma linha e com o mesmo código de integração. */
 export const reenviarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
       context.supabase,
@@ -467,7 +485,7 @@ export const reenviarPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.15 · Descarta (só o autor, rascunho ou devolvido sem OS). Vira cancelado; nada é apagado. */
 export const descartarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
       context.supabase,
@@ -480,7 +498,7 @@ export const descartarPedidoFaturamento = createServerFn({ method: "POST" })
 /** §1.16 · Dono, substituto ou gestor pedem o cancelamento (motivo obrigatório); a tesouraria efetiva. */
 export const cancelarPedidoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: uuid, motivo: motivo.nullable().optional() }).strict())
+  .inputValidator(entrada(z.object({ id: uuid, motivo: motivo.nullable().optional() }).strict()))
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
       context.supabase,
@@ -490,17 +508,22 @@ export const cancelarPedidoFaturamento = createServerFn({ method: "POST" })
     ),
   );
 
-/** §1.17 · Ação da tesouraria: conferir, faturar (enfileira `faturar_os`) ou devolver. */
+/**
+ * §1.17 · Ação da tesouraria: conferir, faturar (enfileira `faturar_os`), devolver ou reenviar o que deu erro
+ * no Pipefy (`reenviar_pipefy`, revisão de 20/10/2026).
+ */
 export const acaoTesourariaFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z
-      .object({
-        id: uuid,
-        acao: z.enum(["em_conferencia", "faturar", "devolver"]),
-        motivo: motivo.nullable().optional(),
-      })
-      .strict(),
+    entrada(
+      z
+        .object({
+          id: uuid,
+          acao: z.enum(["em_conferencia", "faturar", "devolver", "reenviar_pipefy"]),
+          motivo: motivo.nullable().optional(),
+        })
+        .strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<PedidoMudou>(
@@ -514,7 +537,7 @@ export const acaoTesourariaFaturamento = createServerFn({ method: "POST" })
 /** §1.18 · "Atualizar agora": enfileira a leitura da situação no Omie (RF-P09). */
 export const atualizarStatusFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<StatusEnfileirado>(
       context.supabase,
@@ -529,7 +552,7 @@ export const atualizarStatusFaturamento = createServerFn({ method: "POST" })
 /** §1.20 · Cria (sem `id`) ou altera (com `id`: substituto e ativo) dono, gestor ou solicitante. */
 export const salvarDonoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ dados: dadosDono }).strict())
+  .inputValidator(entrada(z.object({ dados: dadosDono }).strict()))
   .handler(({ context, data }) =>
     chamar<DonoSalvo>(
       context.supabase,
@@ -542,7 +565,7 @@ export const salvarDonoFaturamento = createServerFn({ method: "POST" })
 /** §1.21 · Desativa a pessoa na empresa (não apaga). */
 export const removerDonoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(soId)
+  .inputValidator(entrada(soId))
   .handler(({ context, data }) =>
     chamar<DonoRemovido>(
       context.supabase,
@@ -555,7 +578,7 @@ export const removerDonoFaturamento = createServerFn({ method: "POST" })
 /** §1.22 · Liga ou desliga "Aparece no pedido" de um serviço. */
 export const ativarServicoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ id: uuid, ativo: z.boolean() }).strict())
+  .inputValidator(entrada(z.object({ id: uuid, ativo: z.boolean() }).strict()))
   .handler(({ context, data }) =>
     chamar<ServicoAtivado>(
       context.supabase,
@@ -569,13 +592,15 @@ export const ativarServicoFaturamento = createServerFn({ method: "POST" })
 export const padroesServicoFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z
-      .object({
-        id: uuid,
-        categoria: z.string().trim().max(40).nullable(),
-        contaCorrente: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
-      })
-      .strict(),
+    entrada(
+      z
+        .object({
+          id: uuid,
+          categoria: z.string().trim().max(40).nullable(),
+          contaCorrente: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
+        })
+        .strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<ServicoPadroesSalvo>(
@@ -589,7 +614,7 @@ export const padroesServicoFaturamento = createServerFn({ method: "POST" })
 /** §1.24 · Enfileira a leitura do catálogo do Omie da emissora. */
 export const sincronizarServicosFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ emissora: uuid }).strict())
+  .inputValidator(entrada(z.object({ emissora: uuid }).strict()))
   .handler(({ context, data }) =>
     chamar<SincronizacaoPedida>(
       context.supabase,
@@ -603,14 +628,16 @@ export const sincronizarServicosFaturamento = createServerFn({ method: "POST" })
 export const configurarEmissoraFaturamento = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z
-      .object({
-        emissora: uuid,
-        modoOmie: z.enum(["simular", "gravar"]).nullable().optional(),
-        pipefySync: z.boolean().nullable().optional(),
-        faturaPor: z.enum(["os", "contrato", "ambos"]).nullable().optional(),
-      })
-      .strict(),
+    entrada(
+      z
+        .object({
+          emissora: uuid,
+          modoOmie: z.enum(["simular", "gravar"]).nullable().optional(),
+          pipefySync: z.boolean().nullable().optional(),
+          faturaPor: z.enum(["os", "contrato", "ambos"]).nullable().optional(),
+        })
+        .strict(),
+    ),
   )
   .handler(({ context, data }) =>
     chamar<EmissoraConfigurada>(

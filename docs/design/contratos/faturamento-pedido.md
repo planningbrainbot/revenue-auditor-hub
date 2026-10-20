@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** Ana Carvalhais (controladoria), tesouraria, donos da receita   **Dono do código:** Pedro Luca; merge do Eliezek   **Data:** 20/10/2026
 
-**Estado:** rascunho. Aguarda o "contrato ok" do dono (`PROCESSO.md` §4). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
+**Estado:** aprovado pelo Pedro em 20/10/2026 (commit `d1ffd28`). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
 
 ## Propósito
 - **Pergunta (`<h1>`):** "Este pedido já virou nota, e o cliente pagou?"
@@ -134,6 +134,18 @@ Os do Resumo, acima. Nenhum outro número nesta tela.
 1. **"Atualizar agora" (RF-P09, sob demanda) não tem RPC no plano.** Proposta: `ops.fat_pedido_atualizar(p_id)`, que enfileira `consultar_status` daquele pedido, ou uma ação `atualizar` em `fat_tesouraria_acao` aberta a quem vê o pedido.
 2. **`fat_pedido` precisa devolver os envios ao Omie e ao Pipefy com o texto legível de cada etapa** (cliente, OS, nota, card), não só o status cru, e a data da última leitura e da próxima.
 3. **Devolver depois da OS criada:** a OS já está no Omie com o número do pedido como código. Se o autor corrige e reenvia, a idempotência ("já existe conta como sucesso", spec §8) faria o Omie manter a OS antiga com o dado errado. A T2 precisa decidir: alterar a OS no reenvio, ou a tesouraria excluir a OS antes de devolver. Até lá, o diálogo de Devolver avisa: "A OS {nº} continua no Omie da {empresa}; exclua-a lá antes de devolver."
+
+## Divergências registradas na implementação (20/10/2026)
+1. **"Abrir no Omie" virou "Copiar número da OS":** o conector não devolve um link estável da OS no Omie (só o da nota, `nf_link`), e um link montado à mão quebraria. O botão copia o número da OS e o `toast` diz em que Omie buscar. Sem OS (ou em simulação), fica desabilitado com o motivo "Ainda não há OS no Omie" ("Em simulação não há OS no Omie"). Quando o conector trouxer o link, o botão volta a ser "Abrir no Omie".
+2. **"Omie não lido":** a falha vem da última leitura que falhou na empresa do pedido (`fat_contexto.emissoras[].omie.ultima_falha_em`), porque o pedido só guarda a última leitura boa. A linha "Última leitura" diz "Situação lida do Omie às {hora}; a leitura seguinte falhou às {hora}", e a procedência diz o mesmo, com a próxima leitura.
+3. **Em atraso:** a nota conta as parcelas em atraso ("1 parcela"); o valor continua vindo da RPC.
+4. **"Faturando…" e "Na fila":** a Ficha relê sozinha a cada 15 s enquanto o pedido está na fila do Omie, com envio pendente ou com leitura marcada.
+5. **Com o banco da revisão de 20/10/2026 (`20261020220000_portal_faturamento_revisao.sql`):**
+   - **Card do Pipefy em erro:** a linha "Card no Pipefy" ganha "Reenviar o card" (tesouraria, `acoes.reenviar_pipefy`, `fat_tesouraria_acao('reenviar_pipefy')`). Os outros veem o botão desabilitado com o motivo do banco ("Quem reenvia o card do Pipefy é a tesouraria.").
+   - **Envio parado (`bloqueado`):** "Parado: espera {o cadastro do cliente | a criação da OS | o faturamento…}, que deu erro. Volta à fila quando o erro for reenviado."
+   - **Envio `cancelado`:** "Não foi ao Omie (ou ao Pipefy): o pedido foi cancelado antes do envio."
+   - **Pedir cancelamento durante o faturamento:** o botão fica desabilitado com a frase do banco ("O faturamento está em curso no Omie: espere a resposta para pedir o cancelamento."). Se a situação mudar com o diálogo aberto, o banco recusa (`55000`), o diálogo fecha, o `toast` mostra a mesma frase e a Ficha relê.
+   - **Contrato em outra empresa:** só o nome da empresa ("o cliente tem contrato vigente na {empresa}"); número, valor e vigência não saem do banco.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

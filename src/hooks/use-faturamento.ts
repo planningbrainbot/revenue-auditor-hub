@@ -14,6 +14,8 @@ import {
   carregarServicosFaturamento,
   previaParcelasFaturamento,
 } from "@/lib/faturamento/faturamento.functions";
+import { previaPronta } from "@/lib/faturamento/formulario";
+import { filaEmCurso, fichaEmCurso } from "@/lib/faturamento/fila";
 import type { FiltroFila, FiltroPedidos } from "@/lib/faturamento/tipos";
 
 // Consultas das telas do Portal de Faturamento. Todas começam por ["faturamento", …], para uma ação
@@ -23,6 +25,8 @@ import type { FiltroFila, FiltroPedidos } from "@/lib/faturamento/tipos";
 // segunda tentativa, e o retry pausado em aba oculta deixaria a tela em "Carregando" para sempre.
 
 export const CHAVE_FATURAMENTO = ["faturamento"] as const;
+
+const RELEITURA_MS = 15_000;
 
 /** `ops.fat_contexto`: papéis, empresas do recorte e pendências. Abre toda tela da área. */
 export function useContextoFaturamento(habilitado = true) {
@@ -77,6 +81,9 @@ export function useFichaPedido(id: string | null | undefined, habilitado = true)
     enabled: habilitado && !!user?.id && !!id,
     queryFn: async () => desembrulhar(await fn({ data: { id: id as string } })),
     staleTime: 15_000,
+    // "Faturando…", "Na fila do Omie" e a leitura pedida mudam sem ninguém agir: relê a cada 15 s enquanto
+    // houver algo em curso no Omie (revisão de 20/10/2026).
+    refetchInterval: (q) => (fichaEmCurso(q.state.data) ? RELEITURA_MS : false),
     retry: valeTentarDeNovo,
   });
 }
@@ -91,6 +98,7 @@ export function useFilaTesouraria(emissora: string | null, filtro: FiltroFila, h
     queryFn: async () => desembrulhar(await fn({ data: { emissora, filtro } })),
     staleTime: 15_000,
     placeholderData: keepPreviousData,
+    refetchInterval: (q) => (filaEmCurso(q.state.data) ? RELEITURA_MS : false),
     retry: valeTentarDeNovo,
   });
 }
@@ -145,17 +153,12 @@ export function usePreviaParcelas(
 ) {
   const { user } = useAuth();
   const fn = useServerFn(previaParcelasFaturamento);
-  const pronto =
-    valor !== null &&
-    valor > 0 &&
-    parcelas !== null &&
-    parcelas >= 1 &&
-    parcelas <= 36 &&
-    !!primeiroVencimento &&
-    /^\d{4}-\d{2}-\d{2}$/.test(primeiroVencimento);
+  // A mesma regra de "pronta" da tela (`previaPronta`). Sem prévia anterior guardada: uma divisão velha na
+  // tela, com o valor já mudado, engana (revisão de 20/10/2026).
+  const pronta = previaPronta(valor, parcelas, primeiroVencimento);
   return useQuery({
     queryKey: [...CHAVE_FATURAMENTO, "previa", valor, parcelas, primeiroVencimento],
-    enabled: !!user?.id && pronto,
+    enabled: !!user?.id && pronta,
     queryFn: async () =>
       desembrulhar(
         await fn({
@@ -167,7 +170,6 @@ export function usePreviaParcelas(
         }),
       ),
     staleTime: 10 * 60_000,
-    placeholderData: keepPreviousData,
     retry: valeTentarDeNovo,
   });
 }

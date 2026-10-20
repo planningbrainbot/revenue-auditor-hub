@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import {
   botaoDaLinha,
   emissoraPadrao,
+  fichaEmCurso,
+  filaEmCurso,
   filtroDaFila,
   gruposPorDia,
   hrefFila,
@@ -209,6 +211,17 @@ test("colunas: documento, onde parou, próxima ação e o botão da linha", () =
   assert.equal(botaoDaLinha(item({ status: "cancelamento_pedido" })), "confirmar_cancelamento");
   assert.equal(botaoDaLinha(item({ status: "na_fila_omie" })), null);
   assert.equal(botaoDaLinha(item({ status: "em_conferencia", faturando: true })), null);
+  // Card do Pipefy em erro: sem outro botão na linha, "Reenviar o card"; com outro, ele vence (o Sheet tem o
+  // reenvio do card na linha do Pipefy).
+  const faturadoComErro = item({
+    status: "faturado",
+    pipefy_erro: "Campo obrigatório: Vencimento",
+    proxima_acao: null,
+  });
+  assert.equal(botaoDaLinha(faturadoComErro), "reenviar_pipefy");
+  assert.equal(textoProximaAcao(faturadoComErro, HOJE, AGORA), "Reenviar o card do Pipefy");
+  assert.equal(botaoDaLinha(item({ pipefy_erro: "x" })), "conferir");
+  assert.equal(botaoDaLinha(item({ status: "faturado", pipefy_erro: null })), null);
 });
 
 const pessoa = (id, nome, papel, o = {}) => ({
@@ -323,4 +336,58 @@ test("pessoas por papel, substituto padrão, resumo e a frase de desativar", () 
     "Hugo Silva deixa de ser dono na DOC. 2 pedidos esperam o OK dele; o gestor da empresa continua podendo dar o OK.",
   );
   assert.equal(fraseDesativar(p.gestor[0], "DOC"), "Paula Lima deixa de ser gestor na DOC.");
+});
+
+test("fila: Em conferência só junto com Para faturar, busca numérica de link compartilhado e o href", () => {
+  assert.deepEqual(
+    lerBuscaFila({ emissora: "todas", situacao: "para_faturar", incluir: "em_conferencia" }),
+    { emissora: "todas", situacao: "para_faturar", incluir: "em_conferencia" },
+  );
+  // Sem Para faturar, o `incluir` cai (não há o que somar).
+  assert.deepEqual(lerBuscaFila({ situacao: "erro_omie", incluir: "em_conferencia" }), {
+    situacao: "erro_omie",
+  });
+  assert.deepEqual(lerBuscaFila({ incluir: "outra" }), {});
+  // "?busca=2026" chega como número.
+  assert.deepEqual(lerBuscaFila({ busca: 2026 }), { busca: "2026" });
+  // O `incluir` não vai ao p_filtro da fila: o grupo Em conferência é uma segunda leitura.
+  assert.deepEqual(filtroDaFila({ situacao: "para_faturar", incluir: "em_conferencia" }), {
+    situacao: "para_faturar",
+  });
+  assert.equal(
+    hrefFila({ emissora: "DOC", situacao: "para_faturar", incluir: "em_conferencia" }),
+    "/faturamento/tesouraria?emissora=DOC&situacao=para_faturar&incluir=em_conferencia",
+  );
+});
+
+test("releitura: Fila e Ficha releem sozinhas só enquanto há algo faturando ou na fila do Omie", () => {
+  assert.equal(filaEmCurso(undefined), false);
+  assert.equal(filaEmCurso({ itens: [] }), false);
+  assert.equal(filaEmCurso({ itens: [{ faturando: false, status: "os_criada" }] }), false);
+  assert.equal(filaEmCurso({ itens: [{ faturando: true, status: "em_conferencia" }] }), true);
+  assert.equal(filaEmCurso({ itens: [{ faturando: false, status: "na_fila_omie" }] }), true);
+
+  const ficha = (status, omie = {}) => ({
+    pedido: { status },
+    omie: { envios: [], leitura_pendente: null, ...omie },
+  });
+  assert.equal(fichaEmCurso(undefined), false);
+  assert.equal(fichaEmCurso(ficha("faturado")), false);
+  assert.equal(fichaEmCurso(ficha("na_fila_omie")), true);
+  assert.equal(fichaEmCurso(ficha("faturado", { leitura_pendente: { tentar_em: "x" } })), true);
+  assert.equal(
+    fichaEmCurso(ficha("em_conferencia", { envios: [{ status: "processando" }] })),
+    true,
+  );
+  assert.equal(fichaEmCurso(ficha("em_conferencia", { envios: [{ status: "pendente" }] })), true);
+  assert.equal(
+    fichaEmCurso(ficha("os_criada", { envios: [{ status: "ok" }, { status: "erro" }] })),
+    false,
+  );
+});
+
+test("configuração: busca numérica de link compartilhado vale", () => {
+  assert.deepEqual(lerBuscaConfig({ busca: 8120 }), { busca: "8120" });
+  assert.deepEqual(lerBuscaConfig({ busca: "  Hugo " }), { busca: "Hugo" });
+  assert.deepEqual(lerBuscaConfig({ busca: "" }), {});
 });

@@ -12,6 +12,7 @@ import {
   linhasDeAtencao,
   podePedir,
   procedenciaFaturamento,
+  proximaLeitura,
   proximoPasso,
   rotuloSituacao,
   rotuloSituacaoFiltro,
@@ -301,6 +302,17 @@ test("leitura do Omie: lida, falhou depois, parada há mais de 8 h em dia útil,
   );
 });
 
+test("próxima leitura do Omie: 8h, 12h e 16h de São Paulo, só em dia útil", () => {
+  // 22/10/2026 é quinta-feira; São Paulo é UTC-3.
+  assert.equal(proximaLeitura(new Date("2026-10-22T10:30:00Z")), "às 08:00");
+  assert.equal(proximaLeitura(new Date("2026-10-22T11:00:00Z")), "às 12:00");
+  assert.equal(proximaLeitura(new Date("2026-10-22T15:00:00Z")), "às 16:00");
+  // Depois das 16h passa para o dia seguinte; na sexta à noite, para a segunda.
+  assert.equal(proximaLeitura(new Date("2026-10-22T19:01:00Z")), "em 23/10 às 08:00");
+  assert.equal(proximaLeitura(new Date("2026-10-23T20:00:00Z")), "em 26/10 às 08:00");
+  assert.equal(proximaLeitura(new Date("2026-10-24T13:00:00Z")), "em 26/10 às 08:00");
+});
+
 test("o que pede atenção: ordem, papéis e só pendência com pedido (contrato §2, item 3)", () => {
   const pend = (q, f) => ({ quantidade: q, filtro: f });
   const pendencias = {
@@ -324,6 +336,14 @@ test("o que pede atenção: ordem, papéis e só pendência com pedido (contrato
     soTesouraria.map((l) => l.chave),
     ["erro_omie", "para_faturar"],
   );
+  // "Para faturar" abre a Fila com o grupo Em conferência: o total da Fila bate com OS criada + Simulado +
+  // Em conferência, a definição de fat_contexto (revisão da E1, §3).
+  assert.equal(soTesouraria[1].acao, "Abrir a fila");
+  assert.deepEqual(soTesouraria[1].fila, {
+    emissora: "todas",
+    situacao: "para_faturar",
+    incluir: "em_conferencia",
+  });
 
   const nada = linhasDeAtencao({
     papeis: { pede: true, tesouraria: false },
@@ -397,7 +417,7 @@ test("procedência da página e quem pode pedir", () => {
   };
   assert.deepEqual(procedenciaFaturamento(ctx, agora), {
     fonte:
-      "Portal de Faturamento · situação do Omie lida às 12:00 (a cada 4 h em dia útil) · DOC e PIS em simulação: nada é gravado no Omie",
+      "Portal de Faturamento · situação do Omie lida às 12:00; a próxima leitura é às 16:00 (a cada 4 h em dia útil) · DOC e PIS em simulação: nada é gravado no Omie",
     atualizadoEm: "2026-10-22T17:00:00+00:00",
   });
   assert.deepEqual(procedenciaFaturamento(undefined, agora), { fonte: "Portal de Faturamento" });

@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** Ana Carvalhais (controladoria), tesouraria, donos da receita das empresas do grupo   **Dono do código:** Pedro Luca (branch `feat/portal-faturamento-f1-20261015`); merge e deploy do Eliezek   **Data:** 20/10/2026
 
-**Estado:** rascunho. Aguarda o "contrato ok" do dono (`PROCESSO.md` §4); nenhum código de tela antes disso.
+**Estado:** aprovado pelo Pedro em 20/10/2026 (commit `d1ffd28`).
 
 Fontes: spec `PM Work/execution/portal-faturamento-prd-20261013/spec-portal-faturamento.md` v1.1 (§4, §5, §9, §12, §13.3) e plano `e1/PLANO-E1.md` (Travas, API, T4). Entrega E1, pedido pontual. Contratos irmãos: `faturamento-novo.md`, `faturamento-pedido.md`, `faturamento-tesouraria.md`, `faturamento-configuracao.md`.
 
@@ -225,6 +225,15 @@ Rodapé: "N pedidos · R$ {soma do valor}" do recorte inteiro, calculado no serv
 1. **`ops.fat_pedidos` precisa devolver, além da página:** `total`, `total_recorte`, `soma` (valor) e `resumo` (a faturar, faturado no mês, recebido no mês, em atraso, por situação). Sem isso a tela teria de somar a página, o que o §1.4 proíbe. O filtro precisa aceitar `pendencia`, `mes` + `regua` e o grupo `a_faturar`.
 2. **`ops.fat_contexto` devolve as pendências "OK a dar" e "devolvidos"; faltam "erro no Omie" (do autor e do dono) e "para faturar" (tesouraria).**
 3. **Data da nota e data do pagamento:** os cards por mês dependem de o conector gravar a data de emissão da nota e o `pago_em` da parcela (RF-P09). Sem a data da nota, "Faturado no mês" usa a data do evento `faturado` e a `procedencia` avisa.
+
+## Divergências registradas na implementação (20/10/2026)
+O código segue este contrato, salvo nos pontos abaixo, em que seguir à letra era impossível ou contradizia a API. Decididos com o coordenador na rodada de correções da revisão da E1 (`e1/revisao-app-conector.md` §3).
+
+1. **"Para faturar" (§2, Pendências):** vale a definição da API (`fat_contexto`), que conta **OS criada, Simulado e Em conferência**, e não só OS criada e Em conferência. O destino é a Fila `?situacao=para_faturar&incluir=em_conferencia`, que mostra um grupo "Em conferência" abaixo dos dias para o total bater com o número clicado. Com uma empresa no filtro, a Fila abre nela; com duas ou mais, o destino é Pedidos com as mesmas empresas, porque a Fila mostra uma empresa ou todas.
+2. **Filtro de empresa "afeta tudo" (§2):** "O que pede atenção" também se recorta. O `fat_contexto` conta todas as empresas; com o filtro, a contagem de cada linha vem do total de `fat_pedidos` com o mesmo filtro e as empresas escolhidas (as mesmas regras de pendência, API §1.3).
+3. **Filtro Dono em Pedidos (§3):** para gestor, tesouraria e controladoria, a lista de donos sai dos 200 pedidos mais recentes do recorte, porque a API só devolve `donos` nas empresas em que a pessoa pede. Dono que só tem pedido mais antigo fica fora da lista, mas o link `?dono=` continua valendo.
+4. **Cor da área (§1.1):** anel neutro (`--area-faturamento` = `--area-admin`) até a Mika decidir. A proposta para ela continua sendo o lima de Receita.
+5. **Procedência:** "situação do Omie lida às {hora}; a próxima leitura é às {hora} (a cada 4 h em dia útil)". A leitura roda às 8h, 12h e 16h de São Paulo, de segunda a sexta; feriado ainda conta como dia útil (E3).
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

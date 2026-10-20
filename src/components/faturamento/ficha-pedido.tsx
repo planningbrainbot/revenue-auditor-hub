@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -23,16 +23,11 @@ import {
   StatusBadge,
   type TomStatus,
 } from "@/components/planning";
-import { useFichaPedido } from "@/hooks/use-faturamento";
+import { useContextoFaturamento, useFichaPedido } from "@/hooks/use-faturamento";
 import { partesDoLink } from "@/lib/areas";
 import { tipoDoErro } from "@/lib/faturamento/erros";
 import { eventoLegivel } from "@/lib/faturamento/eventos";
-import {
-  faixaDaSituacao,
-  linhasIntegracao,
-  oQueIriaAoOmie,
-  resumoDaFicha,
-} from "@/lib/faturamento/ficha";
+import { faixaDaSituacao, oQueIriaAoOmie, resumoDaFicha } from "@/lib/faturamento/ficha";
 import {
   dataCompleta,
   diaEHora,
@@ -42,10 +37,10 @@ import {
   primeiroNome,
   rotuloMes,
 } from "@/lib/faturamento/formato";
-import { fraseLeituraOmie } from "@/lib/faturamento/rotulos";
+import { fraseLeituraOmie, proximaLeitura } from "@/lib/faturamento/rotulos";
 import type { FichaPedido, SituacaoParcela } from "@/lib/faturamento/tipos";
-import { cn } from "@/lib/utils";
 import { BotoesDoPedido } from "./acoes-pedido";
+import { LinhasDoOmie } from "./omie-linhas";
 import { AREA_FATURAMENTO, ErroDaArea, PaginaFaturamento, SeloSituacao } from "./moldura";
 
 /**
@@ -129,7 +124,11 @@ function Conteudo({ f, volta }: { f: FichaPedido; volta: string }) {
   const p = f.pedido;
   const hoje = diaSP(new Date()) as string;
   const faixa = faixaDaSituacao(f);
-  const resumo = resumoDaFicha(f);
+  const resumo = resumoDaFicha(f, hoje);
+  // A última leitura boa é a do pedido; a falha é da empresa (fat_contexto), quando a pessoa a tem no contexto.
+  const contexto = useContextoFaturamento();
+  const falhaEm =
+    contexto.data?.emissoras.find((e) => e.id === p.emissora.id)?.omie.ultima_falha_em ?? null;
   const universo = [
     p.tomador.nome ?? "cliente sem nome",
     p.projeto,
@@ -138,8 +137,25 @@ function Conteudo({ f, volta }: { f: FichaPedido; volta: string }) {
   ]
     .filter(Boolean)
     .join(" · ");
+  const agora = new Date();
+  const leitura = p.simulacao
+    ? "pedido simulado: não há situação no Omie para ler"
+    : `${fraseLeituraOmie(
+        [
+          {
+            omie: {
+              indisponivel: false,
+              motivo: null,
+              bloqueada_ate: null,
+              ultimo_ok_em: p.omie.lido_em,
+              ultima_falha_em: falhaEm,
+            },
+          },
+        ],
+        agora,
+      )}; a próxima leitura é ${proximaLeitura(agora)} (a cada 4 h em dia útil)`;
   const procedencia = {
-    fonte: `Portal de Faturamento · ${fraseLeituraOmie([{ omie: { indisponivel: false, motivo: null, bloqueada_ate: null, ultimo_ok_em: p.omie.lido_em } }], new Date())} (a cada 4 h em dia útil)`,
+    fonte: `Portal de Faturamento · ${leitura}`,
     atualizadoEm: p.atualizado_em,
   };
 
@@ -154,9 +170,7 @@ function Conteudo({ f, volta }: { f: FichaPedido; volta: string }) {
           <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
             <SeloSituacao situacao={p.status} />
             {p.simulacao && p.status !== "simulado" && (
-              <StatusBadge tom="info" icone={false}>
-                em simulação
-              </StatusBadge>
+              <StatusBadge tom="info">em simulação</StatusBadge>
             )}
             <span>{universo}</span>
           </span>
@@ -185,10 +199,10 @@ function Conteudo({ f, volta }: { f: FichaPedido; volta: string }) {
 
       <OQueFoiPedido f={f} />
       <Parcelas f={f} />
-      <OmieEPipefy f={f} hoje={hoje} />
+      <OmieEPipefy f={f} falhaEm={falhaEm} />
       <LinhaDoTempo f={f} />
 
-      <Procedencia fonte="Portal de Faturamento · ops.fat_pedido" atualizadoEm={p.atualizado_em} />
+      <Procedencia fonte={procedencia.fonte} atualizadoEm={procedencia.atualizadoEm} />
     </PaginaFaturamento>
   );
 }
@@ -361,9 +375,8 @@ function Parcelas({ f }: { f: FichaPedido }) {
 
 // ------------------------------------------------------------------ Omie e Pipefy
 
-function OmieEPipefy({ f, hoje }: { f: FichaPedido; hoje: string }) {
+function OmieEPipefy({ f, falhaEm }: { f: FichaPedido; falhaEm: string | null }) {
   const p = f.pedido;
-  const linhas = linhasIntegracao(f, hoje);
   const simulado = p.simulacao || p.status === "simulado";
   const tecnicos = [...(f.omie.envios ?? []), ...(f.pipefy.envios ?? [])].some(
     (e) => "payload" in e || "resposta" in e,
@@ -388,24 +401,7 @@ function OmieEPipefy({ f, hoje }: { f: FichaPedido; hoje: string }) {
           </dl>
         </div>
       )}
-      <ul className="divide-y rounded-xl border bg-card">
-        {linhas.map((l) => (
-          <li key={l.chave} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
-            <div className="min-w-0 space-y-0.5">
-              <p className="text-[13px] text-muted-foreground">{l.titulo}</p>
-              <p className={cn("text-sm", l.erro ? "text-danger" : "text-foreground")}>{l.texto}</p>
-            </div>
-            {l.link && (
-              <Button asChild variant="outline" size="sm">
-                <a href={l.link.href} target="_blank" rel="noreferrer">
-                  {l.link.rotulo}
-                  <ExternalLink className="size-4" aria-hidden />
-                </a>
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <LinhasDoOmie ficha={f} falhaEm={falhaEm} />
       {tecnicos && (
         <details className="rounded-xl border bg-card px-4 py-3">
           <summary className="cursor-pointer text-sm font-medium text-foreground">

@@ -2,7 +2,7 @@
 // `docs/design/contratos/faturamento-configuracao.md`): filtros na URL, a busca por empresa ou pessoa, a
 // ordem da tabela, o selo do Omie de cada empresa e os textos de efeito de cada papel.
 //
-// Módulo puro (sem React, sem `@/`), testado em tests/faturamento-config.test.mjs.
+// Módulo puro (sem React, sem `@/`), testado em tests/faturamento-fila.test.mjs (junto com a Fila).
 import type { EmissoraConfig, FaturaPor, PapelEmissora, PessoaConfig } from "./tipos.ts";
 import type { TomSituacao } from "./rotulos.ts";
 
@@ -20,7 +20,13 @@ const APELIDO = /^[A-Z0-9][A-Z0-9 _-]{0,23}$/;
 
 export function lerBuscaConfig(raw: Record<string, unknown>): BuscaConfig {
   const out: BuscaConfig = {};
-  const busca = typeof raw.busca === "string" ? raw.busca.trim().slice(0, 80) : "";
+  // Número vindo de link compartilhado ("?busca=8120") chega como número: vale também.
+  const busca =
+    typeof raw.busca === "string"
+      ? raw.busca.trim().slice(0, 80)
+      : typeof raw.busca === "number"
+        ? String(raw.busca)
+        : "";
   if (busca) out.busca = busca;
   if (raw.inativas === "sim" || raw.inativas === true) out.inativas = "sim";
   const empresa = typeof raw.empresa === "string" ? raw.empresa.trim().toUpperCase() : "";

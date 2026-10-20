@@ -247,8 +247,89 @@ export function valorParaDigitar(n: number): string {
 export function parcelasDoFormulario(f: Pick<FormPedido, "forma" | "parcelas">): number | null {
   if (f.forma === "avulso") return 1;
   if (f.forma !== "parcelado") return null;
+  // Vazio, 0, 37 ou -1 vão como `null`: o rascunho se salva assim mesmo (RF-P01), e a pendência aparece no
+  // campo. `Number("")` dá 0, e o 0 derrubava o salvar com o erro do validador (revisão de 20/10/2026).
+  if (!/^\d+$/.test(f.parcelas.trim())) return null;
   const n = Number(f.parcelas);
-  return Number.isInteger(n) ? n : null;
+  return n >= 1 && n <= 36 ? n : null;
+}
+
+/** Data `AAAA-MM-DD` de verdade, com ano entre 2000 e 2100 (o campo de data aceita "0026-10-21"). */
+export function dataValida(v: string | null | undefined): boolean {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [a, m, d] = v.split("-").map(Number);
+  if (a < 2000 || a > 2100 || m < 1 || m > 12) return false;
+  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  return d >= 1 && d <= ultimo;
+}
+
+/**
+ * A prévia das parcelas pode ser pedida? A mesma regra do banco (`fat_parcelas_previa`): valor maior que
+ * zero, de 1 a 36 parcelas e 1º vencimento válido. A tela e o hook usam esta, para a tela não dizer "pronta"
+ * enquanto o hook está desligado (revisão de 20/10/2026).
+ */
+export function previaPronta(
+  valor: number | null,
+  parcelas: number | null,
+  primeiroVencimento: string | null,
+): boolean {
+  return (
+    valor !== null &&
+    valor > 0 &&
+    parcelas !== null &&
+    parcelas >= 1 &&
+    parcelas <= 36 &&
+    dataValida(primeiroVencimento)
+  );
+}
+
+/** O aviso do 1º vencimento no passado: não bloqueia o envio (decisão pendente da Ana, API.md §1.11). */
+export function avisoDoVencimento(primeiroVencimento: string, hoje: string): string | null {
+  return dataValida(primeiroVencimento) && primeiroVencimento < hoje
+    ? "O 1º vencimento já passou."
+    : null;
+}
+
+const MESES_CURTOS = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
+
+/**
+ * As competências que o campo oferece: de 12 meses antes a 24 depois do mês corrente, mais a que o pedido
+ * já tiver fora dessa faixa. Um seletor próprio, porque o `<input type="month">` não abre no Firefox.
+ */
+export function opcoesDeCompetencia(
+  mesCorrente: string,
+  atual?: string | null,
+): { valor: string; rotulo: string }[] {
+  const [a, m] = mesCorrente.split("-").map(Number);
+  const out: { valor: string; rotulo: string }[] = [];
+  for (let i = -12; i <= 24; i++) {
+    const total = a * 12 + (m - 1) + i;
+    const ano = Math.floor(total / 12);
+    const mes = (total % 12) + 1;
+    out.push({
+      valor: `${ano}-${String(mes).padStart(2, "0")}`,
+      rotulo: `${MESES_CURTOS[mes - 1]}/${ano}`,
+    });
+  }
+  if (atual && /^\d{4}-\d{2}$/.test(atual) && !out.some((o) => o.valor === atual)) {
+    const [aa, mm] = atual.split("-").map(Number);
+    out.push({ valor: atual, rotulo: `${MESES_CURTOS[mm - 1]}/${aa}` });
+    out.sort((x, y) => x.valor.localeCompare(y.valor));
+  }
+  return out;
 }
 
 /** A competência que vale: a digitada, ou o mês do 1º vencimento enquanto ela o acompanha. */
@@ -256,7 +337,7 @@ export function competenciaDoFormulario(
   f: Pick<FormPedido, "competencia" | "competencia_manual" | "primeiro_vencimento">,
 ): string | null {
   if (f.competencia_manual && /^\d{4}-\d{2}$/.test(f.competencia)) return f.competencia;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(f.primeiro_vencimento)) return f.primeiro_vencimento.slice(0, 7);
+  if (dataValida(f.primeiro_vencimento)) return f.primeiro_vencimento.slice(0, 7);
   return /^\d{4}-\d{2}$/.test(f.competencia) ? f.competencia : null;
 }
 
@@ -289,7 +370,8 @@ export function dadosParaSalvar(f: FormPedido): DadosPedido {
     valor: lerValor(f.valor),
     forma: f.forma,
     parcelas: parcelasDoFormulario(f),
-    primeiro_vencimento: vazio(f.primeiro_vencimento),
+    // Data fora do formato (ou com ano errado) não vai: o rascunho se salva e a pendência fica no campo.
+    primeiro_vencimento: dataValida(f.primeiro_vencimento) ? f.primeiro_vencimento : null,
     competencia: comp ? `${comp}-01` : null,
     documento: f.documento,
     meio: f.meio,
@@ -344,8 +426,9 @@ export function pendenciasLocais(f: FormPedido, ctx: ContextoConferencia): ErroC
       falta("parcelas", "Parcelado vai de 2 a 36 parcelas.");
   }
   if (!f.meio) falta("meio", "Escolha boleto ou pix.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(f.primeiro_vencimento))
-    falta("primeiro_vencimento", "Informe o 1º vencimento.");
+  if (!f.primeiro_vencimento) falta("primeiro_vencimento", "Informe o 1º vencimento.");
+  else if (!dataValida(f.primeiro_vencimento))
+    falta("primeiro_vencimento", "Data inválida: confira o dia, o mês e o ano.");
   if (!f.observacoes.trim()) falta("observacoes", "Escreva as observações.");
   return erros;
 }

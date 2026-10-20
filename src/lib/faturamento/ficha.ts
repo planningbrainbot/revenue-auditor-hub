@@ -6,7 +6,7 @@
 // Nada soma dinheiro: os valores do resumo vêm prontos da RPC (ARQUETIPOS §4).
 //
 // Módulo puro (sem React, sem `@/`), testado em tests/faturamento-ficha.test.mjs.
-import type { AcaoFicha, EnvioOmie, EnvioPipefy, FichaPedido, Situacao } from "./tipos.ts";
+import type { AcaoFicha, EnvioOmie, EnvioPipefy, FichaPedido, Parcela, Situacao } from "./tipos.ts";
 import {
   dataCompleta,
   diaEHora,
@@ -67,6 +67,8 @@ function rotuloDaAcao(chave: AcaoFicha, f: FichaPedido): string {
       return "Confirmar cancelamento";
     case "atualizar_status":
       return "Atualizar agora";
+    case "reenviar_pipefy":
+      return "Reenviar o card";
     case "descartar":
       return "Descartar";
     case "enviar":
@@ -157,9 +159,20 @@ export interface NumeroFicha {
 const COM_NOTA: Situacao[] = ["faturado", "em_atraso", "recebido"];
 
 /** Os quatro números da faixa de resumo (contrato, "Resumo"), lidos de `fat_pedido.resumo`. */
-export function resumoDaFicha(f: FichaPedido): NumeroFicha[] {
+/**
+ * Parcelas em atraso: a situação que o banco gravou; sem ela, vencida antes de hoje (São Paulo), sem pagamento
+ * e não cancelada. É a nota "1 parcela" do Em atraso (contrato da Ficha); o valor continua vindo da RPC.
+ */
+export function parcelasEmAtraso(parcelas: Parcela[], hoje?: string): number {
+  return parcelas.filter((x) =>
+    x.situacao ? x.situacao === "em_atraso" : !!hoje && !x.pago_em && x.vencimento < hoje,
+  ).length;
+}
+
+export function resumoDaFicha(f: FichaPedido, hoje?: string): NumeroFicha[] {
   const p = f.pedido;
   const r = f.resumo;
+  const atrasadas = parcelasEmAtraso(f.parcelas ?? [], hoje);
   const temNota = !!p.omie.nf_numero || COM_NOTA.includes(p.status);
   const ausente = p.simulacao ? "simulado" : !temNota ? "sem nota ainda" : null;
   const forma =
@@ -184,7 +197,9 @@ export function resumoDaFicha(f: FichaPedido): NumeroFicha[] {
       : {
           rotulo: "Em atraso",
           valor: dinheiro(r.em_atraso),
-          nota: "vencidas e não pagas",
+          nota: atrasadas
+            ? `${atrasadas} ${atrasadas === 1 ? "parcela" : "parcelas"}`
+            : "nenhuma parcela vencida",
           estado: "ok",
         },
     prox
@@ -230,6 +245,35 @@ function codigo(e: EnvioOmie | null, chave: string): unknown {
     : undefined;
 }
 
+const OPERACAO_LEGIVEL: Record<string, string> = {
+  garantir_cliente: "o cadastro do cliente",
+  incluir_os: "a criação da OS",
+  alterar_os: "a alteração da OS",
+  faturar_os: "o faturamento",
+  criar_card: "a criação do card",
+  mover_fase: "a mudança de fase do card",
+};
+
+/**
+ * As situações novas dos envios (revisão de 20/10/2026): `bloqueado` espera um envio em erro e volta à fila no
+ * reenvio; `cancelado` não foi porque o pedido foi cancelado antes. `null` nas outras situações.
+ */
+function linhaParada(
+  e: { status: string } | null,
+  envios: { status: string; operacao: string }[],
+  destino: "Omie" | "Pipefy",
+): string | null {
+  if (!e) return null;
+  if (e.status === "cancelado")
+    return `Não foi ao ${destino}: o pedido foi cancelado antes do envio.`;
+  if (e.status !== "bloqueado") return null;
+  const travou = [...envios].reverse().find((x) => x.status === "erro");
+  const qual = travou
+    ? (OPERACAO_LEGIVEL[travou.operacao] ?? "um envio anterior")
+    : "um envio anterior";
+  return `Parado: espera ${qual}, que deu erro. Volta à fila quando o erro for reenviado.`;
+}
+
 function linhaPendente(e: EnvioOmie, hoje: string, rotulo: string): string {
   return e.proxima_tentativa_em
     ? `${rotulo}: o Omie tenta ${quando(e.proxima_tentativa_em, hoje)}`
@@ -240,7 +284,15 @@ function linhaPendente(e: EnvioOmie, hoje: string, rotulo: string): string {
  * "Onde está no Omie e no Pipefy?" (contrato, mesma seção): uma linha por etapa do envio, em português.
  * @param hoje `AAAA-MM-DD` em São Paulo.
  */
-export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[] {
+export function linhasIntegracao(
+  f: FichaPedido,
+  hoje: string,
+  /**
+   * A última leitura que falhou na empresa do pedido (`fat_contexto.emissoras[].omie.ultima_falha_em`). Mais
+   * nova que a última boa, a linha diz "a leitura seguinte falhou às {hora}" (estado "Omie não lido").
+   */
+  falhaEm?: string | null,
+): LinhaIntegracao[] {
   const p = f.pedido;
   const empresa = p.emissora.apelido;
   const envios = f.omie.envios ?? [];
@@ -255,7 +307,9 @@ export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[
     if (cli.status === "erro") {
       textoCli = cli.erro_legivel ?? "O Omie recusou o cliente.";
       erroCli = true;
-    } else if (cli.status === "simulado")
+    } else if (linhaParada(cli, envios, "Omie"))
+      textoCli = linhaParada(cli, envios, "Omie") as string;
+    else if (cli.status === "simulado")
       textoCli = existia === true ? "Já existe" : "Seria cadastrado";
     else if (cli.status === "ok")
       textoCli =
@@ -277,6 +331,8 @@ export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[
   let erroOs = false;
   if (p.omie.os_codigo) {
     textoOs = `OS ${p.omie.os_codigo}${p.omie.os_etapa ? ` · etapa ${p.omie.os_etapa}` : ""}`;
+  } else if (linhaParada(os, envios, "Omie")) {
+    textoOs = linhaParada(os, envios, "Omie") as string;
   } else if (os?.status === "simulado" || (p.simulacao && !os)) {
     textoOs = `Seria criada com o código ${p.numero}`;
     if (codigo(os, "servico_existe") === false)
@@ -302,6 +358,8 @@ export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[
     if (p.omie.nf_link) linkNota = { href: p.omie.nf_link, rotulo: "Abrir a nota" };
   } else if (p.simulacao && COM_NOTA.includes(p.status)) {
     textoNota = "Faturada em simulação: nenhuma nota emitida.";
+  } else if (linhaParada(fat, envios, "Omie")) {
+    textoNota = linhaParada(fat, envios, "Omie") as string;
   } else if (fat && (fat.status === "pendente" || fat.status === "processando")) {
     textoNota = linhaPendente(fat, hoje, "Faturando");
   } else if (fat?.status === "erro") {
@@ -320,6 +378,8 @@ export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[
     if (ultimo.status === "erro") {
       textoPipefy = ultimo.erro_legivel ?? "O Pipefy recusou o card.";
       erroPipefy = true;
+    } else if (linhaParada(ultimo, cards, "Pipefy")) {
+      textoPipefy = linhaParada(ultimo, cards, "Pipefy") as string;
     } else if (
       ultimo.status === "simulado" ||
       (!p.emissora.pipefy_sync && ultimo.status !== "ok")
@@ -346,12 +406,14 @@ export function linhasIntegracao(f: FichaPedido, hoje: string): LinhaIntegracao[
   // Última leitura
   const lido = p.omie.lido_em;
   const proxima = f.omie.leitura_pendente?.tentar_em ?? null;
+  const falhou = !!falhaEm && (!lido || Date.parse(falhaEm) > Date.parse(lido));
   const textoLeitura = p.simulacao
     ? "Pedido simulado: não há situação no Omie para ler."
     : [
         lido
           ? `Situação lida do Omie ${quando(lido, hoje)}`
           : "A situação ainda não foi lida do Omie",
+        falhou ? `a leitura seguinte falhou ${quando(falhaEm, hoje)}` : null,
         proxima ? `a próxima é ${quando(proxima, hoje)}` : null,
       ]
         .filter(Boolean)
@@ -448,6 +510,7 @@ export type AcaoExecutavel =
   | "aprovar"
   | "devolver"
   | "reenviar"
+  | "reenviar_pipefy"
   | "conferir"
   | "faturar"
   | "pedir_cancelamento"
