@@ -49,7 +49,7 @@ import {
   tooltipProps,
 } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
-import { METRICAS, taxa } from "@/lib/monetizacao/model";
+import { METRICAS } from "@/lib/monetizacao/model";
 import { primeiroNome } from "@/lib/monetizacao/responsavel";
 import type { QuadroOperacao, cadastroACorrigir, operacao } from "@/lib/monetizacao/model";
 import { chaveDaEtapa, chegaramAoNivel, linhaDa } from "@/lib/monetizacao/funil-cumulativo";
@@ -63,6 +63,7 @@ import type {
 import { NOMES } from "@/lib/monetizacao/types";
 import type { Negocio, Produto } from "@/lib/monetizacao/types";
 import { downloadCsv } from "./common";
+import { CabecalhoFunil, FunilEmPilulas, LinhaFunil, type LinhaPilula } from "./funil-desenho";
 
 type Abrir = (
   title: string,
@@ -258,64 +259,6 @@ const iconeDa = (nome: string) => {
   return /proposta/i.test(nome) ? FileSignature : Building2;
 };
 
-// Rampa sequencial de uma cor (DESIGN.md §5, funil): o verde da marca em texto (`primary-text`)
-// misturado ao `muted`, do claro ao escuro conforme o negócio avança. O ícone troca para a cor do
-// card quando o fundo passa da metade, nos dois temas.
-function Rampa({
-  passo,
-  total,
-  icone: Icone,
-}: {
-  passo: number;
-  total: number;
-  icone: LucideIcon;
-}) {
-  const pct = Math.round(22 + (78 * passo) / Math.max(1, total - 1));
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "grid size-6 place-items-center rounded-md",
-        pct >= 55 ? "text-card" : "text-foreground",
-      )}
-      style={{ backgroundColor: `color-mix(in oklab, var(--primary-text) ${pct}%, var(--muted))` }}
-    >
-      <Icone className="size-4" strokeWidth={1.75} />
-    </span>
-  );
-}
-
-// ícone | cards | etapa | hoje | taxa
-const GRADE =
-  "grid grid-cols-[1.5rem_3rem_minmax(0,1fr)_3rem_5rem] items-center gap-x-3 sm:grid-cols-[1.5rem_3.5rem_minmax(0,1fr)_3.5rem_5.5rem]";
-
-/** Seta curva da etapa de cima para a de baixo: a taxa é a etapa ÷ a de cima. */
-function Conector() {
-  return (
-    <svg
-      viewBox="0 0 9 18"
-      className="h-[18px] w-[9px] shrink-0 overflow-visible text-muted-foreground"
-      aria-hidden
-    >
-      <path
-        d="M1 1 Q7.5 1 7.5 6 L7.5 11 Q7.5 16.5 1.5 16.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4 14 L1.5 16.5 L4 19"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /** "inclui Gatilho" · "inclui Stand by (6 hoje)": as etapas somadas ao nível. */
 const incluiTexto = (l: LinhaCumulativa) =>
   l.somadasHoje.length
@@ -345,25 +288,28 @@ function Linha({
   anteriores?: Negocio[];
 }) {
   const inclui = incluiTexto(linha);
+  const hoje = linha.hoje;
   return (
-    <div className={cn(GRADE, "h-10")}>
-      {/* A linha inteira abre a coorte (botão esticado); o "+N de abordagem anterior" é um botão próprio por cima. */}
-      <div className="relative col-span-3 grid grid-cols-subgrid items-center rounded-md transition-colors duration-[120ms] ease-out hover:bg-muted/60">
-        <button
-          type="button"
-          onClick={() => abrir(tituloDaLinha(linha), linha.cards)}
-          aria-label={`${tituloDaLinha(linha)}: ${INT.format(linha.contagem)}`}
-          className="absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        <Rampa passo={passo} total={total} icone={iconeDa(linha.nome)} />
-        <span className="num text-right text-base font-semibold text-foreground">
-          {INT.format(linha.contagem)}
-        </span>
-        {/* O "+N de abordagem anterior" vem antes do "inclui …" e não encolhe: o texto que corta é o "inclui". */}
-        <span className="flex min-w-0 items-baseline gap-1.5 text-sm text-foreground">
-          <span className="truncate">
-            {linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
-          </span>
+    <LinhaFunil
+      icone={iconeDa(linha.nome)}
+      passo={passo}
+      total={total}
+      contagem={linha.contagem}
+      nome={linha.nivel === 0 ? `Fila · ${linha.nome}` : linha.nome}
+      rotulo={tituloDaLinha(linha)}
+      abrir={() => abrir(tituloDaLinha(linha), linha.cards)}
+      hoje={
+        hoje
+          ? {
+              n: hoje.length,
+              abrir: () => abrir(`${linha.nome} · no pipe hoje`, hoje, { estoque: true }),
+            }
+          : undefined
+      }
+      taxa={linha.taxa}
+      extra={
+        <>
+          {/* O "+N de abordagem anterior" vem antes do "inclui …" e não encolhe: o texto que corta é o "inclui". */}
           {anteriores.length > 0 && (
             <button
               type="button"
@@ -383,31 +329,9 @@ function Linha({
               {inclui}
             </span>
           )}
-        </span>
-      </div>
-      {linha.hoje ? (
-        <button
-          type="button"
-          onClick={() => abrir(`${linha.nome} · no pipe hoje`, linha.hoje!, { estoque: true })}
-          className="num rounded-md text-right text-sm text-muted-foreground outline-none transition-colors duration-[120ms] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {INT.format(linha.hoje.length)}
-        </button>
-      ) : (
-        <span />
-      )}
-      {/* a taxa pertence à passagem entre esta linha e a de cima: sobe meia linha */}
-      <span className="relative self-stretch">
-        {linha.taxa !== undefined && (
-          <span className="absolute inset-y-0 right-0 flex -translate-y-1/2 items-center gap-1.5">
-            <Conector />
-            <span className="num w-12 text-right text-[13px] font-semibold text-foreground">
-              {linha.taxa === null ? "—" : PCT.format(linha.taxa)}
-            </span>
-          </span>
-        )}
-      </span>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -453,17 +377,7 @@ export function FunilOperacao({
         </p>
       )}
       <div className="mt-3">
-        <div
-          className={cn(
-            GRADE,
-            "h-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-          )}
-        >
-          <span className="col-span-2 text-right">Cards</span>
-          <span>Etapa</span>
-          <span className="text-right">Hoje</span>
-          <span className="text-right">Taxa</span>
-        </div>
+        <CabecalhoFunil />
         {linhas.map((l, i) => (
           <Linha
             key={l.key}
@@ -585,11 +499,15 @@ export function SerieDiaria({ view, abrir }: { view: ReturnType<typeof operacao>
 export type FunisPorProduto = Record<Produto | "sem_produto" | "total", FunilCumulativo>;
 
 type ColunaProduto = ChaveNivel | "fila" | "ganho";
-const GRUPOS: { titulo: string; chaves: ColunaProduto[] }[] = [
-  { titulo: "Esforço", chaves: ["fila", "abordagem"] },
-  { titulo: "Resposta", chaves: ["conexao"] },
-  { titulo: "Levantamentos com sócio", chaves: ["agendada", "realizada"] },
-  { titulo: "Resultado", chaves: ["negociacao", "ganho"] },
+/** As colunas do funil por unidade, da fila ao ganho; a reta final (proposta) fica no funil de cima. */
+const COLUNAS_UNIDADE: ColunaProduto[] = [
+  "fila",
+  "abordagem",
+  "conexao",
+  "agendada",
+  "realizada",
+  "negociacao",
+  "ganho",
 ];
 const CURTO: Record<ColunaProduto, string> = {
   fila: "Fila",
@@ -606,11 +524,11 @@ const PRODUTOS_LINHA = ["cella", "finance", "consultoria"] as const;
 
 /**
  * Funil por unidade (16/10/2026, pedido do Pedro: "funil por unidade, semelhante ao de produto"). Substitui a tabela
- * "Qual produto avança na base?" e a Qualificação por unidade do mês, com o mesmo desenho da tabela de produto: uma
- * linha por unidade, na régua cumulativa, com a fila do período e, dos abordados, quantos chegaram a cada etapa ou
- * além. Cada célula traz o número, a barra contra o maior valor da coluna e a taxa sobre a coluna da esquerda. Zero
- * sai apagado e não abre nada; etapa que o pipe não tem sai "—". Cada card conta numa unidade só: as linhas somam o
- * Total.
+ * "Qual produto avança na base?" e a Qualificação por unidade do mês: uma linha por unidade, na régua cumulativa, com a
+ * fila do período e, dos abordados, quantos chegaram a cada etapa ou além. Desde 20/10/2026 no desenho do lado a lado
+ * (`FunilEmPilulas`; a tabela de barras finas estava "muito ruim de ler"): pílula centrada contra a fila da unidade,
+ * taxa em cima, gargalo em vermelho. Etapa que o pipe não tem sai "—". Cada card conta numa unidade só: as linhas
+ * somam o Total.
  */
 export function PorUnidade({
   unidades,
@@ -623,73 +541,27 @@ export function PorUnidade({
   total: FunilCumulativo;
   abrir: Abrir;
 }) {
-  const chaves = GRUPOS.flatMap((g) => g.chaves);
-  const valor = (fc: FunilCumulativo, k: ColunaProduto) => linhaDa(fc, k);
+  const linhaDaUnidade = (nome: string, fc: FunilCumulativo, apagada = false): LinhaPilula => ({
+    chave: nome,
+    nome,
+    apagada,
+    celulas: COLUNAS_UNIDADE.map((k) => {
+      const l = linhaDa(fc, k);
+      if (!l) return null;
+      const titulo = tituloDaLinha(l, `${nome} · `);
+      return { contagem: l.contagem, titulo, abrir: () => abrir(titulo, l.cards) };
+    }),
+  });
   const linhas = unidades ?? [];
-  const maximo = Object.fromEntries(
-    chaves.map((k) => [k, Math.max(1, ...linhas.map((l) => valor(l.funil, k)?.contagem ?? 0))]),
-  );
-  const celula = (
-    k: ColunaProduto,
-    i: number,
-    fc: FunilCumulativo,
-    titulo: string,
-    destaque = false,
-  ) => {
-    const l = valor(fc, k);
-    if (!l)
-      return (
-        <td key={k} className="px-3 py-2.5 text-right align-top">
-          <span className="num text-base text-muted-foreground">—</span>
-        </td>
-      );
-    const v = l.contagem;
-    const anterior = i > 0 ? valor(fc, chaves[i - 1])?.contagem : undefined;
-    // Taxa só quando as duas pontas têm card: "0% da anterior" e "—" em série viravam ruído.
-    const t = anterior && v ? taxa(v, anterior) : null;
-    return (
-      <td key={k} className="px-3 py-2.5 align-top">
-        {v > 0 ? (
-          <button
-            type="button"
-            onClick={() => abrir(titulo, l.cards)}
-            className={cn(
-              "num block w-full rounded-sm text-right text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
-              destaque ? "text-base font-bold" : "text-base font-semibold",
-            )}
-          >
-            {INT.format(v)}
-          </button>
-        ) : (
-          <span className="num block text-right text-base text-muted-foreground">0</span>
-        )}
-        {!destaque && (
-          <span className="mt-1 block h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-            <span
-              className="block h-full rounded-full bg-primary-text"
-              style={{ width: `${(v / maximo[k]) * 100}%` }}
-            />
-          </span>
-        )}
-        <span className="num mt-1 block text-right text-xs text-muted-foreground">
-          {t === null ? "\u00a0" : `${PCT.format(t)} da anterior`}
-        </span>
-      </td>
-    );
-  };
-  const tituloDe = (nome: string, k: ColunaProduto, fc: FunilCumulativo) => {
-    const l = valor(fc, k);
-    return l ? tituloDaLinha(l, `${nome} · `) : nome;
-  };
   return (
     <section className="rounded-xl border bg-card">
       <div className="space-y-0.5 px-4 pt-4">
         <h2 className="text-base font-semibold text-foreground">Em que unidade a base avança?</h2>
         <p className="text-[13px] text-muted-foreground">
           Abordados no período pela unidade da conta na Base, cada um até a etapa mais adiantada. A
-          barra compara as unidades na mesma coluna; a porcentagem é a coluna ÷ a da esquerda. Cada
-          card conta numa unidade só, então as linhas somam o Total. Clique no número para abrir os
-          negócios.
+          pílula mede contra a fila da unidade, a porcentagem é a passagem da etapa da esquerda e o
+          vermelho marca a passagem que mais perde. Cada card conta numa unidade só, então as linhas
+          somam o Total.
         </p>
       </div>
       {unidades === null ? (
@@ -701,61 +573,19 @@ export function PorUnidade({
           Nenhum card na fila nem abordado no período.
         </p>
       ) : (
-        <div className="overflow-x-auto p-2">
-          <table className="w-full min-w-[860px] table-fixed text-left">
-            <colgroup>
-              <col className="w-44" />
-              {chaves.map((k) => (
-                <col key={k} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th rowSpan={2} className="px-3 pb-2 align-bottom">
-                  Unidade
-                </th>
-                {GRUPOS.map((g) => (
-                  <th key={g.titulo} colSpan={g.chaves.length} className="px-3 pt-1">
-                    <span className="block border-b pb-1 text-center">{g.titulo}</span>
-                  </th>
-                ))}
-              </tr>
-              <tr className="text-xs font-medium text-muted-foreground">
-                {chaves.map((k) => (
-                  <th key={k} className="px-3 pb-2 pt-1.5 text-right">
-                    {CURTO[k]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {linhas.map(({ unidade, funil }) => (
-                <tr key={unidade} className="border-t">
-                  <th
-                    className={cn(
-                      "truncate px-3 py-2.5 align-top text-sm font-semibold",
-                      unidade === SEM_UNIDADE ? "text-muted-foreground" : "text-foreground",
-                    )}
-                    title={unidade}
-                  >
-                    {unidade}
-                  </th>
-                  {chaves.map((k, i) => celula(k, i, funil, tituloDe(unidade, k, funil)))}
-                </tr>
-              ))}
-              {linhas.length > 1 && (
-                <tr className="border-t-2 bg-muted/40">
-                  <th className="px-3 py-2.5 align-top text-sm font-bold text-foreground">Total</th>
-                  {chaves.map((k, i) => celula(k, i, total, tituloDe("Total", k, total), true))}
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <FunilEmPilulas
+          rotuloLinhas="Unidade"
+          colunas={COLUNAS_UNIDADE.map((k) => ({ chave: k, nome: CURTO[k] }))}
+          linhas={linhas.map((u) => linhaDaUnidade(u.unidade, u.funil, u.unidade === SEM_UNIDADE))}
+          total={linhaDaUnidade("Total", total)}
+          cor={CORES_SERIE[0]}
+          corTotal={CORES_SERIE[5]}
+        />
       )}
       <p className="px-4 pb-4 text-xs text-muted-foreground">
-        Com 1 ou 2 abordagens, a taxa ainda não diz nada. Card sem unidade na conta entra em “Sem
-        unidade”; a unidade não é deduzida pelo dono do card.
+        O gargalo só conta da Qualificação em diante e com 3 cards ou mais na etapa da esquerda: com
+        1 ou 2, a taxa ainda não diz nada. Card sem unidade na conta entra em “Sem unidade”; a
+        unidade não é deduzida pelo dono do card.
       </p>
     </section>
   );
@@ -928,18 +758,21 @@ export function FunilLadoALado({
                         aria-label={`${c.nome}, ${e.nome}: ${INT.format(l.contagem)} cards`}
                         className="group relative mt-1 flex h-7 w-full items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
                       >
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute inset-y-0 rounded-md transition-[filter] duration-150 group-hover:brightness-95",
-                            gargalo && "ring-2 ring-danger",
-                          )}
-                          style={{
-                            left: `${(1 - frac) * 50}%`,
-                            width: `${frac * 100}%`,
-                            backgroundColor: `color-mix(in oklab, ${c.cor} ${Math.max(28, 72 - i * 5)}%, var(--card))`,
-                          }}
-                        />
+                        {/* Zero não tem pílula: o gargalo em zero fica só na taxa vermelha. */}
+                        {l.contagem > 0 && (
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "absolute inset-y-0 rounded-md transition-[filter] duration-150 group-hover:brightness-95",
+                              gargalo && "ring-2 ring-danger",
+                            )}
+                            style={{
+                              left: `${(1 - frac) * 50}%`,
+                              width: `${frac * 100}%`,
+                              backgroundColor: `color-mix(in oklab, ${c.cor} ${Math.max(28, 72 - i * 5)}%, var(--card))`,
+                            }}
+                          />
+                        )}
                         <span
                           className={cn(
                             "num relative text-sm font-semibold",

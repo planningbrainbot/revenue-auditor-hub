@@ -1,34 +1,71 @@
 // Operação diária › Base nova (pipe 40). Visão geral: quadros da coorte, funil das 8 etapas, relógio do prazo prometido,
-// entrega das três áreas, unidade de origem e o que falta no cadastro. Régua em src/lib/monetizacao/diagnostico.ts.
+// unidade de origem, entrega das três áreas e o que falta no cadastro. Régua em src/lib/monetizacao/diagnostico.ts.
+// Desde 20/10/2026 com as peças da Operação do pipe 39 (pedido do Pedro: "não é pra ser uma tela com design
+// diferente"): o funil com ícone em rampa e o funil por unidade em pílulas vêm de ../funil-desenho.
 import type { ReactNode } from "react";
-import { CircleCheck, Clock, OctagonAlert, TriangleAlert } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  CalendarClock,
+  CircleCheck,
+  ClipboardCheck,
+  Clock,
+  FolderOpen,
+  OctagonAlert,
+  Presentation,
+  Scale,
+  ScanSearch,
+  TriangleAlert,
+  Trophy,
+  type LucideIcon,
+} from "lucide-react";
 import { KpiCard, Secao, StatusBadge, type TomStatus } from "@/components/planning";
+import { CORES_SERIE } from "@/lib/planning/grafico";
 import { cn } from "@/lib/utils";
 import {
   NOME_AREA,
+  NUMERO_DIAG,
+  ORDEM_DIAG,
+  SEM_UNIDADE_DIAG,
   areasDiagnostico,
   cadastroDiagnostico,
   funilDiagnostico,
+  funisPorUnidadeDiag,
   nomeDoCard,
   quadrosDiagnostico,
   relogioDiagnostico,
-  unidadesDiagnostico,
   type CardDiag,
   type EtapaDiag,
   type FiltroDiag,
+  type LinhaFunilDiag,
   type SituacaoRelogio,
 } from "@/lib/monetizacao/diagnostico";
-import {
-  BRL,
-  Barra,
-  INT,
-  NumeroClicavel,
-  ddmm,
-  pctDiag,
-  plural,
-  rotuloEtapa,
-  type AbrirDiag,
-} from "./comum";
+import { CabecalhoFunil, FunilEmPilulas, LinhaFunil, type LinhaPilula } from "../funil-desenho";
+import { BRL, INT, NumeroClicavel, ddmm, plural, rotuloEtapa, type AbrirDiag } from "./comum";
+
+/** Um ícone por etapa do processo (a chave da linha do funil é o id da etapa no pipe 40). */
+const ICONES: Record<string, LucideIcon> = {
+  "293": Building2,
+  "294": BadgeCheck,
+  "296": FolderOpen,
+  "297": ScanSearch,
+  "298": ClipboardCheck,
+  "299": CalendarClock,
+  "300": Presentation,
+  "301": Scale,
+  ganho: Trophy,
+};
+/** Rótulo curto de cada etapa no funil por unidade (o nome inteiro fica no funil de cima e na lista). */
+const CURTO: Record<string, string> = {
+  "293": "Novo",
+  "294": "Elegível",
+  "296": "Coleta",
+  "297": "Execução",
+  "298": "Concluído",
+  "299": "Agendada",
+  "300": "Apresentado",
+  "301": "Negociação",
+};
 
 const SITUACAO: Record<
   SituacaoRelogio,
@@ -59,11 +96,23 @@ export function OperacaoDiagnostico({
   const funil = funilDiagnostico(cards, filtro, etapas);
   const relogio = relogioDiagnostico(cards, hoje);
   const areas = areasDiagnostico(cards, hoje);
-  const unidades = unidadesDiagnostico(funil.coorte);
+  const unidades = funisPorUnidadeDiag(cards, filtro, etapas);
   const cadastro = cadastroDiagnostico(cards).filter((f) => f.cards.length);
-  const topo = funil.linhas[0]?.cards.length ?? 0;
+  const linhaDaUnidade = (
+    nome: string,
+    linhas: LinhaFunilDiag[],
+    apagada = false,
+  ): LinhaPilula => ({
+    chave: nome,
+    nome,
+    apagada,
+    celulas: linhas.map((l) => {
+      const titulo = `${nome} · ${l.rotulo} · coorte`;
+      return { contagem: l.cards.length, titulo, abrir: () => abrir(titulo, l.cards) };
+    }),
+  });
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Secao
         titulo="Quantas vendas viraram diagnóstico, e quanto avançou?"
         descricao={`Cards que entraram no pipe 40 de ${ddmm(filtro.de)} a ${ddmm(filtro.ate)} · ${recorte}`}
@@ -81,8 +130,8 @@ export function OperacaoDiagnostico({
         </div>
       </Secao>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.2fr)]">
-        <section className="rounded-xl border bg-card p-4">
+      <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.3fr)]">
+        <section className="flex h-full flex-col rounded-xl border bg-card p-4">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-semibold text-foreground">
               Onde o diagnóstico avança e onde trava?
@@ -100,49 +149,36 @@ export function OperacaoDiagnostico({
             )}
           </div>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Cada card contado até a etapa mais adiantada a que chegou. Taxa: a etapa ÷ a de cima.
-            Hoje: o pipe inteiro agora, fora da taxa.
+            Cards que entraram no período, cada um contado até a etapa mais adiantada a que chegou.
+            Taxa: a etapa ÷ a de cima. Hoje: o pipe inteiro agora, fora da taxa.
           </p>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_3rem_minmax(0,1.2fr)_3rem_3.5rem] items-center gap-x-3 gap-y-2 text-[13px]">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Etapa
-            </span>
-            <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Cards
-            </span>
-            <span aria-hidden />
-            <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Hoje
-            </span>
-            <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Taxa
-            </span>
-            {funil.linhas.map((l) => (
-              <FunilLinha key={l.chave} rotulo={l.rotulo}>
-                <NumeroClicavel
-                  cards={l.cards}
-                  titulo={`${l.rotulo} · coorte`}
-                  abrir={abrir}
-                  className="text-right"
-                />
-                <Barra
-                  valor={l.cards.length}
-                  maximo={topo}
-                  cor={l.chave === "ganho" ? "bg-chart-2" : "bg-chart-1"}
-                />
-                <NumeroClicavel
-                  cards={l.hoje}
-                  titulo={`${l.rotulo} · agora`}
-                  abrir={abrir}
-                  className="text-right font-normal"
-                />
-                <span className="num text-right text-muted-foreground">{pctDiag(l.taxa)}</span>
-              </FunilLinha>
+          <p className="mt-2 text-xs font-medium text-foreground">
+            Recorte: <span className="text-muted-foreground">{recorte}</span>
+          </p>
+          <div className="mt-3">
+            <CabecalhoFunil />
+            {funil.linhas.map((l, i) => (
+              <LinhaFunil
+                key={l.chave}
+                icone={ICONES[l.chave] ?? Building2}
+                passo={i}
+                total={funil.linhas.length}
+                contagem={l.cards.length}
+                nome={l.rotulo}
+                rotulo={`${l.rotulo} · coorte`}
+                abrir={() => abrir(`${l.rotulo} · coorte`, l.cards)}
+                hoje={
+                  l.chave === "ganho"
+                    ? undefined
+                    : { n: l.hoje.length, abrir: () => abrir(`${l.rotulo} · agora`, l.hoje) }
+                }
+                taxa={i === 0 ? undefined : l.taxa}
+              />
             ))}
           </div>
         </section>
 
-        <section className="rounded-xl border bg-card p-4">
+        <section className="flex h-full flex-col rounded-xl border bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">
             Quem está dentro do prazo prometido?
           </h2>
@@ -224,7 +260,48 @@ export function OperacaoDiagnostico({
         </section>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <section className="rounded-xl border bg-card">
+        <div className="space-y-0.5 px-4 pt-4">
+          <h2 className="text-base font-semibold text-foreground">
+            Em que unidade o diagnóstico avança?
+          </h2>
+          <p className="text-[13px] text-muted-foreground">
+            A coorte do funil pela unidade de negócio da venda, cada card até a etapa mais
+            adiantada. A pílula mede contra os que entraram da unidade, a porcentagem é a passagem
+            da etapa da esquerda e o vermelho marca a passagem que mais perde. Cada card conta numa
+            unidade só, então as linhas somam o Total.
+          </p>
+        </div>
+        {unidades.length ? (
+          <FunilEmPilulas
+            rotuloLinhas="Unidade"
+            colunas={[
+              ...ORDEM_DIAG.map((id) => ({
+                chave: String(id),
+                nome: `${NUMERO_DIAG[id]} ${CURTO[String(id)]}`,
+              })),
+              { chave: "ganho", nome: "Ganhos" },
+            ]}
+            linhas={unidades.map((u) =>
+              linhaDaUnidade(u.unidade, u.funil.linhas, u.unidade === SEM_UNIDADE_DIAG),
+            )}
+            total={linhaDaUnidade("Total", funil.linhas)}
+            cor={CORES_SERIE[0]}
+            corTotal={CORES_SERIE[5]}
+            gargaloDesde={1}
+          />
+        ) : (
+          <p className="px-4 pb-4 pt-3 text-sm text-muted-foreground">
+            Nenhum card entrou no período.
+          </p>
+        )}
+        <p className="px-4 pb-4 text-xs text-muted-foreground">
+          O gargalo só conta com 3 cards ou mais na etapa da esquerda: com 1 ou 2, a taxa ainda não
+          diz nada. Venda sem unidade entra em “Sem unidade”.
+        </p>
+      </section>
+
+      <div className="grid gap-3 xl:grid-cols-2">
         <section className="rounded-xl border bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">
             As três áreas estão entregando?
@@ -282,89 +359,34 @@ export function OperacaoDiagnostico({
 
         <section className="rounded-xl border bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">
-            De que unidade vêm, e até onde chegam?
+            O que falta no cadastro dos cards?
           </h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            A coorte do funil pela unidade de negócio da venda; cada card numa unidade só, então as
-            linhas somam a coorte.
+            O que o desenho do processo exige que já esteja no card, conferido na etapa em que ele
+            está.
           </p>
-          {unidades.length ? (
-            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_repeat(4,4.5rem)] gap-x-3 gap-y-2 text-[13px]">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Unidade
-              </span>
-              <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Entraram
-              </span>
-              <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Execução
-              </span>
-              <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Apresent.
-              </span>
-              <span className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Ganhos
-              </span>
-              {unidades.map((u) => (
-                <FunilLinha key={u.unidade} rotulo={u.unidade}>
-                  <NumeroClicavel
-                    cards={u.entraram}
-                    titulo={`${u.unidade} · entraram`}
-                    abrir={abrir}
-                    className="text-right"
-                  />
-                  <NumeroClicavel
-                    cards={u.execucao}
-                    titulo={`${u.unidade} · chegaram à execução`}
-                    abrir={abrir}
-                    className="text-right"
-                  />
-                  <NumeroClicavel
-                    cards={u.apresentados}
-                    titulo={`${u.unidade} · apresentados`}
-                    abrir={abrir}
-                    className="text-right"
-                  />
-                  <NumeroClicavel
-                    cards={u.ganhos}
-                    titulo={`${u.unidade} · ganhos`}
-                    abrir={abrir}
-                    className="text-right"
-                  />
-                </FunilLinha>
+          {cadastro.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {cadastro.map((f) => (
+                <button
+                  key={f.chave}
+                  type="button"
+                  onClick={() => abrir(f.rotulo, f.cards)}
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="text-foreground">{f.rotulo}</span>
+                  <StatusBadge tom="atencao">{INT.format(f.cards.length)}</StatusBadge>
+                </button>
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-[13px] text-muted-foreground">Nenhum card entrou no período.</p>
+            <p className="mt-3 flex items-center gap-2 text-[13px] text-muted-foreground">
+              <CircleCheck className="size-4 text-success" strokeWidth={1.75} aria-hidden />
+              Nenhum card com campo faltando para a etapa em que está.
+            </p>
           )}
         </section>
       </div>
-
-      <Secao
-        titulo="O que falta no cadastro dos cards?"
-        descricao="O que o desenho do processo exige que já esteja no card, conferido na etapa em que ele está."
-      >
-        {cadastro.length ? (
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {cadastro.map((f) => (
-              <button
-                key={f.chave}
-                type="button"
-                onClick={() => abrir(f.rotulo, f.cards)}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="text-foreground">{f.rotulo}</span>
-                <StatusBadge tom="atencao">{INT.format(f.cards.length)}</StatusBadge>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <CircleCheck className="size-4 text-success" strokeWidth={1.75} aria-hidden />
-            Nenhum card com campo faltando para a etapa em que está.
-          </p>
-        )}
-      </Secao>
     </div>
   );
 }

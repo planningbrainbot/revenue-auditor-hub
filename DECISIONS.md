@@ -5754,3 +5754,28 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Testes: `tests/monetizacao-cadencia.test.mjs`, 40 de 40.
 
 **Fica pendente:** a validação dos textos pelo Paulo e pela Jordana (regra de 08/10) antes de publicar a função e rodar o script. Depois disso: corrigir o documento 01 e o guia da pré-venda, e trocar no dossiê a linha "Demanda / tese" por "Por que esta conta".
+
+## [2026-10-20] Base nova (pipe 40) com o mesmo desenho da base antiga, e o funil por unidade em pílulas
+
+**Contexto:** o Pedro viu as telas da base nova lado a lado com as da base antiga e pediu: "A tela do pipe 40 tem que ter o mesmo design da tela do 39. Os ícones do funil, a estrutura, etc. Não é pra ser uma tela com design diferente, corrige isso." Sobre o "Em que unidade a base avança?" do pipe 39, disse que "o design do funil dessa dobra aqui tá muito ruim de ler", e pediu: "tenta deixar mais próximo do funil da dobra de baixo que está mais sexy".
+
+**Decisão: um desenho de funil só, compartilhado pelos dois pipes.** O arquivo novo `src/components/monetizacao/funil-desenho.tsx` guarda só o desenho. Quem chama conta os cards e diz o que cada clique abre.
+- `LinhaFunil`, `CabecalhoFunil` e `Rampa` saíram do funil do topo do pipe 39, sem mudança visual. Com elas, o pipe 40 desenha o "Onde o diagnóstico avança e onde trava?" com a mesma grade:
+  - um ícone por etapa: 01 Building2, 02 BadgeCheck, 03 FolderOpen, 04 ScanSearch, 05 ClipboardCheck, 06 CalendarClock, 07 Presentation, 08 Scale, Ganho Trophy;
+  - as colunas Cards, Etapa, Hoje e Taxa, com a taxa na passagem.
+- `FunilEmPilulas` é o desenho do "Em que etapa cada produto trava?" deitado: uma linha por unidade e uma coluna por etapa.
+  - A pílula fica centrada, mede contra a primeira coluna da própria linha e traz o número dentro.
+  - A taxa fica em cima.
+  - O gargalo fica em vermelho. Ele conta só com 3 cards ou mais na etapa da esquerda; no pipe 39, da Qualificação em diante, e no 40, da 02 em diante.
+  - O Total fecha a grade, em cinza.
+  - Zero sai sem pílula.
+
+  Esse desenho substitui a tabela de grupos com barra fina e "x% da anterior" no pipe 39 e as quatro colunas soltas do "De que unidade vêm" no 40. A régua do 40 é `funisPorUnidadeDiag`, a mesma coorte de `funilDiagnostico` por unidade, e ela substitui `unidadesDiagnostico`.
+- **Demais telas do 40:**
+  - Pré-venda › Hoje: uma `Secao` por pessoa com `KpiCard` e a tabela "O que fazer hoje".
+  - Ritmo: o `BarChart` do 39.
+  - Aderência: `KpiGrade`.
+  - Forecast, no molde do 39: um `KpiCard` por horizonte em "Quando deve fechar?" e as etapas com o ícone em rampa.
+  - Cabeçalho: a assinatura da Caixa de Oportunidade.
+- Os números, as réguas e os filtros das duas bases não mudam. Os contratos `monetizacao-base-nova.md` e `monetizacao-operacao.md` ganharam adendos de 20/10.
+- **Correção junto:** o gargalo em zero desenhava o anel vermelho numa pílula de largura zero, que virava um risco solto. Isso também acontecia no "Em que etapa cada produto trava?". Agora zero não tem pílula, e o gargalo fica na taxa vermelha.

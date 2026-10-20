@@ -307,15 +307,23 @@ export function TelaDiagnostico({
     </BarraFiltros>
   );
 
+  // A assinatura da Caixa de Oportunidade ao lado do Atualizar, como no cabeçalho da base antiga (20/10/2026).
   const acoes = (
-    <Button variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
-      <RefreshCw
-        className={cn("size-4", atualizando && "animate-spin")}
-        strokeWidth={1.75}
-        aria-hidden
+    <>
+      <img
+        src="/brand/caixa/assinatura-horizontal.svg"
+        alt="Caixa de Oportunidade"
+        className="h-8 w-auto dark:brightness-0 dark:invert"
       />
-      Atualizar
-    </Button>
+      <Button variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
+        <RefreshCw
+          className={cn("size-4", atualizando && "animate-spin")}
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        Atualizar
+      </Button>
+    </>
   );
 
   return (

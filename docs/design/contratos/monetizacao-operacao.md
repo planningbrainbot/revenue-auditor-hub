@@ -147,3 +147,24 @@ levantamento com sócio ("Lev. com sócio" onde não cabe). As chaves internas (
 
 **Link antigo** (N14): `?aba=temporal`, `forecast`, `capacidade` e `follow-day` abrem a Operação com o aviso "{tela}:
 esta tela saiu do menu em 09/10/2026", que fecha no X (`?aposentada=` na URL até fechar).
+
+## Adendo · 20/10/2026 · Funil por unidade em pílulas
+
+Pedido do Pedro: o "Em que unidade a base avança?" estava "muito ruim de ler", e o pedido foi "tenta deixar mais próximo
+do funil da dobra de baixo". A tabela com grupos (Esforço, Resposta, Levantamentos com sócio, Resultado), com barra fina
+contra a coluna e "x% da anterior", virou o desenho do "Em que etapa cada produto trava?" (`FunilEmPilulas`, em
+`funil-desenho.tsx`):
+
+- **Grade:** uma linha por unidade e as mesmas sete colunas (Fila, Abordados, Qualificação, Agendados, Realizados,
+  Validadas, Ganhos).
+- **Pílula:** centrada, mede contra a fila da própria unidade e traz o número dentro.
+- **Taxa:** a passagem da etapa da esquerda, em cima da pílula.
+- **Gargalo:** a pior passagem da linha fica em vermelho. Conta da Qualificação em diante e só com 3 cards ou mais na
+  etapa da esquerda.
+- **Total:** em cinza, no fim.
+- **Zero:** sai apagado e não abre nada.
+- **Cor:** a série única do design system (`CORES_SERIE[0]`).
+
+A régua (`funisPorUnidade`) e o clique (lista da coorte da unidade naquela etapa) não mudam. O funil do topo passou a
+usar as peças do mesmo arquivo (`LinhaFunil`, `CabecalhoFunil`, `Rampa`), sem mudança visual, para a base nova
+desenhar o seu com elas.
