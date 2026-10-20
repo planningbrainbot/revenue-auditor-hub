@@ -5866,3 +5866,25 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Tempos com 0 pedidos: até 26 ms nas listas; `fat_config` ~100 ms.
 - Tempos com 2.000 pedidos simulados: `fat_pedidos` ~150 ms, `fat_fila_tesouraria` ~90 ms, `fat_resumo` ~300 ms.
 - O gate da T1a no modo "depois de aplicar" deixou de valer: os blocos B11 e E3 mudam a situação direto, e agora a guarda recusa. Para a T1a, vale o histórico do gate.
+
+## [2026-10-20] Portal de Faturamento, T1b: o conector chama pelo ops, e o CNPJ alfanumérico entra
+
+**Contexto:** dois ajustes pedidos depois da T1b. O conector não alcança `integracoes` porque o schema não está exposto no PostgREST. Além disso, o CNPJ alfanumérico (IN RFB 2.229/2024) vale desde julho de 2026.
+
+**Decisões:**
+- **`integracoes` não vai ser exposto.** Em `ops` há uma passagem para cada função do conector (`fat_conector_*`), mais `fat_receita_cnpj_gravar` para a server function da tela. Têm a mesma assinatura e o mesmo retorno das originais, são `security definer` com `search_path` fixo, e só o service_role executa: revoke de public, anon e authenticated, e o papel é conferido no corpo, nas duas pontas.
+- **Documento normalizado** por `receita.fat_documento_normalizar`: só letras e dígitos, letras em maiúsculas.
+  - CNPJ aceita `[0-9A-Z]` nas 12 primeiras posições e 2 dígitos verificadores numéricos. O dígito verificador usa ASCII − 48 com os mesmos pesos do módulo 11. CPF continua só com dígitos.
+  - Valem os checks de `fat_pedidos`, `omie_vinculo_cliente` e `receita_cnpj`.
+  - O aviso de contrato casa CNPJ alfanumérico pelo documento normalizado, porque o `cnpj_digitos` do Omie tira as letras.
+- **As funções alteradas são as da T1b com só essas trocas.** Foram geradas por script a partir do arquivo da T1b, e o rollback volta o texto exato dela. O A1 do gate da T1b passou a excluir as passagens, que não são RPC de tela.
+
+**Onde:**
+- Migration: `supabase/migrations/20261020170000_portal_faturamento_t1b_ajustes.sql`.
+- Rollback: `supabase/rollback/20261020170000_portal_faturamento_t1b_ajustes_rollback.sql`.
+- Gate: `supabase/gates/20261020_portal_faturamento_t1b_ajustes.sql`. Conta o DV de `12ABC34501DE35` na mão, usa o CNPJ real da DOC e um inválido de cada tipo.
+- Contrato: `e1/API.md`, seção "Mudanças".
+
+**Status:**
+- **Aplicado em 20/10.**
+- O gate dos ajustes deu `[]` antes de aplicar (com migration e rollback) e depois. O gate da T1b deu `[]` com os ajustes, antes e depois de aplicar.

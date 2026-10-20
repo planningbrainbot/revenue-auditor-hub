@@ -221,9 +221,13 @@ begin
   if current_user <> 'postgres' then raise exception 'ENSAIO INVÁLIDO: o bloco A roda como %', current_user; end if;
 
   -- A1. As 25 RPCs de tela: definer, search_path vazio; authenticated executa; anon, public e service_role não.
-  select count(*) into n from pg_proc p where p.pronamespace = 'ops'::regnamespace and p.proname like 'fat\_%';
+  --     (As passagens do conector, ops.fat_conector_* e ops.fat_receita_cnpj_gravar, são da migration de ajustes e
+  --     têm o gate dela: só service_role.)
+  select count(*) into n from pg_proc p where p.pronamespace = 'ops'::regnamespace and p.proname like 'fat\_%'
+     and p.proname not like 'fat\_conector\_%' and p.proname <> 'fat_receita_cnpj_gravar';
   if n <> 25 then raise exception 'FALHOU A1: % RPCs ops.fat_* (esperava 25)', n; end if;
-  for f in select p.oid::regprocedure from pg_proc p where p.pronamespace = 'ops'::regnamespace and p.proname like 'fat\_%' loop
+  for f in select p.oid::regprocedure from pg_proc p where p.pronamespace = 'ops'::regnamespace and p.proname like 'fat\_%'
+              and p.proname not like 'fat\_conector\_%' and p.proname <> 'fat_receita_cnpj_gravar' loop
     if not (select p.prosecdef and exists (select 1 from unnest(p.proconfig) c where c = 'search_path=""')
               from pg_proc p where p.oid = f) then
       raise exception 'FALHOU A1: % sem security definer ou search_path fixo', f;
