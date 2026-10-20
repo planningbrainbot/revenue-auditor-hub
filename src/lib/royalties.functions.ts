@@ -100,8 +100,9 @@ export interface ApuracaoItem {
   royalties_percentual_override: number | null;
   is_cac: boolean;
   // 1 = adiantamento de 50% na assinatura; 2 = 50% depois que a unidade recebe
-  // o 1º honorário (caixa). Nulo fora do CAC ou em CAC antigo não classificado.
-  cac_parcela: 1 | 2 | null;
+  // o 1º honorário (caixa); 3 = integral, as duas metades juntas a 100%. Nulo
+  // fora do CAC ou em CAC antigo não classificado.
+  cac_parcela: 1 | 2 | 3 | null;
   royalties_item: number | null;
   fonte: string;
   status_match: string | null;
@@ -1155,7 +1156,7 @@ export const updateItem = createServerFn({ method: "POST" })
     // Bloqueia se apuração fechada
     const { data: item, error: e1 } = await supabase
       .from("royalties_itens")
-      .select("apuracao_id, contrato_id, apuracao:royalties_apuracao!inner(status)")
+      .select("apuracao_id, contrato_id, cac_parcela, apuracao:royalties_apuracao!inner(status)")
       .eq("id", data.id)
       .single();
     if (e1) throw new Error(e1.message);
@@ -1184,6 +1185,11 @@ export const updateItem = createServerFn({ method: "POST" })
       if (!data.is_cac) patch.cac_parcela = null;
     }
     if ("cac_parcela" in data) patch.cac_parcela = data.cac_parcela;
+    // Integral é cobrado a 100%; sair dele para uma das metades volta aos 50%.
+    if (item.cac_parcela === 3 && "cac_parcela" in data && !("royalties_percentual_override" in data)) {
+      patch.royalties_percentual_override = data.cac_parcela == null ? null : 50;
+    }
+    if ("is_cac" in data && !data.is_cac && item.cac_parcela === 3) patch.royalties_percentual_override = null;
     // Marca a venda como feita por sócio direto (fora do funil comercial padrão).
     // Um script separado (sync_socios_omie_to_pipedrive.py) lê itens com
     // venda_socios=true e pipedrive_deal_id_socios ainda nulo e cria o deal
@@ -1199,21 +1205,20 @@ export const updateItem = createServerFn({ method: "POST" })
 
 // ============ cobrarCacIntegral ============
 // CAC integral: quando o 1º honorário já foi recebido, as duas parcelas entram na
-// mesma apuração (pedido de 20/10/2026). O resto do sistema (broker, demonstrativo,
-// funil do CAC) só entende parcela 1 e 2, então "integral" não é um terceiro tipo:
-// o item vira a 1ª parcela a 50% e ganha uma cópia como 2ª parcela a 50%, como as
-// migrations 102 e 104 já faziam à mão. A cópia é fonte "manual" para a
-// regeneração dos itens não apagá-la.
+// mesma apuração (pedido de 20/10/2026). É uma linha só, parcela 3 a 100%: duas
+// linhas do mesmo cliente, uma de cada metade, confundiam a leitura (20/10/2026).
+// Se o contrato já tinha a outra metade lançada nesta apuração, ela sai do mês,
+// senão o cliente seria cobrado 150%.
 export const cobrarCacIntegral = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: number }) => d)
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId, claims } = context;
     await assertCan(supabase, EDITAR_ROYALTIES, RECADO_EDITAR);
 
     const { data: item, error: e1 } = await supabase
       .from("royalties_itens")
-      .select("*, apuracao:royalties_apuracao!inner(status)")
+      .select("apuracao_id, contrato_id, cnpj, apuracao:royalties_apuracao!inner(status)")
       .eq("id", data.id)
       .single();
     if (e1) throw new Error(e1.message);
@@ -1224,49 +1229,34 @@ export const cobrarCacIntegral = createServerFn({ method: "POST" })
 
     const result = await supabase
       .from("royalties_itens")
-      .update({ is_cac: true, cac_parcela: 1, royalties_percentual_override: 50 })
+      .update({ is_cac: true, cac_parcela: 3, royalties_percentual_override: 100 })
       .eq("id", data.id)
       .select("id");
     assertAffected(result, `Item de royalties ${data.id} não foi atualizado — possível bloqueio de permissão (RLS).`);
 
-    if (item.contrato_id != null) {
-      const { data: jaTem, error: e2 } = await supabase
+    // A outra metade é do mesmo contrato; item só do Omie (sem contrato) casa pelo CNPJ.
+    if (item.contrato_id != null || item.cnpj) {
+      const email = (claims as any)?.email ?? null;
+      let irmas = supabase
         .from("royalties_itens")
-        .select("id")
+        .update({
+          excluido_em: new Date().toISOString(),
+          excluido_por: email ?? userId,
+          motivo_exclusao: "Coberto pelo CAC integral",
+          confirmado: false,
+        })
         .eq("apuracao_id", item.apuracao_id)
-        .eq("contrato_id", item.contrato_id)
         .eq("is_cac", true)
-        .eq("cac_parcela", 2)
         .is("excluido_em", null)
         .neq("id", data.id);
+      irmas =
+        item.contrato_id != null
+          ? irmas.eq("contrato_id", item.contrato_id)
+          : irmas.is("contrato_id", null).eq("cnpj", item.cnpj!);
+      const { error: e2 } = await irmas;
       if (e2) throw new Error(e2.message);
-      if ((jaTem ?? []).length > 0) return { ok: true, segunda_parcela_criada: false };
     }
-
-    const { error: e3 } = await supabase.from("royalties_itens").insert({
-      apuracao_id: item.apuracao_id,
-      cnpj: item.cnpj,
-      razao_social: item.razao_social,
-      contrato_id: item.contrato_id,
-      categoria: item.categoria,
-      mrr_contratado: item.mrr_contratado,
-      mrr_override: item.mrr_override,
-      valor_omie: item.valor_omie,
-      valor_confirmado: item.valor_confirmado,
-      royalties_percentual_override: 50,
-      fonte: "manual",
-      status_match: item.status_match,
-      confirmado: item.confirmado,
-      is_cac: true,
-      cac_parcela: 2,
-      data_ganho: item.data_ganho,
-      data_pagamento_omie: item.data_pagamento_omie,
-      data_competencia_omie: item.data_competencia_omie,
-      venda_socios: false,
-      observacao: "CAC 2a parcela (50%), cobrada junto com a 1a (CAC integral).",
-    });
-    if (e3) throw new Error(e3.message);
-    return { ok: true, segunda_parcela_criada: true };
+    return { ok: true };
   });
 
 // ============ atualizarCnpjContrato ============

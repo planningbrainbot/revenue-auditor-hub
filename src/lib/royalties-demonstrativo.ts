@@ -61,8 +61,8 @@ export interface DemonstrativoItem {
   royalties_percentual: number;
   royalties_item: number;
   is_cac: boolean;
-  /** 1 = adiantamento na assinatura; 2 = após o recebimento do 1º honorário. */
-  cac_parcela?: 1 | 2 | null;
+  /** 1 = adiantamento na assinatura; 2 = após o recebimento do 1º honorário; 3 = integral. */
+  cac_parcela?: 1 | 2 | 3 | null;
   categoria: "royalties" | "csc_base_antiga";
 }
 
@@ -84,9 +84,14 @@ function gruposCac(cac: DemonstrativoItem[]) {
       itens: cac.filter((i) => i.cac_parcela === 2),
     },
     {
+      titulo: "CAC — integral (1ª + 2ª parcela, 100%, 1º honorário já recebido)",
+      aba: "CAC - integral",
+      itens: cac.filter((i) => i.cac_parcela === 3),
+    },
+    {
       titulo: "Clientes — CAC",
       aba: "Clientes - CAC",
-      itens: cac.filter((i) => i.cac_parcela !== 1 && i.cac_parcela !== 2),
+      itens: cac.filter((i) => i.cac_parcela == null),
     },
   ].filter((g) => g.itens.length > 0);
 }

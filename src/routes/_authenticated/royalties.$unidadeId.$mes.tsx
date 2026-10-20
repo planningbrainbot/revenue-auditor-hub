@@ -553,6 +553,7 @@ function ApuracaoLoaded({
   // CAC por parcela: adiantamento na assinatura × 2ª metade que segue o caixa.
   let cacAdiantamento = 0;
   let cacCaixa = 0;
+  let cacIntegral = 0;
   let receitaBaseAntiga = 0;
   let confirmadosCount = 0;
   for (const it of ativos) {
@@ -567,6 +568,7 @@ function ApuracaoLoaded({
         cacValor += computado;
         if (it.cac_parcela === 1) cacAdiantamento += computado;
         else if (it.cac_parcela === 2) cacCaixa += computado;
+        else if (it.cac_parcela === 3) cacIntegral += computado;
       } else {
         receitaBase += v;
         royaltiesValor += computado;
@@ -640,9 +642,9 @@ function ApuracaoLoaded({
     updateItem.mutate({ id: it.id, is_cac: checked });
   };
 
-  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | "integral" | null) => {
-    // Integral = 1ª + 2ª parcela na mesma apuração: o item vira a 1ª e ganha a 2ª.
-    if (parcela === "integral") {
+  const setCacParcela = (it: ApuracaoItem, parcela: 1 | 2 | 3 | null) => {
+    // Integral = 1ª + 2ª parcela na mesma apuração, numa linha só a 100%.
+    if (parcela === 3) {
       cobrarCacIntegral.mutate({ id: it.id });
       return;
     }
@@ -1213,14 +1215,17 @@ function ApuracaoLoaded({
           {cacValor > 0 && (
             <ResumoLinha label="CAC" value={brl(cacValor)} bold />
           )}
-          {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0) && (
+          {cacValor > 0 && (cacAdiantamento > 0 || cacCaixa > 0 || cacIntegral > 0) && (
             <div className="space-y-1 pl-3 text-xs">
               <ResumoLinha label="1ª parcela · adiantamento" value={brl(cacAdiantamento)} />
               <ResumoLinha label="2ª parcela · após recebimento" value={brl(cacCaixa)} />
-              {cacValor - cacAdiantamento - cacCaixa > 0.005 && (
+              {cacIntegral > 0 && (
+                <ResumoLinha label="Integral · 1ª + 2ª" value={brl(cacIntegral)} />
+              )}
+              {cacValor - cacAdiantamento - cacCaixa - cacIntegral > 0.005 && (
                 <ResumoLinha
                   label="Sem parcela definida"
-                  value={brl(cacValor - cacAdiantamento - cacCaixa)}
+                  value={brl(cacValor - cacAdiantamento - cacCaixa - cacIntegral)}
                 />
               )}
             </div>
@@ -1542,7 +1547,7 @@ interface GrupoProps {
   flushPct: (it: ApuracaoItem) => void;
   toggleConfirm: (it: ApuracaoItem, c: boolean) => void;
   toggleCac?: (it: ApuracaoItem, c: boolean) => void;
-  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | "integral" | null) => void;
+  setCacParcela?: (it: ApuracaoItem, parcela: 1 | 2 | 3 | null) => void;
   toggleVendaSocios?: (it: ApuracaoItem, c: boolean) => void;
   onDelete: (it: ApuracaoItem) => void;
   extraHeader?: React.ReactNode;
@@ -2487,7 +2492,7 @@ function SecaoGrupo({
                                 value={it.cac_parcela ? String(it.cac_parcela) : ""}
                                 disabled={readOnly}
                                 onValueChange={(v) =>
-                                  setCacParcela(it, v === "integral" ? "integral" : v === "1" ? 1 : 2)
+                                  setCacParcela(it, v === "3" ? 3 : v === "1" ? 1 : 2)
                                 }
                               >
                                 <SelectTrigger
@@ -2495,14 +2500,14 @@ function SecaoGrupo({
                                     "mt-1 h-7 w-28 text-xs",
                                     !it.cac_parcela && "border-warning",
                                   )}
-                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário. Integral: as duas parcelas nesta apuração (cria a linha da 2ª)."
+                                  title="1ª parcela: 50% de adiantamento na assinatura. 2ª parcela: 50% depois que a unidade recebe o 1º honorário. Integral: as duas parcelas nesta apuração, 100% numa linha só."
                                 >
                                   <SelectValue placeholder="Parcela?" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="1">1ª · adiantamento</SelectItem>
                                   <SelectItem value="2">2ª · após receb.</SelectItem>
-                                  <SelectItem value="integral">Integral · 1ª + 2ª</SelectItem>
+                                  <SelectItem value="3">Integral · 1ª + 2ª</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
