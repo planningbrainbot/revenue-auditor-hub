@@ -17,6 +17,7 @@ import {
   ListChecks,
   Megaphone,
   Plug,
+  Receipt,
   ShieldCheck,
   Store,
   Target,
@@ -192,6 +193,15 @@ export const FRENTES: Frente[] = [
         resumo: "Fluxo de caixa, DRE e inadimplência do grupo.",
         icone: Landmark,
         destino: { tipo: "financeiro", href: "/financeiro" },
+      },
+      {
+        // Portal de Faturamento (E1, 20/10/2026): o pedido das empresas do grupo, do dono da receita ao Omie.
+        id: "faturamento",
+        nome: "Portal de Faturamento",
+        resumo: "Do pedido do dono da receita à nota no Omie, com o status à vista.",
+        area: "faturamento",
+        icone: Receipt,
+        destino: { tipo: "interno", href: "/faturamento" },
       },
       {
         id: "gente",

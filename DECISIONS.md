@@ -5813,3 +5813,46 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Ninguém dá o OK no próprio pedido: o OK vem do dono, do gestor ou do substituto, e nunca de quem enviou, nem que seja gestor.
 - Pode tirar o obrigatório de CPF e CNPJ do formulário público do pipe 307098392 e passar a exigência para a fase seguinte, para o portal conseguir criar card pela API.
 - Rascunho descartado não é apagado: vira `cancelado` com o motivo "descartado pelo autor".
+
+## [2026-10-20] Portal de Faturamento, T4 (primeira metade): área no menu, chamadas, Meu faturamento e Pedidos
+
+**Contexto:** plano E1, linha T4, com os contratos aprovados no mesmo dia. A API (T1b) ainda não estava no banco: em 20/10, às 10h, nenhuma `ops.fat_*` existia. As telas foram escritas contra o `API.md`. Enquanto a migration não for aplicada, elas mostram "O Portal de Faturamento ainda não está no banco".
+
+**Decisões:**
+- **Menu.** A área `faturamento` fica depois do Broker. Assim ela não vira a primeira tela de quem já trabalha em outra área e passa a pedir faturamento. São quatro itens:
+  - Meu faturamento;
+  - Pedidos;
+  - Fila da tesouraria, com área `faturamento_tesouraria` e chave `edit.faturamento_tesouraria`;
+  - Configuração, com área `faturamento_controladoria` e chave `admin.faturamento`.
+  "Novo pedido" é o botão principal do cabeçalho. O formulário e a ficha acendem Pedidos.
+- **Cor provisória da área.** `--area-faturamento` usa a mesma cor de `--area-receita` (lima), como propõe o contrato §1.1. **É uma proposta para a Mika.**
+- **Início.** No `/inicio` do admin, o Portal de Faturamento entra na frente Retenção, depois do Financeiro.
+- **Retorno das chamadas.** Toda server function devolve `Resultado<T>`, com os dados ou com o erro já traduzido (tipo, mensagem e campos). O erro lançado por server function chega ao navegador só com a mensagem, e a tela precisa separar quatro casos:
+  - 42501: sem acesso;
+  - P0002: não encontrado;
+  - 22023: erro de campo;
+  - 55000: transição proibida.
+  Função ausente no banco (PGRST202) vira "ainda não está no banco".
+- **Drill-down.** Cada número e cada pendência de Meu faturamento abre Pedidos com o `filtro` que o próprio banco devolve. Quando o filtro não traz empresa, vai junto o recorte de empresa da tela.
+- **Desvio do contrato: destino da tesouraria.** "Erro no Omie" e "Para faturar" da tesouraria abrem Pedidos, e não a Fila da tesouraria, por dois motivos:
+  - a fila ainda é esqueleto;
+  - o "para faturar" de `fat_contexto` inclui Em conferência e a ficha "Para faturar" da fila não inclui, então o total não bateria (N2).
+  Quando a fila existir, a segunda metade decide se troca o destino.
+- **Desvio do contrato: Em atraso.** O card abre Pedidos com `regua=atraso`, o filtro do API.md §1.2. O contrato escrevia `situacao=em_atraso`.
+- **URL de Pedidos.**
+  - As listas vão separadas por vírgula.
+  - Além do contrato, entra `simulacao=sim|nao`, porque o banco pode devolver filtro com essa chave.
+  - Empresa da URL que está fora do recorte não vira "todas": a tela diz que ela não está no recorte.
+- **Gráfico de etapas.** Mostra sempre as sete etapas, com zero incluído: é contagem de agora, e zero é dado.
+- **Esqueletos.** Quatro rotas têm portão de área e "Em construção":
+  - `/faturamento/novo`;
+  - `/faturamento/pedido/$id`, com `volta` aceito só para caminho da área;
+  - `/faturamento/tesouraria`;
+  - `/faturamento/configuracao`.
+- **Para a segunda metade.** Falta a consulta à CNPJá quando `fat_tomador` responde `consultar_receita`. Ela é feita no servidor, com a chave service_role, por `integracoes.receita_cnpj_gravar`.
+
+**Onde:**
+- Código: `src/lib/faturamento/` (`tipos`, `formato`, `rotulos`, `filtro`, `erros`, `faturamento.functions`), `src/hooks/use-faturamento.ts`, `src/components/faturamento/` e as rotas `src/routes/_authenticated/faturamento.*`.
+- Testes: `tests/faturamento-*.test.mjs`.
+
+**Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy. O formato real de `fat_contexto`, `fat_resumo` e `fat_pedidos` só pode ser conferido quando a T1b estiver aplicada.
