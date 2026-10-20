@@ -8,6 +8,7 @@ import {
   faixaDaSituacao,
   linhasIntegracao,
   oQueIriaAoOmie,
+  parcelasEmAtraso,
   resumoDaFicha,
 } from "../src/lib/faturamento/ficha.ts";
 import { eventoLegivel, mudancasDoDiff } from "../src/lib/faturamento/eventos.ts";
@@ -234,7 +235,7 @@ test("resumo: antes da nota, recebido e atraso são não apurados; o próximo ve
     [
       ["R$ 1.500,00", "3 parcelas"],
       ["R$ 500,00", "1 de 3 parcelas"],
-      ["R$ 0,00", "vencidas e não pagas"],
+      ["R$ 0,00", "nenhuma parcela vencida"],
       ["13/12/2026", "R$ 500,00"],
     ],
   );
@@ -325,6 +326,19 @@ test("Omie de verdade: OS, nota com link, erro legível e próxima tentativa", (
   assert.equal(l.nota.texto, "NFS-e 4521 emitida em 22/10/2026");
   assert.deepEqual(l.nota.link, { href: "https://nf/4521", rotulo: "Abrir a nota" });
   assert.equal(l.leitura.texto, "Situação lida do Omie às 14:00; a próxima é às 18:00.");
+  // "Omie não lido": a última leitura da empresa falhou depois da boa (contrato, Estados).
+  const falhou = Object.fromEntries(
+    linhasIntegracao(comOs, HOJE, "2026-10-22T19:00:00Z").map((x) => [x.chave, x.texto]),
+  );
+  assert.equal(
+    falhou.leitura,
+    "Situação lida do Omie às 14:00; a leitura seguinte falhou às 16:00; a próxima é às 18:00.",
+  );
+  // Falha mais velha que a leitura boa não conta.
+  assert.equal(
+    linhasIntegracao(comOs, HOJE, "2026-10-22T12:00:00Z").find((x) => x.chave === "leitura").texto,
+    "Situação lida do Omie às 14:00; a próxima é às 18:00.",
+  );
   const erro = ficha({
     pedido: { status: "erro_omie" },
     omie: {
@@ -423,4 +437,101 @@ test("diferenças de um evento alterado (RF-P10)", () => {
     ],
   );
   assert.deepEqual(mudancasDoDiff(null), []);
+});
+
+test("envios bloqueados e cancelados (revisão de 20/10/2026): parado com o motivo e não foi", () => {
+  const envio = (operacao, status, o = {}) => ({
+    id: operacao,
+    operacao,
+    status,
+    modo: "gravar",
+    tentativas: 1,
+    proxima_tentativa_em: null,
+    erro_legivel: null,
+    codigos: null,
+    criado_em: "2026-10-22T13:00:00Z",
+    atualizado_em: "2026-10-22T13:00:00Z",
+    ...o,
+  });
+  const bloqueado = ficha({
+    pedido: { status: "erro_omie" },
+    omie: {
+      envios: [
+        envio("garantir_cliente", "erro", { erro_legivel: "CNPJ inválido no Omie." }),
+        envio("incluir_os", "bloqueado"),
+      ],
+      leitura_pendente: null,
+    },
+  });
+  const l = Object.fromEntries(linhasIntegracao(bloqueado, HOJE).map((x) => [x.chave, x]));
+  assert.equal(l.cliente.texto, "CNPJ inválido no Omie.");
+  assert.equal(l.cliente.erro, true);
+  assert.equal(
+    l.os.texto,
+    "Parado: espera o cadastro do cliente, que deu erro. Volta à fila quando o erro for reenviado.",
+  );
+  assert.equal(l.os.erro, false);
+
+  const cancelado = ficha({
+    pedido: { status: "cancelado" },
+    omie: { envios: [envio("faturar_os", "cancelado")], leitura_pendente: null },
+    pipefy: {
+      envios: [
+        {
+          id: "c",
+          operacao: "criar_card",
+          status: "cancelado",
+          card_id: null,
+          fase: null,
+          card_url: null,
+          erro_legivel: null,
+          criado_em: "x",
+        },
+      ],
+    },
+  });
+  const c = Object.fromEntries(linhasIntegracao(cancelado, HOJE).map((x) => [x.chave, x.texto]));
+  assert.equal(c.nota, "Não foi ao Omie: o pedido foi cancelado antes do envio.");
+  assert.equal(c.pipefy, "Não foi ao Pipefy: o pedido foi cancelado antes do envio.");
+});
+
+test("em atraso: a nota conta as parcelas (a situação do banco; sem ela, vencida antes de hoje e não paga)", () => {
+  const parcelas = [
+    { n: 1, vencimento: "2026-09-13", valor: 500, situacao: "pago", pago_em: "2026-09-13" },
+    { n: 2, vencimento: "2026-10-13", valor: 500, situacao: "em_atraso" },
+    { n: 3, vencimento: "2026-10-20", valor: 500 },
+    { n: 4, vencimento: "2026-10-21", valor: 500, situacao: "cancelado" },
+    { n: 5, vencimento: "2026-10-22", valor: 500 },
+    { n: 6, vencimento: "2026-11-13", valor: 500, situacao: "a_vencer" },
+  ];
+  assert.equal(parcelasEmAtraso(parcelas, HOJE), 2);
+  // Sem a data de hoje, só a situação gravada conta.
+  assert.equal(parcelasEmAtraso(parcelas), 1);
+  const atrasado = ficha({
+    pedido: {
+      status: "faturado",
+      omie: {
+        os_codigo: 3021,
+        os_etapa: "60",
+        nf_numero: "4521",
+        nf_link: null,
+        nf_emitida_em: "2026-09-10T13:00:00Z",
+        lido_em: null,
+      },
+    },
+    resumo: {
+      valor: 3000,
+      recebido: 500,
+      em_atraso: 1000,
+      parcelas_pagas: 1,
+      parcelas_total: 6,
+      proximo_vencimento: { data: "2026-11-13", valor: 500, previsto: false },
+    },
+    parcelas,
+  });
+  const atraso = resumoDaFicha(atrasado, HOJE).find((n) => n.rotulo === "Em atraso");
+  assert.equal(atraso.nota, "2 parcelas");
+  assert.match(atraso.valor, /^R\$\s1\.000,00$/);
+  const umaSo = resumoDaFicha({ ...atrasado, parcelas: parcelas.slice(0, 2) }, HOJE);
+  assert.equal(umaSo.find((n) => n.rotulo === "Em atraso").nota, "1 parcela");
 });

@@ -5,7 +5,14 @@
 // não reordena.
 //
 // Módulo puro (sem React, sem `@/`), testado em tests/faturamento-fila.test.mjs.
-import type { FiltroFila, HigieneFila, ItemFila, SituacaoFila } from "./tipos.ts";
+import type {
+  FichaPedido,
+  FilaTesouraria,
+  FiltroFila,
+  HigieneFila,
+  ItemFila,
+  SituacaoFila,
+} from "./tipos.ts";
 import { diaEHora, diaMes, diaSP, horaSP, primeiroNome } from "./formato.ts";
 import { eventoLegivel } from "./eventos.ts";
 
@@ -19,6 +26,11 @@ export type BuscaFila = {
   busca?: string;
   /** Id do pedido aberto no `Sheet` (o link do `Sheet` se compartilha). */
   pedido?: string;
+  /**
+   * Com `situacao=para_faturar`, mostra também um grupo "Em conferência": é o "Para faturar" de Meu
+   * faturamento, que conta OS criada, Simulado e Em conferência (o total bate com o número clicado).
+   */
+  incluir?: "em_conferencia";
 };
 
 export const SITUACOES_FILA: { valor: SituacaoFila; rotulo: string }[] = [
@@ -54,8 +66,14 @@ export function lerBuscaFila(raw: Record<string, unknown>): BuscaFila {
   if (HIGIENES.some((h) => h.valor === higiene)) out.higiene = higiene as HigieneFila;
   const dia = texto(raw.dia);
   if (dia === "hoje" || (dia && DIA.test(dia))) out.dia = dia;
-  const busca = texto(raw.busca)?.slice(0, 120);
+  // Número vindo de link compartilhado ("?busca=2026") chega como número: vale também.
+  const busca = (typeof raw.busca === "number" ? String(raw.busca) : texto(raw.busca))?.slice(
+    0,
+    120,
+  );
   if (busca) out.busca = busca;
+  if (raw.incluir === "em_conferencia" && out.situacao === "para_faturar")
+    out.incluir = "em_conferencia";
   const pedido = texto(raw.pedido);
   if (pedido && UUID.test(pedido)) out.pedido = pedido.toLowerCase();
   return out;
@@ -184,13 +202,19 @@ export function textoProximaAcao(item: ItemFila, hoje: string, agora: Date): str
     case "confirmar_cancelamento":
       return `Confirmar cancelamento${a.desde ? ` · pedido em ${diaMes(a.desde)}` : ""}`;
     default:
+      if (item.pipefy_erro) return "Reenviar o card do Pipefy";
       return item.status === "faturado" ? "Faturado" : "—";
   }
 }
 
-export type BotaoFila = "conferir" | "faturar" | "reenviar" | "confirmar_cancelamento";
+export type BotaoFila =
+  "conferir" | "faturar" | "reenviar" | "confirmar_cancelamento" | "reenviar_pipefy";
 
-/** O botão da linha: Conferir, Faturar, Reenviar ou Confirmar cancelamento. Na fila do Omie não tem botão. */
+/**
+ * O botão da linha: Conferir, Faturar, Reenviar ou Confirmar cancelamento. Na fila do Omie não tem botão. Sem
+ * nenhum desses e com o card do Pipefy em erro, "Reenviar o card" (o `Sheet` também o oferece, na linha do
+ * Pipefy, quando a linha já tem outro botão).
+ */
 export function botaoDaLinha(item: ItemFila): BotaoFila | null {
   if (item.faturando) return null;
   switch (item.status) {
@@ -204,7 +228,7 @@ export function botaoDaLinha(item: ItemFila): BotaoFila | null {
     case "cancelamento_pedido":
       return "confirmar_cancelamento";
     default:
-      return null;
+      return item.pipefy_erro ? "reenviar_pipefy" : null;
   }
 }
 
@@ -213,6 +237,7 @@ export const ROTULO_BOTAO: Record<BotaoFila, string> = {
   faturar: "Faturar",
   reenviar: "Reenviar",
   confirmar_cancelamento: "Confirmar cancelamento",
+  reenviar_pipefy: "Reenviar o card",
 };
 
 /** Há filtro de tabela (fora a empresa e o pedido aberto)? */
@@ -223,10 +248,25 @@ export function temFiltroFila(b: BuscaFila): boolean {
 /** "/faturamento/tesouraria?emissora=DOC&higiene=erro", sem o pedido aberto: é o `volta` da Ficha. */
 export function hrefFila(b: BuscaFila): string {
   const params = new URLSearchParams();
-  for (const k of ["emissora", "situacao", "higiene", "dia", "busca"] as const) {
+  for (const k of ["emissora", "situacao", "incluir", "higiene", "dia", "busca"] as const) {
     const v = b[k];
     if (v) params.set(k, v);
   }
   const q = params.toString();
   return q ? `/faturamento/tesouraria?${q}` : "/faturamento/tesouraria";
+}
+
+// ------------------------------------------------------------------ releitura enquanto há algo em curso
+
+/** A fila tem pedido faturando ou esperando o Omie? Então a tela relê sozinha (o Omie responde sem ninguém agir). */
+export function filaEmCurso(f: Pick<FilaTesouraria, "itens"> | undefined): boolean {
+  return !!f?.itens.some((i) => i.faturando || i.status === "na_fila_omie");
+}
+
+/** A ficha espera o Omie (na fila, faturando ou com leitura de situação pedida)? */
+export function fichaEmCurso(f: Pick<FichaPedido, "pedido" | "omie"> | undefined): boolean {
+  if (!f) return false;
+  if (f.pedido.status === "na_fila_omie") return true;
+  if (f.omie.leitura_pendente) return true;
+  return (f.omie.envios ?? []).some((e) => e.status === "pendente" || e.status === "processando");
 }

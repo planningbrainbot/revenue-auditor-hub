@@ -39,6 +39,36 @@ const MAX_TEXTO = 3_000;
 const semAcento = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "");
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Preposições, artigos e tipos de sociedade que aparecem em razão social e não identificam ninguém. */
+const NAO_IDENTIFICAM = new Set([
+  "das",
+  "dos",
+  "del",
+  "com",
+  "para",
+  "por",
+  "sem",
+  "the",
+  "and",
+  "ltda",
+  "eireli",
+  "epp",
+]);
+
+/**
+ * As palavras de 3 letras ou mais de cada nome (sem acento, minúsculas, sem repetição), da mais longa para a
+ * mais curta, para a troca casar primeiro o pedaço maior.
+ */
+export function pedacosDoNome(nomes: (string | null | undefined)[]): string[] {
+  const out = new Set<string>();
+  for (const nome of nomes)
+    for (const p of semAcento(nome ?? "")
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u))
+      if ((p.match(/\p{L}/gu)?.length ?? 0) >= 3 && !NAO_IDENTIFICAM.has(p)) out.add(p);
+  return [...out].sort((a, b) => b.length - a.length);
+}
+
 /**
  * Tira dado pessoal e de contato do texto antes de ir ao Jev: link, e-mail, CNPJ (inclusive alfanumérico),
  * CPF, telefone, a linha "Empresa do cliente a faturar: …" e os nomes passados (o do cliente do pedido).
@@ -62,12 +92,11 @@ export function limparTexto(
     /(empresa do cliente( a faturar)?|raz[aã]o social|tomador|cliente)\s*:[^\n]*/gi,
     "$1: [cliente]",
   );
-  for (const nome of nomes) {
-    const n = (nome ?? "").trim();
-    if (n.length < 3) continue;
-    // Casa sem acento e sem caixa, com os espaços do jeito que vierem.
-    const padrao = semAcento(n).split(/\s+/).map(escapar).join("\\s+");
-    const re = new RegExp(padrao, "gi");
+  // O nome do cliente sai inteiro e também aos pedaços: toda palavra de 3 letras ou mais do nome ou da razão
+  // social ("Grupo Fortaleza" sai com o tomador FORTALEZA EMPREENDIMENTOS IMOBILIARIOS LTDA). Ficam só as
+  // preposições comuns, que não identificam ninguém (achado M6 da revisão de 20/10/2026).
+  for (const palavra of pedacosDoNome(nomes)) {
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapar(palavra)}(?![\\p{L}\\p{N}])`, "giu");
     const base = semAcento(t);
     let saida = "";
     let ultimo = 0;
@@ -77,6 +106,8 @@ export function limparTexto(
     }
     t = saida + t.slice(ultimo);
   }
+  // "[cliente] [cliente] [cliente]" vira um marcador só.
+  t = t.replace(/\[cliente\](?:[\s.,&/-]*\[cliente\])+/g, "[cliente]");
   return t
     .replace(/[ \t]+/g, " ")
     .trim()

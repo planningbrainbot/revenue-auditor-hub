@@ -63,10 +63,12 @@ import {
   SITUACAO,
   tipoRecorteDoContexto,
 } from "@/lib/faturamento/rotulos";
+import { SITUACOES } from "@/lib/faturamento/tipos";
 import type {
   Contexto,
   EmissoraRef,
   ListaPedidos,
+  PedidoLinha,
   Pendencia,
   Pessoa,
   Regua,
@@ -146,7 +148,14 @@ export function PedidosFaturamento({ busca }: { busca: BuscaPedidos }) {
   const apelidos = ids.length
     ? refs.filter((e) => ids.includes(e.id)).map((e) => e.apelido)
     : refs.map((e) => e.apelido);
-  const donos = useMemo(() => donosDoContexto(ctx), [ctx]);
+  // O filtro Dono é de quem vê mais do que o seu (gestor, tesouraria, controladoria). O contexto só traz os
+  // donos das empresas em que a pessoa pede; os outros saem dos pedidos do recorte (os 200 mais recentes, de
+  // qualquer situação): é a lista de quem tem pedido para filtrar (revisão de 20/10/2026).
+  const doRecorte = usePedidosFaturamento(
+    { situacao: [...SITUACOES], por_pagina: 200, pagina: 1 },
+    !!ctx && tipo !== "pessoal",
+  );
+  const donos = useMemo(() => donosDoContexto(ctx, doRecorte.data?.itens), [ctx, doRecorte.data]);
   const nomeDoDono = (id: string) => donos.find((d) => d.id === id)?.nome ?? null;
 
   const cabecalho = (
@@ -205,7 +214,7 @@ export function PedidosFaturamento({ busca }: { busca: BuscaPedidos }) {
             aoRemover={() => mudar(Object.fromEntries(c.remove.map((k) => [k, undefined])))}
           />
         ))}
-        {dados && (
+        {dados && !lista.isPlaceholderData && (
           <span className="num ml-auto text-[13px] text-muted-foreground">
             {contagem(dados.total, "pedido")} de {dados.total_recorte}
           </span>
@@ -222,7 +231,9 @@ export function PedidosFaturamento({ busca }: { busca: BuscaPedidos }) {
             </Button>
           }
         />
-      ) : lista.isPending ? (
+      ) : lista.isPending || lista.isPlaceholderData ? (
+        // Filtro novo, resposta ainda do anterior: espera, para linhas, totais e "vazio" não serem de outro
+        // recorte (revisão de 20/10/2026).
         <Carregando variante="tabela" />
       ) : lista.error || !dados ? (
         <ErroDaArea erro={lista.error} tentarNovamente={() => void lista.refetch()} />
@@ -270,10 +281,11 @@ export function PedidosFaturamento({ busca }: { busca: BuscaPedidos }) {
   );
 }
 
-/** Donos das empresas em que eu peço (o banco só manda a lista ali), sem repetição, por nome. */
-function donosDoContexto(ctx: Contexto | undefined): Pessoa[] {
+/** Donos das empresas em que eu peço e donos dos pedidos do recorte, sem repetição, por nome. */
+function donosDoContexto(ctx: Contexto | undefined, itens: PedidoLinha[] = []): Pessoa[] {
   const porId = new Map<string, Pessoa>();
   for (const e of ctx?.emissoras ?? []) for (const d of e.donos ?? []) porId.set(d.id, d);
+  for (const p of itens) if (p.dono) porId.set(p.dono.id, p.dono);
   return [...porId.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
@@ -513,9 +525,7 @@ function TabelaPedidos({
                     <SeloSituacao situacao={p.status} />
                     {/* Depois de simulado o pedido segue simulado (API.md §0.5): o dado diz, não um alarme. */}
                     {p.simulacao && p.status !== "simulado" && (
-                      <StatusBadge tom="info" icone={false}>
-                        em simulação
-                      </StatusBadge>
+                      <StatusBadge tom="info">em simulação</StatusBadge>
                     )}
                   </span>
                 </TableCell>

@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** Ana Carvalhais (controladoria)   **Dono do código:** Pedro Luca; merge do Eliezek   **Data:** 20/10/2026
 
-**Estado:** rascunho. Aguarda o "contrato ok" do dono (`PROCESSO.md` §4). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
+**Estado:** aprovado pelo Pedro em 20/10/2026 (commit `d1ffd28`). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
 
 ## Propósito
 - **Pergunta (`<h1>`):** "Quem pede e aprova em cada empresa, e o que ela já manda ao Omie?"
@@ -125,6 +125,12 @@ Ordem: empresas com pedido no portal primeiro, depois por apelido. Inativas (AGR
 2. **Busca de pessoa:** o `Dialog` precisa das pessoas ativas do Brain (nome, e-mail, se já abre o Faturamento). `fat_config` deve devolver isso só para a controladoria, sem abrir a lista de usuários inteira do Ops.
 3. **Registro das mudanças da empresa** (`modo_omie`, `pipefy_sync`, `fatura_por`, serviço liberado): `receita.fat_eventos` só aceita as entidades pedido, contrato, item, competência e dono. Decidir na T1b: ampliar a entidade (`emissora`, `servico`) ou registrar em `/atividade`. Ligar a gravação no Omie sem rastro não pode.
 4. **Pedidos que esperam o OK de quem vai ser desativado:** contagem por pessoa na resposta de `fat_config` (ou numa chamada à parte), para o diálogo dizer o efeito.
+
+## Divergências registradas na implementação (20/10/2026)
+1. **Destino do desativar:** Pedidos `?situacao=aguardando_ok&emissora={apelido}&dono={id}`, e não `?pendencia=ok&dono=`. A pendência `ok` conta os pedidos que esperam o OK de **quem está olhando** (API §1.1), não o da pessoa que vai ser desativada; Aguardando OK com ela de dona é o número do diálogo.
+2. **"Os {n} pedidos simulados":** o total de `fat_pedidos` com `simulacao=true` na empresa (todas as situações menos Cancelado), lido quando o diálogo de gravar abre. Enquanto não chega, a frase fica sem o número.
+3. **"Sem substituto":** escolher "Sem substituto" vale mesmo quando a empresa tem gestor; o padrão (o gestor) só vale enquanto a pessoa não escolheu.
+4. **Quem liga (banco da revisão de 20/10/2026):** ligar "Gravar no Omie" e ligar "Criar e mover cards no Pipefy" é só de quem está na lista de ativadores do portal (`receita.fat_ativadores`; hoje, o Pedro), nem outro administrador do Brain. A tela lê `pode_gravar_omie` e `pode_ligar_pipefy` de `fat_config`; sem permissão, o controle fica desabilitado com "Só quem está na lista de ativadores do portal (hoje, o Pedro) liga a gravação no Omie (trava da E1)" (ou "liga o Pipefy"). Desligar os dois continua com a controladoria. Sem o campo `pode_ligar_pipefy` (banco antigo), a tela deixa tentar e mostra o erro do banco.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

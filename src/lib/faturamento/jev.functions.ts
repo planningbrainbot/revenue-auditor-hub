@@ -6,7 +6,7 @@ import type { FalhaJev, LedgerJev, ResultadoJev } from "../cockpit-ceo/jev/adapt
 import { JEV_MODELO } from "../cockpit-ceo/jev/contrato";
 import type { PedidoJev, RegistroChamada } from "../cockpit-ceo/jev/contrato";
 import { obterChaveOpenRouter } from "../cockpit-ceo/conversa/servidor.server";
-import { traduzirErroBanco, type Resultado } from "./erros";
+import { fraseDaValidacao, traduzirErroBanco, type Resultado } from "./erros";
 import { mesCorrenteSP } from "./formato";
 import {
   jevFaturamentoLigado,
@@ -19,6 +19,18 @@ import {
   type Sugestao,
 } from "./jev";
 import type { CatalogoServicos } from "./tipos";
+
+/**
+ * O validador zod de cada server function, com a recusa traduzida: sem isto o navegador recebe o JSON cru do
+ * zod (achado B3 da revisão de 20/10/2026). O tipo de entrada continua o do schema.
+ */
+function entrada<T extends z.ZodTypeAny>(schema: T) {
+  return (d: z.input<T>): z.output<T> => {
+    const r = schema.safeParse(d);
+    if (!r.success) throw new Error(fraseDaValidacao(r.error.issues.map((i) => i.path)));
+    return r.data;
+  };
+}
 
 // O Jev no Novo pedido (T5): `sugerirServico` (choice no catálogo da empresa) e `conferirDescricao` (noul:
 // a descrição da nota combina com o serviço?). Contrato `docs/design/contratos/faturamento-novo.md`, Seção 2.
@@ -152,6 +164,25 @@ function estadoDa(r: { estado: string; codigo?: string }): EstadoJev {
 }
 
 /** O catálogo da empresa com a sessão da pessoa: confere a porta e o papel antes de qualquer chamada ao Jev. */
+/**
+ * Os nomes do cliente que não podem ir ao Jev, lidos pelo servidor (não dependem do que o navegador mandar):
+ * o nome que `fat_tomador` devolve para o documento e a razão social da base. Somam-se ao nome digitado na
+ * tela. Falha na leitura não impede a chamada: o nome digitado continua saindo do texto.
+ */
+async function nomesDoTomador(
+  supabase: unknown,
+  documento: string | null | undefined,
+  emissora: string,
+): Promise<string[]> {
+  if (!documento || documento.replace(/[^0-9A-Za-z]/g, "").length < 11) return [];
+  const { data, error } = await (supabase as DB)
+    .schema("ops")
+    .rpc("fat_tomador", { p_documento: documento, p_emissora: emissora });
+  if (error || !data) return [];
+  const t = data as { nome?: string | null; base?: { razao_social?: string | null } | null };
+  return [t.nome, t.base?.razao_social].filter((x): x is string => !!x);
+}
+
 async function catalogo(supabase: unknown, emissora: string): Promise<Resultado<CatalogoServicos>> {
   const { data, error } = await (supabase as DB)
     .schema("ops")
@@ -177,6 +208,8 @@ const entradaComum = {
   valor: z.number().finite().nullable().optional(),
   /** Só para tirar o nome do texto antes de ir ao Jev; nunca é enviado. */
   nomeCliente: z.string().max(200).nullable().optional(),
+  /** O CNPJ ou CPF do cliente: o servidor busca o nome dele para tirar do texto. Nunca vai ao Jev. */
+  documento: z.string().max(30).nullable().optional(),
 };
 
 export interface RespostaSugestao {
@@ -192,7 +225,9 @@ export interface RespostaSugestao {
 export const sugerirServico = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    z.object({ ...entradaComum, projeto: z.string().max(300).nullable().optional() }).strict(),
+    entrada(
+      z.object({ ...entradaComum, projeto: z.string().max(300).nullable().optional() }).strict(),
+    ),
   )
   .handler(async ({ context, data }): Promise<Resultado<RespostaSugestao>> => {
     const vazio = (estado: EstadoJev): Resultado<RespostaSugestao> => ({
@@ -217,7 +252,10 @@ export const sugerirServico = createServerFn({ method: "POST" })
       descricao: data.descricao,
       valor: data.valor ?? null,
       servicos,
-      nomesParaTirar: [data.nomeCliente],
+      nomesParaTirar: [
+        data.nomeCliente,
+        ...(await nomesDoTomador(context.supabase, data.documento, data.emissora)),
+      ],
     });
     const r = await chamarJev(context.supabase, montado.pedido, "faturamento-sugestao");
     const base = { opcoes: montado.opcoes, filtrado: montado.filtrado };
@@ -248,7 +286,7 @@ export interface RespostaConferencia {
 /** A descrição da nota combina com o serviço escolhido? (noul). Só aviso: a tela não bloqueia. */
 export const conferirDescricao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ ...entradaComum, servico: z.string().uuid() }).strict())
+  .inputValidator(entrada(z.object({ ...entradaComum, servico: z.string().uuid() }).strict()))
   .handler(async ({ context, data }): Promise<Resultado<RespostaConferencia>> => {
     const nada = (estado: EstadoJev): Resultado<RespostaConferencia> => ({
       ok: true,
@@ -266,7 +304,10 @@ export const conferirDescricao = createServerFn({ method: "POST" })
       servico,
       descricao: data.descricao,
       valor: data.valor ?? null,
-      nomesParaTirar: [data.nomeCliente],
+      nomesParaTirar: [
+        data.nomeCliente,
+        ...(await nomesDoTomador(context.supabase, data.documento, data.emissora)),
+      ],
     });
     const r = await chamarJev(context.supabase, pedido, "faturamento-conferencia");
     if (r.estado !== "ok" || !("respostas" in r))

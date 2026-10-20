@@ -127,7 +127,8 @@ export function traduzirErroBanco(
       return {
         tipo: "indisponivel",
         codigo,
-        mensagem: `O Portal de Faturamento ainda não está disponível no banco (a função ${rpc} não existe).`,
+        // O nome da função vai só para o log do servidor (`faturamento.functions.ts`), nunca para a tela.
+        mensagem: "O Portal de Faturamento está fora do ar agora. Tente de novo em instantes.",
         campos: [],
       };
     // JWT vencido ou ausente.
@@ -144,7 +145,8 @@ export function traduzirErroBanco(
       return {
         tipo: "falha",
         codigo,
-        mensagem: `${oQue} falhou${codigo ? ` (código ${codigo})` : ""}. Tente de novo em instantes.`,
+        // O código fica em `codigo` (e no log do servidor); a tela mostra só a frase.
+        mensagem: `${oQue} falhou. Tente de novo em instantes.`,
         campos: [],
       };
   }
@@ -179,4 +181,49 @@ export function tipoDoErro(e: unknown): TipoErro {
 /** Vale tentar de novo? Só falha passageira; acesso, validação e transição não mudam sozinhos. */
 export function valeTentarDeNovo(tentativas: number, e: unknown): boolean {
   return tipoDoErro(e) === "falha" && tentativas < 1;
+}
+
+// ------------------------------------------------------------------ validação da entrada (zod)
+
+const ROTULO_ENTRADA: Record<string, string> = {
+  emissora: "empresa",
+  emissora_id: "empresa",
+  dono_id: "dono da receita",
+  tomador_documento: "CNPJ ou CPF",
+  tomador_nome: "nome do cliente",
+  emails_envio: "e-mails para envio",
+  projeto: "projeto",
+  servico: "serviço",
+  servico_id: "serviço",
+  descricao: "descrição",
+  descricao_nf: "descrição da nota",
+  valor: "valor",
+  parcelas: "número de parcelas",
+  primeiro_vencimento: "1º vencimento",
+  competencia: "competência",
+  departamento: "departamento",
+  observacoes: "observações",
+  documento: "documento",
+  motivo: "motivo",
+  id: "pedido",
+};
+
+/**
+ * A frase de uma entrada recusada pelo validador da server function, no lugar do JSON cru do zod: "O campo
+ * número de parcelas veio fora do formato aceito." `caminhos` são os `path` dos problemas.
+ */
+export function fraseDaValidacao(caminhos: (string | number)[][]): string {
+  const nomes = [
+    ...new Set(
+      caminhos.map((p) => {
+        const chave = [...p].reverse().find((x) => typeof x === "string") as string | undefined;
+        return chave ? (ROTULO_ENTRADA[chave] ?? chave) : null;
+      }),
+    ),
+  ].filter((x): x is string => !!x);
+  if (!nomes.length)
+    return "Os dados enviados vieram fora do formato aceito. Atualize a página e tente de novo.";
+  return nomes.length === 1
+    ? `O campo ${nomes[0]} veio fora do formato aceito. Confira e tente de novo.`
+    : `Os campos ${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]} vieram fora do formato aceito. Confira e tente de novo.`;
 }

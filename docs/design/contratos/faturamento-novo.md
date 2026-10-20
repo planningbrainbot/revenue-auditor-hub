@@ -2,7 +2,7 @@
 
 **Dono de produto:** Pedro Luca   **Operação:** Ana Carvalhais (controladoria; a lista de campos é dela, 09/10)   **Dono do código:** Pedro Luca; merge do Eliezek   **Data:** 20/10/2026
 
-**Estado:** rascunho. Aguarda o "contrato ok" do dono (`PROCESSO.md` §4). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
+**Estado:** aprovado pelo Pedro em 20/10/2026 (commit `d1ffd28`). Moldura comum (menu, situações, simulação, regras gerais): `faturamento.md` §1.
 
 ## Propósito
 - **Pergunta (`<h1>`):** "O que precisa ser faturado, para quem e como?"
@@ -142,6 +142,14 @@ Enviar valida tudo no servidor (`fat_pedido_enviar`); a tela também confere na 
 3. **Departamentos:** "a mesma lista do Contas a Pagar" não tem origem na API. Proposta: `fat_contexto` devolve a lista.
 4. **Gestor que escolhe outro dono e depois aprova o próprio pedido:** a API permite (`fat_pedido_aprovar`: dono ou gestor). Proposta: o autor nunca dá o OK no que ele mesmo enviou, senão o OK da decisão 3A vira carimbo. *A decidir pelo Pedro.*
 5. **Descartar rascunho:** o portal não apaga pedido (RF-P11) e a API não tem descarte. Proposta: rascunho esquecido fica como rascunho, visível só para o autor; descartar vira cancelar com motivo "descartado pelo autor". *A decidir pelo Pedro.*
+
+## Divergências registradas na implementação (20/10/2026)
+1. **1º vencimento no passado:** só avisa ("O 1º vencimento já passou."), não bloqueia. A regra ainda é *a decidir pela Ana*, e o banco aceita a data; bloquear na tela seria decidir por ela. Ano fora de 2000 a 2100 ou dia que não existe dá "Data inválida".
+2. **Competência:** seletor de mês próprio (12 meses para trás, 24 para a frente, mais "Mês do 1º vencimento"), porque o campo de mês do navegador não se edita no Firefox desktop.
+3. **Busca do cliente:** sempre leva a empresa escolhida (o banco confere o papel nela, revisão M5). Sem papel, o quadro do cliente diz "A busca do cliente na {empresa} é de quem pede faturamento por ela. O nome do cliente pode ser digitado." Sem empresa escolhida, a busca não roda. No aviso de contrato em outra empresa, número e valor do contrato só aparecem quando a pessoa também tem papel lá.
+4. **Jev:** antes de ir ao modelo, sai do texto o nome do cliente digitado, o nome e a razão social que o banco tem para o documento e cada palavra deles com 3 letras ou mais. O nome fantasia não sai, porque `fat_tomador` não o devolve.
+5. **Quem tem a porta e nenhum papel:** a tela vazia com "Você ainda não pode pedir faturamento em nenhuma empresa." e "Quem cadastra é a controladoria (Ana Carvalhais).", como o contrato pede (não é divergência; estava como "sem acesso").
+6. **Com o banco da revisão de 20/10/2026:** o aviso de contrato em outra empresa traz só o nome da empresa (um item por empresa; número, valor e vigência vêm nulos). O nome de pessoa física vindo da base só aparece para quem tem papel na empresa escolhida, e o e-mail da base só para tesouraria e controladoria: para os outros, os campos vêm vazios e se digitam.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

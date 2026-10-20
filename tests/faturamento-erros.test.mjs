@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ErroFaturamento,
+  fraseDaValidacao,
   camposDoDetalhe,
   desembrulhar,
   tipoDoErro,
@@ -92,10 +93,12 @@ test("função que ainda não existe no banco, sessão vencida e falha genérica
     O_QUE,
   );
   assert.equal(ausente.tipo, "indisponivel");
-  assert.match(
+  // Nem o nome da função nem o código aparecem na tela.
+  assert.equal(
     ausente.mensagem,
-    /ainda não está disponível no banco \(a função ops\.fat_pedido_enviar não existe\)/,
+    "O Portal de Faturamento está fora do ar agora. Tente de novo em instantes.",
   );
+  assert.ok(!ausente.mensagem.includes("fat_"));
   assert.equal(
     traduzirErroBanco({ code: "PGRST301", message: "JWT expired" }, RPC, O_QUE).tipo,
     "sessao",
@@ -109,7 +112,7 @@ test("função que ainda não existe no banco, sessão vencida e falha genérica
     {
       tipo: "falha",
       codigo: "57014",
-      mensagem: "O envio do pedido falhou (código 57014). Tente de novo em instantes.",
+      mensagem: "O envio do pedido falhou. Tente de novo em instantes.",
       campos: [],
     },
   );
@@ -150,4 +153,19 @@ test("só falha passageira tenta de novo, e uma vez", () => {
   assert.equal(valeTentarDeNovo(0, falha), true);
   assert.equal(valeTentarDeNovo(1, falha), false);
   assert.equal(valeTentarDeNovo(0, acesso), false);
+});
+
+test("entrada recusada pelo validador vira frase, não JSON", () => {
+  assert.equal(
+    fraseDaValidacao([["dados", "parcelas"]]),
+    "O campo número de parcelas veio fora do formato aceito. Confira e tente de novo.",
+  );
+  assert.equal(
+    fraseDaValidacao([
+      ["dados", "valor"],
+      ["dados", "emails_envio", 0],
+    ]),
+    "Os campos valor e e-mails para envio vieram fora do formato aceito. Confira e tente de novo.",
+  );
+  assert.match(fraseDaValidacao([]), /fora do formato aceito/);
 });

@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { useQueries } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +16,10 @@ import {
 } from "@/components/planning";
 import { SeletorMes } from "@/components/receita/moldura";
 import { CORES_SERIE } from "@/lib/planning/grafico";
+import { useAuth } from "@/hooks/use-auth";
 import { useContextoFaturamento, useResumoFaturamento } from "@/hooks/use-faturamento";
+import { desembrulhar, valeTentarDeNovo } from "@/lib/faturamento/erros";
+import { carregarPedidosFaturamento } from "@/lib/faturamento/faturamento.functions";
 import {
   buscaDoFiltro,
   hrefPedidos,
@@ -190,7 +195,7 @@ export function MeuFaturamento({
       ) : (
         <>
           <Numeros resumo={r} refs={refs} emissora={busca.emissora} />
-          <OQuePedeAtencao contexto={ctx} />
+          <OQuePedeAtencao contexto={ctx} ids={ids} />
           <Etapas resumo={r} refs={refs} emissora={busca.emissora} contexto={ctx} />
         </>
       )}
@@ -262,16 +267,45 @@ const TOM_ATENCAO: Record<LinhaAtencao["chave"], "perigo" | "atencao" | "info"> 
  * da tela, para o total bater. O "Erro no Omie" de quem é só tesouraria abre a Fila em "Todas" com a
  * higiene "Erro no Omie" (`linhasDeAtencao`).
  */
-function OQuePedeAtencao({ contexto }: { contexto: Contexto }) {
-  const linhas = linhasDeAtencao(contexto);
+function OQuePedeAtencao({ contexto, ids }: { contexto: Contexto; ids: string[] }) {
+  const { user } = useAuth();
+  const pedidosFn = useServerFn(carregarPedidosFaturamento);
   const refs = contexto.emissoras.map((e) => ({ id: e.id, apelido: e.apelido }));
+  const todas = linhasDeAtencao(contexto);
+  // Com o filtro de empresa, as pendências também ficam só dessas empresas (contrato §2: o filtro "afeta
+  // tudo"). `fat_contexto` conta todas; aqui o total de cada uma vem de `fat_pedidos` com o mesmo filtro e as
+  // empresas escolhidas, que segue as mesmas regras de pendência (API.md §1.3), e o destino bate.
+  const recortadas = useQueries({
+    queries: todas.map((l) => ({
+      queryKey: ["faturamento", "atencao", user?.id, l.chave, ids],
+      enabled: ids.length > 0 && !!user?.id,
+      queryFn: async () =>
+        desembrulhar(
+          await pedidosFn({
+            data: { filtro: { ...l.filtro, emissoras: ids, por_pagina: 1, pagina: 1 } },
+          }),
+        ).total,
+      staleTime: 60_000,
+      retry: valeTentarDeNovo,
+    })),
+  });
+  const comRecorte = ids.length > 0;
+  const umaSo = ids.length === 1 ? refs.find((e) => e.id === ids[0])?.apelido : undefined;
+  const carregando = comRecorte && recortadas.some((q) => q.isPending);
+  const linhas = todas
+    .map((l, i) => (comRecorte ? { ...l, quantidade: recortadas[i]?.data ?? 0 } : l))
+    .filter((l) => l.quantidade > 0);
   return (
     <section aria-labelledby="fat-atencao" className="space-y-3">
       <h2 id="fat-atencao" className="text-base font-semibold text-foreground">
         O que pede atenção?
       </h2>
       <div className="rounded-xl border bg-card">
-        {linhas.length === 0 ? (
+        {carregando ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground" role="status">
+            Contando as pendências das empresas escolhidas…
+          </p>
+        ) : linhas.length === 0 ? (
           <p className="px-4 py-3 text-sm text-muted-foreground">Nada pede sua atenção agora.</p>
         ) : (
           <ul className="divide-y">
@@ -287,14 +321,25 @@ function OQuePedeAtencao({ contexto }: { contexto: Contexto }) {
                   </StatusBadge>
                 </span>
                 <Button asChild variant="outline" size="sm">
-                  {l.fila ? (
-                    <Link to="/faturamento/tesouraria" search={l.fila}>
+                  {/* A Fila mostra uma empresa ou todas: com uma empresa escolhida ela vai junto; com duas ou
+                   * mais, o destino é Pedidos, que recorta pelas mesmas empresas e bate com a contagem. */}
+                  {l.fila && (!comRecorte || umaSo) ? (
+                    <Link
+                      to="/faturamento/tesouraria"
+                      search={umaSo ? { ...l.fila, emissora: umaSo } : l.fila}
+                    >
                       {l.acao}
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>
                   ) : (
-                    <Link to="/faturamento/pedidos" search={buscaDoFiltro(l.filtro, refs)}>
-                      {l.acao}
+                    <Link
+                      to="/faturamento/pedidos"
+                      search={buscaDoFiltro(
+                        comRecorte ? { ...l.filtro, emissoras: ids } : l.filtro,
+                        refs,
+                      )}
+                    >
+                      {comRecorte && l.fila ? "Ver os pedidos" : l.acao}
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>
                   )}

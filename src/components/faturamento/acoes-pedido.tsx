@@ -206,10 +206,15 @@ export function BotoesDoPedido({
   tamanho?: "sm" | "default";
 }) {
   const [pendente, setPendente] = useState<Pendente | null>(null);
-  const acao = useAcaoPedido((a) => {
-    setPendente(null);
-    aoConcluir?.(a);
-  });
+  const acao = useAcaoPedido(
+    (a) => {
+      setPendente(null);
+      aoConcluir?.(a);
+    },
+    // Recusada porque a situação mudou (ex.: pedir cancelamento com o faturamento em curso): o diálogo fecha,
+    // o `toast` diz a frase do banco e a releitura desabilita o botão com o motivo.
+    () => setPendente(null),
+  );
   const alvo = alvoDaFicha(ficha);
   const botoes = acoesDaFicha(ficha);
   const emCurso = acao.isPending ? acao.variables?.acao : null;

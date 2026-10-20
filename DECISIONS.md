@@ -6210,3 +6210,25 @@ No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou 
 - Os gates da T1b, dos ajustes, do cron, do Pipefy e das notificações passam com a revisão, antes e depois de aplicar.
 - Com 6.000 pedidos: o dono sem pedido paga 38 ms na lista (antes, 359), o gestor da DOC 194 ms e a tesouraria 333 ms.
 - **Para os outros agentes:** a edge pode passar `p_reserva`, usar `ops.fat_conector_emissora_bloquear` e tratar os status `bloqueado` e `cancelado`. A tela, a ação `reenviar_pipefy`, o campo `pipefy_erro` e `fat_tomador` com empresa obrigatória para quem não é tesouraria nem controladoria. Ver `e1/API.md`, "Mudanças".
+
+## [2026-10-20] Portal de Faturamento: correções das telas (revisão da E1 e banco da revisão)
+
+**Contexto:** `e1/revisao-app-conector.md` (§3 telas × contrato, §4 bugs de tela, M5, M6, B3) e o banco da revisão (`20261020220000_portal_faturamento_revisao.sql`, entrada anterior), com as decisões do coordenador de 20/10. Só `src/`, `tests/` e `docs/design/contratos/`; banco e edge são de outros agentes.
+
+**Decisões:**
+- **"Abrir no Omie" vira "Copiar número da OS"** na Ficha e no painel da Fila: o conector não devolve link estável da OS (só `nf_link`). Volta a ser link quando o conector trouxer.
+- **"Para faturar" de Meu faturamento abre a Fila** com `?situacao=para_faturar&incluir=em_conferencia`; a Fila mostra um grupo "Em conferência" para o total bater com `fat_contexto` (OS criada, Simulado e Em conferência). Com uma empresa no filtro, a Fila abre nela; com duas ou mais, Pedidos.
+- **Pendências com o filtro de empresa:** a contagem vem do total de `fat_pedidos` com o mesmo filtro e as empresas.
+- **Desativar dono leva a Pedidos `?situacao=aguardando_ok&emissora=&dono=`**, e não `?pendencia=ok`, que conta o OK de quem olha.
+- **"Todas" na Fila soma o trabalho de cada empresa** (não se sobrepõem).
+- **1º vencimento no passado só avisa** (a regra é da Ana; o banco aceita). Data fora de 2000 a 2100 ou dia inexistente é "Data inválida" e não vai ao banco.
+- **Parcelas fora de 1 a 36 vão como `null`**: o rascunho se salva (RF-P01) e a pendência fica no campo. Erro do validador sai em frase ("O campo número de parcelas veio fora do formato aceito…"); "indisponível" e "falha" saem sem nome de função nem código.
+- **Releitura a cada 15 s** na Ficha e na Fila só enquanto há pedido faturando, na fila do Omie, com envio pendente ou leitura marcada. Dado do filtro anterior não aparece sob o filtro novo (carregando no lugar; "Reenviar os erros" some).
+- **Jev (M6):** o servidor busca o nome do tomador (`fat_tomador` com a empresa) e tira do texto o nome digitado, o do banco e cada palavra deles com 3 letras ou mais (fora preposições e LTDA, EIRELI, EPP). O nome fantasia fica de fora porque `fat_tomador` não o devolve.
+- **Busca do cliente sempre com a empresa;** sem papel, o quadro diz "A busca do cliente na {empresa} é de quem pede faturamento por ela." O cliente buscado vale só para a empresa em que foi buscado.
+- **Cor da área:** `--area-faturamento` neutra (`--area-admin`) até a Mika decidir; a proposta segue o lima de Receita.
+- **Banco da revisão adotado:** "Reenviar o card" do Pipefy (Ficha, na linha do Pipefy; Fila, como botão da linha quando não há outro); `bloqueado` e `cancelado` nas linhas da Ficha; pedir cancelamento recusado fecha o diálogo e mostra a frase do banco; ligar gravação e Pipefy só para `pode_gravar_omie` / `pode_ligar_pipefy` (ativadores), desligar com a controladoria.
+
+**Onde:** `src/components/faturamento/` (novo `omie-linhas.tsx`), `src/lib/faturamento/`, `src/hooks/use-{faturamento,acao-pedido,jev-faturamento}.ts`, `src/styles.css`; contratos com "Estado: aprovado" e a seção "Divergências registradas na implementação"; testes em `tests/faturamento-*.test.mjs`.
+
+**Status:** testes, tsc (só o erro antigo de `integracoes-status.functions.ts`), lint e build passam. Sem deploy.

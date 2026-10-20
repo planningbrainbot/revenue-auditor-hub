@@ -128,10 +128,10 @@ export function ErroDaArea({
     <EstadoErro
       titulo={
         tipo === "indisponivel"
-          ? "O Portal de Faturamento ainda não está no banco"
+          ? "O Portal de Faturamento está fora do ar agora"
           : "Não foi possível carregar o Portal de Faturamento"
       }
-      detalhe={<>Fonte: Portal de Faturamento · {mensagem}</>}
+      detalhe={mensagem}
       tentarNovamente={tipo === "indisponivel" ? undefined : tentarNovamente}
     />
   );

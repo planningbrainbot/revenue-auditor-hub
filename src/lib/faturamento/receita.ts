@@ -6,7 +6,7 @@
 // A CNPJá aberta responde cerca de 4 consultas por minuto (medido em 14/10/2026) e devolve 429 acima disso:
 // o limite daqui fica abaixo, e passar dele só adia a consulta (a tela segue com "situação não conferida").
 //
-// Módulo puro (sem React, sem `@/`), testado em tests/faturamento-receita.test.mjs.
+// Módulo puro (sem React, sem `@/`), testado em tests/faturamento-formulario.test.mjs (junto com o Novo pedido).
 
 export const URL_CNPJA = "https://open.cnpja.com/office/";
 export const USER_AGENT_CNPJA = "planning-brain-faturamento/1.0 (+https://planningbrain.com.br)";

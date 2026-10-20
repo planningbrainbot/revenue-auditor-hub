@@ -17,8 +17,15 @@ import { diaEHora } from "@/lib/faturamento/formato";
 // As ações do ciclo de vida do pedido (Ficha e Fila da tesouraria). Quem pode é o banco; isto só chama a
 // RPC certa, diz o resultado num toast e relê a área.
 
-/** Uma mutation só para todas as ações: `variables.acao` diz qual está em curso ("Enviando…"). */
-export function useAcaoPedido(aoConcluir?: (acao: AcaoExecutavel) => void) {
+/**
+ * Uma mutation só para todas as ações: `variables.acao` diz qual está em curso ("Enviando…").
+ * `aoRecusar` roda quando o banco recusa porque a situação mudou (55000), por exemplo pedir o cancelamento
+ * com o faturamento em curso: quem chama fecha o diálogo, e o `toast` diz a frase do banco.
+ */
+export function useAcaoPedido(
+  aoConcluir?: (acao: AcaoExecutavel) => void,
+  aoRecusar?: (acao: AcaoExecutavel) => void,
+) {
   const reler = useReler();
   const aprovar = useServerFn(aprovarPedidoFaturamento);
   const devolver = useServerFn(devolverPedidoFaturamento);
@@ -58,6 +65,12 @@ export function useAcaoPedido(aoConcluir?: (acao: AcaoExecutavel) => void) {
         case "reenviar":
           desembrulhar(await reenviar({ data: { id } }));
           return `Reenviado: ${alvo.numero} voltou para a fila do Omie.`;
+        case "reenviar_pipefy": {
+          const r = desembrulhar(await tesouraria({ data: { id, acao: "reenviar_pipefy" } }));
+          return r.reenfileirados === 0
+            ? `Nada do Pipefy de ${alvo.numero} estava em erro.`
+            : `O card de ${alvo.numero} voltou para a fila do Pipefy.`;
+        }
         case "conferir":
           desembrulhar(await tesouraria({ data: { id, acao: "em_conferencia" } }));
           return `${alvo.numero} em conferência.`;
@@ -81,15 +94,20 @@ export function useAcaoPedido(aoConcluir?: (acao: AcaoExecutavel) => void) {
         }
       }
     },
-    onSuccess: (mensagem, { acao }) => {
+    // O botão só volta depois da releitura: antes dela, a tela ainda mostraria a ação na situação antiga, e um
+    // segundo clique daria 55000 (revisão de 20/10/2026).
+    onSuccess: async (mensagem, { acao }) => {
       toast.success(mensagem);
-      void reler();
+      await reler();
       aoConcluir?.(acao);
     },
-    onError: (e) => {
+    onError: (e, { acao }) => {
       toast.error(e instanceof Error ? e.message : "A ação não foi feita.");
-      // A situação mudou: relê para os botões dizerem a verdade.
-      if (e instanceof ErroFaturamento && e.tipo === "transicao") void reler();
+      // A situação mudou: relê para os botões dizerem a verdade, e o diálogo aberto fecha.
+      if (e instanceof ErroFaturamento && e.tipo === "transicao") {
+        void reler();
+        aoRecusar?.(acao);
+      }
     },
   });
 }

@@ -37,7 +37,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Carregando, EstadoSemAcesso, PageHeader, Secao, StatusBadge } from "@/components/planning";
+import {
+  Carregando,
+  EstadoSemAcesso,
+  EstadoVazio,
+  PageHeader,
+  Secao,
+  StatusBadge,
+} from "@/components/planning";
 import { BotaoComMotivo } from "@/components/royalties/botao-com-motivo";
 import {
   useContextoFaturamento,
@@ -47,7 +54,7 @@ import {
   useReler,
   useServicosFaturamento,
 } from "@/hooks/use-faturamento";
-import { desembrulhar, ErroFaturamento } from "@/lib/faturamento/erros";
+import { desembrulhar, ErroFaturamento, tipoDoErro } from "@/lib/faturamento/erros";
 import {
   conferirTomadorFaturamento,
   descartarPedidoFaturamento,
@@ -58,8 +65,11 @@ import { faixaDaSituacao } from "@/lib/faturamento/ficha";
 import {
   dataCompleta,
   dinheiro,
+  diaSP,
   documento as formatarDocumento,
   listaNomes,
+  mesCorrenteSP,
+  rotuloMes,
 } from "@/lib/faturamento/formato";
 import {
   competenciaDoFormulario,
@@ -69,8 +79,11 @@ import {
   emailValido,
   erroDoDocumento,
   errosDoCampo,
+  avisoDoVencimento,
   formularioDoPedido,
   formularioVazio,
+  opcoesDeCompetencia,
+  previaPronta,
   fraseAoEnviar,
   juntarEmails,
   lerValor,
@@ -84,7 +97,7 @@ import {
   type FormPedido,
 } from "@/lib/faturamento/formulario";
 import { LIMIAR_SUGESTAO, TEMPO_JEV_MS } from "@/lib/faturamento/jev";
-import { fraseSimulacao } from "@/lib/faturamento/rotulos";
+import { fraseSimulacao, procedenciaFaturamento } from "@/lib/faturamento/rotulos";
 import type {
   Contexto,
   ErroCampo,
@@ -121,6 +134,8 @@ export interface EntradaAssistente {
   descricao: string;
   valor: number | null;
   nomeCliente: string | null;
+  /** O documento do cliente: o servidor busca o nome dele para tirar do texto. Nunca vai ao Jev. */
+  documento: string | null;
 }
 
 /** A sugestão de serviço e a conferência da descrição (T5). Desligada enquanto ninguém passa isto. */
@@ -186,11 +201,16 @@ export function NovoPedido({
         />
       </PaginaFaturamento>
     );
+  // Quem tem a porta e nenhum papel de pedir vê a tela vazia com o recado, não "sem acesso" (contrato, Estados;
+  // decisão do coordenador de 20/10/2026).
   if (!ctx.emissoras.some((e) => e.pode_pedir))
     return (
       <PaginaFaturamento>
         {cabecalho}
-        <EstadoSemAcesso oQueFalta="ser dono, gestor ou solicitante numa empresa que fatura" />
+        <EstadoVazio
+          titulo="Você ainda não pode pedir faturamento em nenhuma empresa."
+          descricao="Quem cadastra é a controladoria (Ana Carvalhais)."
+        />
       </PaginaFaturamento>
     );
   if (deFora && ficha.data && !ficha.data.acoes.editar.pode)
@@ -255,11 +275,16 @@ function Formulario({
   const [tentouEnviar, setTentouEnviar] = useState(false);
   const [errosServidor, setErrosServidor] = useState<ErroCampo[]>([]);
   const [tomador, setTomador] = useState<TomadorConferido | null>(null);
+  // A empresa em que a busca foi feita: o aviso de contrato "em outra empresa" é relativo a ela.
+  const [tomadorEmissora, setTomadorEmissora] = useState<string | null>(null);
   const [descartar, setDescartar] = useState(false);
+  // "Sugerir outro serviço" (aviso de descrição) pede a sugestão de novo.
+  const [pedirSugestao, setPedirSugestao] = useState(0);
   // A descrição que o aviso do Jev confere: muda ao sair do campo (o contrato pede "ao sair do campo
   // Descrição"), não a cada tecla.
   const [descricaoConferida, setDescricaoConferida] = useState(ficha?.pedido.descricao_nf ?? "");
   const saindo = useRef(false);
+  const hojeSP = diaSP(new Date()) as string;
 
   const podem = ctx.emissoras.filter((e) => e.pode_pedir || e.id === form.emissora_id);
   const emissora = ctx.emissoras.find((e) => e.id === form.emissora_id) ?? null;
@@ -271,9 +296,16 @@ function Formulario({
 
   const servicos = useServicosFaturamento(form.emissora_id);
   const departamentos = useDepartamentosFaturamento();
+  // O cliente que vale é o da busca do documento e da empresa de agora.
+  const tomadorAtual =
+    tomador &&
+    tomadorEmissora === form.emissora_id &&
+    normalizarDocumento(tomador.documento) === normalizarDocumento(form.tomador_documento)
+      ? tomador
+      : null;
   const contratos =
-    tomador?.contratos_outra_emissora ?? ficha?.pedido.contratos_outra_emissora ?? [];
-  const bloqueio = tomador?.bloqueio?.motivo ?? null;
+    tomadorAtual?.contratos_outra_emissora ?? ficha?.pedido.contratos_outra_emissora ?? [];
+  const bloqueio = tomadorAtual?.bloqueio?.motivo ?? null;
 
   // Prévia: só depois de a pessoa parar de digitar (meio segundo).
   const valorNum = lerValor(form.valor);
@@ -292,33 +324,68 @@ function Formulario({
   }, [valorNum, parcelasNum, form.primeiro_vencimento]);
   const previa = usePreviaParcelas(...previaPedida);
 
+  // Só marca o formulário como alterado (e tira o erro do banco do campo) quando o valor muda de verdade.
+  const formRef = useRef(form);
+  formRef.current = form;
   const mudar = (parcial: Partial<FormPedido>) => {
+    const atual = formRef.current;
+    const mudou = (Object.keys(parcial) as (keyof FormPedido)[]).filter(
+      (k) => JSON.stringify(atual[k]) !== JSON.stringify(parcial[k]),
+    );
+    if (!mudou.length) return;
     setForm((f) => ({ ...f, ...parcial }));
     setSujo(true);
+    setErrosServidor((es) =>
+      es.filter((e) => !e.campo || !mudou.includes(e.campo as keyof FormPedido)),
+    );
   };
 
   // ---------- cliente
   const tomadorFn = useServerFn(conferirTomadorFaturamento);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
+  // A resposta só vale se ainda é do documento e da empresa do formulário: a consulta à Receita pode levar
+  // segundos, e uma resposta velha não pode trocar o bloqueio nem o aviso de contrato do cliente novo.
+  const daBuscaAtual = (args: { documento: string; emissora: string }) =>
+    args.documento === normalizarDocumento(formRef.current.tomador_documento) &&
+    args.emissora === formRef.current.emissora_id;
   const buscarTomador = useMutation({
-    mutationFn: async (args: { documento: string; emissora: string | null }) =>
+    mutationFn: async (args: { documento: string; emissora: string }) =>
       desembrulhar(await tomadorFn({ data: args })),
-    onSuccess: (t) => {
+    onSuccess: (t, args) => {
+      if (!daBuscaAtual(args)) return;
+      setErroBusca(null);
       setTomador(t);
+      setTomadorEmissora(args.emissora);
       if (!t.valido) return;
-      setForm((f) => ({
-        ...f,
-        // O nome vem do cadastro (PJ); a pessoa ainda pode corrigir. PF: o nome é digitado.
+      const f = formRef.current;
+      // O nome vem do cadastro (PJ); a pessoa ainda pode corrigir. PF: o nome é digitado. Passa por `mudar`,
+      // para o Enviar salvar antes o que veio preenchido.
+      mudar({
         tomador_nome:
           f.tomador_tipo === "pj" && t.nome && (!f.tomador_nome || f.tomador_nome === tomador?.nome)
             ? t.nome
             : f.tomador_nome,
         emails_envio: f.emails_envio.length ? f.emails_envio : juntarEmails([], t.emails),
-      }));
+      });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Não deu para buscar o cliente."),
+    onError: (e, args) => {
+      if (!daBuscaAtual(args)) return;
+      setTomador(null);
+      // Sem papel na empresa, o banco recusa a busca (e não abre nome, e-mail nem contrato do cliente): o
+      // quadro diz por quê, sem alarme, e o pedido segue com o nome digitado.
+      const apelido = ctx.emissoras.find((x) => x.id === args.emissora)?.apelido ?? "esta empresa";
+      setErroBusca(
+        tipoDoErro(e) === "sem_acesso"
+          ? `A busca do cliente na ${apelido} é de quem pede faturamento por ela.`
+          : e instanceof Error
+            ? e.message
+            : "Não deu para buscar o cliente agora.",
+      );
+    },
   });
   const conferirDocumento = (doc: string, emissoraId: string | null) => {
-    if (documentoValido(doc))
+    // A busca sempre leva a empresa: o banco confere o papel nela antes de abrir o cadastro do cliente.
+    if (documentoValido(doc) && emissoraId)
       buscarTomador.mutate({ documento: normalizarDocumento(doc), emissora: emissoraId });
   };
   // Ao abrir um rascunho com documento, o quadro do cliente já vem preenchido.
@@ -508,6 +575,7 @@ function Formulario({
         area={AREA_FATURAMENTO}
         titulo={salvo?.numero ?? "Novo pedido"}
         pergunta={PERGUNTA}
+        procedencia={procedenciaFaturamento(ctx)}
         descricao={
           <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
             {status && <SeloSituacao situacao={status} />}
@@ -616,9 +684,9 @@ function Formulario({
                     </Button>
                   ))}
               </div>
-              {tomador?.contratos_lidos_em && (
+              {tomadorAtual?.contratos_lidos_em && (
                 <p className="text-[13px] text-muted-foreground">
-                  Contratos lidos do Omie em {dataCompleta(tomador.contratos_lidos_em)}.
+                  Contratos lidos do Omie em {dataCompleta(tomadorAtual.contratos_lidos_em)}.
                 </p>
               )}
               {erroDe("confirmou_emissora").map((m) => (
@@ -679,8 +747,10 @@ function Formulario({
           <QuadroCliente
             tipo={form.tomador_tipo}
             buscando={buscarTomador.isPending}
-            tomador={tomador}
+            tomador={tomadorAtual}
             documento={form.tomador_documento}
+            semEmpresa={!form.emissora_id}
+            erro={erroBusca}
           />
 
           <Campo id="fat-nome" rotulo="Nome do cliente" erros={erroDe("tomador_nome")}>
@@ -730,6 +800,8 @@ function Formulario({
             />
             {assistente && emissora && (
               <SugestaoServico
+                // A sugestão é da empresa: trocar a empresa começa outra (achado da revisão de 20/10/2026).
+                key={emissora.id}
                 assistente={assistente}
                 emissoraId={emissora.id}
                 apelido={emissora.apelido}
@@ -737,8 +809,10 @@ function Formulario({
                 descricao={form.descricao_nf}
                 valor={valorNum}
                 nomeCliente={form.tomador_nome || null}
+                documento={normalizarDocumento(form.tomador_documento) || null}
                 servicos={servicos.data?.servicos ?? []}
                 aoUsar={escolherServico}
+                gatilho={pedirSugestao}
               />
             )}
           </Campo>
@@ -767,6 +841,8 @@ function Formulario({
                 descricao={descricaoConferida}
                 valor={valorNum}
                 nomeCliente={form.tomador_nome || null}
+                documento={normalizarDocumento(form.tomador_documento) || null}
+                aoSugerirOutro={() => setPedirSugestao((n) => n + 1)}
               />
             )}
           </Campo>
@@ -865,6 +941,12 @@ function Formulario({
               onChange={(e) => mudar({ primeiro_vencimento: e.target.value })}
               className="num h-9 w-48"
             />
+            {/* Vencimento no passado não bloqueia (decisão pendente da Ana); o campo só avisa. */}
+            {avisoDoVencimento(form.primeiro_vencimento, hojeSP) && (
+              <p className="text-[13px] text-muted-foreground">
+                {avisoDoVencimento(form.primeiro_vencimento, hojeSP)}
+              </p>
+            )}
           </Campo>
 
           <Campo
@@ -873,15 +955,33 @@ function Formulario({
             ajuda="Vem com o mês do 1º vencimento e acompanha a data até você mudar à mão."
             erros={erroDe("competencia")}
           >
-            <Input
-              id="fat-competencia"
-              type="month"
-              value={competenciaDoFormulario(form) ?? ""}
-              onChange={(e) =>
-                mudar({ competencia: e.target.value, competencia_manual: !!e.target.value })
+            <Select
+              value={form.competencia_manual ? form.competencia : "automatica"}
+              onValueChange={(v) =>
+                v === "automatica"
+                  ? mudar({ competencia: "", competencia_manual: false })
+                  : mudar({ competencia: v, competencia_manual: true })
               }
-              className="num h-9 w-48"
-            />
+            >
+              <SelectTrigger id="fat-competencia" className="h-9 w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="automatica">
+                  {competenciaDoFormulario({ ...form, competencia_manual: false })
+                    ? `Mês do 1º vencimento (${rotuloMes(competenciaDoFormulario({ ...form, competencia_manual: false }))})`
+                    : "Mês do 1º vencimento"}
+                </SelectItem>
+                {opcoesDeCompetencia(
+                  mesCorrenteSP(),
+                  form.competencia_manual ? form.competencia : null,
+                ).map((o) => (
+                  <SelectItem key={o.valor} value={o.valor}>
+                    {o.rotulo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Campo>
         </div>
       </Secao>
@@ -934,8 +1034,15 @@ function Formulario({
         descricao="A última parcela leva os centavos que sobram da divisão. As parcelas que valem são as gravadas no envio."
       >
         <PreviaParcelas
-          pronta={valorNum !== null && parcelasNum !== null && !!form.primeiro_vencimento}
-          carregando={previa.isFetching && !previa.data}
+          pronta={previaPronta(valorNum, parcelasNum, form.primeiro_vencimento || null)}
+          // Enquanto a prévia pedida não é a dos campos de agora (meio segundo depois de digitar), ou o
+          // banco ainda responde, a tela espera: nunca mostra a divisão de outro valor.
+          carregando={
+            previa.isFetching ||
+            previaPedida[0] !== valorNum ||
+            previaPedida[1] !== parcelasNum ||
+            previaPedida[2] !== (form.primeiro_vencimento || null)
+          }
           parcelas={previa.data?.parcelas ?? null}
           total={previa.data?.total ?? null}
           erro={previa.error instanceof Error ? previa.error.message : null}
@@ -1068,12 +1175,29 @@ function QuadroCliente({
   buscando,
   tomador,
   documento,
+  semEmpresa,
+  erro,
 }: {
   tipo: "pj" | "pf";
   buscando: boolean;
   tomador: TomadorConferido | null;
   documento: string;
+  semEmpresa: boolean;
+  /** A recusa do banco (sem papel na empresa) ou a falha da busca, dita no quadro, sem alarme. */
+  erro: string | null;
 }) {
+  if (semEmpresa)
+    return (
+      <div className="rounded-xl border border-dashed bg-card p-3 text-[13px] text-muted-foreground">
+        Escolha a empresa que fatura: a busca do cliente é feita dentro dela.
+      </div>
+    );
+  if (erro && !buscando)
+    return (
+      <div className="rounded-xl border bg-card p-3 text-[13px] text-muted-foreground">
+        {erro} O nome do cliente pode ser digitado.
+      </div>
+    );
   if (buscando)
     return (
       <div className="rounded-xl border bg-card p-3 text-sm text-muted-foreground" role="status">
@@ -1337,8 +1461,10 @@ function SugestaoServico({
   descricao,
   valor,
   nomeCliente,
+  documento,
   servicos,
   aoUsar,
+  gatilho,
 }: {
   assistente: AssistenteServico;
   emissoraId: string;
@@ -1347,8 +1473,11 @@ function SugestaoServico({
   descricao: string;
   valor: number | null;
   nomeCliente: string | null;
+  documento: string | null;
   servicos: ServicoCatalogo[];
   aoUsar: (s: ServicoCatalogo) => void;
+  /** Muda quando o aviso de descrição pede "Sugerir outro serviço": dispara a sugestão. */
+  gatilho: number;
 }) {
   const [estado, setEstado] = useState<
     | { tipo: "nada" }
@@ -1363,7 +1492,7 @@ function SugestaoServico({
     setEstado({ tipo: "procurando" });
     try {
       const r = await Promise.race([
-        assistente.sugerir({ emissoraId, projeto, descricao, valor, nomeCliente }),
+        assistente.sugerir({ emissoraId, projeto, descricao, valor, nomeCliente, documento }),
         // O servidor corta o Jev em 3 s; a tela espera um pouco mais pela ida e volta.
         new Promise<never>((_, rej) =>
           setTimeout(() => rej(new Error("tempo")), TEMPO_JEV_MS + 1_000),
@@ -1377,6 +1506,14 @@ function SugestaoServico({
       setEstado({ tipo: "falhou" });
     }
   };
+  // "Sugerir outro serviço", no aviso de descrição, dispara a mesma sugestão.
+  const ultimoGatilho = useRef(gatilho);
+  useEffect(() => {
+    if (gatilho === ultimoGatilho.current) return;
+    ultimoGatilho.current = gatilho;
+    if (!semTexto) void sugerir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gatilho]);
   return (
     <div className="space-y-1">
       {semTexto ? (
@@ -1404,7 +1541,9 @@ function SugestaoServico({
             size="sm"
             className="h-auto px-0"
             onClick={() => {
-              aoUsar(estado.servico);
+              // Só vale serviço do catálogo atual da empresa (a sugestão não sobrevive à troca de empresa).
+              const atual = servicos.find((x) => x.id === estado.servico.id);
+              if (atual) aoUsar(atual);
               setEstado({ tipo: "nada" });
             }}
           >
@@ -1448,6 +1587,8 @@ function AvisoDescricao({
   descricao,
   valor,
   nomeCliente,
+  documento,
+  aoSugerirOutro,
 }: {
   assistente: AssistenteServico;
   emissoraId: string;
@@ -1456,6 +1597,8 @@ function AvisoDescricao({
   descricao: string;
   valor: number | null;
   nomeCliente: string | null;
+  documento: string | null;
+  aoSugerirOutro?: () => void;
 }) {
   const [naoCombina, setNaoCombina] = useState(false);
   useEffect(() => {
@@ -1463,7 +1606,15 @@ function AvisoDescricao({
     let vivo = true;
     const t = setTimeout(() => {
       assistente
-        .conferirDescricao({ emissoraId, servicoId, descricao, valor, nomeCliente, projeto: "" })
+        .conferirDescricao({
+          emissoraId,
+          servicoId,
+          descricao,
+          valor,
+          nomeCliente,
+          documento,
+          projeto: "",
+        })
         .then((ok) => vivo && setNaoCombina(!ok))
         .catch(() => vivo && setNaoCombina(false));
     }, 300);
@@ -1476,8 +1627,13 @@ function AvisoDescricao({
   }, [assistente, emissoraId, servicoId, descricao]);
   if (!naoCombina) return null;
   return (
-    <p className="text-[13px] text-muted-foreground">
+    <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
       Esta descrição não parece ser de '{servico}'. Confira o serviço antes de enviar.
+      {aoSugerirOutro && (
+        <Button variant="link" size="sm" className="h-auto px-0" onClick={aoSugerirOutro}>
+          Sugerir outro serviço
+        </Button>
+      )}
     </p>
   );
 }
@@ -1498,7 +1654,7 @@ function PreviaParcelas({
   if (!pronta)
     return (
       <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-        Preencha valor, forma e 1º vencimento para ver as parcelas.
+        Preencha valor e 1º vencimento para ver as parcelas.
       </p>
     );
   if (erro)
