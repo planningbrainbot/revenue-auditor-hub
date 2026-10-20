@@ -155,6 +155,143 @@ export function assunto(item: Pick<ItemRegua, "dia" | "canal" | "turno">): strin
   return `Caixa · D${item.dia} · ${item.canal} · ${ROTULO_TURNO[item.turno]}`;
 }
 
+// ---------------------------------------------------------------------------- campos que o Brain preenche
+
+/**
+ * Campos entre colchetes que o Brain troca na criação da atividade (pedido do Pedro, 19/10/2026): o que o card já
+ * sabe. Campo sem valor fica entre colchetes para o pré-vendedor, como antes. Chave = o texto entre os colchetes.
+ */
+export type CamposDoCard = Record<string, string>;
+
+/** Campo "Caixa · Produto do cluster": a frente por onde a conta entrou (PRODUCT_OPTIONS em send.mjs). */
+export const CAMPO_PRODUTO = "0646513ee16829605c0af8b15b415ebf05beb6c5";
+/** "Qual é o regime tributário da sua empresa?" e "Faturamento anual", preenchidos pelo handoff do envio. */
+export const CAMPO_REGIME = "093e25bbb3aff5d379b996da8fcec39667c6ae4e";
+export const CAMPO_FAIXA = "b92a608454a6648327f24c5cc3bf87a95bb7fbcd";
+const FRENTES: Readonly<Record<string, string>> = {
+  "1128": "Cella",
+  "1129": "Consultoria",
+  "1130": "Finance",
+};
+/** A régua de cada frente na Base, para o card que não tem regime nem faixa. */
+const REGRA_DA_FRENTE: Readonly<Record<string, string>> = {
+  Cella: "faturamento a partir de R$ 25 milhões, fora do Simples",
+  Consultoria: "Lucro Real, ou Lucro Presumido acima de R$ 20 milhões",
+  Finance: "contrato ganho, faturamento abaixo de R$ 25 milhões e fora do Simples",
+};
+const REGIMES = new Set(["Lucro Real", "Lucro Presumido", "Simples Nacional"]);
+
+/** Rótulos das opções dos campos de lista do negócio: chave do campo → (id da opção → rótulo). */
+export function rotulosDosCampos(dealFields: any[]): Map<string, Map<string, string>> {
+  const r = new Map<string, Map<string, string>>();
+  for (const f of dealFields || []) {
+    if (!f?.key || !Array.isArray(f.options)) continue;
+    r.set(String(f.key), new Map(f.options.map((o: any) => [String(o.id), String(o.label)])));
+  }
+  return r;
+}
+
+/** Primeiro nome; nome todo em caixa alta vira "Anderson". */
+export function primeiroNome(nome: unknown): string {
+  const p =
+    String(nome ?? "")
+      .trim()
+      .split(/\s+/)[0] || "";
+  return p && p === p.toUpperCase() ? p[0] + p.slice(1).toLowerCase() : p;
+}
+
+/**
+ * O campo "Caixa · Sócio no e-mail" é preenchido à mão, ora com artigo ("o José Felix", "a Jordana", "ao José
+ * Felix"), ora sem ("Lando"). Sem artigo, o gênero sai do nome (termina em "a" = feminino). Mais de um sócio no campo
+ * fica para o pré-vendedor: "da equipe do [SÓCIO]" não cabe dois nomes.
+ */
+export function socioDoCampo(v: unknown): { nome: string; artigo: "o" | "a" } | null {
+  const s = String(v ?? "").trim();
+  if (!s || /,|\/|\se\s/i.test(s)) return null;
+  const m = /^(ao|à|o|a)\s+(.+)$/i.exec(s);
+  const nome = (m ? m[2] : s).trim();
+  if (!nome) return null;
+  const art = m ? m[1].toLowerCase() : "";
+  const artigo =
+    art === "a" || art === "à" ? "a" : art ? "o" : /a$/i.test(nome.split(/\s+/)[0]) ? "a" : "o";
+  return { nome, artigo };
+}
+
+/** O usuário do Pipedrive com o nome sem acento ("Heloa Jesus"): o nome que vai na mensagem. */
+const NOME_DO_DONO: Readonly<Record<number, string>> = { 28897937: "Heloá" };
+
+/**
+ * Nome da empresa para a mensagem. Tira o sufixo societário (LTDA, S.A., EIRELI...). Nome ainda cru (caixa alta com
+ * mais de duas palavras, ou longo demais) fica como [EMPRESA]: a decisão de 14/10/2026 é o time corrigir o nome da
+ * organização antes de mover o card, e mensagem com razão social em caixa alta não sai.
+ */
+export function empresaParaMensagem(nome: unknown): string {
+  const s = String(nome ?? "")
+    .trim()
+    .replace(/[\s.,-]*\b(ltda|s\.?\s?a|s\/a|eireli|epp|me)\.?\s*$/i, "")
+    .replace(/[\s.,-]+$/, "")
+    .trim();
+  if (!s || s.length > 40) return "";
+  const palavras = s.split(/\s+/);
+  return s === s.toUpperCase() && /[A-ZÀ-Ú]/.test(s) && palavras.length > 2 ? "" : s;
+}
+
+/** "Lucro Presumido, faturamento de R$ 2 milhões até R$ 4,8 milhões", a partir dos campos do card. */
+function regraDoCard(deal: any, rotulos: Map<string, Map<string, string>>, frente: string): string {
+  const rotulo = (campo: string) => rotulos.get(campo)?.get(String(deal?.[campo] ?? "")) ?? "";
+  const regime = rotulo(CAMPO_REGIME);
+  const faixa = rotulo(CAMPO_FAIXA);
+  // A Consultoria entra pelo regime: sem ele no card, a faixa sozinha não explica a entrada.
+  if (frente === "Consultoria" && !REGIMES.has(regime)) return REGRA_DA_FRENTE[frente];
+  const partes = [REGIMES.has(regime) ? regime : ""];
+  if (faixa && !/^\[|sem movimenta/i.test(faixa))
+    partes.push(
+      /^R\$/.test(faixa)
+        ? `faturamento de ${faixa}`
+        : `faturamento ${faixa[0].toLowerCase()}${faixa.slice(1)}`,
+    );
+  return partes.filter(Boolean).join(", ") || REGRA_DA_FRENTE[frente] || "";
+}
+
+/** O que o card já sabe, no formato dos colchetes da régua. `deal` é o da listagem v1 (org_name, person_id, user_id). */
+export function camposDoCard(
+  deal: any,
+  rotulos = new Map<string, Map<string, string>>(),
+): CamposDoCard {
+  const pessoa = deal?.person_id && typeof deal.person_id === "object" ? deal.person_id : null;
+  const dono = deal?.user_id && typeof deal.user_id === "object" ? deal.user_id : null;
+  const frente = FRENTES[String(deal?.[CAMPO_PRODUTO] ?? "")] ?? "";
+  const socio = socioDoCampo(deal?.[CAMPO_SOCIO_NO_EMAIL]);
+  const c: CamposDoCard = {
+    EMPRESA: empresaParaMensagem(deal?.org_name ?? deal?.org_id?.name),
+    NOME: primeiroNome(pessoa?.name ?? deal?.person_name),
+    "SEU NOME": NOME_DO_DONO[Number(dono?.id)] ?? primeiroNome(dono?.name ?? deal?.owner_name),
+    FRENTE: frente,
+    REGRA: frente ? regraDoCard(deal, rotulos, frente) : "",
+  };
+  if (socio) {
+    c["SÓCIO"] = socio.nome;
+    c["SÓCIO_ARTIGO"] = socio.artigo;
+  }
+  return c;
+}
+
+/**
+ * Troca os colchetes que têm valor em `campos`; os outros ficam como estão. O sócio leva o artigo: "do [SÓCIO]" vira
+ * "da Jordana" e "o [SÓCIO]" vira "a Jordana"; no vocativo ("[SÓCIO], tentei...") vai só o nome.
+ */
+export function preencher(texto: string, campos: CamposDoCard): string {
+  let t = texto;
+  const socio = campos["SÓCIO"]?.trim();
+  if (socio) {
+    const a = campos["SÓCIO_ARTIGO"] === "a" ? "a" : "o";
+    t = t.replace(/\bdo \[SÓCIO\]/g, `d${a} ${socio}`).replace(/\bo \[SÓCIO\]/g, `${a} ${socio}`);
+  }
+  return t.replace(/\[([^\]]+)\]/g, (todo, chave) =>
+    chave !== "SÓCIO_ARTIGO" && campos[chave]?.trim() ? campos[chave].trim() : todo,
+  );
+}
+
 /** Texto pronto em HTML simples: escapa &, < e >, e quebra de linha vira <br>. Colchetes ficam como estão. */
 export function notaHtml(texto: string): string {
   return texto
@@ -186,19 +323,24 @@ export type AtividadePlanejada = ItemRegua & {
   due_time: string;
 };
 
-/** As atividades da régua para um card que entrou na etapa em `entrada`, com dia e hora já em UTC. */
+/**
+ * As atividades da régua para um card que entrou na etapa em `entrada`, com dia e hora já em UTC. Com `campos`, a
+ * nota sai com o que o card já sabe preenchido; o [DIA DO D0] vem do próprio D0.
+ */
 export function planejar(
   entrada: Date,
   regua: readonly ItemRegua[],
   horario: Readonly<Record<Turno, string>> = HORARIO,
+  campos?: CamposDoCard,
 ): AtividadePlanejada[] {
   const d0 = diaZero(entrada);
   const chaves = chavesDaRegua(regua);
+  const todos = campos ? { ...campos, "DIA DO D0": `${d0.slice(8, 10)}/${d0.slice(5, 7)}` } : null;
   return regua.map((item, i) => ({
     ...item,
     chave: chaves[i],
     subject: assunto(item),
-    note: notaHtml(item.nota),
+    note: notaHtml(todos ? preencher(item.nota, todos) : item.nota),
     ...vencimentoUtc(diaUtilApos(d0, item.dia), horario[item.turno]),
   }));
 }
@@ -385,7 +527,8 @@ export const NOTA_EMAIL_D0_AUTOMATICO =
   "Enviado pela automação do Pipedrive na entrada da etapa, pela caixa do dono do card. Confira na aba E-mails do card. Se não estiver lá, mande o texto abaixo e deixe esta atividade como feita.\n\n";
 
 /** O item da régua que a automação do Pipedrive cobre: o e-mail do D0. */
-export const ehEmailD0 = (item: Pick<ItemRegua, "dia" | "tipo">) => item.dia === 0 && item.tipo === "email";
+export const ehEmailD0 = (item: Pick<ItemRegua, "dia" | "tipo">) =>
+  item.dia === 0 && item.tipo === "email";
 
 /** Campo "Caixa · Sócio no e-mail" do negócio (id 323, criado em 14/10/2026). Sai no e-mail do D0. */
 export const CAMPO_SOCIO_NO_EMAIL = "73bd1e4b5cecc29824871f097f18e6757e17a9ac";
@@ -597,6 +740,14 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
   if (inicio) {
     const tipos = escolherTipos((await pd.get("activityTypes"))?.data || [], regua);
     resumo.tipos_substituidos = tipos.substituidos;
+    // Rótulos de regime e faixa, lidos uma vez por rodada e só se houver cadência para criar. Sem eles, o [REGRA]
+    // sai com a régua da frente.
+    let rotulos: Map<string, Map<string, string>> | null = null;
+    const lerRotulos = async () =>
+      (rotulos ??= await pd
+        .pages("dealFields", {})
+        .then(rotulosDosCampos)
+        .catch(() => new Map<string, Map<string, string>>()));
     const linhas = naEtapa.size ? await store.linhasDosDeals([...naEtapa.keys()]) : [];
     const fila = [...naEtapa.entries()].sort(
       ([, a], [, b]) => (a.entrou?.getTime() ?? 0) - (b.entrou?.getTime() ?? 0),
@@ -665,7 +816,7 @@ export async function rodarCadencia(op: OpcoesCadencia): Promise<ResumoCadencia>
         const n = await criarAtividades(
           op,
           alvo,
-          plano,
+          planejar(entrou, regua, horario, camposDoCard(deal, await lerRotulos())),
           dono ?? alvo.dono ?? null,
           tipos.usar,
           !!op.emailD0Automatico && emailD0SaiPelaAutomacao(deal),
