@@ -259,7 +259,8 @@ const TOM_ATENCAO: Record<LinhaAtencao["chave"], "perigo" | "atencao" | "info"> 
 /**
  * Caixa com borda, uma linha por pendência, cada uma com o botão de destino (contrato §2, item 3). As
  * contagens são de `fat_contexto` (todas as minhas empresas), então o destino vai sem o filtro de empresa
- * da tela, para o total bater.
+ * da tela, para o total bater. O "Erro no Omie" de quem é só tesouraria abre a Fila em "Todas" com a
+ * higiene "Erro no Omie" (`linhasDeAtencao`).
  */
 function OQuePedeAtencao({ contexto }: { contexto: Contexto }) {
   const linhas = linhasDeAtencao(contexto);
@@ -286,10 +287,17 @@ function OQuePedeAtencao({ contexto }: { contexto: Contexto }) {
                   </StatusBadge>
                 </span>
                 <Button asChild variant="outline" size="sm">
-                  <Link to="/faturamento/pedidos" search={buscaDoFiltro(l.filtro, refs)}>
-                    {l.acao}
-                    <ArrowRight className="size-4" aria-hidden />
-                  </Link>
+                  {l.fila ? (
+                    <Link to="/faturamento/tesouraria" search={l.fila}>
+                      {l.acao}
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  ) : (
+                    <Link to="/faturamento/pedidos" search={buscaDoFiltro(l.filtro, refs)}>
+                      {l.acao}
+                      <ArrowRight className="size-4" aria-hidden />
+                    </Link>
+                  )}
                 </Button>
               </li>
             ))}

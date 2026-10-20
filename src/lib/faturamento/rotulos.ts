@@ -311,6 +311,13 @@ export interface LinhaAtencao {
   filtro: FiltroPedidos;
   /** Rótulo do botão de destino. */
   acao: string;
+  /**
+   * Quando o destino é a Fila da tesouraria e não Pedidos. Só o "Erro no Omie" de quem é só tesouraria: a
+   * contagem de `fat_contexto` para ela é todo erro do recorte, a mesma da higiene "Erro no Omie" da fila em
+   * "Todas". "Para faturar" fica em Pedidos: o número de `fat_contexto` inclui Em conferência, e a ficha
+   * "Para faturar" da fila não (o total não bateria, N2).
+   */
+  fila?: { emissora: "todas"; higiene: "erro" };
 }
 
 /**
@@ -320,6 +327,7 @@ export interface LinhaAtencao {
  */
 export function linhasDeAtencao(ctx: Pick<Contexto, "papeis" | "pendencias">): LinhaAtencao[] {
   const p = ctx.pendencias;
+  const soTesouraria = !ctx.papeis.pede && ctx.papeis.tesouraria;
   const linhas: LinhaAtencao[] = [
     {
       chave: "erro_omie",
@@ -327,6 +335,7 @@ export function linhasDeAtencao(ctx: Pick<Contexto, "papeis" | "pendencias">): L
       quantidade: p.erro_omie.quantidade,
       filtro: p.erro_omie.filtro,
       acao: "Ver os erros",
+      ...(soTesouraria ? { fila: { emissora: "todas" as const, higiene: "erro" as const } } : {}),
     },
   ];
   if (ctx.papeis.pede) {

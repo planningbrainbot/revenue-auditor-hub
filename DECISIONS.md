@@ -5856,3 +5856,56 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Testes: `tests/faturamento-*.test.mjs`.
 
 **Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy. O formato real de `fat_contexto`, `fat_resumo` e `fat_pedidos` só pode ser conferido quando a T1b estiver aplicada.
+
+## [2026-10-20] Portal de Faturamento, T4 (segunda metade): Novo pedido, Ficha, Fila da tesouraria e Configuração
+
+**Contexto:** segunda metade da T4, sobre a primeira (commit `1544093`). A API (T1b) foi aplicada no banco às 11h46, com os ajustes da seção "Mudanças" do `API.md`: as passagens `ops.fat_conector_*` e `ops.fat_receita_cnpj_gravar`, e o CNPJ alfanumérico. O conector do Omie já estava publicado, simulando.
+
+**Decisões:**
+- **Novo pedido.** As quatro seções seguem a ordem da Ana, com o Dono da receita logo depois da empresa.
+  - O cliente vem pelo documento, via `fat_tomador`.
+  - Quando o banco diz `consultar_receita`, a server function consulta a CNPJá aberta, grava com `ops.fat_receita_cnpj_gravar` (service_role) e chama `fat_tomador` de novo. Isso faz o bloqueio de CNPJ inapto (CA-05) valer sem depender da tela.
+  - Limite de 3 consultas por minuto por processo, com `User-Agent` explícito. Passou do limite, a consulta fica "adiada" e a tela diz isso.
+  - A máscara e a validação aceitam o CNPJ alfanumérico (`12.ABC.345/01DE-35`).
+  - A prévia das parcelas vem de `fat_parcelas_previa`.
+  - Ações: Salvar rascunho (a URL ganha `?pedido=`), Descartar (vira Cancelado, "descartado pelo autor") e Enviar. O botão Enviar vira "Enviar para o OK de {nome}" quando o autor não é o dono.
+  - Sair com alteração não salva pergunta antes.
+  - O lugar da sugestão de serviço e do aviso de descrição (T5) está pronto atrás da prop `assistente`, desligada.
+- **Ficha.** Ações por situação, com uma `default`. Quem não pode vê o botão desabilitado com o motivo que o banco manda (`acoes`).
+  - Devolver e Pedir cancelamento pedem motivo; Faturar e Confirmar cancelamento passam por `AlertDialog`.
+  - Em simulação, a Ficha mostra "o que iria ao Omie" só com o que a pessoa já vê. O envio completo fica nos "Detalhes técnicos", que o banco só manda para a tesouraria e a controladoria.
+  - A página confere a área sozinha. Fora do escopo, `EstadoSemAcesso` sem nenhum dado.
+- **Fila da tesouraria.**
+  - Organizada por empresa (a com mais trabalho abre primeiro) e por dia de chegada, na ordem do banco.
+  - Linha com botão (Conferir, Faturar, Reenviar, Confirmar cancelamento); o foco vai para a linha seguinte.
+  - `Sheet` com o pedido e as mesmas ações da Ficha.
+  - "Reenviar os erros desta empresa", um por um.
+- **Destino em Meu faturamento, decidido agora que a fila existe.**
+  - "Erro no Omie", para quem é só tesouraria, abre a Fila em `emissora=todas&higiene=erro`. A contagem é a mesma de `fat_contexto`.
+  - "Para faturar" continua abrindo Pedidos: o número de `fat_contexto` inclui Em conferência, e a ficha "Para faturar" da fila não inclui.
+- **Configuração.**
+  - Donos, gestores, solicitantes e substitutos por empresa.
+  - Serviços: liberar, categoria e conta corrente salvas ao sair do campo, sincronizar.
+  - "Fatura por" e o Pipefy por empresa.
+  - "Gravar no Omie" só fica habilitado para o admin do Brain e para empresa com chave, sempre com a confirmação do efeito. A controladoria pode voltar para a simulação.
+
+**O que não ficou igual ao contrato:**
+1. **Sem "Abrir no Omie" para a OS.** A API não traz link da OS. Ficaram "Abrir a nota" (`nf_link`) e "Abrir card" (`card_url`).
+2. **Devolver com OS criada.** O diálogo diz que o reenvio altera a mesma OS (`alterar_os`, API §0.7), e não manda excluir a OS no Omie, como o contrato propunha antes da API.
+3. **Pedir cancelamento** aparece nas situações da lista do contrato. Não aparece em Devolvido nem em Simulado, embora a API permita.
+4. **Nada contado no navegador.** A ficha "Todas" da fila não tem número (seria soma). O cabeçalho do dia não conta pedidos. A nota de Em atraso na Ficha não diz quantas parcelas.
+5. **Vencimento no passado não bloqueia o envio,** como diz o `API.md`; o contrato propunha bloquear. É decisão pendente da Ana.
+6. **Cliente não achado** pode ser digitado e enviado, com "situação não conferida" (o contrato deixava "a decidir pela Ana").
+7. **No diálogo de "Gravar no Omie", sem o número de pedidos simulados.** `fat_config` não traz essa contagem.
+8. **"Faturados hoje"** filtra por `situacao=faturado&dia=hoje`, o filtro que o banco devolve.
+
+**Teste com dado real (20/10, 12h13–12h20):** o ciclo inteiro rodou pelas RPCs das telas, como o Pedro (`authenticated`):
+- Pedro reativado como dono da DOC pela RPC da Configuração;
+- FAT-2026-000003 criado com R$ 1,00, usando o mapeamento do formulário;
+- enviado, simulado pelo conector em cerca de 1 minuto;
+- conferido e devolvido. A devolução sem motivo foi recusada (22023), e o OK fora da situação também (55000);
+- descartado, ficando Cancelado.
+
+No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou gravada no cache da Receita (ATIVA).
+
+**Status:** branch `feat/portal-faturamento-telas-20261020`, sem deploy.

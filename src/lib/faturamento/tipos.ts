@@ -302,7 +302,8 @@ export interface EnvioOmie {
   tentativas: number;
   proxima_tentativa_em: string | null;
   erro_legivel: string | null;
-  codigos: { [chave: string]: Json };
+  /** `resposta.codigos`; nulo enquanto o conector não respondeu. */
+  codigos: { [chave: string]: Json } | null;
   criado_em: string;
   atualizado_em: string;
   /** Só para tesouraria e controladoria ("Detalhes técnicos"). */
@@ -319,7 +320,9 @@ export interface EnvioPipefy {
   card_url: string | null;
   erro_legivel: string | null;
   criado_em: string;
+  atualizado_em?: string;
   /** Só para tesouraria e controladoria. */
+  payload?: Json;
   resposta?: Json;
 }
 
@@ -327,6 +330,11 @@ export interface AcaoPermitida {
   pode: boolean;
   /** Frase para o botão desabilitado. */
   motivo: string | null;
+  /**
+   * "42501" (falta o papel) ou "55000" (a situação não permite); `null` quando pode. O mesmo código que a RPC
+   * da ação devolveria (API.md, Mudanças 4).
+   */
+  codigo?: "42501" | "55000" | null;
 }
 
 export type AcaoFicha =
@@ -354,6 +362,8 @@ export interface FichaPedido {
     dono: Pessoa | null;
     solicitante: Pessoa | null;
     enviado_por: Pessoa | null;
+    /** Quem marcou Em conferência (API.md, Mudanças 5). */
+    conferido_por?: Pessoa | null;
     tomador: {
       tipo: TipoTomador;
       documento: string | null;
@@ -398,7 +408,8 @@ export interface FichaPedido {
     em_atraso: number | null;
     parcelas_pagas: number;
     parcelas_total: number;
-    proximo_vencimento: { data: string; valor: number; previsto: boolean } | null;
+    /** Antes do envio, o 1º vencimento pedido (`previsto`, sem valor). */
+    proximo_vencimento: { data: string; valor: number | null; previsto: boolean } | null;
   };
   parcelas: Parcela[];
   /** Do mais novo para o mais velho. */
@@ -535,6 +546,14 @@ export interface Tomador {
   contratos_lidos_em: string | null;
   base: { empresa_id: number; razao_social: string | null; uf: string | null } | null;
 }
+
+/**
+ * O que a tela recebe do servidor: o `fat_tomador` e o que aconteceu com a consulta da Receita que ele pediu
+ * (`feita` e gravada, `adiada` pelo limite de chamadas, `falhou`, ou `nao_precisou`).
+ */
+export type TomadorConferido = Tomador & {
+  consulta_receita: "feita" | "adiada" | "falhou" | "nao_precisou";
+};
 
 // ------------------------------------------------------------------ parcelas e pedido (§1.9 a §1.18)
 

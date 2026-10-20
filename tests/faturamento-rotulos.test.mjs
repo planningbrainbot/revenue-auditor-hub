@@ -317,6 +317,9 @@ test("o que pede atenção: ordem, papéis e só pendência com pedido (contrato
   assert.deepEqual(quemPede[1].filtro, { pendencia: "ok" });
 
   const soTesouraria = linhasDeAtencao({ papeis: { pede: false, tesouraria: true }, pendencias });
+  // Só tesouraria: o erro no Omie abre a Fila em "Todas" com a higiene de erro (o total bate); quem pede, Pedidos.
+  assert.deepEqual(soTesouraria[0].fila, { emissora: "todas", higiene: "erro" });
+  assert.equal(quemPede[0].fila, undefined);
   assert.deepEqual(
     soTesouraria.map((l) => l.chave),
     ["erro_omie", "para_faturar"],

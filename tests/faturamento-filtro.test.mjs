@@ -97,6 +97,11 @@ test("lerBuscaMeuFaturamento, lerBuscaNovo e lerVolta", () => {
 });
 
 test("idsDasEmissoras separa o que não está no recorte", () => {
+  // Apelido com espaço ("PAC SP") vale.
+  assert.deepEqual(idsDasEmissoras("pac sp", [{ id: "x", apelido: "PAC SP" }]), {
+    ids: ["x"],
+    desconhecidas: [],
+  });
   assert.deepEqual(idsDasEmissoras("DOC,PRJ", EMISSORAS), {
     ids: [DOC.id],
     desconhecidas: ["PRJ"],

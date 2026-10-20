@@ -60,7 +60,8 @@ export const POR_PAGINA = 50;
 
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const APELIDO = /^[A-Z0-9_-]{1,24}$/;
+// Apelido da empresa do grupo: letras, números e espaço ("PAC SP").
+const APELIDO = /^[A-Z0-9][A-Z0-9 _-]{0,23}$/;
 const REGUAS_MES: ReguaMes[] = ["competencia", "nota", "pagamento"];
 
 function texto(v: unknown): string | undefined {

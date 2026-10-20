@@ -1,38 +1,30 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "@/components/planning";
+import { createFileRoute, type SearchSchemaInput } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  AREA_FATURAMENTO,
-  AREA_TESOURARIA,
-  EmConstrucao,
-  PaginaFaturamento,
-  PortaoFaturamento,
-} from "@/components/faturamento/moldura";
+import { AREA_TESOURARIA, PortaoFaturamento } from "@/components/faturamento/moldura";
+import { FilaDaTesouraria } from "@/components/faturamento/fila-tesouraria";
+import { lerBuscaFila } from "@/lib/faturamento/fila";
 
 // Fila da tesouraria (Fila de trabalho). Contrato: docs/design/contratos/faturamento-tesouraria.md.
-// ESQUELETO da primeira metade da T4: só a área Faturamento · Tesouraria (`edit.faturamento_tesouraria`)
-// abre. A fila entra na segunda metade.
+// Só a área Faturamento · Tesouraria (`edit.faturamento_tesouraria`) abre; a empresa no recorte quem confere
+// é `ops.fat_fila_tesouraria`. Empresa, situação, higiene, dia, busca e o pedido aberto moram na URL (N7).
 export const Route = createFileRoute("/_authenticated/faturamento/tesouraria")({
+  validateSearch: (s: Record<string, unknown> & SearchSchemaInput) => lerBuscaFila(s),
   head: () => ({ meta: [{ title: "Fila da tesouraria · Planning Brain" }] }),
   component: FilaTesourariaPagina,
 });
 
-const PERGUNTA = "Qual pedido eu confiro e faturo agora?";
-
 function FilaTesourariaPagina() {
   useAuth();
+  const busca = Route.useSearch();
   return (
     <PortaoFaturamento
       area={AREA_TESOURARIA}
       oQueFalta="Faturamento · Tesouraria"
       titulo="Fila da tesouraria"
-      pergunta={PERGUNTA}
+      pergunta="Qual pedido eu confiro e faturo agora?"
       carregando="tabela"
     >
-      <PaginaFaturamento>
-        <PageHeader area={AREA_FATURAMENTO} titulo="Fila da tesouraria" pergunta={PERGUNTA} />
-        <EmConstrucao descricao="A fila da tesouraria entra na próxima entrega do Portal de Faturamento." />
-      </PaginaFaturamento>
+      <FilaDaTesouraria busca={busca} />
     </PortaoFaturamento>
   );
 }

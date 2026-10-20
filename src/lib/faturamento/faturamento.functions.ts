@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { traduzirErroBanco, type Resultado } from "./erros";
+import { dadosDaCnpja, LimiteDeChamadas, URL_CNPJA, USER_AGENT_CNPJA } from "./receita";
 import type {
   CatalogoServicos,
   ConfigFaturamento,
@@ -23,6 +24,7 @@ import type {
   SincronizacaoPedida,
   StatusEnfileirado,
   Tomador,
+  TomadorConferido,
 } from "./tipos";
 
 // Server functions do Portal de Faturamento: uma por RPC de tela do contrato da API
@@ -264,10 +266,66 @@ export const carregarDepartamentosFaturamento = createServerFn({ method: "GET" }
     chamar<Departamentos>(context.supabase, "fat_departamentos", {}, "A leitura dos departamentos"),
   );
 
+// ------------------------------------------------------------------ Receita (CNPJá aberta)
+
+/** No máximo 3 consultas por minuto por processo (a CNPJá aberta aguenta cerca de 4). */
+const limiteCnpja = new LimiteDeChamadas(3, 60_000);
+/** A mesma consulta em curso é reaproveitada: dois campos que saem juntos não gastam duas chamadas. */
+const emCurso = new Map<string, Promise<"feita" | "adiada" | "falhou">>();
+
 /**
- * §1.8 · Confere o documento do tomador e busca o cliente. Com `consultar_receita = true` a situação na
- * Receita não está no banco: quem consulta a CNPJá e grava (`integracoes.receita_cnpj_gravar`) é o
- * servidor, com a chave service_role, nunca o navegador. Essa consulta fica com a tela Novo pedido.
+ * Consulta a CNPJá aberta e grava com `ops.fat_receita_cnpj_gravar`, executável só pelo service_role. Só é
+ * chamada depois de `fat_tomador` responder com a sessão da pessoa (a porta e o escopo já foram conferidos).
+ */
+async function consultarEGravarReceita(cnpj: string): Promise<"feita" | "adiada" | "falhou"> {
+  const atual = emCurso.get(cnpj);
+  if (atual) return atual;
+  const tarefa = (async () => {
+    if (!limiteCnpja.tentar()) return "adiada" as const;
+    let json: unknown;
+    try {
+      const r = await fetch(`${URL_CNPJA}${encodeURIComponent(cnpj)}`, {
+        headers: { "User-Agent": USER_AGENT_CNPJA, Accept: "application/json" },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (r.status === 429) return "adiada" as const;
+      if (!r.ok) {
+        if (r.status !== 404) console.warn(`[faturamento] CNPJá respondeu ${r.status}`);
+        return "falhou" as const;
+      }
+      json = await r.json();
+    } catch (e) {
+      console.warn("[faturamento] CNPJá não respondeu", e instanceof Error ? e.message : e);
+      return "falhou" as const;
+    }
+    const dados = dadosDaCnpja(json);
+    if (!dados) return "falhou" as const;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin as DB)
+      .schema("ops")
+      .rpc("fat_receita_cnpj_gravar", { p_cnpj: cnpj, p_dados: dados });
+    if (error) {
+      console.error("[faturamento] ops.fat_receita_cnpj_gravar", {
+        code: error.code,
+        message: error.message,
+      });
+      return "falhou" as const;
+    }
+    return "feita" as const;
+  })();
+  emCurso.set(cnpj, tarefa);
+  try {
+    return await tarefa;
+  } finally {
+    emCurso.delete(cnpj);
+  }
+}
+
+/**
+ * §1.8 · Confere o documento do tomador e busca o cliente. Quando `fat_tomador` diz que não há consulta da
+ * Receita para o CNPJ (ou ela tem mais de 30 dias), o servidor consulta a CNPJá aberta, grava e chama
+ * `fat_tomador` de novo: é isso que deixa o bloqueio de CNPJ inapto (CA-05) valer. Se a consulta não sair
+ * (limite, CNPJá fora), devolve a primeira resposta e diz que a consulta ficou para depois.
  */
 export const conferirTomadorFaturamento = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -276,14 +334,31 @@ export const conferirTomadorFaturamento = createServerFn({ method: "GET" })
       .object({ documento: z.string().trim().min(1).max(30), emissora: uuid.nullable().optional() })
       .strict(),
   )
-  .handler(({ context, data }) =>
-    chamar<Tomador>(
+  .handler(async ({ context, data }): Promise<Resultado<TomadorConferido>> => {
+    const args = { p_documento: data.documento, p_emissora: data.emissora ?? null };
+    const primeira = await chamar<Tomador>(
       context.supabase,
       "fat_tomador",
-      { p_documento: data.documento, p_emissora: data.emissora ?? null },
+      args,
       "A busca do cliente",
-    ),
-  );
+    );
+    if (!primeira.ok) return primeira;
+    const t = primeira.dados;
+    if (!(t.valido && t.tipo === "pj" && t.consultar_receita)) {
+      return { ok: true, dados: { ...t, consulta_receita: "nao_precisou" } };
+    }
+    const consulta = await consultarEGravarReceita(t.documento);
+    if (consulta !== "feita") return { ok: true, dados: { ...t, consulta_receita: consulta } };
+    const segunda = await chamar<Tomador>(
+      context.supabase,
+      "fat_tomador",
+      args,
+      "A busca do cliente",
+    );
+    return segunda.ok
+      ? { ok: true, dados: { ...segunda.dados, consulta_receita: "feita" } }
+      : { ok: true, dados: { ...t, consulta_receita: "falhou" } };
+  });
 
 /** §1.9 · A prévia das parcelas, pela mesma função que grava as parcelas no envio. */
 export const previaParcelasFaturamento = createServerFn({ method: "GET" })

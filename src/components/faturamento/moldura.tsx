@@ -6,7 +6,6 @@ import {
   Carregando,
   EstadoErro,
   EstadoSemAcesso,
-  EstadoVazio,
   PageHeader,
   StatusBadge,
 } from "@/components/planning";
@@ -136,9 +135,4 @@ export function ErroDaArea({
       tentarNovamente={tipo === "indisponivel" ? undefined : tentarNovamente}
     />
   );
-}
-
-/** As telas da segunda metade da E1, até serem preenchidas: o portão já vale, o conteúdo ainda não. */
-export function EmConstrucao({ descricao, acao }: { descricao: ReactNode; acao?: ReactNode }) {
-  return <EstadoVazio titulo="Em construção" descricao={descricao} acao={acao} />;
 }
