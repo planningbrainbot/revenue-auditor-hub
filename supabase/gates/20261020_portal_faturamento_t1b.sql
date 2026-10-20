@@ -199,6 +199,13 @@ insert into receita.fat_donos (emissora_id, user_id, papel, substituto_id) value
   ('c243e5e4-8309-43e6-ac33-146b9771a44e', pg_temp.u('s1'), 'solicitante', null),
   ('c243e5e4-8309-43e6-ac33-146b9771a44e', pg_temp.u('g1'), 'gestor', null),
   ('8cdf5de7-683f-4d8e-a194-f303677ac6ea', pg_temp.u('p1'), 'dono', null);
+-- Depois da revisão de 20/10 quem liga gravar e Pipefy é a lista receita.fat_ativadores: o admin de ensaio entra nela.
+do $ativador$
+begin
+  if to_regclass('receita.fat_ativadores') is not null then
+    execute format('insert into receita.fat_ativadores (user_id, motivo) values (%L, %L)', pg_temp.u('ad'), 'ensaio do gate da T1b');
+  end if;
+end $ativador$;
 insert into receita.fat_servicos (emissora_id, codigo_omie, descricao, ativo)
 values ('c243e5e4-8309-43e6-ac33-146b9771a44e', 'ensaio-t1b-sem-trib', 'Serviço de ensaio sem tributação', true);
 
@@ -964,7 +971,7 @@ begin
   perform pg_temp.como('a1');
   r := ops.fat_tomador('98.765.432/0001-98', doc);
   if jsonb_array_length(r -> 'contratos_outra_emissora') <> 1 or r #>> '{contratos_outra_emissora,0,emissora,apelido}' <> 'PRJ'
-     or r #>> '{contratos_outra_emissora,0,numero}' <> 'ENS-1' or r -> 'contratos_lidos_em' = 'null'::jsonb then
+     or r -> 'contratos_lidos_em' = 'null'::jsonb then  -- número e valor do contrato saíram na revisão de 20/10 (achado 2)
     raise exception 'FALHOU R1: aviso de contrato = %', r -> 'contratos_outra_emissora';
   end if;
   if jsonb_array_length(ops.fat_tomador('74185296000107', doc) -> 'contratos_outra_emissora') <> 0 then
@@ -1039,7 +1046,7 @@ begin
      or (r ->> 'sem_tributacao')::int < 1 then
     raise exception 'FALHOU R4: serviço sem tributação apareceu no catálogo ou não foi contado';
   end if;
-  if (ops.fat_tomador('11.222.333/0001-80') ->> 'valido')::boolean then raise exception 'FALHOU R4: tomador com DV errado válido'; end if;
+  if (ops.fat_tomador('11.222.333/0001-80', doc) ->> 'valido')::boolean then raise exception 'FALHOU R4: tomador com DV errado válido'; end if;
   if jsonb_array_length(ops.fat_departamentos() -> 'departamentos') <> 19 then raise exception 'FALHOU R4: departamentos pela RPC'; end if;
   perform pg_temp.como('postgres');
 end $r$;
@@ -1164,10 +1171,13 @@ begin
   perform pg_temp.como('a1');
   perform pg_temp.erro(format('select ops.fat_dono_salvar(%L)', jsonb_build_object('emissora_id', doc, 'user_id', pg_temp.u('z1'),
                          'papel', 'dono')), '42501', 'S2 dono cadastra dono');
-  -- S3. Pipefy e fatura_por pela controladoria; desligar a gravação ela também faz.
+  -- S3. fatura_por pela controladoria; desligar a gravação ela também faz. Ligar o Pipefy é do ativador (revisão de 20/10).
+  perform pg_temp.como('ad');
+  r := ops.fat_emissora_config(doc, null, true);
+  if not (r ->> 'pipefy_sync')::boolean then raise exception 'FALHOU S3: ligar o Pipefy devolveu %', r; end if;
   perform pg_temp.como('c1');
-  r := ops.fat_emissora_config(doc, null, true, 'os');
-  if not (r ->> 'pipefy_sync')::boolean or r ->> 'fatura_por' <> 'os' then raise exception 'FALHOU S3: config devolveu %', r; end if;
+  r := ops.fat_emissora_config(doc, null, null, 'os');
+  if r ->> 'fatura_por' <> 'os' then raise exception 'FALHOU S3: config devolveu %', r; end if;
   r := ops.fat_emissora_config(doc, 'simular');
   if r ->> 'modo_omie' <> 'simular' then raise exception 'FALHOU S3: desligar a gravação devolveu %', r; end if;
   perform pg_temp.como('postgres');

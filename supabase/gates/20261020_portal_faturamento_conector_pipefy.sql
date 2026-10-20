@@ -82,7 +82,9 @@ do $p4$
 declare c text;
 begin
   select command into c from cron.job where jobname = 'faturamento-omie-fila' and active and schedule = '*/2 * * * *';
-  if c is null or c not like '%integracoes.omie_envios%' or c not like '%integracoes.pipefy_envios%'
+  -- Desde a revisão de 20/10 o job pergunta integracoes.fat_tem_trabalho(): as filas olhadas estão no corpo dela.
+  if c is null or (c || coalesce((select pg_get_functiondef(to_regprocedure('integracoes.fat_tem_trabalho()')) where to_regprocedure('integracoes.fat_tem_trabalho()') is not null), '')) not like '%integracoes.omie_envios%'
+     or (c || coalesce((select pg_get_functiondef(to_regprocedure('integracoes.fat_tem_trabalho()')) where to_regprocedure('integracoes.fat_tem_trabalho()') is not null), '')) not like '%integracoes.pipefy_envios%'
      or c not like '%faturamento_cron_secret%' or c not like '%"acao":"processar"%' then
     raise exception 'FALHOU P4: job da fila errado';
   end if;

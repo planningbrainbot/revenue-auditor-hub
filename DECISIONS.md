@@ -6152,3 +6152,61 @@ No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou 
   - a devolução foi para o Pedro, autor e gestor no teste;
   - as duas ficaram `simulado` e nada foi enviado;
   - os dois papéis de teste foram desativados.
+
+## [2026-10-20] Portal de Faturamento: correções das revisões de banco, segurança, app e conector
+
+**Contexto:** revisões `e1/revisao-banco-seguranca.md` (14 achados) e `e1/revisao-app-conector.md` (A1, A2, M1 a M5, B2), com as decisões do coordenador de 20/10. Só banco: migrations, gates e rollback. O código da edge e das telas é de outros agentes.
+
+**Decisões:**
+- **Freio do simular.** Vale o modo atual da emissora na hora da reserva, e simular para pedido já simulado.
+  - O banco recusa `ok` de escrita com a emissora em simulação.
+  - Alterar ou faturar uma OS real, com a emissora de volta em simulação, vira erro legível para reenviar.
+  - O reenvio recalcula o modo e renova a foto do pedido.
+- **Quem liga a gravação e o Pipefy** é a lista explícita `receita.fat_ativadores`, semeada só com o Pedro. Hoje têm o papel `admin` do Brain o Pedro e o Victor Eliezek; o Victor não liga mais nada. Desligar continua com a controladoria.
+- **`fat_tomador`:**
+  - sem empresa, só tesouraria e controladoria consultam;
+  - o contrato em outra empresa diz só a empresa;
+  - nome de pessoa física só para quem tem papel na empresa;
+  - sem o id da base;
+  - o e-mail da base só para tesouraria e controladoria.
+- **Erro no `faturar_os`:** só a tesouraria reenvia, e a conferência se mantém.
+- **Envios mortos:**
+  - cancelado fecha o que esperava (Omie, Pipefy, e-mail);
+  - o dependente de um envio em erro fica `bloqueado` até o reenvio;
+  - o cron só acorda com trabalho processável (`integracoes.fat_tem_trabalho`, a mesma regra da reserva, sobre as visões `fat_omie_reservaveis` e `fat_pipefy_reservaveis`);
+  - o Pipefy em erro tem a ação `reenviar_pipefy` da tesouraria;
+  - pedir cancelamento com faturamento em curso é recusado.
+- **Pipefy:** só grava com `pipefy_sync`, a emissora em gravar e o pedido não simulado.
+- **Uma rodada por emissora:**
+  - a reserva é serializada (`pg_advisory_xact_lock`) e leva prazo e ficha;
+  - emissora com envio em curso no prazo espera;
+  - 403 bloqueia a emissora por 1 h, e o reenvio libera;
+  - a passagem `ops.fat_conector_emissora_bloquear` serve para a edge gravar bloqueio.
+- **Baixos:**
+  - a policy de `fat_eventos` passa a usar a régua das RPCs;
+  - notificação simulada não vira enviada, e o que vem do Omie de emissora em simulação é simulado;
+  - a lista filtra pelos índices antes do escopo;
+  - a trava de chave olha qualquer nível do JSON;
+  - o service_role não escreve direto em pedidos e parcelas;
+  - a lista de pessoas da configuração tem recorte;
+  - o autocadastro de dono fica marcado no evento. A controladoria continua podendo se cadastrar dona.
+- **Ficou de fora:**
+  - o achado 14 (plataforma: `net.http_request_queue` legível pelo authenticated, Vault pelo service_role), só registrado;
+  - a ficha da reserva no resultado é opcional até a edge passar a mandá-la;
+  - a guarda da situação continua sendo o GUC da função, agora sem o UPDATE do service_role;
+  - feriados no dia útil (E3).
+
+**Onde:**
+- Migration: `supabase/migrations/20261020220000_portal_faturamento_revisao.sql`. As funções alteradas são o texto do banco de 20/10 com as trocas, geradas por script.
+- Rollback: `supabase/rollback/20261020220000_portal_faturamento_revisao_rollback.sql`, que volta o texto exato.
+- Gate: `supabase/gates/20261020_portal_faturamento_revisao.sql`. Cada prova da revisão passa a falhar do jeito certo. Inclui medição com 6.000 pedidos.
+- Gates antigos ajustados onde a regra mudou de propósito:
+  - T1b: ativador, contrato sem número, tomador com empresa;
+  - conector_cron, conector_pipefy e notificacoes: o job pergunta `fat_tem_trabalho()`.
+
+**Status:**
+- **Aplicado em 20/10.**
+- O gate da revisão deu `[]` antes de aplicar (com migration e rollback) e depois.
+- Os gates da T1b, dos ajustes, do cron, do Pipefy e das notificações passam com a revisão, antes e depois de aplicar.
+- Com 6.000 pedidos: o dono sem pedido paga 38 ms na lista (antes, 359), o gestor da DOC 194 ms e a tesouraria 333 ms.
+- **Para os outros agentes:** a edge pode passar `p_reserva`, usar `ops.fat_conector_emissora_bloquear` e tratar os status `bloqueado` e `cancelado`. A tela, a ação `reenviar_pipefy`, o campo `pipefy_erro` e `fat_tomador` com empresa obrigatória para quem não é tesouraria nem controladoria. Ver `e1/API.md`, "Mudanças".

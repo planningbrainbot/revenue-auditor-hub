@@ -46,7 +46,8 @@ begin
        or j.command not like '%x-faturamento-cron%' or j.command ilike '%bearer%' or j.command ilike '%service_role%' then
       raise exception 'FALHOU C2: % sem o cabeçalho do cron com o segredo do Vault (ou com outra chave)', j.jobname;
     end if;
-    if j.command not like '%where exists%' then
+    -- Desde a revisão de 20/10 a guarda da fila é integracoes.fat_tem_trabalho() (a mesma regra da reserva).
+    if j.command not like '%where exists%' and j.command not like '%where integracoes.fat_tem_trabalho()%' then
       raise exception 'FALHOU C2: % chama a edge mesmo sem trabalho', j.jobname;
     end if;
   end loop;

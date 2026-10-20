@@ -145,7 +145,10 @@ do $n10$
 declare c text;
 begin
   select command into c from cron.job where jobname = 'faturamento-omie-fila' and active;
-  if c not like '%integracoes.omie_envios%' or c not like '%integracoes.pipefy_envios%' or c not like '%integracoes.notificacoes%' then
+  -- Desde a revisão de 20/10 o job pergunta integracoes.fat_tem_trabalho(): as filas olhadas estão no corpo dela.
+  if (c || coalesce((select pg_get_functiondef(to_regprocedure('integracoes.fat_tem_trabalho()')) where to_regprocedure('integracoes.fat_tem_trabalho()') is not null), '')) not like '%integracoes.omie_envios%'
+     or (c || coalesce((select pg_get_functiondef(to_regprocedure('integracoes.fat_tem_trabalho()')) where to_regprocedure('integracoes.fat_tem_trabalho()') is not null), '')) not like '%integracoes.pipefy_envios%'
+     or (c || coalesce((select pg_get_functiondef(to_regprocedure('integracoes.fat_tem_trabalho()')) where to_regprocedure('integracoes.fat_tem_trabalho()') is not null), '')) not like '%integracoes.notificacoes%' then
     raise exception 'FALHOU N10: job da fila não olha as três filas';
   end if;
   execute 'explain ' || regexp_replace(btrim(c), ';\s*$', '');
