@@ -5708,3 +5708,21 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - **O que continua igual:** os horizontes ("Quando deve fechar") e a receita do mês, abaixo da fila.
 
 **Diferença registrada:** em 19/10 o sinal da Base marcou como Consultoria Coopdiesel, Sementes Oliveira, Parágrafo Denim e Alfa Peças. A Jordana tinha citado no grupo RKS, BBCE e Toyo Sen, que o sinal não pega, provavelmente por falta de CNPJ para casar.
+
+## [2026-10-19] Pipe 40: só vira card a venda com contrato assinado
+
+**Contexto:** o pipe 40 foi ligado em 19/10 às 16h04 e criou 16 cards a partir das vendas "ganhas" no pipe 2. À noite, a COPYMAQ respondeu ao Matheus "BPO ainda não tenho aprovação". Medido no mesmo dia:
+- O Inside Sales marca ganho antes da assinatura. Das 18 vendas que alimentaram o pipe 40, 13 estão em "Aguardando Assinatura", 3 em "Termo de Aceite" e 2 em "Dúvidas e Fechamento".
+- Em outubro, só 1 de 40 vendas ganhas chegou à etapa "Ganho" (116). Nem o status nem a etapa servem de sinal de contrato assinado.
+- O sinal confiável é `ops.contratos_documentos.data_assinatura`, a cópia do pipe de contratos do Pipefy, sincronizada de hora em hora. Só a Rocon Tintas tinha assinado (16/10, "Enviar para Onboarding"). As outras 17 vendas estavam em "Nova Solicitação".
+
+**Decisão do Pedro (AskUserQuestion, 19/10):** "Segurar até a assinatura": o Matheus só confere regime e faturamento, e a apresentação da Jordana (etapa 02) espera o contrato assinado. A entrada passa a exigir assinatura.
+
+**Como ficou (`monetizacao-diagnostico`):**
+- **Entrada:** com `MONET_DIAG_EXIGE_ASSINATURA` (ligada salvo "nao"), a venda só vira card com contrato assinado. Vale o negócio da venda (`pipedrive_deal_id`) ou a organização, desde que assinada a partir de `MONET_DIAG_VENDAS_DESDE`, porque contrato antigo da mesma empresa não vale.
+- **Venda sem assinatura:** não é gravada e é relida a cada rodada. Aparece em `previa.aguardando_assinatura` e em `resumo.entrada.aguardando_assinatura`.
+- **Cards criados antes da trava sem assinatura:** ficam no pipe e aparecem em `resumo.entrada.cards_sem_assinatura`. Não são apagados.
+- **Publicação e chaves:** função publicada em 19/10 às 20h25 BRT. Durante a construção a entrada ficou desligada (`MONET_DIAG_ENTRADA_ATIVA=nao`) e foi religada com a trava.
+- **Testes:** `tests/monetizacao-diagnostico.test.mjs`, 26 de 26 junto com o da tela, 3 novos.
+
+**Risco conhecido:** contrato assinado cujo card no Pipefy não saiu de "Nova Solicitação" fica esperando. Desde setembro, 153 cards de contrato estão nessa fase e 45 foram para "Enviar para Onboarding".

@@ -14,6 +14,8 @@
 // 4. MONET_DIAG_ENTRADA_ATIVA=sim: venda ganha no Inside Sales vira card no pipe 40 (desde MONET_DIAG_VENDAS_DESDE,
 //    padrão 2026-10-01). Qualquer outro valor: só prévia.
 // 5. MONET_DIAG_TAREFAS_ATIVA=sim: as etapas criam e apagam tarefas e a etapa 04 grava D0 e prazo. Senão, só prévia.
+// 6. MONET_DIAG_EXIGE_ASSINATURA (ligada salvo "nao", 19/10/2026): só vira card a venda com contrato assinado em
+//    ops.contratos_documentos; a venda sem assinatura é relida a cada rodada.
 // Usa PIPEDRIVE_TOKEN e MONETIZACAO_SYNC_SECRET, os mesmos das outras funções da Monetização.
 import { pipedriveApi } from "../monetizacao-crm/pipedrive.mjs";
 import {
@@ -31,6 +33,8 @@ const ENTRADA_ATIVA = Deno.env.get("MONET_DIAG_ENTRADA_ATIVA") === "sim";
 const TAREFAS_ATIVA = Deno.env.get("MONET_DIAG_TAREFAS_ATIVA") === "sim";
 const INICIO = Deno.env.get("MONET_DIAG_INICIO") || null;
 const VENDAS_DESDE = Deno.env.get("MONET_DIAG_VENDAS_DESDE") || "2026-10-01";
+// Só vira card a venda com contrato assinado no Pipefy (19/10/2026). "nao" volta à regra antiga, só pelo ganho.
+const EXIGE_ASSINATURA = Deno.env.get("MONET_DIAG_EXIGE_ASSINATURA") !== "nao";
 
 const { pd, pages } = pipedriveApi(PD);
 
@@ -108,6 +112,15 @@ const store: StoreDiagnostico = {
       prefer: "resolution=ignore-duplicates,return=minimal",
     });
   },
+  assinaturas: (vendas, orgs) => {
+    const ou = [
+      vendas.length ? `pipedrive_deal_id.in.(${vendas.map(Number).join(",")})` : "",
+      orgs.length ? `org_id_pipedrive.in.(${orgs.map(Number).join(",")})` : "",
+    ].filter(Boolean);
+    return rest(
+      `contratos_documentos?select=pipedrive_deal_id,org_id_pipedrive,data_assinatura&data_assinatura=not.is.null&or=(${ou.join(",")})&limit=5000`,
+    );
+  },
   tarefas: () =>
     rest(
       `monetizacao_diagnostico_tarefas?or=${encodeURIComponent('(status.eq.aberta,criado_em.gte."' + new Date(Date.now() - 90 * 86400000).toISOString() + '")')}&select=*&limit=20000`,
@@ -150,6 +163,7 @@ Deno.serve(async (req) => {
       tarefasAtiva: TAREFAS_ATIVA && !dry,
       inicio: INICIO,
       vendasDesde: VENDAS_DESDE,
+      exigirAssinatura: EXIGE_ASSINATURA,
     });
     return json(resumo);
   } catch (e) {
