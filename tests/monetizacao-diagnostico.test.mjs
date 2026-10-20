@@ -191,12 +191,20 @@ test("ganho: uma tarefa por produto vendido", () => {
 
 // ---------------------------------------------------------------------------- rodada com fakes
 
-function fakes({ deals = [], vendas = [], entradas = [], tarefas = [] } = {}) {
+function fakes({
+  deals = [],
+  vendas = [],
+  entradas = [],
+  tarefas = [],
+  notas = {},
+  apagadas = [],
+} = {}) {
   const chamadas = [];
   let proximo = 9000;
   const pd = {
-    async get(path) {
+    async get(path, params = {}) {
       chamadas.push(["get", path]);
+      if (path === "notes") return { data: notas[params.deal_id] || [] };
       if (path === "stages")
         return {
           data: [
@@ -215,8 +223,10 @@ function fakes({ deals = [], vendas = [], entradas = [], tarefas = [] } = {}) {
             { key_string: "whatsapp" },
           ],
         };
-      if (path.startsWith("activities/"))
-        return { data: { id: Number(path.split("/")[1]), done: false } };
+      if (path.startsWith("activities/")) {
+        const id = Number(path.split("/")[1]);
+        return { data: { id, done: false, active_flag: !apagadas.includes(id) } };
+      }
       return { data: null };
     },
     async pages(path, params = {}) {
@@ -444,6 +454,116 @@ test("ligada: card que saiu da etapa apaga só a tarefa não feita", async () =>
   assert.ok(f.chamadas.some((c) => c[0] === "del" && c[1] === "activities/51"));
   assert.equal(f.estado.tarefas[0].status, "apagada");
   assert.equal(f.estado.tarefas[0].motivo, "saiu da etapa 02");
+});
+
+const NOTA_PAUSA = {
+  id: 1,
+  add_time: "2026-10-19 23:54:52",
+  user_id: 23984402,
+  pinned_to_deal_flag: true,
+  content: "<b>Pausado em 19/10/2026.</b> A abordagem da base de Belém espera o sócio.",
+};
+const NOTA_MATHEUS = {
+  id: 2,
+  add_time: "2026-10-20 11:30:57",
+  user_id: MATHEUS,
+  pinned_to_deal_flag: false,
+  content: "BELEM - AGUARDAR.",
+};
+const cardPausavel = () => ({
+  id: 800,
+  pipeline_id: 40,
+  stage_id: 293,
+  status: "open",
+  title: "Posto",
+  org_id: { value: 30 },
+  user_id: MATHEUS,
+  stage_change_time: "2026-10-16 10:00:00",
+  add_time: "2026-10-16 10:00:00",
+  update_time: "2026-10-20 11:30:57",
+  notes_count: 2,
+});
+const tarefaPausavel = (status) => ({
+  deal_id: 800,
+  etapa: "293",
+  entrou_em: "2026-10-16 10:00:00",
+  chave: "01-conferir",
+  user_id: MATHEUS,
+  assunto: "Diagnóstico · 01 · Conferir regime e faturamento",
+  due_date: "2026-10-16",
+  activity_id: 61,
+  status,
+  versao: "v",
+});
+const rodarPausa = (f) =>
+  rodarDiagnostico({
+    pd: f.pd,
+    store: f.store,
+    agora: AGORA,
+    entradaAtiva: false,
+    tarefasAtiva: true,
+    inicio: "2026-10-16T00:00:00Z",
+    vendasDesde: "2026-10-01",
+  });
+
+test("pausa: nota fixada guarda a tarefa que a pausa tirou e o card não recebe tarefa nova", async () => {
+  const f = fakes({
+    deals: [cardPausavel()],
+    tarefas: [tarefaPausavel("aberta")],
+    notas: { 800: [NOTA_PAUSA, NOTA_MATHEUS] },
+    apagadas: [61],
+  });
+  const r = await rodarPausa(f);
+  assert.equal(f.estado.tarefas[0].status, "pausada");
+  assert.equal(r.tarefas.pausadas, 1);
+  assert.ok(
+    !f.chamadas.some((c) => c[0] === "post" && c[1] === "activities"),
+    "nenhuma tarefa nova",
+  );
+  const card = f.estado.retrato.cards[0];
+  assert.match(card.pausa.texto, /^Pausado em 19\/10\/2026\./);
+  assert.equal(card.ultima_nota.texto, "BELEM - AGUARDAR.");
+  assert.equal(card.ultima_nota.autor_id, MATHEUS);
+});
+
+test("pausa: atividade que continua no Pipedrive não vira pausada", async () => {
+  const f = fakes({
+    deals: [cardPausavel()],
+    tarefas: [tarefaPausavel("aberta")],
+    notas: { 800: [NOTA_PAUSA] },
+  });
+  await rodarPausa(f);
+  assert.equal(f.estado.tarefas[0].status, "aberta");
+});
+
+test("pausa liberada: a nota saiu e a tarefa guardada volta, vencendo no dia útil de hoje", async () => {
+  const f = fakes({
+    deals: [cardPausavel()],
+    tarefas: [tarefaPausavel("pausada")],
+    notas: { 800: [{ ...NOTA_PAUSA, pinned_to_deal_flag: false }, NOTA_MATHEUS] },
+  });
+  const r = await rodarPausa(f);
+  const post = f.chamadas.find((c) => c[0] === "post" && c[1] === "activities");
+  assert.ok(post, "a tarefa voltou ao Pipedrive");
+  assert.equal(post[2].subject, "Diagnóstico · 01 · Conferir regime e faturamento");
+  assert.equal(post[2].deal_id, 800);
+  const l = f.estado.tarefas[0];
+  assert.equal(l.status, "aberta");
+  assert.equal(l.due_date, "2026-10-16");
+  assert.ok(l.activity_id > 9000);
+  assert.equal(r.tarefas.retomadas, 1);
+  assert.equal(f.estado.retrato.cards[0].pausa, null);
+});
+
+test("pausa liberada depois de o card mudar de etapa: a tarefa guardada sai, não volta", async () => {
+  const f = fakes({
+    deals: [{ ...cardPausavel(), stage_id: 294, stage_change_time: "2026-10-16 12:00:00" }],
+    tarefas: [tarefaPausavel("pausada")],
+  });
+  await rodarPausa(f);
+  const l = f.estado.tarefas.find((x) => x.chave === "01-conferir");
+  assert.equal(l.status, "apagada");
+  assert.equal(l.motivo, "saiu da etapa 01");
 });
 
 test("base antiga protegida: conta no pipe 40 não sobe para o 39, fora o perdido na etapa 01", async () => {

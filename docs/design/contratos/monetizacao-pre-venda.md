@@ -120,3 +120,13 @@ A tela não grava nada.
 - [x] Capturas claro, escuro e celular com os dados de exemplo em `docs/design/capturas/pre-venda/`, comparadas com a
   vitrine (`capturas/depois/*-arquetipos.png`, Visão geral e Lista/Relatório).
 - [ ] Números conferidos na fonte (recontagem independente): depende das RPCs aplicadas e da primeira ligação avaliada.
+
+## Adendo · 20/10/2026 · Atividade vencida e atividade manual no Hoje
+
+Pedido do Pedro: "tem card com atividade que tá sendo registrado como sem atividade". Ele escolheu separar os dois casos.
+
+- **"Reta final sem próximo passo":** continua contando o card sem atividade futura. A nota separa "N sem atividade" de
+  "M com atividade vencida", e a tabela "Próximo passo sugerido pelo Jev" ganha a coluna "Próxima atividade" ("nenhuma"
+  ou "vencida em dd/mm").
+- **"Abordagem sem cadência":** o card fora da cadência mas com atividade criada à mão sai da conta e vai para a nota
+  ("N com atividade manual, fora da conta").

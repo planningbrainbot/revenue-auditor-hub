@@ -6,6 +6,7 @@
 // Régua em src/lib/monetizacao/diagnostico.ts.
 import {
   CircleCheck,
+  CirclePause,
   CircleX,
   Clock,
   ExternalLink,
@@ -175,8 +176,15 @@ const BLOCOS: {
   {
     chave: "semProximo",
     titulo: "Sem tarefa aberta no card",
-    nota: "card aberto das etapas da pessoa sem nenhuma atividade aberta",
+    nota: "card aberto das etapas da pessoa sem nenhuma atividade aberta, fora os pausados",
     icone: CircleX,
+    tom: "info",
+  },
+  {
+    chave: "pausados",
+    titulo: "Pausados",
+    nota: "nota de pausa fixada no card: fora de parados, prazo e sem tarefa",
+    icone: CirclePause,
     tom: "info",
   },
 ];
@@ -261,9 +269,9 @@ function Hoje({
                     <TableHeader>
                       <TableRow>
                         <TableHead>Card</TableHead>
+                        <TableHead>Situação</TableHead>
                         <TableHead>Etapa</TableHead>
                         <TableHead>O quê</TableHead>
-                        <TableHead>Situação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -278,14 +286,6 @@ function Hoje({
                               {nomeDoCard(i.card)}
                             </button>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                            {rotuloEtapa(i.card)}
-                          </TableCell>
-                          <TableCell className="max-w-[260px] truncate text-sm" title={i.motivo}>
-                            {i.atividade
-                              ? `${ddmm(i.atividade.due_date)} · ${i.motivo.replace(/^Diagnóstico · /, "")}`
-                              : i.motivo}
-                          </TableCell>
                           <TableCell>
                             <StatusBadge tom={i.bloco.tom} icone={i.bloco.icone}>
                               {i.bloco.chave === "vencidas"
@@ -294,6 +294,14 @@ function Hoje({
                                   ? "Hoje"
                                   : "Prazo"}
                             </StatusBadge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            {rotuloEtapa(i.card)}
+                          </TableCell>
+                          <TableCell className="max-w-[260px] truncate text-sm" title={i.motivo}>
+                            {i.atividade
+                              ? `${ddmm(i.atividade.due_date)} · ${i.motivo.replace(/^Diagnóstico · /, "")}`
+                              : i.motivo}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -654,6 +662,31 @@ function Ficha({
             <ExternalLink className="size-4" strokeWidth={1.75} aria-hidden />
           </a>
         </header>
+        {aberto.pausa && (
+          <p
+            role="status"
+            className="flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground"
+          >
+            <CirclePause
+              className="mt-0.5 size-4 shrink-0 text-info"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <span>
+              <span className="font-medium text-foreground">
+                Pausado desde {ddmm(aberto.pausa.em.slice(0, 10))}.
+              </span>{" "}
+              {aberto.pausa.texto.replace(/^Pausado em [\d/]+\.\s*/i, "")}{" "}
+              {minhas.some((t) => t.status === "pausada")
+                ? `${plural(
+                    minhas.filter((t) => t.status === "pausada").length,
+                    "tarefa da régua está guardada",
+                    "tarefas da régua estão guardadas",
+                  )} e volta${minhas.filter((t) => t.status === "pausada").length === 1 ? "" : "m"} ao Pipedrive quando a nota de pausa for desafixada ou apagada.`
+                : "Para retomar, desafixe ou apague a nota de pausa."}
+            </span>
+          </p>
+        )}
         <div>
           <h3 className="mb-2 text-sm font-semibold text-foreground">O caminho no pipe</h3>
           <ol className="grid grid-cols-4 gap-1.5 md:grid-cols-8">

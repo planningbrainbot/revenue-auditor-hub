@@ -103,7 +103,7 @@ const perguntaDa = (b: BuscaMonetizacao) =>
   b.aba === "pre-venda"
     ? PERGUNTAS_DIAG[visaoDa(b)]
     : b.aba === "fechamentos"
-      ? "Quanto o diagnóstico deve fechar, e quando?"
+      ? "O que fazer hoje para o diagnóstico fechar?"
       : "O diagnóstico da base nova anda no prazo, e onde trava?";
 
 function Seletores({
@@ -192,7 +192,7 @@ export function TelaDiagnostico({
       ? `Pipe 40 (Onboarding | Diagnóstico de Oportunidades) · ${rotuloUnidades} · ${rotuloRegime} · ${periodo} · coorte: cards que entraram no período, cada um contado até a etapa mais adiantada`
       : aba === "pre-venda"
         ? `Pipe 40 · ${rotuloPessoa} · ${usaPeriodo ? periodo : "hoje"} · tarefa = atividade do card no Pipedrive (da régua do diagnóstico ou criada à mão)`
-        : "Pipe 40 · cards abertos com produto · honorário esperado da Jordana × probabilidade da etapa · fechamento = prazo prometido + 7 dias";
+        : "Pipe 40 · cards abertos, fora os pausados · fila pela tarefa da régua e pelo prazo prometido · receita = honorário esperado da Jordana × probabilidade da etapa · fechamento = prazo prometido + 7 dias";
 
   const menosDias = (k: number) =>
     new Date(Date.parse(hoje) - k * 86400000).toISOString().slice(0, 10);
@@ -381,7 +381,14 @@ export function TelaDiagnostico({
           abrir={lista.abrir}
         />
       ) : (
-        <ForecastDiagnostico cards={cards} etapas={etapas} hoje={hoje} abrir={lista.abrir} />
+        <ForecastDiagnostico
+          cards={cards}
+          etapas={etapas}
+          hoje={hoje}
+          abrir={lista.abrir}
+          filtroFila={busca.fila === "consultoria" ? "hoje" : (busca.fila ?? "hoje")}
+          mudarFiltroFila={(f) => mudarBusca({ fila: f === "hoje" ? undefined : f })}
+        />
       )}
       {lista.dialogo}
     </main>

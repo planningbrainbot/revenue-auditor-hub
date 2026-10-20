@@ -125,8 +125,13 @@ export type CardDiag = {
   }[];
   moves: { stage_id: number; at: string; actor_id: number | null }[];
   atividades: AtividadeDiag[];
+  /** Nota fixada "Pausado em …" (pausa de Belém, 19/10/2026): o card sai das contas do dia e da fila. */
+  pausa: NotaDiag | null;
+  /** Última nota do dono, do Matheus ou da Jordana. */
+  ultima_nota: NotaDiag | null;
   url: string;
 };
+export type NotaDiag = { em: string; autor_id: number | null; texto: string };
 export type TarefaDiag = {
   deal_id: number;
   etapa: string;
@@ -135,7 +140,7 @@ export type TarefaDiag = {
   assunto: string | null;
   due_date: string | null;
   activity_id: number | null;
-  status: "aberta" | "feita" | "apagada";
+  status: "aberta" | "feita" | "apagada" | "pausada";
   criado_em: string | null;
   encerrado_em: string | null;
 };
@@ -180,6 +185,11 @@ const statusArea = (v: any): StatusArea | null =>
   v === "pendente" || v === "entregue" || v === "sem_oportunidade" ? v : null;
 const areaDoProduto = (v: any): Area | null =>
   v === "consultoria" || v === "finance" || v === "teses" ? v : null;
+
+const notaDiag = (v: any): NotaDiag | null =>
+  v && typeof v === "object" && s(v.texto)
+    ? { em: String(v.em ?? ""), autor_id: n(v.autor_id), texto: String(v.texto) }
+    : null;
 
 export function normalizarPainelDiagnostico(raw: any): PainelDiag {
   const sync = raw?.sync ?? null;
@@ -244,6 +254,8 @@ export function normalizarPainelDiagnostico(raw: any): PainelDiag {
       done_at: s(a.done_at),
       add_time: s(a.add_time),
     })),
+    pausa: notaDiag(c.pausa),
+    ultima_nota: notaDiag(c.ultima_nota),
     url: s(c.url) ?? `${URL_PIPEDRIVE}${c.id}`,
   }));
   const tarefas: TarefaDiag[] = (Array.isArray(raw?.tarefas) ? raw.tarefas : []).map((t: any) => ({
@@ -254,7 +266,10 @@ export function normalizarPainelDiagnostico(raw: any): PainelDiag {
     assunto: s(t.assunto),
     due_date: s(t.due_date),
     activity_id: n(t.activity_id),
-    status: t.status === "feita" || t.status === "apagada" ? t.status : "aberta",
+    status:
+      t.status === "feita" || t.status === "apagada" || t.status === "pausada"
+        ? t.status
+        : "aberta",
     criado_em: s(t.criado_em),
     encerrado_em: s(t.encerrado_em),
   }));
@@ -638,6 +653,8 @@ export type HojePessoa = {
   parados: ItemHoje[];
   prazo: ItemHoje[];
   semProximo: ItemHoje[];
+  /** Cards da pessoa com nota de pausa fixada: fora de parados, prazo e sem tarefa. */
+  pausados: ItemHoje[];
 };
 const ehDaRegua = (a: Pick<AtividadeDiag, "subject">) => a.subject.startsWith("Diagnóstico ·");
 /** O que cada um faz hoje: tarefas do dia e vencidas, cards parados além da estagnação e prazos que vencem em 5 dias. */
@@ -663,6 +680,7 @@ export function hojeDiagnostico(
       parados: [],
       prazo: [],
       semProximo: [],
+      pausados: [],
     };
     for (const c of cards) {
       for (const a of minhas(c)) {
@@ -672,6 +690,10 @@ export function hojeDiagnostico(
       }
     }
     for (const c of abertos.filter(doCard)) {
+      if (c.pausa) {
+        item.pausados.push({ card: c, motivo: c.pausa.texto });
+        continue;
+      }
       const desde = diaSP(c.stage_since);
       const limite = estagnacao(c.stage_id);
       if (desde && limite != null && diasEntre(desde, hoje) > limite)
@@ -989,5 +1011,125 @@ export function forecastDiagnostico(todos: CardDiag[], etapas: EtapaDiag[], hoje
     perdasMes,
     ponderado: porEtapa.reduce((t, e) => t + e.ponderado, 0),
     valor: porEtapa.reduce((t, e) => t + e.valor, 0),
+  };
+}
+
+// ---------------------------------------------------------------------------- Forecast: a fila do dia
+
+/**
+ * A fila do dia do Forecast da base nova (20/10/2026, pedido do Pedro: "a mesma visão do 39 de fazer hoje > semana >
+ * mês"). No pipe 39 a urgência vem do Jev lendo as notas da reta final; no pipe 40 o próprio processo dá a urgência,
+ * pelas tarefas da régua e pelo prazo prometido ao cliente. Entram todos os cards abertos, não só a reta final, porque o
+ * fechamento depende do relógio de 30 ou 60 dias desde a pasta completa. Card pausado fica fora e é contado à parte.
+ */
+export type FiltroFilaDiag = "hoje" | "semana" | "mes" | "semdata";
+export const FILTROS_FILA_DIAG: readonly { chave: FiltroFilaDiag; rotulo: string; nota: string }[] =
+  [
+    {
+      chave: "hoje",
+      rotulo: "Fazer hoje",
+      nota: "tarefa vencida ou de hoje, prazo do cliente vencendo ou card sem tarefa",
+    },
+    { chave: "semana", rotulo: "Nesta semana", nota: "tarefa ou prazo do cliente até domingo" },
+    {
+      chave: "mes",
+      rotulo: "Fecha no mês",
+      nota: "prazo prometido + 7 dias de negociação até o fim do mês",
+    },
+    {
+      chave: "semdata",
+      rotulo: "Sem data nem valor",
+      nota: "antes do D0 ou sem produto com honorário",
+    },
+  ];
+export type LinhaFilaDiag = {
+  card: CardDiag;
+  /** A tarefa aberta que vence primeiro. */
+  tarefa: AtividadeDiag | null;
+  urgencia: "hoje" | "semana" | null;
+  /** Por que o card está em Fazer hoje ou Nesta semana, em palavras. */
+  porque: string | null;
+  /** Prazo prometido ao cliente, enquanto o diagnóstico não foi apresentado. */
+  prazo: string | null;
+  fechamento: string | null;
+  semValor: boolean;
+};
+const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+export function filaDiagnostico(cards: CardDiag[], hoje: string) {
+  const abertos = cards.filter((c) => c.status === "open");
+  const dia = new Date(`${hoje}T12:00:00Z`).getUTCDay();
+  const fimDaSemana = somarDiasDiag(hoje, (7 - dia) % 7);
+  const fimDoMes = somarDiasDiag(
+    `${somarDiasDiag(`${hoje.slice(0, 7)}-28`, 7).slice(0, 7)}-01`,
+    -1,
+  );
+  const linhas: LinhaFilaDiag[] = abertos
+    .filter((c) => !c.pausa)
+    .map((c) => {
+      const tarefa =
+        c.atividades
+          .filter((a) => !a.done)
+          .sort((a, b) => String(a.due_date ?? "9").localeCompare(String(b.due_date ?? "9")))[0] ??
+        null;
+      const apresentado = etapaAlcancada(c) >= ordem(ETAPA_DIAG.apresentado);
+      const prazo = apresentado ? null : relogioDoCard(c).prazo;
+      const vence = tarefa?.due_date ?? null;
+      const [urgencia, porque]: [LinhaFilaDiag["urgencia"], string | null] =
+        vence && vence < hoje
+          ? ["hoje", `tarefa vencida em ${dm(vence)}`]
+          : vence === hoje
+            ? ["hoje", "tarefa de hoje"]
+            : prazo && prazo <= hoje
+              ? [
+                  "hoje",
+                  prazo < hoje
+                    ? `prazo do cliente passou em ${dm(prazo)}`
+                    : "prazo do cliente vence hoje",
+                ]
+              : !tarefa
+                ? ["hoje", "sem tarefa aberta"]
+                : vence && vence <= fimDaSemana
+                  ? ["semana", `tarefa em ${dm(vence)}`]
+                  : prazo && prazo <= fimDaSemana
+                    ? ["semana", `prazo do cliente em ${dm(prazo)}`]
+                    : [null, null];
+      return {
+        card: c,
+        tarefa,
+        urgencia,
+        porque,
+        prazo,
+        fechamento: fechamentoEsperado(c),
+        semValor: !c.produtos.some((p) => p.total > 0),
+      };
+    });
+  const no: Record<FiltroFilaDiag, (l: LinhaFilaDiag) => boolean> = {
+    hoje: (l) => l.urgencia === "hoje",
+    semana: (l) => l.urgencia === "semana",
+    mes: (l) => !!l.fechamento && l.fechamento <= fimDoMes,
+    semdata: (l) => !l.fechamento || l.semValor,
+  };
+  const contagem = Object.fromEntries(
+    FILTROS_FILA_DIAG.map((f) => [f.chave, linhas.filter(no[f.chave]).length]),
+  ) as Record<FiltroFilaDiag, number>;
+  /** As linhas de um filtro, por etapa do processo; dentro dela, o mais urgente e o que vence antes primeiro. */
+  const grupos = (f: FiltroFilaDiag) =>
+    ORDEM_DIAG.map((id) => ({
+      etapa: id,
+      linhas: linhas
+        .filter((l) => no[f](l) && l.card.stage_id === id)
+        .sort(
+          (a, b) =>
+            Number(a.urgencia !== "hoje") - Number(b.urgencia !== "hoje") ||
+            String(a.tarefa?.due_date ?? "9").localeCompare(String(b.tarefa?.due_date ?? "9")),
+        ),
+    })).filter((g) => g.linhas.length);
+  return {
+    total: linhas.length,
+    pausados: abertos.filter((c) => c.pausa),
+    contagem,
+    grupos,
+    fimDaSemana,
+    fimDoMes,
   };
 }
