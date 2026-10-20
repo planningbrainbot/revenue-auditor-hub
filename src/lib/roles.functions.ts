@@ -109,6 +109,12 @@ export const updateRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Perfis que nunca saem, nem vazios: o super admin é quem administra o resto, e o
+ * Sócio Regional é o papel que o autocadastro atribui e o "Ver como" veste.
+ */
+export const PERFIS_ESSENCIAIS: readonly string[] = ["admin", "socio_regional"];
+
 export const deleteRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id: string }) => {
@@ -123,7 +129,11 @@ export const deleteRole = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .single();
     if (fetchErr || !role) throw new Error("Perfil não encontrado.");
-    if (role.is_system) throw new Error("Perfis de sistema não podem ser excluídos.");
+    // Perfil de sistema também sai, desde que ninguém o tenha (20/10/2026). Só os
+    // essenciais ficam: o código depende deles pelo nome.
+    if (PERFIS_ESSENCIAIS.includes(role.key)) {
+      throw new Error("Este perfil é usado pelo sistema e não pode ser excluído.");
+    }
     const { count } = await context.supabase
       .from("user_roles")
       .select("user_id", { count: "exact", head: true })

@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check, Minus, Plus, Search, ShieldCheck, Users } from "lucide-react";
-import { createRole, deleteRole, slugifyRoleKey, updateRole } from "@/lib/roles.functions";
+import {
+  createRole,
+  deleteRole,
+  PERFIS_ESSENCIAIS,
+  slugifyRoleKey,
+  updateRole,
+} from "@/lib/roles.functions";
 import {
   listAdministradoresPorArea,
   listRoleAreas,
@@ -611,6 +617,21 @@ function EditorDoPapel({
     else salvar.mutate();
   };
 
+  // Perfil de sistema também se exclui (20/10/2026); só trava com gente nele ou
+  // se for um dos essenciais, que nem mostra o botão.
+  const botaoExcluir = PERFIS_ESSENCIAIS.includes(papel.key) ? null : (
+    <Button
+      variant="outline"
+      size="sm"
+      className="text-danger"
+      disabled={pessoas.length > 0 || excluir.isPending}
+      title={pessoas.length > 0 ? "Tire o perfil das pessoas antes de excluir." : undefined}
+      onClick={() => setExcluindo(true)}
+    >
+      Excluir perfil
+    </Button>
+  );
+
   const porEscopo = ORDEM_ESCOPO.map((escopo) => ({
     escopo,
     lista: areas.filter((a) => a.escopo === escopo),
@@ -649,16 +670,7 @@ function EditorDoPapel({
               </div>
             </div>
             <div className="flex justify-between gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-danger"
-                disabled={pessoas.length > 0 || excluir.isPending}
-                title={pessoas.length > 0 ? "Tire o perfil das pessoas antes de excluir." : undefined}
-                onClick={() => setExcluindo(true)}
-              >
-                Excluir perfil
-              </Button>
+              {botaoExcluir}
               <Button
                 variant="outline"
                 size="sm"
@@ -669,6 +681,9 @@ function EditorDoPapel({
               </Button>
             </div>
           </div>
+        )}
+        {papel.is_system && botaoExcluir && (
+          <div className="border-b px-6 py-3">{botaoExcluir}</div>
         )}
 
         <div className="flex items-center gap-2 border-b px-6 py-3">
