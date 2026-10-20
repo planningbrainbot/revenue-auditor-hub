@@ -5768,3 +5768,38 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 
 **Onde:** `supabase/migrations/20261015150000_portal_faturamento_f1.sql`, rollback em `supabase/rollback/`, ensaio em `supabase/gates/20261015_portal_faturamento_f1.sql`, rótulos das chaves em `src/lib/permissions.functions.ts`.
 **Status:** ensaiado no banco único dentro de `begin … rollback` (resposta `[]`, migration e rollback juntos), **não aplicado**. Falta F2 decidir como o navegador lê `receita` (expor o schema ou RPC). A leitura de eventos pelo dono e pelo solicitante também fica para F2.
+
+## [2026-10-20] Portal de Faturamento, T1a: F1 e extensão aplicadas no banco único, chaves do Omie no Vault
+
+**Contexto:** plano E1 (`PM Work/execution/portal-faturamento-prd-20261013/e1/PLANO-E1.md`, linha T1a), spec v1.1 com as decisões fechadas em 20/10 (§13.3). O gate da F1 rodou de novo no banco de 20/10 e passou (`[]`): as áreas novas do main (`bi_financeiro` 31, `royalties_edicao` 32) não colidem, e a F1 não precisou de ajuste.
+
+**Decisões:**
+- **Travas por emissora em `organizacao.empresas_grupo`:** `modo_omie` (`simular` padrão, `gravar` só com o "pode ativar" do Pedro) e `pipefy_sync` (desligado). O navegador não altera nenhuma das duas: não há GRANT de coluna; fica para a RPC de configuração da T1b.
+- **22 empresas, 17 no portal.** Entraram ASCENDIA, CONCILIADOR, FINANCE e PNE com o id do Financial Brain e `omie_credencial_ref = omie_<sigla>`. AGRO, ROIT e PNC ficaram com `ativa = false` (Ana, 15/10). `fatura_por` veio do E0 (13 empresas). Ficaram nulas as que não tiveram movimento ou leitura e as 4 novas, que o E0 não leu.
+- **Pedido:** número `FAT-AAAA-NNNNNN` de uma sequence só, que não reinicia no ano (o ano é o da criação, em São Paulo). `codigo_integracao` é coluna gerada igual ao número (cCodIntOS). O serviço tem de ser da mesma emissora (FK composta). Fora de rascunho, devolvido e cancelado, o pedido tem de estar completo. Os 13 estados do plano.
+- **Parcelas:** dois gatilhos de restrição `deferrable initially deferred` conferem, no fim da transação, que as parcelas são 1..`parcelas` e que a soma é o valor do pedido.
+- **Schema `integracoes`** (domínio Integrações), sem USAGE para anon e authenticated:
+  - `omie_envios` tem unique (`operacao`, `codigo_integracao`). `consultar_status` reaproveita a linha.
+  - A tabela recusa por check payload ou resposta com `app_key` ou `app_secret`, e status `erro` sem `erro_legivel`.
+  - `pipefy_envios` guarda a mutation montada. `omie_vinculo_cliente` tem chave (emissora, documento).
+  - O service_role lê, insere e atualiza, mas não apaga.
+- **Nenhuma tabela nova é acessível pelo navegador:** RLS ligada, nenhuma policy e nenhum GRANT para authenticated. A tela vai pelas RPCs `ops.fat_*` da T1b.
+- **`integracoes.omie_credencial(uuid)`** é `security definer` e só o service_role tem EXECUTE. O corpo também exige `role = service_role`, então o postgres sem SET ROLE também é recusado. Emissora inativa, sem Omie ou sem segredo levanta exceção sem mostrar valor.
+- **Chaves no Vault:** 17 segredos `omie_<sigla>`, gravados por `e1/vault_omie.py`. O par vai como parâmetro da Management API, nunca no texto do SQL. Conferido que o `pg_stat_statements` guardou só `$1`.
+- **`fat_servicos`:**
+  - Ganhou `codigo`, `id_tributacao` e `tem_tributacao`. A última é gerada pela regra do E0.
+  - Semente com os 138 serviços do E0: 130 ativos, 126 ativos com tributação. `sincronizado_em` é 15/10 11:50.
+  - A migration de dados foi gerada por `e1/gerar_servicos_e0.py`.
+- **Desvio da spec §7:** as operações de `omie_envios` seguem o plano. Entrou `faturar_os` e o status `simulado`. `alterar_contrato` ficou de fora e volta no E2, com os contratos.
+
+**Onde:**
+- Migrations: `supabase/migrations/20261020100000_portal_faturamento_t1a.sql` e `20261020101000_portal_faturamento_servicos_e0.sql`.
+- Rollbacks em `supabase/rollback/` e gate em `supabase/gates/20261020_portal_faturamento_t1a.sql`, que vale antes e depois de aplicar e não gasta a sequence.
+- Scripts em `PM Work/execution/portal-faturamento-prd-20261013/e1/` (`api.py`, `ensaio.py`, `aplicar.py`, `vault_omie.py`, `gerar_servicos_e0.py`).
+
+**Status:**
+- **Aplicado em 20/10**, na ordem F1, T1a e semente, cada uma registrada em `supabase_migrations.schema_migrations`.
+- Os gates deram `[]`: o da F1, o da T1a antes de aplicar e o da T1a depois de aplicar.
+- `ops.can('view.faturamento')` é verdadeiro para o Pedro (admin) e falso para a CS.
+- Ninguém recebeu papel.
+- As chaves das 4 empresas novas não foram testadas contra o Omie.
