@@ -56,7 +56,6 @@ import {
   type ClienteCac,
   type ClienteFunil,
   type CacPartners,
-  type FaturadoMes,
   type FunilRecebido,
   type LinhaMes,
   type UnidadeFunil,
@@ -291,19 +290,11 @@ function VisaoUnidades({
     <>
       <Secao
         titulo="Quanto cada unidade vendeu, contratou e já recebeu?"
-        descricao="Fluxo do mês: cada etapa conta o que aconteceu no mês, não os mesmos clientes. O recebido inclui clientes vendidos antes do período e fica sem a base antiga (carteira de antes da rede). Sem split, o recebido vem das apurações de royalties; com split, depois da última apuração, dos boletos pagos no Omie da unidade."
+        descricao="Uma régua só para o recebido: o que a Partners cobrou da unidade. O cliente pagou a unidade quando entrou na apuração de royalties com valor, ou quando a apuração cobrou a 2ª parcela ou o integral do CAC dele (só se cobra depois do 1º honorário). Com split, depois da última apuração, conta o boleto em que o Asaas reteve o royalty. Base antiga (carteira de antes da rede) fica fora."
       >
         <FunilHorizontal
           t={t}
-          faturado={base.faturado.filter(
-            (f) => (unidade === "todas" || f.unidade === unidade) && noPeriodo(f.mes),
-          )}
-          semOmie={base.unidades
-            .filter((u) => unidade === "todas" || u.nome === unidade)
-            .filter((u) => !base.comOmie.includes(u.nome))
-            .map((u) => u.nome)}
           clientes={base.clientes.filter((c) => unidade === "todas" || c.unidade === unidade)}
-          comOmie={base.comOmie}
           noPeriodo={noPeriodo}
         />
         <GraficoMensal linhas={linhas} />
@@ -420,7 +411,7 @@ function MesAMes({ unidade, linhas }: { unidade: UnidadeFunil; linhas: LinhaMes[
                   {l.fonte === "apuracao"
                     ? "Apuração de royalties"
                     : l.fonte === "split"
-                      ? "Omie da unidade (split)"
+                      ? "Split do Asaas (royalty retido)"
                       : "sem fonte"}
                 </TableCell>
               </TableRow>
@@ -510,100 +501,75 @@ function CacNaPartners({ partners }: { partners: CacPartners[] }) {
 /**
  * Da unidade para os clientes dela, em barras horizontais (mesmo desenho do
  * Funil de CAC). Os mesmos clientes do começo ao fim: quem foi vendido no
- * período, quantos deles assinaram, foram faturados e pagaram, com o valor só
- * deles. A carteira inteira (clientes de antes, todos os meses) fica na linha de
- * baixo, porque não é etapa do funil.
+ * período, quantos deles assinaram e quantos já pagaram a unidade, pela régua da
+ * cobrança da Partners (royalty apurado, split retido, ou CAC de 2ª parcela ou
+ * integral). A carteira inteira fica na linha de baixo, fora do funil.
  */
 function FunilHorizontal({
   t,
-  faturado,
-  semOmie,
   clientes,
-  comOmie,
   noPeriodo,
 }: {
   t: Totais;
-  faturado: FaturadoMes[];
-  semOmie: string[];
   clientes: ClienteFunil[];
-  comOmie: string[];
   noPeriodo: (mes: string) => boolean;
 }) {
-  const soma = (r: Record<string, number>, desde: string) =>
-    Object.entries(r).reduce((a, [m, v]) => (m >= desde ? a + v : a), 0);
   const safra = clientes
     .map((c) => {
       const vendas = c.vendas.filter((v) => noPeriodo(v.mes));
       if (!vendas.length) return null;
-      // Faturado e recebido do cliente desde o mês da primeira venda dele.
+      // Recebido do cliente desde o mês da primeira venda dele.
       const desde = vendas.map((v) => v.mes).sort()[0];
+      const recebido = Object.entries(c.recebido).reduce(
+        (a, [m, v]) => (m >= desde ? a + v : a),
+        0,
+      );
       return {
-        temOmie: comOmie.includes(c.unidade),
         mrrVendido: vendas.reduce((a, v) => a + v.mrr, 0),
         assinou: c.contratos.length > 0,
         mrrContratado: c.contratos.reduce((a, v) => a + v.mrr, 0),
-        faturado: soma(c.faturado, desde),
-        recebido: soma(c.recebido, desde),
+        recebido,
+        pagou: recebido > 0 || c.cacPago.some((m) => m >= desde),
+        soPorCac: recebido <= 0 && c.cacPago.some((m) => m >= desde),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const n = safra.length;
   const assinaram = safra.filter((x) => x.assinou);
-  const comOmieSafra = safra.filter((x) => x.temOmie);
-  const faturados = comOmieSafra.filter((x) => x.faturado > 0);
-  const pagaram = safra.filter((x) => x.recebido > 0);
-  const somaDe = (xs: typeof safra, k: "mrrVendido" | "mrrContratado" | "faturado" | "recebido") =>
+  const pagaram = safra.filter((x) => x.pagou);
+  const soPorCac = pagaram.filter((x) => x.soPorCac).length;
+  const soma = (xs: typeof safra, k: "mrrVendido" | "mrrContratado" | "recebido") =>
     xs.reduce((a, x) => a + x[k], 0);
 
-  type Degrau = {
-    rotulo: string;
-    qtd: number;
-    nota: string;
-    pct: string;
-    valor: number;
-    opacidade: number;
-  };
-  const degraus: Degrau[] = [
+  const degraus = [
     {
       rotulo: "Vendido",
       qtd: n,
       nota: "MRR vendido",
       pct: "100%",
-      valor: somaDe(safra, "mrrVendido"),
-      opacidade: 0.4,
+      valor: soma(safra, "mrrVendido"),
+      opacidade: 0.45,
     },
     {
       rotulo: "Contrato assinado",
       qtd: assinaram.length,
       nota: "MRR assinado",
       pct: pct(assinaram.length, n),
-      valor: somaDe(assinaram, "mrrContratado"),
-      opacidade: 0.55,
+      valor: soma(assinaram, "mrrContratado"),
+      opacidade: 0.7,
     },
     {
-      rotulo: "Faturado pela unidade",
-      qtd: faturados.length,
-      nota:
-        comOmieSafra.length < n
-          ? `de ${comOmieSafra.length} com Omie · soma dos boletos`
-          : "soma dos boletos",
-      pct: pct(faturados.length, comOmieSafra.length),
-      valor: somaDe(faturados, "faturado"),
-      opacidade: 0.75,
-    },
-    {
-      rotulo: "Recebido pela unidade",
+      rotulo: "Pagou a unidade",
       qtd: pagaram.length,
-      nota: "soma do que pagaram",
+      nota: soPorCac
+        ? `recebido apurado · ${soPorCac} só pelo CAC (sem valor)`
+        : "recebido apurado desde a venda",
       pct: pct(pagaram.length, n),
-      valor: somaDe(pagaram, "recebido"),
+      valor: soma(pagaram, "recebido"),
       opacidade: 1,
     },
   ];
-
-  const fat = faturado.reduce((a, f) => a + f.faturado, 0);
-  const recOmie = faturado.reduce((a, f) => a + f.recebidoOmie, 0);
 
   if (n === 0)
     return (
@@ -612,16 +578,16 @@ function FunilHorizontal({
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4">
-      <div className="grid grid-cols-[170px_1fr_190px_120px] gap-3 text-xs text-muted-foreground">
+      <div className="grid grid-cols-[170px_1fr_220px_120px] gap-3 text-xs text-muted-foreground">
         <span>Clientes vendidos no período</span>
         <span />
-        <span className="text-right">Clientes · % da etapa</span>
+        <span className="text-right">Clientes · % dos vendidos</span>
         <span className="text-right">Valor</span>
       </div>
       {degraus.map((d) => (
         <div
           key={d.rotulo}
-          className="grid grid-cols-[170px_1fr_190px_120px] items-center gap-3 text-[13px]"
+          className="grid grid-cols-[170px_1fr_220px_120px] items-center gap-3 text-[13px]"
         >
           <span className="text-muted-foreground">{d.rotulo}</span>
           <div className="h-7 w-full rounded-md bg-muted">
@@ -644,27 +610,12 @@ function FunilHorizontal({
           Recebido pela unidade:{" "}
           <span className="num font-semibold">{t.temRecebido ? brl(t.recebido) : "—"}</span>
         </span>
-        {faturado.length > 0 && (
-          <>
-            <span>
-              Faturado no Omie: <span className="num font-semibold">{brl(fat)}</span>
-            </span>
-            <span>
-              Recebido no Omie: <span className="num font-semibold">{brl(recOmie)}</span>
-            </span>
-            <span>
-              Em aberto: <span className="num font-semibold">{brl(fat - recOmie)}</span>
-            </span>
-          </>
-        )}
       </div>
       <p className="text-xs text-muted-foreground">
-        O funil segue os mesmos clientes: os vendidos no período, e destes quantos assinaram, foram
-        faturados e pagaram. Vendido e assinado são MRR (um mês de honorário); faturado e recebido
-        somam todos os meses desde a venda, por isso podem passar do MRR conforme o cliente paga. O
-        faturado só existe para unidades com o Omie sincronizado
-        {semOmie.length > 0 ? ` (fora: ${semOmie.join(", ")})` : ""}. A carteira toda inclui
-        clientes vendidos antes do período e de antes da rede.
+        Vendido e assinado são MRR (um mês de honorário). Recebido soma todos os meses apurados
+        desde a venda, por isso pode passar do MRR conforme o cliente paga. Cliente que só aparece
+        pela 2ª parcela ou pelo integral do CAC conta como pagante, mas sem valor: a apuração dessas
+        unidades não traz o honorário.
       </p>
     </div>
   );
@@ -768,10 +719,11 @@ function ListaClientes({
           const contratos = c.contratos.filter((v) => noPeriodo(v.mes));
           const mesesRec = Object.keys(c.recebido).filter(noPeriodo).sort();
           const recebido = mesesRec.reduce((a, m) => a + c.recebido[m], 0);
-          if (!vendas.length && !contratos.length && !mesesRec.length) return null;
+          const pagouCac = c.cacPago.some(noPeriodo);
+          if (!vendas.length && !contratos.length && !mesesRec.length && !pagouCac) return null;
           const temContrato = contratos.length > 0 || c.contratos.length > 0;
           const sit: Situacao =
-            recebido > 0
+            recebido > 0 || pagouCac
               ? vendas.length || contratos.length
                 ? "recebendo"
                 : "so_recebido"
@@ -806,7 +758,7 @@ function ListaClientes({
   return (
     <Secao
       titulo="Quais clientes compõem esses números?"
-      descricao="Cada cliente com a venda, o contrato e o recebido dentro do período. Venda e recebido do mesmo cliente se juntam pelo CNPJ e, sem CNPJ, pelo nome dentro da unidade; cliente com nome diferente na venda e no Omie pode aparecer em duas linhas."
+      descricao="Cada cliente com a venda, o contrato e o recebido dentro do período. Venda e recebido do mesmo cliente se juntam pelo CNPJ e, sem CNPJ, pelo nome dentro da unidade; cliente com nome diferente na venda e na apuração pode aparecer em duas linhas. Recebendo = royalty apurado, split retido, ou CAC de 2ª parcela ou integral."
     >
       <BarraFiltros>
         <Input

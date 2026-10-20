@@ -80,13 +80,14 @@ export interface ClienteFunil {
   cnpj: string | null;
   vendas: { mes: string; mrr: number }[];
   contratos: { mes: string; mrr: number }[];
-  /** mês → valor recebido */
-    recebido: Record<string, number>;
+  /** mês → valor recebido (base da apuração de royalties ou boleto com split retido) */
+  recebido: Record<string, number>;
   /**
-   * mês → faturado pela unidade no Omie dela (boletos não cancelados, por
-   * vencimento). Vazio quando a unidade não tem Omie sincronizado.
+   * Meses em que a apuração cobrou a 2ª parcela ou o integral do CAC deste
+   * cliente: só se cobra depois que ele paga o 1º honorário, então prova que
+   * pagou mesmo sem royalty (São Bernardo, Sorocaba, Recife).
    */
-  faturado: Record<string, number>;
+  cacPago: string[];
 }
 
 /**
@@ -104,29 +105,13 @@ export interface CacPartners {
   semTitulo: number;
 }
 
-/**
- * Da unidade para os clientes dela: o que faturou (boletos não cancelados no
- * Omie da unidade, por vencimento) e o que recebeu. Só existe para quem tem o
- * Omie sincronizado em contas_receber.
- */
-export interface FaturadoMes {
-  unidade: string;
-  mes: string;
-  faturado: number;
-  recebidoOmie: number;
-  clientesFaturados: number;
-  clientesPagaram: number;
-}
-
 export interface FunilRecebido {
   unidades: UnidadeFunil[];
   meses: LinhaMes[];
   clientes: ClienteFunil[];
   cac: ClienteCac[];
   cacPartners: CacPartners[];
-  faturado: FaturadoMes[];
-  /** Unidades com Omie sincronizado (têm faturado). */
-  comOmie: string[];
+
   inicio: string;
   geradoEm: string;
 }
@@ -183,7 +168,7 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
 
   const COLS_CT =
     "id,unidade,titulo,cnpj,origem_pipeline,ganho_em,entrada_contrato_assinado_em,mrr_mensal,mrr_override,pipedrive_owner_email";
-  const [contratos, socios, itens, titulos, apuracoes, faturas, titulosPartners, omieUnidades] =
+  const [contratos, socios, itens, titulos, splitsRetidos, apuracoes, faturas, titulosPartners] =
     await Promise.all([
       todasAsPaginas((i, f) =>
         sb
@@ -210,13 +195,23 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
         ? todasAsPaginas((i, f) =>
             sb
               .from("contas_receber")
-              .select("id,unidade,cpf_cnpj,cliente,data_vencimento,valor")
+              .select("id,unidade,cpf_cnpj,cliente,data_vencimento,valor,codigo_omie")
               .eq("status_pagamento", "RECEBIDO")
               .gte("data_vencimento", splitMin)
               .order("id")
               .range(i, f),
           )
         : Promise.resolve([]),
+      // Boleto conta como recebido pelo split só se o Asaas reteve o royalty.
+      todasAsPaginas((i, f) =>
+        sb
+          .from("asaas_splits")
+          .select("id,codigo_omie")
+          .eq("status", "DONE")
+          .not("codigo_omie", "is", null)
+          .order("id")
+          .range(i, f),
+      ),
       todasAsPaginas((i, f) =>
         sb
           .from("royalties_apuracao")
@@ -240,18 +235,6 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
           .eq("unidade", "Partners")
           .or("codigo_categoria.eq.1.01.92,codigo_categoria.is.null")
           .neq("status_pagamento", "CANCELADO")
-          .order("id")
-          .range(i, f),
-      ),
-      // Faturado pela unidade aos clientes: Omie da unidade, desde o recorte.
-      todasAsPaginas((i, f) =>
-        sb
-          .from("contas_receber")
-          .select("id,unidade,cpf_cnpj,cliente,status_pagamento,valor,data_vencimento")
-          .neq("unidade", "Partners")
-          .neq("status_pagamento", "CANCELADO")
-          .gte("data_vencimento", INICIO)
-          .lte("data_vencimento", new Date().toISOString().slice(0, 10))
           .order("id")
           .range(i, f),
       ),
@@ -297,8 +280,8 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
         cnpj,
         vendas: [],
         contratos: [],
-                recebido: {},
-        faturado: {},
+        recebido: {},
+        cacPago: [],
       };
       fichas.push(f);
     }
@@ -417,6 +400,17 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
       c.cacTotal += cobrado;
       if (mes < c.primeiroCac) c.primeiroCac = mes;
       cacs.set(k, c);
+      // 2ª parcela ou integral só se cobra depois do 1º honorário: o cliente pagou.
+      // CAC sem parcela marcada (até ago/26) não prova nada e fica de fora.
+      if ((it.cac_parcela === 2 || it.cac_parcela === 3) && cobrado > 0) {
+        const f = ficha(un, cnpj, it.razao_social);
+        if (!f.cacPago.includes(mes)) f.cacPago.push(mes);
+        const km = `${un}|${mes}`;
+        const sm = clientesMes.get(km) ?? new Set<string>();
+        sm.add(cnpj ?? `n:${chaveNome(it.razao_social)}`);
+        clientesMes.set(km, sm);
+        linha(un, mes);
+      }
       continue;
     }
     if (it.categoria === "csc_base_antiga") {
@@ -427,7 +421,9 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     somaCliente(un, cnpj, it.razao_social, mes, v);
   }
 
+  const retido = new Set((splitsRetidos as any[]).map((x) => String(x.codigo_omie)));
   for (const t of titulos as any[]) {
+    if (!retido.has(String(t.codigo_omie))) continue; // pago sem royalty retido não conta
     const u = porChave.get(chaveNome(t.unidade));
     if (!u?.split_ativo_desde || !t.data_vencimento) continue;
     if (t.data_vencimento < u.split_ativo_desde) continue;
@@ -508,45 +504,6 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     .filter((x) => x.cobrado > 0 || x.pago > 0)
     .sort((a, b) => b.cobrado - a.cobrado);
 
-  // ---- faturado pela unidade aos clientes (Omie da unidade)
-  const fat = new Map<string, FaturadoMes & { fc: Set<string>; pc: Set<string> }>();
-  for (const t of omieUnidades as any[]) {
-    const u = porChave.get(chaveNome(t.unidade));
-    if (!u || !t.data_vencimento) continue;
-    const mes = mesDe(t.data_vencimento);
-    const k = `${u.nome_da_praca}|${mes}`;
-    const x = fat.get(k) ?? {
-      unidade: u.nome_da_praca,
-      mes,
-      faturado: 0,
-      recebidoOmie: 0,
-      clientesFaturados: 0,
-      clientesPagaram: 0,
-      fc: new Set<string>(),
-      pc: new Set<string>(),
-    };
-    const cli = digitos(t.cpf_cnpj) ?? chaveNome(t.cliente);
-        x.faturado += N(t.valor);
-    // Só nas fichas que já existem (venda ou recebido): cliente que só aparece
-    // no Omie não entra na lista, senão a carteira inteira viraria ficha.
-    const fc =
-      (digitos(t.cpf_cnpj) && indice.get(`${u.nome_da_praca}|c:${digitos(t.cpf_cnpj)}`)) ||
-      (chaveNome(t.cliente) && indice.get(`${u.nome_da_praca}|n:${chaveNome(t.cliente)}`));
-    if (fc) fc.faturado[mes] = (fc.faturado[mes] ?? 0) + N(t.valor);
-    x.fc.add(cli);
-    if (t.status_pagamento === "RECEBIDO") {
-      x.recebidoOmie += N(t.valor);
-      x.pc.add(cli);
-    }
-    fat.set(k, x);
-  }
-  const faturado: FaturadoMes[] = [...fat.values()].map(({ fc, pc, ...x }) => ({
-    ...x,
-    clientesFaturados: fc.size,
-    clientesPagaram: pc.size,
-  }));
-  const comOmie = [...new Set(faturado.map((x) => x.unidade))].sort();
-
   const meses = [...linhas.values()].sort(
     (a, b) => a.unidade.localeCompare(b.unidade) || a.mes.localeCompare(b.mes),
   );
@@ -577,8 +534,7 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
     clientes,
     cac,
     cacPartners,
-    faturado,
-    comOmie,
+
     inicio: mesDe(INICIO),
     geradoEm: new Date().toISOString(),
   };
