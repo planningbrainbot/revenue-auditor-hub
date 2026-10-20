@@ -39,6 +39,7 @@ import {
   podePedir,
   procedenciaFaturamento,
   linhasDeAtencao,
+  linhasDeNovidades,
   rotuloSituacao,
   tipoRecorteDoContexto,
   type LinhaAtencao,
@@ -196,6 +197,7 @@ export function MeuFaturamento({
         <>
           <Numeros resumo={r} refs={refs} emissora={busca.emissora} />
           <OQuePedeAtencao contexto={ctx} ids={ids} />
+          {ctx.papeis.pede && <Novidades contexto={ctx} ids={ids} />}
           <Etapas resumo={r} refs={refs} emissora={busca.emissora} contexto={ctx} />
         </>
       )}
@@ -343,6 +345,86 @@ function OQuePedeAtencao({ contexto, ids }: { contexto: Contexto; ids: string[] 
                       <ArrowRight className="size-4" aria-hidden />
                     </Link>
                   )}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ o que virou nota e o que atrasou
+
+/**
+ * RF-P12 na tela (o e-mail é da T6): para quem pede, a mesma caixa com borda do que pede atenção, uma linha
+ * por novidade com o botão até a lista. "Viraram nota" é o mês corrente, não "desde a última visita" (ver
+ * `linhasDeNovidades`). A contagem é o `total` de `fat_pedidos` com o mesmo filtro do destino: bate.
+ */
+function Novidades({ contexto, ids }: { contexto: Contexto; ids: string[] }) {
+  const { user } = useAuth();
+  const pedidosFn = useServerFn(carregarPedidosFaturamento);
+  const refs = contexto.emissoras.map((e) => ({ id: e.id, apelido: e.apelido }));
+  const linhas = linhasDeNovidades(mesCorrenteSP(), ids);
+  const contagens = useQueries({
+    queries: linhas.map((l) => ({
+      queryKey: ["faturamento", "novidades", user?.id, l.filtro],
+      enabled: !!user?.id,
+      queryFn: async () =>
+        desembrulhar(
+          await pedidosFn({ data: { filtro: { ...l.filtro, por_pagina: 1, pagina: 1 } } }),
+        ).total,
+      staleTime: 60_000,
+      retry: valeTentarDeNovo,
+    })),
+  });
+  const carregando = contagens.some((q) => q.isPending);
+  const falhou = contagens.some((q) => q.isError);
+  const comItem = linhas
+    .map((l, i) => ({ ...l, quantidade: contagens[i]?.data ?? 0 }))
+    .filter((l) => l.quantidade > 0);
+  return (
+    <section aria-labelledby="fat-novidades" className="space-y-3">
+      <h2 id="fat-novidades" className="text-base font-semibold text-foreground">
+        O que virou nota, e o que atrasou?
+      </h2>
+      <div className="rounded-xl border bg-card">
+        {carregando ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground" role="status">
+            Contando as notas do mês e as parcelas em atraso…
+          </p>
+        ) : falhou ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground">
+            Não deu para contar agora.{" "}
+            <button
+              type="button"
+              className="text-primary-text underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => contagens.forEach((q) => q.isError && void q.refetch())}
+            >
+              Tentar de novo
+            </button>
+          </p>
+        ) : comItem.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground">
+            Nenhuma nota emitida neste mês e nenhuma parcela em atraso.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {comItem.map((l) => (
+              <li
+                key={l.chave}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">{l.titulo}</span>
+                  <StatusBadge tom={l.tom}>{contagem(l.quantidade, "pedido")}</StatusBadge>
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/faturamento/pedidos" search={buscaDoFiltro(l.filtro, refs)}>
+                    {l.acao}
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Link>
                 </Button>
               </li>
             ))}

@@ -254,6 +254,21 @@ export function parcelasDoFormulario(f: Pick<FormPedido, "forma" | "parcelas">):
   return n >= 1 && n <= 36 ? n : null;
 }
 
+/**
+ * A resposta da busca do cliente ainda vale? Só se é do documento e da empresa que o formulário tem agora: a
+ * consulta à Receita leva segundos, e uma resposta velha não pode trocar o bloqueio nem o aviso de contrato
+ * do cliente novo (revisão de 20/10/2026, "resposta antiga da busca do cliente sobrescreve a nova").
+ */
+export function buscaAindaVale(
+  pedida: { documento: string; emissora: string },
+  form: Pick<FormPedido, "tomador_documento" | "emissora_id">,
+): boolean {
+  return (
+    pedida.documento === normalizarDocumento(form.tomador_documento) &&
+    pedida.emissora === form.emissora_id
+  );
+}
+
 /** Data `AAAA-MM-DD` de verdade, com ano entre 2000 e 2100 (o campo de data aceita "0026-10-21"). */
 export function dataValida(v: string | null | undefined): boolean {
   if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;

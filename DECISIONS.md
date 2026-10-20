@@ -6351,3 +6351,13 @@ Três decisões do dono por opções, depois da explicação dos números da tel
 - **"Faturado em 2026" sem "a meta":** a meta das OKRs é o aprovado desde 19/10 (101 com o Torres). A descrição da seção deixou de dizer que a meta é o faturado.
 - **Em análise à parte:** empresa no degrau 5 sem diagnóstico entregue ganha o motivo "Ainda em análise". Ela sai do "Achado e parado" (vai para a nota do cartão) e sai da Fila, porque não há o que cobrar. Os degraus do funil não mudam: o nível continua sendo a etapa mais adiantada.
 - **Conferência:** `monetizacao/medicoes/2026-10-16-consultoria-funil/conferir.py` junta as filiais pela mesma regra, sem a régua da tela. Em 20/10 deu 6/6, com os degraus 2.003 → 1.742 → 231 → 176 → 132 → 96 → 61 → 51.
+
+## [2026-10-20] Portal de Faturamento: RF-P12 na tela (faturado e em atraso em Meu faturamento)
+
+**Contexto:** a spec pede o aviso "por e-mail e na tela" de OK pendente, devolução, faturado e em atraso. A tela mostrava só OK, devolvidos e erros. Pedido do coordenador: sem RPC nova; se faltar dado, usar `fat_pedidos`.
+
+**Decisão:** caixa nova em Meu faturamento, "O que virou nota, e o que atrasou?", só para quem pede, no padrão da caixa do que pede atenção. Linhas: "Viraram nota em {mês corrente}" (`regua: nota`, mês corrente, sem simulados) e "Com parcela em atraso" (`regua: atraso`, sem simulados), com as empresas do filtro da tela. A contagem é o `total` de `fat_pedidos` com o filtro do destino, e o link de Pedidos lido de volta dá o mesmo filtro (testado).
+
+**O que não deu:** "desde a minha última visita" ou "últimos 7 dias". `fat_pedidos` não filtra pela data da nota nem a devolve por linha. Falta `nota_desde` em `fat_pedidos` ou uma RPC de tela sobre `integracoes.notificacoes`. Não foi criada.
+
+**Também:** a guarda da busca do cliente virou `buscaAindaVale` (`formulario.ts`), com teste. A resposta de outro documento ou de outra empresa é descartada.

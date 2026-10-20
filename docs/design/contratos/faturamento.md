@@ -73,6 +73,7 @@ Slug `faturamento` (já criado em `ops.areas` pela F1, ordem 35). Nome "Faturame
 1. `PageHeader`: pergunta, universo, `procedencia`, filtros `mes` e `emissora`, ação `default` "Novo pedido".
 2. `KpiGrade` com quatro `KpiCard` (abaixo). Nota de cada card com **uma** informação.
 3. **O que pede atenção:** caixa com borda, até três linhas, uma por pendência, cada uma com botão de destino, na ordem: erro no Omie, OK a dar, devolvidos (tesouraria: erro no Omie, para faturar). Quem tem os dois papéis vê as três primeiras; "Para faturar" fica na Fila da tesouraria. Sem pendência, a caixa diz "Nada pede sua atenção agora."
+3a. **O que virou nota, e o que atrasou?** (RF-P12 na tela, só para quem pede): a mesma caixa com borda, uma linha por novidade (até três), cada uma com o botão até a lista: "Viraram nota em {mês corrente}" (Pedidos `?regua=nota&mes=AAAA-MM&simulacao=nao`) e "Com parcela em atraso" (Pedidos `?regua=atraso&simulacao=nao`). Sem novidade: "Nenhuma nota emitida neste mês e nenhuma parcela em atraso." Ver "Divergências", item 6.
 4. Uma `Secao` com gráfico: "Em que etapa estão os pedidos em aberto?", barra horizontal por etapa, com "Ver todos os pedidos →".
 5. Nenhuma tabela linha a linha (ARQUETIPOS §1, item 5). A lista mora em Pedidos (§3).
 
@@ -234,6 +235,7 @@ O código segue este contrato, salvo nos pontos abaixo, em que seguir à letra e
 3. **Filtro Dono em Pedidos (§3):** para gestor, tesouraria e controladoria, a lista de donos sai dos 200 pedidos mais recentes do recorte, porque a API só devolve `donos` nas empresas em que a pessoa pede. Dono que só tem pedido mais antigo fica fora da lista, mas o link `?dono=` continua valendo.
 4. **Cor da área (§1.1):** anel neutro (`--area-faturamento` = `--area-admin`) até a Mika decidir. A proposta para ela continua sendo o lima de Receita.
 5. **Procedência:** "situação do Omie lida às {hora}; a próxima leitura é às {hora} (a cada 4 h em dia útil)". A leitura roda às 8h, 12h e 16h de São Paulo, de segunda a sexta; feriado ainda conta como dia útil (E3).
+6. **RF-P12 na tela ("faturado" e "em atraso"):** a caixa 3a conta pelo `total` de `fat_pedidos` com o filtro do próprio destino, sem RPC nova. "Faturados" é o **mês corrente**, não "desde a minha última visita" nem "últimos 7 dias": `fat_pedidos` não filtra pela data da nota nem a devolve por linha, e a última visita pediria tabela nova. Para chegar lá falta, no banco, `fat_pedidos` aceitar a data da nota (`nota_desde`) ou uma RPC de tela que leia `integracoes.notificacoes` de quem está olhando (a fila do e-mail já tem um registro por destinatário de "faturado" e "em atraso"). Nenhuma das duas foi criada.
 
 ## Checagem
 - [ ] Definição de pronto de `docs/design/README.md` cumprida

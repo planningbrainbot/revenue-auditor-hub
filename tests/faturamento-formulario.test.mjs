@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   avisoDoVencimento,
+  buscaAindaVale,
   competenciaDoFormulario,
   dadosParaSalvar,
   dataValida,
@@ -432,4 +433,22 @@ test("1º vencimento no passado só avisa; competência com 12 meses para trás 
   const comVelha = opcoesDeCompetencia("2026-10", "2024-03");
   assert.equal(comVelha.length, 38);
   assert.deepEqual(comVelha[0], { valor: "2024-03", rotulo: "mar/2024" });
+});
+
+test("busca do cliente: resposta de outro documento ou de outra empresa é descartada", () => {
+  const form = { tomador_documento: "11.222.333/0001-81", emissora_id: "e1" };
+  assert.equal(buscaAindaVale({ documento: "11222333000181", emissora: "e1" }, form), true);
+  // A pessoa trocou o documento enquanto a Receita respondia.
+  assert.equal(
+    buscaAindaVale(
+      { documento: "11222333000181", emissora: "e1" },
+      { ...form, tomador_documento: "57.351.558/0001-39" },
+    ),
+    false,
+  );
+  // A pessoa trocou a empresa: o aviso de contrato "em outra empresa" da resposta velha não vale.
+  assert.equal(
+    buscaAindaVale({ documento: "11222333000181", emissora: "e1" }, { ...form, emissora_id: "e2" }),
+    false,
+  );
 });

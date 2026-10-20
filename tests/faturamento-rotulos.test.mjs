@@ -10,6 +10,7 @@ import {
   fraseRecorte,
   fraseSimulacao,
   linhasDeAtencao,
+  linhasDeNovidades,
   podePedir,
   procedenciaFaturamento,
   proximaLeitura,
@@ -20,6 +21,7 @@ import {
   tomSituacao,
 } from "../src/lib/faturamento/rotulos.ts";
 import { SITUACOES } from "../src/lib/faturamento/tipos.ts";
+import { buscaDoFiltro, filtroDaBusca } from "../src/lib/faturamento/filtro.ts";
 import {
   contagem,
   dataCompleta,
@@ -424,4 +426,31 @@ test("procedência da página e quem pode pedir", () => {
   assert.equal(podePedir(ctx), false);
   assert.equal(podePedir({ emissoras: [{ pode_pedir: false }, { pode_pedir: true }] }), true);
   assert.equal(podePedir(undefined), false);
+});
+
+test("RF-P12 na tela: o que virou nota no mês e o que atrasou, sem simulados, e o destino bate", () => {
+  const refs = [
+    { id: "11111111-1111-4111-8111-111111111111", apelido: "DOC" },
+    { id: "22222222-2222-4222-8222-222222222222", apelido: "PIS" },
+  ];
+  const linhas = linhasDeNovidades("2026-10");
+  assert.deepEqual(
+    linhas.map((l) => [l.chave, l.titulo, l.acao, l.tom]),
+    [
+      ["faturados", "Viraram nota em out/2026", "Ver as notas", "sucesso"],
+      ["em_atraso", "Com parcela em atraso", "Ver os atrasados", "perigo"],
+    ],
+  );
+  assert.deepEqual(linhas[0].filtro, { regua: "nota", mes: "2026-10", simulacao: false });
+  assert.deepEqual(linhas[1].filtro, { regua: "atraso", simulacao: false });
+  // Com o filtro de empresa da tela, as duas linhas vão com as empresas.
+  const soDoc = linhasDeNovidades("2026-10", [refs[0].id]);
+  assert.deepEqual(soDoc[1].filtro.emissoras, [refs[0].id]);
+  // O link de Pedidos, lido de volta, dá o mesmo filtro da contagem (N2: o destino bate).
+  for (const l of [...linhas, ...soDoc]) {
+    const busca = buscaDoFiltro(l.filtro, refs);
+    const { filtro } = filtroDaBusca(busca, refs);
+    const { pagina, por_pagina, ...semPagina } = filtro;
+    assert.deepEqual(semPagina, l.filtro, JSON.stringify(busca));
+  }
 });
