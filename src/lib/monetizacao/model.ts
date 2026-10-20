@@ -273,6 +273,38 @@ export function consultoriaForaDeOferta(a: Conta): string | null {
   }
   return null;
 }
+/**
+ * Consultoria retroativa sem tributo próprio para recuperar (19/10/2026). A retroativa recupera imposto pago nos
+ * últimos anos, e duas contas da Base Antiga não têm esse histórico:
+ * - aberta há menos de 1 ano (início de atividade na Receita);
+ * - holding pura (todo CNAE principal em 64.62 ou 64.63) sem faixa de faturamento própria. A estimativa da Driva é
+ *   do grupo, não da holding.
+ * Caso de origem: ARCANJO PARTICIPACOES (Belém), holding aberta em 10/03/2026 com capital de R$ 10 mil, abordada pela
+ * cadência como Consultoria. Os fatos vêm de `cadastro_receita`; conta sem ele segue a régua de antes. Espelho no
+ * servidor: ops.monetizacao_consultoria_sem_historico (migration 20261019240000), na mesma ordem.
+ */
+export const CNAES_HOLDING = ["6462", "6463"] as const;
+// Um ano antes, como `current_date - interval '1 year'` no Postgres: 29/02 vira 28/02 do ano anterior.
+export const umAnoAntes = (iso: string) => {
+  const md = iso.slice(5, 10);
+  return `${Number(iso.slice(0, 4)) - 1}-${md === "02-29" ? "02-28" : md}`;
+};
+const cnaeFormatado = (c: string) => `${c.slice(0, 4)}-${c.slice(4, 5)}/${c.slice(5, 7)}`;
+export function consultoriaSemTributoProprio(
+  a: Conta,
+  review: Revisao = {},
+  hojeIso = hoje(),
+): string | null {
+  const c = a.cadastro_receita;
+  if (!c) return null;
+  if (c.inicio_atividade && c.inicio_atividade > umAnoAntes(hojeIso))
+    return `Aberta há menos de 1 ano na Receita (início de atividade em ${dataBr(c.inicio_atividade)}). Sem tributo antigo para a Consultoria retroativa recuperar.`;
+  const holding =
+    c.cnaes.length > 0 && c.cnaes.every((x) => CNAES_HOLDING.some((h) => x.startsWith(h)));
+  if (holding && !(review.band || a.band))
+    return `Holding sem operação própria (CNAE ${c.cnaes.map(cnaeFormatado).join(", ")} na Receita) e sem faixa de faturamento declarada. Sem tributo próprio para a Consultoria retroativa recuperar.`;
+  return null;
+}
 
 // Teto legal pelo porte quando não há faixa declarada. Um só limite para oferta, filtro e ordenação.
 export const limiteFaturamento = (
@@ -341,6 +373,8 @@ function ofertaDoProduto(a: Conta, produto: Produto, review: Revisao): Oferta {
     // para o motivo das contas fora da base retroativa continuar sendo a origem.
     const jaCliente = consultoriaForaDeOferta(a);
     if (jaCliente) return result("fora_regra", jaCliente);
+    const semTributo = consultoriaSemTributoProprio(a, review);
+    if (semTributo) return result("fora_regra", semTributo);
     if (
       /simples|mei/.test(regime) ||
       (!review.regime && a.consultoria_origin?.non_simples_confirmed === false)
