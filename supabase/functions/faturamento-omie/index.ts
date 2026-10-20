@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- JSON do PostgREST chega sem tipo. */
-// faturamento-omie: o conector do Omie do Portal de Faturamento (T2 da E1, 20/10/2026). Processa a fila
-// integracoes.omie_envios: garantir cliente, incluir/alterar OS, faturar, ler status e sincronizar o catálogo.
-// A lógica (montagem do Omie, simulação, erros, idempotência, fila) está em logica.ts, testada no Node em
-// tests/faturamento-omie.test.mjs. Aqui só se liga a lógica ao banco e ao fetch.
+// faturamento-omie: o conector do Omie e do Pipefy do Portal de Faturamento (T2 e T3 da E1, 20/10/2026).
+// 1. Fila integracoes.omie_envios: garantir cliente, incluir/alterar OS, faturar, ler status e sincronizar o catálogo
+//    (lógica em logica.ts, testes em tests/faturamento-omie.test.mjs).
+// 2. Depois, na mesma rodada, a fila integracoes.pipefy_envios: criar o card no pipe 307098392 e movê-lo a cada
+//    situação (lógica em pipefy.ts, testes em tests/faturamento-pipefy.test.mjs). Com pipefy_sync = false (todas hoje),
+//    as mutations ficam montadas e validadas, e nenhuma sai.
+// Aqui só se liga a lógica ao banco e ao fetch.
 //
 // Banco: as RPCs do conector (API.md §2) vivem em `integracoes`, que não é exposto no PostgREST. A edge chama as
 // funções de passagem em `ops` (ops.fat_conector_*, mesmas assinaturas, executáveis só pelo service_role), com
@@ -22,11 +25,16 @@
 //
 // A chave do Omie é lida por ops.fat_conector_credencial → integracoes.omie_credencial (só service_role) e fica só em memória: nunca vai para
 // resposta, log, ops.sync_log ou erro.
-import { autorizado, cortar, MAX_POR_RODADA, rodarFila, VERSAO } from "./logica.ts";
+import { autorizado, criarOmie, cortar, MAX_POR_RODADA, rodarFila, VERSAO } from "./logica.ts";
+import { PIPEFY_URL, rodarFilaPipefy } from "./pipefy.ts";
 
 const URL_BASE = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON = Deno.env.get("FATURAMENTO_CRON_SECRET") ?? null;
+const PIPEFY_TOKEN = Deno.env.get("PIPEFY_TOKEN") ?? null;
+/** Tempo de cada fila na rodada: as duas cabem antes do próximo cron (2 min) e do limite da edge (150 s). */
+const ORCAMENTO_OMIE_MS = 60_000;
+const ORCAMENTO_PIPEFY_MS = 25_000;
 const FONTE_LOG = "omie-faturamento";
 
 const json = (body: unknown, status = 200) =>
@@ -128,6 +136,56 @@ const transporte = async (url: string, corpo: string) => {
   return { status: r.status, texto: await r.text() };
 };
 
+/** O token do Pipefy fica aqui; a lógica só recebe o transporte. */
+const transportePipefy = PIPEFY_TOKEN
+  ? async (corpo: string) => {
+      const r = await fetch(PIPEFY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${PIPEFY_TOKEN}`, "Content-Type": "application/json" },
+        body: corpo,
+        signal: AbortSignal.timeout(30000),
+      });
+      return { status: r.status, texto: await r.text() };
+    }
+  : null;
+
+/**
+ * PDF da NFS-e (ou do recibo) para anexar no card em FATURAMENTO REALIZADO. Só em gravação do Pipefy: lê o StatusOS no
+ * Omie da emissora (leitura) e baixa o PDF do destinatário. Nulo se ainda não houver.
+ */
+async function pdfDaNota(envio: any, contexto: any) {
+  const nCodOS = Number(contexto?.pedido?.omie_os_codigo ?? envio?.payload?.pedido?.omie_os_codigo);
+  const emissora = String(envio?.emissora?.id ?? "");
+  if (!nCodOS || !emissora) return null;
+  const credencial = await rpc("credencial", { p_emissora: emissora });
+  const omie = criarOmie({ transporte, credencial, modo: "simular", dormir });
+  const st = await omie.consultar("servicos/os", "StatusOS", {
+    nCodOS,
+    lPdfDest: true,
+    lPdfRecibo: true,
+  });
+  const rps = (st?.ListaRpsNfse ?? []).find((r: any) => r?.cUrlPdfDest);
+  const url = rps?.cUrlPdfDest || st?.cUrlPdfRecibo;
+  if (!url) return null;
+  const r = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  // Só anexa se for PDF de verdade (%PDF).
+  if (!r.ok || bytes.length < 5 || String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF")
+    return null;
+  const numero = rps?.nNfse || st?.cNumRecibo || contexto?.pedido?.numero || "pedido";
+  return { nome: `NFSe-${numero}.pdf`, bytes };
+}
+
+async function subir(url: string, bytes: Uint8Array) {
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/pdf" },
+    body: bytes.slice().buffer,
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!r.ok) throw new Error(`Upload do PDF recusado (${r.status})`);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
   if (!autorizado(req.headers, SERVICE, CRON)) return json({ error: "Não autorizado" }, 401);
@@ -147,11 +205,15 @@ Deno.serve(async (req: Request) => {
       : MAX_POR_RODADA;
   const inicio = Date.now();
 
-  try {
-    let enfileirados: unknown = null;
-    if (acao === "enfileirar_status") enfileirados = await rpc("status_enfileirar", {});
+  let enfileirados: unknown = null;
+  let omie: Awaited<ReturnType<typeof rodarFila>> | null = null;
+  let pipefy: Awaited<ReturnType<typeof rodarFilaPipefy>> | null = null;
+  const falhas: string[] = [];
 
-    const resumo = await rodarFila({
+  // 1. Omie.
+  try {
+    if (acao === "enfileirar_status") enfileirados = await rpc("status_enfileirar", {});
+    omie = await rodarFila({
       reservar: async (n) => (await rpc("envio_proximos", { p_limite: n })) ?? [],
       responder: (envio, r) =>
         rpc("envio_resultado", {
@@ -164,40 +226,75 @@ Deno.serve(async (req: Request) => {
       credencial: (emissora) => rpc("credencial", { p_emissora: emissora }),
       statusAplicar: (pedido, status) =>
         rpc("status_aplicar", { p_pedido: pedido, p_status: status }),
+      receitaCnpj: (cnpj) => rpc("receita_cnpj", { p_cnpj: cnpj }),
       servicosAplicar: (emissora, catalogo) =>
         rpc("servicos_aplicar", { p_emissora: emissora, p_catalogo: catalogo }),
       transporte,
       dormir,
       maxEnvios: limite,
+      orcamentoMs: ORCAMENTO_OMIE_MS,
     });
-
-    // Rodada vazia não vai para o log (o cron roda 720 vezes por dia).
-    if (resumo.reservados > 0 || enfileirados != null || resumo.erros_banco.length) {
-      await registrar(inicio, resumo.erros_banco.length ? "erro" : "sucesso", resumo.reservados, {
-        versao: VERSAO,
-        acao,
-        origem: corpo?.origem ?? null,
-        enfileirados,
-        por_status: resumo.por_status,
-        envios: resumo.envios,
-        emissoras_paradas: resumo.emissoras_paradas,
-        erros_banco: resumo.erros_banco,
-      });
-    }
-    // Só o resumo: nenhuma resposta de envio (payload) sai daqui.
-    console.log(
-      JSON.stringify({
-        fonte: FONTE_LOG,
-        acao,
-        reservados: resumo.reservados,
-        por_status: resumo.por_status,
-      }),
-    );
-    return json({ ok: true, versao: VERSAO, acao, enfileirados, resumo });
   } catch (e) {
-    const erro = cortar((e as Error)?.message ?? e, 400);
-    await registrar(inicio, "erro", 0, { versao: VERSAO, acao, erro });
-    console.error(JSON.stringify({ fonte: FONTE_LOG, acao, erro }));
-    return json({ ok: false, versao: VERSAO, erro }, 500);
+    falhas.push(`omie: ${cortar((e as Error)?.message ?? e, 300)}`);
   }
+
+  // 2. Pipefy (o card anda depois do Omie, na mesma rodada).
+  try {
+    pipefy = await rodarFilaPipefy({
+      reservar: async (n) => (await rpc("pipefy_proximos", { p_limite: n })) ?? [],
+      responder: (envio, r) =>
+        rpc("pipefy_resultado", {
+          p_envio: envio,
+          p_status: r.status,
+          p_resposta: r.resposta,
+          p_erro_legivel: r.erro_legivel,
+          p_card_id: r.card_id,
+        }),
+      contexto: (pedido) => rpc("pipefy_contexto", { p_pedido: pedido }),
+      transporte: transportePipefy,
+      pdfDaNota,
+      subir,
+      orcamentoMs: ORCAMENTO_PIPEFY_MS,
+    });
+  } catch (e) {
+    falhas.push(`pipefy: ${cortar((e as Error)?.message ?? e, 300)}`);
+  }
+
+  const errosBanco = [...(omie?.erros_banco ?? []), ...(pipefy?.erros_banco ?? [])];
+  const trabalho = (omie?.reservados ?? 0) + (pipefy?.reservados ?? 0);
+  // Rodada vazia não vai para o log (o cron roda 720 vezes por dia).
+  if (trabalho > 0 || enfileirados != null || errosBanco.length || falhas.length) {
+    await registrar(inicio, errosBanco.length || falhas.length ? "erro" : "sucesso", trabalho, {
+      versao: VERSAO,
+      acao,
+      origem: corpo?.origem ?? null,
+      enfileirados,
+      omie: omie && {
+        por_status: omie.por_status,
+        envios: omie.envios,
+        emissoras_paradas: omie.emissoras_paradas,
+      },
+      pipefy: pipefy && {
+        por_status: pipefy.por_status,
+        envios: pipefy.envios,
+        token: !!PIPEFY_TOKEN,
+      },
+      erros_banco: errosBanco,
+      falhas,
+    });
+  }
+  // Só o resumo: nenhuma resposta de envio (payload, mutation) sai daqui.
+  console.log(
+    JSON.stringify({
+      fonte: FONTE_LOG,
+      acao,
+      omie: omie?.por_status ?? null,
+      pipefy: pipefy?.por_status ?? null,
+      falhas,
+    }),
+  );
+  return json(
+    { ok: !falhas.length, versao: VERSAO, acao, enfileirados, resumo: omie, pipefy, falhas },
+    falhas.length ? 500 : 200,
+  );
 });

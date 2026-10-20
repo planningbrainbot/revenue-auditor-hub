@@ -102,6 +102,14 @@ export type Transporte = (url: string, corpo: string) => Promise<{ status: numbe
 // ---------------------------------------------------------------------------------------------------- utilidades
 
 export const digitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+/**
+ * Documento normalizado como no banco (receita.fat_documento_normalizar): só letras e dígitos, letras maiúsculas.
+ * CNPJ alfanumérico (IN RFB 2.229/2024, desde julho de 2026) tem letras nas 12 primeiras posições; CPF é só dígito.
+ */
+export const documento = (v: unknown) =>
+  String(v ?? "")
+    .replace(/[^0-9A-Za-z]/g, "")
+    .toUpperCase();
 const texto = (v: unknown) =>
   String(v ?? "")
     .replace(/\s+/g, " ")
@@ -134,9 +142,9 @@ export function momentoBr(data: unknown, hora: unknown): string | null {
 export function hojeSP(agora: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(agora);
 }
-/** CNPJ 00.000.000/0000-00, CPF 000.000.000-00 (é como o Omie guarda). */
+/** CNPJ 00.000.000/0000-00 (ou 12.ABC.345/01DE-35), CPF 000.000.000-00: é como o Omie e o Pipefy guardam. */
 export function documentoFormatado(doc: unknown): string {
-  const d = digitos(doc);
+  const d = documento(doc);
   if (d.length === 14)
     return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
   if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
@@ -467,12 +475,13 @@ export type Omie = ReturnType<typeof criarOmie>;
 
 /**
  * IncluirCliente (geral/clientes). codigo_cliente_integracao = documento (spec §8). Razão social até 60 caracteres,
- * nome fantasia até 100, um e-mail (o campo é do cadastro; todos os e-mails vão na OS), município e UF quando a foto
- * do pedido tiver. Tag "Cliente", a mesma que a Base de clientes lê do Omie.
+ * nome fantasia até 100, um e-mail (o campo é do cadastro; todos os e-mails vão na OS) e tag "Cliente", a mesma que a
+ * Base de clientes lê do Omie. Endereço: o da consulta da Receita em cache (integracoes.receita_cnpj), quando houver;
+ * sem ela, só o município e a UF da foto do pedido.
  */
-export function montarCliente(payload: any) {
+export function montarCliente(payload: any, receita?: any | null) {
   const t = payload?.tomador ?? {};
-  const doc = digitos(t.documento);
+  const doc = documento(t.documento);
   const nome = texto(t.nome) || documentoFormatado(doc);
   const emails = listaEmails(payload?.pedido?.emails_envio, t.emails);
   const c: Record<string, any> = {
@@ -483,10 +492,27 @@ export function montarCliente(payload: any) {
     tags: [{ tag: "Cliente" }],
   };
   if (emails.length) c.email = emails[0];
-  if (texto(t.municipio)) c.cidade = cortar(t.municipio, 40);
-  if (/^[A-Za-z]{2}$/.test(texto(t.uf))) c.estado = texto(t.uf).toUpperCase();
+  const r = receita ?? {};
+  if (texto(r.logradouro)) c.endereco = cortar(r.logradouro, 60);
+  if (texto(r.numero)) c.endereco_numero = cortar(r.numero, 60);
+  if (texto(r.complemento)) c.complemento = cortar(r.complemento, 60);
+  if (texto(r.bairro)) c.bairro = cortar(r.bairro, 60);
+  const cep = digitos(r.cep);
+  if (cep.length === 8) {
+    c.cep = `${cep.slice(0, 5)}-${cep.slice(5)}`;
+    // Preenche pelo CEP só o que ficou vazio (logradouro, bairro, cidade).
+    c.pesquisar_cep = "S";
+  }
+  const municipio = texto(r.municipio) || texto(t.municipio);
+  const uf = texto(r.uf) || texto(t.uf);
+  if (municipio) c.cidade = cortar(municipio, 40);
+  if (/^[A-Za-z]{2}$/.test(uf)) c.estado = uf.toUpperCase();
   return c;
 }
+
+/** Tem endereço de verdade (logradouro e CEP) para o cadastro do cliente? */
+export const temEndereco = (receita: any | null) =>
+  !!(texto(receita?.logradouro) && digitos(receita?.cep).length === 8);
 
 /** Parcelas da foto do pedido, em ordem, com o total conferido contra o valor. */
 export function parcelasDoPedido(payload: any) {
@@ -711,6 +737,8 @@ export type Contexto = {
   departamentos: Map<string, Array<{ codigo: string; descricao: string; inativo?: string }>>;
   statusAplicar: (pedido: string, status: any) => Promise<any>;
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
+  /** Consulta da Receita em cache para o CNPJ (ops.fat_conector_receita_cnpj); nulo sem consulta. */
+  receitaCnpj?: (cnpj: string) => Promise<any | null>;
 };
 
 const fim = (ctx: Contexto, resposta: any, codigos: Record<string, any> = {}): Resultado => ({
@@ -733,10 +761,10 @@ const erro = (
 async function garantirCliente(envio: any, ctx: Contexto): Promise<Resultado> {
   const payload = envio?.payload ?? {};
   const t = payload.tomador ?? {};
-  const doc = digitos(t.documento);
-  const param = montarCliente(payload);
-  const base = { metodo: "IncluirCliente", param };
-  if (doc.length !== 11 && doc.length !== 14) {
+  const doc = documento(t.documento);
+  let param = montarCliente(payload);
+  if (!/^([0-9]{11}|[0-9A-Z]{12}[0-9]{2})$/.test(doc)) {
+    const base = { metodo: "IncluirCliente", param };
     return erro(
       base,
       "O documento do tomador chegou incompleto no pedido; nada foi enviado ao Omie.",
@@ -778,10 +806,11 @@ async function garantirCliente(envio: any, ctx: Contexto): Promise<Resultado> {
       pagina: 1,
       registros_por_pagina: 20,
       apenas_importado_api: "N",
-      clientesFiltro: { cnpj_cpf: doc },
+      // Com máscara, como o Omie guarda (com e sem máscara funcionou na DOC em 20/10; a máscara cobre o alfanumérico).
+      clientesFiltro: { cnpj_cpf: documentoFormatado(doc) },
     });
     const lista = (Array.isArray(l?.clientes_cadastro) ? l.clientes_cadastro : []).filter(
-      (c: any) => digitos(c.cnpj_cpf) === doc && num(c.codigo_cliente_omie),
+      (c: any) => documento(c.cnpj_cpf) === doc && num(c.codigo_cliente_omie),
     );
     leituras.cadastros_com_o_documento = lista.length;
     const c = lista.find((x: any) => x.inativo !== "S") ?? lista[0];
@@ -812,10 +841,25 @@ async function garantirCliente(envio: any, ctx: Contexto): Promise<Resultado> {
     );
   }
   leituras.cliente_existe = false;
+  // Cliente novo: endereço da consulta da Receita (só leitura do nosso banco, nos dois modos).
+  const avisos: string[] = [];
+  let receita: any = null;
+  if (doc.length === 14 && ctx.receitaCnpj) receita = await ctx.receitaCnpj(doc);
+  param = montarCliente(payload, receita);
+  leituras.endereco_da_receita = temEndereco(receita);
+  if (!temEndereco(receita)) {
+    avisos.push(
+      doc.length === 11
+        ? "Pessoa física: o cliente entra no Omie só com município e UF (a NFS-e pode pedir o endereço)."
+        : "Sem consulta da Receita com endereço no Brain para este CNPJ: o cliente entra no Omie só com município e " +
+            "UF (a NFS-e pode pedir o endereço).",
+    );
+  }
+  const base = { metodo: "IncluirCliente", param };
   if (ctx.modo !== "gravar") {
     return fim(
       ctx,
-      { ...base, leituras, avisos: [] },
+      { ...base, leituras, avisos },
       {
         codigo_cliente_integracao: param.codigo_cliente_integracao,
         cliente_existia: false,
@@ -835,7 +879,7 @@ async function garantirCliente(envio: any, ctx: Contexto): Promise<Resultado> {
   }
   return fim(
     ctx,
-    { ...base, leituras, retorno: r },
+    { ...base, leituras, avisos, retorno: r },
     {
       codigo_cliente_omie: num(r?.codigo_cliente_omie),
       codigo_cliente_integracao: param.codigo_cliente_integracao,
@@ -1277,6 +1321,7 @@ export type Dependencias = {
   credencial: (emissora: string) => Promise<{ app_key: string; app_secret: string }>;
   statusAplicar: (pedido: string, status: any) => Promise<any>;
   servicosAplicar: (emissora: string, catalogo: any[]) => Promise<any>;
+  receitaCnpj?: (cnpj: string) => Promise<any | null>;
   transporte: Transporte;
   dormir: (ms: number) => Promise<void>;
   agora?: () => Date;
@@ -1432,6 +1477,7 @@ export async function rodarFila(d: Dependencias) {
               departamentos,
               statusAplicar: d.statusAplicar,
               servicosAplicar: d.servicosAplicar,
+              receitaCnpj: d.receitaCnpj,
             });
           }
         }

@@ -1,8 +1,10 @@
-"""Teste de integração do conector do Omie (T2) em simulação, contra o banco único e a edge publicada.
+"""Teste de integração do conector do Omie (T2) e do Pipefy (T3) em simulação, contra o banco único e a edge publicada.
 
 Ciclo: pedido de teste da DOC (CNPJ real de cliente da DOC, lido do Omie dela) → enviar → a edge faturamento-omie
-processa → o pedido fica `simulado` com o payload montado → ConsultarOS no Omie da DOC prova que a OS não existe →
-o pedido é descartado (devolvido e descartado, ou cancelamento pedido e efetivado), nunca apagado.
+processa → o pedido fica `simulado` com o payload montado → ConsultarOS no Omie da DOC prova que a OS não existe → o
+card do pipe 307098392 fica `simulado`, com o createCard montado e validado e nenhuma mutation chamada → o pedido é
+descartado (devolvido e descartado, ou cancelamento pedido e efetivado), nunca apagado, e os movimentos de devolução e
+cancelamento do card também ficam `simulado`.
 
 Só roda com a DOC em modo_omie = 'simular' (aborta em 'gravar'). No Omie só faz leitura (ListarClientesResumido e
 ConsultarOS), com pausa. Nada de chave, token, CNPJ inteiro, nome ou e-mail de cliente vai para a saída.
@@ -37,7 +39,9 @@ FUNCOES = {
             "fat_pedido_cancelar", "fat_dono_salvar", "fat_dono_remover", "fat_config"],
 }
 PASSAGEM = ["fat_conector_credencial", "fat_conector_envio_proximos", "fat_conector_envio_resultado",
-            "fat_conector_status_aplicar", "fat_conector_status_enfileirar", "fat_conector_servicos_aplicar"]
+            "fat_conector_status_aplicar", "fat_conector_status_enfileirar", "fat_conector_servicos_aplicar",
+            "fat_conector_receita_cnpj", "fat_conector_pipefy_proximos", "fat_conector_pipefy_resultado",
+            "fat_conector_pipefy_contexto"]
 
 
 def token() -> str:
@@ -72,17 +76,13 @@ def lit(v) -> str:
 
 def como_pedro(chamada: str):
     """Chama uma RPC de tela como o Pedro logado (authenticated + claims do JWT), numa transação da Management API.
-
-    O papel volta a postgres ANTES do commit: o gatilho de restrição adiado receita.fat_parcelas_conferir (T1a) roda
-    no commit com o papel da sessão e, como não é security definer, o authenticated não lê receita.fat_pedidos
-    ("permission denied", achado em 20/10). Até a T1a/T1b corrigirem o gatilho, é assim que o teste chega ao conector.
-    A RPC em si roda como o Pedro, com todas as conferências dela."""
+    O commit também roda como authenticated, como pelo PostgREST (o gatilho adiado das parcelas é security definer
+    desde 20261020180000)."""
     claims = json.dumps({"sub": PEDRO, "role": "authenticated"})
     r = sql(f"set local role authenticated; select set_config('request.jwt.claims', {lit(claims)}, true); "
-            f"select set_config('t2.r', ({chamada})::text, true); reset role; "
-            "select current_setting('t2.r') as r;")
+            f"select {chamada} as r;")
     v = r[-1]["r"] if r else None
-    return json.loads(v) if isinstance(v, str) and v else v
+    return json.loads(v) if isinstance(v, str) else v
 
 
 def mascara(doc: str) -> str:
@@ -173,6 +173,43 @@ def chamar_edge():
             return r.status, json.loads(r.read()).get("resumo", {}).get("por_status")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "replace")[:300]
+
+
+def envios_pipefy(pid: str):
+    """Envios do Pipefy do pedido, resumidos (sem dado do cliente: só ids de campo, nomes de mutation e mensagens)."""
+    linhas = sql("select operacao, status, card_id, erro_legivel, resposta, payload->>'para' para, seq "
+                 f"from integracoes.pipefy_envios where origem = 'fat_pedido' and origem_id = {lit(pid)}::uuid order by seq")
+    out = []
+    for e in linhas:
+        r = e["resposta"] if isinstance(e["resposta"], dict) else json.loads(e["resposta"] or "{}") if e["resposta"] else {}
+        muts = r.get("mutacoes") or []
+        item = {
+            "operacao": e["operacao"], "para": e["para"], "status": e["status"], "card_id": e["card_id"],
+            "erro": e["erro_legivel"], "validacao": r.get("validacao"), "caminho": r.get("caminho"),
+            "registro": r.get("registro"), "leituras": r.get("leituras"),
+            "faltas": [re.sub(r"[\w.+-]+@[\w.-]+", "<e-mail>", f) for f in r.get("faltas") or []],
+            "avisos": [re.sub(r"[\w.+-]+@[\w.-]+", "<e-mail>", f) for f in r.get("avisos") or []],
+            "mutacoes": [m.get("nome") for m in muts],
+            "chamadas": [c.get("operacao") for c in r.get("chamadas") or []],
+        }
+        cc = next((m for m in muts if m.get("nome") == "createCard"), None)
+        if cc:
+            campos = cc["variables"]["input"]["fields_attributes"]
+            item["createCard"] = {"pipe_id": cc["variables"]["input"]["pipe_id"], "campos": len(campos),
+                                  "ids": sorted(f["field_id"] for f in campos)}
+        out.append(item)
+    return out
+
+
+def esperar_pipefy(pid: str, minimo: int, limite_s: int = 300):
+    """Espera o cron processar os envios do Pipefy do pedido (nenhum pendente nem processando)."""
+    fim = time.time() + limite_s
+    while True:
+        r = sql("select count(*) filter (where status in ('pendente', 'processando'))::int abertos, count(*)::int total "
+                f"from integracoes.pipefy_envios where origem = 'fat_pedido' and origem_id = {lit(pid)}::uuid")[0]
+        if (r["total"] >= minimo and r["abertos"] == 0) or time.time() > fim:
+            return r
+        time.sleep(20)
 
 
 def main():
@@ -273,6 +310,20 @@ def main():
             falhas.append("chave na resposta")
         if not nao_existe:
             falhas.append("a OS existe no Omie da DOC")
+
+        # Pipefy: criar_card (na entrada da fila) e o movimento do simulado, processados pela mesma edge.
+        esperar_pipefy(pid, 2)
+        pf = envios_pipefy(pid)
+        print(json.dumps({"pipefy": pf}, ensure_ascii=False, indent=1))
+        criar = next((e for e in pf if e["operacao"] == "criar_card"), None)
+        if not criar or criar["status"] != "simulado":
+            falhas.append(f"criar_card em {criar and criar['status']}: {criar and criar['erro']}")
+        elif not (criar.get("validacao") or {}).get("ok") or (criar.get("createCard") or {}).get("pipe_id") != "307098392":
+            falhas.append("createCard montado não validou contra o schema")
+        if any(c for e in pf for c in e["chamadas"] if c != "Colaboradores"):
+            falhas.append("chamada ao Pipefy além da leitura de Colaboradores")
+        if any(e["card_id"] for e in pf):
+            falhas.append("card_id gravado em simulação")
         print(json.dumps({"resultado": "passou" if not falhas else "falhou", "falhas": falhas}, ensure_ascii=False))
     finally:
         # Descarta sem apagar: devolve (tesouraria) e o autor descarta; se não der, pede e efetiva o cancelamento.
@@ -302,6 +353,10 @@ def main():
             tenta("remover papel de teste", f"ops.fat_dono_remover({lit(criado_dono)}::uuid)")
         print(json.dumps({"descarte": final, "papel_de_teste_removido": bool(criado_dono), "tropecos": tropecos},
                          ensure_ascii=False))
+        # Os movimentos do card na devolução e no cancelamento também passam pela edge (simulado).
+        esperar_pipefy(pid, 4)
+        pos = [e for e in envios_pipefy(pid) if e["para"] in ("devolvido", "cancelado")]
+        print(json.dumps({"pipefy_descarte": pos}, ensure_ascii=False, indent=1))
 
 if __name__ == "__main__":
     main()

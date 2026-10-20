@@ -9,6 +9,7 @@ import {
   classificarErroOmie,
   criarOmie,
   decidir,
+  documento,
   documentoFormatado,
   ErroOmie,
   EscritaBloqueada,
@@ -754,7 +755,7 @@ test("garantir_cliente: achado pelo código de integração não inclui; achado 
   assert.equal(r2.codigos.codigo_cliente_omie, 777);
   assert.equal(r2.codigos.cliente_existia, true);
   assert.deepEqual(escritas(f2), []);
-  assert.deepEqual(f2.chamadas[1].param.clientesFiltro, { cnpj_cpf: "11222333000181" });
+  assert.deepEqual(f2.chamadas[1].param.clientesFiltro, { cnpj_cpf: "11.222.333/0001-81" });
 });
 
 test("garantir_cliente em gravar: não existe → IncluirCliente; 'já cadastrado' na corrida → consulta e segue", async () => {
@@ -1063,6 +1064,107 @@ test("sincronizar_servicos: pagina de 50 em 50 e manda o catálogo ao banco; lis
   assert.equal(r2.status, "erro");
   assert.match(r2.erro_legivel, /catálogo de serviços vazio: nada mudou/);
   assert.equal(c2.aplicados.servicos.length, 0);
+});
+
+// ---------------------------------------------------------------------------------------------- endereço e CNPJ alfanumérico
+
+const RECEITA_DOC = {
+  cnpj: "11222333000181",
+  logradouro: "Rua Marechal Deodoro",
+  numero: "630",
+  complemento: "Conj. 1501",
+  bairro: "Centro",
+  cep: "80010010",
+  municipio: "Curitiba",
+  uf: "PR",
+  fonte: "CNPJá aberta",
+};
+
+test("cliente novo com consulta da Receita: endereço completo, CEP com máscara e pesquisa de CEP", () => {
+  const c = montarCliente(payloadPJ({ tomador: { municipio: null, uf: null } }), RECEITA_DOC);
+  assert.equal(c.endereco, "Rua Marechal Deodoro");
+  assert.equal(c.endereco_numero, "630");
+  assert.equal(c.complemento, "Conj. 1501");
+  assert.equal(c.bairro, "Centro");
+  assert.equal(c.cep, "80010-010");
+  assert.equal(c.pesquisar_cep, "S");
+  assert.equal(c.cidade, "Curitiba");
+  assert.equal(c.estado, "PR");
+  assert.ok(
+    !("endereco" in montarCliente(payloadPJ(), null)),
+    "sem consulta, nada de endereço inventado",
+  );
+});
+
+test("garantir_cliente: cliente novo usa a Receita em cache; sem consulta ou PF, só município e UF com aviso", async () => {
+  const semCliente = () =>
+    omieFalso({ ConsultarCliente: erro500(NAO_CLI), ListarClientes: { clientes_cadastro: [] } });
+  const pedidos = [];
+  const f1 = semCliente();
+  const r1 = await processarEnvio(
+    envio("garantir_cliente"),
+    contexto(f1, "simular", {
+      receitaCnpj: async (d) => {
+        pedidos.push(d);
+        return RECEITA_DOC;
+      },
+    }).ctx,
+  );
+  assert.equal(r1.status, "simulado");
+  assert.deepEqual(pedidos, ["11222333000181"]);
+  assert.equal(r1.resposta.param.endereco, "Rua Marechal Deodoro");
+  assert.equal(r1.resposta.leituras.endereco_da_receita, true);
+  assert.deepEqual(r1.resposta.avisos, []);
+
+  const r2 = await processarEnvio(
+    envio("garantir_cliente"),
+    contexto(semCliente(), "simular", { receitaCnpj: async () => null }).ctx,
+  );
+  assert.match(
+    r2.resposta.avisos[0],
+    /^Sem consulta da Receita com endereço no Brain para este CNPJ/,
+  );
+  assert.equal(r2.resposta.param.cidade, "Curitiba");
+
+  const consultas = [];
+  const r3 = await processarEnvio(
+    envio("garantir_cliente", { payload: payloadPFParceladoRecibo() }),
+    contexto(semCliente(), "simular", {
+      receitaCnpj: async (d) => {
+        consultas.push(d);
+        return null;
+      },
+    }).ctx,
+  );
+  assert.deepEqual(consultas, [], "CPF não tem consulta da Receita");
+  assert.match(
+    r3.resposta.avisos[0],
+    /^Pessoa física: o cliente entra no Omie só com município e UF/,
+  );
+});
+
+test("CNPJ alfanumérico (IN RFB 2.229/2024): normaliza, formata e passa pelo garantir_cliente", async () => {
+  assert.equal(documento("12.abc.345/01de-35"), "12ABC34501DE35");
+  assert.equal(documentoFormatado("12ABC34501DE35"), "12.ABC.345/01DE-35");
+  const p = payloadPJ({
+    tomador: { documento: "12ABC34501DE35", codigo_cliente_integracao: "12ABC34501DE35" },
+  });
+  const f = omieFalso({
+    ConsultarCliente: erro500(NAO_CLI),
+    ListarClientes: {
+      clientes_cadastro: [
+        { codigo_cliente_omie: 31, cnpj_cpf: "12.ABC.345/01DE-35", inativo: "N" },
+      ],
+    },
+  });
+  const r = await processarEnvio(
+    envio("garantir_cliente", { payload: p }),
+    contexto(f, "simular").ctx,
+  );
+  assert.equal(r.status, "simulado");
+  assert.equal(r.codigos.codigo_cliente_omie, 31);
+  assert.deepEqual(f.chamadas[1].param.clientesFiltro, { cnpj_cpf: "12.ABC.345/01DE-35" });
+  assert.equal(montarCliente(p).cnpj_cpf, "12.ABC.345/01DE-35");
 });
 
 // ---------------------------------------------------------------------------------------------- a fila

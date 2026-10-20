@@ -5867,3 +5867,53 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
   - Pelo PostgREST o papel é `authenticated`, que não lê `receita.fat_pedidos`. Todo `fat_pedido_salvar` e todo `fat_pedido_enviar` da tela morre no commit com "permission denied for table fat_pedidos".
   - O gate da T1b não pega o erro porque termina em rollback, e o gatilho adiado nunca dispara.
   - O teste de integração contorna: devolve o papel a postgres antes do commit e diz isso no código.
+
+## [2026-10-20] Portal de Faturamento, T3 e endereço: card do pipe 307098392 em simulação, cliente novo com o endereço da Receita
+
+**Contexto:** decisão fechada com a Ana: o pedido nasce no portal e o card do Contas a Receber anda junto, como painel (spec §13.3, item 4). Fontes: `e1/pipefy-307098392-mapa.md`, incluindo a "Mudança de 20/10" (CPF e CNPJ fora dos obrigatórios; checklist `cpf_cnpj_do_cliente_conferido` em SOLICITAÇÃO ABERTA), e `e1/pipefy-307098392-schema.json`. O coordenador corrigiu na fundação o gatilho das parcelas (`20261020180000`), e o contorno saiu do teste de integração.
+
+**Decisões:**
+- **Mesma edge, depois do Omie.** `faturamento-omie` processa o Omie (até 60 s) e, na mesma rodada, `pipefy_envios` (até 25 s), pelas passagens `ops.fat_conector_pipefy_*`. O cron é o mesmo e acorda a edge quando há envio vencido em qualquer das filas. Token: o `PIPEFY_TOKEN` que já estava nos segredos do projeto; nenhum token foi gravado.
+- **Simulação:** com `pipefy_sync = false` (todas hoje), o cliente GraphQL recusa toda `mutation` antes da rede.
+  - Só sai a consulta da Table Colaboradores, para a mutation já ter os ids.
+  - O envio grava `simulado` com as mutations montadas e validadas contra o schema: campo, tipo, opção exata, obrigatórios e movimentos permitidos.
+  - Card inválido (emissora sem opção no pipe) vira `erro` com a frase do que o Pipefy recusaria.
+- **Schema como dado:** `pipefy-307098392.ts`, gerado por `scripts/faturamento/gerar-pipefy-schema.py` a partir do JSON, com a Mudança de 20/10 aplicada no script. Dá 17 obrigatórios no formulário.
+- **criar_card:**
+  - Vão os 17 obrigatórios a partir da foto do pedido.
+  - O solicitante, e o dono em "Coordenação responsável", são casados pelo e-mail comercial. Sem par em gravação, o envio fica `pendente` com o e-mail a cadastrar e cria sozinho depois do cadastro.
+  - À vista manda "1" parcela. Vigências: a competência (dia 1) e o último vencimento.
+  - Nota de débito vai como "Recibo", porque o pipe não tem a opção.
+  - Número do pedido, descrição da NF, parcelas e e-mails extras vão em Observações, que abrem com "não lançar no Omie".
+  - O checklist de documento conferido é marcado pelo portal.
+  - Em gravação, antes de criar, o conector procura um card com o título do projeto e o número do pedido em Observações, para não criar dois.
+- **Fases:**
+  - `em_conferencia`: Responsável pelo ticket = quem conferiu (sem conferência, quem faturou, devolveu ou cancelou); → VALIDAÇÃO.
+  - `faturado`: sempre passa por APROVADO (Status "Faturado", data e nº/link da NFS-e) → REALIZADO, com o PDF da NFS-e, lido do Omie em gravação, no "Upload do e-mail".
+  - `devolvido`: → ABERTA, com "Não" e o motivo.
+  - `cancelado`: → ARQUIVADO, sem passar por fases de faturado, a não ser que o card já esteja lá.
+  - Os obrigatórios de fase são preenchidos antes de sair. Em gravação, a fase e os campos são lidos do card; em simulação, são estimados pelo histórico.
+- **Não movem e só registram:** `simulado`, `os_criada` (espera a conferência), `erro_omie`, `em_atraso`, `cancelamento_pedido`, reenvio (`na_fila_omie` de novo) e **`recebido`**. FINALIZADO quer dizer "e-mail anexado", e o pipe não tem campo de pagamento.
+- **Endereço do cliente novo (Omie):** vem da consulta da Receita em cache, com logradouro, número, complemento, bairro, CEP e `pesquisar_cep`. Sem consulta, ou com PF, vai só município e UF, com aviso.
+  - A migration acrescenta as colunas, a gravação e a leitura (`ops.fat_conector_receita_cnpj`).
+  - Quem consulta a CNPJá (T4) precisa passar o endereço.
+- **CNPJ alfanumérico** (ajuste da T1b): o conector normaliza o documento em letras e dígitos maiúsculos e formata a máscara sem supor que é só dígito.
+
+**Onde:**
+- Código: `supabase/functions/faturamento-omie/pipefy.ts` e `pipefy-307098392.ts`, e `index.ts` e `logica.ts` ajustados.
+- Testes: `tests/faturamento-pipefy.test.mjs` (18) e `tests/faturamento-omie.test.mjs` (31).
+- Banco: migration, rollback e gate `20261020190000_portal_faturamento_conector_pipefy`.
+- Contrato: API.md "Mudanças" (20/10, conector do Omie e do Pipefy).
+
+**Status:**
+- Aplicado, gate passando antes e depois.
+- Edge publicada.
+- **Integração em simulação passou** com o FAT-2026-000004, da DOC:
+  - Omie `simulado`, e a OS não existe no Omie.
+  - `criar_card` `simulado`, com 19 campos e a validação ok; 38 Colaboradores lidos.
+  - Devolução e cancelamento `simulado`.
+  - Pedido descartado com rastro.
+- **Para gravar no Pipefy faltam:**
+  - o Pedro e os solicitantes, donos e pessoas da tesouraria cadastrados na Table Colaboradores;
+  - opção no select para FINANCE, ASCENDIA, PNE e CONCILIADOR (esta só como "fora da v1");
+  - o teste numa cópia do pipe (mapa §8.8).
