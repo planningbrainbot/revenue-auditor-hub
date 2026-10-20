@@ -5857,4 +5857,13 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - Edge publicada (`--no-verify-jwt`).
 - Cron aplicado e conferido pelo gate antes e depois.
 - Todas as emissoras em `simular`.
-- Teste de integração esperando as funções `ops.fat_conector_*`.
+- **Integração em simulação passou em 20/10.** O FAT-2026-000002 da DOC, para um CNPJ real de cliente dela, foi para `simulado` em 40 s pelo cron.
+  - `garantir_cliente`: cliente achado pelo CNPJ.
+  - `incluir_os`: IncluirOS montado, com o aviso de conta corrente.
+  - Só leituras (ConsultarCliente, ListarClientes, ConsultarOS, ConsultarCadastroServico) e nenhuma chave na resposta.
+  - `ConsultarOS` depois: "OS não cadastrada".
+  - O pedido foi devolvido e descartado (cancelado, "descartado pelo autor", com os eventos). O papel de dono de teste do Pedro na DOC foi desativado.
+- **Achado para a T1a/T1b (não corrigido aqui):** `receita.fat_parcelas_conferir()` não é `security definer` e roda como gatilho de restrição adiado no commit, com o papel da sessão.
+  - Pelo PostgREST o papel é `authenticated`, que não lê `receita.fat_pedidos`. Todo `fat_pedido_salvar` e todo `fat_pedido_enviar` da tela morre no commit com "permission denied for table fat_pedidos".
+  - O gate da T1b não pega o erro porque termina em rollback, e o gatilho adiado nunca dispara.
+  - O teste de integração contorna: devolve o papel a postgres antes do commit e diz isso no código.

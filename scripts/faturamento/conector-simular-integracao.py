@@ -71,12 +71,18 @@ def lit(v) -> str:
 
 
 def como_pedro(chamada: str):
-    """Chama uma RPC de tela como o Pedro logado (authenticated + claims do JWT), numa transação da Management API."""
+    """Chama uma RPC de tela como o Pedro logado (authenticated + claims do JWT), numa transação da Management API.
+
+    O papel volta a postgres ANTES do commit: o gatilho de restrição adiado receita.fat_parcelas_conferir (T1a) roda
+    no commit com o papel da sessão e, como não é security definer, o authenticated não lê receita.fat_pedidos
+    ("permission denied", achado em 20/10). Até a T1a/T1b corrigirem o gatilho, é assim que o teste chega ao conector.
+    A RPC em si roda como o Pedro, com todas as conferências dela."""
     claims = json.dumps({"sub": PEDRO, "role": "authenticated"})
     r = sql(f"set local role authenticated; select set_config('request.jwt.claims', {lit(claims)}, true); "
-            f"select {chamada} as r;")
+            f"select set_config('t2.r', ({chamada})::text, true); reset role; "
+            "select current_setting('t2.r') as r;")
     v = r[-1]["r"] if r else None
-    return json.loads(v) if isinstance(v, str) else v
+    return json.loads(v) if isinstance(v, str) and v else v
 
 
 def mascara(doc: str) -> str:
@@ -146,15 +152,15 @@ def verificar() -> dict:
     return out
 
 
-def cnpj_real_da_doc(omie: OmieLeitura) -> str:
+def cnpj_real_da_doc(omie: OmieLeitura) -> tuple:
     st, b = omie.call("geral/clientes", "ListarClientesResumido",
                       {"pagina": 1, "registros_por_pagina": 50, "apenas_importado_api": "N"})
     if st != 200:
         raise SystemExit(f"ListarClientesResumido HTTP {st}")
     for c in b.get("clientes_cadastro_resumido") or []:
         d = re.sub(r"\D", "", c.get("cnpj_cpf") or "")
-        if len(d) == 14:
-            return d
+        if len(d) == 14 and (c.get("razao_social") or "").strip():
+            return d, c["razao_social"].strip()
     raise SystemExit("Nenhum cliente PJ na primeira página do Omie da DOC")
 
 
@@ -179,7 +185,7 @@ def main():
     doc_id = pre["doc_id"]
 
     omie = OmieLeitura(doc_id)
-    cnpj = cnpj_real_da_doc(omie)
+    cnpj, razao = cnpj_real_da_doc(omie)
     servico = sql("select id::text, codigo from receita.fat_servicos where emissora_id = "
                   f"{lit(doc_id)}::uuid and ativo and tem_tributacao and coalesce(no_omie, true) order by codigo limit 1")
     if not servico:
@@ -195,7 +201,7 @@ def main():
 
     venc = (dt.date.today() + dt.timedelta(days=30)).isoformat()
     dados = {
-        "emissora_id": doc_id, "dono_id": PEDRO, "tomador_tipo": "pj", "tomador_documento": cnpj,
+        "emissora_id": doc_id, "dono_id": PEDRO, "tomador_tipo": "pj", "tomador_documento": cnpj, "tomador_nome": razao,
         "emails_envio": ["faturamento.teste@planning.com.br"], "projeto": "Teste do conector do Omie (T2)",
         "servico_id": servico[0]["id"], "descricao_nf": "Teste do conector do Omie em simulação: não faturar",
         "valor": 1.00, "forma": "avulso", "parcelas": 1, "primeiro_vencimento": venc, "documento": "nf",
@@ -211,14 +217,17 @@ def main():
         if enviado.get("status") != "na_fila_omie":
             raise SystemExit(f"Esperava na_fila_omie, veio {enviado.get('status')}")
 
-        # A edge publicada processa (o cron a cada 2 minutos também pegaria; chamamos para não esperar).
+        # Quem processa é a edge publicada, chamada pelo cron a cada 2 minutos. Só se ele não processar em 4 minutos
+        # o teste chama a edge direto, com o mesmo cabeçalho do cron.
         status = None
-        for _ in range(8):
-            print(json.dumps({"edge": chamar_edge()}, ensure_ascii=False))
+        for i in range(24):
             status = sql(f"select status, simulacao from receita.fat_pedidos where id = {lit(pid)}::uuid")[0]
             if status["status"] != "na_fila_omie":
                 break
+            if i in (12, 18):
+                print(json.dumps({"edge_direto": chamar_edge()}, ensure_ascii=False))
             time.sleep(20)
+        print(json.dumps({"processado_em_s": i * 20}, ensure_ascii=False))
         envios = sql("select operacao, status, modo, erro_legivel, resposta from integracoes.omie_envios "
                      f"where origem = 'fat_pedido' and origem_id = {lit(pid)}::uuid order by created_at")
         resumo = []
@@ -237,8 +246,20 @@ def main():
             })
         print(json.dumps({"situacao": status, "envios": resumo}, ensure_ascii=False, indent=1))
 
-        st, b = omie.call("servicos/os", "ConsultarOS", {"cCodIntOS": numero})
-        nao_existe = st != 200 and "não cadastrada" in str(b)
+        def consultar_os():
+            st, b = omie.call("servicos/os", "ConsultarOS", {"cCodIntOS": numero})
+            try:
+                return st, (json.loads(b).get("faultstring", "") if isinstance(b, str) else "")
+            except ValueError:
+                return st, str(b)
+
+        st, fala = consultar_os()
+        if "REDUNDANT" in fala:
+            # A edge acabou de fazer a mesma consulta: o Omie pede para esperar. Espera o prazo e lê uma vez só.
+            m = re.search(r"(\d+)\s*segundo", fala)
+            time.sleep((int(m.group(1)) if m else 40) + 10)
+            st, fala = consultar_os()
+        nao_existe = st != 200 and "não cadastrad" in fala
         print(json.dumps({"omie_consultar_os": {"http": st, "os_nao_existe": nao_existe}}, ensure_ascii=False))
 
         falhas = []
