@@ -5803,3 +5803,13 @@ e zerava royalties, CSC, CAC e mídia. Migration da área escrita e NÃO aplicad
 - `ops.can('view.faturamento')` é verdadeiro para o Pedro (admin) e falso para a CS.
 - Ninguém recebeu papel.
 - As chaves das 4 empresas novas não foram testadas contra o Omie.
+
+## [2026-10-20] Portal de Faturamento, E1: contratos de tela aprovados
+
+**Contexto:** contratos em `docs/design/contratos/faturamento.md`, `faturamento-novo.md`, `faturamento-pedido.md`, `faturamento-tesouraria.md` e `faturamento-configuracao.md` (plano `PM Work/execution/portal-faturamento-prd-20261013/e1/PLANO-E1.md`).
+
+**Decisões do Pedro (20/10):**
+- "Contrato ok", com a lista de pedidos numa tela própria (`/faturamento/pedidos`): Meu faturamento é Visão geral e não leva tabela linha a linha.
+- Ninguém dá o OK no próprio pedido: o OK vem do dono, do gestor ou do substituto, e nunca de quem enviou, nem que seja gestor.
+- Pode tirar o obrigatório de CPF e CNPJ do formulário público do pipe 307098392 e passar a exigência para a fase seguinte, para o portal conseguir criar card pela API.
+- Rascunho descartado não é apagado: vira `cancelado` com o motivo "descartado pelo autor".
