@@ -6013,3 +6013,142 @@ No fim, o Pedro voltou a dono inativo da DOC. A consulta da CNPJá da DOC ficou 
 - Teste real: `PM Work/execution/portal-faturamento-prd-20261013/e1/jev_no_produto.mjs`, com o relatório em `e1/jev-no-produto.md`.
 
 **Custo do teste real:** 16 chamadas, US$ 0,000619, de 331 a 865 ms; mais 18 chamadas para comparar as redações da instrução, cerca de US$ 0,0004.
+
+## [2026-10-20] Portal de Faturamento, T2: conector do Omie (edge `faturamento-omie`) em simulação
+
+**Contexto:** plano E1 (`PM Work/execution/portal-faturamento-prd-20261013/e1/PLANO-E1.md`, linha T2), API da T1b (`e1/API.md` §0.6, §0.7, §2 e "Mudanças"), spec §5.2 e §8, achados do E0 §3. Campos do Omie conferidos na documentação oficial e em leituras reais da DOC em 20/10, que deram as mensagens de "não cadastrado" (Client-103 e 5004), a busca de cliente por CNPJ com e sem máscara, o StatusOS com `ListaRpsNfse` e os títulos por `nCodOS`. Gabarito de campos: a fonte publicada da `royalties-faturamento` e da `csc-faturamento-mensal`, baixada do banco único.
+
+**Decisões:**
+- **Banco pelas funções de passagem `ops.fat_conector_*`** (decisão do coordenador): `integracoes` não é exposto no PostgREST e não vai ser. A edge chama pelo PostgREST com o perfil `ops`, como as outras edges.
+- **Simulação é lista do que pode, não do que não pode.** O cliente do Omie, em modo diferente de `gravar` literal, só deixa passar Listar, Consultar, Status e Pesquisar. Escrita é recusada antes de qualquer rede. Em gravação, só passam IncluirCliente, IncluirOS, AlterarOS e FaturarOS.
+  - O modo é o do envio, congelado quando ele entrou na fila.
+  - Envio de gravação com a emissora de volta em simulação vira erro e não grava nada.
+- **Leitura atualiza o nosso cache nos dois modos:** `consultar_status` aplica o status (o banco ignora pedido simulado) e `sincronizar_servicos` aplica o catálogo. A trava vale para escrita no Omie.
+- **Cliente, nunca Upsert.** A ordem é: vínculo conhecido, depois código de integração (= documento), depois o CNPJ, porque há cadastro feito à mão sem código. Só então IncluirCliente. O `UpsertClienteCpfCnpj` reescreveria o e-mail e a razão social de cadastros existentes, por isso não é usado.
+  - O cliente novo leva a tag "Cliente" e um e-mail. Todos os e-mails vão na OS.
+- **OS:**
+  - Nasce na etapa 50, com `cCodParc` 999 e o bloco Parcelas (vencimentos do portal; tipo BOL ou PIX; meio 15 ou 17; pix sem boleto).
+  - Recibo e nota de débito saem por OS com `Email.cEnvRecibo = "S"` (Ana, 15/10), como royalties e CSC fazem.
+  - A descrição vai no item. No recibo, também em `cDadosAdicNF`, porque lá a linha impressa vem do cadastro do serviço.
+  - `cCodCategItem` repete a categoria (lição da CSC de 08/2026).
+  - Imposto nenhum no payload: vem do cadastro do serviço.
+  - O departamento é casado pelo nome com o `ListarDepartamentos` da emissora. Sem par, a OS vai sem departamento e com aviso.
+  - Projeto, competência e observações vão em `cObsOS`, que não sai na nota.
+- **Idempotência:** antes de incluir, o conector consulta pelo cCodIntOS. "Já existe" é sucesso, e escrita nunca se repete na mesma tentativa: a próxima começa pela consulta (CA-06).
+  - Antes de faturar, o conector lê o StatusOS. OS já faturada é sucesso.
+- **Gravar exige** cliente, serviço ativo no Omie, categoria e conta corrente. Hoje nenhuma emissora tem conta corrente padrão. Em simulação, as faltas viram `avisos` e o envio sai `simulado`.
+- **Faturar com boleto de vencimento passado é barrado antes do FaturarOS:** o Omie não fatura e a OS fica presa na 50 (royalties, São Luís, 15/09). A nota vem do StatusOS e os títulos do `PesquisarLancamentos` filtrado por `nCodOS`.
+- **Erros:**
+  - 425 MISUSE: `pendente` para depois do bloqueio + 30 s, com `bloquear_emissora_ate`. O resto da emissora na rodada volta sem chamar o Omie.
+  - 403 ou aplicativo suspenso: `erro` com `emissora_indisponivel`.
+  - REDUNDANT: na leitura, espera e repete; na escrita, volta para a fila.
+  - `SOAP-ENV:Client-*`: erro na hora, com a frase do Omie limpa.
+  - Rede e 5xx: pendente até 6 tentativas.
+  - A chave sai de todo texto de erro.
+- **Ritmo:** uma chamada por vez, pausa de 1,1 s por chave, no máximo 12 envios e 80 s por rodada, em lotes de 4. O que sobra no fim do tempo volta para a fila na hora.
+- **Cron** (`20261020160000`):
+  - `faturamento-omie-fila`, a cada 2 minutos. Só chama a edge com envio vencido na fila.
+  - `faturamento-omie-status`, às 8h, 12h e 16h de São Paulo, de segunda a sexta. Só chama com OS real em aberto.
+  - Os dois usam o cabeçalho `x-faturamento-cron` com o segredo `faturamento_cron_secret` do Vault, cujo mesmo valor está em `FATURAMENTO_CRON_SECRET` na edge.
+  - `ops.sync_log` (fonte `omie-faturamento`) só recebe rodada com trabalho ou erro.
+
+**Onde:** `supabase/functions/faturamento-omie/` (`index.ts`, `logica.ts`), `tests/faturamento-omie.test.mjs` (28 testes, `node --test`), migration, rollback e gate do cron, e o teste de integração `scripts/faturamento/conector-simular-integracao.py` (`--verificar` só confere).
+**Status:**
+- Edge publicada (`--no-verify-jwt`).
+- Cron aplicado e conferido pelo gate antes e depois.
+- Todas as emissoras em `simular`.
+- **Integração em simulação passou em 20/10.** O FAT-2026-000002 da DOC, para um CNPJ real de cliente dela, foi para `simulado` em 40 s pelo cron.
+  - `garantir_cliente`: cliente achado pelo CNPJ.
+  - `incluir_os`: IncluirOS montado, com o aviso de conta corrente.
+  - Só leituras (ConsultarCliente, ListarClientes, ConsultarOS, ConsultarCadastroServico) e nenhuma chave na resposta.
+  - `ConsultarOS` depois: "OS não cadastrada".
+  - O pedido foi devolvido e descartado (cancelado, "descartado pelo autor", com os eventos). O papel de dono de teste do Pedro na DOC foi desativado.
+- **Achado para a T1a/T1b (não corrigido aqui):** `receita.fat_parcelas_conferir()` não é `security definer` e roda como gatilho de restrição adiado no commit, com o papel da sessão.
+  - Pelo PostgREST o papel é `authenticated`, que não lê `receita.fat_pedidos`. Todo `fat_pedido_salvar` e todo `fat_pedido_enviar` da tela morre no commit com "permission denied for table fat_pedidos".
+  - O gate da T1b não pega o erro porque termina em rollback, e o gatilho adiado nunca dispara.
+  - O teste de integração contorna: devolve o papel a postgres antes do commit e diz isso no código.
+
+## [2026-10-20] Portal de Faturamento, T3 e endereço: card do pipe 307098392 em simulação, cliente novo com o endereço da Receita
+
+**Contexto:** decisão fechada com a Ana: o pedido nasce no portal e o card do Contas a Receber anda junto, como painel (spec §13.3, item 4). Fontes: `e1/pipefy-307098392-mapa.md`, incluindo a "Mudança de 20/10" (CPF e CNPJ fora dos obrigatórios; checklist `cpf_cnpj_do_cliente_conferido` em SOLICITAÇÃO ABERTA), e `e1/pipefy-307098392-schema.json`. O coordenador corrigiu na fundação o gatilho das parcelas (`20261020180000`), e o contorno saiu do teste de integração.
+
+**Decisões:**
+- **Mesma edge, depois do Omie.** `faturamento-omie` processa o Omie (até 60 s) e, na mesma rodada, `pipefy_envios` (até 25 s), pelas passagens `ops.fat_conector_pipefy_*`. O cron é o mesmo e acorda a edge quando há envio vencido em qualquer das filas. Token: o `PIPEFY_TOKEN` que já estava nos segredos do projeto; nenhum token foi gravado.
+- **Simulação:** com `pipefy_sync = false` (todas hoje), o cliente GraphQL recusa toda `mutation` antes da rede.
+  - Só sai a consulta da Table Colaboradores, para a mutation já ter os ids.
+  - O envio grava `simulado` com as mutations montadas e validadas contra o schema: campo, tipo, opção exata, obrigatórios e movimentos permitidos.
+  - Card inválido (emissora sem opção no pipe) vira `erro` com a frase do que o Pipefy recusaria.
+- **Schema como dado:** `pipefy-307098392.ts`, gerado por `scripts/faturamento/gerar-pipefy-schema.py` a partir do JSON, com a Mudança de 20/10 aplicada no script. Dá 17 obrigatórios no formulário.
+- **criar_card:**
+  - Vão os 17 obrigatórios a partir da foto do pedido.
+  - O solicitante, e o dono em "Coordenação responsável", são casados pelo e-mail comercial. Sem par em gravação, o envio fica `pendente` com o e-mail a cadastrar e cria sozinho depois do cadastro.
+  - À vista manda "1" parcela. Vigências: a competência (dia 1) e o último vencimento.
+  - Nota de débito vai como "Recibo", porque o pipe não tem a opção.
+  - Número do pedido, descrição da NF, parcelas e e-mails extras vão em Observações, que abrem com "não lançar no Omie".
+  - O checklist de documento conferido é marcado pelo portal.
+  - Em gravação, antes de criar, o conector procura um card com o título do projeto e o número do pedido em Observações, para não criar dois.
+- **Fases:**
+  - `em_conferencia`: Responsável pelo ticket = quem conferiu (sem conferência, quem faturou, devolveu ou cancelou); → VALIDAÇÃO.
+  - `faturado`: sempre passa por APROVADO (Status "Faturado", data e nº/link da NFS-e) → REALIZADO, com o PDF da NFS-e, lido do Omie em gravação, no "Upload do e-mail".
+  - `devolvido`: → ABERTA, com "Não" e o motivo.
+  - `cancelado`: → ARQUIVADO, sem passar por fases de faturado, a não ser que o card já esteja lá.
+  - Os obrigatórios de fase são preenchidos antes de sair. Em gravação, a fase e os campos são lidos do card; em simulação, são estimados pelo histórico.
+- **Não movem e só registram:** `simulado`, `os_criada` (espera a conferência), `erro_omie`, `em_atraso`, `cancelamento_pedido`, reenvio (`na_fila_omie` de novo) e **`recebido`**. FINALIZADO quer dizer "e-mail anexado", e o pipe não tem campo de pagamento.
+- **Endereço do cliente novo (Omie):** vem da consulta da Receita em cache, com logradouro, número, complemento, bairro, CEP e `pesquisar_cep`. Sem consulta, ou com PF, vai só município e UF, com aviso.
+  - A migration acrescenta as colunas, a gravação e a leitura (`ops.fat_conector_receita_cnpj`).
+  - Quem consulta a CNPJá (T4) precisa passar o endereço.
+- **CNPJ alfanumérico** (ajuste da T1b): o conector normaliza o documento em letras e dígitos maiúsculos e formata a máscara sem supor que é só dígito.
+
+**Onde:**
+- Código: `supabase/functions/faturamento-omie/pipefy.ts` e `pipefy-307098392.ts`, e `index.ts` e `logica.ts` ajustados.
+- Testes: `tests/faturamento-pipefy.test.mjs` (18) e `tests/faturamento-omie.test.mjs` (31).
+- Banco: migration, rollback e gate `20261020190000_portal_faturamento_conector_pipefy`.
+- Contrato: API.md "Mudanças" (20/10, conector do Omie e do Pipefy).
+
+**Status:**
+- Aplicado, gate passando antes e depois.
+- Edge publicada.
+- **Integração em simulação passou** com o FAT-2026-000004, da DOC:
+  - Omie `simulado`, e a OS não existe no Omie.
+  - `criar_card` `simulado`, com 19 campos e a validação ok; 38 Colaboradores lidos.
+  - Devolução e cancelamento `simulado`.
+  - Pedido descartado com rastro.
+- **Para gravar no Pipefy faltam:**
+  - o Pedro e os solicitantes, donos e pessoas da tesouraria cadastrados na Table Colaboradores;
+  - opção no select para FINANCE, ASCENDIA, PNE e CONCILIADOR (esta só como "fora da v1");
+  - o teste numa cópia do pipe (mapa §8.8).
+
+## [2026-10-20] Portal de Faturamento, T6: notificações por e-mail (RF-P12) em fila e em simulação
+
+**Contexto:** RF-P12 (OK pendente, devolução, faturado, em atraso e, pelo plano, erro no Omie). Trava do plano E1: e-mail desligado por variável.
+
+**Decisões:**
+- **Fila e quem recebe:**
+  - A fila é `integracoes.notificacoes`, alimentada por um **gatilho AFTER INSERT em `receita.fat_eventos`**. Nenhuma RPC muda de contrato e `receita.fat_transicao` não é tocada. Um erro ao notificar vira warning e nunca desfaz a transição.
+  - OK pendente vai para o dono e o substituto. Sem linha ativa de dono, vai para os gestores.
+  - Devolvido vai para o autor, com o motivo.
+  - Faturado vai para o dono e o solicitante, com número e link da nota. A volta de "em atraso" ou "recebido" para faturado não notifica.
+  - Em atraso vai para o dono.
+  - Erro no Omie vai para o autor e a tesouraria da emissora (`ops.can_user` com `edit.faturamento_tesouraria` e a emissora no recorte).
+  - O unique (evento, pedido, destinatário, transição) impede que a mesma pessoa receba duas vezes a mesma transição.
+- **Envio:** a edge `faturamento-omie` processa as notificações depois do Omie e do Pipefy, na mesma rodada.
+  - O envio é pelo SendGrid (o `SENDGRID_API_KEY` que já estava nos segredos), com remetente `noreply@planningbrain.com.br`.
+  - **Só `FATURAMENTO_EMAIL=sim` liga o envio, e a variável não foi criada.** Sem ela, a linha fica `simulado` com assunto e corpo prontos.
+  - Pedido simulado no Omie nunca gera e-mail de verdade.
+- **Texto:**
+  - O e-mail é curto, no layout dos e-mails do Brain (`src/lib/email-templates.ts`, rótulo "PORTAL DE FATURAMENTO"), com o botão para `https://planningbrain.com.br/faturamento/pedido/<id>`.
+  - CPF e CNPJ não vão nos dados da notificação. O que vier no motivo é mascarado: os 2 primeiros caracteres e os 2 dígitos verificadores.
+
+**Onde:**
+- Edge: `supabase/functions/faturamento-omie/notificacoes.ts` e `index.ts`.
+- Testes: `tests/faturamento-notificacoes.test.mjs` (8).
+- Banco: migration, rollback e gate `20261020200000_portal_faturamento_notificacoes`.
+- Integração: `scripts/faturamento/conector-simular-integracao.py --notificacoes`.
+
+**Status:**
+- Aplicado, com o gate passando antes e depois e a edge publicada.
+- **A integração passou** com o FAT-2026-000005 da DOC, que foi para Aguardando OK, devolvido e descartado:
+  - o OK pendente foi para a conta "Teste", que só no teste era dona;
+  - a devolução foi para o Pedro, autor e gestor no teste;
+  - as duas ficaram `simulado` e nada foi enviado;
+  - os dois papéis de teste foram desativados.
