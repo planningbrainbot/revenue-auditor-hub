@@ -81,7 +81,12 @@ export interface ClienteFunil {
   vendas: { mes: string; mrr: number }[];
   contratos: { mes: string; mrr: number }[];
   /** mês → valor recebido */
-  recebido: Record<string, number>;
+    recebido: Record<string, number>;
+  /**
+   * mês → faturado pela unidade no Omie dela (boletos não cancelados, por
+   * vencimento). Vazio quando a unidade não tem Omie sincronizado.
+   */
+  faturado: Record<string, number>;
 }
 
 /**
@@ -292,7 +297,8 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
         cnpj,
         vendas: [],
         contratos: [],
-        recebido: {},
+                recebido: {},
+        faturado: {},
       };
       fichas.push(f);
     }
@@ -520,7 +526,13 @@ export async function montarFunilRecebido(cliente: unknown): Promise<FunilRecebi
       pc: new Set<string>(),
     };
     const cli = digitos(t.cpf_cnpj) ?? chaveNome(t.cliente);
-    x.faturado += N(t.valor);
+        x.faturado += N(t.valor);
+    // Só nas fichas que já existem (venda ou recebido): cliente que só aparece
+    // no Omie não entra na lista, senão a carteira inteira viraria ficha.
+    const fc =
+      (digitos(t.cpf_cnpj) && indice.get(`${u.nome_da_praca}|c:${digitos(t.cpf_cnpj)}`)) ||
+      (chaveNome(t.cliente) && indice.get(`${u.nome_da_praca}|n:${chaveNome(t.cliente)}`));
+    if (fc) fc.faturado[mes] = (fc.faturado[mes] ?? 0) + N(t.valor);
     x.fc.add(cli);
     if (t.status_pagamento === "RECEBIDO") {
       x.recebidoOmie += N(t.valor);

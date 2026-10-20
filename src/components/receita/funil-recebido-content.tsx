@@ -302,7 +302,9 @@ function VisaoUnidades({
             .filter((u) => unidade === "todas" || u.nome === unidade)
             .filter((u) => !base.comOmie.includes(u.nome))
             .map((u) => u.nome)}
-          clientesPagaram={sel?.clientesPagaram ?? null}
+          clientes={base.clientes.filter((c) => unidade === "todas" || c.unidade === unidade)}
+          comOmie={base.comOmie}
+          noPeriodo={noPeriodo}
         />
         <GraficoMensal linhas={linhas} />
       </Secao>
@@ -505,104 +507,164 @@ function CacNaPartners({ partners }: { partners: CacPartners[] }) {
 
 // ---------------------------------------------------------------- funil e gráfico
 
-/** Da unidade para os clientes dela, em barras horizontais (mesmo desenho do Funil de CAC). */
+/**
+ * Da unidade para os clientes dela, em barras horizontais (mesmo desenho do
+ * Funil de CAC). Os mesmos clientes do começo ao fim: quem foi vendido no
+ * período, quantos deles assinaram, foram faturados e pagaram, com o valor só
+ * deles. A carteira inteira (clientes de antes, todos os meses) fica na linha de
+ * baixo, porque não é etapa do funil.
+ */
 function FunilHorizontal({
   t,
   faturado,
   semOmie,
-  clientesPagaram,
+  clientes,
+  comOmie,
+  noPeriodo,
 }: {
   t: Totais;
   faturado: FaturadoMes[];
   semOmie: string[];
-  clientesPagaram: number | null;
+  clientes: ClienteFunil[];
+  comOmie: string[];
+  noPeriodo: (mes: string) => boolean;
 }) {
-  const fat = faturado.reduce((a, f) => a + f.faturado, 0);
-  const recOmie = faturado.reduce((a, f) => a + f.recebidoOmie, 0);
-  const temOmie = faturado.length > 0;
+  const soma = (r: Record<string, number>, desde: string) =>
+    Object.entries(r).reduce((a, [m, v]) => (m >= desde ? a + v : a), 0);
+  const safra = clientes
+    .map((c) => {
+      const vendas = c.vendas.filter((v) => noPeriodo(v.mes));
+      if (!vendas.length) return null;
+      // Faturado e recebido do cliente desde o mês da primeira venda dele.
+      const desde = vendas.map((v) => v.mes).sort()[0];
+      return {
+        temOmie: comOmie.includes(c.unidade),
+        mrrVendido: vendas.reduce((a, v) => a + v.mrr, 0),
+        assinou: c.contratos.length > 0,
+        mrrContratado: c.contratos.reduce((a, v) => a + v.mrr, 0),
+        faturado: soma(c.faturado, desde),
+        recebido: soma(c.recebido, desde),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const n = safra.length;
+  const assinaram = safra.filter((x) => x.assinou);
+  const comOmieSafra = safra.filter((x) => x.temOmie);
+  const faturados = comOmieSafra.filter((x) => x.faturado > 0);
+  const pagaram = safra.filter((x) => x.recebido > 0);
+  const somaDe = (xs: typeof safra, k: "mrrVendido" | "mrrContratado" | "faturado" | "recebido") =>
+    xs.reduce((a, x) => a + x[k], 0);
+
   type Degrau = {
     rotulo: string;
-    valor: number | null;
-    qtd: string;
+    qtd: number;
+    nota: string;
     pct: string;
+    valor: number;
     opacidade: number;
   };
   const degraus: Degrau[] = [
     {
       rotulo: "Vendido",
-      valor: t.mrrVendido,
-      qtd: `${t.vendas} vendas`,
+      qtd: n,
+      nota: "MRR vendido",
       pct: "100%",
+      valor: somaDe(safra, "mrrVendido"),
       opacidade: 0.4,
     },
     {
       rotulo: "Contrato assinado",
-      valor: t.mrrContratado,
-      qtd: `${t.contratos} contratos`,
-      pct: pct(t.contratos, t.vendas),
+      qtd: assinaram.length,
+      nota: "MRR assinado",
+      pct: pct(assinaram.length, n),
+      valor: somaDe(assinaram, "mrrContratado"),
       opacidade: 0.55,
     },
     {
       rotulo: "Faturado pela unidade",
-      valor: temOmie ? fat : null,
-      qtd: temOmie ? "boletos no Omie" : "sem Omie",
-      pct: "",
+      qtd: faturados.length,
+      nota:
+        comOmieSafra.length < n
+          ? `de ${comOmieSafra.length} com Omie · soma dos boletos`
+          : "soma dos boletos",
+      pct: pct(faturados.length, comOmieSafra.length),
+      valor: somaDe(faturados, "faturado"),
       opacidade: 0.75,
     },
     {
       rotulo: "Recebido pela unidade",
-      valor: t.temRecebido ? t.recebido : null,
-      qtd: clientesPagaram != null ? `${clientesPagaram} clientes` : "dos clientes",
-      pct: "",
+      qtd: pagaram.length,
+      nota: "soma do que pagaram",
+      pct: pct(pagaram.length, n),
+      valor: somaDe(pagaram, "recebido"),
       opacidade: 1,
     },
   ];
-  const maximo = Math.max(...degraus.map((d) => d.valor ?? 0), 1);
+
+  const fat = faturado.reduce((a, f) => a + f.faturado, 0);
+  const recOmie = faturado.reduce((a, f) => a + f.recebidoOmie, 0);
+
+  if (n === 0)
+    return (
+      <EstadoVazio titulo="Nenhuma venda no período" descricao="Troque a unidade ou o período." />
+    );
+
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4">
+      <div className="grid grid-cols-[170px_1fr_190px_120px] gap-3 text-xs text-muted-foreground">
+        <span>Clientes vendidos no período</span>
+        <span />
+        <span className="text-right">Clientes · % da etapa</span>
+        <span className="text-right">Valor</span>
+      </div>
       {degraus.map((d) => (
         <div
           key={d.rotulo}
-          className="grid grid-cols-[170px_1fr_150px_120px] items-center gap-3 text-[13px]"
+          className="grid grid-cols-[170px_1fr_190px_120px] items-center gap-3 text-[13px]"
         >
           <span className="text-muted-foreground">{d.rotulo}</span>
           <div className="h-7 w-full rounded-md bg-muted">
             <div
               className="h-7 rounded-md bg-primary"
-              style={{
-                width: `${d.valor == null ? 0 : Math.max(1, (d.valor / maximo) * 100)}%`,
-                opacity: d.opacidade,
-              }}
+              style={{ width: `${n ? Math.max(1, (d.qtd / n) * 100) : 0}%`, opacity: d.opacidade }}
             />
           </div>
-          <span className="num text-right text-muted-foreground">
-            {d.qtd}
-            {d.pct && <span className="font-semibold text-foreground"> · {d.pct}</span>}
+          <span className="num text-right">
+            <span className="font-semibold">{d.qtd}</span>
+            <span className="text-muted-foreground"> · {d.pct}</span>
+            <span className="block text-xs text-muted-foreground">{d.nota}</span>
           </span>
           <span className="num text-right font-semibold">{brl(d.valor)}</span>
         </div>
       ))}
-      {temOmie && (
-        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-[13px]">
-          <span className="text-muted-foreground">No Omie da unidade</span>
-          <span>
-            Faturado: <span className="num font-semibold">{brl(fat)}</span>
-          </span>
-          <span>
-            Recebido: <span className="num font-semibold">{brl(recOmie)}</span>
-          </span>
-          <span>
-            Em aberto: <span className="num font-semibold">{brl(fat - recOmie)}</span>
-          </span>
-          <span className="text-muted-foreground">{pct(recOmie, fat)} do faturado</span>
-        </div>
-      )}
+      <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-[13px]">
+        <span className="text-muted-foreground">Carteira toda no período (fora do funil)</span>
+        <span>
+          Recebido pela unidade:{" "}
+          <span className="num font-semibold">{t.temRecebido ? brl(t.recebido) : "—"}</span>
+        </span>
+        {faturado.length > 0 && (
+          <>
+            <span>
+              Faturado no Omie: <span className="num font-semibold">{brl(fat)}</span>
+            </span>
+            <span>
+              Recebido no Omie: <span className="num font-semibold">{brl(recOmie)}</span>
+            </span>
+            <span>
+              Em aberto: <span className="num font-semibold">{brl(fat - recOmie)}</span>
+            </span>
+          </>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
-        Vendido e assinado em MRR (honorário mensal da venda). Faturado são os boletos da unidade
-        aos clientes no Omie dela, por vencimento até hoje; recebido pela unidade segue a régua da
-        página (apuração, ou boleto pago depois do split), e por isso pode passar do faturado.
-        {semOmie.length > 0 &&
-          ` Sem Omie sincronizado, faturado fica de fora: ${semOmie.join(", ")}.`}
+        O funil segue os mesmos clientes: os vendidos no período, e destes quantos assinaram, foram
+        faturados e pagaram. Vendido e assinado são MRR (um mês de honorário); faturado e recebido
+        somam todos os meses desde a venda, por isso podem passar do MRR conforme o cliente paga. O
+        faturado só existe para unidades com o Omie sincronizado
+        {semOmie.length > 0 ? ` (fora: ${semOmie.join(", ")})` : ""}. A carteira toda inclui
+        clientes vendidos antes do período e de antes da rede.
       </p>
     </div>
   );
